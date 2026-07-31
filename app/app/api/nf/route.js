@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -9,4 +8,3 @@ export async function GET() {
   });
   return Response.json(nfs);
 }
-

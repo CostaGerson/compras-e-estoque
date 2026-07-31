@@ -468,6 +468,7 @@ function NF() {
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState(null); // {tipo:'ok'|'erro', texto}
+  const [arrastando, setArrastando] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
@@ -508,9 +509,18 @@ function NF() {
 
   return (
     <div className="max-w-4xl">
-      <div className="rounded-lg p-5 mb-5" style={{ background: C.panel, border: `1px dashed ${C.accent}88` }}>
+      <div
+        onDragOver={(e) => { e.preventDefault(); if (!enviando) setArrastando(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setArrastando(false); }}
+        onDrop={(e) => {
+          e.preventDefault(); setArrastando(false);
+          if (!enviando) enviar(e.dataTransfer.files?.[0]);
+        }}
+        className="rounded-lg p-5 mb-5 transition-colors"
+        style={{ background: arrastando ? C.accentSoft : C.panel, border: `2px dashed ${arrastando ? C.accent : C.accent + "88"}` }}>
         <div className="font-semibold mb-1">Importar Nota Fiscal</div>
         <p className="text-xs mb-4" style={{ color: C.sub }}>
+          {arrastando ? "Solte o arquivo aqui…" : "Arraste um XML ou PDF para esta área, ou clique no botão. "}
           Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte mais confiável; o PDF importa o cabeçalho e valida a natureza.
         </p>
         <label className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold cursor-pointer"
