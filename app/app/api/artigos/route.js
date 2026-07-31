@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 const dec = (v) => (v === "" || v === null || v === undefined ? null : v);
@@ -15,7 +15,7 @@ export async function GET() {
 export async function POST(req) {
   const b = await req.json();
   if (!b.nome || !b.nome.trim())
-    return Response.json({ error: "Nome do artigo Ã© obrigatÃ³rio" }, { status: 400 });
+    return Response.json({ error: "Nome do artigo é obrigatório" }, { status: 400 });
   const artigo = await prisma.artigo.create({
     data: {
       categoria: b.categoria || "MALHA",
@@ -35,4 +35,3 @@ export async function POST(req) {
   });
   return Response.json(artigo, { status: 201 });
 }
-

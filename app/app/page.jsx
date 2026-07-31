@@ -709,10 +709,11 @@ const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento
 
 function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
   const [novo, setNovo] = useState(false);
+  const [editando, setEditando] = useState(null);
   return (
     <div>
       <div className="flex justify-between items-center mb-3">
-        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s)</div>
+        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s) · clique para editar</div>
         <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
       </div>
 
@@ -725,7 +726,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
         </div>
         {artigos.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {artigos.map((a) => (
-          <div key={a.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div key={a.id} onClick={() => setEditando(a)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
             <div className="flex-1 font-medium">{a.nome}</div>
             <div className="flex-1" style={{ color: C.sub }}>{a.fornecedor?.nome || "—"}</div>
@@ -734,6 +736,119 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             {master && <div className="w-28" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
           </div>
         ))}
+      </div>
+
+      {editando && (
+        <ArtigoEditModal artigo={editando} fornecedores={fornecedores} master={master}
+          onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
+      )}
+    </div>
+  );
+}
+
+function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
+  const val = (v) => (v === null || v === undefined ? "" : String(v));
+  const [f, setF] = useState({
+    categoria: artigo.categoria || "MALHA",
+    fornecedorId: artigo.fornecedorId ? String(artigo.fornecedorId) : "",
+    nome: val(artigo.nome), cor: val(artigo.cor),
+    tipoMalha: artigo.tipoMalha || "TUBULAR",
+    composicao: val(artigo.composicao), largura: val(artigo.largura),
+    rendimento: val(artigo.rendimento), gramatura: val(artigo.gramatura),
+    especificacao: val(artigo.especificacao), unidade: artigo.unidade || "M",
+    valorUnitario: val(artigo.valorUnitario),
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const salvar = async () => {
+    setErro("");
+    if (!f.nome.trim()) return setErro("Informe o nome do artigo.");
+    setSalvando(true);
+    const r = await fetch(`/api/artigos/${artigo.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
+    });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  const inativar = async () => {
+    if (!confirm("Inativar este artigo? Ele deixa de aparecer na lista.")) return;
+    await fetch(`/api/artigos/${artigo.id}`, { method: "DELETE" });
+    onSaved();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 640, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="font-semibold">Editar artigo</div>
+          <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+        </div>
+
+        <div className="p-5">
+          <div className="text-xs mb-2" style={{ color: C.sub }}>Categoria</div>
+          <div className="flex gap-2 mb-4">
+            {CATS.map(([k, l]) => (
+              <button key={k} onClick={() => set("categoria", k)} className="px-4 py-2 rounded-md text-sm"
+                style={{ background: f.categoria === k ? C.accentSoft : C.panel2, color: f.categoria === k ? C.accent : C.sub, border: `1px solid ${f.categoria === k ? C.accent : C.line}` }}>{l}</button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <Sel label="Fornecedor" value={f.fornecedorId} onChange={(e) => set("fornecedorId", e.target.value)}>
+              <option value="">— selecione —</option>
+              {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </Sel>
+            <In label="Nome do artigo" value={f.nome} onChange={(e) => set("nome", e.target.value)} />
+            <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
+          </div>
+
+          {f.categoria === "MALHA" && (
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <Sel label="Tipo" value={f.tipoMalha} onChange={(e) => set("tipoMalha", e.target.value)}>
+                <option value="TUBULAR">Tubular</option><option value="RAMADA">Ramada</option>
+              </Sel>
+              <In label="Composição" value={f.composicao} onChange={(e) => set("composicao", e.target.value)} />
+              <In label="Largura (m)" value={f.largura} onChange={(e) => set("largura", e.target.value)} inputMode="decimal" />
+              <In label="Rendimento" value={f.rendimento} onChange={(e) => set("rendimento", e.target.value)} inputMode="decimal" />
+            </div>
+          )}
+          {f.categoria === "TECIDO" && (
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <In label="Composição" value={f.composicao} onChange={(e) => set("composicao", e.target.value)} />
+              <In label="Largura (m)" value={f.largura} onChange={(e) => set("largura", e.target.value)} inputMode="decimal" />
+              <In label="Gramatura (g/m²)" value={f.gramatura} onChange={(e) => set("gramatura", e.target.value)} inputMode="decimal" />
+            </div>
+          )}
+          {f.categoria === "AVIAMENTO" && (
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <In label="Especificação" value={f.especificacao} onChange={(e) => set("especificacao", e.target.value)} />
+              <Sel label="Unidade" value={f.unidade} onChange={(e) => set("unidade", e.target.value)}>
+                {["UN","M","KG","PC","CM"].map((u) => <option key={u} value={u}>{u}</option>)}
+              </Sel>
+            </div>
+          )}
+
+          {master && (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <In label="Preço (R$)" value={f.valorUnitario} onChange={(e) => set("valorUnitario", e.target.value)} inputMode="decimal" />
+            </div>
+          )}
+
+          {erro && <div className="text-xs mb-3" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={inativar} className="text-xs" style={{ color: "#B42318" }}>Inativar artigo</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+          </div>
+        </div>
       </div>
     </div>
   );
