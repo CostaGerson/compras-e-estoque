@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
+const soDigitos = (s) => (s || "").replace(/\D/g, "");
+
 export async function GET() {
   const fornecedores = await prisma.fornecedor.findMany({
     where: { ativo: true },
@@ -15,8 +17,8 @@ export async function POST(req) {
   if (!b.nome || !b.nome.trim())
     return Response.json({ error: "Nome comercial é obrigatório" }, { status: 400 });
   const cnpjs = Array.isArray(b.cnpjs)
-    ? b.cnpjs.filter((c) => c && c.cnpj && c.cnpj.trim())
-             .map((c) => ({ cnpj: c.cnpj.trim(), razaoSocial: c.razaoSocial || null }))
+    ? b.cnpjs.map((c) => ({ cnpj: soDigitos(c.cnpj), razaoSocial: c.razaoSocial || null }))
+             .filter((c) => c.cnpj)
     : [];
   try {
     const forn = await prisma.fornecedor.create({
@@ -31,6 +33,6 @@ export async function POST(req) {
     });
     return Response.json(forn, { status: 201 });
   } catch (e) {
-    return Response.json({ error: "Nome ou CNPJ já cadastrado" }, { status: 409 });
+    return Response.json({ error: "Nome comercial ou algum CNPJ já cadastrado." }, { status: 409 });
   }
 }

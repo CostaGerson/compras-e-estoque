@@ -649,6 +649,7 @@ function FornecedoresPane({ fornecedores, onSaved }) {
   const [cnpjs, setCnpjs] = useState([{ cnpj: "", razaoSocial: "" }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [editando, setEditando] = useState(null);
 
   const setC = (i, campo, v) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: v } : c)));
 
@@ -683,22 +684,108 @@ function FornecedoresPane({ fornecedores, onSaved }) {
       </div>
 
       <div>
-        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) cadastrado(s)</div>
+        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) · clique para editar</div>
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
           {fornecedores.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor ainda.</div>}
           {fornecedores.map((f) => (
-            <div key={f.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div key={f.id} onClick={() => setEditando(f)} className="px-4 py-3 cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <div className="flex items-center justify-between">
                 <span className="font-medium">{f.nome}</span>
                 <span className="text-xs" style={{ color: C.sub }}>{f._count?.artigos ?? 0} artigo(s)</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
                 {f.cnpjs?.length ? f.cnpjs.map((c) => (
-                  <span key={c.id} className="text-xs px-2 py-0.5 rounded" style={{ background: C.panel2, color: C.sub }}>{c.cnpj}</span>
+                  <span key={c.id} className="text-xs px-2 py-0.5 rounded" style={{ background: C.panel2, color: C.sub }}>{fmtCnpj(c.cnpj)}</span>
                 )) : <span className="text-xs" style={{ color: C.sub }}>sem CNPJ</span>}
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {editando && (
+        <FornecedorEditModal fornecedor={editando}
+          onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
+      )}
+    </div>
+  );
+}
+
+function fmtCnpj(v) {
+  const d = (v || "").replace(/\D/g, "");
+  if (d.length !== 14) return v;
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+}
+
+function FornecedorEditModal({ fornecedor, onClose, onSaved }) {
+  const [nome, setNome] = useState(fornecedor.nome || "");
+  const [contato, setContato] = useState(fornecedor.contato || "");
+  const [telefone, setTelefone] = useState(fornecedor.telefone || "");
+  const [email, setEmail] = useState(fornecedor.email || "");
+  const [cnpjs, setCnpjs] = useState(
+    fornecedor.cnpjs?.length ? fornecedor.cnpjs.map((c) => ({ cnpj: fmtCnpj(c.cnpj), razaoSocial: c.razaoSocial || "" })) : [{ cnpj: "", razaoSocial: "" }]
+  );
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const setC = (i, campo, v) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: v } : c)));
+  const removeC = (i) => setCnpjs((cs) => cs.filter((_, j) => j !== i));
+
+  const salvar = async () => {
+    setErro("");
+    if (!nome.trim()) return setErro("Nome comercial é obrigatório.");
+    setSalvando(true);
+    const r = await fetch(`/api/fornecedores/${fornecedor.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, contato, telefone, email, cnpjs }),
+    });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  const inativar = async () => {
+    if (!confirm("Inativar este fornecedor? Ele deixa de aparecer na lista.")) return;
+    await fetch(`/api/fornecedores/${fornecedor.id}`, { method: "DELETE" });
+    onSaved();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 620, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="font-semibold">Editar fornecedor</div>
+          <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+        </div>
+
+        <div className="p-5">
+          <div className="mb-3"><In label="Nome comercial (obrigatório)" value={nome} onChange={(e) => setNome(e.target.value)} /></div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <In label="Contato" value={contato} onChange={(e) => setContato(e.target.value)} />
+            <In label="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+            <In label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+
+          <div className="text-xs mb-2" style={{ color: C.sub }}>CNPJs deste fornecedor (todos herdam o nome comercial acima)</div>
+          {cnpjs.map((c, i) => (
+            <div key={i} className="flex gap-2 mb-2 items-end">
+              <div className="flex-1"><In label={i === 0 ? "CNPJ" : ""} value={c.cnpj} onChange={(e) => setC(i, "cnpj", e.target.value)} placeholder="00.000.000/0000-00" /></div>
+              <div className="flex-1"><In label={i === 0 ? "Razão social (opcional)" : ""} value={c.razaoSocial} onChange={(e) => setC(i, "razaoSocial", e.target.value)} /></div>
+              <button onClick={() => removeC(i)} className="px-2 py-1.5 rounded" style={{ color: "#B42318", border: `1px solid ${C.line}` }} title="Remover">×</button>
+            </div>
+          ))}
+          <button onClick={() => setCnpjs((cs) => [...cs, { cnpj: "", razaoSocial: "" }])} className="text-xs" style={{ color: C.accent }}>+ adicionar outro CNPJ</button>
+
+          {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={inativar} className="text-xs" style={{ color: "#B42318" }}>Inativar fornecedor</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+          </div>
         </div>
       </div>
     </div>
