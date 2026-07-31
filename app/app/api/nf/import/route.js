@@ -34,9 +34,21 @@ export async function POST(req) {
   const v = validarVenda(nf);
   if (!v.ok) return Response.json({ error: v.motivo, natureza: nf.natOp }, { status: 422 });
 
-  // 3) dedupe pela chave
-  const existente = await prisma.notaFiscal.findUnique({ where: { chave: nf.chave } });
-  if (existente) return Response.json({ error: "Esta NF já foi importada (chave já existe).", chave: nf.chave }, { status: 409 });
+  // 3) dedupe pela chave — se a NF já existe, anexa o arquivo que faltava (PDF/XML)
+  const existente = await prisma.notaFiscal.findUnique({
+    where: { chave: nf.chave },
+    select: { id: true, numero: true, arquivoXml: true, arquivoPdf: true },
+  });
+  if (existente) {
+    const upd = {};
+    if (arquivoPdf && !existente.arquivoPdf) { upd.arquivoPdf = arquivoPdf; upd.temPdf = true; }
+    if (arquivoXml && !existente.arquivoXml) { upd.arquivoXml = arquivoXml; upd.temXml = true; }
+    if (Object.keys(upd).length) {
+      await prisma.notaFiscal.update({ where: { id: existente.id }, data: upd });
+      return Response.json({ ok: true, anexado: true, numero: existente.numero, chave: nf.chave, temPdf: !!(existente.arquivoPdf || arquivoPdf) }, { status: 200 });
+    }
+    return Response.json({ error: "Esta NF já foi importada e já possui este arquivo.", chave: nf.chave }, { status: 409 });
+  }
 
   // 4) fornecedor pelo CNPJ do emitente
   let fornecedorId = null;
@@ -59,7 +71,9 @@ export async function POST(req) {
     data: {
       numero: nf.numero || nf.chave.slice(25, 34).replace(/^0+/, "") || nf.chave,
       chave: nf.chave, fornecedorId, status: "LANCADA",
-      arquivoXml, arquivoPdf, temPdf: !!arquivoPdf,
+      arquivoXml, arquivoPdf, temPdf: !!arquivoPdf, temXml: !!arquivoXml,
+      dataEmissao: nf.dataEmissao ? new Date(nf.dataEmissao) : null,
+      valorTotal: nf.valorTotal ?? null,
     },
   });
 

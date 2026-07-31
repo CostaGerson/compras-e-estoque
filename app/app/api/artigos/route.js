@@ -6,7 +6,7 @@ const dec = (v) => (v === "" || v === null || v === undefined ? null : v);
 export async function GET() {
   const artigos = await prisma.artigo.findMany({
     where: { ativo: true },
-    include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true } } },
+    include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true, temXml: true } } },
     orderBy: { createdAt: "desc" },
   });
   return Response.json(artigos);
@@ -33,7 +33,7 @@ export async function POST(req) {
       valorUnitario: dec(b.valorUnitario),
       dataCompra: b.dataCompra ? new Date(b.dataCompra) : null,
     },
-    include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true } } },
+    include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true, temXml: true } } },
   });
   return Response.json(artigo, { status: 201 });
 }

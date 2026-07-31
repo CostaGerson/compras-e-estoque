@@ -123,7 +123,7 @@ export default function Home() {
           {view === "pp" && <LancarPP />}
           {view === "pic" && <PIC />}
           {view === "oc" && <OC money={money} />}
-          {view === "nf" && <NF />}
+          {view === "nf" && <NF master={master} money={money} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME />}
           {view === "artigos" && <Artigos money={money} master={master} />}
@@ -463,7 +463,7 @@ function OC({ money }) {
     </div>
   );
 }
-function NF() {
+function NF({ master, money }) {
   const [nfs, setNfs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -515,6 +515,9 @@ function NF() {
       const data = await r.json();
       if (!r.ok) {
         setMsg({ tipo: "erro", texto: data.error || "Não foi possível importar." });
+      } else if (data.anexado) {
+        setMsg({ tipo: "ok", texto: `Arquivo anexado à NF ${data.numero} (já existente).` });
+        carregar();
       } else {
         setMsg({ tipo: "ok", texto: `NF ${data.numero} importada (${data.origem})${data.temPdf ? " · PDF anexado" : ""}. ${data.itensCriados} item(ns) · ${data.artigosCriados} artigo(s) novo(s), ${data.artigosVinculados} vinculado(s).` });
         carregar();
@@ -558,22 +561,35 @@ function NF() {
 
       <div className="text-xs mb-2" style={{ color: C.sub }}>Notas importadas</div>
       {loading ? <div style={{ color: C.sub }}>Carregando…</div> : (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+          <div style={{ minWidth: 900 }}>
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-            <div className="w-28">NF</div><div className="flex-1">Fornecedor</div><div className="w-24">Itens</div><div className="w-32">Status</div><div className="w-16 text-right">Ação</div>
+            <div className="w-24">NF</div>
+            <div className="flex-1">Fornecedor</div>
+            <div className="w-28">Emissão</div>
+            <div className="w-32">Valor total</div>
+            <div className="w-16 text-center">Itens</div>
+            <div className="w-28 text-center">Download</div>
+            <div className="w-20 text-right">Ação</div>
           </div>
           {nfs.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF importada ainda.</div>}
           {nfs.map((n) => (
             <div key={n.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="w-28 font-mono">{n.numero}</div>
+              <div className="w-24 font-mono">{n.numero}</div>
               <div className="flex-1">{n.fornecedor?.nome || "—"}</div>
-              <div className="w-24" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>
-              <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.blue + "1A", color: C.blue }}>{n.status}</span></div>
-              <div className="w-16 text-right">
+              <div className="w-28" style={{ color: C.sub }}>{fmtData(n.dataEmissao)}</div>
+              <div className="w-32" style={{ color: C.accent }}>{n.valorTotal != null ? money(Number(n.valorTotal)) : "—"}</div>
+              <div className="w-16 text-center" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>
+              <div className="w-28 text-center flex items-center justify-center gap-2">
+                {n.temPdf ? <a href={`/api/nf/${n.id}/pdf`} title="Baixar PDF" style={{ color: "#D64545", fontWeight: 700, textDecoration: "none" }}>PDF</a> : <span style={{ color: C.line }}>PDF</span>}
+                {n.temXml ? <a href={`/api/nf/${n.id}/xml`} title="Baixar XML" style={{ color: C.blue, fontWeight: 700, textDecoration: "none" }}>XML</a> : <span style={{ color: C.line }}>XML</span>}
+              </div>
+              <div className="w-20 text-right">
                 <button onClick={() => excluir(n)} title="Excluir NF" className="px-2 py-1 rounded text-xs" style={{ color: "#B42318", border: `1px solid ${C.line}` }}>Excluir</button>
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>
@@ -901,7 +917,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
           <div className="w-20">NF</div>
           <ThSort label="Data compra" campoKey="dataCompra" sort={sort} onSort={onSort} className="w-28" />
           {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
-          <div className="w-10 text-center">PDF</div>
+          <div className="w-16 text-center">Arquivo</div>
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
@@ -920,11 +936,9 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             <div className="w-20 font-mono" style={{ color: C.sub }}>{a.nf?.numero || "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{fmtData(a.dataCompra)}</div>
             {master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
-            <div className="w-10 text-center">
-              {a.nf?.temPdf ? (
-                <a href={`/api/nf/${a.nf.id}/pdf`} onClick={(e) => e.stopPropagation()} title="Baixar PDF da NF"
-                  style={{ color: "#D64545", fontWeight: 700, textDecoration: "none" }}>PDF</a>
-              ) : <span style={{ color: C.line }}>—</span>}
+            <div className="w-16 text-center flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {a.nf?.temPdf ? <a href={`/api/nf/${a.nf.id}/pdf`} title="Baixar PDF da NF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : <span style={{ color: C.line, fontSize: 11 }}>PDF</span>}
+              {a.nf?.temXml ? <a href={`/api/nf/${a.nf.id}/xml`} title="Baixar XML da NF" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : <span style={{ color: C.line, fontSize: 11 }}>XML</span>}
             </div>
           </div>
         ))}

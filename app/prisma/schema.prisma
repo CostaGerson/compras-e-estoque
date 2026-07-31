@@ -322,6 +322,9 @@ model NotaFiscal {
   arquivoPdf   String?
   arquivoXml   String?
   temPdf       Boolean  @default(false)
+  temXml       Boolean  @default(false)
+  dataEmissao  DateTime?
+  valorTotal   Decimal? @db.Decimal(14, 2)
   status       StatusNf @default(LANCADA)
   createdAt    DateTime @default(now())
 

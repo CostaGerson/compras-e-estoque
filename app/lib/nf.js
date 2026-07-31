@@ -76,6 +76,10 @@ export function parseXmlNfe(xml) {
     numero: ide.nNF != null ? String(ide.nNF) : null,
     serie: ide.serie != null ? String(ide.serie) : null,
     dataEmissao: ide.dhEmi || ide.dEmi || null,
+    valorTotal: (() => {
+      const tot = inf.total?.ICMSTot;
+      return tot && tot.vNF != null ? num(tot.vNF) : null;
+    })(),
     natOp: ide.natOp || null,
     tpNF: ide.tpNF != null ? String(ide.tpNF) : null,
     emit: {
