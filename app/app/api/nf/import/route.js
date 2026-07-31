@@ -10,7 +10,7 @@ export async function POST(req) {
   const { tipo, conteudo, pdfBase64 } = body || {};
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
-  // 1) parse (o XML é a fonte; guardamos o texto do XML e, se veio junto, o PDF)
+  // 1) parse
   let nf, arquivoXml = null, arquivoPdf = null;
   try {
     if (tipo === "xml") {
@@ -34,83 +34,92 @@ export async function POST(req) {
   const v = validarVenda(nf);
   if (!v.ok) return Response.json({ error: v.motivo, natureza: nf.natOp }, { status: 422 });
 
-  // 3) dedupe pela chave — se a NF já existe, anexa o arquivo que faltava (PDF/XML)
-  const existente = await prisma.notaFiscal.findUnique({
-    where: { chave: nf.chave },
-    select: { id: true, numero: true, arquivoXml: true, arquivoPdf: true },
-  });
-  if (existente) {
-    const upd = {};
-    if (arquivoPdf && !existente.arquivoPdf) { upd.arquivoPdf = arquivoPdf; upd.temPdf = true; }
-    if (arquivoXml && !existente.arquivoXml) { upd.arquivoXml = arquivoXml; upd.temXml = true; }
-    if (Object.keys(upd).length) {
-      await prisma.notaFiscal.update({ where: { id: existente.id }, data: upd });
-      return Response.json({ ok: true, anexado: true, numero: existente.numero, chave: nf.chave, temPdf: !!(existente.arquivoPdf || arquivoPdf) }, { status: 200 });
-    }
-    return Response.json({ error: "Esta NF já foi importada e já possui este arquivo.", chave: nf.chave }, { status: 409 });
-  }
-
-  // 4) fornecedor pelo CNPJ do emitente
+  // 3) fornecedor pelo CNPJ do emitente
   let fornecedorId = null;
   if (nf.emit?.cnpj) {
     const cnpjRow = await prisma.fornecedorCnpj.findUnique({ where: { cnpj: nf.emit.cnpj } });
     if (cnpjRow) fornecedorId = cnpjRow.fornecedorId;
     else {
       const forn = await prisma.fornecedor.create({
-        data: {
-          nome: "",
-          cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] },
-        },
+        data: { nome: "", cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] } },
       });
       fornecedorId = forn.id;
     }
   }
 
-  // 5) cria NF (guardando arquivos)
-  const notaFiscal = await prisma.notaFiscal.create({
-    data: {
-      numero: nf.numero || nf.chave.slice(25, 34).replace(/^0+/, "") || nf.chave,
-      chave: nf.chave, fornecedorId, status: "LANCADA",
-      arquivoXml, arquivoPdf, temPdf: !!arquivoPdf, temXml: !!arquivoXml,
-      dataEmissao: nf.dataEmissao ? new Date(nf.dataEmissao) : null,
-      valorTotal: nf.valorTotal ?? null,
-    },
+  // 4) NF: usa a existente (anexando arquivos) ou cria nova
+  const dataEmissao = nf.dataEmissao ? new Date(nf.dataEmissao) : null;
+  let notaFiscal = await prisma.notaFiscal.findUnique({
+    where: { chave: nf.chave },
+    select: { id: true, numero: true, fornecedorId: true, arquivoXml: true, arquivoPdf: true },
   });
+  let jaExistia = false;
 
-  // 6) itens + artigos (autopreenchimento, tudo editável depois)
-  const dataCompra = nf.dataEmissao ? new Date(nf.dataEmissao) : null;
-  const resumo = { itensCriados: 0, artigosCriados: 0, artigosVinculados: 0 };
-  for (const it of nf.itens) {
-    let artigoId = null;
-    if (fornecedorId && it.cProd) {
-      const existe = await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: it.cProd } });
-      if (existe) { artigoId = existe.id; resumo.artigosVinculados++;
-        await prisma.artigo.update({ where: { id: existe.id }, data: { nfId: notaFiscal.id, ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) } });
-      }
-    }
-    if (!artigoId) {
-      const campos = camposDoTexto(it.infAdProd || it.xProd);
-      const art = await prisma.artigo.create({
-        data: {
-          categoria: campos.categoria,
-          fornecedorId, nfId: notaFiscal.id,
-          codigoFornecedor: it.cProd || null,
-          nome: it.xProd || "Artigo sem nome",
-          composicao: campos.composicao,
-          largura: campos.largura,
-          gramatura: campos.gramatura,
-          unidade: unidadeDoUCom(it.uCom),
-          valorUnitario: it.vUn,
-          dataCompra,
-        },
-      });
-      artigoId = art.id; resumo.artigosCriados++;
-    }
-    await prisma.nfItem.create({
-      data: { nfId: notaFiscal.id, artigoId, descricaoNf: it.xProd, quantidade: it.qCom ?? 0, valorUnitario: it.vUn },
+  if (notaFiscal) {
+    jaExistia = true;
+    if (!fornecedorId) fornecedorId = notaFiscal.fornecedorId;
+    const upd = {};
+    if (arquivoPdf && !notaFiscal.arquivoPdf) { upd.arquivoPdf = arquivoPdf; upd.temPdf = true; }
+    if (arquivoXml && !notaFiscal.arquivoXml) { upd.arquivoXml = arquivoXml; upd.temXml = true; }
+    if (Object.keys(upd).length) await prisma.notaFiscal.update({ where: { id: notaFiscal.id }, data: upd });
+  } else {
+    notaFiscal = await prisma.notaFiscal.create({
+      data: {
+        numero: nf.numero || nf.chave.slice(25, 34).replace(/^0+/, "") || nf.chave,
+        chave: nf.chave, fornecedorId, status: "LANCADA",
+        arquivoXml, arquivoPdf, temPdf: !!arquivoPdf, temXml: !!arquivoXml,
+        dataEmissao, valorTotal: nf.valorTotal ?? null,
+      },
     });
-    resumo.itensCriados++;
   }
 
-  return Response.json({ ok: true, chave: nf.chave, numero: notaFiscal.numero, natureza: nf.natOp, origem: nf.origem, temPdf: !!arquivoPdf, ...resumo }, { status: 201 });
+  // 5) itens + artigos — garante que existam (recria os que faltam, reativa inativados)
+  const dataCompra = dataEmissao;
+  const resumo = { itensCriados: 0, artigosCriados: 0, artigosVinculados: 0, artigosReativados: 0 };
+  const jaTemItens = (await prisma.nfItem.count({ where: { nfId: notaFiscal.id } })) > 0;
+
+  if (jaTemItens) {
+    // NF já tinha itens: só reativa os artigos ligados (caso estivessem inativados)
+    const itens = await prisma.nfItem.findMany({ where: { nfId: notaFiscal.id, artigoId: { not: null } }, select: { artigoId: true } });
+    const ids = [...new Set(itens.map((i) => i.artigoId))];
+    if (ids.length) {
+      const r = await prisma.artigo.updateMany({ where: { id: { in: ids }, ativo: false }, data: { ativo: true } });
+      resumo.artigosReativados = r.count;
+    }
+  } else {
+    for (const it of nf.itens) {
+      let artigoId = null;
+      if (fornecedorId && it.cProd) {
+        const existe = await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: it.cProd } });
+        if (existe) {
+          artigoId = existe.id; resumo.artigosVinculados++;
+          await prisma.artigo.update({
+            where: { id: existe.id },
+            data: { ativo: true, nfId: notaFiscal.id, ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) },
+          });
+        }
+      }
+      if (!artigoId) {
+        const campos = camposDoTexto(it.infAdProd || it.xProd);
+        const art = await prisma.artigo.create({
+          data: {
+            categoria: campos.categoria, fornecedorId, nfId: notaFiscal.id,
+            codigoFornecedor: it.cProd || null, nome: it.xProd || "Artigo sem nome",
+            composicao: campos.composicao, largura: campos.largura, gramatura: campos.gramatura,
+            unidade: unidadeDoUCom(it.uCom), valorUnitario: it.vUn, dataCompra,
+          },
+        });
+        artigoId = art.id; resumo.artigosCriados++;
+      }
+      await prisma.nfItem.create({
+        data: { nfId: notaFiscal.id, artigoId, descricaoNf: it.xProd, quantidade: it.qCom ?? 0, valorUnitario: it.vUn },
+      });
+      resumo.itensCriados++;
+    }
+  }
+
+  return Response.json({
+    ok: true, jaExistia, chave: nf.chave, numero: notaFiscal.numero,
+    natureza: nf.natOp, origem: nf.origem, temPdf: !!(arquivoPdf), ...resumo,
+  }, { status: 201 });
 }

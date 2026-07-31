@@ -515,11 +515,15 @@ function NF({ master, money }) {
       const data = await r.json();
       if (!r.ok) {
         setMsg({ tipo: "erro", texto: data.error || "Não foi possível importar." });
-      } else if (data.anexado) {
-        setMsg({ tipo: "ok", texto: `Arquivo anexado à NF ${data.numero} (já existente).` });
-        carregar();
       } else {
-        setMsg({ tipo: "ok", texto: `NF ${data.numero} importada (${data.origem})${data.temPdf ? " · PDF anexado" : ""}. ${data.itensCriados} item(ns) · ${data.artigosCriados} artigo(s) novo(s), ${data.artigosVinculados} vinculado(s).` });
+        const base = data.jaExistia ? `NF ${data.numero} (já existente) atualizada` : `NF ${data.numero} importada (${data.origem})`;
+        const det = [];
+        if (data.itensCriados) det.push(`${data.itensCriados} item(ns)`);
+        if (data.artigosCriados) det.push(`${data.artigosCriados} artigo(s) novo(s)`);
+        if (data.artigosVinculados) det.push(`${data.artigosVinculados} vinculado(s)`);
+        if (data.artigosReativados) det.push(`${data.artigosReativados} reativado(s)`);
+        if (data.temPdf) det.push("PDF anexado");
+        setMsg({ tipo: "ok", texto: base + (det.length ? " · " + det.join(" · ") : "") + "." });
         carregar();
       }
     } catch (e) {
