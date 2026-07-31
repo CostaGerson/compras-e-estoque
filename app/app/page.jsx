@@ -925,6 +925,10 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
+  const [busca, setBusca] = useState("");
+  const [filtroForn, setFiltroForn] = useState("");
+  const [dataDe, setDataDe] = useState("");
+  const [dataAte, setDataAte] = useState("");
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   const campos = {
@@ -939,12 +943,51 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
     preco: [(a) => a.valorUnitario, "num"],
   };
   const [fn, tipo] = campos[sort.key] || campos.nome;
-  const lista = ordenar(artigos, fn, sort.dir, tipo);
+
+  const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
+  const filtrados = artigos.filter((a) => {
+    if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
+    if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
+    if (dataAte && (!a.dataCompra || new Date(a.dataCompra) > new Date(dataAte + "T23:59:59"))) return false;
+    if (tokens.length) {
+      const hay = norm([a.categoria, a.nome, a.artigoInterno, a.codigo, a.cor, a.composicao, a.especificacao, a.tipoMalha, a.unidade, a.largura, a.gramatura, a.rendimento, a.quantidade, a.valorUnitario, a.fornecedor?.nome, a.nf?.numero].filter((v) => v != null).join(" "));
+      if (!tokens.every((t) => hay.includes(t))) return false;
+    }
+    return true;
+  });
+  const lista = ordenar(filtrados, fn, sort.dir, tipo);
+  const temFiltro = busca || filtroForn || dataDe || dataAte;
+  const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); };
 
   return (
     <div>
+      <div className="flex flex-wrap items-end gap-2 mb-3">
+        <div style={{ flex: "1 1 220px" }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Busca em todos os campos…"
+            className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div style={{ flex: "0 1 200px" }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
+          <select value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+            <option value="">Todos</option>
+            {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>NF de</div>
+          <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>até</div>
+          <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        {temFiltro && <button onClick={limpar} className="px-3 py-1.5 rounded text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Limpar</button>}
+      </div>
+
       <div className="flex justify-between items-center mb-3">
-        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s) · clique numa linha para editar, no título para ordenar</div>
+        <div className="text-xs" style={{ color: C.sub }}>{lista.length} de {artigos.length} artigo(s) · clique na linha para editar, no título para ordenar</div>
         <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
       </div>
 
