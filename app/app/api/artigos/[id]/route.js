@@ -7,8 +7,9 @@ export async function PATCH(req, { params }) {
   const id = Number(params.id);
   const b = await req.json();
   const data = {};
-  for (const k of ["nome","artigoInterno","cor","composicao","especificacao","categoria","tipoMalha","unidade"])
-    if (k in b) data[k] = b[k] || null;
+  const UP = ["nome","artigoInterno","codigo","cor","composicao","especificacao"];
+  for (const k of ["nome","artigoInterno","codigo","cor","composicao","especificacao","categoria","tipoMalha","unidade"])
+    if (k in b) data[k] = b[k] ? (UP.includes(k) ? String(b[k]).toUpperCase() : b[k]) : null;
   for (const k of ["largura","rendimento","gramatura","valorUnitario","quantidade"])
     if (k in b) data[k] = dec(b[k]);
   if ("fornecedorId" in b) data.fornecedorId = b.fornecedorId ? Number(b.fornecedorId) : null;

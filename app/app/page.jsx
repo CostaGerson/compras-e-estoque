@@ -629,7 +629,19 @@ function In({ label, ...p }) {
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <input {...p} className="w-full px-2 py-1.5 rounded outline-none"
-        style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
+    </div>
+  );
+}
+function InCor({ label, value, onChange }) {
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+        <Bolinha cor={value} />
+        <input value={value} onChange={onChange} placeholder="Ex.: AZUL MARINHO"
+          className="flex-1 outline-none" style={{ background: "transparent", color: C.text, textTransform: "uppercase" }} />
+      </div>
     </div>
   );
 }
@@ -847,6 +859,35 @@ function FornecedorEditModal({ fornecedor, onClose, onSaved }) {
 
 const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento"]];
 
+const MAPA_COR = {
+  "branco": "#FFFFFF", "off white": "#F5F5EF", "cru": "#E8E0CF", "gelo": "#F0F4F8",
+  "preto": "#111111", "cinza": "#8A8F98", "chumbo": "#3A4149", "grafite": "#33383D", "prata": "#C7CBD1",
+  "azul": "#1E5AA8", "azul marinho": "#1B2A4A", "marinho": "#1B2A4A", "azul royal": "#1D4ED8", "azul claro": "#7DB8E8", "azul bebe": "#AFD3F0", "turquesa": "#30C7C0",
+  "vermelho": "#D0342C", "vinho": "#7B1E2B", "bordo": "#5E1A22", "rosa": "#E86AA6", "pink": "#E8368F", "salmao": "#F79C86", "coral": "#F0785A", "nude": "#E3BC9A",
+  "verde": "#2E9E5B", "verde bandeira": "#1FA24A", "verde militar": "#4B5320", "verde musgo": "#5A6650", "verde limao": "#9BCF3B",
+  "amarelo": "#F2C230", "ouro": "#D4AF37", "dourado": "#D4AF37", "mostarda": "#D9A521", "laranja": "#F07E24",
+  "roxo": "#7C3AED", "lilas": "#B79CD8", "violeta": "#8B5CF6", "marrom": "#8A5A2B", "caramelo": "#B26B32", "bege": "#D6C7A8", "caqui": "#B7A66B",
+};
+function corParaCss(nome) {
+  if (!nome) return null;
+  const n = nome.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  if (MAPA_COR[n]) return MAPA_COR[n];
+  const chaves = Object.keys(MAPA_COR).sort((a, b) => b.length - a.length);
+  for (const k of chaves) if (n.includes(k)) return MAPA_COR[k];
+  return null;
+}
+function Bolinha({ cor }) {
+  const css = corParaCss(cor);
+  return (
+    <span style={{
+      display: "inline-block", width: 12, height: 12, borderRadius: "50%",
+      background: css || "transparent",
+      border: css ? "1px solid rgba(0,0,0,0.25)" : "1px dashed #C7CBD1",
+      flexShrink: 0,
+    }} title={cor || "sem cor"} />
+  );
+}
+
 function fmtData(v) {
   if (!v) return "—";
   const d = new Date(v);
@@ -892,6 +933,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
     interno: [(a) => a.artigoInterno, "texto"],
     fornecedor: [(a) => a.fornecedor?.nome, "texto"],
     cor: [(a) => a.cor, "texto"],
+    codigo: [(a) => a.codigo, "texto"],
     quantidade: [(a) => a.quantidade, "num"],
     dataCompra: [(a) => a.dataCompra, "data"],
     preco: [(a) => a.valorUnitario, "num"],
@@ -909,13 +951,14 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: 1340 }}>
+        <div style={{ minWidth: 1460, fontSize: 12, textTransform: "uppercase" }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24" />
+          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-28" />
+          <ThSort label="Código" campoKey="codigo" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Qtd." campoKey="quantidade" sort={sort} onSort={onSort} className="w-24" />
           <div className="flex-1">Composição</div>
           <div className="w-20">Largura</div>
@@ -935,7 +978,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
-            <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
+            <div className="w-28 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span>{a.cor || "—"}</span></div>
+            <div className="w-24" style={{ color: C.sub }}>{a.codigo || "—"}</div>
             <div className="w-24" style={{ color: C.sub }}>{a.quantidade != null ? `${a.quantidade} ${a.unidade || ""}`.trim() : "—"}</div>
             <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
             <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
@@ -966,6 +1010,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
     categoria: artigo.categoria || "MALHA",
     fornecedorId: artigo.fornecedorId ? String(artigo.fornecedorId) : "",
     nome: val(artigo.nome), artigoInterno: val(artigo.artigoInterno), cor: val(artigo.cor),
+    codigo: val(artigo.codigo),
     quantidade: val(artigo.quantidade),
     tipoMalha: artigo.tipoMalha || "TUBULAR",
     composicao: val(artigo.composicao), largura: val(artigo.largura),
@@ -1023,7 +1068,8 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
             <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
+            <InCor label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
+            <In label="Código" value={f.codigo} onChange={(e) => set("codigo", e.target.value)} />
             <In label="Quantidade" value={f.quantidade} onChange={(e) => set("quantidade", e.target.value)} inputMode="decimal" />
           </div>
 
@@ -1094,7 +1140,7 @@ function detalheArtigo(a) {
 }
 
 function ArtigoForm({ fornecedores, master, onSaved }) {
-  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", quantidade: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
+  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", codigo: "", quantidade: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -1128,7 +1174,8 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
         <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} placeholder="Seu nome padrão" />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-3">
-        <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} placeholder="Ex.: Tutti Frutti" />
+        <InCor label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
+        <In label="Código" value={f.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Código do artigo/cor" />
         <In label="Quantidade" value={f.quantidade} onChange={(e) => set("quantidade", e.target.value)} inputMode="decimal" placeholder="Qtde da NF" />
       </div>
 

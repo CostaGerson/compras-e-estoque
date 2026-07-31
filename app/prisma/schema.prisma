@@ -123,6 +123,7 @@ model Artigo {
   nfId          Int?
   nome          String
   artigoInterno String?
+  codigo        String?
   cor           String?
   // específico de MALHA
   tipoMalha     TipoMalha?

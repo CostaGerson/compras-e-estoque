@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 const dec = (v) => (v === "" || v === null || v === undefined ? null : v);
+const up = (v) => (v ? String(v).toUpperCase() : null);
 
 export async function GET() {
   const artigos = await prisma.artigo.findMany({
@@ -20,15 +21,16 @@ export async function POST(req) {
     data: {
       categoria: b.categoria || "MALHA",
       fornecedorId: b.fornecedorId ? Number(b.fornecedorId) : null,
-      nome: b.nome.trim(),
-      artigoInterno: b.artigoInterno || null,
-      cor: b.cor || null,
+      nome: up(b.nome.trim()),
+      artigoInterno: up(b.artigoInterno),
+      codigo: up(b.codigo),
+      cor: up(b.cor),
       tipoMalha: b.tipoMalha || null,
-      composicao: b.composicao || null,
+      composicao: up(b.composicao),
       largura: dec(b.largura),
       rendimento: dec(b.rendimento),
       gramatura: dec(b.gramatura),
-      especificacao: b.especificacao || null,
+      especificacao: up(b.especificacao),
       unidade: b.unidade || "M",
       valorUnitario: dec(b.valorUnitario),
       quantidade: dec(b.quantidade),

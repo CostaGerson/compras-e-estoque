@@ -4,6 +4,8 @@ import { parseXmlNfe, parsePdfNfe, validarVenda, camposDoTexto, unidadeDoUCom } 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const up = (v) => (v ? String(v).toUpperCase() : v);
+
 export async function POST(req) {
   let body;
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
@@ -104,8 +106,8 @@ export async function POST(req) {
         const art = await prisma.artigo.create({
           data: {
             categoria: campos.categoria, fornecedorId, nfId: notaFiscal.id,
-            codigoFornecedor: it.cProd || null, nome: it.xProd || "Artigo sem nome",
-            composicao: campos.composicao, largura: campos.largura, gramatura: campos.gramatura,
+            codigoFornecedor: it.cProd || null, nome: up(it.xProd) || "ARTIGO SEM NOME",
+            composicao: up(campos.composicao), largura: campos.largura, gramatura: campos.gramatura,
             unidade: unidadeDoUCom(it.uCom), quantidade: it.qCom ?? null, valorUnitario: it.vUn, dataCompra,
           },
         });
