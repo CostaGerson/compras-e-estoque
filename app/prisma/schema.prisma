@@ -27,6 +27,18 @@ enum TipoTecido {
   PLANO
 }
 
+// Classificação do artigo no cadastro
+enum CategoriaArtigo {
+  MALHA
+  TECIDO
+  AVIAMENTO
+}
+
+enum TipoMalha {
+  TUBULAR
+  RAMADA
+}
+
 enum Unidade {
   M
   KG
@@ -77,10 +89,10 @@ model Usuario {
 }
 
 // ---------------- CADASTROS BASE ----------------
+// Fornecedor = Fabricante (nome comercial). Pode ter vários CNPJs.
 model Fornecedor {
   id        Int      @id @default(autoincrement())
-  nome      String
-  cnpj      String?
+  nome      String   @unique
   contato   String?
   telefone  String?
   email     String?
@@ -88,33 +100,52 @@ model Fornecedor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ocs OrdemCompra[]
-  nfs NotaFiscal[]
+  cnpjs   FornecedorCnpj[]
+  artigos Artigo[]
+  ocs     OrdemCompra[]
+  nfs     NotaFiscal[]
+}
+
+model FornecedorCnpj {
+  id           Int      @id @default(autoincrement())
+  fornecedorId Int
+  cnpj         String   @unique
+  razaoSocial  String?
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
 model Artigo {
-  id            Int         @id @default(autoincrement())
-  fabricante    String?
+  id            Int             @id @default(autoincrement())
+  categoria     CategoriaArtigo @default(MALHA)
+  fornecedorId  Int?
   nome          String
   cor           String?
-  tipo          String?
-  tipoTecido    TipoTecido?
-  construcao    String?
-  largura       Decimal?    @db.Decimal(10, 3)
-  rendimento    Decimal?    @db.Decimal(14, 3)
-  unidade       Unidade     @default(M)
-  valorUnitario Decimal?    @db.Decimal(14, 4)
-  ativo         Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  // específico de MALHA
+  tipoMalha     TipoMalha?
+  rendimento    Decimal?        @db.Decimal(14, 3)
+  // MALHA e TECIDO
+  composicao    String?
+  largura       Decimal?        @db.Decimal(10, 3)
+  // específico de TECIDO
+  gramatura     Decimal?        @db.Decimal(10, 2)
+  // específico de AVIAMENTO
+  especificacao String?
+  unidade       Unidade         @default(M)
+  // preço (visível só ao financeiro)
+  valorUnitario Decimal?        @db.Decimal(14, 4)
+  ativo         Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
-  ppItemArtigos  PpItemArtigo[]
-  picItens       PicItem[]
-  ocItens        OcItem[]
-  nfItens        NfItem[]
-  saldos         EstoqueSaldo[]
-  movimentacoes  EstoqueMovimentacao[]
-  fmeItens       FmeItem[]
+  fornecedor    Fornecedor?     @relation(fields: [fornecedorId], references: [id])
+  ppItemArtigos PpItemArtigo[]
+  picItens      PicItem[]
+  ocItens       OcItem[]
+  nfItens       NfItem[]
+  saldos        EstoqueSaldo[]
+  movimentacoes EstoqueMovimentacao[]
+  fmeItens      FmeItem[]
 }
 
 // ---------------- CATÁLOGO DE PEÇAS ----------------

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus,
@@ -501,10 +501,239 @@ function FME() {
     </div>
   );
 }
-function Artigos({ money, master }) {
+/* ===== Artigos & Fornecedores (ligado ao banco) ===== */
+function In({ label, ...p }) {
   return (
-    <Tabela cols={["Fabricante", "Artigo", "Cor", "Tecido", "Largura", ...(master ? ["Valor un."] : [])]}
-      rows={ARTIGOS.map((a) => [a.fab, a.nome, a.cor, a.tec || "—", a.larg ? a.larg + " m" : "—", ...(master ? [money(a.valor)] : [])])} />
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <input {...p} className="w-full px-2 py-1.5 rounded outline-none"
+        style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+    </div>
+  );
+}
+function Sel({ label, children, ...p }) {
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <select {...p} className="w-full px-2 py-1.5 rounded outline-none"
+        style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>{children}</select>
+    </div>
+  );
+}
+
+function Artigos({ money, master }) {
+  const [aba, setAba] = useState("artigos");
+  const [fornecedores, setFornecedores] = useState([]);
+  const [artigos, setArtigos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const [f, a] = await Promise.all([
+        fetch("/api/fornecedores").then((r) => r.json()),
+        fetch("/api/artigos").then((r) => r.json()),
+      ]);
+      setFornecedores(Array.isArray(f) ? f : []);
+      setArtigos(Array.isArray(a) ? a : []);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  return (
+    <div>
+      <div className="flex gap-1 mb-5">
+        {[["artigos", "Artigos"], ["fornecedores", "Fornecedores"]].map(([k, l]) => {
+          const on = aba === k;
+          return (
+            <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
+              style={{ background: on ? C.accentSoft : C.panel, color: on ? C.accent : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
+          );
+        })}
+      </div>
+      {loading ? (
+        <div style={{ color: C.sub }}>Carregando…</div>
+      ) : aba === "artigos" ? (
+        <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />
+      ) : (
+        <FornecedoresPane fornecedores={fornecedores} onSaved={carregar} />
+      )}
+    </div>
+  );
+}
+
+function FornecedoresPane({ fornecedores, onSaved }) {
+  const [nome, setNome] = useState("");
+  const [cnpjs, setCnpjs] = useState([{ cnpj: "", razaoSocial: "" }]);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const setC = (i, campo, v) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: v } : c)));
+
+  const salvar = async () => {
+    setErro("");
+    if (!nome.trim()) return setErro("Informe o nome comercial.");
+    setSalvando(true);
+    const r = await fetch("/api/fornecedores", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, cnpjs }),
+    });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    setNome(""); setCnpjs([{ cnpj: "", razaoSocial: "" }]); onSaved();
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-6">
+      <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="font-semibold mb-4">Novo fornecedor (nome comercial)</div>
+        <div className="mb-3"><In label="Nome comercial" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Malharia SP" /></div>
+        <div className="text-xs mb-2" style={{ color: C.sub }}>CNPJs (pode ter vários)</div>
+        {cnpjs.map((c, i) => (
+          <div key={i} className="grid grid-cols-2 gap-2 mb-2">
+            <In label={i === 0 ? "CNPJ" : ""} value={c.cnpj} onChange={(e) => setC(i, "cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
+            <In label={i === 0 ? "Razão social (opcional)" : ""} value={c.razaoSocial} onChange={(e) => setC(i, "razaoSocial", e.target.value)} />
+          </div>
+        ))}
+        <button onClick={() => setCnpjs((cs) => [...cs, { cnpj: "", razaoSocial: "" }])} className="text-xs mb-4" style={{ color: C.accent }}>+ adicionar outro CNPJ</button>
+        {erro && <div className="text-xs mb-3" style={{ color: "#D64545" }}>{erro}</div>}
+        <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold w-full" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar fornecedor"}</button>
+      </div>
+
+      <div>
+        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) cadastrado(s)</div>
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+          {fornecedores.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor ainda.</div>}
+          {fornecedores.map((f) => (
+            <div key={f.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{f.nome}</span>
+                <span className="text-xs" style={{ color: C.sub }}>{f._count?.artigos ?? 0} artigo(s)</span>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {f.cnpjs?.length ? f.cnpjs.map((c) => (
+                  <span key={c.id} className="text-xs px-2 py-0.5 rounded" style={{ background: C.panel2, color: C.sub }}>{c.cnpj}</span>
+                )) : <span className="text-xs" style={{ color: C.sub }}>sem CNPJ</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento"]];
+
+function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
+  const [novo, setNovo] = useState(false);
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-3">
+        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s)</div>
+        <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
+      </div>
+
+      {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
+
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+        <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="w-24">Categoria</div><div className="flex-1">Artigo</div><div className="flex-1">Fornecedor</div>
+          <div className="w-24">Cor</div><div className="flex-1">Detalhe</div>{master && <div className="w-28">Preço</div>}
+        </div>
+        {artigos.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
+        {artigos.map((a) => (
+          <div key={a.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
+            <div className="flex-1 font-medium">{a.nome}</div>
+            <div className="flex-1" style={{ color: C.sub }}>{a.fornecedor?.nome || "—"}</div>
+            <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
+            <div className="flex-1" style={{ color: C.sub }}>{detalheArtigo(a)}</div>
+            {master && <div className="w-28" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function detalheArtigo(a) {
+  if (a.categoria === "MALHA")
+    return [a.tipoMalha, a.composicao, a.largura && `${a.largura} m`, a.rendimento && `rend. ${a.rendimento}`].filter(Boolean).join(" · ") || "—";
+  if (a.categoria === "TECIDO")
+    return [a.composicao, a.largura && `${a.largura} m`, a.gramatura && `${a.gramatura} g/m²`].filter(Boolean).join(" · ") || "—";
+  return [a.especificacao, a.unidade].filter(Boolean).join(" · ") || "—";
+}
+
+function ArtigoForm({ fornecedores, master, onSaved }) {
+  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", cor: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const salvar = async () => {
+    setErro("");
+    if (!f.nome.trim()) return setErro("Informe o nome do artigo.");
+    setSalvando(true);
+    const r = await fetch("/api/artigos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  return (
+    <div className="rounded-lg p-5 mb-4" style={{ background: C.panel, border: `1px solid ${C.accent}66` }}>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>1. Categoria do artigo</div>
+      <div className="flex gap-2 mb-4">
+        {CATS.map(([k, l]) => (
+          <button key={k} onClick={() => set("categoria", k)} className="px-4 py-2 rounded-md text-sm"
+            style={{ background: f.categoria === k ? C.accentSoft : C.panel2, color: f.categoria === k ? C.accent : C.sub, border: `1px solid ${f.categoria === k ? C.accent : C.line}` }}>{l}</button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <Sel label="Fornecedor" value={f.fornecedorId} onChange={(e) => set("fornecedorId", e.target.value)}>
+          <option value="">— selecione —</option>
+          {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+        </Sel>
+        <In label="Nome do artigo" value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Ex.: Malha PV" />
+        <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} placeholder="Ex.: Tutti Frutti" />
+      </div>
+
+      {f.categoria === "MALHA" && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <Sel label="Tipo" value={f.tipoMalha} onChange={(e) => set("tipoMalha", e.target.value)}>
+            <option value="TUBULAR">Tubular</option><option value="RAMADA">Ramada</option>
+          </Sel>
+          <In label="Composição" value={f.composicao} onChange={(e) => set("composicao", e.target.value)} placeholder="Ex.: 67% PES 33% Visc" />
+          <In label="Largura (m)" value={f.largura} onChange={(e) => set("largura", e.target.value)} inputMode="decimal" />
+          <In label="Rendimento" value={f.rendimento} onChange={(e) => set("rendimento", e.target.value)} inputMode="decimal" placeholder="pç/kg ou m/kg" />
+        </div>
+      )}
+      {f.categoria === "TECIDO" && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <In label="Composição" value={f.composicao} onChange={(e) => set("composicao", e.target.value)} placeholder="Ex.: 100% Algodão" />
+          <In label="Largura (m)" value={f.largura} onChange={(e) => set("largura", e.target.value)} inputMode="decimal" />
+          <In label="Gramatura (g/m²)" value={f.gramatura} onChange={(e) => set("gramatura", e.target.value)} inputMode="decimal" />
+        </div>
+      )}
+      {f.categoria === "AVIAMENTO" && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <In label="Especificação" value={f.especificacao} onChange={(e) => set("especificacao", e.target.value)} placeholder="Ex.: Zíper 6mm nº 5" />
+          <Sel label="Unidade" value={f.unidade} onChange={(e) => set("unidade", e.target.value)}>
+            {["UN","M","KG","PC","CM"].map((u) => <option key={u} value={u}>{u}</option>)}
+          </Sel>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {master && <In label="Preço (R$)" value={f.valorUnitario} onChange={(e) => set("valorUnitario", e.target.value)} inputMode="decimal" />}
+      </div>
+
+      {erro && <div className="text-xs mb-3" style={{ color: "#D64545" }}>{erro}</div>}
+      <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar artigo"}</button>
+    </div>
   );
 }
 function Usuarios() {
