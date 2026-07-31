@@ -1,0 +1,391 @@
+// ============================================================
+// Compras & Estoque — Meridian
+// Schema Prisma (PostgreSQL)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- ENUMS ----------------
+enum Setor {
+  FINANCEIRO
+  PCP
+  COMPRAS
+  ESTOQUE
+  CORTE
+  EXPEDICAO
+}
+
+enum TipoTecido {
+  MALHA
+  PLANO
+}
+
+enum Unidade {
+  M
+  KG
+  UN
+  PC
+  CM
+}
+
+enum TipoMov {
+  ENTRADA
+  SAIDA
+  RETORNO
+  AJUSTE
+}
+
+enum NaturezaComponente {
+  MATERIAL
+  PERSONALIZACAO
+  PERIODO
+  VALOR
+}
+
+enum StatusNf {
+  LANCADA
+  APROVADA
+  RECEBIDA
+}
+
+// Etapas do chão de fábrica (fusão futura com o sistema "cronograma")
+enum Etapa {
+  CORTE
+  PERSONALIZACAO
+  COSTURA
+  ACABAMENTO
+}
+
+// ---------------- USUÁRIOS ----------------
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  login     String   @unique
+  senhaHash String
+  setor     Setor
+  isMaster  Boolean  @default(false)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------- CADASTROS BASE ----------------
+model Fornecedor {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  cnpj      String?
+  contato   String?
+  telefone  String?
+  email     String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ocs OrdemCompra[]
+  nfs NotaFiscal[]
+}
+
+model Artigo {
+  id            Int         @id @default(autoincrement())
+  fabricante    String?
+  nome          String
+  cor           String?
+  tipo          String?
+  tipoTecido    TipoTecido?
+  construcao    String?
+  largura       Decimal?    @db.Decimal(10, 3)
+  rendimento    Decimal?    @db.Decimal(14, 3)
+  unidade       Unidade     @default(M)
+  valorUnitario Decimal?    @db.Decimal(14, 4)
+  ativo         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  ppItemArtigos  PpItemArtigo[]
+  picItens       PicItem[]
+  ocItens        OcItem[]
+  nfItens        NfItem[]
+  saldos         EstoqueSaldo[]
+  movimentacoes  EstoqueMovimentacao[]
+  fmeItens       FmeItem[]
+}
+
+// ---------------- CATÁLOGO DE PEÇAS ----------------
+model TipoPeca {
+  id          Int              @id @default(autoincrement())
+  nome        String           @unique
+  componentes ComponentePeca[]
+  ppItens     PpItem[]
+}
+
+model ComponentePeca {
+  id         Int                @id @default(autoincrement())
+  tipoPecaId Int
+  ordem      Int
+  nome       String
+  natureza   NaturezaComponente @default(MATERIAL)
+
+  tipoPeca   TipoPeca           @relation(fields: [tipoPecaId], references: [id], onDelete: Cascade)
+  parametros PpItemParametro[]
+
+  @@unique([tipoPecaId, ordem])
+}
+
+// ---------------- PV / PP ----------------
+model Pv {
+  id            Int      @id @default(autoincrement())
+  numero        String   @unique
+  cliente       String
+  dataPedido    DateTime?
+  arquivoOrigem String?
+  status        String   @default("ABERTO")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  pps Pp[]
+}
+
+model Pp {
+  id        Int      @id @default(autoincrement())
+  pvId      Int
+  numero    String?  @unique
+  status    String   @default("EM_LANCAMENTO")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pv    Pv       @relation(fields: [pvId], references: [id], onDelete: Cascade)
+  itens PpItem[]
+}
+
+model PpItem {
+  id                Int      @id @default(autoincrement())
+  ppId              Int
+  tipoPecaId        Int
+  descricao         String?
+  quantidade        Decimal  @db.Decimal(14, 3)
+  valorTerceirizado Decimal? @db.Decimal(14, 2)
+  etapaAtual        Etapa?
+  createdAt         DateTime @default(now())
+
+  pp          Pp                 @relation(fields: [ppId], references: [id], onDelete: Cascade)
+  tipoPeca    TipoPeca           @relation(fields: [tipoPecaId], references: [id])
+  parametros  PpItemParametro[]
+  artigos     PpItemArtigo[]
+  picItens    PicItem[]
+  estratific  NfEstratificacao[]
+  etapas      EtapaMovimento[]
+}
+
+// Movimento de uma peça (ou parte dela) por uma etapa de produção.
+// Recebe a lógica que hoje vive no cronograma (state.json).
+model EtapaMovimento {
+  id         Int       @id @default(autoincrement())
+  ppItemId   Int
+  etapa      Etapa
+  quantidade Decimal   @db.Decimal(14, 3)
+  entradaEm  DateTime  @default(now())
+  saidaEm    DateTime?
+  observacao String?
+
+  ppItem PpItem @relation(fields: [ppItemId], references: [id], onDelete: Cascade)
+}
+
+model PpItemParametro {
+  id           Int      @id @default(autoincrement())
+  ppItemId     Int
+  componenteId Int
+  valorTexto   String?
+  createdAt    DateTime @default(now())
+
+  ppItem     PpItem         @relation(fields: [ppItemId], references: [id], onDelete: Cascade)
+  componente ComponentePeca @relation(fields: [componenteId], references: [id])
+}
+
+// ---------------- BOM / DEMANDA ----------------
+model PpItemArtigo {
+  id                Int         @id @default(autoincrement())
+  ppItemId          Int
+  artigoId          Int
+  tipoTecido        TipoTecido?
+  consumoPorPeca    Decimal?    @db.Decimal(14, 4)
+  rendimentoPorPeca Decimal?    @db.Decimal(14, 4)
+  demandaCalculada  Decimal?    @db.Decimal(14, 3)
+  createdAt         DateTime    @default(now())
+
+  ppItem PpItem @relation(fields: [ppItemId], references: [id], onDelete: Cascade)
+  artigo Artigo @relation(fields: [artigoId], references: [id])
+}
+
+// ---------------- PIC ----------------
+model Pic {
+  id        Int       @id @default(autoincrement())
+  numero    String    @unique
+  data      DateTime  @default(now())
+  status    String    @default("ABERTO")
+  createdAt DateTime  @default(now())
+
+  itens PicItem[]
+}
+
+model PicItem {
+  id         Int     @id @default(autoincrement())
+  picId      Int
+  artigoId   Int
+  ppItemId   Int?
+  quantidade Decimal @db.Decimal(14, 3)
+  atendido   Decimal @default(0) @db.Decimal(14, 3)
+
+  pic        Pic                @relation(fields: [picId], references: [id], onDelete: Cascade)
+  artigo     Artigo             @relation(fields: [artigoId], references: [id])
+  ppItem     PpItem?            @relation(fields: [ppItemId], references: [id])
+  ocItens    OcItem[]
+  estratific NfEstratificacao[]
+}
+
+// ---------------- OC ----------------
+model OrdemCompra {
+  id                  Int       @id @default(autoincrement())
+  numero              String    @unique
+  fornecedorId        Int
+  condicaoFaturamento String?
+  prazoFabrica        DateTime?
+  prazoTransportadora DateTime?
+  status              String    @default("ABERTA")
+  createdAt           DateTime  @default(now())
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id])
+  itens      OcItem[]
+}
+
+model OcItem {
+  id            Int     @id @default(autoincrement())
+  ocId          Int
+  artigoId      Int
+  picItemId     Int?
+  quantidade    Decimal @db.Decimal(14, 3)
+  valorUnitario Decimal @db.Decimal(14, 4)
+
+  oc      OrdemCompra @relation(fields: [ocId], references: [id], onDelete: Cascade)
+  artigo  Artigo      @relation(fields: [artigoId], references: [id])
+  picItem PicItem?    @relation(fields: [picItemId], references: [id])
+}
+
+// ---------------- NF + ESTRATIFICAÇÃO ----------------
+model NotaFiscal {
+  id           Int      @id @default(autoincrement())
+  numero       String
+  chave        String?  @unique
+  fornecedorId Int
+  arquivoPdf   String?
+  arquivoXml   String?
+  status       StatusNf @default(LANCADA)
+  createdAt    DateTime @default(now())
+
+  fornecedor    Fornecedor            @relation(fields: [fornecedorId], references: [id])
+  itens         NfItem[]
+  movimentacoes EstoqueMovimentacao[]
+  saldos        EstoqueSaldo[]
+}
+
+model NfItem {
+  id            Int      @id @default(autoincrement())
+  nfId          Int
+  artigoId      Int?
+  descricaoNf   String?
+  quantidade    Decimal  @db.Decimal(14, 3)
+  valorUnitario Decimal? @db.Decimal(14, 4)
+
+  nf          NotaFiscal         @relation(fields: [nfId], references: [id], onDelete: Cascade)
+  artigo      Artigo?            @relation(fields: [artigoId], references: [id])
+  estratific  NfEstratificacao[]
+}
+
+model NfEstratificacao {
+  id         Int     @id @default(autoincrement())
+  nfItemId   Int
+  picItemId  Int?
+  ppItemId   Int?
+  quantidade Decimal @db.Decimal(14, 3)
+
+  nfItem  NfItem   @relation(fields: [nfItemId], references: [id], onDelete: Cascade)
+  picItem PicItem? @relation(fields: [picItemId], references: [id])
+  ppItem  PpItem?  @relation(fields: [ppItemId], references: [id])
+}
+
+// ---------------- ESTOQUE ----------------
+model EnderecoEstoque {
+  id       Int    @id @default(autoincrement())
+  corredor String
+  celula   String
+
+  saldos        EstoqueSaldo[]
+  movimentacoes EstoqueMovimentacao[]
+
+  @@unique([corredor, celula])
+}
+
+model EstoqueSaldo {
+  id         Int     @id @default(autoincrement())
+  artigoId   Int
+  enderecoId Int?
+  saldo      Decimal @default(0) @db.Decimal(14, 3)
+  origemNfId Int?
+
+  artigo   Artigo           @relation(fields: [artigoId], references: [id])
+  endereco EnderecoEstoque? @relation(fields: [enderecoId], references: [id])
+  origemNf NotaFiscal?      @relation(fields: [origemNfId], references: [id])
+
+  @@unique([artigoId, enderecoId, origemNfId])
+}
+
+model EstoqueMovimentacao {
+  id         Int      @id @default(autoincrement())
+  artigoId   Int
+  enderecoId Int?
+  tipo       TipoMov
+  quantidade Decimal  @db.Decimal(14, 3)
+  nfId       Int?
+  fmeId      Int?
+  usuarioId  Int?
+  observacao String?
+  createdAt  DateTime @default(now())
+
+  artigo   Artigo           @relation(fields: [artigoId], references: [id])
+  endereco EnderecoEstoque? @relation(fields: [enderecoId], references: [id])
+  nf       NotaFiscal?      @relation(fields: [nfId], references: [id])
+  fme      Fme?             @relation(fields: [fmeId], references: [id])
+}
+
+// ---------------- FME ----------------
+model Fme {
+  id                 Int      @id @default(autoincrement())
+  numero             String   @unique
+  setorDemandante    Setor
+  responsavelEstoque Int?
+  responsavelSetor   String?
+  data               DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  itens         FmeItem[]
+  movimentacoes EstoqueMovimentacao[]
+}
+
+model FmeItem {
+  id             Int     @id @default(autoincrement())
+  fmeId          Int
+  artigoId       Int
+  qtdRetirada    Decimal @default(0) @db.Decimal(14, 3)
+  qtdDevolvida   Decimal @default(0) @db.Decimal(14, 3)
+  solicitaAjuste Boolean @default(false)
+  justificativa  String?
+
+  fme    Fme    @relation(fields: [fmeId], references: [id], onDelete: Cascade)
+  artigo Artigo @relation(fields: [artigoId], references: [id])
+}
