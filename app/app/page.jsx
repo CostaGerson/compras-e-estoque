@@ -13,7 +13,7 @@ const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
   text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", yellow: "#C08401",
-  sidebar: "#111725", sidebarLine: "#1E2636", sidebarSub: "#9AA4B2",
+  sidebar: "#001E41", sidebarLine: "#0C2C52", sidebarSub: "#9FB0C7",
 };
 
 const PEDIDOS = [
@@ -48,6 +48,7 @@ const COMPONENTES = {
 };
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 const NAV = [
+  { key: "inicio", label: "Início", icon: LayoutDashboard, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
   { key: "pedidos", label: "Pedidos", icon: ClipboardList, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
   { key: "producao", label: "Produção", icon: Workflow, perfis: ["FINANCEIRO","PCP","ESTOQUE"] },
   { key: "pp", label: "Lançar PP", icon: FileText, perfis: ["FINANCEIRO","PCP"] },
@@ -63,7 +64,7 @@ const NAV = [
 export default function Home() {
   const [logged, setLogged] = useState(false);
   const [perfil, setPerfil] = useState("FINANCEIRO");
-  const [view, setView] = useState("pedidos");
+  const [view, setView] = useState("inicio");
   const [tab, setTab] = useState("lista");
   const master = perfil === "FINANCEIRO";
   const [showVal, setShowVal] = useState(true);
@@ -73,19 +74,18 @@ export default function Home() {
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
-    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif" }} className="flex text-sm">
+    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
       <aside style={{ background: C.sidebar }} className="w-60 shrink-0 flex flex-col">
-        <div className="px-4 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
-          <Mountain size={22} color={C.accent} />
-          <span className="font-bold tracking-wide text-white">MERIDIAN</span>
-        </div>
+        <button onClick={() => setView("inicio")} className="px-4 py-4 flex items-center w-full" style={{ borderBottom: `1px solid ${C.sidebarLine}`, background: C.sidebar }}>
+          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
+        </button>
         <nav className="flex-1 py-2">
           {nav.map((n) => {
             const Ico = n.icon; const on = view === n.key;
             return (
               <button key={n.key} onClick={() => { setView(n.key); setTab("lista"); }}
                 className="w-full flex items-center gap-3 px-4 py-2 transition-colors"
-                style={{ background: on ? "#1E2636" : "transparent", color: on ? C.accent : C.sidebarSub,
+                style={{ background: on ? "#0C2C52" : "transparent", color: on ? C.accent : C.sidebarSub,
                   borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent" }}>
                 <Ico size={17} /> <span>{n.label}</span>
               </button>
@@ -117,6 +117,7 @@ export default function Home() {
         </header>
 
         <div className="flex-1 overflow-auto p-6">
+          {view === "inicio" && <Inicio money={money} master={master} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "producao" && <Producao />}
           {view === "pp" && <LancarPP />}
@@ -135,11 +136,10 @@ export default function Home() {
 
 function Login({ onEnter }) {
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif" }} className="flex items-center justify-center">
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
       <div style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
-        <div className="flex items-center gap-2 justify-center mb-1">
-          <Mountain size={30} color={C.accent} />
-          <span className="text-2xl font-bold tracking-wide" style={{ color: C.text }}>MERIDIAN</span>
+        <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
+          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 34, width: "auto" }} />
         </div>
         <p className="text-center text-xs mb-6" style={{ color: C.sub }}>Gestão de Material & Financeiro</p>
         <label className="text-xs" style={{ color: C.sub }}>Usuário</label>
@@ -147,6 +147,59 @@ function Login({ onEnter }) {
         <label className="text-xs" style={{ color: C.sub }}>Senha</label>
         <input type="password" defaultValue="••••••" className="w-full mb-5 mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
         <button onClick={onEnter} className="w-full py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Entrar</button>
+      </div>
+    </div>
+  );
+}
+
+function Inicio({ money, master }) {
+  const areas = [
+    { l: "Pedidos em aberto", v: "5", sub: "2 entregas nesta semana", c: C.accent },
+    { l: "Produção", v: "3", sub: "peças em etapa ativa", c: C.blue },
+    { l: "Compras", v: "2", sub: "OCs pendentes · 3 PICs hoje", c: C.yellow },
+    { l: "Estoque", v: "3", sub: "artigos endereçados", c: C.green },
+    ...(master ? [{ l: "Valor em estoque", v: money(19998), sub: "custo total", c: C.text }] : []),
+  ];
+  const bars = STATUS_COL.map((s) => ({ s, n: PEDIDOS.filter((p) => p.status === s).length }));
+  const maxB = Math.max(...bars.map((b) => b.n), 1);
+  const etapas = [
+    { e: "Corte", n: 1 }, { e: "Personalização", n: 1 }, { e: "Costura", n: 1 }, { e: "Acabamento", n: 0 },
+  ];
+  const maxE = Math.max(...etapas.map((x) => x.n), 1);
+  return (
+    <div>
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: `repeat(${areas.length}, minmax(0,1fr))` }}>
+        {areas.map((a) => (
+          <div key={a.l} className="rounded-lg p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="text-xs mb-2" style={{ color: C.sub }}>{a.l}</div>
+            <div className="text-2xl font-bold" style={{ color: a.c }}>{a.v}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>{a.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="text-sm font-semibold mb-4">Pedidos por status</div>
+          {bars.map((b) => (
+            <div key={b.s} className="flex items-center gap-3 mb-2">
+              <div className="w-36 text-xs" style={{ color: C.sub }}>{b.s}</div>
+              <div className="flex-1 h-5 rounded" style={{ background: C.panel2 }}>
+                <div className="h-5 rounded flex items-center px-2 text-xs font-medium" style={{ width: `${(b.n / maxB) * 100}%`, background: STATUS_COLOR[b.s], color: "#fff", minWidth: 24 }}>{b.n}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="text-sm font-semibold mb-4">Produção por etapa</div>
+          {etapas.map((x) => (
+            <div key={x.e} className="flex items-center gap-3 mb-2">
+              <div className="w-36 text-xs" style={{ color: C.sub }}>{x.e}</div>
+              <div className="flex-1 h-5 rounded" style={{ background: C.panel2 }}>
+                <div className="h-5 rounded flex items-center px-2 text-xs font-medium" style={{ width: `${(x.n / maxE) * 100}%`, background: C.accent, color: "#fff", minWidth: 24 }}>{x.n}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
