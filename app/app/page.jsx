@@ -123,7 +123,7 @@ export default function Home() {
           {view === "pp" && <LancarPP />}
           {view === "pic" && <PIC />}
           {view === "oc" && <OC money={money} />}
-          {view === "nf" && <NF master={master} money={money} />}
+          {view === "nf" && <NF master={master} money={money} perfil={perfil} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME />}
           {view === "artigos" && <Artigos money={money} master={master} />}
@@ -463,7 +463,7 @@ function OC({ money }) {
     </div>
   );
 }
-function NF({ master, money }) {
+function NF({ master, money, perfil }) {
   const [nfs, setNfs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -517,9 +517,9 @@ function NF({ master, money }) {
       const pdf = arr.find((f) => /\.pdf$/i.test(f.name));
       let payload;
       if (xml) {
-        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null };
+        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null, perfil };
       } else if (pdf) {
-        payload = { tipo: "pdf", conteudo: await readBase64(pdf) };
+        payload = { tipo: "pdf", conteudo: await readBase64(pdf), perfil };
       } else {
         setMsg({ tipo: "erro", texto: "Selecione um arquivo .xml e/ou .pdf." }); setEnviando(false); return;
       }
@@ -671,7 +671,7 @@ function Estoque({ money, master }) {
       <div className="text-xs mb-3" style={{ color: C.sub }}>
         Estoque = os mesmos artigos de “Artigos &amp; Fornec.”. O que entra pela NF aparece aqui, e qualquer alteração feita aqui ou lá reflete nas duas telas.
       </div>
-      <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />
+      <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} modoEstoque />
     </div>
   );
 }
@@ -988,9 +988,10 @@ function ThSort({ label, campoKey, sort, onSort, className, style }) {
   );
 }
 
-function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
+function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [verMov, setVerMov] = useState(null);
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
   const [busca, setBusca] = useState("");
   const [filtroForn, setFiltroForn] = useState("");
@@ -1061,7 +1062,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: 1460, fontSize: 12, textTransform: "uppercase" }}>
+        <div style={{ minWidth: modoEstoque ? 1560 : 1460, fontSize: 12, textTransform: "uppercase" }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
@@ -1069,11 +1070,11 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
           <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-28" />
           <ThSort label="Código" campoKey="codigo" sort={sort} onSort={onSort} className="w-24" />
-          <ThSort label="Qtd." campoKey="quantidade" sort={sort} onSort={onSort} className="w-24" />
+          <ThSort label={modoEstoque ? "Saldo" : "Qtd."} campoKey="quantidade" sort={sort} onSort={onSort} className="w-24" />
           <div className="flex-1">Composição</div>
           <div className="w-20">Largura</div>
           <div className="w-28">Gram./Rend.</div>
-          <div className="w-20">NF</div>
+          {modoEstoque ? <div className="w-44">Movimento</div> : <div className="w-20">NF</div>}
           <ThSort label="Data compra" campoKey="dataCompra" sort={sort} onSort={onSort} className="w-28" />
           {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
           <div className="w-16 text-center">Arquivo</div>
@@ -1094,7 +1095,9 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
             <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
-            <div className="w-20 font-mono" style={{ color: C.sub }}>{a.nf?.numero || "—"}</div>
+            {modoEstoque
+              ? <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>
+              : <div className="w-20 font-mono" style={{ color: C.sub }}>{a.nf?.numero || "—"}</div>}
             <div className="w-28" style={{ color: C.sub }}>{fmtData(a.dataCompra)}</div>
             {master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
             <div className="w-16 text-center flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -1110,6 +1113,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
         <ArtigoEditModal artigo={editando} fornecedores={fornecedores} master={master}
           onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
       )}
+      {verMov && <MovimentoModal artigo={verMov} onClose={() => setVerMov(null)} />}
     </div>
   );
 }
@@ -1247,6 +1251,75 @@ function detalheArtigo(a) {
   if (a.categoria === "TECIDO")
     return [a.composicao, a.largura && `${a.largura} m`, a.gramatura && `${a.gramatura} g/m²`].filter(Boolean).join(" · ") || "—";
   return [a.especificacao, a.unidade].filter(Boolean).join(" · ") || "—";
+}
+
+function MovimentoCell({ a, onOpen }) {
+  const m = a.movimentacoes && a.movimentacoes[0];
+  if (!m) return <span style={{ color: C.line }}>—</span>;
+  const entrada = m.tipo === "ENTRADA" || m.tipo === "RETORNO";
+  const doc = m.nf ? `NF ${m.nf.numero}` : m.fme ? `FME ${m.fme.numero}` : "—";
+  return (
+    <button onClick={onOpen} className="flex items-center gap-1 text-left w-full" title="Ver histórico de movimentação">
+      <span style={{ color: entrada ? C.green : "#D64545", fontWeight: 700 }}>{entrada ? "↑" : "↓"}</span>
+      <span style={{ color: C.text }}>{doc}</span>
+      <span style={{ color: C.sub }}>· {Number(m.quantidade)} {a.unidade || ""}</span>
+    </button>
+  );
+}
+
+function MovimentoModal({ artigo, onClose }) {
+  const [movs, setMovs] = useState(null);
+  useEffect(() => {
+    fetch(`/api/artigos/${artigo.id}/movimentos`).then((r) => r.json()).then((d) => setMovs(Array.isArray(d) ? d : [])).catch(() => setMovs([]));
+  }, [artigo.id]);
+  const dh = (v) => { const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleString("pt-BR"); };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div>
+            <div className="font-semibold">Movimentação — {artigo.artigoInterno || artigo.nome}</div>
+            <div className="text-xs" style={{ color: C.sub }}>Saldo atual: <b style={{ color: C.accent }}>{Number(artigo.quantidade) || 0} {artigo.unidade || ""}</b></div>
+          </div>
+          <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+        </div>
+        <div className="p-5">
+          {movs === null ? <div style={{ color: C.sub }}>Carregando…</div> : movs.length === 0 ? (
+            <div className="text-sm" style={{ color: C.sub }}>Sem movimentações registradas.</div>
+          ) : (
+            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
+                <div className="w-40">Data/hora</div><div className="w-24">Tipo</div><div className="flex-1">Documento</div>
+                <div className="w-28">Quantidade</div><div className="w-28">Responsável</div><div className="w-20 text-center">Arquivo</div>
+              </div>
+              {movs.map((m) => {
+                const entrada = m.tipo === "ENTRADA" || m.tipo === "RETORNO";
+                const doc = m.nf ? `NF ${m.nf.numero}` : m.fme ? `FME ${m.fme.numero}` : "—";
+                return (
+                  <div key={m.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <div className="w-40" style={{ color: C.sub }}>{dh(m.createdAt)}</div>
+                    <div className="w-24" style={{ color: entrada ? C.green : "#D64545", fontWeight: 600 }}>{entrada ? "↑ Entrada" : "↓ Saída"}</div>
+                    <div className="flex-1">{doc}</div>
+                    <div className="w-28" style={{ color: C.sub }}>{Number(m.quantidade)} {artigo.unidade || ""}</div>
+                    <div className="w-28" style={{ color: C.sub }}>{m.perfil || "—"}</div>
+                    <div className="w-20 text-center flex items-center justify-center gap-1">
+                      {m.nf?.temPdf ? <a href={`/api/nf/${m.nf.id}/pdf`} title="PDF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
+                      {m.nf?.temXml ? <a href={`/api/nf/${m.nf.id}/xml`} title="XML" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : null}
+                      {!m.nf ? <span style={{ color: C.line }}>—</span> : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ArtigoForm({ fornecedores, master, onSaved }) {

@@ -397,6 +397,7 @@ model EstoqueMovimentacao {
   nfId       Int?
   fmeId      Int?
   usuarioId  Int?
+  perfil     String?
   observacao String?
   createdAt  DateTime @default(now())
 

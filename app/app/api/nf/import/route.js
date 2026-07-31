@@ -9,7 +9,7 @@ const up = (v) => (v ? String(v).toUpperCase() : v);
 export async function POST(req) {
   let body;
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const { tipo, conteudo, pdfBase64 } = body || {};
+  const { tipo, conteudo, pdfBase64, perfil } = body || {};
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
   // 1) parse
@@ -90,14 +90,16 @@ export async function POST(req) {
     }
   } else {
     for (const it of nf.itens) {
+      const qtd = it.qCom ?? 0;
       let artigoId = null;
       if (fornecedorId && it.cProd) {
         const existe = await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: it.cProd } });
         if (existe) {
           artigoId = existe.id; resumo.artigosVinculados++;
+          const saldoNovo = (Number(existe.quantidade) || 0) + Number(qtd || 0);
           await prisma.artigo.update({
             where: { id: existe.id },
-            data: { ativo: true, nfId: notaFiscal.id, ...(it.qCom != null ? { quantidade: it.qCom } : {}), ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) },
+            data: { ativo: true, nfId: notaFiscal.id, quantidade: saldoNovo, ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) },
           });
         }
       }
@@ -108,13 +110,17 @@ export async function POST(req) {
             categoria: campos.categoria, fornecedorId, nfId: notaFiscal.id,
             codigoFornecedor: it.cProd || null, nome: up(it.xProd) || "ARTIGO SEM NOME",
             composicao: up(campos.composicao), largura: campos.largura, gramatura: campos.gramatura,
-            unidade: unidadeDoUCom(it.uCom), quantidade: it.qCom ?? null, valorUnitario: it.vUn, dataCompra,
+            unidade: unidadeDoUCom(it.uCom), quantidade: qtd, valorUnitario: it.vUn, dataCompra,
           },
         });
         artigoId = art.id; resumo.artigosCriados++;
       }
+      // movimentação de ENTRADA (origem: NF)
+      await prisma.estoqueMovimentacao.create({
+        data: { artigoId, tipo: "ENTRADA", quantidade: qtd, nfId: notaFiscal.id, perfil: perfil || null },
+      });
       await prisma.nfItem.create({
-        data: { nfId: notaFiscal.id, artigoId, descricaoNf: it.xProd, quantidade: it.qCom ?? 0, valorUnitario: it.vUn },
+        data: { nfId: notaFiscal.id, artigoId, descricaoNf: it.xProd, quantidade: qtd, valorUnitario: it.vUn },
       });
       resumo.itensCriados++;
     }

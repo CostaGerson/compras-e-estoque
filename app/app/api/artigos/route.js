@@ -13,7 +13,16 @@ const up = (v) => (v ? String(v).toUpperCase() : null);
 export async function GET() {
   const artigos = await prisma.artigo.findMany({
     where: { ativo: true },
-    include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true, temXml: true } } },
+    include: {
+      fornecedor: true,
+      nf: { select: { id: true, numero: true, temPdf: true, temXml: true } },
+      movimentacoes: {
+        orderBy: { createdAt: "desc" }, take: 1,
+        select: { id: true, tipo: true, quantidade: true, createdAt: true, perfil: true,
+          nf: { select: { id: true, numero: true, temPdf: true, temXml: true } },
+          fme: { select: { id: true, numero: true } } },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
   return Response.json(artigos);
