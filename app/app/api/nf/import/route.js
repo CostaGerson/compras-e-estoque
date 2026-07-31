@@ -43,7 +43,7 @@ export async function POST(req) {
     else {
       const forn = await prisma.fornecedor.create({
         data: {
-          nome: nf.emit.nome || nf.emit.razaoSocial || `Fornecedor ${nf.emit.cnpj}`,
+          nome: "", // nome comercial fica em branco — definido manualmente depois
           cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] },
         },
       });

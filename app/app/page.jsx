@@ -703,7 +703,7 @@ function FornecedoresPane({ fornecedores, onSaved }) {
             <div key={f.id} onClick={() => setEditando(f)} className="px-4 py-3 cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <div className="flex items-center justify-between">
-                <span className="font-medium">{f.nome}</span>
+                <span className="font-medium" style={{ color: f.nome ? C.text : C.accent }}>{f.nome || "⚠ definir nome comercial"}</span>
                 <span className="text-xs w-20 text-right" style={{ color: C.sub }}>{f._count?.artigos ?? 0}</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
@@ -881,7 +881,9 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
             <div className="flex-1 font-medium">{a.nome}</div>
-            <div className="flex-1" style={{ color: C.sub }}>{a.fornecedor?.nome || "—"}</div>
+            <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
+              {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
+            </div>
             <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
             <div className="flex-1" style={{ color: C.sub }}>{detalheArtigo(a)}</div>
             <div className="w-28" style={{ color: C.sub }}>{fmtData(a.dataCompra)}</div>

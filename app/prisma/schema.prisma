@@ -92,7 +92,7 @@ model Usuario {
 // Fornecedor = Fabricante (nome comercial). Pode ter vários CNPJs.
 model Fornecedor {
   id        Int      @id @default(autoincrement())
-  nome      String   @unique
+  nome      String   @default("")
   contato   String?
   telefone  String?
   email     String?
