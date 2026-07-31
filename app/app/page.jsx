@@ -464,16 +464,87 @@ function OC({ money }) {
   );
 }
 function NF() {
+  const [nfs, setNfs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState(null); // {tipo:'ok'|'erro', texto}
+
+  const carregar = async () => {
+    setLoading(true);
+    try { const r = await fetch("/api/nf").then((x) => x.json()); setNfs(Array.isArray(r) ? r : []); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const lerArquivo = (file) => new Promise((res, rej) => {
+    const isXml = /\.xml$/i.test(file.name);
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error("Falha ao ler o arquivo"));
+    fr.onload = () => {
+      if (isXml) res({ tipo: "xml", conteudo: fr.result });
+      else res({ tipo: "pdf", conteudo: String(fr.result).split(",")[1] }); // base64
+    };
+    if (isXml) fr.readAsText(file); else fr.readAsDataURL(file);
+  });
+
+  const enviar = async (file) => {
+    if (!file) return;
+    setMsg(null); setEnviando(true);
+    try {
+      const payload = await lerArquivo(file);
+      const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await r.json();
+      if (!r.ok) {
+        setMsg({ tipo: "erro", texto: data.error || "Não foi possível importar." });
+      } else {
+        setMsg({ tipo: "ok", texto: `NF ${data.numero} importada (${data.origem}). ${data.itensCriados} item(ns) · ${data.artigosCriados} artigo(s) novo(s), ${data.artigosVinculados} vinculado(s).` });
+        carregar();
+      }
+    } catch (e) {
+      setMsg({ tipo: "erro", texto: e.message });
+    }
+    setEnviando(false);
+  };
+
   return (
-    <div className="max-w-3xl">
-      <p className="text-sm mb-4" style={{ color: C.sub }}>Entrada virtual da NF (PDF/XML) e estratificação de cada item para os PICs.</p>
-      <div className="rounded-lg p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="flex justify-between items-center mb-3">
-          <span className="font-semibold">NF 12.334 · Malharia SP</span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: C.yellow + "1A", color: C.yellow }}>Aguardando estratificação</span>
-        </div>
-        <Tabela cols={["Item da NF", "Qtd", "Direcionar para PIC/PV"]} rows={[["Malha PV Tutti Frutti", "420 kg", "→ PV 26070040 (310) · sobra estoque (110)"]]} />
+    <div className="max-w-4xl">
+      <div className="rounded-lg p-5 mb-5" style={{ background: C.panel, border: `1px dashed ${C.accent}88` }}>
+        <div className="font-semibold mb-1">Importar Nota Fiscal</div>
+        <p className="text-xs mb-4" style={{ color: C.sub }}>
+          Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte mais confiável; o PDF importa o cabeçalho e valida a natureza.
+        </p>
+        <label className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold cursor-pointer"
+          style={{ background: enviando ? C.panel2 : C.accent, color: enviando ? C.sub : "#fff" }}>
+          {enviando ? "Importando…" : "Selecionar XML ou PDF"}
+          <input type="file" accept=".xml,.pdf" disabled={enviando} style={{ display: "none" }}
+            onChange={(e) => enviar(e.target.files?.[0])} />
+        </label>
+        {msg && (
+          <div className="mt-4 rounded p-3 text-sm" style={{
+            background: msg.tipo === "ok" ? C.greenSoft : "#FBE9E9",
+            color: msg.tipo === "ok" ? C.green : "#B42318",
+            border: `1px solid ${msg.tipo === "ok" ? C.green + "55" : "#F0A9A9"}`,
+          }}>{msg.texto}</div>
+        )}
       </div>
+
+      <div className="text-xs mb-2" style={{ color: C.sub }}>Notas importadas</div>
+      {loading ? <div style={{ color: C.sub }}>Carregando…</div> : (
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+          <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+            <div className="w-28">NF</div><div className="flex-1">Fornecedor</div><div className="w-24">Itens</div><div className="w-32">Status</div>
+          </div>
+          {nfs.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF importada ainda.</div>}
+          {nfs.map((n) => (
+            <div key={n.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="w-28 font-mono">{n.numero}</div>
+              <div className="flex-1">{n.fornecedor?.nome || "—"}</div>
+              <div className="w-24" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>
+              <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.blue + "1A", color: C.blue }}>{n.status}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

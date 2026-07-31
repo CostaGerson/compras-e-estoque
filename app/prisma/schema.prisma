@@ -119,6 +119,7 @@ model Artigo {
   id            Int             @id @default(autoincrement())
   categoria     CategoriaArtigo @default(MALHA)
   fornecedorId  Int?
+  codigoFornecedor String?
   nome          String
   cor           String?
   // específico de MALHA

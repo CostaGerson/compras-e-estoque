@@ -12,7 +12,9 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "lucide-react": "0.408.0",
-    "@prisma/client": "5.17.0"
+    "@prisma/client": "5.17.0",
+    "fast-xml-parser": "4.4.1",
+    "pdf-parse": "1.1.1"
   },
   "devDependencies": {
     "prisma": "5.17.0",
