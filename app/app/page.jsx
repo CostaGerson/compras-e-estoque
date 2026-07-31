@@ -469,10 +469,22 @@ function NF({ master, money }) {
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState(null); // {tipo:'ok'|'erro', texto}
   const [arrastando, setArrastando] = useState(false);
+  const [fornecedores, setFornecedores] = useState([]);
+  const [busca, setBusca] = useState("");
+  const [filtroForn, setFiltroForn] = useState("");
+  const [dataDe, setDataDe] = useState("");
+  const [dataAte, setDataAte] = useState("");
 
   const carregar = async () => {
     setLoading(true);
-    try { const r = await fetch("/api/nf").then((x) => x.json()); setNfs(Array.isArray(r) ? r : []); } catch {}
+    try {
+      const [r, f] = await Promise.all([
+        fetch("/api/nf").then((x) => x.json()),
+        fetch("/api/fornecedores").then((x) => x.json()),
+      ]);
+      setNfs(Array.isArray(r) ? r : []);
+      setFornecedores(Array.isArray(f) ? f : []);
+    } catch {}
     setLoading(false);
   };
   useEffect(() => { carregar(); }, []);
@@ -532,6 +544,19 @@ function NF({ master, money }) {
     setEnviando(false);
   };
 
+  const normNf = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const tokensNf = normNf(busca).trim().split(/\s+/).filter(Boolean);
+  const nfsFiltradas = nfs.filter((n) => {
+    if (filtroForn && String(n.fornecedor?.id) !== String(filtroForn)) return false;
+    if (dataDe && (!n.dataEmissao || new Date(n.dataEmissao) < new Date(dataDe))) return false;
+    if (dataAte && (!n.dataEmissao || new Date(n.dataEmissao) > new Date(dataAte + "T23:59:59"))) return false;
+    if (tokensNf.length) {
+      const hay = normNf([n.numero, n.fornecedor?.nome, n.valorTotal, n.status].filter((v) => v != null).join(" "));
+      if (!tokensNf.every((t) => hay.includes(t))) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="max-w-4xl">
       <div
@@ -563,6 +588,30 @@ function NF({ master, money }) {
         )}
       </div>
 
+      <div className="flex flex-wrap items-end gap-2 mb-3">
+        <div style={{ flex: "1 1 220px" }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nº da NF, fornecedor…"
+            className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div style={{ flex: "0 1 200px" }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
+          <select value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+            <option value="">Todos</option>
+            {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Emissão de</div>
+          <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>até</div>
+          <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        {(busca || filtroForn || dataDe || dataAte) && <button onClick={() => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); }} className="px-3 py-1.5 rounded text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Limpar</button>}
+      </div>
+
       <div className="text-xs mb-2" style={{ color: C.sub }}>Notas importadas</div>
       {loading ? <div style={{ color: C.sub }}>Carregando…</div> : (
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
@@ -576,8 +625,8 @@ function NF({ master, money }) {
             <div className="w-28 text-center">Download</div>
             <div className="w-20 text-right">Ação</div>
           </div>
-          {nfs.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF importada ainda.</div>}
-          {nfs.map((n) => (
+          {nfsFiltradas.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF encontrada.</div>}
+          {nfsFiltradas.map((n) => (
             <div key={n.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
               <div className="w-24 font-mono">{n.numero}</div>
               <div className="flex-1">{n.fornecedor?.nome || "—"}</div>
@@ -600,11 +649,29 @@ function NF({ master, money }) {
   );
 }
 function Estoque({ money, master }) {
+  const [fornecedores, setFornecedores] = useState([]);
+  const [artigos, setArtigos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const [f, a] = await Promise.all([
+        fetch("/api/fornecedores").then((r) => r.json()),
+        fetch("/api/artigos").then((r) => r.json()),
+      ]);
+      setFornecedores(Array.isArray(f) ? f : []);
+      setArtigos(Array.isArray(a) ? a : []);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+  if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
   return (
     <div>
-      <Tabela cols={["Artigo", "Endereço", "Saldo", "Origem", ...(master ? ["Valor"] : [])]}
-        rows={ESTOQUE.map((e) => [e.art, e.end, e.saldo, e.origem, ...(master ? [money(e.val)] : [])])} />
-      {!master && <p className="text-xs mt-3" style={{ color: C.sub }}>Seu perfil vê metragem/peso/unidades. Valores são exclusivos do Financeiro.</p>}
+      <div className="text-xs mb-3" style={{ color: C.sub }}>
+        Estoque = os mesmos artigos de “Artigos &amp; Fornec.”. O que entra pela NF aparece aqui, e qualquer alteração feita aqui ou lá reflete nas duas telas.
+      </div>
+      <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />
     </div>
   );
 }

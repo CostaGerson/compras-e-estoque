@@ -6,7 +6,7 @@ export async function GET() {
     select: {
       id: true, numero: true, status: true,
       dataEmissao: true, valorTotal: true, temPdf: true, temXml: true,
-      fornecedor: { select: { nome: true } },
+      fornecedor: { select: { id: true, nome: true } },
       _count: { select: { itens: true } },
     },
     orderBy: { createdAt: "desc" },
