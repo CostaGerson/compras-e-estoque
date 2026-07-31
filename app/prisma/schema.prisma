@@ -135,6 +135,7 @@ model Artigo {
   // específico de AVIAMENTO
   especificacao String?
   unidade       Unidade         @default(M)
+  quantidade    Decimal?        @db.Decimal(14, 3)
   dataCompra    DateTime?
   // preço (visível só ao financeiro)
   valorUnitario Decimal?        @db.Decimal(14, 4)

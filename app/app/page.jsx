@@ -892,6 +892,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
     interno: [(a) => a.artigoInterno, "texto"],
     fornecedor: [(a) => a.fornecedor?.nome, "texto"],
     cor: [(a) => a.cor, "texto"],
+    quantidade: [(a) => a.quantidade, "num"],
     dataCompra: [(a) => a.dataCompra, "data"],
     preco: [(a) => a.valorUnitario, "num"],
   };
@@ -908,13 +909,14 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: 1240 }}>
+        <div style={{ minWidth: 1340 }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24" />
+          <ThSort label="Qtd." campoKey="quantidade" sort={sort} onSort={onSort} className="w-24" />
           <div className="flex-1">Composição</div>
           <div className="w-20">Largura</div>
           <div className="w-28">Gram./Rend.</div>
@@ -934,6 +936,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
             <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
+            <div className="w-24" style={{ color: C.sub }}>{a.quantidade != null ? `${a.quantidade} ${a.unidade || ""}`.trim() : "—"}</div>
             <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
             <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
@@ -963,6 +966,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
     categoria: artigo.categoria || "MALHA",
     fornecedorId: artigo.fornecedorId ? String(artigo.fornecedorId) : "",
     nome: val(artigo.nome), artigoInterno: val(artigo.artigoInterno), cor: val(artigo.cor),
+    quantidade: val(artigo.quantidade),
     tipoMalha: artigo.tipoMalha || "TUBULAR",
     composicao: val(artigo.composicao), largura: val(artigo.largura),
     rendimento: val(artigo.rendimento), gramatura: val(artigo.gramatura),
@@ -1020,6 +1024,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
           </div>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
+            <In label="Quantidade" value={f.quantidade} onChange={(e) => set("quantidade", e.target.value)} inputMode="decimal" />
           </div>
 
           {f.categoria === "MALHA" && (
@@ -1089,7 +1094,7 @@ function detalheArtigo(a) {
 }
 
 function ArtigoForm({ fornecedores, master, onSaved }) {
-  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
+  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", quantidade: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -1124,6 +1129,7 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
       </div>
       <div className="grid grid-cols-3 gap-3 mb-3">
         <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} placeholder="Ex.: Tutti Frutti" />
+        <In label="Quantidade" value={f.quantidade} onChange={(e) => set("quantidade", e.target.value)} inputMode="decimal" placeholder="Qtde da NF" />
       </div>
 
       {f.categoria === "MALHA" && (

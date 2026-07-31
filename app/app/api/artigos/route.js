@@ -31,6 +31,7 @@ export async function POST(req) {
       especificacao: b.especificacao || null,
       unidade: b.unidade || "M",
       valorUnitario: dec(b.valorUnitario),
+      quantidade: dec(b.quantidade),
       dataCompra: b.dataCompra ? new Date(b.dataCompra) : null,
     },
     include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true, temXml: true } } },

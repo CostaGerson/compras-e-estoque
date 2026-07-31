@@ -95,7 +95,7 @@ export async function POST(req) {
           artigoId = existe.id; resumo.artigosVinculados++;
           await prisma.artigo.update({
             where: { id: existe.id },
-            data: { ativo: true, nfId: notaFiscal.id, ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) },
+            data: { ativo: true, nfId: notaFiscal.id, ...(it.qCom != null ? { quantidade: it.qCom } : {}), ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) },
           });
         }
       }
@@ -106,7 +106,7 @@ export async function POST(req) {
             categoria: campos.categoria, fornecedorId, nfId: notaFiscal.id,
             codigoFornecedor: it.cProd || null, nome: it.xProd || "Artigo sem nome",
             composicao: campos.composicao, largura: campos.largura, gramatura: campos.gramatura,
-            unidade: unidadeDoUCom(it.uCom), valorUnitario: it.vUn, dataCompra,
+            unidade: unidadeDoUCom(it.uCom), quantidade: it.qCom ?? null, valorUnitario: it.vUn, dataCompra,
           },
         });
         artigoId = art.id; resumo.artigosCriados++;
