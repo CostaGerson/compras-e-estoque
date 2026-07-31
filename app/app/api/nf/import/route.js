@@ -7,19 +7,22 @@ export const dynamic = "force-dynamic";
 export async function POST(req) {
   let body;
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const { tipo, conteudo } = body || {};
+  const { tipo, conteudo, pdfBase64 } = body || {};
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
-  // 1) parse
-  let nf;
+  // 1) parse (o XML é a fonte; guardamos o texto do XML e, se veio junto, o PDF)
+  let nf, arquivoXml = null, arquivoPdf = null;
   try {
     if (tipo === "xml") {
       nf = parseXmlNfe(conteudo);
+      arquivoXml = conteudo;
+      arquivoPdf = pdfBase64 || null;
     } else if (tipo === "pdf") {
       const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
       const buf = Buffer.from(conteudo, "base64");
       const data = await pdfParse(buf);
       nf = parsePdfNfe(data.text);
+      arquivoPdf = conteudo;
     } else {
       return Response.json({ error: "Tipo deve ser xml ou pdf." }, { status: 400 });
     }
@@ -43,7 +46,7 @@ export async function POST(req) {
     else {
       const forn = await prisma.fornecedor.create({
         data: {
-          nome: "", // nome comercial fica em branco — definido manualmente depois
+          nome: "",
           cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] },
         },
       });
@@ -51,9 +54,13 @@ export async function POST(req) {
     }
   }
 
-  // 5) cria NF
+  // 5) cria NF (guardando arquivos)
   const notaFiscal = await prisma.notaFiscal.create({
-    data: { numero: nf.numero || nf.chave.slice(25, 34).replace(/^0+/, "") || nf.chave, chave: nf.chave, fornecedorId, status: "LANCADA" },
+    data: {
+      numero: nf.numero || nf.chave.slice(25, 34).replace(/^0+/, "") || nf.chave,
+      chave: nf.chave, fornecedorId, status: "LANCADA",
+      arquivoXml, arquivoPdf, temPdf: !!arquivoPdf,
+    },
   });
 
   // 6) itens + artigos (autopreenchimento, tudo editável depois)
@@ -64,7 +71,7 @@ export async function POST(req) {
     if (fornecedorId && it.cProd) {
       const existe = await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: it.cProd } });
       if (existe) { artigoId = existe.id; resumo.artigosVinculados++;
-        await prisma.artigo.update({ where: { id: existe.id }, data: { ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) } });
+        await prisma.artigo.update({ where: { id: existe.id }, data: { nfId: notaFiscal.id, ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) } });
       }
     }
     if (!artigoId) {
@@ -72,7 +79,7 @@ export async function POST(req) {
       const art = await prisma.artigo.create({
         data: {
           categoria: campos.categoria,
-          fornecedorId,
+          fornecedorId, nfId: notaFiscal.id,
           codigoFornecedor: it.cProd || null,
           nome: it.xProd || "Artigo sem nome",
           composicao: campos.composicao,
@@ -91,5 +98,5 @@ export async function POST(req) {
     resumo.itensCriados++;
   }
 
-  return Response.json({ ok: true, chave: nf.chave, numero: notaFiscal.numero, natureza: nf.natOp, origem: nf.origem, ...resumo }, { status: 201 });
+  return Response.json({ ok: true, chave: nf.chave, numero: notaFiscal.numero, natureza: nf.natOp, origem: nf.origem, temPdf: !!arquivoPdf, ...resumo }, { status: 201 });
 }

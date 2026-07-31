@@ -120,6 +120,7 @@ model Artigo {
   categoria     CategoriaArtigo @default(MALHA)
   fornecedorId  Int?
   codigoFornecedor String?
+  nfId          Int?
   nome          String
   artigoInterno String?
   cor           String?
@@ -142,6 +143,7 @@ model Artigo {
   updatedAt     DateTime        @updatedAt
 
   fornecedor    Fornecedor?     @relation(fields: [fornecedorId], references: [id])
+  nf            NotaFiscal?     @relation(fields: [nfId], references: [id])
   ppItemArtigos PpItemArtigo[]
   picItens      PicItem[]
   ocItens       OcItem[]
@@ -319,6 +321,7 @@ model NotaFiscal {
   fornecedorId Int
   arquivoPdf   String?
   arquivoXml   String?
+  temPdf       Boolean  @default(false)
   status       StatusNf @default(LANCADA)
   createdAt    DateTime @default(now())
 
@@ -326,6 +329,7 @@ model NotaFiscal {
   itens         NfItem[]
   movimentacoes EstoqueMovimentacao[]
   saldos        EstoqueSaldo[]
+  artigosOrigem Artigo[]
 }
 
 model NfItem {

@@ -483,28 +483,40 @@ function NF() {
     carregar();
   };
 
-  const lerArquivo = (file) => new Promise((res, rej) => {
-    const isXml = /\.xml$/i.test(file.name);
+  const readText = (file) => new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onerror = () => rej(new Error("Falha ao ler o arquivo"));
-    fr.onload = () => {
-      if (isXml) res({ tipo: "xml", conteudo: fr.result });
-      else res({ tipo: "pdf", conteudo: String(fr.result).split(",")[1] }); // base64
-    };
-    if (isXml) fr.readAsText(file); else fr.readAsDataURL(file);
+    fr.onload = () => res(fr.result);
+    fr.readAsText(file);
+  });
+  const readBase64 = (file) => new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error("Falha ao ler o arquivo"));
+    fr.onload = () => res(String(fr.result).split(",")[1]);
+    fr.readAsDataURL(file);
   });
 
-  const enviar = async (file) => {
-    if (!file) return;
+  const enviar = async (files) => {
+    const arr = Array.from(files || []).filter(Boolean);
+    if (!arr.length) return;
     setMsg(null); setEnviando(true);
     try {
-      const payload = await lerArquivo(file);
+      const xml = arr.find((f) => /\.xml$/i.test(f.name));
+      const pdf = arr.find((f) => /\.pdf$/i.test(f.name));
+      let payload;
+      if (xml) {
+        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null };
+      } else if (pdf) {
+        payload = { tipo: "pdf", conteudo: await readBase64(pdf) };
+      } else {
+        setMsg({ tipo: "erro", texto: "Selecione um arquivo .xml e/ou .pdf." }); setEnviando(false); return;
+      }
       const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await r.json();
       if (!r.ok) {
         setMsg({ tipo: "erro", texto: data.error || "Não foi possível importar." });
       } else {
-        setMsg({ tipo: "ok", texto: `NF ${data.numero} importada (${data.origem}). ${data.itensCriados} item(ns) · ${data.artigosCriados} artigo(s) novo(s), ${data.artigosVinculados} vinculado(s).` });
+        setMsg({ tipo: "ok", texto: `NF ${data.numero} importada (${data.origem})${data.temPdf ? " · PDF anexado" : ""}. ${data.itensCriados} item(ns) · ${data.artigosCriados} artigo(s) novo(s), ${data.artigosVinculados} vinculado(s).` });
         carregar();
       }
     } catch (e) {
@@ -520,20 +532,20 @@ function NF() {
         onDragLeave={(e) => { e.preventDefault(); setArrastando(false); }}
         onDrop={(e) => {
           e.preventDefault(); setArrastando(false);
-          if (!enviando) enviar(e.dataTransfer.files?.[0]);
+          if (!enviando) enviar(e.dataTransfer.files);
         }}
         className="rounded-lg p-5 mb-5 transition-colors"
         style={{ background: arrastando ? C.accentSoft : C.panel, border: `2px dashed ${arrastando ? C.accent : C.accent + "88"}` }}>
         <div className="font-semibold mb-1">Importar Nota Fiscal</div>
         <p className="text-xs mb-4" style={{ color: C.sub }}>
-          {arrastando ? "Solte o arquivo aqui…" : "Arraste um XML ou PDF para esta área, ou clique no botão. "}
-          Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte mais confiável; o PDF importa o cabeçalho e valida a natureza.
+          {arrastando ? "Solte os arquivos aqui…" : "Arraste o XML (e opcionalmente o PDF junto) para esta área, ou clique no botão. "}
+          Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte confiável; anexe o PDF junto para poder baixá-lo depois.
         </p>
         <label className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold cursor-pointer"
           style={{ background: enviando ? C.panel2 : C.accent, color: enviando ? C.sub : "#fff" }}>
-          {enviando ? "Importando…" : "Selecionar XML ou PDF"}
-          <input type="file" accept=".xml,.pdf" disabled={enviando} style={{ display: "none" }}
-            onChange={(e) => enviar(e.target.files?.[0])} />
+          {enviando ? "Importando…" : "Selecionar XML (e PDF)"}
+          <input type="file" accept=".xml,.pdf" multiple disabled={enviando} style={{ display: "none" }}
+            onChange={(e) => enviar(e.target.files)} />
         </label>
         {msg && (
           <div className="mt-4 rounded p-3 text-sm" style={{
@@ -875,16 +887,21 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
 
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
-      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+        <div style={{ minWidth: 1240 }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24" />
-          <div className="flex-1">Detalhe</div>
+          <div className="flex-1">Composição</div>
+          <div className="w-20">Largura</div>
+          <div className="w-28">Gram./Rend.</div>
+          <div className="w-20">NF</div>
           <ThSort label="Data compra" campoKey="dataCompra" sort={sort} onSort={onSort} className="w-28" />
-          {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-28" />}
+          {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
+          <div className="w-10 text-center">PDF</div>
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
@@ -897,11 +914,21 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
             <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
-            <div className="flex-1" style={{ color: C.sub }}>{detalheArtigo(a)}</div>
+            <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
+            <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
+            <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
+            <div className="w-20 font-mono" style={{ color: C.sub }}>{a.nf?.numero || "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{fmtData(a.dataCompra)}</div>
-            {master && <div className="w-28" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            <div className="w-10 text-center">
+              {a.nf?.temPdf ? (
+                <a href={`/api/nf/${a.nf.id}/pdf`} onClick={(e) => e.stopPropagation()} title="Baixar PDF da NF"
+                  style={{ color: "#D64545", fontWeight: 700, textDecoration: "none" }}>PDF</a>
+              ) : <span style={{ color: C.line }}>—</span>}
+            </div>
           </div>
         ))}
+        </div>
       </div>
 
       {editando && (
@@ -1030,6 +1057,11 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   );
 }
 
+function gramRend(a) {
+  if (a.categoria === "MALHA") return a.rendimento ? `Rend. ${a.rendimento}` : "—";
+  if (a.categoria === "TECIDO") return a.gramatura ? `${a.gramatura} g/m²` : "—";
+  return a.especificacao || "—";
+}
 function detalheArtigo(a) {
   if (a.categoria === "MALHA")
     return [a.tipoMalha, a.composicao, a.largura && `${a.largura} m`, a.rendimento && `rend. ${a.rendimento}`].filter(Boolean).join(" · ") || "—";
