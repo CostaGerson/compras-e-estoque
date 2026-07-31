@@ -650,6 +650,14 @@ function FornecedoresPane({ fornecedores, onSaved }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [editando, setEditando] = useState(null);
+  const [sortF, setSortF] = useState({ key: "nome", dir: "asc" });
+  const onSortF = (key) => setSortF((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  const listaF = ordenar(
+    fornecedores,
+    sortF.key === "artigos" ? (f) => f._count?.artigos ?? 0 : (f) => f.nome,
+    sortF.dir,
+    sortF.key === "artigos" ? "num" : "texto"
+  );
 
   const setC = (i, campo, v) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: v } : c)));
 
@@ -684,15 +692,19 @@ function FornecedoresPane({ fornecedores, onSaved }) {
       </div>
 
       <div>
-        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) · clique para editar</div>
+        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) · clique na linha para editar, no título para ordenar</div>
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-          {fornecedores.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor ainda.</div>}
-          {fornecedores.map((f) => (
+          <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+            <ThSort label="Fornecedor (nome comercial)" campoKey="nome" sort={sortF} onSort={onSortF} className="flex-1" />
+            <ThSort label="Artigos" campoKey="artigos" sort={sortF} onSort={onSortF} className="w-20 text-right" />
+          </div>
+          {listaF.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor ainda.</div>}
+          {listaF.map((f) => (
             <div key={f.id} onClick={() => setEditando(f)} className="px-4 py-3 cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <div className="flex items-center justify-between">
                 <span className="font-medium">{f.nome}</span>
-                <span className="text-xs" style={{ color: C.sub }}>{f._count?.artigos ?? 0} artigo(s)</span>
+                <span className="text-xs w-20 text-right" style={{ color: C.sub }}>{f._count?.artigos ?? 0}</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
                 {f.cnpjs?.length ? f.cnpjs.map((c) => (
@@ -794,13 +806,60 @@ function FornecedorEditModal({ fornecedor, onClose, onSaved }) {
 
 const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento"]];
 
+function fmtData(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (isNaN(d)) return "—";
+  return d.toLocaleDateString("pt-BR");
+}
+function toDateInput(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d)) return "";
+  return d.toISOString().slice(0, 10);
+}
+// ordena uma lista por campo (texto A→Z / número / data), asc ou desc
+function ordenar(lista, campo, dir, tipo = "texto") {
+  if (!campo) return lista;
+  const arr = [...lista];
+  arr.sort((a, b) => {
+    let x = campo(a), y = campo(b);
+    if (tipo === "num") { x = Number(x) || 0; y = Number(y) || 0; return x - y; }
+    if (tipo === "data") { x = x ? new Date(x).getTime() : 0; y = y ? new Date(y).getTime() : 0; return x - y; }
+    return String(x || "").localeCompare(String(y || ""), "pt-BR", { sensitivity: "base" });
+  });
+  return dir === "desc" ? arr.reverse() : arr;
+}
+function ThSort({ label, campoKey, sort, onSort, className, style }) {
+  const on = sort.key === campoKey;
+  return (
+    <div className={className + " cursor-pointer select-none"} style={style} onClick={() => onSort(campoKey)}>
+      {label}{on ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+    </div>
+  );
+}
+
 function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [sort, setSort] = useState({ key: "nome", dir: "asc" });
+  const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+
+  const campos = {
+    categoria: [(a) => a.categoria, "texto"],
+    nome: [(a) => a.nome, "texto"],
+    fornecedor: [(a) => a.fornecedor?.nome, "texto"],
+    cor: [(a) => a.cor, "texto"],
+    dataCompra: [(a) => a.dataCompra, "data"],
+    preco: [(a) => a.valorUnitario, "num"],
+  };
+  const [fn, tipo] = campos[sort.key] || campos.nome;
+  const lista = ordenar(artigos, fn, sort.dir, tipo);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-3">
-        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s) · clique para editar</div>
+        <div className="text-xs" style={{ color: C.sub }}>{artigos.length} artigo(s) · clique numa linha para editar, no título para ordenar</div>
         <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
       </div>
 
@@ -808,11 +867,16 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          <div className="w-24">Categoria</div><div className="flex-1">Artigo</div><div className="flex-1">Fornecedor</div>
-          <div className="w-24">Cor</div><div className="flex-1">Detalhe</div>{master && <div className="w-28">Preço</div>}
+          <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
+          <ThSort label="Artigo" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24" />
+          <div className="flex-1">Detalhe</div>
+          <ThSort label="Data compra" campoKey="dataCompra" sort={sort} onSort={onSort} className="w-28" />
+          {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-28" />}
         </div>
-        {artigos.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
-        {artigos.map((a) => (
+        {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
+        {lista.map((a) => (
           <div key={a.id} onClick={() => setEditando(a)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
@@ -820,6 +884,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             <div className="flex-1" style={{ color: C.sub }}>{a.fornecedor?.nome || "—"}</div>
             <div className="w-24" style={{ color: C.sub }}>{a.cor || "—"}</div>
             <div className="flex-1" style={{ color: C.sub }}>{detalheArtigo(a)}</div>
+            <div className="w-28" style={{ color: C.sub }}>{fmtData(a.dataCompra)}</div>
             {master && <div className="w-28" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
           </div>
         ))}
@@ -843,6 +908,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
     composicao: val(artigo.composicao), largura: val(artigo.largura),
     rendimento: val(artigo.rendimento), gramatura: val(artigo.gramatura),
     especificacao: val(artigo.especificacao), unidade: artigo.unidade || "M",
+    dataCompra: toDateInput(artigo.dataCompra),
     valorUnitario: val(artigo.valorUnitario),
   });
   const [salvando, setSalvando] = useState(false);
@@ -922,7 +988,13 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
 
           {master && (
             <div className="grid grid-cols-3 gap-3 mb-4">
+              <In label="Data da compra" type="date" value={f.dataCompra} onChange={(e) => set("dataCompra", e.target.value)} />
               <In label="Preço (R$)" value={f.valorUnitario} onChange={(e) => set("valorUnitario", e.target.value)} inputMode="decimal" />
+            </div>
+          )}
+          {!master && (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <In label="Data da compra" type="date" value={f.dataCompra} onChange={(e) => set("dataCompra", e.target.value)} />
             </div>
           )}
 

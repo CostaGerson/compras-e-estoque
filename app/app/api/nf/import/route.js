@@ -57,13 +57,14 @@ export async function POST(req) {
   });
 
   // 6) itens + artigos (autopreenchimento, tudo editável depois)
+  const dataCompra = nf.dataEmissao ? new Date(nf.dataEmissao) : null;
   const resumo = { itensCriados: 0, artigosCriados: 0, artigosVinculados: 0 };
   for (const it of nf.itens) {
     let artigoId = null;
     if (fornecedorId && it.cProd) {
       const existe = await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: it.cProd } });
       if (existe) { artigoId = existe.id; resumo.artigosVinculados++;
-        if (it.vUn != null) await prisma.artigo.update({ where: { id: existe.id }, data: { valorUnitario: it.vUn } });
+        await prisma.artigo.update({ where: { id: existe.id }, data: { ...(it.vUn != null ? { valorUnitario: it.vUn } : {}), ...(dataCompra ? { dataCompra } : {}) } });
       }
     }
     if (!artigoId) {
@@ -79,6 +80,7 @@ export async function POST(req) {
           gramatura: campos.gramatura,
           unidade: unidadeDoUCom(it.uCom),
           valorUnitario: it.vUn,
+          dataCompra,
         },
       });
       artigoId = art.id; resumo.artigosCriados++;

@@ -12,6 +12,7 @@ export async function PATCH(req, { params }) {
   for (const k of ["largura","rendimento","gramatura","valorUnitario"])
     if (k in b) data[k] = dec(b[k]);
   if ("fornecedorId" in b) data.fornecedorId = b.fornecedorId ? Number(b.fornecedorId) : null;
+  if ("dataCompra" in b) data.dataCompra = b.dataCompra ? new Date(b.dataCompra) : null;
   const artigo = await prisma.artigo.update({ where: { id }, data, include: { fornecedor: true } });
   return Response.json(artigo);
 }
