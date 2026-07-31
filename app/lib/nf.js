@@ -94,16 +94,32 @@ export function parseXmlNfe(xml) {
 // ---------- PDF (DANFE) — melhor esforço ----------
 export function parsePdfNfe(texto) {
   const t = texto || "";
+  const compact = t.replace(/\s+/g, " ");
   const chaveMatch = t.replace(/\s+/g, "").match(/(\d{44})/);
-  const natMatch = /NATUREZA DA OPERA[ÇC][ÃA]O\s*([^\n]+)/i.exec(t);
+  const natMatch = /NATUREZA\s+DA\s+OPERA[ÇC][ÃA]O\s*[:\-]?\s*([A-Za-zÀ-ú][^\n]{3,})/i.exec(t);
+  // natureza confiável só se a linha capturada contiver "venda" ou algum termo de recusa;
+  // senão o texto do DANFE veio embaralhado e ignoramos a natureza.
+  let natOp = natMatch ? natMatch[1].trim() : null;
+  if (natOp) {
+    const low = natOp.toLowerCase();
+    const util = low.includes("venda") || REJEITAR_NATUREZA.some((k) => low.includes(k));
+    if (!util) natOp = null;
+  }
+  // sinal principal no PDF: presença de um CFOP de VENDA (5xxx/6xxx) no texto.
+  // Removemos sequências longas de dígitos (chave/código de barras) p/ evitar falso positivo.
+  const semLongos = compact.replace(/\d{15,}/g, " ");
+  const cfopsPdf = [...CFOP_VENDA].filter((c) => /^[56]/.test(c));
+  let cfopVenda = null;
+  for (const c of cfopsPdf) { if (semLongos.includes(c)) { cfopVenda = c; break; } }
+
   const cnpjMatch = /CNPJ\s*([\d./-]{14,20})/i.exec(t);
   return {
     origem: "PDF",
     chave: chaveMatch ? chaveMatch[1] : null,
-    natOp: natMatch ? natMatch[1].trim() : null,
+    natOp,
     tpNF: "1",
     emit: { cnpj: cnpjMatch ? cnpjMatch[1].replace(/\D/g, "") : null, nome: null, razaoSocial: null },
-    itens: [], // itens do PDF ficam para conferência manual (o XML é a fonte confiável)
+    itens: cfopVenda ? [{ cfop: cfopVenda }] : [], // itens ficam para conferência; o CFOP valida a natureza
   };
 }
 
