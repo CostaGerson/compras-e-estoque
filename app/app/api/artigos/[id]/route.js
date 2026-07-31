@@ -1,3 +1,4 @@
+﻿export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 const dec = (v) => (v === "" || v === null || v === undefined ? null : v);
@@ -19,3 +20,4 @@ export async function DELETE(req, { params }) {
   await prisma.artigo.update({ where: { id: Number(params.id) }, data: { ativo: false } });
   return Response.json({ ok: true });
 }
+
