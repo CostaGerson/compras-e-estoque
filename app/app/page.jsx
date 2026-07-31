@@ -955,6 +955,22 @@ function Bolinha({ cor }) {
   );
 }
 
+function round2Custom(x) {
+  const n = Number(x);
+  if (isNaN(n)) return null;
+  const sign = n < 0 ? -1 : 1;
+  const mil = Math.round(Math.abs(n) * 1000); // milésimos
+  const terceiro = mil % 10;                    // 3ª casa decimal
+  let cent = Math.floor(mil / 10);              // centésimos
+  if (terceiro >= 6) cent += 1;                 // .6+ sobe; .5- desce
+  return (sign * cent) / 100;
+}
+function fmtQtd(x, unidade) {
+  const v = round2Custom(x);
+  if (v === null) return "—";
+  const s = v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return unidade ? `${s} ${unidade}` : s;
+}
 function fmtData(v) {
   if (!v) return "—";
   const d = new Date(v);
@@ -1062,7 +1078,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: modoEstoque ? 1480 : 1120, fontSize: 12, textTransform: "uppercase" }}>
+        <div style={{ minWidth: modoEstoque ? 1480 : 1280, fontSize: 12, textTransform: "uppercase" }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
@@ -1075,7 +1091,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           <div className="w-20">Largura</div>
           <div className="w-28">Gram./Rend.</div>
           {modoEstoque && <div className="w-44">Movimento</div>}
-          {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
+          {modoEstoque && master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
+          {!modoEstoque && <div className="w-56">Última compra</div>}
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
@@ -1089,12 +1106,15 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
             </div>
             <div className="w-28 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span>{a.cor || "—"}</span></div>
             <div className="w-24" style={{ color: C.sub }}>{a.codigo || "—"}</div>
-            {modoEstoque && <div className="w-24" style={{ color: C.sub }}>{a.quantidade != null ? `${a.quantidade} ${a.unidade || ""}`.trim() : "—"}</div>}
+            {modoEstoque && <div className="w-24" style={{ color: C.sub }}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}</div>}
             <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
             <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
             {modoEstoque && <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
-            {master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {modoEstoque && master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {!modoEstoque && (
+              <div className="w-56" style={{ color: C.sub }}>{ultimaCompra(a, master, money)}</div>
+            )}
           </div>
         ))}
         </div>
@@ -1231,6 +1251,13 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   );
 }
 
+function ultimaCompra(a, master, money) {
+  const partes = [];
+  if (master && a.valorUnitario) partes.push(money(Number(a.valorUnitario)));
+  if (a.dataCompra) partes.push(fmtData(a.dataCompra));
+  if (a.nf?.numero) partes.push("NF " + a.nf.numero);
+  return partes.length ? partes.join(" · ") : "—";
+}
 function gramRend(a) {
   if (a.categoria === "MALHA") return a.rendimento ? `Rend. ${a.rendimento}` : "—";
   if (a.categoria === "TECIDO") return a.gramatura ? `${a.gramatura} g/m²` : "—";
@@ -1253,7 +1280,7 @@ function MovimentoCell({ a, onOpen }) {
     <button onClick={onOpen} className="flex items-center gap-1 text-left w-full" title="Ver histórico de movimentação">
       <span style={{ color: entrada ? C.green : "#D64545", fontWeight: 700 }}>{entrada ? "↑" : "↓"}</span>
       <span style={{ color: C.text }}>{doc}</span>
-      <span style={{ color: C.sub }}>· {Number(m.quantidade)} {a.unidade || ""}</span>
+      <span style={{ color: C.sub }}>· {fmtQtd(m.quantidade, a.unidade)}</span>
     </button>
   );
 }
@@ -1271,7 +1298,7 @@ function MovimentoModal({ artigo, onClose }) {
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <div>
             <div className="font-semibold">Movimentação — {artigo.artigoInterno || artigo.nome}</div>
-            <div className="text-xs" style={{ color: C.sub }}>Saldo atual: <b style={{ color: C.accent }}>{Number(artigo.quantidade) || 0} {artigo.unidade || ""}</b></div>
+            <div className="text-xs" style={{ color: C.sub }}>Saldo atual: <b style={{ color: C.accent }}>{fmtQtd(artigo.quantidade, artigo.unidade)}</b></div>
           </div>
           <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
         </div>
@@ -1292,7 +1319,7 @@ function MovimentoModal({ artigo, onClose }) {
                     <div className="w-40" style={{ color: C.sub }}>{dh(m.createdAt)}</div>
                     <div className="w-24" style={{ color: entrada ? C.green : "#D64545", fontWeight: 600 }}>{entrada ? "↑ Entrada" : "↓ Saída"}</div>
                     <div className="flex-1">{doc}</div>
-                    <div className="w-28" style={{ color: C.sub }}>{Number(m.quantidade)} {artigo.unidade || ""}</div>
+                    <div className="w-28" style={{ color: C.sub }}>{fmtQtd(m.quantidade, artigo.unidade)}</div>
                     <div className="w-28" style={{ color: C.sub }}>{m.perfil || "—"}</div>
                     <div className="w-20 text-center flex items-center justify-center gap-1">
                       {m.nf?.temPdf ? <a href={`/api/nf/${m.nf.id}/pdf`} title="PDF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
