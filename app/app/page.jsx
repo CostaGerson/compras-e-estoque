@@ -1062,7 +1062,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: modoEstoque ? 1480 : 1220, fontSize: 12, textTransform: "uppercase" }}>
+        <div style={{ minWidth: modoEstoque ? 1480 : 1120, fontSize: 12, textTransform: "uppercase" }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
@@ -1076,7 +1076,6 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           <div className="w-28">Gram./Rend.</div>
           {modoEstoque && <div className="w-44">Movimento</div>}
           {master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
-          {!modoEstoque && <div className="w-16 text-center">Arquivo</div>}
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
@@ -1096,12 +1095,6 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
             {modoEstoque && <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
             {master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
-            {!modoEstoque && (
-              <div className="w-16 text-center flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                {a.nf?.temPdf ? <a href={`/api/nf/${a.nf.id}/pdf`} title="Baixar PDF da NF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : <span style={{ color: C.line, fontSize: 11 }}>PDF</span>}
-                {a.nf?.temXml ? <a href={`/api/nf/${a.nf.id}/xml`} title="Baixar XML da NF" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : <span style={{ color: C.line, fontSize: 11 }}>XML</span>}
-              </div>
-            )}
           </div>
         ))}
         </div>
