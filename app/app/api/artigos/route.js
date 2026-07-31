@@ -1,7 +1,13 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
-const dec = (v) => (v === "" || v === null || v === undefined ? null : v);
+const dec = (v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  let s = String(v).trim().replace(/\s/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+};
 const up = (v) => (v ? String(v).toUpperCase() : null);
 
 export async function GET() {
