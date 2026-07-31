@@ -121,6 +121,7 @@ model Artigo {
   fornecedorId  Int?
   codigoFornecedor String?
   nome          String
+  artigoInterno String?
   cor           String?
   // específico de MALHA
   tipoMalha     TipoMalha?

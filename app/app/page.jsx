@@ -477,6 +477,12 @@ function NF() {
   };
   useEffect(() => { carregar(); }, []);
 
+  const excluir = async (n) => {
+    if (!confirm(`Excluir a NF ${n.numero}? Os itens da nota serão removidos; os artigos cadastrados permanecem.`)) return;
+    await fetch(`/api/nf/${n.id}`, { method: "DELETE" });
+    carregar();
+  };
+
   const lerArquivo = (file) => new Promise((res, rej) => {
     const isXml = /\.xml$/i.test(file.name);
     const fr = new FileReader();
@@ -542,7 +548,7 @@ function NF() {
       {loading ? <div style={{ color: C.sub }}>Carregando…</div> : (
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-            <div className="w-28">NF</div><div className="flex-1">Fornecedor</div><div className="w-24">Itens</div><div className="w-32">Status</div>
+            <div className="w-28">NF</div><div className="flex-1">Fornecedor</div><div className="w-24">Itens</div><div className="w-32">Status</div><div className="w-16 text-right">Ação</div>
           </div>
           {nfs.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF importada ainda.</div>}
           {nfs.map((n) => (
@@ -551,6 +557,9 @@ function NF() {
               <div className="flex-1">{n.fornecedor?.nome || "—"}</div>
               <div className="w-24" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>
               <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.blue + "1A", color: C.blue }}>{n.status}</span></div>
+              <div className="w-16 text-right">
+                <button onClick={() => excluir(n)} title="Excluir NF" className="px-2 py-1 rounded text-xs" style={{ color: "#B42318", border: `1px solid ${C.line}` }}>Excluir</button>
+              </div>
             </div>
           ))}
         </div>
@@ -848,6 +857,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
   const campos = {
     categoria: [(a) => a.categoria, "texto"],
     nome: [(a) => a.nome, "texto"],
+    interno: [(a) => a.artigoInterno, "texto"],
     fornecedor: [(a) => a.fornecedor?.nome, "texto"],
     cor: [(a) => a.cor, "texto"],
     dataCompra: [(a) => a.dataCompra, "data"],
@@ -868,7 +878,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
-          <ThSort label="Artigo" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
           <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24" />
           <div className="flex-1">Detalhe</div>
@@ -881,6 +892,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved }) {
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
             <div className="flex-1 font-medium">{a.nome}</div>
+            <div className="flex-1" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
             <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
@@ -905,7 +917,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   const [f, setF] = useState({
     categoria: artigo.categoria || "MALHA",
     fornecedorId: artigo.fornecedorId ? String(artigo.fornecedorId) : "",
-    nome: val(artigo.nome), cor: val(artigo.cor),
+    nome: val(artigo.nome), artigoInterno: val(artigo.artigoInterno), cor: val(artigo.cor),
     tipoMalha: artigo.tipoMalha || "TUBULAR",
     composicao: val(artigo.composicao), largura: val(artigo.largura),
     rendimento: val(artigo.rendimento), gramatura: val(artigo.gramatura),
@@ -956,9 +968,12 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
           <div className="grid grid-cols-3 gap-3 mb-3">
             <Sel label="Fornecedor" value={f.fornecedorId} onChange={(e) => set("fornecedorId", e.target.value)}>
               <option value="">— selecione —</option>
-              {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+              {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
             </Sel>
-            <In label="Nome do artigo" value={f.nome} onChange={(e) => set("nome", e.target.value)} />
+            <In label="Artigo NF (vem da nota)" value={f.nome} onChange={(e) => set("nome", e.target.value)} />
+            <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} />
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-3">
             <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
           </div>
 
@@ -1024,7 +1039,7 @@ function detalheArtigo(a) {
 }
 
 function ArtigoForm({ fornecedores, master, onSaved }) {
-  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", cor: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
+  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -1052,9 +1067,12 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
       <div className="grid grid-cols-3 gap-3 mb-3">
         <Sel label="Fornecedor" value={f.fornecedorId} onChange={(e) => set("fornecedorId", e.target.value)}>
           <option value="">— selecione —</option>
-          {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
         </Sel>
-        <In label="Nome do artigo" value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Ex.: Malha PV" />
+        <In label="Artigo NF (vem da nota)" value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome como consta na NF" />
+        <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} placeholder="Seu nome padrão" />
+      </div>
+      <div className="grid grid-cols-3 gap-3 mb-3">
         <In label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} placeholder="Ex.: Tutti Frutti" />
       </div>
 

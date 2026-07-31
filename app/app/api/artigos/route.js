@@ -21,6 +21,7 @@ export async function POST(req) {
       categoria: b.categoria || "MALHA",
       fornecedorId: b.fornecedorId ? Number(b.fornecedorId) : null,
       nome: b.nome.trim(),
+      artigoInterno: b.artigoInterno || null,
       cor: b.cor || null,
       tipoMalha: b.tipoMalha || null,
       composicao: b.composicao || null,
