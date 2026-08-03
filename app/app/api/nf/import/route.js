@@ -36,6 +36,7 @@ export async function POST(req) {
   const v = validarVenda(nf);
   if (!v.ok) return Response.json({ error: v.motivo, natureza: nf.natOp }, { status: 422 });
 
+  try {
   // 3) fornecedor pelo CNPJ do emitente
   let fornecedorId = null;
   if (nf.emit?.cnpj) {
@@ -152,4 +153,7 @@ export async function POST(req) {
     ok: true, jaExistia, chave: nf.chave, numero: notaFiscal.numero,
     natureza: nf.natOp, origem: nf.origem, temPdf: !!(arquivoPdf), ...resumo,
   }, { status: 201 });
+  } catch (e) {
+    return Response.json({ error: "Falha ao gravar: " + (e?.message || String(e)) }, { status: 500 });
+  }
 }

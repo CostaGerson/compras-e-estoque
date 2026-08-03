@@ -1801,7 +1801,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
     const pdfs = arr.filter((f) => /\.pdf$/i.test(f.name));
     if (!xmls.length) { setMsg({ tipo: "erro", texto: "Solte os XMLs das notas de compra." }); return; }
     setMsg(null); setEnviando(true);
-    let novas = 0, existentes = 0, artigos = 0, recusadas = 0, erros = 0;
+    let novas = 0, existentes = 0, artigos = 0, recusadas = 0, erros = 0, primeiroErro = "";
     try {
       for (let i = 0; i < xmls.length; i++) {
         setProg(`Importando ${i + 1}/${xmls.length}…`);
@@ -1810,8 +1810,9 @@ function FornecedoresBancoPane({ master, money, perfil }) {
         const pdf = pdfs.find((p) => p.name.replace(/\.pdf$/i, "") === base);
         const payload = { tipo: "xml", conteudo: await readText(x), pdfBase64: pdf ? await readB64(pdf) : null, perfil };
         const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        const d = await r.json();
-        if (!r.ok) { if (/venda|recusad/i.test(d.error || "")) recusadas++; else erros++; }
+        let d = {};
+        try { const t = await r.text(); d = t ? JSON.parse(t) : {}; } catch { d = { error: `Resposta inválida (HTTP ${r.status})` }; }
+        if (!r.ok) { if (/venda|recusad|não era|nao era/i.test(d.error || "")) recusadas++; else { erros++; if (!primeiroErro) primeiroErro = `${x.name}: ${d.error || "HTTP " + r.status}`; } }
         else { if (d.jaExistia) existentes++; else novas++; artigos += d.artigosCriados || 0; }
       }
       const partes = [`${novas} nota(s) nova(s)`];
@@ -1819,7 +1820,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
       if (artigos) partes.push(`${artigos} artigo(s) criado(s)`);
       if (recusadas) partes.push(`${recusadas} não eram compra`);
       if (erros) partes.push(`${erros} com erro`);
-      setMsg({ tipo: "ok", texto: partes.join(" · ") + "." });
+      setMsg({ tipo: erros ? "erro" : "ok", texto: partes.join(" · ") + "." + (primeiroErro ? ` 1º erro → ${primeiroErro}` : "") });
       carregar();
     } catch (e) { setMsg({ tipo: "erro", texto: e.message }); }
     setEnviando(false); setProg("");
