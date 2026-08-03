@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus,
-  ChevronRight, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
+  ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
 } from "lucide-react";
 
 /* ============================================================
@@ -68,6 +68,7 @@ export default function Home() {
   const [tab, setTab] = useState("lista");
   const master = perfil === "FINANCEIRO";
   const [showVal, setShowVal] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   if (!logged) return <Login onEnter={() => setLogged(true)} />;
   const nav = NAV.filter((n) => n.perfis.includes(perfil));
@@ -75,10 +76,17 @@ export default function Home() {
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
+      {!collapsed && (
       <aside style={{ background: C.sidebar }} className="w-60 shrink-0 flex flex-col">
-        <button onClick={() => setView("inicio")} className="px-4 py-4 flex items-center w-full" style={{ borderBottom: `1px solid ${C.sidebarLine}`, background: C.sidebar }}>
-          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
-        </button>
+        <div className="flex items-center" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
+          <button onClick={() => setView("inicio")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
+            <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
+          </button>
+          <button onClick={() => setCollapsed(true)} title="Recolher menu"
+            className="px-3 py-4 flex items-center justify-center" style={{ color: C.sidebarSub }}>
+            <ChevronLeft size={20} />
+          </button>
+        </div>
         <nav className="flex-1 py-2">
           {nav.map((n) => {
             const Ico = n.icon; const on = view === n.key;
@@ -96,10 +104,19 @@ export default function Home() {
           Sistema de Gestão · v1
         </div>
       </aside>
+      )}
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between px-6 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
-          <div className="font-semibold">{NAV.find((n) => n.key === view)?.label}</div>
+          <div className="flex items-center gap-2">
+            {collapsed && (
+              <button onClick={() => setCollapsed(false)} title="Expandir menu"
+                className="flex items-center justify-center rounded p-1" style={{ background: C.sidebar, color: "#fff" }}>
+                <ChevronRight size={18} />
+              </button>
+            )}
+            <div className="font-semibold">{NAV.find((n) => n.key === view)?.label}</div>
+          </div>
           <div className="flex items-center gap-3">
             {master && (
               <button onClick={() => setShowVal((s) => !s)} className="flex items-center gap-1 px-2 py-1 rounded"
