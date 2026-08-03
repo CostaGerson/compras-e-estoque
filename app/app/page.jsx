@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
-  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus,
+  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
 } from "lucide-react";
 
@@ -58,6 +58,7 @@ const NAV = [
   { key: "estoque", label: "Estoque", icon: Boxes, perfis: ["FINANCEIRO","ESTOQUE"] },
   { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO","ESTOQUE"] },
   { key: "artigos", label: "Artigos & Fornec.", icon: Package, perfis: ["FINANCEIRO","PCP","COMPRAS"] },
+  { key: "banco", label: "Banco de dados", icon: Database, perfis: ["FINANCEIRO","PCP","COMPRAS"] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"] },
 ];
 
@@ -144,6 +145,7 @@ export default function Home() {
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME />}
           {view === "artigos" && <Artigos money={money} master={master} />}
+          {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
           {view === "usuarios" && <Usuarios />}
         </div>
       </main>
@@ -1441,6 +1443,236 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
     </div>
   );
 }
+/* ============================================================
+   BANCO DE DADOS — Clientes / Fornecedores
+   ============================================================ */
+function BancoDados({ master, money, perfil }) {
+  const [aba, setAba] = useState("clientes");
+  const [fornecedores, setFornecedores] = useState([]);
+  const carregarForn = async () => {
+    try { const f = await fetch("/api/fornecedores").then((r) => r.json()); setFornecedores(Array.isArray(f) ? f : []); } catch {}
+  };
+  useEffect(() => { carregarForn(); }, []);
+  return (
+    <div>
+      <div className="flex gap-1 mb-5">
+        {[["clientes", "Clientes"], ["fornecedores", "Fornecedores"]].map(([k, l]) => {
+          const on = aba === k;
+          return (
+            <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
+              style={{ background: on ? C.accentSoft : C.panel, color: on ? C.accent : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
+          );
+        })}
+      </div>
+      {aba === "clientes"
+        ? <ClientesPane master={master} money={money} />
+        : <FornecedoresPane fornecedores={fornecedores} onSaved={carregarForn} />}
+    </div>
+  );
+}
+
+function ClientesPane({ master, money }) {
+  const [clientes, setClientes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [filtroUf, setFiltroUf] = useState("");
+  const [sort, setSort] = useState({ key: "razaoSocial", dir: "asc" });
+  const [verHist, setVerHist] = useState(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [prog, setProg] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const carregar = async () => {
+    setLoading(true);
+    try { const c = await fetch("/api/clientes").then((r) => r.json()); setClientes(Array.isArray(c) ? c : []); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+
+  const ufs = [...new Set(clientes.map((c) => c.uf).filter(Boolean))].sort();
+
+  const filtrados = (() => {
+    const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
+    let l = clientes.filter((c) => {
+      if (filtroUf && c.uf !== filtroUf) return false;
+      if (!tokens.length) return true;
+      const hay = norm([c.razaoSocial, c.nomeFantasia, c.cnpj, c.municipio, c.uf, c.preposto, c.telefones, c.emailNf].filter(Boolean).join(" "));
+      return tokens.every((t) => hay.includes(t));
+    });
+    const getv = sort.key === "notas" ? (c) => c._count?.notas ?? 0 : (c) => c[sort.key];
+    return ordenar(l, getv, sort.dir, sort.key === "notas" ? "num" : "texto");
+  })();
+
+  const readText = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(fr.result); fr.readAsText(file); });
+  const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
+
+  const importar = async (files) => {
+    const arr = Array.from(files || []).filter(Boolean);
+    const xmls = arr.filter((f) => /\.xml$/i.test(f.name));
+    const plan = arr.find((f) => /\.(xlsx|xls|csv)$/i.test(f.name));
+    if (!xmls.length && !plan) { setMsg({ tipo: "erro", texto: "Solte os XMLs e/ou a planilha (.xlsx/.csv)." }); return; }
+    setMsg(null); setEnviando(true);
+    let tot = { clientesNovos: 0, clientesAtualizados: 0, notasNovas: 0, notasDup: 0, erros: 0 };
+    try {
+      const LOTE = 40;
+      for (let i = 0; i < xmls.length; i += LOTE) {
+        const chunk = xmls.slice(i, i + LOTE);
+        setProg(`Lendo XMLs ${Math.min(i + LOTE, xmls.length)}/${xmls.length}…`);
+        const payload = { tipo: "xml", xmls: await Promise.all(chunk.map(async (f) => ({ name: f.name, conteudo: await readText(f) }))) };
+        const r = await fetch("/api/clientes/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const d = await r.json();
+        if (r.ok) for (const k of Object.keys(tot)) tot[k] += d[k] || 0;
+      }
+      let planTxt = "";
+      if (plan) {
+        setProg("Cruzando com a planilha…");
+        const r = await fetch("/api/clientes/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: "planilha", name: plan.name, base64: await readB64(plan) }) });
+        const d = await r.json();
+        if (r.ok) planTxt = ` · planilha: ${d.atualizados} cadastro(s) atualizado(s)${d.semMatch ? `, ${d.semMatch} sem correspondência` : ""}`;
+        else planTxt = ` · planilha: ${d.error}`;
+      }
+      const partes = [];
+      if (xmls.length) partes.push(`${tot.clientesNovos} cliente(s) novo(s), ${tot.notasNovas} nota(s) importada(s)`);
+      if (tot.notasDup) partes.push(`${tot.notasDup} já existiam`);
+      if (tot.erros) partes.push(`${tot.erros} XML(s) com erro`);
+      setMsg({ tipo: "ok", texto: (partes.join(" · ") || "Concluído") + planTxt + "." });
+      carregar();
+    } catch (e) {
+      setMsg({ tipo: "erro", texto: e.message });
+    }
+    setEnviando(false); setProg("");
+  };
+
+  return (
+    <div>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+        onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); importar(e.dataTransfer.files); }}
+        className="rounded-lg p-5 mb-5 text-center"
+        style={{ background: arrastando ? C.accentSoft : C.panel, border: `1.5px dashed ${arrastando ? C.accent : C.line}` }}>
+        <div className="text-sm mb-2" style={{ color: C.sub }}>
+          Arraste os <b>XMLs das notas emitidas</b> e a <b>planilha de dados</b> aqui, ou selecione:
+        </div>
+        <label className="inline-block px-4 py-2 rounded font-semibold cursor-pointer" style={{ background: C.accent, color: "#fff" }}>
+          {enviando ? (prog || "Importando…") : "Selecionar arquivos"}
+          <input type="file" multiple accept=".xml,.xlsx,.xls,.csv" className="hidden"
+            onChange={(e) => importar(e.target.files)} disabled={enviando} />
+        </label>
+        {msg && <div className="text-xs mt-3" style={{ color: msg.tipo === "ok" ? C.green : "#D64545" }}>{msg.texto}</div>}
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-end mb-4">
+        <div className="flex-1 min-w-64">
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome do cliente, CNPJ, cidade…"
+            className="w-full px-3 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>UF</div>
+          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+            <option value="">Todas</option>
+            {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique na linha para ver o histórico, no título para ordenar</div>
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+        <div className="flex px-4 py-2 text-xs font-semibold min-w-[900px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Nome fantasia" campoKey="nomeFantasia" sort={sort} onSort={onSort} className="w-40" />
+          <div className="w-40">CNPJ</div>
+          <div className="w-24">IE</div>
+          <ThSort label="Cidade/UF" campoKey="municipio" sort={sort} onSort={onSort} className="w-40" />
+          <div className="w-32">Preposto</div>
+          <div className="w-36">Telefone(s)</div>
+          <div className="w-48">E-mail NF/Boletos</div>
+          <ThSort label="Notas" campoKey="notas" sort={sort} onSort={onSort} className="w-16 text-right" />
+        </div>
+        {loading ? (
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</div>
+        ) : filtrados.length === 0 ? (
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum cliente. Importe os XMLs acima.</div>
+        ) : filtrados.map((c) => (
+          <div key={c.id} onClick={() => setVerHist(c)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[900px]"
+            style={{ borderBottom: `1px solid ${C.line}` }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            <div className="flex-1 font-medium">{c.razaoSocial || "—"}</div>
+            <div className="w-40" style={{ color: c.nomeFantasia ? C.text : C.sub }}>{c.nomeFantasia || "—"}</div>
+            <div className="w-40" style={{ color: C.sub }}>{fmtCnpj(c.cnpj)}</div>
+            <div className="w-24" style={{ color: C.sub }}>{c.inscricaoEstadual || "—"}</div>
+            <div className="w-40" style={{ color: C.sub }}>{c.municipio ? `${c.municipio}${c.uf ? "/" + c.uf : ""}` : "—"}</div>
+            <div className="w-32" style={{ color: C.sub }}>{c.preposto || "—"}</div>
+            <div className="w-36" style={{ color: C.sub }}>{c.telefones || "—"}</div>
+            <div className="w-48 truncate" style={{ color: C.sub }} title={c.emailNf || ""}>{c.emailNf || "—"}</div>
+            <div className="w-16 text-right" style={{ color: C.accent, fontWeight: 600 }}>{c._count?.notas ?? 0}</div>
+          </div>
+        ))}
+      </div>
+
+      {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} />}
+    </div>
+  );
+}
+
+function ClienteHistoricoModal({ cliente, master, money, onClose }) {
+  const [notas, setNotas] = useState(null);
+  useEffect(() => {
+    fetch(`/api/clientes/${cliente.id}/notas`).then((r) => r.json()).then((d) => setNotas(Array.isArray(d) ? d : [])).catch(() => setNotas([]));
+  }, [cliente.id]);
+  const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
+  const total = notas && master ? notas.reduce((s, n) => s + (n.valorTotal || 0), 0) : 0;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 820, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">{cliente.razaoSocial || cliente.nomeFantasia}</div>
+            <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: C.sub }}>
+            {fmtCnpj(cliente.cnpj)}{cliente.municipio ? ` · ${cliente.municipio}${cliente.uf ? "/" + cliente.uf : ""}` : ""}
+            {master && notas ? <> · Total comprado: <b style={{ color: C.accent }}>{money(total)}</b></> : null}
+          </div>
+        </div>
+        <div className="p-5">
+          <div className="font-semibold text-sm mb-2">Histórico de compras</div>
+          {notas === null ? <div style={{ color: C.sub }}>Carregando…</div> : notas.length === 0 ? (
+            <div className="text-sm" style={{ color: C.sub }}>Sem compras registradas.</div>
+          ) : (
+            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
+                <div className="w-32">Pedido de venda</div>
+                <div className="w-28">Nota</div>
+                <div className="w-32">Data</div>
+                <div className="flex-1 text-right">Valor</div>
+              </div>
+              {notas.map((n) => (
+                <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+                  <div className="w-32">{n.pedidoVenda || "—"}</div>
+                  <div className="w-28" style={{ color: C.sub }}>NF {n.numero || "—"}</div>
+                  <div className="w-32" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
+                  <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? (n.valorTotal != null ? money(n.valorTotal) : "—") : "•••••"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Usuarios() {
   const us = [
     { n: "Igor", s: "FINANCEIRO (master)", a: true },

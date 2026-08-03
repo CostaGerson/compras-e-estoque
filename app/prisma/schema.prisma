@@ -433,3 +433,40 @@ model FmeItem {
   fme    Fme    @relation(fields: [fmeId], references: [id], onDelete: Cascade)
   artigo Artigo @relation(fields: [artigoId], references: [id])
 }
+
+model Cliente {
+  id                Int      @id @default(autoincrement())
+  razaoSocial       String   @default("")
+  nomeFantasia      String?
+  cnpj              String   @unique
+  inscricaoEstadual String?
+  logradouro        String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  municipio         String?
+  uf                String?
+  cep               String?
+  preposto          String?
+  telefones         String?
+  emailNf           String?
+  obs               String?
+  ativo             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  notas ClienteNota[]
+}
+
+model ClienteNota {
+  id          Int       @id @default(autoincrement())
+  clienteId   Int
+  chave       String    @unique
+  numero      String?
+  pedidoVenda String?
+  dataEmissao DateTime?
+  valorTotal  Float?
+  createdAt   DateTime  @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+}
