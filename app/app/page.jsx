@@ -76,10 +76,10 @@ export default function Home() {
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
-    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
-      {!collapsed && (
-      <aside style={{ background: C.sidebar }} className="w-60 shrink-0 flex flex-col">
-        <div className="flex items-center" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
+    <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
+      <div className="shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden" style={{ width: collapsed ? 0 : 240 }}>
+      <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
+        <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
           <button onClick={() => setView("inicio")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
           </button>
@@ -88,7 +88,7 @@ export default function Home() {
             <ChevronLeft size={20} />
           </button>
         </div>
-        <nav className="flex-1 py-2">
+        <nav className="flex-1 py-2 overflow-y-auto">
           {nav.map((n) => {
             const Ico = n.icon; const on = view === n.key;
             return (
@@ -101,11 +101,11 @@ export default function Home() {
             );
           })}
         </nav>
-        <div className="px-4 py-3 text-xs" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
+        <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
           Sistema de Gestão · v1
         </div>
       </aside>
-      )}
+      </div>
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between px-6 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
@@ -1032,6 +1032,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
   const [filtroForn, setFiltroForn] = useState("");
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
+  const [classe, setClasse] = useState("");
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   const campos = {
@@ -1051,6 +1052,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
   const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
   const filtrados = artigos.filter((a) => {
     if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
+    if (classe === "TECMAL" && !["TECIDO", "MALHA"].includes(a.categoria)) return false;
+    if (classe === "AVIOUT" && !["AVIAMENTO", "OUTROS"].includes(a.categoria)) return false;
     if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
     if (dataAte && (!a.dataCompra || new Date(a.dataCompra) > new Date(dataAte + "T23:59:59"))) return false;
     if (tokens.length) {
@@ -1060,8 +1063,8 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
     return true;
   });
   const lista = ordenar(filtrados, fn, sort.dir, tipo);
-  const temFiltro = busca || filtroForn || dataDe || dataAte;
-  const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); };
+  const temFiltro = busca || filtroForn || dataDe || dataAte || classe;
+  const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); setClasse(""); };
 
   return (
     <div>
@@ -1088,6 +1091,18 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
         </div>
         {temFiltro && <button onClick={limpar} className="px-3 py-1.5 rounded text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Limpar</button>}
       </div>
+
+      {modoEstoque && (
+        <div className="flex gap-2 mb-3">
+          {[["", "Todos"], ["TECMAL", "Tecidos e malhas"], ["AVIOUT", "Aviamento e outros"]].map(([k, l]) => {
+            const on = classe === k;
+            return (
+              <button key={k || "todos"} onClick={() => setClasse(k)} className="px-3 py-1.5 rounded-md text-sm font-medium"
+                style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex justify-between items-center mb-3">
         <div className="text-xs" style={{ color: C.sub }}>{lista.length} de {artigos.length} artigo(s) · clique na linha para editar, no título para ordenar</div>
