@@ -567,10 +567,18 @@ function PpEditor({ ppId, onVoltar }) {
         const d = await fetch("/api/pp/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
         setF((s) => {
           const n = { ...s };
-          for (const k of ["numero", "clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "oc", "prazoEntrega"]) if (d[k]) n[k] = d[k];
+          for (const k of ["numero", "clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "oc", "prazoEntrega", "dtDespacho", "tipoPedido", "vendedor"]) if (d[k]) n[k] = d[k];
           if (d.condicaoPagamento) { const achou = COND_PGTO.find((c) => c.toLowerCase() === String(d.condicaoPagamento).toLowerCase()); n.condicaoPagamento = achou || d.condicaoPagamento; }
           return n;
         });
+        if (Array.isArray(d.itens) && d.itens.length) {
+          setItens(d.itens.map((it) => ({
+            tipoPecaNome: it.tipoPecaNome || "POLO", codigo: it.codigo || "", descricao: it.descricao || "",
+            valorUnitario: it.valorUnitario || "",
+            grade: Array.isArray(it.grade) && it.grade.length ? it.grade : TAMANHOS.map((t) => ({ tam: t, qtd: "" })),
+            parametros: it.parametros || {}, fotoBase64: "",
+          })));
+        }
       } catch {}
     }
   };
