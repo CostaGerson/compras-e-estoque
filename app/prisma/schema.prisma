@@ -207,28 +207,53 @@ model Pv {
 
 model Pp {
   id        Int      @id @default(autoincrement())
-  pvId      Int
+  pvId      Int?
   numero    String?  @unique
   status    String   @default("EM_LANCAMENTO")
+
+  clienteNome       String?
+  clienteCnpj       String?
+  clienteIe         String?
+  clienteEndereco   String?
+  clienteContato    String?
+  oc                String?
+  condicaoPagamento String?
+  prazoEntrega      String?
+  dtDespacho        String?
+  tipoPedido        String?
+  vendedor          String?
+  obs               String?
+  valorTotal        Decimal? @db.Decimal(14, 2)
+  arquivoPcPdf      String?
+  arquivoLancPdf    String?
+  arquivoPedidoPdf  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  pv    Pv       @relation(fields: [pvId], references: [id], onDelete: Cascade)
+  pv    Pv?      @relation(fields: [pvId], references: [id], onDelete: Cascade)
   itens PpItem[]
 }
 
 model PpItem {
   id                Int      @id @default(autoincrement())
   ppId              Int
-  tipoPecaId        Int
+  tipoPecaId        Int?
+  tipoPecaNome      String?
+  codigo            String?
   descricao         String?
   quantidade        Decimal  @db.Decimal(14, 3)
+  valorUnitario     Decimal? @db.Decimal(14, 2)
+  valorTotal        Decimal? @db.Decimal(14, 2)
+  gradeJson         String?
+  parametrosJson    String?
+  fotoBase64        String?
   valorTerceirizado Decimal? @db.Decimal(14, 2)
   etapaAtual        Etapa?
   createdAt         DateTime @default(now())
 
   pp          Pp                 @relation(fields: [ppId], references: [id], onDelete: Cascade)
-  tipoPeca    TipoPeca           @relation(fields: [tipoPecaId], references: [id])
+  tipoPeca    TipoPeca?          @relation(fields: [tipoPecaId], references: [id])
   parametros  PpItemParametro[]
   artigos     PpItemArtigo[]
   picItens    PicItem[]

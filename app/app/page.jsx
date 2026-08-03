@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
-  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2,
+  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
 } from "lucide-react";
 
@@ -42,8 +42,11 @@ const ESTOQUE = [
 ];
 const COMPONENTES = {
   CAMISETA: ["MODELAGEM","TECIDO","GOLA DA CAMISETA","MANGA DA CAMISETA","BARRA DA CAMISETA","RECORTE DA CAMISETA","BOLSO DA CAMISETA","EXTRA DA CAMISETA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  CALÇA: ["MODELAGEM","TECIDO","FECHAMENTO DA CALÇA","COS DA CALÇA","BOLSO DIANTEIRO","BOLSO TRASEIRO","REFORÇO","EXTRA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
+  CAMISA: ["MODELAGEM","TECIDO","GOLA DA CAMISA","PE DE GOLA","MANGA DA CAMISA","FECHAMENTO DA CAMISA","FRENTE DA CAMISA","COSTAS DA CAMISA","BARRA DA CAMISA","PUNHO DA CAMISA","RECORTE DA CAMISA","BOLSO DA CAMISA","EXTRA DA CAMISA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
+  POLO: ["MODELAGEM","TECIDO","GOLA DA POLO","FECHAMENTO DA POLO","MANGA DA POLO","FRENTE DA POLO","COSTAS DA POLO","BARRA DA POLO","RECORTE DA POLO","BOLSO DA POLO","EXTRA DA POLO","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
   JAQUETA: ["MODELAGEM","TECIDO","GOLA","MANGA","FECHAMENTO","COSTAS","BARRA","PUNHO","RECORTE","BOLSO","FORRO","EXTRA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
+  CALÇA: ["MODELAGEM","TECIDO","FECHAMENTO DA CALÇA","COS DA CALÇA","BOLSO DIANTEIRO","BOLSO TRASEIRO","REFORÇO","EXTRA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
+  JALECO: ["MOLDE","TECIDO","GOLA DO JALECO","FECHAMENTO DO JALECO","MANGA DO JALECO","BOLSO DO JALECO","EXTRA DO JALECO","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
   AVENTAL: ["MODELAGEM","TECIDO","BOLSO DO AVENTAL","ALÇA DO AVENTAL","EXTRA DO AVENTAL","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
 };
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
@@ -397,60 +400,362 @@ function Producao() {
   );
 }
 
+const TAMANHOS = ["PP","P","M","G","GG","XG","XGG","XXGG","XXXGG"];
+const ppMoney = (n) => "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 function LancarPP() {
-  const [tipo, setTipo] = useState("CAMISETA");
+  const [lista, setLista] = useState([]);
+  const [modo, setModo] = useState("lista"); // lista | editor
+  const [ppId, setPpId] = useState(null);
+
+  const carregar = async () => {
+    try { const d = await fetch("/api/pp").then((r) => r.json()); setLista(Array.isArray(d) ? d : []); } catch {}
+  };
+  useEffect(() => { carregar(); }, []);
+
+  if (modo === "editor") return <PpEditor ppId={ppId} onVoltar={() => { setModo("lista"); setPpId(null); carregar(); }} />;
+
   return (
-    <div className="max-w-4xl">
-      <div className="rounded-lg p-4 mb-5 flex items-center justify-between" style={{ background: C.greenSoft, border: `1px solid ${C.green}44` }}>
-        <div className="flex items-center gap-3">
-          <CheckCircle2 size={20} color={C.green} />
-          <div>
-            <div className="font-semibold">Solicitação importada · PV 26070040</div>
-            <div className="text-xs" style={{ color: C.sub }}>Cliente ATRATIVA SERVICE · 120 peças · importado do PDF de lançamento</div>
-          </div>
-        </div>
-        <span className="text-xs px-2 py-1 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>auto-preenchido</span>
-      </div>
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-sm" style={{ color: C.sub }}>Peça:</span>
-        {Object.keys(COMPONENTES).map((t) => (
-          <button key={t} onClick={() => setTipo(t)} className="px-3 py-1 rounded-md text-sm"
-            style={{ background: tipo === t ? C.accentSoft : C.panel, color: tipo === t ? C.accent : C.sub, border: `1px solid ${tipo === t ? C.accent : C.line}` }}>{t}</button>
-        ))}
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-sm" style={{ color: C.sub }}>{lista.length} PP(s) lançado(s)</div>
+        <button onClick={() => { setPpId(null); setModo("editor"); }} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
+          <Plus size={16} /> Novo PP
+        </button>
       </div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-        <div className="px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>Parâmetros da peça — {tipo}</div>
-        {COMPONENTES[tipo].map((comp, i) => <LinhaParam key={comp} n={i + 1} comp={comp} />)}
-      </div>
-      <div className="flex justify-end gap-2 mt-4">
-        <button className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Salvar rascunho</button>
-        <button className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Gerar demanda</button>
+        <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="w-28">PP nº</div>
+          <div className="flex-1">Cliente</div>
+          <div className="w-24">OC</div>
+          <div className="w-20 text-right">Itens</div>
+          <div className="w-32 text-right">Valor</div>
+          <div className="w-28"></div>
+        </div>
+        {lista.length === 0 ? (
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum PP ainda. Clique em "Novo PP".</div>
+        ) : lista.map((p) => (
+          <div key={p.id} className="flex px-4 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div className="w-28 font-medium">{p.numero || `#${p.id}`}</div>
+            <div className="flex-1">{p.clienteNome || "—"}</div>
+            <div className="w-24" style={{ color: C.sub }}>{p.oc || "—"}</div>
+            <div className="w-20 text-right" style={{ color: C.sub }}>{p._count?.itens ?? 0}</div>
+            <div className="w-32 text-right" style={{ color: C.accent, fontWeight: 600 }}>{p.valorTotal != null ? ppMoney(p.valorTotal) : "—"}</div>
+            <div className="w-28 flex justify-end gap-2">
+              <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
+              <button onClick={async () => { if (confirm("Excluir este PP?")) { await fetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function LinhaParam({ n, comp }) {
-  const isTecido = comp === "TECIDO";
-  const [tec, setTec] = useState("MALHA");
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
-      <span className="w-5 text-xs" style={{ color: C.sub }}>{n}</span>
-      <ChevronRight size={14} color={C.sub} />
-      <span className="w-56 text-sm">{comp}</span>
-      {isTecido ? (
-        <div className="flex items-center gap-2 flex-1">
-          <select value={tec} onChange={(e) => setTec(e.target.value)} className="px-2 py-1 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
-            <option>MALHA</option><option>PLANO</option>
-          </select>
-          <input placeholder="Artigo (ex.: Malha PV Tutti Frutti)" className="flex-1 px-2 py-1 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-          <input placeholder={tec === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/pç)"} className="w-40 px-2 py-1 rounded outline-none" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}66` }} />
-        </div>
-      ) : (
-        <input placeholder="—" className="flex-1 px-2 py-1 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-      )}
+function novoItem() {
+  return { tipoPecaNome: "POLO", codigo: "", descricao: "", valorUnitario: "", grade: TAMANHOS.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "" };
+}
+
+function PpEditor({ ppId, onVoltar }) {
+  const [f, setF] = useState({
+    numero: "", clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
+    oc: "", condicaoPagamento: "", prazoEntrega: "", dtDespacho: "", tipoPedido: "", vendedor: "", obs: "",
+    arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "",
+  });
+  const [itens, setItens] = useState([novoItem()]);
+  const [salvando, setSalvando] = useState(false);
+  const [carregado, setCarregado] = useState(!ppId);
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  useEffect(() => {
+    if (!ppId) return;
+    fetch(`/api/pp/${ppId}`).then((r) => r.json()).then((d) => {
+      setF({
+        numero: d.numero || "", clienteNome: d.clienteNome || "", clienteCnpj: d.clienteCnpj || "", clienteIe: d.clienteIe || "",
+        clienteEndereco: d.clienteEndereco || "", clienteContato: d.clienteContato || "", oc: d.oc || "",
+        condicaoPagamento: d.condicaoPagamento || "", prazoEntrega: d.prazoEntrega || "", dtDespacho: d.dtDespacho || "",
+        tipoPedido: d.tipoPedido || "", vendedor: d.vendedor || "", obs: d.obs || "",
+        arquivoPcPdf: d.arquivoPcPdf || "", arquivoLancPdf: d.arquivoLancPdf || "", arquivoPedidoPdf: d.arquivoPedidoPdf || "",
+      });
+      setItens((d.itens || []).map((it) => ({
+        tipoPecaNome: it.tipoPecaNome || "POLO", codigo: it.codigo || "", descricao: it.descricao || "",
+        valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
+        grade: it.gradeJson ? JSON.parse(it.gradeJson) : TAMANHOS.map((t) => ({ tam: t, qtd: "" })),
+        parametros: it.parametrosJson ? JSON.parse(it.parametrosJson) : {},
+        fotoBase64: it.fotoBase64 || "",
+      })));
+      setCarregado(true);
+    });
+  }, [ppId]);
+
+  const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+
+  const somaItem = (it) => it.grade.reduce((s, g) => s + (parseFloat(String(g.qtd).replace(",", ".")) || 0), 0);
+  const totalItem = (it) => somaItem(it) * (parseFloat(String(it.valorUnitario).replace(",", ".")) || 0);
+  const totalGeral = itens.reduce((s, it) => s + totalItem(it), 0);
+  const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
+
+  const upItem = (i, patch) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  const upGrade = (i, gi, qtd) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, grade: it.grade.map((g, k) => (k === gi ? { ...g, qtd } : g)) } : it)));
+  const upParam = (i, nome, val) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, parametros: { ...it.parametros, [nome]: val } } : it)));
+
+  const salvar = async (imprimirDepois) => {
+    setSalvando(true);
+    const payload = {
+      ...f, valorTotal: totalGeral,
+      itens: itens.map((it) => ({
+        tipoPecaNome: it.tipoPecaNome, codigo: it.codigo, descricao: it.descricao,
+        quantidade: somaItem(it), valorUnitario: it.valorUnitario, valorTotal: totalItem(it),
+        gradeJson: JSON.stringify(it.grade), parametrosJson: JSON.stringify(it.parametros), fotoBase64: it.fotoBase64,
+      })),
+    };
+    const url = ppId ? `/api/pp/${ppId}` : "/api/pp";
+    // sempre cria novo se não tiver id; edição simples recria via delete+create
+    let novoId = ppId;
+    if (ppId) { await fetch(`/api/pp/${ppId}`, { method: "DELETE" }); }
+    const r = await fetch("/api/pp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    setSalvando(false);
+    if (!r.ok) { alert(d.error || "Erro ao salvar."); return; }
+    if (imprimirDepois) imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral);
+    onVoltar();
+  };
+
+  if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  const anexo = (label, campo) => (
+    <div className="flex-1">
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <label className="block px-3 py-2 rounded cursor-pointer text-sm text-center" style={{ background: f[campo] ? C.greenSoft : C.panel2, color: f[campo] ? C.green : C.sub, border: `1px dashed ${f[campo] ? C.green : C.line}` }}>
+        {f[campo] ? "✓ anexado (trocar)" : "Selecionar PDF"}
+        <input type="file" accept=".pdf" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) set(campo, await readB64(file)); }} />
+      </label>
     </div>
   );
+
+  return (
+    <div className="pb-10">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onVoltar} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
+        <div className="flex gap-2">
+          <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>
+          <button onClick={() => salvar(false)} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar PP"}</button>
+        </div>
+      </div>
+
+      {/* Anexos */}
+      <div className="rounded-lg p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="font-semibold text-sm mb-3">Anexos do pedido</div>
+        <div className="flex gap-3">
+          {anexo("1 · PC do cliente", "arquivoPcPdf")}
+          {anexo("2 · Solicitação de lançamento", "arquivoLancPdf")}
+          {anexo("3 · Pedido (base do PP)", "arquivoPedidoPdf")}
+        </div>
+      </div>
+
+      {/* Cabeçalho */}
+      <div className="rounded-lg p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="font-semibold text-sm mb-3">Dados do pedido</div>
+        <div className="grid grid-cols-4 gap-3">
+          <In label="PP nº" value={f.numero} onChange={(e) => set("numero", e.target.value)} placeholder="ex.: 26070078" />
+          <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />
+          <In label="Tipo de pedido" value={f.tipoPedido} onChange={(e) => set("tipoPedido", e.target.value)} />
+          <In label="Vendedor" value={f.vendedor} onChange={(e) => set("vendedor", e.target.value)} />
+          <div className="col-span-2"><In label="Cliente" value={f.clienteNome} onChange={(e) => set("clienteNome", e.target.value)} /></div>
+          <In label="CNPJ" value={f.clienteCnpj} onChange={(e) => set("clienteCnpj", e.target.value)} />
+          <In label="Inscr. estadual" value={f.clienteIe} onChange={(e) => set("clienteIe", e.target.value)} />
+          <div className="col-span-3"><In label="Endereço" value={f.clienteEndereco} onChange={(e) => set("clienteEndereco", e.target.value)} /></div>
+          <In label="Contato" value={f.clienteContato} onChange={(e) => set("clienteContato", e.target.value)} />
+          <In label="Condição de pagamento" value={f.condicaoPagamento} onChange={(e) => set("condicaoPagamento", e.target.value)} />
+          <In label="Prazo de entrega" value={f.prazoEntrega} onChange={(e) => set("prazoEntrega", e.target.value)} />
+          <In label="Dt. despacho" value={f.dtDespacho} onChange={(e) => set("dtDespacho", e.target.value)} />
+          <div className="col-span-4">
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Observações</div>
+            <textarea value={f.obs} onChange={(e) => set("obs", e.target.value)} rows={2} className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Itens */}
+      {itens.map((it, i) => (
+        <div key={i} className="rounded-lg p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold text-sm">Peça {i + 1}</div>
+            <button onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={16} /></button>
+          </div>
+          <div className="grid grid-cols-5 gap-3 mb-3">
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Tipo de peça</div>
+              <select value={it.tipoPecaNome} onChange={(e) => upItem(i, { tipoPecaNome: e.target.value, parametros: {} })} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+                {Object.keys(COMPONENTES).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <In label="Código" value={it.codigo} onChange={(e) => upItem(i, { codigo: e.target.value })} />
+            <div className="col-span-2"><In label="Descrição do produto" value={it.descricao} onChange={(e) => upItem(i, { descricao: e.target.value })} /></div>
+            <In label="Valor unitário (R$)" value={it.valorUnitario} onChange={(e) => upItem(i, { valorUnitario: e.target.value })} placeholder="0,00" />
+          </div>
+
+          <div className="flex gap-4">
+            {/* Foto */}
+            <div className="w-40 shrink-0">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Foto da peça</div>
+              <label className="block rounded cursor-pointer overflow-hidden" style={{ border: `1px dashed ${C.line}`, height: 150, background: C.panel2 }}>
+                {it.fotoBase64
+                  ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar foto</div>}
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
+              </label>
+              {it.fotoBase64 && <button onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1" style={{ color: "#C77" }}>remover foto</button>}
+            </div>
+
+            {/* Grade + Parâmetros */}
+            <div className="flex-1 min-w-0">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Grade (quantidade por tamanho) · total {somaItem(it)} pç · {ppMoney(totalItem(it))}</div>
+              <div className="grid grid-cols-9 gap-1 mb-3">
+                {it.grade.map((g, gi) => (
+                  <div key={g.tam}>
+                    <div className="text-center text-xs font-semibold py-0.5" style={{ color: C.sub }}>{g.tam}</div>
+                    <input value={g.qtd} onChange={(e) => upGrade(i, gi, e.target.value)} className="w-full px-1 py-1 rounded outline-none text-center text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros — {it.tipoPecaNome}</div>
+              <div className="grid grid-cols-2 gap-2">
+                {COMPONENTES[it.tipoPecaNome].map((comp) => (
+                  <ParamLinha key={comp} comp={comp} valor={it.parametros[comp]} onChange={(v) => upParam(i, comp, v)} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <button onClick={() => setItens((arr) => [...arr, novoItem()])} className="px-4 py-2 rounded font-medium flex items-center gap-1" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>
+        <Plus size={16} /> Adicionar peça
+      </button>
+
+      <div className="mt-4 flex justify-end text-sm" style={{ color: C.sub }}>
+        Total do pedido: <b className="ml-2" style={{ color: C.accent }}>{totalPecas} peças · {ppMoney(totalGeral)}</b>
+      </div>
+    </div>
+  );
+}
+
+function ParamLinha({ comp, valor, onChange }) {
+  const isTecido = comp === "TECIDO";
+  if (isTecido) {
+    const v = valor && typeof valor === "object" ? valor : { tipo: "MALHA", artigo: "", medida: "" };
+    return (
+      <div className="col-span-2 flex items-center gap-2">
+        <span className="w-40 text-sm" style={{ color: C.sub }}>{comp}</span>
+        <select value={v.tipo} onChange={(e) => onChange({ ...v, tipo: e.target.value })} className="px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <option>MALHA</option><option>PLANO</option>
+        </select>
+        <input placeholder="Artigo" value={v.artigo} onChange={(e) => onChange({ ...v, artigo: e.target.value })} className="flex-1 px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        <input placeholder={v.tipo === "MALHA" ? "Rendimento" : "Consumo"} value={v.medida} onChange={(e) => onChange({ ...v, medida: e.target.value })} className="w-32 px-2 py-1 rounded outline-none text-sm" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}66` }} />
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-40 text-sm truncate" style={{ color: C.sub }} title={comp}>{comp}</span>
+      <input value={valor || ""} onChange={(e) => onChange(e.target.value)} className="flex-1 px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+    </div>
+  );
+}
+
+function imprimirPP(f, itens, totalPecas, totalGeral) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const money = (n) => "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const soma = (it) => it.grade.reduce((s, g) => s + (parseFloat(String(g.qtd).replace(",", ".")) || 0), 0);
+  const vun = (it) => parseFloat(String(it.valorUnitario).replace(",", ".")) || 0;
+
+  const itensHtml = itens.map((it, idx) => {
+    const grade = it.grade.filter((g) => String(g.qtd).trim() && Number(String(g.qtd).replace(",", ".")) > 0)
+      .map((g) => `<span class="cell"><b>${esc(g.tam)}</b> ${esc(g.qtd)}</span>`).join("");
+    const params = COMPONENTES[it.tipoPecaNome].map((comp) => {
+      let val = it.parametros[comp];
+      if (comp === "TECIDO" && val && typeof val === "object") {
+        val = `${esc(val.tipo)}${val.artigo ? " · " + esc(val.artigo) : ""}${val.medida ? " · " + esc(val.medida) : ""}`;
+      } else { val = esc(val || "—"); }
+      return `<tr><td class="pk">${esc(comp)}</td><td>${val}</td></tr>`;
+    }).join("");
+    const foto = it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vazio">sem foto</div>`;
+    return `
+      <div class="peca">
+        <div class="peca-head"><span class="badge">${idx + 1}</span> <b>${esc(it.tipoPecaNome)}</b> — ${esc(it.descricao || "")} ${it.codigo ? `<span class="cod">${esc(it.codigo)}</span>` : ""}</div>
+        <div class="peca-body">
+          ${foto}
+          <div class="peca-info">
+            <div class="linha-valor">${soma(it)} pç &nbsp;·&nbsp; unit. ${money(vun(it))} &nbsp;·&nbsp; <b>${money(soma(it) * vun(it))}</b></div>
+            <div class="grade">${grade || '<span class="cell">—</span>'}</div>
+            <table class="params">${params}</table>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  const html = `<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>PP ${esc(f.numero || "")}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Montserrat', Arial, sans-serif; color: #1F2733; margin: 0; }
+    .top { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #FF6B1A; padding-bottom:10px; margin-bottom:14px; }
+    .top img { height: 46px; }
+    .top .t { text-align:right; }
+    .top .t h1 { color:#001E41; margin:0; font-size:20px; letter-spacing:1px; }
+    .top .t .pp { color:#FF6B1A; font-weight:700; font-size:15px; }
+    .hdr { display:grid; grid-template-columns: repeat(4, 1fr); gap:6px 16px; font-size:11px; margin-bottom:6px; }
+    .hdr .lbl { color:#667085; text-transform:uppercase; font-size:9px; letter-spacing:.5px; }
+    .hdr .val { font-weight:600; }
+    .fat { background:#F5F6F8; border:1px solid #E4E7EC; border-radius:6px; padding:8px 10px; margin:8px 0 14px; font-size:11px; }
+    .peca { border:1px solid #E4E7EC; border-radius:8px; margin-bottom:12px; overflow:hidden; page-break-inside:avoid; }
+    .peca-head { background:#001E41; color:#fff; padding:7px 10px; font-size:12px; }
+    .peca-head .badge { background:#FF6B1A; color:#fff; border-radius:50%; padding:1px 7px; font-weight:700; margin-right:4px; }
+    .peca-head .cod { color:#9db3cc; font-size:10px; margin-left:6px; }
+    .peca-body { display:flex; gap:12px; padding:10px; }
+    .foto { width:150px; height:150px; object-fit:cover; border-radius:6px; border:1px solid #E4E7EC; }
+    .foto.vazio { display:flex; align-items:center; justify-content:center; color:#aab; font-size:10px; }
+    .peca-info { flex:1; }
+    .linha-valor { font-size:12px; margin-bottom:6px; }
+    .grade { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+    .grade .cell { border:1px solid #E4E7EC; border-radius:4px; padding:2px 7px; font-size:11px; background:#F5F6F8; }
+    .grade .cell b { color:#FF6B1A; }
+    table.params { width:100%; border-collapse:collapse; font-size:10.5px; }
+    table.params td { border:1px solid #EEF0F3; padding:3px 6px; }
+    table.params td.pk { color:#667085; width:38%; text-transform:uppercase; font-size:9.5px; }
+    .totais { text-align:right; font-size:13px; margin-top:8px; }
+    .totais b { color:#FF6B1A; }
+    .obs { font-size:11px; margin-top:10px; }
+    .rod { margin-top:16px; border-top:1px solid #E4E7EC; padding-top:6px; font-size:9px; color:#98A2B3; text-align:center; }
+  </style></head><body>
+    <div class="top">
+      <img src="${origin}/meridian-logo.png" onerror="this.style.display='none'"/>
+      <div class="t"><h1>PEDIDO DE PRODUÇÃO</h1><div class="pp">PP ${esc(f.numero || "")}</div></div>
+    </div>
+    <div class="hdr">
+      <div><div class="lbl">Cliente</div><div class="val">${esc(f.clienteNome || "—")}</div></div>
+      <div><div class="lbl">CNPJ</div><div class="val">${esc(f.clienteCnpj || "—")}</div></div>
+      <div><div class="lbl">Insc. estadual</div><div class="val">${esc(f.clienteIe || "—")}</div></div>
+      <div><div class="lbl">OC cliente</div><div class="val">${esc(f.oc || "—")}</div></div>
+      <div><div class="lbl">Condição pgto</div><div class="val">${esc(f.condicaoPagamento || "—")}</div></div>
+      <div><div class="lbl">Prazo entrega</div><div class="val">${esc(f.prazoEntrega || "—")}</div></div>
+      <div><div class="lbl">Dt. despacho</div><div class="val">${esc(f.dtDespacho || "—")}</div></div>
+      <div><div class="lbl">Vendedor</div><div class="val">${esc(f.vendedor || "—")}</div></div>
+    </div>
+    <div class="fat"><b>Endereço:</b> ${esc(f.clienteEndereco || "—")} &nbsp;·&nbsp; <b>Contato:</b> ${esc(f.clienteContato || "—")} &nbsp;·&nbsp; <b>Tipo:</b> ${esc(f.tipoPedido || "—")}</div>
+    ${itensHtml}
+    <div class="totais">Total do pedido: <b>${totalPecas} peças · ${money(totalGeral)}</b></div>
+    ${f.obs ? `<div class="obs"><b>Obs.:</b> ${esc(f.obs)}</div>` : ""}
+    <div class="rod">MERIDIAN · Confecção de uniformes — documento interno de produção</div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para imprimir o PP."); return; }
+  w.document.write(html); w.document.close();
 }
 
 function PIC() {
