@@ -39,11 +39,33 @@ export async function POST(req) {
   // 3) fornecedor pelo CNPJ do emitente
   let fornecedorId = null;
   if (nf.emit?.cnpj) {
+    const e = nf.emit;
+    const ricos = {
+      razaoSocial: e.razaoSocial ? e.razaoSocial.toUpperCase() : null,
+      nomeFantasia: e.nomeFantasia ? e.nomeFantasia.toUpperCase() : null,
+      inscricaoEstadual: e.inscricaoEstadual || null,
+      logradouro: e.logradouro ? e.logradouro.toUpperCase() : null,
+      numero: e.numero || null,
+      complemento: e.complemento ? e.complemento.toUpperCase() : null,
+      bairro: e.bairro ? e.bairro.toUpperCase() : null,
+      municipio: e.municipio ? e.municipio.toUpperCase() : null,
+      uf: e.uf ? e.uf.toUpperCase() : null,
+      cep: e.cep || null,
+      telefones: e.telefones || null,
+    };
     const cnpjRow = await prisma.fornecedorCnpj.findUnique({ where: { cnpj: nf.emit.cnpj } });
-    if (cnpjRow) fornecedorId = cnpjRow.fornecedorId;
-    else {
+    if (cnpjRow) {
+      fornecedorId = cnpjRow.fornecedorId;
+      // completa apenas campos ainda vazios
+      const atual = await prisma.fornecedor.findUnique({ where: { id: fornecedorId } });
+      const upd = {};
+      for (const k of Object.keys(ricos)) {
+        if (ricos[k] && (atual[k] == null || String(atual[k]).trim() === "")) upd[k] = ricos[k];
+      }
+      if (Object.keys(upd).length) await prisma.fornecedor.update({ where: { id: fornecedorId }, data: upd });
+    } else {
       const forn = await prisma.fornecedor.create({
-        data: { nome: "", cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] } },
+        data: { nome: "", ...ricos, cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] } },
       });
       fornecedorId = forn.id;
     }

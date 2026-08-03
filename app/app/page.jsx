@@ -1466,7 +1466,7 @@ function BancoDados({ master, money, perfil }) {
       </div>
       {aba === "clientes"
         ? <ClientesPane master={master} money={money} />
-        : <FornecedoresPane fornecedores={fornecedores} onSaved={carregarForn} />}
+        : <FornecedoresBancoPane master={master} money={money} perfil={perfil} />}
     </div>
   );
 }
@@ -1749,6 +1749,304 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
         <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
           <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
           <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FornecedoresBancoPane({ master, money, perfil }) {
+  const [forns, setForns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [filtroUf, setFiltroUf] = useState("");
+  const [sort, setSort] = useState({ key: "nome", dir: "asc" });
+  const [verMov, setVerMov] = useState(null);
+  const [editando, setEditando] = useState(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [prog, setProg] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const carregar = async () => {
+    setLoading(true);
+    try { const f = await fetch("/api/fornecedores").then((r) => r.json()); setForns(Array.isArray(f) ? f : []); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  const ufs = [...new Set(forns.map((f) => f.uf).filter(Boolean))].sort();
+
+  const filtrados = (() => {
+    const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
+    let l = forns.filter((f) => {
+      if (filtroUf && f.uf !== filtroUf) return false;
+      if (!tokens.length) return true;
+      const cnpjTxt = (f.cnpjs || []).map((c) => c.cnpj).join(" ");
+      const hay = norm([f.nome, f.razaoSocial, f.nomeFantasia, cnpjTxt, f.municipio, f.uf, f.preposto, f.telefones, f.emailNf].filter(Boolean).join(" "));
+      return tokens.every((t) => hay.includes(t));
+    });
+    const getv = sort.key === "compras" ? (f) => f._count?.nfs ?? 0 : (f) => f[sort.key];
+    return ordenar(l, getv, sort.dir, sort.key === "compras" ? "num" : "texto");
+  })();
+
+  const readText = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(fr.result); fr.readAsText(file); });
+  const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
+
+  const importar = async (files) => {
+    const arr = Array.from(files || []).filter(Boolean);
+    const xmls = arr.filter((f) => /\.xml$/i.test(f.name));
+    const pdfs = arr.filter((f) => /\.pdf$/i.test(f.name));
+    if (!xmls.length) { setMsg({ tipo: "erro", texto: "Solte os XMLs das notas de compra." }); return; }
+    setMsg(null); setEnviando(true);
+    let novas = 0, existentes = 0, artigos = 0, recusadas = 0, erros = 0;
+    try {
+      for (let i = 0; i < xmls.length; i++) {
+        setProg(`Importando ${i + 1}/${xmls.length}…`);
+        const x = xmls[i];
+        const base = x.name.replace(/\.xml$/i, "");
+        const pdf = pdfs.find((p) => p.name.replace(/\.pdf$/i, "") === base);
+        const payload = { tipo: "xml", conteudo: await readText(x), pdfBase64: pdf ? await readB64(pdf) : null, perfil };
+        const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const d = await r.json();
+        if (!r.ok) { if (/venda|recusad/i.test(d.error || "")) recusadas++; else erros++; }
+        else { if (d.jaExistia) existentes++; else novas++; artigos += d.artigosCriados || 0; }
+      }
+      const partes = [`${novas} nota(s) nova(s)`];
+      if (existentes) partes.push(`${existentes} já existentes`);
+      if (artigos) partes.push(`${artigos} artigo(s) criado(s)`);
+      if (recusadas) partes.push(`${recusadas} não eram compra`);
+      if (erros) partes.push(`${erros} com erro`);
+      setMsg({ tipo: "ok", texto: partes.join(" · ") + "." });
+      carregar();
+    } catch (e) { setMsg({ tipo: "erro", texto: e.message }); }
+    setEnviando(false); setProg("");
+  };
+
+  return (
+    <div>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+        onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); importar(e.dataTransfer.files); }}
+        className="rounded-lg p-5 mb-5 text-center"
+        style={{ background: arrastando ? C.accentSoft : C.panel, border: `1.5px dashed ${arrastando ? C.accent : C.line}` }}>
+        <div className="text-sm mb-2" style={{ color: C.sub }}>
+          Arraste os <b>XMLs das notas de compra</b> (PDF opcional) aqui, ou selecione. Entra aqui, reflete em Artigos, Estoque e Notas Fiscais.
+        </div>
+        <label className="inline-block px-4 py-2 rounded font-semibold cursor-pointer" style={{ background: C.accent, color: "#fff" }}>
+          {enviando ? (prog || "Importando…") : "Selecionar arquivos"}
+          <input type="file" multiple accept=".xml,.pdf" className="hidden" onChange={(e) => importar(e.target.files)} disabled={enviando} />
+        </label>
+        {msg && <div className="text-xs mt-3" style={{ color: msg.tipo === "ok" ? C.green : "#D64545" }}>{msg.texto}</div>}
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-end mb-4">
+        <div className="flex-1 min-w-64">
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome, razão social, CNPJ, cidade…"
+            className="w-full px-3 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>UF</div>
+          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+            <option value="">Todas</option>
+            {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <button onClick={() => setEditando({})} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
+          <Plus size={16} /> Novo fornecedor
+        </button>
+      </div>
+
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {forns.length} fornecedor(es) · clique no nome para editar, no número de compras para ver o histórico</div>
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+        <div className="flex px-4 py-2 text-xs font-semibold min-w-[920px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <ThSort label="Fornecedor (nome comercial)" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="w-48" />
+          <div className="w-40">CNPJ</div>
+          <div className="w-24">IE</div>
+          <ThSort label="Cidade/UF" campoKey="municipio" sort={sort} onSort={onSort} className="w-36" />
+          <div className="w-36">Telefone(s)</div>
+          <ThSort label="Compras" campoKey="compras" sort={sort} onSort={onSort} className="w-20 text-right" />
+        </div>
+        {loading ? (
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</div>
+        ) : filtrados.length === 0 ? (
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor. Importe XMLs de compra acima.</div>
+        ) : filtrados.map((f) => (
+          <div key={f.id} onClick={() => setEditando(f)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[920px]"
+            style={{ borderBottom: `1px solid ${C.line}` }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            <div className="flex-1 font-medium" style={{ color: f.nome ? C.text : C.accent }}>{f.nome || "⚠ definir nome"}</div>
+            <div className="w-48" style={{ color: C.sub }}>{f.razaoSocial || "—"}</div>
+            <div className="w-40" style={{ color: C.sub }}>{f.cnpjs?.[0] ? fmtCnpj(f.cnpjs[0].cnpj) : "—"}{f.cnpjs?.length > 1 ? ` +${f.cnpjs.length - 1}` : ""}</div>
+            <div className="w-24" style={{ color: C.sub }}>{f.inscricaoEstadual || "—"}</div>
+            <div className="w-36" style={{ color: C.sub }}>{f.municipio ? `${f.municipio}${f.uf ? "/" + f.uf : ""}` : "—"}</div>
+            <div className="w-36" style={{ color: C.sub }}>{f.telefones || f.telefone || "—"}</div>
+            <button onClick={(e) => { e.stopPropagation(); setVerMov(f); }} title="Ver histórico de compras"
+              className="w-20 text-right" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{f._count?.nfs ?? 0}</button>
+          </div>
+        ))}
+      </div>
+
+      {editando && <FornecedorFullModal fornecedor={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
+      {verMov && <FornecedorMovModal fornecedor={verMov} master={master} money={money} onClose={() => setVerMov(null)} />}
+    </div>
+  );
+}
+
+function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
+  const novo = !fornecedor.id;
+  const v = (x) => (x == null ? "" : String(x));
+  const [f, setF] = useState({
+    nome: v(fornecedor.nome), razaoSocial: v(fornecedor.razaoSocial), nomeFantasia: v(fornecedor.nomeFantasia),
+    inscricaoEstadual: v(fornecedor.inscricaoEstadual),
+    logradouro: v(fornecedor.logradouro), numero: v(fornecedor.numero), complemento: v(fornecedor.complemento),
+    bairro: v(fornecedor.bairro), municipio: v(fornecedor.municipio), uf: v(fornecedor.uf), cep: v(fornecedor.cep),
+    preposto: v(fornecedor.preposto), telefones: v(fornecedor.telefones), emailNf: v(fornecedor.emailNf), obs: v(fornecedor.obs),
+  });
+  const [cnpjs, setCnpjs] = useState(fornecedor.cnpjs?.length ? fornecedor.cnpjs.map((c) => ({ cnpj: c.cnpj, razaoSocial: c.razaoSocial || "" })) : [{ cnpj: "", razaoSocial: "" }]);
+  const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
+  const setC = (i, campo, val) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: val } : c)));
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const salvar = async () => {
+    setErro("");
+    if (!f.nome.trim()) return setErro("Informe o nome comercial.");
+    setSalvando(true);
+    const payload = { ...f, cnpjs };
+    const url = novo ? "/api/fornecedores" : `/api/fornecedores/${fornecedor.id}`;
+    const r = await fetch(url, { method: novo ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="font-semibold">{novo ? "Novo fornecedor" : (f.nome || "Editar fornecedor")}</div>
+          <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <In label="Nome comercial" value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Ex.: Malharia SP" />
+            <In label="Nome fantasia" value={f.nomeFantasia} onChange={(e) => set("nomeFantasia", e.target.value)} />
+            <In label="Razão social" value={f.razaoSocial} onChange={(e) => set("razaoSocial", e.target.value)} />
+            <In label="Inscrição estadual" value={f.inscricaoEstadual} onChange={(e) => set("inscricaoEstadual", e.target.value)} />
+          </div>
+
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>CNPJ(s)</div>
+          {cnpjs.map((c, i) => (
+            <div key={i} className="grid grid-cols-2 gap-2">
+              <In label={i === 0 ? "CNPJ" : ""} value={c.cnpj} onChange={(e) => setC(i, "cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
+              <In label={i === 0 ? "Razão social do CNPJ" : ""} value={c.razaoSocial} onChange={(e) => setC(i, "razaoSocial", e.target.value)} />
+            </div>
+          ))}
+          <button onClick={() => setCnpjs((cs) => [...cs, { cnpj: "", razaoSocial: "" }])} className="text-xs" style={{ color: C.accent }}>+ adicionar outro CNPJ</button>
+
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>ENDEREÇO COMPLETO</div>
+          <div className="grid grid-cols-6 gap-3">
+            <div className="col-span-4"><In label="Logradouro" value={f.logradouro} onChange={(e) => set("logradouro", e.target.value)} /></div>
+            <div className="col-span-1"><In label="Número" value={f.numero} onChange={(e) => set("numero", e.target.value)} /></div>
+            <div className="col-span-1"><In label="CEP" value={f.cep} onChange={(e) => set("cep", e.target.value)} /></div>
+            <div className="col-span-2"><In label="Complemento" value={f.complemento} onChange={(e) => set("complemento", e.target.value)} /></div>
+            <div className="col-span-2"><In label="Bairro" value={f.bairro} onChange={(e) => set("bairro", e.target.value)} /></div>
+            <div className="col-span-1"><In label="Município" value={f.municipio} onChange={(e) => set("municipio", e.target.value)} /></div>
+            <div className="col-span-1"><In label="UF" value={f.uf} onChange={(e) => set("uf", e.target.value)} /></div>
+          </div>
+
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>CONTATO</div>
+          <div className="grid grid-cols-2 gap-3">
+            <In label="Preposto (contato)" value={f.preposto} onChange={(e) => set("preposto", e.target.value)} />
+            <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
+            <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
+          </div>
+
+          <div>
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Observações</div>
+            <textarea value={f.obs} onChange={(e) => set("obs", e.target.value)} rows={3}
+              className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+          </div>
+
+          {erro && <div className="text-xs" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FornecedorMovModal({ fornecedor, master, money, onClose }) {
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    fetch(`/api/fornecedores/${fornecedor.id}/nfs`).then((r) => r.json()).then(setDados).catch(() => setDados({ linhas: [] }));
+  }, [fornecedor.id]);
+  const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
+  const nBR = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 860, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">Compras — {fornecedor.nome || fornecedor.razaoSocial}</div>
+            <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+          </div>
+        </div>
+        <div className="p-5">
+          {/* Totais */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+              <div className="text-xs" style={{ color: C.sub }}>Total já comprado</div>
+              <div className="font-semibold text-lg" style={{ color: master ? C.accent : C.sub }}>{master && dados ? money(dados.totalComprado) : "•••••"}</div>
+            </div>
+            <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+              <div className="text-xs" style={{ color: C.sub }}>Volume em metros</div>
+              <div className="font-semibold text-lg">{dados ? nBR(dados.totalM) : "—"} m</div>
+            </div>
+            <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+              <div className="text-xs" style={{ color: C.sub }}>Volume em quilos</div>
+              <div className="font-semibold text-lg">{dados ? nBR(dados.totalKg) : "—"} kg</div>
+            </div>
+          </div>
+
+          <div className="font-semibold text-sm mb-2">Notas de compra</div>
+          {dados === null ? <div style={{ color: C.sub }}>Carregando…</div> : !dados.linhas?.length ? (
+            <div className="text-sm" style={{ color: C.sub }}>Sem compras registradas.</div>
+          ) : (
+            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
+                <div className="w-28">Nº NF</div>
+                <div className="w-28">Data</div>
+                <div className="w-28 text-right">Metros</div>
+                <div className="w-28 text-right">Quilos</div>
+                <div className="flex-1 text-right">Valor total</div>
+              </div>
+              {dados.linhas.map((n) => (
+                <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+                  <div className="w-28">NF {n.numero}</div>
+                  <div className="w-28" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
+                  <div className="w-28 text-right" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</div>
+                  <div className="w-28 text-right" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</div>
+                  <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Fechar</button>
         </div>
       </div>
     </div>

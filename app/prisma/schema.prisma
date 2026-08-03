@@ -96,6 +96,20 @@ model Fornecedor {
   contato   String?
   telefone  String?
   email     String?
+  razaoSocial       String?
+  nomeFantasia      String?
+  inscricaoEstadual String?
+  logradouro        String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  municipio         String?
+  uf                String?
+  cep               String?
+  preposto          String?
+  telefones         String?
+  emailNf           String?
+  obs               String?
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
