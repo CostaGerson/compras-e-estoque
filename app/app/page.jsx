@@ -943,7 +943,7 @@ function FornecedorEditModal({ fornecedor, onClose, onSaved }) {
   );
 }
 
-const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento"]];
+const CATS = [["MALHA", "Malha"], ["TECIDO", "Tecido"], ["AVIAMENTO", "Aviamento"], ["OUTROS", "Outros"]];
 
 const MAPA_COR = {
   "branco": "#FFFFFF", "off white": "#F5F5EF", "cru": "#E8E0CF", "gelo": "#F0F4F8",
