@@ -401,7 +401,50 @@ function Producao() {
 }
 
 const TAMANHOS = ["PP","P","M","G","GG","XG","XGG","XXGG","XXXGG"];
+const COND_PGTO = [
+  "30% antecipado 30% entrega e 40% 30d",
+  "50% antecipado e 50% entrega",
+  "100% entrega",
+  "prazo 30 dias",
+  "prazo 30/60",
+  "prazo 30/45/60",
+  "prazo 30/60/90",
+  "prazo 30/60/90/120",
+  "prazo 30/60/90/120/150",
+  "prazo 120",
+];
 const ppMoney = (n) => "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function Autocomplete({ value, onChange, onPick, buscar, render, placeholder, inputStyle }) {
+  const [aberto, setAberto] = useState(false);
+  const [opcoes, setOpcoes] = useState([]);
+  const timer = React.useRef(null);
+  const onType = (v) => {
+    onChange(v);
+    if (timer.current) clearTimeout(timer.current);
+    if (!v || v.length < 2) { setOpcoes([]); setAberto(false); return; }
+    timer.current = setTimeout(async () => { const r = await buscar(v); setOpcoes(r.slice(0, 8)); setAberto(r.length > 0); }, 150);
+  };
+  return (
+    <div style={{ position: "relative" }}>
+      <input value={value} placeholder={placeholder} onChange={(e) => onType(e.target.value)}
+        onFocus={() => value && value.length >= 2 && opcoes.length && setAberto(true)}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inputStyle || { background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+      {aberto && (
+        <div style={{ position: "absolute", zIndex: 30, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 240, overflowY: "auto" }}>
+          {opcoes.map((o, i) => (
+            <button key={i} onMouseDown={(e) => { e.preventDefault(); onPick(o); setAberto(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm" style={{ borderBottom: `1px solid ${C.line}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+              {render(o)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LancarPP() {
   const [lista, setLista] = useState([]);
@@ -465,7 +508,32 @@ function PpEditor({ ppId, onVoltar }) {
   const [itens, setItens] = useState([novoItem()]);
   const [salvando, setSalvando] = useState(false);
   const [carregado, setCarregado] = useState(!ppId);
+  const [clientes, setClientes] = useState([]);
+  const [artigos, setArtigos] = useState([]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  useEffect(() => {
+    fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch("/api/artigos").then((r) => r.json()).then((d) => setArtigos(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
+
+  const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const buscarCliente = async (q) => {
+    const n = norm(q);
+    return clientes.filter((c) => norm([c.razaoSocial, c.nomeFantasia, c.cnpj].filter(Boolean).join(" ")).includes(n));
+  };
+  const buscarArtigo = async (q) => {
+    const n = norm(q);
+    return artigos.filter((a) => norm([a.nome, a.artigoInterno, a.codigo, a.cor].filter(Boolean).join(" ")).includes(n));
+  };
+  const pickCliente = (c) => setF((s) => ({
+    ...s,
+    clienteNome: c.razaoSocial || c.nomeFantasia || "",
+    clienteCnpj: fmtCnpj(c.cnpj),
+    clienteIe: c.inscricaoEstadual || "",
+    clienteEndereco: [c.logradouro, c.numero, c.bairro, c.municipio && `${c.municipio}${c.uf ? "/" + c.uf : ""}`, c.cep].filter(Boolean).join(", "),
+    clienteContato: c.preposto || c.telefones || "",
+  }));
 
   useEffect(() => {
     if (!ppId) return;
@@ -489,6 +557,23 @@ function PpEditor({ ppId, onVoltar }) {
   }, [ppId]);
 
   const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+
+  const aoAnexar = async (campo, file) => {
+    const b64 = await readB64(file);
+    set(campo, b64);
+    if (campo === "arquivoPedidoPdf" || campo === "arquivoLancPdf") {
+      const body = campo === "arquivoPedidoPdf" ? { pedidoBase64: b64 } : { lancBase64: b64 };
+      try {
+        const d = await fetch("/api/pp/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+        setF((s) => {
+          const n = { ...s };
+          for (const k of ["numero", "clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "oc", "prazoEntrega"]) if (d[k]) n[k] = d[k];
+          if (d.condicaoPagamento) { const achou = COND_PGTO.find((c) => c.toLowerCase() === String(d.condicaoPagamento).toLowerCase()); n.condicaoPagamento = achou || d.condicaoPagamento; }
+          return n;
+        });
+      } catch {}
+    }
+  };
 
   const somaItem = (it) => it.grade.reduce((s, g) => s + (parseFloat(String(g.qtd).replace(",", ".")) || 0), 0);
   const totalItem = (it) => somaItem(it) * (parseFloat(String(it.valorUnitario).replace(",", ".")) || 0);
@@ -528,7 +613,7 @@ function PpEditor({ ppId, onVoltar }) {
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <label className="block px-3 py-2 rounded cursor-pointer text-sm text-center" style={{ background: f[campo] ? C.greenSoft : C.panel2, color: f[campo] ? C.green : C.sub, border: `1px dashed ${f[campo] ? C.green : C.line}` }}>
         {f[campo] ? "✓ anexado (trocar)" : "Selecionar PDF"}
-        <input type="file" accept=".pdf" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) set(campo, await readB64(file)); }} />
+        <input type="file" accept=".pdf" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) aoAnexar(campo, file); }} />
       </label>
     </div>
   );
@@ -561,12 +646,24 @@ function PpEditor({ ppId, onVoltar }) {
           <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />
           <In label="Tipo de pedido" value={f.tipoPedido} onChange={(e) => set("tipoPedido", e.target.value)} />
           <In label="Vendedor" value={f.vendedor} onChange={(e) => set("vendedor", e.target.value)} />
-          <div className="col-span-2"><In label="Cliente" value={f.clienteNome} onChange={(e) => set("clienteNome", e.target.value)} /></div>
+          <div className="col-span-2">
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente <span style={{ color: C.accent }}>· busca no banco de dados</span></div>
+            <Autocomplete value={f.clienteNome} onChange={(v) => set("clienteNome", v)} buscar={buscarCliente} onPick={pickCliente}
+              placeholder="Digite o nome do cliente…"
+              render={(c) => <span><b>{c.razaoSocial || c.nomeFantasia}</b> <span style={{ color: C.sub }}>· {fmtCnpj(c.cnpj)}{c.municipio ? " · " + c.municipio : ""}</span></span>} />
+          </div>
           <In label="CNPJ" value={f.clienteCnpj} onChange={(e) => set("clienteCnpj", e.target.value)} />
           <In label="Inscr. estadual" value={f.clienteIe} onChange={(e) => set("clienteIe", e.target.value)} />
           <div className="col-span-3"><In label="Endereço" value={f.clienteEndereco} onChange={(e) => set("clienteEndereco", e.target.value)} /></div>
           <In label="Contato" value={f.clienteContato} onChange={(e) => set("clienteContato", e.target.value)} />
-          <In label="Condição de pagamento" value={f.condicaoPagamento} onChange={(e) => set("condicaoPagamento", e.target.value)} />
+          <div>
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Condição de pagamento</div>
+            <select value={f.condicaoPagamento} onChange={(e) => set("condicaoPagamento", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+              <option value="">Selecione…</option>
+              {f.condicaoPagamento && !COND_PGTO.includes(f.condicaoPagamento) && <option value={f.condicaoPagamento}>{f.condicaoPagamento} (do arquivo)</option>}
+              {COND_PGTO.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
           <In label="Prazo de entrega" value={f.prazoEntrega} onChange={(e) => set("prazoEntrega", e.target.value)} />
           <In label="Dt. despacho" value={f.dtDespacho} onChange={(e) => set("dtDespacho", e.target.value)} />
           <div className="col-span-4">
@@ -623,7 +720,7 @@ function PpEditor({ ppId, onVoltar }) {
               <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros — {it.tipoPecaNome}</div>
               <div className="grid grid-cols-2 gap-2">
                 {COMPONENTES[it.tipoPecaNome].map((comp) => (
-                  <ParamLinha key={comp} comp={comp} valor={it.parametros[comp]} onChange={(v) => upParam(i, comp, v)} />
+                  <ParamLinha key={comp} comp={comp} valor={it.parametros[comp]} onChange={(v) => upParam(i, comp, v)} buscarArtigo={buscarArtigo} />
                 ))}
               </div>
             </div>
@@ -642,18 +739,29 @@ function PpEditor({ ppId, onVoltar }) {
   );
 }
 
-function ParamLinha({ comp, valor, onChange }) {
+function ParamLinha({ comp, valor, onChange, buscarArtigo }) {
   const isTecido = comp === "TECIDO";
   if (isTecido) {
     const v = valor && typeof valor === "object" ? valor : { tipo: "MALHA", artigo: "", medida: "" };
+    const pick = (a) => {
+      const tipo = a.categoria === "MALHA" ? "MALHA" : "PLANO";
+      const medida = tipo === "MALHA"
+        ? (a.rendimento ? `Rend. ${a.rendimento}` : "")
+        : (a.largura ? `Larg. ${a.largura}` : "");
+      onChange({ tipo, artigo: a.nome || "", medida, artigoId: a.id, composicao: a.composicao || "" });
+    };
     return (
       <div className="col-span-2 flex items-center gap-2">
         <span className="w-40 text-sm" style={{ color: C.sub }}>{comp}</span>
         <select value={v.tipo} onChange={(e) => onChange({ ...v, tipo: e.target.value })} className="px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
           <option>MALHA</option><option>PLANO</option>
         </select>
-        <input placeholder="Artigo" value={v.artigo} onChange={(e) => onChange({ ...v, artigo: e.target.value })} className="flex-1 px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        <input placeholder={v.tipo === "MALHA" ? "Rendimento" : "Consumo"} value={v.medida} onChange={(e) => onChange({ ...v, medida: e.target.value })} className="w-32 px-2 py-1 rounded outline-none text-sm" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}66` }} />
+        <div className="flex-1">
+          <Autocomplete value={v.artigo} onChange={(t) => onChange({ ...v, artigo: t })} buscar={buscarArtigo} onPick={pick}
+            placeholder="Artigo (busca no estoque)…"
+            render={(a) => <span><b>{a.nome}</b> <span style={{ color: C.sub }}>· {a.categoria}{a.cor ? " · " + a.cor : ""}{a.largura ? " · " + a.largura : ""}{a.rendimento ? " · rend " + a.rendimento : ""}</span></span>} />
+        </div>
+        <input placeholder={v.tipo === "MALHA" ? "Rendimento" : "Consumo/Largura"} value={v.medida} onChange={(e) => onChange({ ...v, medida: e.target.value })} className="w-36 px-2 py-1 rounded outline-none text-sm" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}66` }} />
       </div>
     );
   }
