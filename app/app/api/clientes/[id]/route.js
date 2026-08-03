@@ -32,6 +32,6 @@ export async function PATCH(req, { params }) {
 
 export async function DELETE(_req, { params }) {
   const id = Number(params.id);
-  await prisma.cliente.update({ where: { id }, data: { ativo: false } });
+  await prisma.cliente.delete({ where: { id } }); // ClienteNota tem cascade
   return NextResponse.json({ ok: true });
 }

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
-  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database,
+  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
 } from "lucide-react";
 
@@ -1621,17 +1621,21 @@ function ClientesPane({ master, money }) {
         ))}
       </div>
 
-      {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} />}
+      {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} onChanged={carregar} />}
       {editando && <ClienteEditModal cliente={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
     </div>
   );
 }
 
-function ClienteHistoricoModal({ cliente, master, money, onClose }) {
+function ClienteHistoricoModal({ cliente, master, money, onClose, onChanged }) {
   const [notas, setNotas] = useState(null);
-  useEffect(() => {
-    fetch(`/api/clientes/${cliente.id}/notas`).then((r) => r.json()).then((d) => setNotas(Array.isArray(d) ? d : [])).catch(() => setNotas([]));
-  }, [cliente.id]);
+  const recarregar = () => fetch(`/api/clientes/${cliente.id}/notas`).then((r) => r.json()).then((d) => setNotas(Array.isArray(d) ? d : [])).catch(() => setNotas([]));
+  useEffect(() => { recarregar(); }, [cliente.id]);
+  const excluir = async (n) => {
+    if (!confirm(`Excluir a nota NF ${n.numero || ""} deste cliente?`)) return;
+    const r = await fetch(`/api/cliente-notas/${n.id}`, { method: "DELETE" });
+    if (r.ok) { recarregar(); onChanged && onChanged(); }
+  };
   const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
   const total = notas && master ? notas.reduce((s, n) => s + (n.valorTotal || 0), 0) : 0;
   return (
@@ -1659,6 +1663,7 @@ function ClienteHistoricoModal({ cliente, master, money, onClose }) {
                 <div className="w-28">Nota</div>
                 <div className="w-32">Data</div>
                 <div className="flex-1 text-right">Valor</div>
+                <div className="w-10"></div>
               </div>
               {notas.map((n) => (
                 <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -1666,6 +1671,7 @@ function ClienteHistoricoModal({ cliente, master, money, onClose }) {
                   <div className="w-28" style={{ color: C.sub }}>NF {n.numero || "—"}</div>
                   <div className="w-32" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
                   <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? (n.valorTotal != null ? money(n.valorTotal) : "—") : "•••••"}</div>
+                  <button onClick={() => excluir(n)} title="Excluir esta nota" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
                 </div>
               ))}
             </div>
@@ -1746,9 +1752,22 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
 
           {erro && <div className="text-xs" style={{ color: "#D64545" }}>{erro}</div>}
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
-          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
-          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+        <div className="flex justify-between items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div>
+            {!novo && (
+              <button onClick={async () => {
+                if (!confirm(`Excluir o cliente "${f.razaoSocial || cliente.nomeFantasia || cliente.cnpj}" e todo o seu histórico? Esta ação não pode ser desfeita.`)) return;
+                const r = await fetch(`/api/clientes/${cliente.id}`, { method: "DELETE" });
+                if (r.ok) onSaved(); else setErro("Não foi possível excluir.");
+              }} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ color: "#D64545", border: `1px solid #F1C7C7` }}>
+                <Trash2 size={15} /> Excluir cliente
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1894,7 +1913,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
       </div>
 
       {editando && <FornecedorFullModal fornecedor={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
-      {verMov && <FornecedorMovModal fornecedor={verMov} master={master} money={money} onClose={() => setVerMov(null)} />}
+      {verMov && <FornecedorMovModal fornecedor={verMov} master={master} money={money} onClose={() => setVerMov(null)} onChanged={carregar} />}
     </div>
   );
 }
@@ -1978,20 +1997,38 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
 
           {erro && <div className="text-xs" style={{ color: "#D64545" }}>{erro}</div>}
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
-          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
-          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+        <div className="flex justify-between items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div>
+            {!novo && (
+              <button onClick={async () => {
+                if (!confirm(`Inativar o fornecedor "${f.nome || fornecedor.razaoSocial}"? Ele sai da lista; as notas de compra e artigos permanecem no sistema.`)) return;
+                const r = await fetch(`/api/fornecedores/${fornecedor.id}`, { method: "DELETE" });
+                if (r.ok) onSaved(); else setErro("Não foi possível excluir.");
+              }} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ color: "#D64545", border: `1px solid #F1C7C7` }}>
+                <Trash2 size={15} /> Inativar fornecedor
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function FornecedorMovModal({ fornecedor, master, money, onClose }) {
+function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
   const [dados, setDados] = useState(null);
-  useEffect(() => {
-    fetch(`/api/fornecedores/${fornecedor.id}/nfs`).then((r) => r.json()).then(setDados).catch(() => setDados({ linhas: [] }));
-  }, [fornecedor.id]);
+  const recarregar = () => fetch(`/api/fornecedores/${fornecedor.id}/nfs`).then((r) => r.json()).then(setDados).catch(() => setDados({ linhas: [] }));
+  useEffect(() => { recarregar(); }, [fornecedor.id]);
+  const excluir = async (n) => {
+    if (!confirm(`Excluir a NF ${n.numero} desta compra? O saldo em estoque dos artigos desta nota será revertido. Esta ação não pode ser desfeita.`)) return;
+    const r = await fetch(`/api/nf/${n.id}`, { method: "DELETE" });
+    if (r.ok) { recarregar(); onChanged && onChanged(); }
+    else alert("Não foi possível excluir a NF.");
+  };
   const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
   const nBR = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -2033,6 +2070,7 @@ function FornecedorMovModal({ fornecedor, master, money, onClose }) {
                 <div className="w-28 text-right">Metros</div>
                 <div className="w-28 text-right">Quilos</div>
                 <div className="flex-1 text-right">Valor total</div>
+                <div className="w-10"></div>
               </div>
               {dados.linhas.map((n) => (
                 <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -2041,6 +2079,7 @@ function FornecedorMovModal({ fornecedor, master, money, onClose }) {
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</div>
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</div>
                   <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</div>
+                  <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
                 </div>
               ))}
             </div>
