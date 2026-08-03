@@ -1478,6 +1478,7 @@ function ClientesPane({ master, money }) {
   const [filtroUf, setFiltroUf] = useState("");
   const [sort, setSort] = useState({ key: "razaoSocial", dir: "asc" });
   const [verHist, setVerHist] = useState(null);
+  const [editando, setEditando] = useState(null); // objeto cliente ou {} p/ novo
   const [arrastando, setArrastando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [prog, setProg] = useState("");
@@ -1580,9 +1581,12 @@ function ClientesPane({ master, money }) {
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
+        <button onClick={() => setEditando({})} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
+          <Plus size={16} /> Novo cliente
+        </button>
       </div>
 
-      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique na linha para ver o histórico, no título para ordenar</div>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique no nome para editar, no número de notas para ver o histórico</div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
         <div className="flex px-4 py-2 text-xs font-semibold min-w-[900px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="flex-1" />
@@ -1600,7 +1604,7 @@ function ClientesPane({ master, money }) {
         ) : filtrados.length === 0 ? (
           <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum cliente. Importe os XMLs acima.</div>
         ) : filtrados.map((c) => (
-          <div key={c.id} onClick={() => setVerHist(c)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[900px]"
+          <div key={c.id} onClick={() => setEditando(c)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[900px]"
             style={{ borderBottom: `1px solid ${C.line}` }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="flex-1 font-medium">{c.razaoSocial || "—"}</div>
@@ -1611,12 +1615,14 @@ function ClientesPane({ master, money }) {
             <div className="w-32" style={{ color: C.sub }}>{c.preposto || "—"}</div>
             <div className="w-36" style={{ color: C.sub }}>{c.telefones || "—"}</div>
             <div className="w-48 truncate" style={{ color: C.sub }} title={c.emailNf || ""}>{c.emailNf || "—"}</div>
-            <div className="w-16 text-right" style={{ color: C.accent, fontWeight: 600 }}>{c._count?.notas ?? 0}</div>
+            <button onClick={(e) => { e.stopPropagation(); setVerHist(c); }} title="Ver histórico de compras"
+              className="w-16 text-right" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{c._count?.notas ?? 0}</button>
           </div>
         ))}
       </div>
 
       {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} />}
+      {editando && <ClienteEditModal cliente={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
     </div>
   );
 }
@@ -1667,6 +1673,82 @@ function ClienteHistoricoModal({ cliente, master, money, onClose }) {
         </div>
         <div className="flex justify-end px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
           <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClienteEditModal({ cliente, onClose, onSaved }) {
+  const novo = !cliente.id;
+  const v = (x) => (x == null ? "" : String(x));
+  const [f, setF] = useState({
+    razaoSocial: v(cliente.razaoSocial), nomeFantasia: v(cliente.nomeFantasia),
+    cnpj: v(cliente.cnpj), inscricaoEstadual: v(cliente.inscricaoEstadual),
+    logradouro: v(cliente.logradouro), numero: v(cliente.numero), complemento: v(cliente.complemento),
+    bairro: v(cliente.bairro), municipio: v(cliente.municipio), uf: v(cliente.uf), cep: v(cliente.cep),
+    preposto: v(cliente.preposto), telefones: v(cliente.telefones), emailNf: v(cliente.emailNf), obs: v(cliente.obs),
+  });
+  const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const salvar = async () => {
+    setErro("");
+    if (!f.cnpj.replace(/\D/g, "")) return setErro("Informe o CNPJ.");
+    setSalvando(true);
+    const url = novo ? "/api/clientes" : `/api/clientes/${cliente.id}`;
+    const r = await fetch(url, { method: novo ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    setSalvando(false);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
+        style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="font-semibold">{novo ? "Novo cliente" : (f.razaoSocial || "Editar cliente")}</div>
+          <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <In label="Razão social" value={f.razaoSocial} onChange={(e) => set("razaoSocial", e.target.value)} />
+            <In label="Nome fantasia" value={f.nomeFantasia} onChange={(e) => set("nomeFantasia", e.target.value)} />
+            <In label="CNPJ" value={f.cnpj} onChange={(e) => set("cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
+            <In label="Inscrição estadual" value={f.inscricaoEstadual} onChange={(e) => set("inscricaoEstadual", e.target.value)} />
+          </div>
+
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>ENDEREÇO COMPLETO</div>
+          <div className="grid grid-cols-6 gap-3">
+            <div className="col-span-4"><In label="Logradouro" value={f.logradouro} onChange={(e) => set("logradouro", e.target.value)} /></div>
+            <div className="col-span-1"><In label="Número" value={f.numero} onChange={(e) => set("numero", e.target.value)} /></div>
+            <div className="col-span-1"><In label="CEP" value={f.cep} onChange={(e) => set("cep", e.target.value)} /></div>
+            <div className="col-span-2"><In label="Complemento" value={f.complemento} onChange={(e) => set("complemento", e.target.value)} /></div>
+            <div className="col-span-2"><In label="Bairro" value={f.bairro} onChange={(e) => set("bairro", e.target.value)} /></div>
+            <div className="col-span-1"><In label="Município" value={f.municipio} onChange={(e) => set("municipio", e.target.value)} /></div>
+            <div className="col-span-1"><In label="UF" value={f.uf} onChange={(e) => set("uf", e.target.value)} /></div>
+          </div>
+
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>CONTATO</div>
+          <div className="grid grid-cols-2 gap-3">
+            <In label="Preposto (contato)" value={f.preposto} onChange={(e) => set("preposto", e.target.value)} />
+            <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
+            <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
+          </div>
+
+          <div>
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Observações</div>
+            <textarea value={f.obs} onChange={(e) => set("obs", e.target.value)} rows={3}
+              className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+          </div>
+
+          {erro && <div className="text-xs" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
         </div>
       </div>
     </div>
