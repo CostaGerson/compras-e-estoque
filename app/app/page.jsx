@@ -1113,7 +1113,17 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
             {modoEstoque && <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
             {modoEstoque && master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
             {!modoEstoque && (
-              <div className="w-56" style={{ color: C.sub }}>{ultimaCompra(a, master, money)}</div>
+              <div className="w-56" style={{ color: C.sub }}>
+                {(master && a.valorUnitario) || ultimaCompraResto(a) ? (
+                  <>
+                    {master && a.valorUnitario && (
+                      <span style={{ color: C.accent, fontWeight: 600 }}>{money(Number(a.valorUnitario))}</span>
+                    )}
+                    {master && a.valorUnitario && ultimaCompraResto(a) ? " · " : ""}
+                    {ultimaCompraResto(a)}
+                  </>
+                ) : "—"}
+              </div>
             )}
           </div>
         ))}
@@ -1251,12 +1261,11 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   );
 }
 
-function ultimaCompra(a, master, money) {
+function ultimaCompraResto(a) {
   const partes = [];
-  if (master && a.valorUnitario) partes.push(money(Number(a.valorUnitario)));
   if (a.dataCompra) partes.push(fmtData(a.dataCompra));
   if (a.nf?.numero) partes.push("NF " + a.nf.numero);
-  return partes.length ? partes.join(" · ") : "—";
+  return partes.join(" · ");
 }
 function gramRend(a) {
   if (a.categoria === "MALHA") return a.rendimento ? `Rend. ${a.rendimento}` : "—";
