@@ -1522,6 +1522,8 @@ function FME({ user, perfil }) {
   const [fornecedores, setFornecedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [novo, setNovo] = useState(false);
+  const [devol, setDevol] = useState(null);   // fme para registrar devolução
+  const [hist, setHist] = useState(null);     // fme id para ver histórico
 
   const carregar = async () => {
     setLoading(true);
@@ -1547,6 +1549,20 @@ function FME({ user, perfil }) {
 
   const nomeResp = (id) => { const u = usuarios.find((x) => x.id === id); return u ? `${u.nome} ${u.sobrenome || ""}`.trim() : ""; };
   const quando = (d) => { try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return ""; } };
+  const fmtNum = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // totais por unidade (retirado e ainda não devolvido)
+  const totais = (() => {
+    const ret = {}, pend = {};
+    for (const f of fmes) for (const it of (f.itens || [])) {
+      const u = it.unidade || it.artigo?.unidade || "UN";
+      const r = Number(it.qtdRetirada) || 0, d = Number(it.qtdDevolvida) || 0;
+      ret[u] = (ret[u] || 0) + r; pend[u] = (pend[u] || 0) + (r - d);
+    }
+    return { ret, pend };
+  })();
+  const linhaUn = (obj) => { const e = Object.entries(obj).filter(([, v]) => Math.abs(v) > 0.0001); return e.length ? e.map(([u, v]) => `${fmtNum(v)} ${u}`).join(" · ") : "—"; };
+  const temDevolucao = (f) => (f.itens || []).some((it) => (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0) > 0.0001);
 
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -1557,20 +1573,36 @@ function FME({ user, perfil }) {
         <button onClick={() => setNovo(true)} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Nova FME</button>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-lg p-3" style={{ background: C.accentSoft, border: `1px solid ${C.accent}` }}>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.accent, textTransform: "uppercase", letterSpacing: 0.3 }}>Total retirado</div>
+          <div className="text-base font-bold" style={{ color: C.text }}>{linhaUn(totais.ret)}</div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub, textTransform: "uppercase", letterSpacing: 0.3 }}>Ainda não devolvido</div>
+          <div className="text-base font-bold" style={{ color: C.text }}>{linhaUn(totais.pend)}</div>
+        </div>
+      </div>
+
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: 720 }}>
+        <div style={{ minWidth: 820 }}>
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2, textTransform: "uppercase" }}>
-            <div className="w-28">Nº</div><div className="w-28">Data</div><div className="w-36">Setor</div><div className="flex-1">Solicitante</div><div className="w-24">Itens</div><div className="w-24 text-right">PDF</div>
+            <div className="w-24">Nº</div><div className="w-24">Data</div><div className="w-32">Setor</div><div className="flex-1">Solicitante</div><div className="w-16">Itens</div><div className="w-64 text-right">Ações</div>
           </div>
           {fmes.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma FME ainda. Clique em “Nova FME”.</div>}
           {fmes.map((f) => (
-            <div key={f.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="w-28 font-semibold" style={{ color: C.accent }}>{f.numero}</div>
-              <div className="w-28 text-sm" style={{ color: C.sub }}>{quando(f.data || f.createdAt)}</div>
-              <div className="w-36"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{f.setorDemandante}</span></div>
+            <div key={f.id} onClick={() => setHist(f.id)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+              <div className="w-24 font-semibold" style={{ color: C.accent }}>{f.numero}</div>
+              <div className="w-24 text-sm" style={{ color: C.sub }}>{quando(f.data || f.createdAt)}</div>
+              <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{f.setorDemandante}</span></div>
               <div className="flex-1 text-sm" style={{ color: C.text }}>{f.responsavelSetor || "—"}</div>
-              <div className="w-24 text-sm" style={{ color: C.sub }}>{f.itens?.length || 0}</div>
-              <div className="w-24 flex justify-end">
+              <div className="w-16 text-sm" style={{ color: C.sub }}>{f.itens?.length || 0}</div>
+              <div className="w-64 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                {temDevolucao(f)
+                  ? <button onClick={() => setDevol(f)} className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium" style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}` }}><ArrowLeftRight size={13} /> Devolução</button>
+                  : <span className="text-xs px-2 py-1" style={{ color: C.sub }}>devolvido ✓</span>}
+                <button onClick={() => setHist(f.id)} className="text-xs px-2 py-1 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>Histórico</button>
                 <button onClick={() => gerarPdfFme(f, nomeResp(f.responsavelEstoque))} className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}><Printer size={13} /> PDF</button>
               </div>
             </div>
@@ -1582,6 +1614,137 @@ function FME({ user, perfil }) {
         onArtigosChanged={recarregarArtigos}
         onClose={() => setNovo(false)}
         onSalvo={async (fme) => { setNovo(false); await gerarPdfFme(fme, `${user.nome} ${user.sobrenome || ""}`.trim()); carregar(); }} />}
+      {devol && <DevolucaoModal fme={devol} user={user} perfil={perfil} onClose={() => setDevol(null)} onSalvo={() => { setDevol(null); carregar(); }} />}
+      {hist && <HistoricoFmeModal fmeId={hist} usuarios={usuarios} onClose={() => setHist(null)} />}
+    </div>
+  );
+}
+
+function DevolucaoModal({ fme, user, perfil, onClose, onSalvo }) {
+  const [linhas, setLinhas] = useState(() => (fme.itens || []).map((it) => ({ it, dev: "" })));
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const set = (i, v) => setLinhas((s) => s.map((l, idx) => (idx === i ? { ...l, dev: v } : l)));
+  const decLocal = (v) => { let s = String(v).replace(/\s/g, ""); if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isNaN(n) ? null : n; };
+  const fmtNum = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const restante = (it) => (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0);
+
+  const salvar = async () => {
+    setErro("");
+    const itens = [];
+    for (const l of linhas) {
+      const q = decLocal(l.dev);
+      if (!q) continue;
+      if (q <= 0) return setErro("Quantidade de devolução inválida.");
+      if (q > restante(l.it) + 1e-9) return setErro(`Devolução maior que o retirado em ${l.it.nomeItem || l.it.artigo?.nome} (resta ${fmtNum(restante(l.it))}).`);
+      itens.push({ fmeItemId: l.it.id, qtd: l.dev });
+    }
+    if (!itens.length) return setErro("Informe a quantidade a devolver em pelo menos um item.");
+    setSalvando(true);
+    const r = await fetch(`/api/fme/${fme.id}/devolucao`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itens, usuarioId: user.id, perfil }) });
+    setSalvando(false);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); return setErro(j.error || "Erro ao registrar devolução."); }
+    onSalvo();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,.4)", paddingTop: 16 }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-3xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">Registrar devolução · {fme.numero}</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="p-5">
+          <div className="text-xs mb-3" style={{ color: C.sub }}>As quantidades retiradas ficam congeladas. Informe o que está voltando pro estoque (pode ser parcial) — o saldo é atualizado e o retorno entra no histórico.</div>
+          <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden">
+            <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
+              <div className="flex-1">Material</div><div className="w-24">Cor</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Já devolv.</div><div className="w-28 text-right">Restante</div><div className="w-32">Devolver agora</div>
+            </div>
+            {linhas.map((l, i) => (
+              <div key={l.it.id} className="flex px-3 py-2 items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="flex-1 text-sm" style={{ color: C.text }}>{l.it.nomeItem || l.it.artigo?.nome}</div>
+                <div className="w-24 text-sm flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={l.it.cor || l.it.artigo?.cor} /> {(l.it.cor || l.it.artigo?.cor) || "—"}</div>
+                <div className="w-24 text-right text-sm" style={{ color: C.sub }}>{fmtNum(l.it.qtdRetirada)} {l.it.unidade}</div>
+                <div className="w-24 text-right text-sm" style={{ color: C.sub }}>{fmtNum(l.it.qtdDevolvida)}</div>
+                <div className="w-28 text-right text-sm font-medium" style={{ color: restante(l.it) > 0 ? C.text : C.green }}>{fmtNum(restante(l.it))}</div>
+                <div className="w-32">
+                  {restante(l.it) > 0.0001
+                    ? <input value={l.dev} onChange={(e) => set(i, e.target.value)} inputMode="decimal" placeholder={`0 ${l.it.unidade || ""}`} className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+                    : <span className="text-xs" style={{ color: C.green }}>completo ✓</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {erro && <div className="text-xs mt-2" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Registrar devolução"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoricoFmeModal({ fmeId, usuarios, onClose }) {
+  const [fme, setFme] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`/api/fme/${fmeId}`).then((r) => r.json()).then((d) => { setFme(d && d.id ? d : null); setLoading(false); }).catch(() => setLoading(false));
+  }, [fmeId]);
+  const nomeUser = (id) => { const u = (usuarios || []).find((x) => x.id === id); return u ? `${u.nome} ${u.sobrenome || ""}`.trim() : (id ? "—" : "—"); };
+  const dataHora = (d) => { try { return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+  const fmtNum = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,.4)", paddingTop: 16 }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-2xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">Histórico · {fme?.numero || "FME"}</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="p-5">
+          {loading && <div style={{ color: C.sub }}>Carregando…</div>}
+          {!loading && !fme && <div style={{ color: C.sub }}>Não foi possível carregar.</div>}
+          {fme && (
+            <>
+              <div className="text-xs mb-4" style={{ color: C.sub }}>{fme.setorDemandante} · Solicitante {fme.responsavelSetor || "—"} · Data {dataHora(fme.data || fme.createdAt)}</div>
+              <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Itens</div>
+              <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden mb-4">
+                <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
+                  <div className="flex-1">Material</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Devolvido</div><div className="w-24 text-right">Em aberto</div>
+                </div>
+                {(fme.itens || []).map((it) => {
+                  const rest = (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0);
+                  return (
+                    <div key={it.id} className="flex px-3 py-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                      <div className="flex-1" style={{ color: C.text }}>{it.nomeItem || it.artigo?.nome} <span style={{ color: C.sub }}>· {(it.cor || it.artigo?.cor) || "—"}</span></div>
+                      <div className="w-24 text-right" style={{ color: C.sub }}>{fmtNum(it.qtdRetirada)} {it.unidade}</div>
+                      <div className="w-24 text-right" style={{ color: C.green }}>{fmtNum(it.qtdDevolvida)}</div>
+                      <div className="w-24 text-right" style={{ color: rest > 0.0001 ? C.accent : C.green }}>{fmtNum(rest)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Movimentações</div>
+              <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden">
+                {(fme.movimentacoes || []).length === 0 && <div className="px-3 py-3 text-sm" style={{ color: C.sub }}>Sem movimentações.</div>}
+                {(fme.movimentacoes || []).map((m) => {
+                  const saida = m.tipo === "SAIDA";
+                  return (
+                    <div key={m.id} className="flex px-3 py-2 items-center gap-2 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: saida ? C.accentSoft : C.greenSoft, color: saida ? C.accent : C.green }}>{saida ? "↓ Saída" : "↑ Retorno"}</span>
+                      <span style={{ color: C.text, flex: 1 }}>{m.artigo?.nome}{m.artigo?.cor ? ` · ${m.artigo.cor}` : ""}</span>
+                      <span style={{ color: C.sub }}>{fmtNum(m.quantidade)} {m.artigo?.unidade}</span>
+                      <span className="w-40 text-right text-xs" style={{ color: C.sub }}>{nomeUser(m.usuarioId)} · {dataHora(m.createdAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
