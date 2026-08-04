@@ -1444,6 +1444,14 @@ function ThSort({ label, campoKey, sort, onSort, className, style }) {
   );
 }
 
+function ResumoCard({ rotulo, valor, destaque }) {
+  return (
+    <div className="rounded-lg p-3" style={{ background: destaque ? C.accentSoft : C.panel, border: `1px solid ${destaque ? C.accent : C.line}` }}>
+      <div className="text-xs font-semibold mb-1" style={{ color: destaque ? C.accent : C.sub, textTransform: "uppercase", letterSpacing: 0.3 }}>{rotulo}</div>
+      <div className="text-lg font-bold" style={{ color: destaque ? C.accent : C.text }}>{valor}</div>
+    </div>
+  );
+}
 function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
@@ -1473,8 +1481,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
   const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
   const filtrados = artigos.filter((a) => {
     if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
-    if (classe === "TECMAL" && !["TECIDO", "MALHA"].includes(a.categoria)) return false;
-    if (classe === "AVIOUT" && !["AVIAMENTO", "OUTROS"].includes(a.categoria)) return false;
+    if (classe && (["TECIDO", "MALHA", "AVIAMENTO"].includes(classe) ? a.categoria !== classe : !["TECIDO", "MALHA", "AVIAMENTO"].includes(a.categoria))) return false;
     if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
     if (dataAte && (!a.dataCompra || new Date(a.dataCompra) > new Date(dataAte + "T23:59:59"))) return false;
     if (tokens.length) {
@@ -1484,6 +1491,27 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
     return true;
   });
   const lista = ordenar(filtrados, fn, sort.dir, tipo);
+  const totais = (() => {
+    const seg = {
+      TECIDO: { rotulo: "Tecidos", n: 0, v: 0, m: 0, kg: 0 },
+      MALHA: { rotulo: "Malhas", n: 0, v: 0, m: 0, kg: 0 },
+      AVIAMENTO: { rotulo: "Aviamentos", n: 0, v: 0, m: 0, kg: 0 },
+      OUTROS: { rotulo: "Outros", n: 0, v: 0, m: 0, kg: 0 },
+    };
+    let v = 0, m = 0, kg = 0;
+    for (const a of lista) {
+      const q = Number(a.quantidade) || 0;
+      const vt = (Number(a.valorUnitario) || 0) * q;
+      v += vt;
+      if (a.unidade === "M") m += q;
+      if (a.unidade === "KG") kg += q;
+      const cat = ["TECIDO", "MALHA", "AVIAMENTO"].includes(a.categoria) ? a.categoria : "OUTROS";
+      seg[cat].n += 1; seg[cat].v += vt;
+      if (a.unidade === "M") seg[cat].m += q;
+      if (a.unidade === "KG") seg[cat].kg += q;
+    }
+    return { v, m, kg, seg };
+  })();
   const temFiltro = busca || filtroForn || dataDe || dataAte || classe;
   const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); setClasse(""); };
 
@@ -1514,14 +1542,37 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
       </div>
 
       {modoEstoque && (
-        <div className="flex gap-2 mb-3">
-          {[["", "Todos"], ["TECMAL", "Tecidos e malhas"], ["AVIOUT", "Aviamento e outros"]].map(([k, l]) => {
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[["", "Todos"], ["TECIDO", "Tecidos"], ["MALHA", "Malhas"], ["AVIAMENTO", "Aviamentos"], ["OUTROS", "Outros"]].map(([k, l]) => {
             const on = classe === k;
             return (
               <button key={k || "todos"} onClick={() => setClasse(k)} className="px-3 py-1.5 rounded-md text-sm font-medium"
                 style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
             );
           })}
+        </div>
+      )}
+
+      {modoEstoque && (
+        <div className="mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <ResumoCard rotulo="Total financeiro" valor={money(totais.v)} destaque />
+            <ResumoCard rotulo="Total em metros" valor={fmtQtd(totais.m, "M")} />
+            <ResumoCard rotulo="Total em kilos" valor={fmtQtd(totais.kg, "KG")} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {["TECIDO", "MALHA", "AVIAMENTO", "OUTROS"].map((k) => {
+              const s = totais.seg[k];
+              const fisico = [s.m > 0 ? fmtQtd(s.m, "M") : null, s.kg > 0 ? fmtQtd(s.kg, "KG") : null].filter(Boolean).join(" · ");
+              return (
+                <div key={k} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                  <div className="text-xs font-semibold mb-1" style={{ color: C.sub, textTransform: "uppercase", letterSpacing: 0.3 }}>{s.rotulo}</div>
+                  <div className="text-base font-bold" style={{ color: C.text }}>{money(s.v)}</div>
+                  <div className="text-xs mt-0.5" style={{ color: C.sub }}>{s.n} item(ns){fisico ? ` · ${fisico}` : ""}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1533,7 +1584,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: modoEstoque ? 1480 : 1280, fontSize: 12, textTransform: "uppercase" }}>
+        <div style={{ minWidth: modoEstoque ? 1620 : 1280, fontSize: 12, textTransform: "uppercase" }}>
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
           <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
@@ -1547,6 +1598,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           <div className="w-28">Gram./Rend.</div>
           {modoEstoque && <div className="w-44">Movimento</div>}
           {modoEstoque && master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
+          {modoEstoque && master && <div className="w-28">Valor total</div>}
           {!modoEstoque && <div className="w-56">Última compra</div>}
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
@@ -1567,6 +1619,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
             {modoEstoque && <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
             {modoEstoque && master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {modoEstoque && master && <div className="w-28" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
             {!modoEstoque && (
               <div className="w-56" style={{ color: C.sub }}>
                 {(master && a.valorUnitario) || ultimaCompraResto(a) ? (
