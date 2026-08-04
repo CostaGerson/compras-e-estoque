@@ -1472,22 +1472,26 @@ async function gerarPdfFme(fme, responsavelNome) {
   doc.save(`${fme.numero || "FME"}.pdf`);
 }
 
-function AutocompleteArtigo({ artigos, onPick }) {
+function AutocompleteArtigo({ artigos, onPick, onNovo }) {
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState(false);
   const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const termo = norm(q).trim();
+  // busca por qualquer palavra: todos os termos digitados precisam aparecer (em qualquer ordem/campo)
+  const tokens = norm(q).trim().split(/\s+/).filter(Boolean);
   const disp = artigos.filter((a) => (Number(a.quantidade) || 0) > 0);
-  const matches = termo
-    ? disp.filter((a) => norm(`${a.nome} ${a.artigoInterno || ""} ${a.cor || ""}`).includes(termo)).slice(0, 12)
-    : disp.slice(0, 12);
+  const matches = (tokens.length
+    ? disp.filter((a) => {
+        const hay = norm(`${a.nome} ${a.artigoInterno || ""} ${a.cor || ""} ${a.composicao || ""} ${a.codigo || ""} ${a.especificacao || ""} ${a.unidade || ""}`);
+        return tokens.every((t) => hay.includes(t));
+      })
+    : disp).slice(0, 40);
   return (
     <div style={{ position: "relative" }}>
       <input value={q} onChange={(e) => { setQ(e.target.value); setAberto(true); }} onFocus={() => setAberto(true)}
-        onBlur={() => setTimeout(() => setAberto(false), 150)} placeholder="Digite o material em estoque…"
+        onBlur={() => setTimeout(() => setAberto(false), 150)} placeholder="Digite qualquer palavra do material…"
         className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
       {aberto && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: 38, maxHeight: 220, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, zIndex: 30, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 38, maxHeight: 340, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, zIndex: 30, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
           {matches.length === 0 && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum material em estoque com esse nome.</div>}
           {matches.map((a) => (
             <button key={a.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(a); setQ(""); setAberto(false); }}
@@ -1498,6 +1502,12 @@ function AutocompleteArtigo({ artigos, onPick }) {
               </div>
             </button>
           ))}
+          {onNovo && (
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onNovo(); setAberto(false); }}
+              className="w-full text-left px-3 py-2 flex items-center gap-1 text-sm font-medium" style={{ color: C.accent, background: C.accentSoft, position: "sticky", bottom: 0 }}>
+              <Plus size={14} /> Cadastrar novo artigo
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1508,22 +1518,29 @@ function FME({ user, perfil }) {
   const [fmes, setFmes] = useState([]);
   const [artigos, setArtigos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [novo, setNovo] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
     try {
-      const [f, a, u] = await Promise.all([
+      const [f, a, u, fo] = await Promise.all([
         fetch("/api/fme").then((r) => r.json()),
         fetch("/api/artigos").then((r) => r.json()),
         fetch("/api/usuarios/lista").then((r) => r.json()),
+        fetch("/api/fornecedores").then((r) => r.json()),
       ]);
       setFmes(Array.isArray(f) ? f : []);
       setArtigos(Array.isArray(a) ? a : []);
       setUsuarios(Array.isArray(u) ? u : []);
+      setFornecedores(Array.isArray(fo) ? fo : []);
     } catch {}
     setLoading(false);
+  };
+  // recarrega só os artigos (sem "Carregando…", pra não fechar o modal aberto)
+  const recarregarArtigos = async () => {
+    try { const a = await fetch("/api/artigos").then((r) => r.json()); setArtigos(Array.isArray(a) ? a : []); } catch {}
   };
   useEffect(() => { carregar(); }, []);
 
@@ -1560,19 +1577,28 @@ function FME({ user, perfil }) {
         </div>
       </div>
 
-      {novo && <NovaFmeModal user={user} perfil={perfil} artigos={artigos}
+      {novo && <NovaFmeModal user={user} perfil={perfil} artigos={artigos} usuarios={usuarios} fornecedores={fornecedores}
+        onArtigosChanged={recarregarArtigos}
         onClose={() => setNovo(false)}
         onSalvo={async (fme) => { setNovo(false); await gerarPdfFme(fme, `${user.nome} ${user.sobrenome || ""}`.trim()); carregar(); }} />}
     </div>
   );
 }
 
-function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
-  const [solicitante, setSolicitante] = useState("");
+function NovaFmeModal({ user, perfil, artigos, usuarios, fornecedores, onArtigosChanged, onClose, onSalvo }) {
+  const [solicitanteId, setSolicitanteId] = useState("");
   const [setor, setSetor] = useState("CORTE");
   const [itens, setItens] = useState([]); // { artigo, qtd, pp }
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [novoArtigo, setNovoArtigo] = useState(false);
+
+  const escolherSolicitante = (id) => {
+    setSolicitanteId(id);
+    const u = (usuarios || []).find((x) => String(x.id) === String(id));
+    if (u && u.setor) setSetor(u.setor); // setor vem automático do usuário
+  };
+  const solicitanteNome = (() => { const u = (usuarios || []).find((x) => String(x.id) === String(solicitanteId)); return u ? `${u.nome} ${u.sobrenome || ""}`.trim() : ""; })();
 
   const addItem = (a) => {
     if (itens.some((it) => it.artigo.id === a.id)) return;
@@ -1592,7 +1618,7 @@ function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
     }
     setSalvando(true);
     const body = {
-      setorDemandante: setor, solicitante, responsavelEstoque: user.id, perfil,
+      setorDemandante: setor, solicitante: solicitanteNome, responsavelEstoque: user.id, perfil,
       itens: itens.map((it) => ({ artigoId: it.artigo.id, qtdRetirada: it.qtd, pedidoProducao: it.pp })),
     };
     const res = await fetch("/api/fme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -1603,8 +1629,8 @@ function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
-      <div className="rounded-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,.4)", paddingTop: 16 }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-3xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="font-semibold">Nova FME · saída de material</div>
           <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
@@ -1612,17 +1638,17 @@ function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
 
         <div className="p-5">
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div>
-              <div className="text-xs mb-1" style={{ color: C.sub }}>Solicitante</div>
-              <input value={solicitante} onChange={(e) => setSolicitante(e.target.value)} placeholder="Nome de quem está retirando" className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
-            </div>
-            <Sel label="Setor" value={setor} onChange={(e) => setSetor(e.target.value)}>
+            <Sel label="Solicitante" value={solicitanteId} onChange={(e) => escolherSolicitante(e.target.value)}>
+              <option value="">Selecione o solicitante…</option>
+              {(usuarios || []).map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
+            </Sel>
+            <Sel label="Setor (automático)" value={setor} onChange={(e) => setSetor(e.target.value)}>
               {FME_SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
             </Sel>
           </div>
 
           <div className="text-xs mb-1 font-semibold" style={{ color: C.sub, textTransform: "uppercase" }}>Incluir material</div>
-          <div className="mb-3"><AutocompleteArtigo artigos={artigos} onPick={addItem} /></div>
+          <div className="mb-3"><AutocompleteArtigo artigos={artigos} onPick={addItem} onNovo={() => setNovoArtigo(true)} /></div>
 
           {itens.length > 0 && (
             <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden mb-2">
@@ -1659,6 +1685,20 @@ function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
           </div>
         </div>
       </div>
+
+      {novoArtigo && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,.5)", paddingTop: 16 }} onClick={(e) => { e.stopPropagation(); }}>
+          <div className="rounded-xl w-full max-w-3xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="font-semibold">Cadastrar novo artigo</div>
+              <button onClick={() => setNovoArtigo(false)} style={{ color: C.sub }}><X size={18} /></button>
+            </div>
+            <div className="p-5">
+              <ArtigoForm fornecedores={fornecedores} master={true} onSaved={async () => { setNovoArtigo(false); onArtigosChanged && (await onArtigosChanged()); }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
