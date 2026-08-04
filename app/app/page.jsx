@@ -163,7 +163,7 @@ export default function Home() {
           {view === "oc" && <OC money={money} />}
           {view === "nf" && <NF master={master} money={money} perfil={perfil} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
-          {view === "fme" && <FME />}
+          {view === "fme" && <FME user={user} perfil={perfil} />}
           {view === "artigos" && <Artigos money={money} master={master} />}
           {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
           {view === "usuarios" && <Usuarios master={master} />}
@@ -1394,17 +1394,270 @@ function Estoque({ money, master }) {
     </div>
   );
 }
-function FME() {
+/* ===== FME · Ficha de Movimentação de Estoque ===== */
+const FME_SETORES = ["CORTE", "PCP", "ESTOQUE", "EXPEDICAO", "COMPRAS", "ADMINISTRATIVO", "FINANCEIRO"];
+const rotuloQtd = (u) => (u === "M" ? "Metragem (m)" : u === "KG" ? "Quantidade (kg)" : "Quantidade (un)");
+
+async function gerarPdfFme(fme, responsavelNome) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a5" }); // 210 x 148 (meia folha)
+  const W = 210, M = 10;
+  let y = 12;
+  const data = (() => { try { return new Date(fme.data || fme.createdAt).toLocaleDateString("pt-BR"); } catch { return ""; } })();
+
+  // cabeçalho
+  doc.setFillColor(0, 30, 65); doc.rect(0, 0, W, 7, "F");
+  doc.setFontSize(14); doc.setTextColor(0, 30, 65); doc.setFont(undefined, "bold");
+  doc.text("MERIDIAN", M, y);
+  doc.setFontSize(10); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "normal");
+  doc.text("Ficha de Movimentação de Estoque", M + 34, y);
+  doc.setFontSize(13); doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold");
+  doc.text(String(fme.numero || ""), W - M, y, { align: "right" });
+  y += 7;
+  doc.setDrawColor(210, 210, 210); doc.line(M, y, W - M, y); y += 6;
+
+  // dados
+  doc.setFontSize(9); doc.setFont(undefined, "normal"); doc.setTextColor(40, 40, 40);
+  doc.text(`Data: ${data}`, M, y);
+  doc.text(`Setor demandante: ${fme.setorDemandante || ""}`, M + 55, y);
+  doc.text(`Solicitante: ${fme.responsavelSetor || "—"}`, M + 130, y);
+  y += 5;
+  doc.text(`Responsável estoque: ${responsavelNome || "—"}`, M, y);
+  y += 5;
+
+  // tabela de itens
+  const cols = [
+    { t: "Item", x: M, w: 66 },
+    { t: "Cor", x: M + 66, w: 26 },
+    { t: "PP", x: M + 92, w: 24 },
+    { t: "Un", x: M + 116, w: 10 },
+    { t: "Qtd retirada", x: M + 126, w: 26 },
+    { t: "Qtd devolvida", x: M + 152, w: 26 },
+    { t: "Obs", x: M + 178, w: W - M - (M + 178) },
+  ];
+  doc.setFillColor(241, 243, 245); doc.rect(M, y, W - 2 * M, 7, "F");
+  doc.setFontSize(7.5); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "bold");
+  cols.forEach((c) => doc.text(c.t, c.x + 1.5, y + 4.6));
+  y += 7;
+  doc.setFont(undefined, "normal"); doc.setTextColor(30, 30, 30); doc.setFontSize(8);
+  const itens = fme.itens || [];
+  itens.forEach((it) => {
+    const rowH = 8;
+    const nome = it.nomeItem || it.artigo?.nome || "";
+    const cor = it.cor || it.artigo?.cor || "";
+    const un = it.unidade || it.artigo?.unidade || "";
+    const qtd = Number(it.qtdRetirada || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    doc.setDrawColor(225, 225, 225); doc.rect(M, y, W - 2 * M, rowH);
+    cols.forEach((c) => { if (c.x > M) doc.line(c.x, y, c.x, y + rowH); });
+    doc.text(doc.splitTextToSize(nome, cols[0].w - 3)[0] || "", cols[0].x + 1.5, y + 5.2);
+    doc.text(doc.splitTextToSize(cor, cols[1].w - 3)[0] || "", cols[1].x + 1.5, y + 5.2);
+    doc.text(String(it.pedidoProducao || ""), cols[2].x + 1.5, y + 5.2);
+    doc.text(String(un), cols[3].x + 1.5, y + 5.2);
+    doc.text(qtd, cols[4].x + 1.5, y + 5.2);
+    // Qtd devolvida e Obs ficam EM BRANCO (preenchimento à mão)
+    y += rowH;
+  });
+  y += 10;
+
+  // assinaturas
+  const sigY = Math.max(y, 118);
+  const half = W / 2;
+  doc.setDrawColor(120, 120, 120);
+  doc.line(M + 6, sigY, half - 8, sigY);
+  doc.line(half + 8, sigY, W - M - 6, sigY);
+  doc.setFontSize(8); doc.setTextColor(90, 90, 90);
+  doc.text("Assinatura do retirante", (M + 6 + half - 8) / 2, sigY + 5, { align: "center" });
+  doc.text("Assinatura do estoque", (half + 8 + W - M - 6) / 2, sigY + 5, { align: "center" });
+
+  doc.save(`${fme.numero || "FME"}.pdf`);
+}
+
+function AutocompleteArtigo({ artigos, onPick }) {
+  const [q, setQ] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const termo = norm(q).trim();
+  const disp = artigos.filter((a) => (Number(a.quantidade) || 0) > 0);
+  const matches = termo
+    ? disp.filter((a) => norm(`${a.nome} ${a.artigoInterno || ""} ${a.cor || ""}`).includes(termo)).slice(0, 12)
+    : disp.slice(0, 12);
   return (
-    <div className="max-w-2xl">
-      <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="font-semibold mb-4">Nova FME · saída de material</div>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <Campo label="Setor demandante" val="CORTE" />
-          <Campo label="Responsável setor" val="—" />
+    <div style={{ position: "relative" }}>
+      <input value={q} onChange={(e) => { setQ(e.target.value); setAberto(true); }} onFocus={() => setAberto(true)}
+        onBlur={() => setTimeout(() => setAberto(false), 150)} placeholder="Digite o material em estoque…"
+        className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+      {aberto && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: 38, maxHeight: 220, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, zIndex: 30, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+          {matches.length === 0 && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum material em estoque com esse nome.</div>}
+          {matches.map((a) => (
+            <button key={a.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(a); setQ(""); setAberto(false); }}
+              className="w-full text-left px-3 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="text-sm font-medium" style={{ color: C.text }}>{a.nome}{a.artigoInterno ? ` · ${a.artigoInterno}` : ""}</div>
+              <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}>
+                <Bolinha cor={a.cor} /> {a.cor || "—"} · saldo {Number(a.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {a.unidade}
+              </div>
+            </button>
+          ))}
         </div>
-        <Tabela cols={["Artigo", "Retirado", "Devolvido", "Ajuste / Justificativa"]} rows={[["Malha PV — Tutti Frutti", "40 kg", "3 kg", "Sobra de encaixe"]]} />
-        <button className="mt-4 px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Registrar movimentação</button>
+      )}
+    </div>
+  );
+}
+
+function FME({ user, perfil }) {
+  const [fmes, setFmes] = useState([]);
+  const [artigos, setArtigos] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [novo, setNovo] = useState(false);
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const [f, a, u] = await Promise.all([
+        fetch("/api/fme").then((r) => r.json()),
+        fetch("/api/artigos").then((r) => r.json()),
+        fetch("/api/usuarios/lista").then((r) => r.json()),
+      ]);
+      setFmes(Array.isArray(f) ? f : []);
+      setArtigos(Array.isArray(a) ? a : []);
+      setUsuarios(Array.isArray(u) ? u : []);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const nomeResp = (id) => { const u = usuarios.find((x) => x.id === id); return u ? `${u.nome} ${u.sobrenome || ""}`.trim() : ""; };
+  const quando = (d) => { try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return ""; } };
+
+  if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-3">
+        <div className="text-xs" style={{ color: C.sub }}>{fmes.length} FME(s) · saída de material do estoque</div>
+        <button onClick={() => setNovo(true)} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Nova FME</button>
+      </div>
+
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+        <div style={{ minWidth: 720 }}>
+          <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2, textTransform: "uppercase" }}>
+            <div className="w-28">Nº</div><div className="w-28">Data</div><div className="w-36">Setor</div><div className="flex-1">Solicitante</div><div className="w-24">Itens</div><div className="w-24 text-right">PDF</div>
+          </div>
+          {fmes.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma FME ainda. Clique em “Nova FME”.</div>}
+          {fmes.map((f) => (
+            <div key={f.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="w-28 font-semibold" style={{ color: C.accent }}>{f.numero}</div>
+              <div className="w-28 text-sm" style={{ color: C.sub }}>{quando(f.data || f.createdAt)}</div>
+              <div className="w-36"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{f.setorDemandante}</span></div>
+              <div className="flex-1 text-sm" style={{ color: C.text }}>{f.responsavelSetor || "—"}</div>
+              <div className="w-24 text-sm" style={{ color: C.sub }}>{f.itens?.length || 0}</div>
+              <div className="w-24 flex justify-end">
+                <button onClick={() => gerarPdfFme(f, nomeResp(f.responsavelEstoque))} className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}><Printer size={13} /> PDF</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {novo && <NovaFmeModal user={user} perfil={perfil} artigos={artigos}
+        onClose={() => setNovo(false)}
+        onSalvo={async (fme) => { setNovo(false); await gerarPdfFme(fme, `${user.nome} ${user.sobrenome || ""}`.trim()); carregar(); }} />}
+    </div>
+  );
+}
+
+function NovaFmeModal({ user, perfil, artigos, onClose, onSalvo }) {
+  const [solicitante, setSolicitante] = useState("");
+  const [setor, setSetor] = useState("CORTE");
+  const [itens, setItens] = useState([]); // { artigo, qtd, pp }
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const addItem = (a) => {
+    if (itens.some((it) => it.artigo.id === a.id)) return;
+    setItens((s) => [...s, { artigo: a, qtd: "", pp: "" }]);
+  };
+  const setItem = (i, k, v) => setItens((s) => s.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
+  const remover = (i) => setItens((s) => s.filter((_, idx) => idx !== i));
+  const decLocal = (v) => { let s = String(v).replace(/\s/g, ""); if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isNaN(n) ? null : n; };
+
+  const salvar = async () => {
+    setErro("");
+    if (!itens.length) return setErro("Inclua ao menos um material.");
+    for (const it of itens) {
+      const q = decLocal(it.qtd);
+      if (!q || q <= 0) return setErro(`Informe a quantidade de ${it.artigo.nome}.`);
+      if (q > (Number(it.artigo.quantidade) || 0)) return setErro(`Saldo insuficiente de ${it.artigo.nome} (disponível ${Number(it.artigo.quantidade).toLocaleString("pt-BR")} ${it.artigo.unidade}).`);
+    }
+    setSalvando(true);
+    const body = {
+      setorDemandante: setor, solicitante, responsavelEstoque: user.id, perfil,
+      itens: itens.map((it) => ({ artigoId: it.artigo.id, qtdRetirada: it.qtd, pedidoProducao: it.pp })),
+    };
+    const res = await fetch("/api/fme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSalvando(false);
+    if (!res.ok) { const j = await res.json().catch(() => ({})); return setErro(j.error || "Erro ao salvar."); }
+    const fme = await res.json();
+    onSalvo(fme);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">Nova FME · saída de material</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Solicitante</div>
+              <input value={solicitante} onChange={(e) => setSolicitante(e.target.value)} placeholder="Nome de quem está retirando" className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
+            </div>
+            <Sel label="Setor" value={setor} onChange={(e) => setSetor(e.target.value)}>
+              {FME_SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Sel>
+          </div>
+
+          <div className="text-xs mb-1 font-semibold" style={{ color: C.sub, textTransform: "uppercase" }}>Incluir material</div>
+          <div className="mb-3"><AutocompleteArtigo artigos={artigos} onPick={addItem} /></div>
+
+          {itens.length > 0 && (
+            <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden mb-2">
+              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
+                <div className="flex-1">Material</div><div className="w-24">Cor</div><div className="w-32">Qtd</div><div className="w-28">PP</div><div className="w-8"></div>
+              </div>
+              {itens.map((it, i) => (
+                <div key={it.artigo.id} className="flex px-3 py-2 items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium" style={{ color: C.text }}>{it.artigo.nome}</div>
+                    <div className="text-xs" style={{ color: C.sub }}>saldo {Number(it.artigo.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {it.artigo.unidade}</div>
+                  </div>
+                  <div className="w-24 text-sm flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={it.artigo.cor} /> {it.artigo.cor || "—"}</div>
+                  <div className="w-32">
+                    <input value={it.qtd} onChange={(e) => setItem(i, "qtd", e.target.value)} inputMode="decimal" placeholder={rotuloQtd(it.artigo.unidade)} className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+                  </div>
+                  <div className="w-28">
+                    <input value={it.pp} onChange={(e) => setItem(i, "pp", e.target.value)} placeholder="PP" className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
+                  </div>
+                  <button onClick={() => remover(i)} className="w-8 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {erro && <div className="text-xs mt-2" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="text-xs" style={{ color: C.sub }}>Ao salvar: baixa do estoque + PDF meia folha</div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando || !itens.length} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando || !itens.length ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar e gerar PDF"}</button>
+          </div>
+        </div>
       </div>
     </div>
   );
