@@ -3,17 +3,19 @@ import { prisma } from "@/lib/prisma";
 
 const selUser = { id: true, nome: true, sobrenome: true, fotoBase64: true, setor: true };
 
-// GET /api/mensagens?usuarioId=  -> caixa de entrada (recebidas) + enviadas
+// GET /api/mensagens?usuarioId=  -> recebidas (não arquivadas), arquivadas, enviadas, naoLidas
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const usuarioId = Number(searchParams.get("usuarioId"));
-  if (!usuarioId) return Response.json({ recebidas: [], enviadas: [], naoLidas: 0 });
-  const [recebidas, enviadas] = await Promise.all([
-    prisma.mensagem.findMany({ where: { paraId: usuarioId }, orderBy: { createdAt: "desc" }, take: 100, include: { de: { select: selUser } } }),
+  if (!usuarioId) return Response.json({ recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+  const [recebidasTodas, enviadas] = await Promise.all([
+    prisma.mensagem.findMany({ where: { paraId: usuarioId }, orderBy: { createdAt: "desc" }, take: 200, include: { de: { select: selUser } } }),
     prisma.mensagem.findMany({ where: { deId: usuarioId }, orderBy: { createdAt: "desc" }, take: 100, include: { para: { select: selUser } } }),
   ]);
+  const recebidas = recebidasTodas.filter((m) => !m.arquivada);
+  const arquivadas = recebidasTodas.filter((m) => m.arquivada);
   const naoLidas = recebidas.filter((m) => !m.lida).length;
-  return Response.json({ recebidas, enviadas, naoLidas });
+  return Response.json({ recebidas, arquivadas, enviadas, naoLidas });
 }
 
 // POST /api/mensagens  { deId, paraId, texto }

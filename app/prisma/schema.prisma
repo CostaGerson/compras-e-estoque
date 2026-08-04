@@ -108,6 +108,7 @@ model Mensagem {
   para      Usuario  @relation("MsgPara", fields: [paraId], references: [id], onDelete: Cascade)
   texto     String
   lida      Boolean  @default(false)
+  arquivada Boolean  @default(false)
   createdAt DateTime @default(now())
 }
 
@@ -179,6 +180,8 @@ model Artigo {
   valorUnitario Decimal?        @db.Decimal(14, 4)
   ativo         Boolean         @default(true)
   criadoPorId   Int?
+  alertaVisto   Boolean         @default(false)
+  alertaResolvido Boolean       @default(false)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

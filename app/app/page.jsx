@@ -81,6 +81,8 @@ export default function Home() {
   const [showVal, setShowVal] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
+  const [badgeTick, setBadgeTick] = useState(0);
+  const bumpBadges = () => setBadgeTick((x) => x + 1);
 
   useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
 
@@ -137,7 +139,7 @@ export default function Home() {
                 <ChevronRight size={18} />
               </button>
             )}
-            <div className="font-semibold">{NAV.find((n) => n.key === view)?.label}</div>
+            <div className="font-semibold">{NAV.find((n) => n.key === view)?.label || (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : "")}</div>
           </div>
           <div className="flex items-center gap-3">
             {master && (
@@ -146,7 +148,9 @@ export default function Home() {
                 {showVal ? <Eye size={15} /> : <EyeOff size={15} />} valores
               </button>
             )}
-            <TopoUsuario user={user} perfil={perfil} onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair} onIrEstoque={() => setView("estoque")} />
+            <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick}
+              onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
+              onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
           </div>
         </header>
 
@@ -163,6 +167,8 @@ export default function Home() {
           {view === "artigos" && <Artigos money={money} master={master} />}
           {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
           {view === "usuarios" && <Usuarios master={master} />}
+          {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
+          {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
         </div>
       </main>
       {perfilAberto && (
@@ -218,108 +224,35 @@ function Badge({ n }) {
   );
 }
 
-function TopoUsuario({ user, perfil, onAbrirPerfil, onSair, onIrEstoque }) {
-  const [alertas, setAlertas] = useState([]);
-  const [msg, setMsg] = useState({ recebidas: [], enviadas: [], naoLidas: 0 });
-  const [aberto, setAberto] = useState(null); // "sino" | "inbox" | null
-  const [usuarios, setUsuarios] = useState([]);
-  const [comp, setComp] = useState({ paraId: "", texto: "" });
-  const [enviando, setEnviando] = useState(false);
+function TopoUsuario({ user, perfil, badgeTick, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens }) {
+  const [naoVistos, setNaoVistos] = useState(0);
+  const [naoLidas, setNaoLidas] = useState(0);
+  const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
 
-  const carregarAlertas = async () => {
+  const carregar = async () => {
     try {
       const a = await fetch(`/api/alertas?usuarioId=${user.id}&setor=${encodeURIComponent(perfil)}`).then((r) => r.json());
-      setAlertas(Array.isArray(a) ? a : []);
+      setNaoVistos(a?.naoVistos || 0);
     } catch {}
-  };
-  const carregarMsg = async () => {
     try {
       const m = await fetch(`/api/mensagens?usuarioId=${user.id}`).then((r) => r.json());
-      setMsg(m && m.recebidas ? m : { recebidas: [], enviadas: [], naoLidas: 0 });
+      setNaoLidas(m?.naoLidas || 0);
     } catch {}
   };
   useEffect(() => {
-    carregarAlertas(); carregarMsg();
-    fetch("/api/usuarios/lista").then((r) => r.json()).then((u) => setUsuarios(Array.isArray(u) ? u.filter((x) => x.id !== user.id) : [])).catch(() => {});
-    const t = setInterval(() => { carregarAlertas(); carregarMsg(); }, 45000);
+    carregar();
+    const t = setInterval(carregar, 45000);
     return () => clearInterval(t);
-  }, [user.id, perfil]);
-
-  const abrirInbox = async () => {
-    const novo = aberto === "inbox" ? null : "inbox";
-    setAberto(novo);
-    if (novo === "inbox" && msg.naoLidas > 0) {
-      await fetch("/api/mensagens/ler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id }) });
-      carregarMsg();
-    }
-  };
-  const enviar = async () => {
-    if (!comp.paraId || !comp.texto.trim()) return;
-    setEnviando(true);
-    await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
-    setEnviando(false); setComp({ paraId: "", texto: "" }); carregarMsg();
-  };
-  const quando = (d) => { try { return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
-  const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
+  }, [user.id, perfil, badgeTick]);
 
   return (
-    <div className="flex items-center gap-3" style={{ position: "relative" }}>
-      {/* Sino */}
-      <div style={{ position: "relative" }}>
-        <button onClick={() => setAberto(aberto === "sino" ? null : "sino")} title="Alertas" style={{ position: "relative", color: alertas.length ? "#E5484D" : C.sub }}>
-          <Bell size={20} /><Badge n={alertas.length} />
-        </button>
-        {aberto === "sino" && (
-          <div style={{ position: "absolute", right: 0, top: 30, width: 340, maxHeight: 420, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 60 }}>
-            <div className="px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, textTransform: "uppercase" }}>Alertas ({alertas.length})</div>
-            {alertas.length === 0 && <div className="px-4 py-5 text-sm" style={{ color: C.sub }}>Nenhum produto pendente. Tudo cadastrado ✓</div>}
-            {alertas.map((a) => (
-              <button key={a.id} onClick={() => { setAberto(null); onIrEstoque(); }} className="w-full text-left px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={15} style={{ color: "#E5484D", marginTop: 2 }} />
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: C.text }}>{a.nome} {a.nfNumero ? <span style={{ color: C.sub }}>· NF {a.nfNumero}</span> : ""}</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.sub }}>Falta: {a.faltando.join(", ")}</div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Caixa de entrada */}
-      <div style={{ position: "relative" }}>
-        <button onClick={abrirInbox} title="Mensagens" style={{ position: "relative", color: msg.naoLidas ? C.accent : C.sub }}>
-          <Inbox size={20} /><Badge n={msg.naoLidas} />
-        </button>
-        {aberto === "inbox" && (
-          <div style={{ position: "absolute", right: 0, top: 30, width: 380, maxHeight: 460, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 60 }}>
-            <div className="px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, textTransform: "uppercase" }}>Mensagens</div>
-            <div className="p-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-              <div className="text-xs mb-1 font-semibold" style={{ color: C.sub }}>Nova mensagem</div>
-              <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-2 px-2 py-1.5 rounded outline-none text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
-                <option value="">Para quem…</option>
-                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
-              </select>
-              <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={2} placeholder="Escreva…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
-              <button onClick={enviar} disabled={enviando || !comp.paraId || !comp.texto.trim()} className="mt-2 px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: enviando || !comp.paraId || !comp.texto.trim() ? 0.5 : 1 }}><Send size={14} /> Enviar</button>
-            </div>
-            {msg.recebidas.length === 0 && <div className="px-4 py-5 text-sm" style={{ color: C.sub }}>Nenhuma mensagem recebida.</div>}
-            {msg.recebidas.map((m) => (
-              <div key={m.id} className="px-4 py-3 flex gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: m.lida ? "transparent" : C.accentSoft }}>
-                <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={30} />
-                <div style={{ flex: 1 }}>
-                  <div className="text-xs" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {quando(m.createdAt)}</div>
-                  <div className="text-sm" style={{ color: C.text }}>{m.texto}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Avatar → Meu perfil */}
+    <div className="flex items-center gap-4">
+      <button onClick={onIrNotificacoes} title="Notificações" style={{ position: "relative", color: naoVistos ? "#E5484D" : C.sub }}>
+        <Bell size={20} /><Badge n={naoVistos} />
+      </button>
+      <button onClick={onIrMensagens} title="Mensagens" style={{ position: "relative", color: naoLidas ? C.accent : C.sub }}>
+        <Inbox size={20} /><Badge n={naoLidas} />
+      </button>
       <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2">
         <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={34} />
         <div className="text-left leading-tight hidden md:block">
@@ -328,6 +261,194 @@ function TopoUsuario({ user, perfil, onAbrirPerfil, onSair, onIrEstoque }) {
         </div>
       </button>
       <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
+    </div>
+  );
+}
+
+const quandoData = (d) => { try { return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+
+/* ===== Notificações (tela cheia) ===== */
+function Notificacoes({ user, perfil, onIrEstoque, onMudou }) {
+  const [dados, setDados] = useState({ pendentes: [], resolvidas: [], naoVistos: 0 });
+  const [aba, setAba] = useState("pendentes");
+  const [aberta, setAberta] = useState(null); // id expandido
+  const [loading, setLoading] = useState(true);
+
+  const carregar = async () => {
+    try {
+      const d = await fetch(`/api/alertas?usuarioId=${user.id}&setor=${encodeURIComponent(perfil)}`).then((r) => r.json());
+      setDados(d && d.pendentes ? d : { pendentes: [], resolvidas: [], naoVistos: 0 });
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const acao = async (body) => {
+    await fetch("/api/alertas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await carregar(); onMudou && onMudou();
+  };
+  const abrir = (a) => {
+    const novo = aberta === a.id ? null : a.id;
+    setAberta(novo);
+    if (novo && !a.visto) acao({ acao: "visto", id: a.id });
+  };
+  const vistarTudo = () => acao({ acao: "vistoTudo", usuarioId: user.id, setor: perfil });
+
+  const lista = aba === "pendentes" ? dados.pendentes : dados.resolvidas;
+  if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-1">
+          {[["pendentes", `Pendentes (${dados.pendentes.length})`], ["resolvidas", `Resolvidas (${dados.resolvidas.length})`]].map(([k, l]) => {
+            const on = aba === k;
+            return <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>;
+          })}
+        </div>
+        {aba === "pendentes" && dados.naoVistos > 0 && (
+          <button onClick={vistarTudo} className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}><CheckCircle2 size={15} /> Vistar tudo</button>
+        )}
+      </div>
+
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+        {lista.length === 0 && <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>{aba === "pendentes" ? "Nenhuma notificação pendente. Tudo cadastrado ✓" : "Nenhuma notificação resolvida."}</div>}
+        {lista.map((a) => (
+          <div key={a.id} style={{ borderBottom: `1px solid ${C.line}`, background: aba === "pendentes" && !a.visto ? C.accentSoft : "transparent" }}>
+            <button onClick={() => abrir(a)} className="w-full text-left px-4 py-3 flex items-start gap-2">
+              <AlertTriangle size={16} style={{ color: aba === "resolvidas" ? C.sub : "#E5484D", marginTop: 2 }} />
+              <div style={{ flex: 1 }}>
+                <div className="text-sm font-medium" style={{ color: C.text }}>{a.nome} {a.nfNumero ? <span style={{ color: C.sub }}>· NF {a.nfNumero}</span> : ""} {aba === "pendentes" && !a.visto && <span className="text-xs ml-1" style={{ color: "#E5484D" }}>• novo</span>}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.sub }}>{a.categoria} · falta {a.faltando.length} campo(s)</div>
+              </div>
+            </button>
+            {aberta === a.id && (
+              <div className="px-4 pb-3" style={{ marginLeft: 26 }}>
+                <div className="text-xs mb-2" style={{ color: C.sub }}>Campos faltando: <b style={{ color: C.text }}>{a.faltando.join(", ")}</b></div>
+                <div className="flex gap-2">
+                  <button onClick={onIrEstoque} className="px-3 py-1.5 rounded text-sm font-medium" style={{ background: C.accent, color: "#fff" }}>Completar no estoque</button>
+                  {aba === "pendentes"
+                    ? <button onClick={() => acao({ acao: "resolvido", id: a.id })} className="px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1" style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}` }}><CheckCircle2 size={15} /> Marcar resolvido</button>
+                    : <button onClick={() => acao({ acao: "reabrir", id: a.id })} className="px-3 py-1.5 rounded text-sm font-medium" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Reabrir</button>}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===== Mensagens (tela cheia) ===== */
+function Mensagens({ user, onMudou }) {
+  const [dados, setDados] = useState({ recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+  const [aba, setAba] = useState("recebidas");
+  const [usuarios, setUsuarios] = useState([]);
+  const [comp, setComp] = useState({ paraId: "", texto: "" });
+  const [enviando, setEnviando] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const carregar = async () => {
+    try {
+      const m = await fetch(`/api/mensagens?usuarioId=${user.id}`).then((r) => r.json());
+      setDados(m && m.recebidas ? m : { recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => {
+    carregar();
+    fetch("/api/usuarios/lista").then((r) => r.json()).then((u) => setUsuarios(Array.isArray(u) ? u.filter((x) => x.id !== user.id) : [])).catch(() => {});
+  }, []);
+
+  // ao abrir a aba Recebidas, marca todas como lidas
+  useEffect(() => {
+    if (aba === "recebidas" && dados.naoLidas > 0) {
+      fetch("/api/mensagens/ler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id }) })
+        .then(() => { carregar(); onMudou && onMudou(); });
+    }
+  }, [aba, dados.naoLidas]);
+
+  const patch = async (id, body) => {
+    await fetch(`/api/mensagens/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await carregar(); onMudou && onMudou();
+  };
+  const enviar = async () => {
+    if (!comp.paraId || !comp.texto.trim()) return;
+    setEnviando(true);
+    await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
+    setEnviando(false); setComp({ paraId: "", texto: "" }); setAba("enviadas"); carregar();
+  };
+  const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "" }); setAba("nova"); };
+
+  if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  const abas = [
+    ["recebidas", `Recebidas${dados.naoLidas ? ` (${dados.naoLidas})` : ""}`],
+    ["arquivadas", `Arquivadas (${dados.arquivadas.length})`],
+    ["enviadas", "Enviadas"],
+    ["nova", "Nova mensagem"],
+  ];
+
+  const CartaoRecebida = (m, arquivada) => (
+    <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: !m.lida && !arquivada ? C.accentSoft : "transparent" }}>
+      <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={38} />
+      <div style={{ flex: 1 }}>
+        <div className="text-xs" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
+        <div className="text-sm mt-0.5" style={{ color: C.text }}>{m.texto}</div>
+        <div className="flex gap-3 mt-2">
+          <button onClick={() => responder(m)} className="text-xs font-medium" style={{ color: C.accent }}>Responder</button>
+          {arquivada
+            ? <button onClick={() => patch(m.id, { arquivada: false })} className="text-xs" style={{ color: C.sub }}>Desarquivar</button>
+            : <button onClick={() => patch(m.id, { arquivada: true })} className="text-xs" style={{ color: C.sub }}>Arquivar</button>}
+          {!m.lida && !arquivada && <button onClick={() => patch(m.id, { lida: true })} className="text-xs" style={{ color: C.sub }}>Marcar lida</button>}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex gap-1 mb-4 flex-wrap">
+        {abas.map(([k, l]) => {
+          const on = aba === k;
+          return <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>;
+        })}
+      </div>
+
+      {aba === "nova" && (
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg p-4 mb-4">
+          <div className="text-sm font-semibold mb-3">Nova mensagem</div>
+          <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-3 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+            <option value="">Para quem…</option>
+            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
+          </select>
+          <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={4} placeholder="Escreva a mensagem…" className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
+          <button onClick={enviar} disabled={enviando || !comp.paraId || !comp.texto.trim()} className="mt-3 px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: enviando || !comp.paraId || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> Enviar</button>
+        </div>
+      )}
+
+      {aba !== "nova" && (
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+          {aba === "recebidas" && (dados.recebidas.length === 0
+            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem recebida.</div>
+            : dados.recebidas.map((m) => CartaoRecebida(m, false)))}
+          {aba === "arquivadas" && (dados.arquivadas.length === 0
+            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem arquivada.</div>
+            : dados.arquivadas.map((m) => CartaoRecebida(m, true)))}
+          {aba === "enviadas" && (dados.enviadas.length === 0
+            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem enviada.</div>
+            : dados.enviadas.map((m) => (
+              <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+                <Avatar foto={m.para?.fotoBase64} nome={`${m.para?.nome || "?"} ${m.para?.sobrenome || ""}`} size={38} />
+                <div style={{ flex: 1 }}>
+                  <div className="text-xs" style={{ color: C.sub }}>Para {m.para?.nome} {m.para?.sobrenome} · {quandoData(m.createdAt)} {m.lida ? "· lida" : "· não lida"}</div>
+                  <div className="text-sm mt-0.5" style={{ color: C.text }}>{m.texto}</div>
+                </div>
+              </div>
+            )))}
+        </div>
+      )}
     </div>
   );
 }
