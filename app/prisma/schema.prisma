@@ -20,6 +20,7 @@ enum Setor {
   ESTOQUE
   CORTE
   EXPEDICAO
+  ADMINISTRATIVO
 }
 
 enum TipoTecido {
@@ -78,15 +79,23 @@ enum Etapa {
 
 // ---------------- USUÁRIOS ----------------
 model Usuario {
-  id        Int      @id @default(autoincrement())
-  nome      String
-  login     String   @unique
-  senhaHash String
-  setor     Setor
-  isMaster  Boolean  @default(false)
-  ativo     Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  nome       String
+  sobrenome  String   @default("")
+  email      String   @default("")
+  login      String   @unique
+  senha      String   @default("")
+  senhaHash  String?
+  fotoBase64 String?
+  setor      Setor    @default(PCP)
+  isMaster   Boolean  @default(false)
+  ativo      Boolean  @default(true)
+  permLancaPedidos Boolean @default(false)
+  permLancaContas  Boolean @default(false)
+  permAlteraStatus Boolean @default(false)
+  permVeValores    Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // ---------------- CADASTROS BASE ----------------

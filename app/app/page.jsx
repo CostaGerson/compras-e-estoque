@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
-  ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow,
+  ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
 } from "lucide-react";
 
 /* ============================================================
@@ -149,7 +149,7 @@ export default function Home() {
           {view === "fme" && <FME />}
           {view === "artigos" && <Artigos money={money} master={master} />}
           {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
-          {view === "usuarios" && <Usuarios />}
+          {view === "usuarios" && <Usuarios master={master} />}
         </div>
       </main>
     </div>
@@ -2582,21 +2582,247 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
   );
 }
 
-function Usuarios() {
-  const us = [
-    { n: "Igor", s: "FINANCEIRO (master)", a: true },
-    { n: "Maycon", s: "PCP", a: true },
-    { n: "Ana", s: "COMPRAS", a: true },
-    { n: "Diego", s: "ESTOQUE", a: false },
-  ];
+/* ===== Usuários (ligado ao banco · só master) ===== */
+const SETORES = ["FINANCEIRO", "PCP", "ESTOQUE", "ADMINISTRATIVO"];
+const PERMISSOES = [
+  ["permLancaPedidos", "Lança e edita pedidos"],
+  ["permLancaContas", "Lança e edita contas"],
+  ["permAlteraStatus", "Altera status de pedidos"],
+  ["permVeValores", "Enxerga valores no financeiro"],
+];
+
+function Switch({ on, onChange, label }) {
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden max-w-2xl">
-      {us.map((u) => (
-        <div key={u.n} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div><span className="font-medium">{u.n}</span> <span className="text-xs ml-2" style={{ color: C.sub }}>{u.s}</span></div>
-          <button className="text-xs px-3 py-1 rounded font-medium" style={{ background: u.a ? C.greenSoft : C.accentSoft, color: u.a ? C.green : C.accent }}>{u.a ? "Ativo" : "Bloqueado"}</button>
+    <button type="button" onClick={() => onChange(!on)} className="flex items-center gap-2 text-left w-full py-1">
+      <span className="inline-flex items-center rounded-full transition-colors" style={{ width: 38, height: 22, padding: 2, background: on ? C.accent : C.line }}>
+        <span className="rounded-full bg-white" style={{ width: 18, height: 18, transform: on ? "translateX(16px)" : "translateX(0)", transition: "transform .15s", boxShadow: "0 1px 2px rgba(0,0,0,.2)" }} />
+      </span>
+      {label && <span className="text-sm" style={{ color: on ? C.text : C.sub }}>{label}</span>}
+    </button>
+  );
+}
+
+function Avatar({ foto, nome, size = 40 }) {
+  const ini = (nome || "?").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  if (foto) return <img src={foto} alt={nome} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.line}` }} />;
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: C.accentSoft, color: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.36 }}>{ini}</div>
+  );
+}
+
+// redimensiona a foto para um quadrado ~256px (JPEG) e devolve dataURL base64
+function fotoParaBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = S; canvas.height = S;
+        const ctx = canvas.getContext("2d");
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, S, S);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function Usuarios({ master }) {
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [novo, setNovo] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [verSenha, setVerSenha] = useState({});
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const u = await fetch("/api/usuarios").then((r) => r.json());
+      setUsuarios(Array.isArray(u) ? u : []);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const toggleAtivo = async (u) => {
+    await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !u.ativo }) });
+    carregar();
+  };
+  const excluir = async (u) => {
+    if (!window.confirm(`Excluir o usuário ${u.nome}? Esta ação não pode ser desfeita.`)) return;
+    await fetch(`/api/usuarios/${u.id}`, { method: "DELETE" });
+    carregar();
+  };
+
+  if (!master) return <div style={{ color: C.sub }}>Acesso restrito ao master.</div>;
+  if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-3">
+        <div className="text-xs" style={{ color: C.sub }}>{usuarios.length} usuário(s) · você vê senhas e permissões porque é o master</div>
+        <button onClick={() => { setEditando(null); setNovo(true); }} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo usuário</button>
+      </div>
+
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
+        <div style={{ minWidth: 1120 }}>
+          <div className="flex px-4 py-2 text-xs font-semibold items-center" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2, textTransform: "uppercase" }}>
+            <div className="w-12"> </div>
+            <div className="flex-1">Nome</div>
+            <div className="w-32">Usuário</div>
+            <div className="w-36">Setor</div>
+            <div className="w-40">Senha</div>
+            <div className="flex-1">Permissões</div>
+            <div className="w-24 text-center">Status</div>
+            <div className="w-20 text-right">Ações</div>
+          </div>
+          {usuarios.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum usuário ainda. Clique em “Novo usuário”.</div>}
+          {usuarios.map((u) => {
+            const perms = PERMISSOES.filter(([k]) => u[k]);
+            return (
+              <div key={u.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
+                <div className="w-12"><Avatar foto={u.fotoBase64} nome={`${u.nome} ${u.sobrenome || ""}`} /></div>
+                <div className="flex-1">
+                  <div className="font-medium" style={{ color: C.text }}>{u.nome} {u.sobrenome} {u.isMaster && <span className="text-xs" style={{ color: C.accent }}>· master</span>}</div>
+                  <div className="text-xs" style={{ color: C.sub }}>{u.email || "—"}</div>
+                </div>
+                <div className="w-32 text-sm" style={{ color: C.sub }}>{u.login}</div>
+                <div className="w-36"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{u.setor}</span></div>
+                <div className="w-40 text-sm flex items-center gap-2" style={{ color: C.text }}>
+                  <span style={{ fontFamily: "monospace" }}>{verSenha[u.id] ? (u.senha || "—") : "••••••"}</span>
+                  <button onClick={() => setVerSenha((s) => ({ ...s, [u.id]: !s[u.id] }))} style={{ color: C.sub }}>{verSenha[u.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                </div>
+                <div className="flex-1 flex flex-wrap gap-1">
+                  {perms.length === 0 ? <span className="text-xs" style={{ color: C.sub }}>—</span> : perms.map(([k, l]) => (
+                    <span key={k} className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.greenSoft, color: C.green }}>{l}</span>
+                  ))}
+                </div>
+                <div className="w-24 flex justify-center">
+                  <button onClick={() => toggleAtivo(u)} className="text-xs px-3 py-1 rounded font-medium" style={{ background: u.ativo ? C.greenSoft : C.accentSoft, color: u.ativo ? C.green : C.accent }}>{u.ativo ? "Ativo" : "Bloqueado"}</button>
+                </div>
+                <div className="w-20 flex justify-end gap-2">
+                  <button onClick={() => { setNovo(false); setEditando(u); }} title="Editar" style={{ color: C.sub }}><Pencil size={16} /></button>
+                  <button onClick={() => excluir(u)} title="Excluir" style={{ color: "#C77" }} disabled={u.isMaster}><Trash2 size={16} style={{ opacity: u.isMaster ? 0.3 : 1 }} /></button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
+
+      {(novo || editando) && (
+        <UsuarioModal usuario={editando} onClose={() => { setNovo(false); setEditando(null); }} onSaved={() => { setNovo(false); setEditando(null); carregar(); }} />
+      )}
+    </div>
+  );
+}
+
+function UsuarioModal({ usuario, onClose, onSaved }) {
+  const ed = !!usuario;
+  const [f, setF] = useState({
+    nome: usuario?.nome || "", sobrenome: usuario?.sobrenome || "", email: usuario?.email || "",
+    login: usuario?.login || "", senha: usuario?.senha || "", setor: usuario?.setor || "PCP",
+    fotoBase64: usuario?.fotoBase64 || null, ativo: usuario?.ativo ?? true, isMaster: usuario?.isMaster ?? false,
+    permLancaPedidos: usuario?.permLancaPedidos ?? false, permLancaContas: usuario?.permLancaContas ?? false,
+    permAlteraStatus: usuario?.permAlteraStatus ?? false, permVeValores: usuario?.permVeValores ?? false,
+  });
+  const [verSenha, setVerSenha] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const onFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try { set("fotoBase64", await fotoParaBase64(file)); } catch { setErro("Não consegui ler a imagem."); }
+  };
+
+  const salvar = async () => {
+    setErro("");
+    if (!f.nome.trim()) return setErro("Informe o nome.");
+    if (!f.login.trim()) return setErro("Informe o usuário (login).");
+    setSalvando(true);
+    const url = ed ? `/api/usuarios/${usuario.id}` : "/api/usuarios";
+    const method = ed ? "PATCH" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    setSalvando(false);
+    if (!res.ok) { const j = await res.json().catch(() => ({})); return setErro(j.error || "Erro ao salvar."); }
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">{ed ? "Editar usuário" : "Novo usuário"}</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center gap-4 mb-4">
+            <Avatar foto={f.fotoBase64} nome={`${f.nome} ${f.sobrenome}`} size={72} />
+            <div className="flex flex-col gap-2">
+              <label className="px-3 py-1.5 rounded-md text-sm font-medium cursor-pointer flex items-center gap-1 w-fit" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
+                <Camera size={15} /> {f.fotoBase64 ? "Trocar foto" : "Enviar foto"}
+                <input type="file" accept="image/*" onChange={onFoto} style={{ display: "none" }} />
+              </label>
+              {f.fotoBase64 && <button onClick={() => set("fotoBase64", null)} className="text-xs text-left" style={{ color: C.sub }}>Remover foto</button>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <In label="Nome" value={f.nome} onChange={(e) => set("nome", e.target.value)} />
+            <In label="Sobrenome" value={f.sobrenome} onChange={(e) => set("sobrenome", e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>E-mail</div>
+              <input value={f.email} onChange={(e) => set("email", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+            </div>
+            <Sel label="Setor" value={f.setor} onChange={(e) => set("setor", e.target.value)}>
+              {SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Sel>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Usuário (login)</div>
+              <input value={f.login} onChange={(e) => set("login", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+            </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Senha</div>
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                <input type={verSenha ? "text" : "password"} value={f.senha} onChange={(e) => set("senha", e.target.value)} className="flex-1 outline-none" style={{ background: "transparent", color: C.text }} />
+                <button onClick={() => setVerSenha((v) => !v)} style={{ color: C.sub }}>{verSenha ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+            <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Permissões de acesso</div>
+            <div className="grid grid-cols-2 gap-x-4">
+              {PERMISSOES.map(([k, l]) => <Switch key={k} on={f[k]} onChange={(v) => set(k, v)} label={l} />)}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />
+          </div>
+
+          {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
+        </div>
+      </div>
     </div>
   );
 }
