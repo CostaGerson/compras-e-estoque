@@ -96,6 +96,19 @@ model Usuario {
   permVeValores    Boolean @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  mensagensEnviadas  Mensagem[] @relation("MsgDe")
+  mensagensRecebidas Mensagem[] @relation("MsgPara")
+}
+
+model Mensagem {
+  id        Int      @id @default(autoincrement())
+  deId      Int
+  paraId    Int
+  de        Usuario  @relation("MsgDe", fields: [deId], references: [id], onDelete: Cascade)
+  para      Usuario  @relation("MsgPara", fields: [paraId], references: [id], onDelete: Cascade)
+  texto     String
+  lida      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 // ---------------- CADASTROS BASE ----------------
@@ -165,6 +178,7 @@ model Artigo {
   // preço (visível só ao financeiro)
   valorUnitario Decimal?        @db.Decimal(14, 4)
   ativo         Boolean         @default(true)
+  criadoPorId   Int?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

@@ -4,6 +4,7 @@ import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
+  Bell, Inbox, LogOut, Send, AlertTriangle,
 } from "lucide-react";
 
 /* ============================================================
@@ -65,17 +66,34 @@ const NAV = [
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"] },
 ];
 
+// sessão do usuário logado (guardada no navegador)
+function lerSessao() {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(localStorage.getItem("ce_user") || "null"); } catch { return null; }
+}
+function sessaoId() { return lerSessao()?.id || null; }
+
 export default function Home() {
-  const [logged, setLogged] = useState(false);
-  const [perfil, setPerfil] = useState("FINANCEIRO");
+  const [user, setUser] = useState(null);
+  const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("inicio");
   const [tab, setTab] = useState("lista");
-  const master = perfil === "FINANCEIRO";
   const [showVal, setShowVal] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [perfilAberto, setPerfilAberto] = useState(false);
 
-  if (!logged) return <Login onEnter={() => setLogged(true)} />;
-  const nav = NAV.filter((n) => n.perfis.includes(perfil));
+  useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
+
+  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView("inicio"); };
+  const sair = () => { localStorage.removeItem("ce_user"); setUser(null); };
+  const atualizarUser = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); };
+
+  if (!carregouSessao) return null;
+  if (!user) return <Login onEntrar={entrar} />;
+
+  const master = !!(user.isMaster || user.setor === "FINANCEIRO");
+  const perfil = master ? "FINANCEIRO" : user.setor;
+  const nav = NAV.filter((n) => n.perfis.includes(perfil) || (perfil === "ADMINISTRATIVO" && n.key !== "usuarios"));
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
@@ -128,12 +146,7 @@ export default function Home() {
                 {showVal ? <Eye size={15} /> : <EyeOff size={15} />} valores
               </button>
             )}
-            <span className="text-xs" style={{ color: C.sub }}>Perfil:</span>
-            <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setView("pedidos"); }}
-              style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }} className="px-2 py-1 rounded outline-none">
-              {PERFIS.map((p) => <option key={p} value={p}>{p}{p === "FINANCEIRO" ? " (Igor · master)" : ""}</option>)}
-            </select>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold" style={{ background: C.accent, color: "#fff" }}>{perfil[0]}</div>
+            <TopoUsuario user={user} perfil={perfil} onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair} onIrEstoque={() => setView("estoque")} />
           </div>
         </header>
 
@@ -152,24 +165,169 @@ export default function Home() {
           {view === "usuarios" && <Usuarios master={master} />}
         </div>
       </main>
+      {perfilAberto && (
+        <UsuarioModal usuario={user} self onClose={() => setPerfilAberto(false)}
+          onSavedUser={(u) => { atualizarUser(u); setPerfilAberto(false); }} />
+      )}
     </div>
   );
 }
 
-function Login({ onEnter }) {
+function Login({ onEntrar }) {
+  const [login, setLogin] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const [entrando, setEntrando] = useState(false);
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    setErro("");
+    if (!login.trim() || !senha) return setErro("Informe usuário e senha.");
+    setEntrando(true);
+    try {
+      const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, senha }) });
+      const d = await r.json();
+      if (!r.ok) { setErro(d.error || "Não foi possível entrar."); setEntrando(false); return; }
+      onEntrar(d);
+    } catch { setErro("Falha de conexão."); setEntrando(false); }
+  };
+
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
-      <div style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
+      <form onSubmit={submit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
         <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
           <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 34, width: "auto" }} />
         </div>
-        <p className="text-center text-xs mb-6" style={{ color: C.sub }}>Gestão de Material & Financeiro</p>
+        <p className="text-center text-xs mb-6" style={{ color: C.sub }}>Gestão de Material &amp; Financeiro</p>
         <label className="text-xs" style={{ color: C.sub }}>Usuário</label>
-        <input defaultValue="igor" className="w-full mb-3 mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        <input value={login} onChange={(e) => setLogin(e.target.value)} autoFocus className="w-full mb-3 mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
         <label className="text-xs" style={{ color: C.sub }}>Senha</label>
-        <input type="password" defaultValue="••••••" className="w-full mb-5 mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        <button onClick={onEnter} className="w-full py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Entrar</button>
+        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-full mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+        {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
+        <button type="submit" disabled={entrando} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: entrando ? 0.6 : 1 }}>{entrando ? "Entrando…" : "Entrar"}</button>
+      </form>
+    </div>
+  );
+}
+
+/* ===== Topo: sino de alertas + caixa de mensagens + avatar ===== */
+function Badge({ n }) {
+  if (!n) return null;
+  return (
+    <span style={{ position: "absolute", top: -5, right: -5, minWidth: 17, height: 17, padding: "0 4px", borderRadius: 9, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{n > 99 ? "99+" : n}</span>
+  );
+}
+
+function TopoUsuario({ user, perfil, onAbrirPerfil, onSair, onIrEstoque }) {
+  const [alertas, setAlertas] = useState([]);
+  const [msg, setMsg] = useState({ recebidas: [], enviadas: [], naoLidas: 0 });
+  const [aberto, setAberto] = useState(null); // "sino" | "inbox" | null
+  const [usuarios, setUsuarios] = useState([]);
+  const [comp, setComp] = useState({ paraId: "", texto: "" });
+  const [enviando, setEnviando] = useState(false);
+
+  const carregarAlertas = async () => {
+    try {
+      const a = await fetch(`/api/alertas?usuarioId=${user.id}&setor=${encodeURIComponent(perfil)}`).then((r) => r.json());
+      setAlertas(Array.isArray(a) ? a : []);
+    } catch {}
+  };
+  const carregarMsg = async () => {
+    try {
+      const m = await fetch(`/api/mensagens?usuarioId=${user.id}`).then((r) => r.json());
+      setMsg(m && m.recebidas ? m : { recebidas: [], enviadas: [], naoLidas: 0 });
+    } catch {}
+  };
+  useEffect(() => {
+    carregarAlertas(); carregarMsg();
+    fetch("/api/usuarios/lista").then((r) => r.json()).then((u) => setUsuarios(Array.isArray(u) ? u.filter((x) => x.id !== user.id) : [])).catch(() => {});
+    const t = setInterval(() => { carregarAlertas(); carregarMsg(); }, 45000);
+    return () => clearInterval(t);
+  }, [user.id, perfil]);
+
+  const abrirInbox = async () => {
+    const novo = aberto === "inbox" ? null : "inbox";
+    setAberto(novo);
+    if (novo === "inbox" && msg.naoLidas > 0) {
+      await fetch("/api/mensagens/ler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id }) });
+      carregarMsg();
+    }
+  };
+  const enviar = async () => {
+    if (!comp.paraId || !comp.texto.trim()) return;
+    setEnviando(true);
+    await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
+    setEnviando(false); setComp({ paraId: "", texto: "" }); carregarMsg();
+  };
+  const quando = (d) => { try { return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+  const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
+
+  return (
+    <div className="flex items-center gap-3" style={{ position: "relative" }}>
+      {/* Sino */}
+      <div style={{ position: "relative" }}>
+        <button onClick={() => setAberto(aberto === "sino" ? null : "sino")} title="Alertas" style={{ position: "relative", color: alertas.length ? "#E5484D" : C.sub }}>
+          <Bell size={20} /><Badge n={alertas.length} />
+        </button>
+        {aberto === "sino" && (
+          <div style={{ position: "absolute", right: 0, top: 30, width: 340, maxHeight: 420, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 60 }}>
+            <div className="px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, textTransform: "uppercase" }}>Alertas ({alertas.length})</div>
+            {alertas.length === 0 && <div className="px-4 py-5 text-sm" style={{ color: C.sub }}>Nenhum produto pendente. Tudo cadastrado ✓</div>}
+            {alertas.map((a) => (
+              <button key={a.id} onClick={() => { setAberto(null); onIrEstoque(); }} className="w-full text-left px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={15} style={{ color: "#E5484D", marginTop: 2 }} />
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: C.text }}>{a.nome} {a.nfNumero ? <span style={{ color: C.sub }}>· NF {a.nfNumero}</span> : ""}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.sub }}>Falta: {a.faltando.join(", ")}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Caixa de entrada */}
+      <div style={{ position: "relative" }}>
+        <button onClick={abrirInbox} title="Mensagens" style={{ position: "relative", color: msg.naoLidas ? C.accent : C.sub }}>
+          <Inbox size={20} /><Badge n={msg.naoLidas} />
+        </button>
+        {aberto === "inbox" && (
+          <div style={{ position: "absolute", right: 0, top: 30, width: 380, maxHeight: 460, overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 60 }}>
+            <div className="px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, textTransform: "uppercase" }}>Mensagens</div>
+            <div className="p-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+              <div className="text-xs mb-1 font-semibold" style={{ color: C.sub }}>Nova mensagem</div>
+              <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-2 px-2 py-1.5 rounded outline-none text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
+                <option value="">Para quem…</option>
+                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
+              </select>
+              <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={2} placeholder="Escreva…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
+              <button onClick={enviar} disabled={enviando || !comp.paraId || !comp.texto.trim()} className="mt-2 px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: enviando || !comp.paraId || !comp.texto.trim() ? 0.5 : 1 }}><Send size={14} /> Enviar</button>
+            </div>
+            {msg.recebidas.length === 0 && <div className="px-4 py-5 text-sm" style={{ color: C.sub }}>Nenhuma mensagem recebida.</div>}
+            {msg.recebidas.map((m) => (
+              <div key={m.id} className="px-4 py-3 flex gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: m.lida ? "transparent" : C.accentSoft }}>
+                <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={30} />
+                <div style={{ flex: 1 }}>
+                  <div className="text-xs" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {quando(m.createdAt)}</div>
+                  <div className="text-sm" style={{ color: C.text }}>{m.texto}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Avatar → Meu perfil */}
+      <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2">
+        <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={34} />
+        <div className="text-left leading-tight hidden md:block">
+          <div className="text-sm font-medium" style={{ color: C.text }}>{user.nome}</div>
+          <div className="text-xs" style={{ color: C.sub }}>{user.setor}{user.isMaster ? " · master" : ""}</div>
+        </div>
+      </button>
+      <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
     </div>
   );
 }
@@ -957,9 +1115,9 @@ function NF({ master, money, perfil }) {
       const pdf = arr.find((f) => /\.pdf$/i.test(f.name));
       let payload;
       if (xml) {
-        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null, perfil };
+        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null, perfil, usuarioId: sessaoId() };
       } else if (pdf) {
-        payload = { tipo: "pdf", conteudo: await readBase64(pdf), perfil };
+        payload = { tipo: "pdf", conteudo: await readBase64(pdf), perfil, usuarioId: sessaoId() };
       } else {
         setMsg({ tipo: "erro", texto: "Selecione um arquivo .xml e/ou .pdf." }); setEnviando(false); return;
       }
@@ -2316,7 +2474,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
         const x = xmls[i];
         const base = x.name.replace(/\.xml$/i, "");
         const pdf = pdfs.find((p) => p.name.replace(/\.pdf$/i, "") === base);
-        const payload = { tipo: "xml", conteudo: await readText(x), pdfBase64: pdf ? await readB64(pdf) : null, perfil };
+        const payload = { tipo: "xml", conteudo: await readText(x), pdfBase64: pdf ? await readB64(pdf) : null, perfil, usuarioId: sessaoId() };
         const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         let d = {};
         try { const t = await r.text(); d = t ? JSON.parse(t) : {}; } catch { d = { error: `Resposta inválida (HTTP ${r.status})` }; }
@@ -2724,7 +2882,7 @@ function Usuarios({ master }) {
   );
 }
 
-function UsuarioModal({ usuario, onClose, onSaved }) {
+function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
   const ed = !!usuario;
   const [f, setF] = useState({
     nome: usuario?.nome || "", sobrenome: usuario?.sobrenome || "", email: usuario?.email || "",
@@ -2749,19 +2907,27 @@ function UsuarioModal({ usuario, onClose, onSaved }) {
     if (!f.nome.trim()) return setErro("Informe o nome.");
     if (!f.login.trim()) return setErro("Informe o usuário (login).");
     setSalvando(true);
+    // no modo "meu perfil" só mando os campos editáveis do próprio usuário
+    const body = self
+      ? { nome: f.nome, sobrenome: f.sobrenome, email: f.email, login: f.login, senha: f.senha, fotoBase64: f.fotoBase64 }
+      : f;
     const url = ed ? `/api/usuarios/${usuario.id}` : "/api/usuarios";
     const method = ed ? "PATCH" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
     if (!res.ok) { const j = await res.json().catch(() => ({})); return setErro(j.error || "Erro ao salvar."); }
-    onSaved();
+    const salvo = await res.json().catch(() => null);
+    if (self && salvo && onSavedUser) onSavedUser(salvo);
+    else if (onSaved) onSaved();
   };
+
+  const titulo = self ? "Meu perfil" : ed ? "Editar usuário" : "Novo usuário";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
       <div className="rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="font-semibold">{ed ? "Editar usuário" : "Novo usuário"}</div>
+          <div className="font-semibold">{titulo}</div>
           <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
         </div>
 
@@ -2786,9 +2952,16 @@ function UsuarioModal({ usuario, onClose, onSaved }) {
               <div className="text-xs mb-1" style={{ color: C.sub }}>E-mail</div>
               <input value={f.email} onChange={(e) => set("email", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
             </div>
-            <Sel label="Setor" value={f.setor} onChange={(e) => set("setor", e.target.value)}>
-              {SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </Sel>
+            {self ? (
+              <div>
+                <div className="text-xs mb-1" style={{ color: C.sub }}>Setor</div>
+                <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{f.setor}</div>
+              </div>
+            ) : (
+              <Sel label="Setor" value={f.setor} onChange={(e) => set("setor", e.target.value)}>
+                {SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </Sel>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
@@ -2804,16 +2977,20 @@ function UsuarioModal({ usuario, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-            <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Permissões de acesso</div>
-            <div className="grid grid-cols-2 gap-x-4">
-              {PERMISSOES.map(([k, l]) => <Switch key={k} on={f[k]} onChange={(v) => set(k, v)} label={l} />)}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />
-          </div>
+          {!self && (
+            <>
+              <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Permissões de acesso</div>
+                <div className="grid grid-cols-2 gap-x-4">
+                  {PERMISSOES.map(([k, l]) => <Switch key={k} on={f[k]} onChange={(v) => set(k, v)} label={l} />)}
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />
+                <Switch on={f.isMaster} onChange={(v) => set("isMaster", v)} label="Usuário master (Financeiro)" />
+              </div>
+            </>
+          )}
 
           {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
         </div>

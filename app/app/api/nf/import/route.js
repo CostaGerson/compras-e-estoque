@@ -9,7 +9,8 @@ const up = (v) => (v ? String(v).toUpperCase() : v);
 export async function POST(req) {
   let body;
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const { tipo, conteudo, pdfBase64, perfil } = body || {};
+  const { tipo, conteudo, pdfBase64, perfil, usuarioId } = body || {};
+  const criadoPorId = usuarioId ? Number(usuarioId) : null;
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
   // 1) parse
@@ -133,7 +134,7 @@ export async function POST(req) {
             categoria: campos.categoria, fornecedorId, nfId: notaFiscal.id,
             codigoFornecedor: it.cProd || null, nome: up(it.xProd) || "ARTIGO SEM NOME",
             composicao: up(campos.composicao), largura: campos.largura, gramatura: campos.gramatura,
-            unidade: unidadeDoUCom(it.uCom), quantidade: qtd, valorUnitario: it.vUn, dataCompra,
+            unidade: unidadeDoUCom(it.uCom), quantidade: qtd, valorUnitario: it.vUn, dataCompra, criadoPorId,
           },
         });
         artigoId = art.id; resumo.artigosCriados++;
