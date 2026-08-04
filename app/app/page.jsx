@@ -61,7 +61,6 @@ const NAV = [
   { key: "nf", label: "Notas Fiscais", icon: FileText, perfis: ["FINANCEIRO","COMPRAS"] },
   { key: "estoque", label: "Estoque", icon: Boxes, perfis: ["FINANCEIRO","ESTOQUE"] },
   { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO","ESTOQUE"] },
-  { key: "artigos", label: "Artigos & Fornec.", icon: Package, perfis: ["FINANCEIRO","PCP","COMPRAS"] },
   { key: "banco", label: "Banco de dados", icon: Database, perfis: ["FINANCEIRO","PCP","COMPRAS"] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"] },
 ];
@@ -164,7 +163,6 @@ export default function Home() {
           {view === "nf" && <NF master={master} money={money} perfil={perfil} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME user={user} perfil={perfil} />}
-          {view === "artigos" && <Artigos money={money} master={master} />}
           {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
@@ -2286,6 +2284,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
   const [editando, setEditando] = useState(null);
   const [verMov, setVerMov] = useState(null);
   const [verDup, setVerDup] = useState(false);
+  const [soAbaixoMin, setSoAbaixoMin] = useState(false);
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
   const [busca, setBusca] = useState("");
   const [filtroForn, setFiltroForn] = useState("");
@@ -2309,7 +2308,10 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
 
   const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
+  const abaixoMin = (a) => a.estoqueMinimoAtivo && a.estoqueMinimo != null && (Number(a.quantidade) || 0) < Number(a.estoqueMinimo);
+  const qtdAbaixo = artigos.filter(abaixoMin).length;
   const filtrados = artigos.filter((a) => {
+    if (soAbaixoMin && !abaixoMin(a)) return false;
     if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
     if (classe && (["TECIDO", "MALHA", "AVIAMENTO"].includes(classe) ? a.categoria !== classe : !["TECIDO", "MALHA", "AVIAMENTO"].includes(a.categoria))) return false;
     if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
@@ -2372,7 +2374,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
       </div>
 
       {modoEstoque && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3 items-center">
           {[["", "Todos"], ["TECIDO", "Tecidos"], ["MALHA", "Malhas"], ["AVIAMENTO", "Aviamentos"], ["OUTROS", "Outros"]].map(([k, l]) => {
             const on = classe === k;
             return (
@@ -2380,6 +2382,11 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
                 style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
             );
           })}
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setSoAbaixoMin((v) => !v)} className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1"
+            style={{ background: soAbaixoMin ? "#E5484D" : (qtdAbaixo ? "#FDECEC" : C.panel), color: soAbaixoMin ? "#fff" : (qtdAbaixo ? "#E5484D" : C.sub), border: `1px solid ${qtdAbaixo || soAbaixoMin ? "#E5484D" : C.line}` }}>
+            <AlertTriangle size={14} /> Abaixo do mínimo ({qtdAbaixo})
+          </button>
         </div>
       )}
 
@@ -2441,14 +2448,14 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           <div key={a.id} onClick={() => setEditando(a)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
-            <div className="flex-1 font-medium">{a.nome}</div>
+            <div className="flex-1 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}</div>
             <div className="flex-1" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
             <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
             <div className="w-28 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span>{a.cor || "—"}</span></div>
             <div className="w-24" style={{ color: C.sub }}>{a.codigo || "—"}</div>
-            {modoEstoque && <div className="w-24" style={{ color: C.sub }}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}</div>}
+            {modoEstoque && <div className="w-24" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
             <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
             <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
             <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
@@ -2550,6 +2557,8 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
     especificacao: val(artigo.especificacao), unidade: artigo.unidade || "M",
     dataCompra: toDateInput(artigo.dataCompra),
     valorUnitario: val(artigo.valorUnitario),
+    estoqueMinimoAtivo: !!artigo.estoqueMinimoAtivo,
+    estoqueMinimo: val(artigo.estoqueMinimo),
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -2558,9 +2567,10 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   const salvar = async () => {
     setErro("");
     if (!f.nome.trim()) return setErro("Informe o nome do artigo.");
+    if (f.estoqueMinimoAtivo && !String(f.estoqueMinimo).trim()) return setErro("Informe o estoque mínimo ou desative a opção.");
     setSalvando(true);
     const r = await fetch(`/api/artigos/${artigo.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, usuarioId: sessaoId() }),
     });
     setSalvando(false);
     if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
@@ -2642,6 +2652,16 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
               <In label="Data da compra" type="date" value={f.dataCompra} onChange={(e) => set("dataCompra", e.target.value)} />
             </div>
           )}
+
+          <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+            <Switch on={f.estoqueMinimoAtivo} onChange={(v) => set("estoqueMinimoAtivo", v)} label="Controlar estoque mínimo deste produto" />
+            {f.estoqueMinimoAtivo && (
+              <div className="mt-2" style={{ maxWidth: 240 }}>
+                <In label={`Estoque mínimo (${f.unidade || "un"})`} value={f.estoqueMinimo} onChange={(e) => set("estoqueMinimo", e.target.value)} inputMode="decimal" placeholder="Qtde mínima a manter" />
+                <div className="text-xs mt-1" style={{ color: C.sub }}>Abaixo disso, avisa Compras e Financeiro e fica vermelho no Estoque.</div>
+              </div>
+            )}
+          </div>
 
           {erro && <div className="text-xs mb-3" style={{ color: "#D64545" }}>{erro}</div>}
         </div>
@@ -2751,7 +2771,7 @@ function MovimentoModal({ artigo, onClose }) {
 }
 
 function ArtigoForm({ fornecedores, master, onSaved }) {
-  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", codigo: "", quantidade: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "" });
+  const [f, setF] = useState({ categoria: "MALHA", fornecedorId: "", nome: "", artigoInterno: "", cor: "", codigo: "", quantidade: "", tipoMalha: "TUBULAR", composicao: "", largura: "", rendimento: "", gramatura: "", especificacao: "", unidade: "UN", valorUnitario: "", estoqueMinimoAtivo: false, estoqueMinimo: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -2759,8 +2779,9 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
   const salvar = async () => {
     setErro("");
     if (!f.nome.trim()) return setErro("Informe o nome do artigo.");
+    if (f.estoqueMinimoAtivo && !String(f.estoqueMinimo).trim()) return setErro("Informe o estoque mínimo ou desative a opção.");
     setSalvando(true);
-    const r = await fetch("/api/artigos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    const r = await fetch("/api/artigos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, usuarioId: sessaoId() }) });
     setSalvando(false);
     if (!r.ok) { const e = await r.json().catch(() => ({})); return setErro(e.error || "Erro ao salvar."); }
     onSaved();
@@ -2820,6 +2841,16 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
         {master && <In label="Preço (R$)" value={f.valorUnitario} onChange={(e) => set("valorUnitario", e.target.value)} inputMode="decimal" />}
       </div>
 
+      <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+        <Switch on={f.estoqueMinimoAtivo} onChange={(v) => set("estoqueMinimoAtivo", v)} label="Controlar estoque mínimo deste produto" />
+        {f.estoqueMinimoAtivo && (
+          <div className="mt-2" style={{ maxWidth: 240 }}>
+            <In label={`Estoque mínimo (${f.unidade || "un"})`} value={f.estoqueMinimo} onChange={(e) => set("estoqueMinimo", e.target.value)} inputMode="decimal" placeholder="Qtde mínima a manter" />
+            <div className="text-xs mt-1" style={{ color: C.sub }}>Abaixo disso, avisa Compras e Financeiro e fica vermelho no Estoque.</div>
+          </div>
+        )}
+      </div>
+
       {erro && <div className="text-xs mb-3" style={{ color: "#D64545" }}>{erro}</div>}
       <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar artigo"}</button>
     </div>
@@ -2831,14 +2862,22 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
 function BancoDados({ master, money, perfil }) {
   const [aba, setAba] = useState("clientes");
   const [fornecedores, setFornecedores] = useState([]);
-  const carregarForn = async () => {
-    try { const f = await fetch("/api/fornecedores").then((r) => r.json()); setFornecedores(Array.isArray(f) ? f : []); } catch {}
+  const [artigos, setArtigos] = useState([]);
+  const carregar = async () => {
+    try {
+      const [f, a] = await Promise.all([
+        fetch("/api/fornecedores").then((r) => r.json()),
+        fetch("/api/artigos").then((r) => r.json()),
+      ]);
+      setFornecedores(Array.isArray(f) ? f : []);
+      setArtigos(Array.isArray(a) ? a : []);
+    } catch {}
   };
-  useEffect(() => { carregarForn(); }, []);
+  useEffect(() => { carregar(); }, []);
   return (
     <div>
       <div className="flex gap-1 mb-5">
-        {[["clientes", "Clientes"], ["fornecedores", "Fornecedores"]].map(([k, l]) => {
+        {[["clientes", "Clientes"], ["fornecedores", "Fornecedores"], ["artigos", "Artigos"]].map(([k, l]) => {
           const on = aba === k;
           return (
             <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
@@ -2846,9 +2885,9 @@ function BancoDados({ master, money, perfil }) {
           );
         })}
       </div>
-      {aba === "clientes"
-        ? <ClientesPane master={master} money={money} />
-        : <FornecedoresBancoPane master={master} money={money} perfil={perfil} />}
+      {aba === "clientes" && <ClientesPane master={master} money={money} />}
+      {aba === "fornecedores" && <FornecedoresBancoPane master={master} money={money} perfil={perfil} />}
+      {aba === "artigos" && <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />}
     </div>
   );
 }
@@ -3168,6 +3207,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
   const [enviando, setEnviando] = useState(false);
   const [prog, setProg] = useState("");
   const [msg, setMsg] = useState(null);
+  const [verDupF, setVerDupF] = useState(false);
 
   const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const carregar = async () => {
@@ -3258,10 +3298,14 @@ function FornecedoresBancoPane({ master, money, perfil }) {
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
+        {(() => { const g = gruposFornecedores(forns); return g.length > 0 ? (
+          <button onClick={() => setVerDupF(true)} className="px-3 py-2 rounded font-medium flex items-center gap-1 text-sm" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}><AlertTriangle size={15} /> Mesclar fornecedores ({g.length})</button>
+        ) : null; })()}
         <button onClick={() => setEditando({})} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
           <Plus size={16} /> Novo fornecedor
         </button>
       </div>
+      {verDupF && <FornecedoresDuplicadosModal fornecedores={forns} onClose={() => setVerDupF(false)} onSaved={carregar} />}
 
       <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {forns.length} fornecedor(es) · clique no nome para editar, no número de compras para ver o histórico</div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">

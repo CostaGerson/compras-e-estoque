@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { checarEstoqueMinimo } from "@/lib/estoqueMinimo";
+
+const bool = (v) => v === true || v === "true" || v === 1;
 
 const dec = (v) => {
   if (v === "" || v === null || v === undefined) return null;
@@ -50,8 +53,11 @@ export async function POST(req) {
       valorUnitario: dec(b.valorUnitario),
       quantidade: dec(b.quantidade),
       dataCompra: b.dataCompra ? new Date(b.dataCompra) : null,
+      estoqueMinimoAtivo: bool(b.estoqueMinimoAtivo),
+      estoqueMinimo: bool(b.estoqueMinimoAtivo) ? dec(b.estoqueMinimo) : null,
     },
     include: { fornecedor: true, nf: { select: { id: true, numero: true, temPdf: true, temXml: true } } },
   });
+  await checarEstoqueMinimo(prisma, artigo.id, b.usuarioId).catch(() => {});
   return Response.json(artigo, { status: 201 });
 }

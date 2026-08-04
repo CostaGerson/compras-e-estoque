@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { checarEstoqueMinimo } from "@/lib/estoqueMinimo";
 
 const up = (v) => (v ? String(v).trim().toUpperCase() : null);
 const dec = (v) => {
@@ -72,6 +73,9 @@ export async function POST(req) {
     }
     return novo;
   });
+
+  // após baixar o estoque, avisa se algum artigo cruzou o estoque mínimo
+  for (const p of prep) await checarEstoqueMinimo(prisma, p.art.id, responsavelEstoque).catch(() => {});
 
   const completo = await prisma.fme.findUnique({ where: { id: fme.id }, include: { itens: { include: { artigo: { select: selArtigo } } } } });
   return Response.json(completo, { status: 201 });
