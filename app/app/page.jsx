@@ -1984,10 +1984,23 @@ function ResumoCard({ rotulo, valor, destaque }) {
     </div>
   );
 }
+// agrupa artigos que são o mesmo item: fornecedor + nome NF + cor + valor (regra do Igor)
+function gruposDuplicados(artigos) {
+  const norm = (s) => (s == null ? "" : String(s)).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const val = (v) => (v == null || v === "" ? "" : (Number(v) || 0).toFixed(4));
+  const mapa = {};
+  for (const a of artigos) {
+    const chave = [a.fornecedorId || "0", norm(a.nome), norm(a.cor), val(a.valorUnitario)].join("|");
+    (mapa[chave] = mapa[chave] || []).push(a);
+  }
+  return Object.values(mapa).filter((g) => g.length > 1);
+}
+
 function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [verMov, setVerMov] = useState(null);
+  const [verDup, setVerDup] = useState(false);
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
   const [busca, setBusca] = useState("");
   const [filtroForn, setFiltroForn] = useState("");
@@ -2110,7 +2123,12 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
 
       <div className="flex justify-between items-center mb-3">
         <div className="text-xs" style={{ color: C.sub }}>{lista.length} de {artigos.length} artigo(s) · clique na linha para editar, no título para ordenar</div>
-        <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
+        <div className="flex gap-2">
+          {(() => { const g = gruposDuplicados(artigos); return g.length > 0 ? (
+            <button onClick={() => setVerDup(true)} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}><AlertTriangle size={14} /> Mesclar duplicados ({g.length})</button>
+          ) : null; })()}
+          <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
+        </div>
       </div>
 
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
@@ -2175,6 +2193,60 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
       )}
       {verMov && <MovimentoModal artigo={verMov} onClose={() => setVerMov(null)} />}
+      {verDup && <DuplicadosModal artigos={artigos} fornecedores={fornecedores} onClose={() => setVerDup(false)} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+function DuplicadosModal({ artigos, fornecedores, onClose, onSaved }) {
+  const grupos = gruposDuplicados(artigos);
+  const [mesclando, setMesclando] = useState(null);
+  const [erro, setErro] = useState("");
+  const nomeForn = (id) => fornecedores.find((f) => f.id === id)?.nome || "(sem nome comercial)";
+  const fmt = (a) => `${Number(a.quantidade || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ${a.unidade || ""}`;
+
+  const mesclar = async (grupo) => {
+    setErro("");
+    const ordenados = [...grupo].sort((a, b) => a.id - b.id);
+    const manter = ordenados[0];
+    setMesclando(manter.id);
+    for (const rem of ordenados.slice(1)) {
+      const r = await fetch("/api/artigos/merge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manterId: manter.id, removerId: rem.id }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErro(j.error || "Erro ao mesclar."); setMesclando(null); return; }
+    }
+    setMesclando(null);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">Artigos duplicados</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="p-5">
+          <div className="text-xs mb-3" style={{ color: C.sub }}>Mesmo fornecedor + mesmo nome (Artigo NF) + mesma cor + mesmo valor. Mesclar soma o saldo em um só (mantém o mais antigo) e inativa os outros. O histórico de entradas/saídas é preservado.</div>
+          {grupos.length === 0 && <div className="text-sm" style={{ color: C.sub }}>Nenhum duplicado encontrado ✓</div>}
+          {grupos.map((g, i) => (
+            <div key={i} className="rounded-lg mb-3" style={{ border: `1px solid ${C.line}` }}>
+              <div className="px-3 py-2 text-xs font-semibold flex items-center justify-between" style={{ background: C.panel2, color: C.sub }}>
+                <span>{g[0].nome} · {g[0].cor || "sem cor"} · {nomeForn(g[0].fornecedorId)}</span>
+                <button onClick={() => mesclar(g)} disabled={mesclando === g[0].id} className="px-3 py-1 rounded text-xs font-medium" style={{ background: C.accent, color: "#fff", opacity: mesclando === g[0].id ? 0.6 : 1 }}>{mesclando === g[0].id ? "Mesclando…" : "Mesclar em 1"}</button>
+              </div>
+              {g.map((a) => (
+                <div key={a.id} className="px-3 py-2 flex items-center gap-2 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span>
+                  <span style={{ color: C.text }}>{a.nome}</span>
+                  <span className="flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> {a.cor || "—"}</span>
+                  <span style={{ color: C.sub, marginLeft: "auto" }}>saldo {fmt(a)}{a.valorUnitario ? ` · R$ ${Number(a.valorUnitario).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : ""}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          {erro && <div className="text-xs mt-2" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+      </div>
     </div>
   );
 }
