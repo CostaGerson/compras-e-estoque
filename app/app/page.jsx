@@ -1396,6 +1396,20 @@ function Estoque({ money, master }) {
 }
 /* ===== FME · Ficha de Movimentação de Estoque ===== */
 const FME_SETORES = ["CORTE", "PCP", "ESTOQUE", "EXPEDICAO", "COMPRAS", "ADMINISTRATIVO", "FINANCEIRO"];
+// totais de uma FME por unidade: retirado, devolvido e consumido (retirado - devolvido)
+function totaisFmeUn(itens) {
+  const ret = {}, dev = {}, cons = {};
+  for (const it of (itens || [])) {
+    const u = it.unidade || it.artigo?.unidade || "UN";
+    const r = Number(it.qtdRetirada) || 0, d = Number(it.qtdDevolvida) || 0;
+    ret[u] = (ret[u] || 0) + r; dev[u] = (dev[u] || 0) + d; cons[u] = (cons[u] || 0) + (r - d);
+  }
+  return { ret, dev, cons };
+}
+function fmtUn(obj) {
+  const e = Object.entries(obj).filter(([, v]) => Math.abs(v) > 0.0001);
+  return e.length ? e.map(([u, v]) => `${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${u}`).join(" · ") : "—";
+}
 const rotuloQtd = (u) => (u === "M" ? "Metragem (m)" : u === "KG" ? "Quantidade (kg)" : "Quantidade (un)");
 
 async function gerarPdfFme(fme, responsavelNome) {
@@ -1549,19 +1563,6 @@ function FME({ user, perfil }) {
 
   const nomeResp = (id) => { const u = usuarios.find((x) => x.id === id); return u ? `${u.nome} ${u.sobrenome || ""}`.trim() : ""; };
   const quando = (d) => { try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return ""; } };
-  const fmtNum = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  // totais por unidade (retirado e ainda não devolvido)
-  const totais = (() => {
-    const ret = {}, pend = {};
-    for (const f of fmes) for (const it of (f.itens || [])) {
-      const u = it.unidade || it.artigo?.unidade || "UN";
-      const r = Number(it.qtdRetirada) || 0, d = Number(it.qtdDevolvida) || 0;
-      ret[u] = (ret[u] || 0) + r; pend[u] = (pend[u] || 0) + (r - d);
-    }
-    return { ret, pend };
-  })();
-  const linhaUn = (obj) => { const e = Object.entries(obj).filter(([, v]) => Math.abs(v) > 0.0001); return e.length ? e.map(([u, v]) => `${fmtNum(v)} ${u}`).join(" · ") : "—"; };
   const temDevolucao = (f) => (f.itens || []).some((it) => (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0) > 0.0001);
 
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
@@ -1573,40 +1574,32 @@ function FME({ user, perfil }) {
         <button onClick={() => setNovo(true)} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Nova FME</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="rounded-lg p-3" style={{ background: C.accentSoft, border: `1px solid ${C.accent}` }}>
-          <div className="text-xs font-semibold mb-1" style={{ color: C.accent, textTransform: "uppercase", letterSpacing: 0.3 }}>Total retirado</div>
-          <div className="text-base font-bold" style={{ color: C.text }}>{linhaUn(totais.ret)}</div>
-        </div>
-        <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="text-xs font-semibold mb-1" style={{ color: C.sub, textTransform: "uppercase", letterSpacing: 0.3 }}>Ainda não devolvido</div>
-          <div className="text-base font-bold" style={{ color: C.text }}>{linhaUn(totais.pend)}</div>
-        </div>
-      </div>
-
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: 820 }}>
+        <div style={{ minWidth: 900 }}>
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2, textTransform: "uppercase" }}>
-            <div className="w-24">Nº</div><div className="w-24">Data</div><div className="w-32">Setor</div><div className="flex-1">Solicitante</div><div className="w-16">Itens</div><div className="w-64 text-right">Ações</div>
+            <div className="w-24">Nº</div><div className="w-24">Data</div><div className="w-32">Setor</div><div className="flex-1">Solicitante</div><div className="w-48">Totais (retirado)</div><div className="w-64 text-right">Ações</div>
           </div>
           {fmes.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma FME ainda. Clique em “Nova FME”.</div>}
-          {fmes.map((f) => (
-            <div key={f.id} onClick={() => setHist(f.id)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-              <div className="w-24 font-semibold" style={{ color: C.accent }}>{f.numero}</div>
-              <div className="w-24 text-sm" style={{ color: C.sub }}>{quando(f.data || f.createdAt)}</div>
-              <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{f.setorDemandante}</span></div>
-              <div className="flex-1 text-sm" style={{ color: C.text }}>{f.responsavelSetor || "—"}</div>
-              <div className="w-16 text-sm" style={{ color: C.sub }}>{f.itens?.length || 0}</div>
-              <div className="w-64 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                {temDevolucao(f)
-                  ? <button onClick={() => setDevol(f)} className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium" style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}` }}><ArrowLeftRight size={13} /> Devolução</button>
-                  : <span className="text-xs px-2 py-1" style={{ color: C.sub }}>devolvido ✓</span>}
-                <button onClick={() => setHist(f.id)} className="text-xs px-2 py-1 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>Histórico</button>
-                <button onClick={() => gerarPdfFme(f, nomeResp(f.responsavelEstoque))} className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}><Printer size={13} /> PDF</button>
+          {fmes.map((f) => {
+            const t = totaisFmeUn(f.itens);
+            return (
+              <div key={f.id} onClick={() => setHist(f.id)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                <div className="w-24 font-semibold" style={{ color: C.accent }}>{f.numero}</div>
+                <div className="w-24 text-sm" style={{ color: C.sub }}>{quando(f.data || f.createdAt)}</div>
+                <div className="w-32"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{f.setorDemandante}</span></div>
+                <div className="flex-1 text-sm" style={{ color: C.text }}>{f.responsavelSetor || "—"}</div>
+                <div className="w-48 text-sm font-medium" style={{ color: C.text }}>{fmtUn(t.ret)}</div>
+                <div className="w-64 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                  {temDevolucao(f)
+                    ? <button onClick={() => setDevol(f)} className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium" style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}` }}><ArrowLeftRight size={13} /> Devolução</button>
+                    : <span className="text-xs px-2 py-1" style={{ color: C.sub }}>devolvido ✓</span>}
+                  <button onClick={() => setHist(f.id)} className="text-xs px-2 py-1 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>Histórico</button>
+                  <button onClick={() => gerarPdfFme(f, nomeResp(f.responsavelEstoque))} className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}><Printer size={13} /> PDF</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1649,31 +1642,40 @@ function DevolucaoModal({ fme, user, perfil, onClose, onSalvo }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,.4)", paddingTop: 16 }} onClick={onClose}>
-      <div className="rounded-xl w-full max-w-3xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+      <div className="rounded-xl w-full max-w-4xl" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="font-semibold">Registrar devolução · {fme.numero}</div>
           <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
         </div>
         <div className="p-5">
-          <div className="text-xs mb-3" style={{ color: C.sub }}>As quantidades retiradas ficam congeladas. Informe o que está voltando pro estoque (pode ser parcial) — o saldo é atualizado e o retorno entra no histórico.</div>
-          <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden">
-            <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
-              <div className="flex-1">Material</div><div className="w-24">Cor</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Já devolv.</div><div className="w-28 text-right">Restante</div><div className="w-32">Devolver agora</div>
-            </div>
-            {linhas.map((l, i) => (
-              <div key={l.it.id} className="flex px-3 py-2 items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
-                <div className="flex-1 text-sm" style={{ color: C.text }}>{l.it.nomeItem || l.it.artigo?.nome}</div>
-                <div className="w-24 text-sm flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={l.it.cor || l.it.artigo?.cor} /> {(l.it.cor || l.it.artigo?.cor) || "—"}</div>
-                <div className="w-24 text-right text-sm" style={{ color: C.sub }}>{fmtNum(l.it.qtdRetirada)} {l.it.unidade}</div>
-                <div className="w-24 text-right text-sm" style={{ color: C.sub }}>{fmtNum(l.it.qtdDevolvida)}</div>
-                <div className="w-28 text-right text-sm font-medium" style={{ color: restante(l.it) > 0 ? C.text : C.green }}>{fmtNum(restante(l.it))}</div>
-                <div className="w-32">
-                  {restante(l.it) > 0.0001
-                    ? <input value={l.dev} onChange={(e) => set(i, e.target.value)} inputMode="decimal" placeholder={`0 ${l.it.unidade || ""}`} className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-                    : <span className="text-xs" style={{ color: C.green }}>completo ✓</span>}
-                </div>
+          <div className="text-xs mb-3" style={{ color: C.sub }}>As quantidades retiradas ficam congeladas. Informe só o que está voltando pro estoque — o resto conta como <b>consumido</b> (retirado − devolvido). O saldo é atualizado e o retorno entra no histórico.</div>
+          <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-x-auto">
+            <div style={{ minWidth: 720 }}>
+              <div className="flex items-center gap-4 px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
+                <div className="flex-1">Material</div><div className="w-24">Cor</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Devolvido</div><div className="w-32">Devolver agora</div><div className="w-24 text-right">Consumido</div>
               </div>
-            ))}
+              {linhas.map((l, i) => {
+                const retir = Number(l.it.qtdRetirada) || 0;
+                const jaDev = Number(l.it.qtdDevolvida) || 0;
+                const agora = decLocal(l.dev) || 0;
+                const consumido = retir - jaDev - agora;
+                const podeDevolver = restante(l.it) > 0.0001;
+                return (
+                  <div key={l.it.id} className="flex items-center gap-4 px-3 py-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <div className="flex-1 text-sm" style={{ color: C.text }}>{l.it.nomeItem || l.it.artigo?.nome}</div>
+                    <div className="w-24 text-sm flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={l.it.cor || l.it.artigo?.cor} /> {(l.it.cor || l.it.artigo?.cor) || "—"}</div>
+                    <div className="w-24 text-right text-sm" style={{ color: C.sub }}>{fmtNum(retir)} {l.it.unidade}</div>
+                    <div className="w-24 text-right text-sm" style={{ color: C.green }}>{fmtNum(jaDev)}</div>
+                    <div className="w-32">
+                      {podeDevolver
+                        ? <input value={l.dev} onChange={(e) => set(i, e.target.value)} inputMode="decimal" placeholder={`0 ${l.it.unidade || ""}`} className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+                        : <span className="text-xs" style={{ color: C.sub }}>—</span>}
+                    </div>
+                    <div className="w-24 text-right text-sm font-semibold" style={{ color: C.accent }}>{fmtNum(consumido)}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           {erro && <div className="text-xs mt-2" style={{ color: "#D64545" }}>{erro}</div>}
         </div>
@@ -1709,19 +1711,26 @@ function HistoricoFmeModal({ fmeId, usuarios, onClose }) {
           {fme && (
             <>
               <div className="text-xs mb-4" style={{ color: C.sub }}>{fme.setorDemandante} · Solicitante {fme.responsavelSetor || "—"} · Data {dataHora(fme.data || fme.createdAt)}</div>
+              {(() => { const t = totaisFmeUn(fme.itens); return (
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="rounded-lg p-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}><div className="text-xs" style={{ color: C.sub }}>Retirado</div><div className="text-sm font-bold" style={{ color: C.text }}>{fmtUn(t.ret)}</div></div>
+                  <div className="rounded-lg p-2" style={{ background: C.greenSoft, border: `1px solid ${C.green}44` }}><div className="text-xs" style={{ color: C.green }}>Devolvido</div><div className="text-sm font-bold" style={{ color: C.text }}>{fmtUn(t.dev)}</div></div>
+                  <div className="rounded-lg p-2" style={{ background: C.accentSoft, border: `1px solid ${C.accent}44` }}><div className="text-xs" style={{ color: C.accent }}>Consumido</div><div className="text-sm font-bold" style={{ color: C.text }}>{fmtUn(t.cons)}</div></div>
+                </div>
+              ); })()}
               <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Itens</div>
               <div style={{ border: `1px solid ${C.line}`, borderRadius: 8 }} className="overflow-hidden mb-4">
                 <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, textTransform: "uppercase" }}>
-                  <div className="flex-1">Material</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Devolvido</div><div className="w-24 text-right">Em aberto</div>
+                  <div className="flex-1">Material</div><div className="w-24 text-right">Retirado</div><div className="w-24 text-right">Devolvido</div><div className="w-24 text-right">Consumido</div>
                 </div>
                 {(fme.itens || []).map((it) => {
-                  const rest = (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0);
+                  const cons = (Number(it.qtdRetirada) || 0) - (Number(it.qtdDevolvida) || 0);
                   return (
                     <div key={it.id} className="flex px-3 py-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
                       <div className="flex-1" style={{ color: C.text }}>{it.nomeItem || it.artigo?.nome} <span style={{ color: C.sub }}>· {(it.cor || it.artigo?.cor) || "—"}</span></div>
                       <div className="w-24 text-right" style={{ color: C.sub }}>{fmtNum(it.qtdRetirada)} {it.unidade}</div>
                       <div className="w-24 text-right" style={{ color: C.green }}>{fmtNum(it.qtdDevolvida)}</div>
-                      <div className="w-24 text-right" style={{ color: rest > 0.0001 ? C.accent : C.green }}>{fmtNum(rest)}</div>
+                      <div className="w-24 text-right font-medium" style={{ color: C.accent }}>{fmtNum(cons)}</div>
                     </div>
                   );
                 })}
@@ -2672,7 +2681,7 @@ function MovimentoCell({ a, onOpen }) {
   const m = a.movimentacoes && a.movimentacoes[0];
   if (!m) return <span style={{ color: C.line }}>—</span>;
   const entrada = m.tipo === "ENTRADA" || m.tipo === "RETORNO";
-  const doc = m.nf ? `NF ${m.nf.numero}` : m.fme ? `FME ${m.fme.numero}` : "—";
+  const doc = m.nf ? `NF ${m.nf.numero}` : m.fme ? m.fme.numero : "—";
   return (
     <button onClick={onOpen} className="flex items-center gap-1 text-left w-full" title="Ver histórico de movimentação">
       <span style={{ color: entrada ? C.green : "#D64545", fontWeight: 700 }}>{entrada ? "↑" : "↓"}</span>
@@ -2710,18 +2719,22 @@ function MovimentoModal({ artigo, onClose }) {
               </div>
               {movs.map((m) => {
                 const entrada = m.tipo === "ENTRADA" || m.tipo === "RETORNO";
-                const doc = m.nf ? `NF ${m.nf.numero}` : m.fme ? `FME ${m.fme.numero}` : "—";
                 return (
                   <div key={m.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
                     <div className="w-40" style={{ color: C.sub }}>{dh(m.createdAt)}</div>
                     <div className="w-24" style={{ color: entrada ? C.green : "#D64545", fontWeight: 600 }}>{entrada ? "↑ Entrada" : "↓ Saída"}</div>
-                    <div className="flex-1">{doc}</div>
+                    <div className="flex-1">
+                      {m.nf ? `NF ${m.nf.numero}`
+                        : m.fme ? <a href={`/api/fme/${m.fme.id}/pdf`} target="_blank" rel="noreferrer" style={{ color: C.accent, fontWeight: 600, textDecoration: "none" }} title="Abrir FME em nova guia">{m.fme.numero}</a>
+                        : "—"}
+                    </div>
                     <div className="w-28" style={{ color: C.sub }}>{fmtQtd(m.quantidade, artigo.unidade)}</div>
                     <div className="w-28" style={{ color: C.sub }}>{m.perfil || "—"}</div>
                     <div className="w-20 text-center flex items-center justify-center gap-1">
-                      {m.nf?.temPdf ? <a href={`/api/nf/${m.nf.id}/pdf`} title="PDF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
-                      {m.nf?.temXml ? <a href={`/api/nf/${m.nf.id}/xml`} title="XML" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : null}
-                      {!m.nf ? <span style={{ color: C.line }}>—</span> : null}
+                      {m.nf?.temPdf ? <a href={`/api/nf/${m.nf.id}/pdf`} target="_blank" rel="noreferrer" title="PDF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
+                      {m.nf?.temXml ? <a href={`/api/nf/${m.nf.id}/xml`} target="_blank" rel="noreferrer" title="XML" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : null}
+                      {m.fme ? <a href={`/api/fme/${m.fme.id}/pdf`} target="_blank" rel="noreferrer" title="PDF da FME" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
+                      {!m.nf && !m.fme ? <span style={{ color: C.line }}>—</span> : null}
                     </div>
                   </div>
                 );
