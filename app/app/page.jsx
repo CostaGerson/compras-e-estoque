@@ -1776,12 +1776,25 @@ function Artigos({ money, master }) {
   );
 }
 
+// fornecedores com o mesmo nome comercial (devem virar um só)
+function gruposFornecedores(fornecedores) {
+  const norm = (s) => (s == null ? "" : String(s)).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const mapa = {};
+  for (const f of fornecedores) {
+    if (!f.nome || !f.nome.trim()) continue; // sem nome não agrupa
+    const k = norm(f.nome);
+    (mapa[k] = mapa[k] || []).push(f);
+  }
+  return Object.values(mapa).filter((g) => g.length > 1);
+}
+
 function FornecedoresPane({ fornecedores, onSaved }) {
   const [nome, setNome] = useState("");
   const [cnpjs, setCnpjs] = useState([{ cnpj: "", razaoSocial: "" }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [editando, setEditando] = useState(null);
+  const [verDupF, setVerDupF] = useState(false);
   const [sortF, setSortF] = useState({ key: "nome", dir: "asc" });
   const onSortF = (key) => setSortF((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   const listaF = ordenar(
@@ -1824,7 +1837,12 @@ function FornecedoresPane({ fornecedores, onSaved }) {
       </div>
 
       <div>
-        <div className="text-xs mb-2" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) · clique na linha para editar, no título para ordenar</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs" style={{ color: C.sub }}>{fornecedores.length} fornecedor(es) · clique na linha para editar</div>
+          {(() => { const g = gruposFornecedores(fornecedores); return g.length > 0 ? (
+            <button onClick={() => setVerDupF(true)} className="px-3 py-1.5 rounded-md font-medium text-xs flex items-center gap-1" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}><AlertTriangle size={13} /> Mesclar fornecedores ({g.length})</button>
+          ) : null; })()}
+        </div>
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
             <ThSort label="Fornecedor (nome comercial)" campoKey="nome" sort={sortF} onSort={onSortF} className="flex-1" />
@@ -1852,6 +1870,57 @@ function FornecedoresPane({ fornecedores, onSaved }) {
         <FornecedorEditModal fornecedor={editando}
           onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
       )}
+      {verDupF && <FornecedoresDuplicadosModal fornecedores={fornecedores} onClose={() => setVerDupF(false)} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+function FornecedoresDuplicadosModal({ fornecedores, onClose, onSaved }) {
+  const grupos = gruposFornecedores(fornecedores);
+  const [mesclando, setMesclando] = useState(null);
+  const [erro, setErro] = useState("");
+
+  const mesclar = async (grupo) => {
+    setErro("");
+    // mantém o que tem mais artigos (desempate: id menor)
+    const ordenados = [...grupo].sort((a, b) => ((b._count?.artigos ?? 0) - (a._count?.artigos ?? 0)) || (a.id - b.id));
+    const manter = ordenados[0];
+    setMesclando(manter.id);
+    for (const rem of ordenados.slice(1)) {
+      const r = await fetch("/api/fornecedores/merge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manterId: manter.id, removerId: rem.id }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErro(j.error || "Erro ao mesclar."); setMesclando(null); return; }
+    }
+    setMesclando(null);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold">Fornecedores duplicados</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="p-5">
+          <div className="text-xs mb-3" style={{ color: C.sub }}>Mesmo nome comercial = deve ser um só fornecedor. Mesclar move todos os CNPJs, artigos, notas e OCs para um único cadastro (mantém o que tem mais artigos) e inativa os demais. Depois disso, os artigos duplicados também passam a ser mescláveis.</div>
+          {grupos.length === 0 && <div className="text-sm" style={{ color: C.sub }}>Nenhum fornecedor duplicado ✓</div>}
+          {grupos.map((g, i) => (
+            <div key={i} className="rounded-lg mb-3" style={{ border: `1px solid ${C.line}` }}>
+              <div className="px-3 py-2 text-xs font-semibold flex items-center justify-between" style={{ background: C.panel2, color: C.sub }}>
+                <span>{g[0].nome} · {g.length} cadastros</span>
+                <button onClick={() => mesclar(g)} disabled={mesclando === g[0].id} className="px-3 py-1 rounded text-xs font-medium" style={{ background: C.accent, color: "#fff", opacity: mesclando != null ? 0.6 : 1 }}>{mesclando === g[0].id ? "Mesclando…" : "Mesclar em 1"}</button>
+              </div>
+              {g.map((f) => (
+                <div key={f.id} className="px-3 py-2 text-sm flex items-center justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <span style={{ color: C.text }}>{f.nome} <span style={{ color: C.sub }}>· {f._count?.artigos ?? 0} artigos · {f.cnpjs?.length || 0} CNPJ(s)</span></span>
+                  <span className="text-xs flex flex-wrap gap-1 justify-end" style={{ maxWidth: 260 }}>{f.cnpjs?.map((c) => <span key={c.id} className="px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.sub }}>{fmtCnpj(c.cnpj)}</span>)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          {erro && <div className="text-xs mt-2" style={{ color: "#D64545" }}>{erro}</div>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2024,13 +2093,16 @@ function ResumoCard({ rotulo, valor, destaque }) {
     </div>
   );
 }
-// agrupa artigos que são o mesmo item: fornecedor + nome NF + cor + valor (regra do Igor)
+// agrupa artigos que são o mesmo item: fornecedor (pelo NOME comercial) + nome NF + cor + valor (regra do Igor)
 function gruposDuplicados(artigos) {
   const norm = (s) => (s == null ? "" : String(s)).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const val = (v) => (v == null || v === "" ? "" : (Number(v) || 0).toFixed(4));
+  // usa o NOME do fornecedor (assim "Têxtil MN" em cadastros diferentes conta como o mesmo);
+  // se o fornecedor está sem nome, cai no id pra não juntar fornecedores distintos por engano
+  const chaveForn = (a) => (a.fornecedor?.nome && a.fornecedor.nome.trim() ? "n:" + norm(a.fornecedor.nome) : "i:" + (a.fornecedorId || "0"));
   const mapa = {};
   for (const a of artigos) {
-    const chave = [a.fornecedorId || "0", norm(a.nome), norm(a.cor), val(a.valorUnitario)].join("|");
+    const chave = [chaveForn(a), norm(a.nome), norm(a.cor), val(a.valorUnitario)].join("|");
     (mapa[chave] = mapa[chave] || []).push(a);
   }
   return Object.values(mapa).filter((g) => g.length > 1);
