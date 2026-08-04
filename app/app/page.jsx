@@ -1427,17 +1427,18 @@ async function gerarPdfFme(fme, responsavelNome) {
 
   // tabela de itens
   const cols = [
-    { t: "Item", x: M, w: 66 },
-    { t: "Cor", x: M + 66, w: 26 },
-    { t: "PP", x: M + 92, w: 24 },
-    { t: "Un", x: M + 116, w: 10 },
-    { t: "Qtd retirada", x: M + 126, w: 26 },
-    { t: "Qtd devolvida", x: M + 152, w: 26 },
-    { t: "Obs", x: M + 178, w: W - M - (M + 178) },
+    { t: "Item", x: 10, w: 54 },
+    { t: "Cor", x: 64, w: 22 },
+    { t: "PP", x: 86, w: 20 },
+    { t: "Un", x: 106, w: 9 },
+    { t: "Qtd retir.", x: 115, w: 22 },
+    { t: "Qtd devol.", x: 137, w: 22 },
+    { t: "Data dev.", x: 159, w: 22 },
+    { t: "Obs", x: 181, w: 19 },
   ];
   doc.setFillColor(241, 243, 245); doc.rect(M, y, W - 2 * M, 7, "F");
-  doc.setFontSize(7.5); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "bold");
-  cols.forEach((c) => doc.text(c.t, c.x + 1.5, y + 4.6));
+  doc.setFontSize(7); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "bold");
+  cols.forEach((c) => doc.text(c.t, c.x + 1.2, y + 4.6));
   y += 7;
   doc.setFont(undefined, "normal"); doc.setTextColor(30, 30, 30); doc.setFontSize(8);
   const itens = fme.itens || [];
