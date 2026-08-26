@@ -543,3 +543,64 @@ model ClienteNota {
 
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 }
+
+// ============================================================
+// COMERCIAL — FPP (Ficha de Precificação de Produtos)
+// ============================================================
+
+// Banco de dados de parâmetros (rendimentos, golas, corte, embalagem, constantes...).
+// Editável só no MODO OS. chave única por tipo+grupo+chave.
+model FppParam {
+  id        Int      @id @default(autoincrement())
+  tipo      String   // MALHA | PLANO | COMUM
+  grupo     String   // PECA | GOLA | PUNHO | ELASTICO | FAIXA | EMB_EXT | EMB_INT | CONST
+  chave     String   // ex: "CAMISETA MC MALHA", "GOLA RIBANA", "REEMBOLSO_CONSUMO"
+  rotulo    String?
+  valor     Float    @default(0)
+  extra     Json?    // colunas adicionais (ex: {corte, exped, volProp} ou {und, fita})
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  historico FppParamHist[]
+
+  @@unique([tipo, grupo, chave])
+}
+
+// Histórico datado de alterações do padrão (só quando redefine no modo OS).
+model FppParamHist {
+  id          Int      @id @default(autoincrement())
+  paramId     Int
+  campo       String   // "valor" ou nome da coluna do extra (ex "corte")
+  deNum       Float?
+  paraNum     Float?
+  deTexto     String?
+  paraTexto   String?
+  usuarioId   Int?
+  usuarioNome String?
+  createdAt   DateTime @default(now())
+
+  param FppParam @relation(fields: [paramId], references: [id], onDelete: Cascade)
+}
+
+// Ficha de precificação salva (alimenta o CRM).
+model Fpp {
+  id            Int      @id @default(autoincrement())
+  tipo          String   // MALHA | PLANO
+  item          String
+  clienteId     Int?
+  clienteNome   String?
+  qtde          Int?
+  entradas      Json     // todos os inputs escolhidos
+  overrides     Json?    // valores alterados só nesta precificação
+  resultados    Json     // custos, ROIC, margem, etc
+  custoProducao Float?
+  custoFinal    Float?
+  valorProposto Float?
+  margem        Float?
+  totalItem     Float?
+  criadoPorId   Int?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
