@@ -138,6 +138,7 @@ function Fpp({ user, master }) {
   const [aba, setAba] = useState("ficha");          // ficha | banco
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [editId, setEditId] = useState(null);
   const [clientes, setClientes] = useState([]);
 
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then(setParams).catch(() => {}); }, []);
@@ -271,10 +272,22 @@ function Fpp({ user, master }) {
       margem: r?.margem, totalItem: r?.totalItem,
       criadoPorId: user?.id, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim(),
     };
-    const res = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
+    const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
-    setMsg(res.ok ? "Ficha salva ✓" : "Erro ao salvar.");
+    setMsg(res.ok ? (editId ? "Ficha atualizada ✓" : "Ficha salva ✓") : "Erro ao salvar.");
   }
+
+  function carregarFicha(fpp) {
+    const e = fpp.entradas || {};
+    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId });
+    setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
+    setOver(fpp.overrides || {});
+    setEditId(fpp.id);
+    setAba("ficha");
+    setMsg("Editando ficha salva.");
+  }
+  function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setMsg(""); }
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setP = (tec, k, v) => setF((s) => ({ ...s, [tec]: { ...s[tec], [k]: v } }));
@@ -296,15 +309,19 @@ function Fpp({ user, master }) {
             style={{ background: aba === "salvas" ? C.accent : C.panel, color: aba === "salvas" ? "#fff" : C.sub, border: `1px solid ${aba === "salvas" ? C.accent : C.line}` }}>Salvas</button>
         </div>
         {aba === "ficha" && f.item && tipoDaPeca(f.item) && (
-          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
-            {tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
-          </span>
+          <div className="flex items-center gap-2">
+            {editId && <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "#FEF0C7", color: C.yellow, border: `1px solid ${C.yellow}` }}>Editando #{editId}</span>}
+            {editId && <button onClick={novaFicha} className="text-xs px-2 py-1 rounded-md" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Nova ficha</button>}
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
+              {tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
+            </span>
+          </div>
         )}
       </div>
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
-      {aba === "salvas" && <FichasSalvas master={master} />}
+      {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -426,7 +443,7 @@ function Fpp({ user, master }) {
               <div className="text-[11px] mt-3" style={{ color: C.sub }}>Mínimo venda 16% · boa venda 30% · excelente 40%</div>
               <button onClick={salvar} disabled={salvando} className="w-full mt-3 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
                 style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-                <Save size={15} /> {salvando ? "Salvando…" : "Salvar ficha"}
+                <Save size={15} /> {salvando ? "Salvando…" : editId ? "Atualizar ficha" : "Salvar ficha"}
               </button>
               {msg && <div className="text-xs mt-2 text-center" style={{ color: msg.includes("✓") ? C.green : "#E5484D" }}>{msg}</div>}
             </div>
@@ -577,7 +594,7 @@ const COLS = [
   { k: "createdAt", label: "Data", tipo: "data" },
 ];
 
-function FichasSalvas({ master }) {
+function FichasSalvas({ master, onEditar }) {
   const [lista, setLista] = useState(null);
   const [sort, setSort] = useState({ campo: "createdAt", dir: "desc" });
   const [filtroCliente, setFiltroCliente] = useState(null);
@@ -668,7 +685,7 @@ function FichasSalvas({ master }) {
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
                   if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => setFiltroCliente(f.clienteNome || "—")} className="font-medium" style={{ color: C.accent }}>{v}</button></td>;
-                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => setAberta(f)}>{v}</td>;
+                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
@@ -726,6 +743,19 @@ function FichaDetalhe({ f, master, onClose, onProposta }) {
 }
 
 /* Proposta no padrão Meridian/CRM a partir de uma ou várias FPPs (mesmo cliente) */
+/* monta a linha de detalhes do item (faixa, personalização) a partir da FPP */
+function detalhesItem(f) {
+  const e = f.entradas || {};
+  const parts = [];
+  if (e.faixa && e.faixa !== "SEM FAIXA") parts.push(e.faixa);
+  for (const [tec, lbl] of [["silk", "SILK"], ["bordado", "BORDADO"], ["sublimacao", "SUBLIMAÇÃO"]]) {
+    const p = e[tec] || {};
+    const pos = POS.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
+    if (pos.length) parts.push(`${lbl} ${pos.join(" / ")}`);
+  }
+  return parts.join(" · ");
+}
+
 function ProposalModal({ fichas, onClose }) {
   const cliente = fichas[0]?.clienteNome || "—";
   const totalGeral = fichas.reduce((s, f) => s + (f.totalItem || (f.valorProposto || 0) * (f.qtde || 0)), 0);
@@ -750,11 +780,13 @@ function ProposalModal({ fichas, onClose }) {
     }).catch(() => setMeta({ error: true }));
   }, []);
 
-  const items = fichas.map((f) => ({
+  const [items, setItems] = useState(() => fichas.map((f) => ({
     description: f.nomeComercial || f.item,
+    details: detalhesItem(f),
     qty: f.qtde || 0,
     unit_price_cents: Math.round((f.valorProposto || 0) * 100),
-  }));
+  })));
+  const setItem = (i, k, v) => setItems((arr) => arr.map((it, j) => j === i ? { ...it, [k]: v } : it));
 
   async function enviarCrm() {
     if (!ownerId) { setRes({ erro: "Selecione o dono da proposta." }); return; }
@@ -764,7 +796,7 @@ function ProposalModal({ fichas, onClose }) {
       body: JSON.stringify({ clienteNome: cliente, ownerId, stage, title: titulo, paymentTerms: condicoes, items }),
     });
     const d = await r.json(); setEnviando(false);
-    setRes(r.ok ? { ok: true } : { erro: d.error || "Falha ao enviar." });
+    setRes(r.ok ? { ok: true, url: d.url } : { erro: d.error || "Falha ao enviar." });
   }
 
   function imprimir() {
@@ -808,19 +840,18 @@ function ProposalModal({ fichas, onClose }) {
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4">
-          <table className="w-full text-sm mb-3">
-            <thead><tr style={{ color: C.sub }} className="text-left"><th className="py-1">Item</th><th className="py-1 text-right">Qtde</th><th className="py-1 text-right">Unit.</th><th className="py-1 text-right">Total</th></tr></thead>
-            <tbody>
-              {fichas.map((f) => (
-                <tr key={f.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                  <td className="py-1.5" style={{ color: C.text }}>{f.nomeComercial || f.item}</td>
-                  <td className="py-1.5 text-right" style={{ color: C.sub }}>{f.qtde ?? "—"}</td>
-                  <td className="py-1.5 text-right" style={{ color: C.sub }}>{f.valorProposto != null ? brl(f.valorProposto) : "—"}</td>
-                  <td className="py-1.5 text-right" style={{ color: C.text }}>{brl(f.totalItem || (f.valorProposto || 0) * (f.qtde || 0))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-2 mb-3">
+            {items.map((it, i) => (
+              <div key={i} className="rounded-md p-2" style={{ border: `1px solid ${C.line}` }}>
+                <div className="flex gap-2 items-center">
+                  <input value={it.description} onChange={(e) => setItem(i, "description", e.target.value)} className="flex-1 px-2 py-1 rounded text-sm font-medium" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                  <span className="text-xs" style={{ color: C.sub }}>× {it.qty}</span>
+                  <span className="text-sm font-medium" style={{ color: C.text }}>{brl((it.unit_price_cents || 0) / 100)}</span>
+                </div>
+                <input value={it.details || ""} placeholder="Detalhes (tecido · cor · faixa · personalização…)" onChange={(e) => setItem(i, "details", e.target.value)} className="w-full mt-1 px-2 py-1 rounded text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.sub }} />
+              </div>
+            ))}
+          </div>
           <div className="text-sm font-bold mb-3" style={{ color: C.text }}>Total geral: {brl(totalGeral)}</div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
@@ -854,7 +885,9 @@ function ProposalModal({ fichas, onClose }) {
               <Send size={15} /> {enviando ? "Enviando…" : "Enviar ao CRM"}
             </button>
           </div>
-          {res?.ok && <div className="text-xs mt-2 text-right" style={{ color: C.green }}>Proposta criada no CRM ✓ (aba Pedidos/Funil do CRM)</div>}
+          {res?.ok && <div className="text-xs mt-2 text-right" style={{ color: C.green }}>
+            Proposta criada no CRM ✓ {res.url && <a href={res.url} target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: "underline" }}>abrir no CRM</a>}
+          </div>}
           {res?.erro && <div className="text-xs mt-2 text-right" style={{ color: "#E5484D" }}>{res.erro}</div>}
           {meta?.error && <div className="text-xs mt-1 text-right" style={{ color: C.sub }}>CRM indisponível — só PDF disponível.</div>}
         </div>
