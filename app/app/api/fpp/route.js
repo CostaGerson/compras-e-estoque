@@ -17,6 +17,9 @@ export async function POST(req) {
     data: {
       tipo: b.tipo === "PLANO" ? "PLANO" : "MALHA",
       item: String(b.item).toUpperCase(),
+      nomeComercial: b.nomeComercial ? String(b.nomeComercial).toUpperCase() : null,
+      condicaoPagamento: b.condicaoPagamento || null,
+      leadTime: b.leadTime != null ? Number(b.leadTime) : null,
       clienteId: b.clienteId != null ? Number(b.clienteId) : null,
       clienteNome: b.clienteNome || null,
       qtde: b.qtde != null ? Number(b.qtde) : null,

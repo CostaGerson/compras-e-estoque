@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -67,16 +67,32 @@ function CrmEmbed() {
    ============================================================ */
 const POS = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
 
+// Condições de pagamento -> parcelas {frac, dias, tipo}. tipo boleto = incide juros de título.
+const COND_PAGTO = {
+  "ANTECIPADO TOTAL": [{ frac: 1, dias: 0, tipo: "ant" }],
+  "50 PEDIDO / 50 ENTREGA": [{ frac: .5, dias: 0, tipo: "ant" }, { frac: .5, dias: 0, tipo: "entrega" }],
+  "50 PEDIDO / 25 ENTREGA / 25 BOLETO 30D": [{ frac: .5, dias: 0, tipo: "ant" }, { frac: .25, dias: 0, tipo: "entrega" }, { frac: .25, dias: 30, tipo: "boleto" }],
+  "BOLETO 30D": [{ frac: 1, dias: 30, tipo: "boleto" }],
+  "BOLETO 60D": [{ frac: 1, dias: 60, tipo: "boleto" }],
+  "BOLETO 90D": [{ frac: 1, dias: 90, tipo: "boleto" }],
+  "BOLETO 120D": [{ frac: 1, dias: 120, tipo: "boleto" }],
+  "BOLETO 30/60": [{ frac: .5, dias: 30, tipo: "boleto" }, { frac: .5, dias: 60, tipo: "boleto" }],
+  "BOLETO 30/45/60": [{ frac: 1 / 3, dias: 30, tipo: "boleto" }, { frac: 1 / 3, dias: 45, tipo: "boleto" }, { frac: 1 / 3, dias: 60, tipo: "boleto" }],
+  "BOLETO 30/60/90": [{ frac: 1 / 3, dias: 30, tipo: "boleto" }, { frac: 1 / 3, dias: 60, tipo: "boleto" }, { frac: 1 / 3, dias: 90, tipo: "boleto" }],
+  "BOLETO 30/60/90/120": [{ frac: .25, dias: 30, tipo: "boleto" }, { frac: .25, dias: 60, tipo: "boleto" }, { frac: .25, dias: 90, tipo: "boleto" }, { frac: .25, dias: 120, tipo: "boleto" }],
+};
+const COND_LISTA = Object.keys(COND_PAGTO);
+
 function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "" }; }
 function fichaVazia(tipo) {
   return {
-    tipo, item: "", clienteNome: "", clienteId: null, qtde: "",
+    tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     freteVolume: "", embExt: "", embInt: "SIMPLES",
-    opInvest: "NAO", opTitulo: "NAO", prazoPagamento: "",
+    opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "",
     valorProposto: "",
   };
 }
@@ -192,10 +208,16 @@ function Fpp({ user, master }) {
 
     // Financeiro
     const vp = num(f.valorProposto);
-    const prazo = num(f.prazoPagamento);
     const imposto = cget("IMPOSTO");
-    const opInv = f.opInvest === "SIM" ? (cget("OP_INVEST_TAXA") * prazo / 30) * custoProducao : 0;
-    const opTit = f.opTitulo === "SIM" ? cget("OP_TITULO_TAXA") * prazo / 30 * vp : 0;
+    const leadTime = num(f.leadTime);
+    // Investimento: juros sobre o custo de produção durante TODO o lead time
+    const opInv = f.opInvest === "SIM" ? cget("OP_INVEST_TAXA") * (leadTime / 30) * custoProducao : 0;
+    // Título: juros sobre cada parcela em boleto, pelo prazo da parcela + 2 dias úteis
+    const cond = COND_PAGTO[f.condPagamento] || COND_PAGTO["ANTECIPADO TOTAL"];
+    let opTit = 0;
+    if (f.opTitulo === "SIM") {
+      for (const p of cond) if (p.tipo === "boleto") opTit += vp * p.frac * cget("OP_TITULO_TAXA") * ((p.dias + 2) / 30);
+    }
     const opFin = opInv + opTit;
     const custoFinal = custoProducao + opFin + imposto * vp;
     const roic = custoFinal ? (vp - custoFinal) / custoFinal : 0;
@@ -209,7 +231,8 @@ function Fpp({ user, master }) {
     if (!f.item) return setMsg("Selecione o ITEM.");
     setSalvando(true); setMsg("");
     const body = {
-      tipo, item: f.item, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
+      tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
+      condicaoPagamento: f.condPagamento, leadTime: num(f.leadTime),
       entradas: f, overrides: Object.keys(over).length ? over : null,
       resultados: r,
       custoProducao: r?.custoProducao, custoFinal: r?.custoFinal, valorProposto: num(f.valorProposto),
@@ -259,12 +282,13 @@ function Fpp({ user, master }) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
                   onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
+                <Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} />
                 <ClienteCombo clientes={clientes} value={f.clienteNome}
                   onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null }))}
                   onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
                 <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
-                <div className="flex items-end gap-2 pb-1">
+                <div className="flex items-end gap-2 pb-1 md:col-span-2">
                   <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) setOver({}); }} />
                   <span className="text-xs" style={{ color: C.sub }}>Alterar valores só nesta ficha</span>
                 </div>
@@ -332,8 +356,14 @@ function Fpp({ user, master }) {
                   <Toggle on={f.opTitulo === "SIM"} onChange={(v) => set("opTitulo", v ? "SIM" : "NAO")} />
                   <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
                 </div>
-                <Inp label="Prazo pagamento (dias)" value={f.prazoPagamento} onChange={(v) => set("prazoPagamento", v)} />
+                <Combo label="Condição de pagamento" value={f.condPagamento} onChange={(v) => set("condPagamento", v)} options={COND_LISTA} placeholder="Digite…" />
                 <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                <Inp label="Lead time (dias)" value={f.leadTime} onChange={(v) => set("leadTime", v)} />
+              </div>
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>
+                Investimento: juros sobre o custo durante todo o lead time. Título: juros por parcela em boleto (prazo + 2 dias úteis), conforme a condição de pagamento.
               </div>
             </Card>
           </div>
@@ -504,71 +534,147 @@ function HistModal({ paramId, onClose }) {
 }
 
 /* ---------- Fichas salvas ---------- */
+const COLS = [
+  { k: "item", label: "Item", tipo: "txt" },
+  { k: "nomeComercial", label: "Nome comercial", tipo: "txt" },
+  { k: "clienteNome", label: "Cliente", tipo: "txt", cliente: true },
+  { k: "tipo", label: "Tipo", tipo: "txt" },
+  { k: "qtde", label: "Qtde", tipo: "num", right: true },
+  { k: "valorProposto", label: "Valor prop.", tipo: "num", right: true, master: true },
+  { k: "margem", label: "Margem", tipo: "num", right: true, master: true },
+  { k: "createdAt", label: "Data", tipo: "data" },
+];
+
 function FichasSalvas({ master }) {
   const [lista, setLista] = useState(null);
+  const [sort, setSort] = useState({ campo: "createdAt", dir: "desc" });
+  const [filtroCliente, setFiltroCliente] = useState(null);
+  const [sel, setSel] = useState(() => new Set());
   const [aberta, setAberta] = useState(null);
+  const [proposta, setProposta] = useState(null);
+
   function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
   useEffect(carregar, []);
+
   async function excluir(id) {
     if (!confirm("Excluir esta ficha?")) return;
     await fetch(`/api/fpp/${id}`, { method: "DELETE" });
-    setAberta(null); carregar();
+    setAberta(null); setSel((s) => { const n = new Set(s); n.delete(id); return n; }); carregar();
   }
+
+  function ordenar(campo, tipo) {
+    setSort((s) => {
+      if (s.campo === campo) return { campo, dir: s.dir === "asc" ? "desc" : "asc" };
+      return { campo, dir: tipo === "data" ? "desc" : "asc" }; // data começa recente->antigo
+    });
+  }
+
   if (!lista) return <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>;
-  if (lista.length === 0) return <div className="text-sm" style={{ color: C.sub }}>Nenhuma ficha salva ainda.</div>;
+
+  let dados = filtroCliente ? lista.filter((f) => (f.clienteNome || "—") === filtroCliente) : lista;
+  const col = COLS.find((c) => c.k === sort.campo) || COLS[COLS.length - 1];
+  dados = [...dados].sort((a, b) => {
+    let x = a[sort.campo], y = b[sort.campo];
+    if (col.tipo === "num") { x = x == null ? -Infinity : Number(x); y = y == null ? -Infinity : Number(y); }
+    else if (col.tipo === "data") { x = new Date(x).getTime(); y = new Date(y).getTime(); }
+    else { x = String(x || "").toLowerCase(); y = String(y || "").toLowerCase(); }
+    if (x < y) return sort.dir === "asc" ? -1 : 1;
+    if (x > y) return sort.dir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const selecionadas = lista.filter((f) => sel.has(f.id));
+  const cols = COLS.filter((c) => !c.master || master);
+
+  function toggle(id) { setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+
+  function gerarPropostaSelecionadas() {
+    if (selecionadas.length === 0) return;
+    const nomes = [...new Set(selecionadas.map((f) => f.clienteNome || "—"))];
+    if (nomes.length > 1) { alert("Selecione FPPs de um mesmo cliente para gerar a proposta."); return; }
+    setProposta(selecionadas);
+  }
+
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: C.panel2, color: C.sub }} className="text-left">
-            <th className="px-3 py-2 font-medium">Item</th>
-            <th className="px-3 py-2 font-medium">Cliente</th>
-            <th className="px-3 py-2 font-medium">Tipo</th>
-            <th className="px-3 py-2 font-medium text-right">Qtde</th>
-            {master && <th className="px-3 py-2 font-medium text-right">Valor prop.</th>}
-            {master && <th className="px-3 py-2 font-medium text-right">Margem</th>}
-            <th className="px-3 py-2 font-medium">Data</th>
-            <th className="px-3 py-2"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {lista.map((f) => (
-            <tr key={f.id} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }} onClick={() => setAberta(f)}>
-              <td className="px-3 py-2 font-medium" style={{ color: C.text }}>{f.item}</td>
-              <td className="px-3 py-2" style={{ color: C.sub }}>{f.clienteNome || "—"}</td>
-              <td className="px-3 py-2" style={{ color: C.sub }}>{f.tipo}</td>
-              <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.qtde ?? "—"}</td>
-              {master && <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.valorProposto != null ? brl(f.valorProposto) : "—"}</td>}
-              {master && <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.margem != null ? pct(f.margem) : "—"}</td>}
-              <td className="px-3 py-2" style={{ color: C.sub }}>{new Date(f.createdAt).toLocaleDateString("pt-BR")}</td>
-              <td className="px-3 py-2 text-right">
-                <button onClick={(e) => { e.stopPropagation(); excluir(f.id); }} className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
-              </td>
+    <div>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="text-sm" style={{ color: C.sub }}>
+          {filtroCliente ? (
+            <button onClick={() => setFiltroCliente(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
+              <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · Cliente: <b>{filtroCliente}</b>
+            </button>
+          ) : `${lista.length} ficha(s)`}
+        </div>
+        {selecionadas.length > 0 && (
+          <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+            Gerar proposta ({selecionadas.length})
+          </button>
+        )}
+      </div>
+
+      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ background: C.panel2, color: C.sub }} className="text-left">
+              <th className="px-2 py-2 w-8"></th>
+              {cols.map((c) => (
+                <th key={c.k} onClick={() => ordenar(c.k, c.tipo)} className={"px-3 py-2 font-medium cursor-pointer select-none " + (c.right ? "text-right" : "")}>
+                  {c.label}{sort.campo === c.k ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                </th>
+              ))}
+              <th className="px-3 py-2"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {aberta && <FichaDetalhe f={aberta} master={master} onClose={() => setAberta(null)} />}
+          </thead>
+          <tbody>
+            {dados.map((f) => (
+              <tr key={f.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="px-2 py-2"><input type="checkbox" checked={sel.has(f.id)} onChange={() => toggle(f.id)} /></td>
+                {cols.map((c) => {
+                  let v = f[c.k];
+                  if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
+                  else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
+                  else if (c.k === "margem") v = v != null ? pct(v) : "—";
+                  else v = v ?? "—";
+                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => setFiltroCliente(f.clienteNome || "—")} className="font-medium" style={{ color: C.accent }}>{v}</button></td>;
+                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => setAberta(f)}>{v}</td>;
+                })}
+                <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
+                  <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
+                </td>
+              </tr>
+            ))}
+            {dados.length === 0 && <tr><td colSpan={cols.length + 2} className="px-3 py-4 text-center" style={{ color: C.sub }}>Nenhuma ficha.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {aberta && <FichaDetalhe f={aberta} master={master} onClose={() => setAberta(null)} onProposta={() => { setProposta([aberta]); setAberta(null); }} />}
+      {proposta && <ProposalModal fichas={proposta} onClose={() => setProposta(null)} />}
     </div>
   );
 }
 
-function FichaDetalhe({ f, master, onClose }) {
+function FichaDetalhe({ f, master, onClose, onProposta }) {
   const r = f.resultados || {};
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.item} · {f.tipo}</div>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.nomeComercial || f.item} · {f.tipo}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 text-sm space-y-1.5">
+          <Lin l="Item (peça)" v={f.item} />
           <Lin l="Cliente" v={f.clienteNome || "—"} />
           <Lin l="Quantidade" v={f.qtde ?? "—"} />
+          <Lin l="Cond. pagamento" v={f.condicaoPagamento || "—"} />
+          <Lin l="Lead time" v={f.leadTime != null ? f.leadTime + " dias" : "—"} />
           <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
           {master ? (
             <>
               <Lin l="Custo de produção" v={r.custoProducao != null ? brl(r.custoProducao) : "—"} />
+              <Lin l="Operação financeira" v={r.opFin != null ? brl(r.opFin) : "—"} />
               <Lin l="Custo final" v={f.custoFinal != null ? brl(f.custoFinal) : "—"} forte />
               <Lin l="ROIC" v={r.roic != null ? pct(r.roic) : "—"} />
               <Lin l="Margem" v={f.margem != null ? pct(f.margem) : "—"} />
@@ -578,6 +684,80 @@ function FichaDetalhe({ f, master, onClose }) {
           ) : <div className="text-xs" style={{ color: C.sub }}>Valores visíveis só para o financeiro.</div>}
           <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
           <div className="text-xs" style={{ color: C.sub }}>Criada por {f.criadoPorNome || "—"} em {new Date(f.createdAt).toLocaleString("pt-BR")}</div>
+          <button onClick={onProposta} className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+            <FileText size={15} /> Gerar proposta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Proposta no padrão Meridian/CRM a partir de uma ou várias FPPs (mesmo cliente) */
+function ProposalModal({ fichas, onClose }) {
+  const cliente = fichas[0]?.clienteNome || "—";
+  const totalGeral = fichas.reduce((s, f) => s + (f.totalItem || (f.valorProposto || 0) * (f.qtde || 0)), 0);
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  function imprimir() {
+    const linhas = fichas.map((f, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${f.nomeComercial || f.item}</td>
+        <td style="text-align:center">${f.qtde ?? "—"}</td>
+        <td style="text-align:right">${(f.valorProposto || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+        <td style="text-align:right">${((f.totalItem) || (f.valorProposto || 0) * (f.qtde || 0)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+        <td>${f.condicaoPagamento || "—"}</td>
+      </tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proposta ${cliente}</title>
+      <style>
+        body{font-family:Montserrat,Arial,sans-serif;color:#1F2733;padding:32px}
+        .top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #FF6B1A;padding-bottom:12px;margin-bottom:20px}
+        .marca{font-size:22px;font-weight:800;color:#001E41}
+        h1{font-size:16px;margin:0 0 4px}
+        table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+        th,td{border:1px solid #E4E7EC;padding:8px}
+        th{background:#001E41;color:#fff;text-align:left}
+        .tot{text-align:right;font-size:15px;font-weight:800;margin-top:16px;color:#001E41}
+        .obs{color:#667085;font-size:12px;margin-top:24px}
+      </style></head><body>
+      <div class="top"><div class="marca">MERIDIAN</div><div style="text-align:right"><h1>Proposta comercial</h1><div style="color:#667085;font-size:12px">${hoje}</div></div></div>
+      <div><b>Cliente:</b> ${cliente}</div>
+      <table><thead><tr><th>#</th><th>Item</th><th style="text-align:center">Qtde</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th><th>Pagamento</th></tr></thead>
+      <tbody>${linhas}</tbody></table>
+      <div class="tot">Total geral: ${totalGeral.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
+      <div class="obs">Proposta gerada pelo sistema Meridian. Valores sujeitos a confirmação.</div>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>Proposta · {cliente}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-4">
+          <table className="w-full text-sm mb-3">
+            <thead><tr style={{ color: C.sub }} className="text-left"><th className="py-1">Item</th><th className="py-1 text-right">Qtde</th><th className="py-1 text-right">Unit.</th><th className="py-1 text-right">Total</th></tr></thead>
+            <tbody>
+              {fichas.map((f) => (
+                <tr key={f.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="py-1.5" style={{ color: C.text }}>{f.nomeComercial || f.item}</td>
+                  <td className="py-1.5 text-right" style={{ color: C.sub }}>{f.qtde ?? "—"}</td>
+                  <td className="py-1.5 text-right" style={{ color: C.sub }}>{f.valorProposto != null ? brl(f.valorProposto) : "—"}</td>
+                  <td className="py-1.5 text-right" style={{ color: C.text }}>{brl(f.totalItem || (f.valorProposto || 0) * (f.qtde || 0))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-bold" style={{ color: C.text }}>Total geral: {brl(totalGeral)}</span>
+            <button onClick={imprimir} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+              <FileText size={15} /> Gerar proposta (PDF/impressão)
+            </button>
+          </div>
+          <div className="text-[11px] mt-3" style={{ color: C.sub }}>Layout padrão Meridian. Envio direto ao CRM depende da API do CRM (a ligar).</div>
         </div>
       </div>
     </div>

@@ -588,9 +588,12 @@ model Fpp {
   id            Int      @id @default(autoincrement())
   tipo          String   // MALHA | PLANO
   item          String
+  nomeComercial String?
   clienteId     Int?
   clienteNome   String?
   qtde          Int?
+  condicaoPagamento String?
+  leadTime      Int?
   entradas      Json     // todos os inputs escolhidos
   overrides     Json?    // valores alterados só nesta precificação
   resultados    Json     // custos, ROIC, margem, etc
