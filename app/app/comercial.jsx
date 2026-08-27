@@ -83,6 +83,38 @@ const COND_PAGTO = {
 };
 const COND_LISTA = Object.keys(COND_PAGTO);
 
+// ----- Dias úteis (feriados nacionais/bancários do Brasil) -----
+function pascoa(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+    f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+    i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+    mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, mes - 1, dia);
+}
+function feriadosBR(y) {
+  const p = pascoa(y), mov = (n) => { const x = new Date(p); x.setDate(x.getDate() + n); return x; };
+  const set = new Set();
+  // fixos nacionais (bancários): [mês0, dia]
+  [[0, 1], [3, 21], [4, 1], [8, 7], [9, 12], [10, 2], [10, 15], [10, 20], [11, 25]].forEach(([m, dd]) => set.add(`${y}-${m}-${dd}`));
+  // móveis: carnaval (seg/ter), sexta santa, corpus christi
+  [mov(-48), mov(-47), mov(-2), mov(60)].forEach((x) => set.add(`${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`));
+  return set;
+}
+function ehUtil(dt, fer) { const w = dt.getDay(); if (w === 0 || w === 6) return false; return !fer.has(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`); }
+function addDiasUteis(base, n) {
+  const fer = new Set(); [base.getFullYear(), base.getFullYear() + 1].forEach((a) => feriadosBR(a).forEach((v) => fer.add(v)));
+  const dt = new Date(base); let add = 0;
+  while (add < n) { dt.setDate(dt.getDate() + 1); if (ehUtil(dt, fer)) add++; }
+  return dt;
+}
+// prazo em dias corridos = dias até o vencimento + 2 dias úteis de compensação
+function prazoComComp(dias) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const venc = new Date(hoje); venc.setDate(venc.getDate() + dias);
+  const comp = addDiasUteis(venc, 2);
+  return Math.round((comp - hoje) / 86400000);
+}
+
 function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "" }; }
 function fichaVazia(tipo) {
   return {
@@ -216,7 +248,7 @@ function Fpp({ user, master }) {
     const cond = COND_PAGTO[f.condPagamento] || COND_PAGTO["ANTECIPADO TOTAL"];
     let opTit = 0;
     if (f.opTitulo === "SIM") {
-      for (const p of cond) if (p.tipo === "boleto") opTit += vp * p.frac * cget("OP_TITULO_TAXA") * ((p.dias + 2) / 30);
+      for (const p of cond) if (p.tipo === "boleto") opTit += vp * p.frac * cget("OP_TITULO_TAXA") * (prazoComComp(p.dias) / 30);
     }
     const opFin = opInv + opTit;
     const custoFinal = custoProducao + opFin + imposto * vp;
