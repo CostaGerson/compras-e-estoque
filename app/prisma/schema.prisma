@@ -511,7 +511,7 @@ model Cliente {
   id                Int      @id @default(autoincrement())
   razaoSocial       String   @default("")
   nomeFantasia      String?
-  cnpj              String   @unique
+  cnpj              String?  @unique
   inscricaoEstadual String?
   logradouro        String?
   numero            String?

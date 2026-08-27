@@ -70,7 +70,7 @@ const POS = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"]
 function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "" }; }
 function fichaVazia(tipo) {
   return {
-    tipo, item: "", clienteNome: "", qtde: "",
+    tipo, item: "", clienteNome: "", clienteId: null, qtde: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
@@ -83,18 +83,38 @@ function fichaVazia(tipo) {
 
 function Fpp({ user, master }) {
   const [params, setParams] = useState(null);       // banco de dados (padrão)
-  const [tipo, setTipo] = useState("MALHA");
+  const [tipo, setTipo] = useState("MALHA");        // derivado da peça escolhida
   const [f, setF] = useState(() => fichaVazia("MALHA"));
   const [over, setOver] = useState({});             // overrides só desta precificação {caminho: valor}
   const [modoOverride, setModoOverride] = useState(false);
   const [aba, setAba] = useState("ficha");          // ficha | banco
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [clientes, setClientes] = useState([]);
 
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then(setParams).catch(() => {}); }, []);
+  useEffect(() => { fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
 
-  // troca de tipo reinicia a ficha (mix de peças muda)
-  function trocarTipo(t) { setTipo(t); setF(fichaVazia(t)); setOver({}); }
+  // lista única de peças (malha + plano) e o tipo de cada uma
+  const pecasAll = useMemo(() => {
+    if (!params) return [];
+    return [
+      ...((params.MALHA?.PECA) || []).map((p) => ({ chave: p.chave, tipo: "MALHA" })),
+      ...((params.PLANO?.PECA) || []).map((p) => ({ chave: p.chave, tipo: "PLANO" })),
+    ];
+  }, [params]);
+  const tipoDaPeca = (chave) => pecasAll.find((p) => p.chave === chave)?.tipo;
+
+  // ao escolher/digitar a peça, o sistema define malha/plano sozinho
+  function escolherPeca(chave) {
+    const t = tipoDaPeca(chave);
+    setF((s) => {
+      const base = { ...s, item: chave };
+      if (t && t !== tipo) { base.gola = ""; base.punho = ""; base.elastico = ""; base.faixa = ""; base.embExt = ""; }
+      return base;
+    });
+    if (t) setTipo(t);
+  }
 
   // helper: valor de um parâmetro considerando override desta ficha
   function pget(grupo, chave, campo = "valor") {
@@ -114,7 +134,6 @@ function Fpp({ user, master }) {
     return row ? row.valor : 0;
   }
 
-  const pecas = params?.[tipo]?.PECA || [];
   const golas = params?.MALHA?.GOLA || [];
   const punhos = params?.MALHA?.PUNHO || [];
   const elasticos = params?.PLANO?.ELASTICO || [];
@@ -189,7 +208,7 @@ function Fpp({ user, master }) {
     if (!f.item) return setMsg("Selecione o ITEM.");
     setSalvando(true); setMsg("");
     const body = {
-      tipo, item: f.item, clienteNome: f.clienteNome, qtde: num(f.qtde),
+      tipo, item: f.item, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
       entradas: f, overrides: Object.keys(over).length ? over : null,
       resultados: r,
       custoProducao: r?.custoProducao, custoFinal: r?.custoFinal, valorProposto: num(f.valorProposto),
@@ -208,16 +227,8 @@ function Fpp({ user, master }) {
 
   return (
     <div>
-      {/* topo: tipo + abas ficha/banco */}
+      {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="flex gap-2">
-          {["MALHA", "PLANO"].map((t) => (
-            <button key={t} onClick={() => trocarTipo(t)} className="px-4 py-1.5 rounded-md text-sm font-semibold"
-              style={{ background: tipo === t ? C.text : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.text : C.line}` }}>
-              {t === "MALHA" ? "Malha (peças/kg)" : "Plano (metros/peça)"}
-            </button>
-          ))}
-        </div>
         <div className="flex gap-2">
           <button onClick={() => setAba("ficha")} className="px-3 py-1.5 rounded-md text-sm font-medium"
             style={{ background: aba === "ficha" ? C.accent : C.panel, color: aba === "ficha" ? "#fff" : C.sub, border: `1px solid ${aba === "ficha" ? C.accent : C.line}` }}>Ficha</button>
@@ -226,9 +237,14 @@ function Fpp({ user, master }) {
             <Database size={14} /> Banco de dados
           </button>
         </div>
+        {aba === "ficha" && f.item && tipoDaPeca(f.item) && (
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
+            {tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
+          </span>
+        )}
       </div>
 
-      {aba === "banco" && <BancoParams params={params} tipo={tipo} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
+      {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -236,17 +252,16 @@ function Fpp({ user, master }) {
           <div className="lg:col-span-2 space-y-4">
             <Card title="Identificação">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Sel label="Item (peça)" value={f.item} onChange={(v) => set("item", v)}>
-                  <option value="">—</option>
-                  {pecas.map((p) => <option key={p.chave} value={p.chave}>{p.chave}</option>)}
-                </Sel>
-                <Inp label="Cliente" value={f.clienteNome} onChange={(v) => set("clienteNome", v)} />
+                <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
+                  onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
+                <ClienteCombo clientes={clientes} value={f.clienteNome}
+                  onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null }))}
+                  onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
+                  onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
                 <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 text-xs" style={{ color: C.sub }}>
-                    <input type="checkbox" checked={modoOverride} onChange={(e) => { setModoOverride(e.target.checked); if (!e.target.checked) setOver({}); }} />
-                    Alterar valores só nesta ficha
-                  </label>
+                <div className="flex items-end gap-2 pb-1">
+                  <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) setOver({}); }} />
+                  <span className="text-xs" style={{ color: C.sub }}>Alterar valores só nesta ficha</span>
                 </div>
               </div>
             </Card>
@@ -263,13 +278,13 @@ function Fpp({ user, master }) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {tipo === "MALHA" ? (
                   <>
-                    <Sel label="Gola" value={f.gola} onChange={(v) => set("gola", v)}><option value="">—</option>{golas.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
-                    <Sel label="Punho" value={f.punho} onChange={(v) => set("punho", v)}><option value="">—</option>{punhos.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
+                    <Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" />
+                    <Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" />
                   </>
                 ) : (
-                  <Sel label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)}><option value="">—</option>{elasticos.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
+                  <Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" />
                 )}
-                <Sel label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)}><option value="">—</option>{faixas.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
+                <Combo label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" />
                 <Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} />
               </div>
             </Card>
@@ -297,15 +312,21 @@ function Fpp({ user, master }) {
             <Card title="Logística e embalagem">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Inp label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
-                <Sel label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)}><option value="">—</option>{embExts.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
-                <Sel label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)}>{embInts.map((g) => <option key={g.chave} value={g.chave}>{g.chave}</option>)}</Sel>
+                <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
+                <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
               </div>
             </Card>
 
             <Card title="Operação financeira">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Sel label="Op. investimento" value={f.opInvest} onChange={(v) => set("opInvest", v)}><option value="NAO">NÃO</option><option value="SIM">SIM</option></Sel>
-                <Sel label="Op. título" value={f.opTitulo} onChange={(v) => set("opTitulo", v)}><option value="NAO">NÃO</option><option value="SIM">SIM</option></Sel>
+                <div className="flex items-end gap-2 pb-1">
+                  <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
+                  <span className="text-xs" style={{ color: C.sub }}>Op. investimento</span>
+                </div>
+                <div className="flex items-end gap-2 pb-1">
+                  <Toggle on={f.opTitulo === "SIM"} onChange={(v) => set("opTitulo", v ? "SIM" : "NAO")} />
+                  <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
+                </div>
                 <Inp label="Prazo pagamento (dias)" value={f.prazoPagamento} onChange={(v) => set("prazoPagamento", v)} />
                 <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque />
               </div>
@@ -349,9 +370,10 @@ function Fpp({ user, master }) {
   );
 }
 
-/* ---------- Banco de dados / Modo OS ---------- */
-function BancoParams({ params, tipo, master, user, onReload }) {
+/* ---------- Banco de dados / OPEN SOURCE ---------- */
+function BancoParams({ params, master, user, onReload }) {
   const [os, setOs] = useState(false);
+  const [tipo, setTipo] = useState("MALHA");
   const grupos = params[tipo] || {};
   const rotulos = {
     PECA: tipo === "MALHA" ? "Peças — rendimento (peças/kg), corte, expedição, proporção volume" : "Peças — consumo (m/peça), corte, acabamento, proporção volume",
@@ -364,15 +386,17 @@ function BancoParams({ params, tipo, master, user, onReload }) {
       <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ background: os ? C.accentSoft : C.panel2, border: `1px solid ${os ? C.accent : C.line}` }}>
         {os ? <Unlock size={16} style={{ color: C.accent }} /> : <Lock size={16} style={{ color: C.sub }} />}
         <div className="flex-1">
-          <div className="text-sm font-semibold" style={{ color: C.text }}>Modo OS (open source)</div>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>OPEN SOURCE</div>
           <div className="text-xs" style={{ color: C.sub }}>Desligado, o banco de dados fica imutável. Ligado, você pode redefinir o padrão — cada alteração fica no histórico com data.</div>
         </div>
-        {master ? (
-          <button onClick={() => setOs((v) => !v)} className="px-3 py-1.5 rounded-md text-sm font-semibold"
-            style={{ background: os ? C.accent : C.panel, color: os ? "#fff" : C.sub, border: `1px solid ${os ? C.accent : C.line}` }}>
-            {os ? "Ligado" : "Desligado"}
-          </button>
-        ) : <span className="text-xs" style={{ color: C.sub }}>Só o financeiro edita</span>}
+        {master ? <Toggle on={os} onChange={setOs} /> : <span className="text-xs" style={{ color: C.sub }}>Só o financeiro edita</span>}
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        {["MALHA", "PLANO"].map((t) => (
+          <button key={t} onClick={() => setTipo(t)} className="px-3 py-1.5 rounded-md text-sm font-medium"
+            style={{ background: tipo === t ? C.text : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.text : C.line}` }}>{t}</button>
+        ))}
       </div>
 
       {ordem.filter((g) => grupos[g]).map((g) => (
@@ -492,6 +516,77 @@ function Inp({ label, value, onChange, destaque }) {
     </div>
   );
 }
+/* Toggle estilo iPhone */
+function Toggle({ on, onChange, disabled }) {
+  return (
+    <button type="button" disabled={disabled} onClick={() => !disabled && onChange(!on)}
+      style={{ width: 44, height: 26, borderRadius: 13, background: on ? C.accent : "#CBD2DA", position: "relative", transition: "background .15s", opacity: disabled ? 0.5 : 1, flexShrink: 0 }}>
+      <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.3)" }} />
+    </button>
+  );
+}
+
+/* Autocomplete: vai filtrando as opções conforme digita */
+function Combo({ label, value, onChange, onPick, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value || "");
+  useEffect(() => { setQ(value || ""); }, [value]);
+  const lista = (options || []).filter((o) => o.toLowerCase().includes((q || "").toLowerCase()));
+  function pick(o) { setQ(o); setOpen(false); (onPick || onChange)?.(o); }
+  return (
+    <div style={{ position: "relative" }}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <input value={q} placeholder={placeholder} onChange={(e) => { setQ(e.target.value); setOpen(true); onChange?.(e.target.value); }}
+        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+      {open && lista.length > 0 && (
+        <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {lista.map((o) => (
+            <button key={o} onMouseDown={() => pick(o)} className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ color: C.text }}>{o}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Cliente: busca no banco e permite cadastrar na hora só com o nome */
+function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value || "");
+  const [criando, setCriando] = useState(false);
+  useEffect(() => { setQ(value || ""); }, [value]);
+  const nome = (c) => c.razaoSocial || c.nomeFantasia || "";
+  const lista = clientes.filter((c) => nome(c).toLowerCase().includes((q || "").toLowerCase())).slice(0, 30);
+  const exato = clientes.some((c) => nome(c).toLowerCase() === (q || "").trim().toLowerCase());
+  async function criar() {
+    setCriando(true);
+    const res = await fetch("/api/clientes/rapido", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ razaoSocial: q }) });
+    const c = await res.json(); setCriando(false); setOpen(false);
+    if (res.ok) { setQ(c.razaoSocial); onCreated?.(c); }
+  }
+  return (
+    <div style={{ position: "relative" }}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente</div>
+      <input value={q} placeholder="Buscar cliente…" onChange={(e) => { setQ(e.target.value); setOpen(true); onType?.(e.target.value); }}
+        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 180)}
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+      {open && (q || "").trim() !== "" && (
+        <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {lista.map((c) => (
+            <button key={c.id} onMouseDown={() => { setQ(nome(c)); setOpen(false); onPick?.(c); }} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text }}>{nome(c)}</button>
+          ))}
+          {!exato && (
+            <button onMouseDown={criar} disabled={criando} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.accent, borderTop: lista.length ? `1px solid ${C.line}` : 0 }}>
+              {criando ? "Registrando…" : `+ Registrar "${q.trim().toUpperCase()}"`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Sel({ label, value, onChange, children }) {
   return (
     <div>
