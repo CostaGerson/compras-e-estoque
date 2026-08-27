@@ -153,20 +153,21 @@ function Fpp({ user, master }) {
     const reembolso = cget("REEMBOLSO_CONSUMO");
     const linha = cget("LINHA_CUSTO");
 
-    // Matéria-prima
+    // Matéria-prima (inclui o custo de linha fixo)
     let mp = 0;
     if (isMalha) mp = (rendCons ? num(f.mpValor) / rendCons : 0) + reembolso;
     else mp = num(f.mpValor) * rendCons + reembolso;
     // Forro (plano)
     let forro = 0;
     if (!isMalha) forro = num(f.forroValor) * (cget("FORRO_FATOR") * rendCons);
+    const materiaPrima = mp + forro + linha;
 
-    // Aviamentos
+    // Aviamentos (sem a linha, que já entrou na matéria-prima)
     const golaOuElast = isMalha ? pget("GOLA", f.gola) : pget("ELASTICO", f.elastico);
     const punho = isMalha ? pget("PUNHO", f.punho) : 0;
     const faixa = pget("FAIXA", f.faixa);
     const botao = cget("BOTAO_UNIT") * num(f.botaoQtd);
-    const aviamentos = linha + golaOuElast + punho + faixa + botao;
+    const aviamentos = golaOuElast + punho + faixa + botao;
 
     // Produção
     const producao = corte + prodPeca + num(f.faccao);
@@ -187,7 +188,7 @@ function Fpp({ user, master }) {
     const embInt = pget("EMB_INT", f.embInt);
     const embalagem = embExt + embInt;
 
-    const custoProducao = mp + forro + aviamentos + producao + personalizacao + logistica + embalagem;
+    const custoProducao = materiaPrima + aviamentos + producao + personalizacao + logistica + embalagem;
 
     // Financeiro
     const vp = num(f.valorProposto);
@@ -201,7 +202,7 @@ function Fpp({ user, master }) {
     const margem = vp ? (vp - custoFinal) / vp : 0;
     const totalItem = vp * num(f.qtde);
 
-    return { mp, forro, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem };
+    return { mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem };
   }, [params, tipo, f, over]);
 
   async function salvar() {
@@ -339,7 +340,7 @@ function Fpp({ user, master }) {
               <div className="text-sm font-semibold mb-3" style={{ color: C.text }}>Resultados</div>
               {r && (
                 <div className="space-y-1.5 text-sm">
-                  <Lin l="Matéria-prima" v={brl(r.mp + r.forro)} />
+                  <Lin l="Matéria-prima" v={brl(r.materiaPrima)} />
                   <Lin l="Aviamentos" v={brl(r.aviamentos)} />
                   <Lin l="Produção" v={brl(r.producao)} />
                   <Lin l="Personalização" v={brl(r.personalizacao)} />

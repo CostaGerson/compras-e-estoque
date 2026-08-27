@@ -65,11 +65,9 @@ const EMB_INT = [["SIMPLES", 0.04], ["PREMIUM", 0.17]];
 // Constantes (levers do cálculo) — editáveis no modo OS
 const CONST_MALHA = [
   ["REEMBOLSO_CONSUMO", 0.3,   "Reembolso de consumo (R$/peça)"],
+  ["LINHA_CUSTO",       0.5,   "Custo de linha (R$/peça)"],
   ["LOGISTICA_BASE",    1.72,  "Logística base (R$/peça)"],
   ["BOTAO_UNIT",        0.06,  "Custo por botão (R$)"],
-  ["LINHA_FATOR_GOLA",  0.036, "Fator linha da gola"],
-  ["LINHA_FATOR_PUNHO", 0.016, "Fator linha do punho"],
-  ["LINHA_MULT",        1.38,  "Multiplicador de linha"],
 ];
 const CONST_PLANO = [
   ["REEMBOLSO_CONSUMO", 0.3,  "Reembolso de consumo (R$/peça)"],
@@ -94,6 +92,8 @@ async function up(tipo, grupo, chave, valor, extra, ordem, rotulo) {
 
 async function main() {
   const existe = await prisma.fppParam.count();
+  // limpa constantes de fator que não são mais usadas (bancos já semeados na v32/v33)
+  await prisma.fppParam.deleteMany({ where: { tipo: "MALHA", grupo: "CONST", chave: { in: ["LINHA_FATOR_GOLA", "LINHA_FATOR_PUNHO", "LINHA_MULT"] } } }).catch(() => {});
   let o = 0;
   for (const [n, rend, corte, exped, vol] of PECAS_MALHA) await up("MALHA", "PECA", n, rend, { corte, exped, volProp: vol }, o++);
   o = 0;
