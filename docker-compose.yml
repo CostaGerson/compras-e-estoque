@@ -13,15 +13,28 @@ services:
       - ce-db-data:/var/lib/postgresql/data
 
   ce-app:
-    build: ./app
+    build:
+      context: ./app
+      args:
+        NEXT_PUBLIC_CRM_URL: ${NEXT_PUBLIC_CRM_URL:-http://147.93.35.189:3001}
     container_name: ce-app
     restart: unless-stopped
     depends_on:
       - ce-db
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@ce-db:5432/${DB_NAME}?schema=public
+      CRM_DATABASE_URL: ${CRM_DATABASE_URL}
     ports:
       - "3010:3000"
+    networks:
+      - default
+      - crm
 
 volumes:
   ce-db-data:
+
+networks:
+  default:
+  crm:
+    external: true
+    name: crm-meridian_default

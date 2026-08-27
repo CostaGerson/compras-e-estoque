@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -730,6 +730,43 @@ function ProposalModal({ fichas, onClose }) {
   const cliente = fichas[0]?.clienteNome || "—";
   const totalGeral = fichas.reduce((s, f) => s + (f.totalItem || (f.valorProposto || 0) * (f.qtde || 0)), 0);
   const hoje = new Date().toLocaleDateString("pt-BR");
+  const condicoes = [...new Set(fichas.map((f) => f.condicaoPagamento).filter(Boolean))].join(" | ");
+
+  const [meta, setMeta] = useState(null);
+  const [ownerId, setOwnerId] = useState("");
+  const [stage, setStage] = useState("proposta");
+  const [titulo, setTitulo] = useState(`Proposta ${cliente} · ${hoje}`);
+  const [enviando, setEnviando] = useState(false);
+  const [res, setRes] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/crm/meta").then((r) => r.json()).then((d) => {
+      setMeta(d);
+      if (d.users) {
+        const igor = d.users.find((u) => /igor/i.test(u.full_name || "") || /igor/i.test(u.login || ""));
+        setOwnerId(igor ? igor.id : d.users[0]?.id || "");
+      }
+      if (d.stages && d.stages.includes("proposta")) setStage("proposta");
+    }).catch(() => setMeta({ error: true }));
+  }, []);
+
+  const items = fichas.map((f) => ({
+    description: f.nomeComercial || f.item,
+    qty: f.qtde || 0,
+    unit_price_cents: Math.round((f.valorProposto || 0) * 100),
+  }));
+
+  async function enviarCrm() {
+    if (!ownerId) { setRes({ erro: "Selecione o dono da proposta." }); return; }
+    setEnviando(true); setRes(null);
+    const r = await fetch("/api/crm/proposta", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clienteNome: cliente, ownerId, stage, title: titulo, paymentTerms: condicoes, items }),
+    });
+    const d = await r.json(); setEnviando(false);
+    setRes(r.ok ? { ok: true } : { erro: d.error || "Falha ao enviar." });
+  }
+
   function imprimir() {
     const linhas = fichas.map((f, i) => `
       <tr>
@@ -762,6 +799,7 @@ function ProposalModal({ fichas, onClose }) {
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); }
   }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -783,13 +821,42 @@ function ProposalModal({ fichas, onClose }) {
               ))}
             </tbody>
           </table>
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-bold" style={{ color: C.text }}>Total geral: {brl(totalGeral)}</span>
-            <button onClick={imprimir} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
-              <FileText size={15} /> Gerar proposta (PDF/impressão)
+          <div className="text-sm font-bold mb-3" style={{ color: C.text }}>Total geral: {brl(totalGeral)}</div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+            <div className="md:col-span-3">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Título da proposta</div>
+              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+            </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Dono (CRM)</div>
+              <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+                {(meta?.users || []).map((u) => <option key={u.id} value={u.id}>{u.full_name || u.login}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Etapa do funil</div>
+              <select value={stage} onChange={(e) => setStage(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+                {(meta?.stages || ["proposta"]).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Pagamento</div>
+              <div className="px-2 py-1.5 rounded text-sm truncate" title={condicoes} style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{condicoes || "—"}</div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button onClick={imprimir} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
+              <FileText size={15} /> PDF / impressão
+            </button>
+            <button onClick={enviarCrm} disabled={enviando || !ownerId} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: enviando ? 0.6 : 1 }}>
+              <Send size={15} /> {enviando ? "Enviando…" : "Enviar ao CRM"}
             </button>
           </div>
-          <div className="text-[11px] mt-3" style={{ color: C.sub }}>Layout padrão Meridian. Envio direto ao CRM depende da API do CRM (a ligar).</div>
+          {res?.ok && <div className="text-xs mt-2 text-right" style={{ color: C.green }}>Proposta criada no CRM ✓ (aba Pedidos/Funil do CRM)</div>}
+          {res?.erro && <div className="text-xs mt-2 text-right" style={{ color: "#E5484D" }}>{res.erro}</div>}
+          {meta?.error && <div className="text-xs mt-1 text-right" style={{ color: C.sub }}>CRM indisponível — só PDF disponível.</div>}
         </div>
       </div>
     </div>
