@@ -237,6 +237,8 @@ function Fpp({ user, master }) {
             style={{ background: aba === "banco" ? C.accent : C.panel, color: aba === "banco" ? "#fff" : C.sub, border: `1px solid ${aba === "banco" ? C.accent : C.line}` }}>
             <Database size={14} /> Banco de dados
           </button>
+          <button onClick={() => setAba("salvas")} className="px-3 py-1.5 rounded-md text-sm font-medium"
+            style={{ background: aba === "salvas" ? C.accent : C.panel, color: aba === "salvas" ? "#fff" : C.sub, border: `1px solid ${aba === "salvas" ? C.accent : C.line}` }}>Salvas</button>
         </div>
         {aba === "ficha" && f.item && tipoDaPeca(f.item) && (
           <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
@@ -246,6 +248,8 @@ function Fpp({ user, master }) {
       </div>
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
+
+      {aba === "salvas" && <FichasSalvas master={master} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -493,6 +497,87 @@ function HistModal({ paramId, onClose }) {
                 </div>
               </div>
             ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Fichas salvas ---------- */
+function FichasSalvas({ master }) {
+  const [lista, setLista] = useState(null);
+  const [aberta, setAberta] = useState(null);
+  function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
+  useEffect(carregar, []);
+  async function excluir(id) {
+    if (!confirm("Excluir esta ficha?")) return;
+    await fetch(`/api/fpp/${id}`, { method: "DELETE" });
+    setAberta(null); carregar();
+  }
+  if (!lista) return <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>;
+  if (lista.length === 0) return <div className="text-sm" style={{ color: C.sub }}>Nenhuma ficha salva ainda.</div>;
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ background: C.panel2, color: C.sub }} className="text-left">
+            <th className="px-3 py-2 font-medium">Item</th>
+            <th className="px-3 py-2 font-medium">Cliente</th>
+            <th className="px-3 py-2 font-medium">Tipo</th>
+            <th className="px-3 py-2 font-medium text-right">Qtde</th>
+            {master && <th className="px-3 py-2 font-medium text-right">Valor prop.</th>}
+            {master && <th className="px-3 py-2 font-medium text-right">Margem</th>}
+            <th className="px-3 py-2 font-medium">Data</th>
+            <th className="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((f) => (
+            <tr key={f.id} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }} onClick={() => setAberta(f)}>
+              <td className="px-3 py-2 font-medium" style={{ color: C.text }}>{f.item}</td>
+              <td className="px-3 py-2" style={{ color: C.sub }}>{f.clienteNome || "—"}</td>
+              <td className="px-3 py-2" style={{ color: C.sub }}>{f.tipo}</td>
+              <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.qtde ?? "—"}</td>
+              {master && <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.valorProposto != null ? brl(f.valorProposto) : "—"}</td>}
+              {master && <td className="px-3 py-2 text-right" style={{ color: C.text }}>{f.margem != null ? pct(f.margem) : "—"}</td>}
+              <td className="px-3 py-2" style={{ color: C.sub }}>{new Date(f.createdAt).toLocaleDateString("pt-BR")}</td>
+              <td className="px-3 py-2 text-right">
+                <button onClick={(e) => { e.stopPropagation(); excluir(f.id); }} className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {aberta && <FichaDetalhe f={aberta} master={master} onClose={() => setAberta(null)} />}
+    </div>
+  );
+}
+
+function FichaDetalhe({ f, master, onClose }) {
+  const r = f.resultados || {};
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.item} · {f.tipo}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-4 text-sm space-y-1.5">
+          <Lin l="Cliente" v={f.clienteNome || "—"} />
+          <Lin l="Quantidade" v={f.qtde ?? "—"} />
+          <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
+          {master ? (
+            <>
+              <Lin l="Custo de produção" v={r.custoProducao != null ? brl(r.custoProducao) : "—"} />
+              <Lin l="Custo final" v={f.custoFinal != null ? brl(f.custoFinal) : "—"} forte />
+              <Lin l="ROIC" v={r.roic != null ? pct(r.roic) : "—"} />
+              <Lin l="Margem" v={f.margem != null ? pct(f.margem) : "—"} />
+              <Lin l="Valor proposto" v={f.valorProposto != null ? brl(f.valorProposto) : "—"} forte />
+              <Lin l="Total do item" v={f.totalItem != null ? brl(f.totalItem) : "—"} forte cor={C.accent} />
+            </>
+          ) : <div className="text-xs" style={{ color: C.sub }}>Valores visíveis só para o financeiro.</div>}
+          <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
+          <div className="text-xs" style={{ color: C.sub }}>Criada por {f.criadoPorNome || "—"} em {new Date(f.createdAt).toLocaleString("pt-BR")}</div>
         </div>
       </div>
     </div>
