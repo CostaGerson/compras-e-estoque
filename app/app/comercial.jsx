@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -118,6 +118,7 @@ function fichaVazia(tipo) {
   return {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
     negociacao: "",
+    nomeArtigo: "", nomeArtigoForro: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
@@ -134,6 +135,7 @@ function Fpp({ user, master }) {
   const [f, setF] = useState(() => fichaVazia("MALHA"));
   const [over, setOver] = useState({});             // overrides só desta precificação {caminho: valor}
   const [modoOverride, setModoOverride] = useState(false);
+  const [paramsLocaisOpen, setParamsLocaisOpen] = useState(false);
   const [aba, setAba] = useState("ficha");          // ficha | banco
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
@@ -339,17 +341,26 @@ function Fpp({ user, master }) {
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
                 <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
                 <Inp label="Negociação" value={f.negociacao} onChange={(v) => set("negociacao", v.toUpperCase())} placeholder="Ex.: PE 045/2026 · BID 12 · DIRETA" />
-                <div className="flex items-end gap-2 pb-1 md:col-span-2">
-                  <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) setOver({}); }} />
-                  <span className="text-xs" style={{ color: C.sub }}>Alterar valores só nesta ficha</span>
+                <div className="flex items-center gap-2 pb-1 md:col-span-2 flex-wrap">
+                  <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) { setOver({}); setParamsLocaisOpen(false); } }} />
+                  <span className="text-xs" style={{ color: C.sub }}>Parâmetros só desta ficha</span>
+                  {modoOverride && (
+                    <button onClick={() => setParamsLocaisOpen(true)} className="ml-1 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold"
+                      style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
+                      <SlidersHorizontal size={13} /> Ajustar todos os parâmetros
+                      {Object.keys(over).length > 0 && <span className="ml-1 px-1.5 rounded-full" style={{ background: C.accent, color: "#fff" }}>{Object.keys(over).length}</span>}
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
 
             <Card title="Matéria-prima">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Inp label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} value={f.nomeArtigo} onChange={(v) => set("nomeArtigo", v.toUpperCase())} text placeholder="Nome do artigo" />
                 <Inp label={tipo === "MALHA" ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
                 <Ref label={tipo === "MALHA" ? "Rendimento (peças/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                {tipo === "PLANO" && <Inp label="Artigo (forro)" value={f.nomeArtigoForro} onChange={(v) => set("nomeArtigoForro", v.toUpperCase())} text placeholder="Nome do artigo do forro" />}
                 {tipo === "PLANO" && <Inp label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />}
               </div>
             </Card>
@@ -462,6 +473,115 @@ function Fpp({ user, master }) {
           </div>
         </div>
       )}
+
+      {paramsLocaisOpen && (
+        <ParamsLocaisModal params={params} tipo={tipo} f={f} pget={pget} cget={cget} over={over} setOver={setOver} onClose={() => setParamsLocaisOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ---------- Parâmetros só desta ficha (override local de TODOS os parâmetros) ---------- */
+function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
+  const rawPeca = (campo) => {
+    const row = (params[tipo]?.PECA || []).find((x) => x.chave === f.item);
+    if (!row) return 0;
+    return campo === "valor" ? row.valor : (row.extra ? row.extra[campo] : 0);
+  };
+  const rawGrp = (grupo, chave, campo = "valor") => {
+    const arr = params[tipo]?.[grupo] || params.COMUM?.[grupo] || [];
+    const row = arr.find((x) => x.chave === chave);
+    if (!row) return 0;
+    return campo === "valor" ? row.valor : (row.extra ? row.extra[campo] : 0);
+  };
+
+  function Campo({ label, path, base }) {
+    const v = over[path] != null && over[path] !== "" ? over[path] : "";
+    return (
+      <div className="flex items-center gap-2 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+        <div className="text-sm flex-1" style={{ color: C.text }}>{label}</div>
+        <input value={v} placeholder={String(base)} inputMode="decimal"
+          onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))}
+          className="w-24 px-2 py-1 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
+        {v !== "" && <button onClick={() => setOver((s) => { const n = { ...s }; delete n[path]; return n; })} title="Limpar override"
+          className="p-1 rounded" style={{ color: C.sub }}><X size={13} /></button>}
+      </div>
+    );
+  }
+  function Secao({ titulo, children }) {
+    return (
+      <div className="mb-3">
+        <div className="text-xs font-bold uppercase mb-1" style={{ color: C.sub }}>{titulo}</div>
+        <div className="rounded-lg px-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>{children}</div>
+      </div>
+    );
+  }
+
+  const isMalha = tipo === "MALHA";
+  const constTipo = params[tipo]?.CONST || [];
+  const constComum = params.COMUM?.CONST || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg max-h-[85vh] overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex items-center justify-between px-4 py-3 sticky top-0" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+          <div>
+            <div className="text-sm font-semibold" style={{ color: C.text }}>Parâmetros só desta ficha</div>
+            <div className="text-[11px]" style={{ color: C.sub }}>Altera qualquer valor apenas nesta precificação. Não mexe no banco de dados.</div>
+          </div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-4">
+          {!f.item && <div className="text-sm mb-3" style={{ color: "#E5484D" }}>Selecione a peça (item) para ver os parâmetros.</div>}
+
+          {f.item && (
+            <Secao titulo={`Peça · ${f.item}`}>
+              <Campo label={isMalha ? "Rendimento (peças/kg)" : "Consumo (m/peça)"} path={`PECA:${f.item}:valor`} base={rawPeca("valor")} />
+              <Campo label="Corte" path={`PECA:${f.item}:corte`} base={rawPeca("corte")} />
+              <Campo label={isMalha ? "Expedição" : "Acabamento"} path={`PECA:${f.item}:${isMalha ? "exped" : "acab"}`} base={rawPeca(isMalha ? "exped" : "acab")} />
+              <Campo label="Proporção de volume" path={`PECA:${f.item}:volProp`} base={rawPeca("volProp") || 1} />
+            </Secao>
+          )}
+
+          <Secao titulo="Aviamentos">
+            {isMalha && f.gola && <Campo label={`Gola · ${f.gola}`} path={`GOLA:${f.gola}:valor`} base={rawGrp("GOLA", f.gola)} />}
+            {isMalha && f.punho && <Campo label={`Punho · ${f.punho}`} path={`PUNHO:${f.punho}:valor`} base={rawGrp("PUNHO", f.punho)} />}
+            {!isMalha && f.elastico && <Campo label={`Elástico · ${f.elastico}`} path={`ELASTICO:${f.elastico}:valor`} base={rawGrp("ELASTICO", f.elastico)} />}
+            {f.faixa && f.faixa !== "SEM FAIXA" && <Campo label={`Faixa · ${f.faixa}`} path={`FAIXA:${f.faixa}:valor`} base={rawGrp("FAIXA", f.faixa)} />}
+            {!f.gola && !f.punho && !f.elastico && (!f.faixa || f.faixa === "SEM FAIXA") &&
+              <div className="text-xs py-2" style={{ color: C.sub }}>Nenhum aviamento selecionado nesta ficha.</div>}
+          </Secao>
+
+          {f.embExt && (
+            <Secao titulo={`Embalagem externa · ${f.embExt}`}>
+              <Campo label="Valor da embalagem" path={`EMB_EXT:${f.embExt}:valor`} base={rawGrp("EMB_EXT", f.embExt, "valor")} />
+              <Campo label="Unidades por embalagem" path={`EMB_EXT:${f.embExt}:und`} base={rawGrp("EMB_EXT", f.embExt, "und")} />
+              <Campo label="Fita" path={`EMB_EXT:${f.embExt}:fita`} base={rawGrp("EMB_EXT", f.embExt, "fita")} />
+            </Secao>
+          )}
+          {f.embInt && (
+            <Secao titulo={`Embalagem interna · ${f.embInt}`}>
+              <Campo label="Valor" path={`EMB_INT:${f.embInt}:valor`} base={rawGrp("EMB_INT", f.embInt, "valor")} />
+            </Secao>
+          )}
+
+          {constTipo.length > 0 && (
+            <Secao titulo={`Constantes · ${tipo}`}>
+              {constTipo.map((row) => <Campo key={row.id} label={row.rotulo || row.chave} path={`CONST:${row.chave}:valor`} base={row.valor} />)}
+            </Secao>
+          )}
+          {constComum.length > 0 && (
+            <Secao titulo="Constantes gerais">
+              {constComum.map((row) => <Campo key={row.id} label={row.rotulo || row.chave} path={`CONST:${row.chave}:valor`} base={row.valor} />)}
+            </Secao>
+          )}
+
+          <div className="flex justify-between items-center mt-2">
+            <button onClick={() => setOver({})} className="text-xs px-3 py-1.5 rounded-md" style={{ color: C.sub, border: `1px solid ${C.line}` }}>Limpar todos os ajustes</button>
+            <button onClick={onClose} className="text-sm px-4 py-1.5 rounded-md font-semibold" style={{ background: C.accent, color: "#fff" }}>Aplicar</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -482,8 +602,8 @@ function BancoParams({ params, master, user, onReload }) {
       <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ background: os ? C.accentSoft : C.panel2, border: `1px solid ${os ? C.accent : C.line}` }}>
         {os ? <Unlock size={16} style={{ color: C.accent }} /> : <Lock size={16} style={{ color: C.sub }} />}
         <div className="flex-1">
-          <div className="text-sm font-semibold" style={{ color: C.text }}>OPEN SOURCE</div>
-          <div className="text-xs" style={{ color: C.sub }}>Desligado, o banco de dados fica imutável. Ligado, você pode redefinir o padrão — cada alteração fica no histórico com data.</div>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>ATUALIZAÇÃO DE PARÂMETROS GERAIS</div>
+          <div className="text-xs" style={{ color: C.sub }}>Desligado, o banco de dados fica imutável. Ligado, você redefine o padrão para todas as FPPs daqui em diante — cada alteração fica no histórico com data.</div>
         </div>
         {master ? <Toggle on={os} onChange={setOs} /> : <span className="text-xs" style={{ color: C.sub }}>Só o financeiro edita</span>}
       </div>
@@ -592,6 +712,108 @@ function HistModal({ paramId, onClose }) {
       </div>
     </div>
   );
+}
+
+/* Impressão da própria FPP como ficha PDF (usa entradas + resultados salvos) */
+function imprimirFicha(f, master) {
+  const e = f.entradas || {};
+  const r = f.resultados || {};
+  const isMalha = (f.tipo || e.tipo) === "MALHA";
+  const brlp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const pctp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const criada = f.createdAt ? new Date(f.createdAt).toLocaleString("pt-BR") : "—";
+
+  const linhaP = (label, val) => `<tr><td class="k">${label}</td><td class="v">${val ?? "—"}</td></tr>`;
+  const money = (label, val, forte) => `<tr><td class="k">${label}</td><td class="v" style="text-align:right;${forte ? "font-weight:800" : ""}">${brlp(val)}</td></tr>`;
+
+  // personalização resumida
+  const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
+  const persoParts = [];
+  for (const [tec, lbl] of [["silk", "Silk/DTF"], ["bordado", "Bordado"], ["sublimacao", "Sublimação"]]) {
+    const p = e[tec] || {};
+    const pos = POS2.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
+    if (pos.length || Number(p.arte) > 0) persoParts.push(`${lbl}${pos.length ? " (" + pos.join(", ") + ")" : ""}`);
+  }
+  const perso = persoParts.join(" · ") || "—";
+
+  const mpArtigo = isMalha
+    ? linhaP("Artigo (malha)", e.nomeArtigo || "—")
+    : linhaP("Artigo (tecido externo)", e.nomeArtigo || "—") + linhaP("Artigo (forro)", e.nomeArtigoForro || "—");
+
+  const custos = master ? `
+    <div class="sec">Composição de custo</div>
+    <table>
+      ${money("Matéria-prima", r.materiaPrima)}
+      ${money("Aviamentos", r.aviamentos)}
+      ${money("Produção", r.producao)}
+      ${money("Personalização", r.personalizacao)}
+      ${money("Logística", r.logistica)}
+      ${money("Embalagem", r.embalagem)}
+      ${money("Custo de produção", r.custoProducao, true)}
+      ${money("Operação financeira", r.opFin)}
+      ${money("Custo final", f.custoFinal ?? r.custoFinal, true)}
+      <tr><td class="k">ROIC</td><td class="v" style="text-align:right">${pctp(r.roic)}</td></tr>
+      <tr><td class="k">Margem de contribuição</td><td class="v" style="text-align:right;font-weight:800;color:#FF6B1A">${pctp(f.margem ?? r.margem)}</td></tr>
+      ${money("Valor proposto", f.valorProposto, true)}
+      ${money("Total do item", f.totalItem, true)}
+    </table>` : `<div class="obs">Valores visíveis somente para o financeiro.</div>`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>FPP ${f.nomeComercial || f.item}</title>
+    <style>
+      body{font-family:Montserrat,Arial,sans-serif;color:#1F2733;padding:28px;font-size:12px}
+      .top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #FF6B1A;padding-bottom:10px;margin-bottom:14px}
+      .marca{font-size:22px;font-weight:800;color:#001E41}
+      h1{font-size:15px;margin:0 0 2px}
+      .sec{font-size:11px;font-weight:800;text-transform:uppercase;color:#667085;margin:14px 0 4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:4px}
+      td{border:1px solid #E4E7EC;padding:6px 8px;vertical-align:top}
+      td.k{color:#667085;width:45%}
+      td.v{color:#1F2733;font-weight:600}
+      .obs{color:#667085;font-size:11px;margin-top:18px}
+      .neg{display:inline-block;background:#FFF0E6;color:#FF6B1A;border:1px solid #FF6B1A;border-radius:6px;padding:2px 8px;font-weight:700}
+    </style></head><body>
+    <div class="top">
+      <div class="marca">MERIDIAN</div>
+      <div style="text-align:right"><h1>Ficha de Precificação (FPP)</h1>
+      <div style="color:#667085">${hoje}${f.negociacao ? ` · <span class="neg">${f.negociacao}</span>` : ""}</div></div>
+    </div>
+
+    <div class="sec">Identificação</div>
+    <table>
+      ${linhaP("Item (peça)", f.item)}
+      ${linhaP("Nome comercial", f.nomeComercial || "—")}
+      ${linhaP("Cliente", f.clienteNome || "—")}
+      ${linhaP("Negociação", f.negociacao || "—")}
+      ${linhaP("Quantidade", f.qtde ?? "—")}
+      ${linhaP("Tipo", f.tipo || (isMalha ? "MALHA" : "PLANO"))}
+      ${linhaP("Cond. pagamento", f.condicaoPagamento || e.condPagamento || "—")}
+      ${linhaP("Lead time", f.leadTime != null ? f.leadTime + " dias" : "—")}
+    </table>
+
+    <div class="sec">Matéria-prima</div>
+    <table>
+      ${mpArtigo}
+      ${linhaP(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—")}
+      ${!isMalha ? linhaP("Custo do forro (R$/m)", e.forroValor || "—") : ""}
+    </table>
+
+    <div class="sec">Aviamentos e produção</div>
+    <table>
+      ${isMalha ? linhaP("Gola", e.gola || "—") + linhaP("Punho", e.punho || "—") : linhaP("Elástico", e.elastico || "—")}
+      ${linhaP("Faixa refletiva", e.faixa || "—")}
+      ${linhaP("Qtde de botões", e.botaoQtd || "—")}
+      ${linhaP("Facção (R$/peça)", e.faccao || "—")}
+      ${linhaP("Personalização", perso)}
+    </table>
+
+    ${custos}
+
+    <div class="obs">FPP criada por ${f.criadoPorNome || "—"} em ${criada}. Documento gerado pelo sistema Meridian.</div>
+    </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 250); }
 }
 
 /* ---------- Fichas salvas ---------- */
@@ -721,6 +943,7 @@ function FichasSalvas({ master, onEditar }) {
                   return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>
                   <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
                   <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
                 </td>
@@ -766,9 +989,14 @@ function FichaDetalhe({ f, master, onClose, onProposta }) {
           ) : <div className="text-xs" style={{ color: C.sub }}>Valores visíveis só para o financeiro.</div>}
           <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
           <div className="text-xs" style={{ color: C.sub }}>Criada por {f.criadoPorNome || "—"} em {new Date(f.createdAt).toLocaleString("pt-BR")}</div>
-          <button onClick={onProposta} className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
-            <FileText size={15} /> Gerar proposta
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => imprimirFicha(f, master)} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+              <Printer size={15} /> Imprimir FPP
+            </button>
+            <button onClick={onProposta} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+              <FileText size={15} /> Gerar proposta
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -938,11 +1166,11 @@ function Card({ title, children }) {
     </div>
   );
 }
-function Inp({ label, value, onChange, destaque }) {
+function Inp({ label, value, onChange, destaque, text, placeholder }) {
   return (
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal"
+      <input value={value} onChange={(e) => onChange(e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
     </div>
   );
