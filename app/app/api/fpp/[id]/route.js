@@ -23,6 +23,7 @@ export async function PATCH(req, { params }) {
   if (b.tipo != null) data.tipo = b.tipo === "PLANO" ? "PLANO" : "MALHA";
   if (b.clienteId !== undefined) data.clienteId = b.clienteId != null ? Number(b.clienteId) : null;
   if (b.clienteNome !== undefined) data.clienteNome = b.clienteNome || null;
+  if (b.negociacao !== undefined) data.negociacao = b.negociacao ? String(b.negociacao).toUpperCase() : null;
   if (b.qtde !== undefined) data.qtde = b.qtde != null ? Number(b.qtde) : null;
   if (b.condicaoPagamento !== undefined) data.condicaoPagamento = b.condicaoPagamento || null;
   if (b.leadTime !== undefined) data.leadTime = b.leadTime != null ? Number(b.leadTime) : null;

@@ -591,6 +591,7 @@ model Fpp {
   nomeComercial String?
   clienteId     Int?
   clienteNome   String?
+  negociacao    String?
   qtde          Int?
   condicaoPagamento String?
   leadTime      Int?

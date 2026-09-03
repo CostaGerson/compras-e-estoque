@@ -22,6 +22,7 @@ export async function POST(req) {
       leadTime: b.leadTime != null ? Number(b.leadTime) : null,
       clienteId: b.clienteId != null ? Number(b.clienteId) : null,
       clienteNome: b.clienteNome || null,
+      negociacao: b.negociacao ? String(b.negociacao).toUpperCase() : null,
       qtde: b.qtde != null ? Number(b.qtde) : null,
       entradas: b.entradas || {},
       overrides: b.overrides || null,

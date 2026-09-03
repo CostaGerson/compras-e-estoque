@@ -117,7 +117,7 @@ function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mang
 function fichaVazia(tipo) {
   return {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
-    licitacao: false, pregao: "",
+    negociacao: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
@@ -264,6 +264,7 @@ function Fpp({ user, master }) {
     setSalvando(true); setMsg("");
     const body = {
       tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
+      negociacao: f.negociacao || null,
       condicaoPagamento: f.condPagamento, leadTime: num(f.leadTime),
       entradas: f, overrides: Object.keys(over).length ? over : null,
       resultados: r,
@@ -279,7 +280,8 @@ function Fpp({ user, master }) {
 
   function carregarFicha(fpp) {
     const e = fpp.entradas || {};
-    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId });
+    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
+      negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
     setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
     setOver(fpp.overrides || {});
     setEditId(fpp.id);
@@ -323,20 +325,6 @@ function Fpp({ user, master }) {
       {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} />}
 
       {aba === "ficha" && (
-        <>
-        {/* Licitação: marca quando o orçamento é para um pregão */}
-        <div className="flex items-center gap-3 mb-4 p-3 rounded-lg flex-wrap"
-          style={{ background: f.licitacao ? C.accentSoft : C.panel, border: `1px solid ${f.licitacao ? C.accent : C.line}` }}>
-          <Toggle on={!!f.licitacao} onChange={(v) => set("licitacao", v)} />
-          <span className="text-sm font-semibold" style={{ color: f.licitacao ? C.accent : C.text }}>Licitação</span>
-          {f.licitacao && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs" style={{ color: C.sub }}>Nº do pregão</span>
-              <input value={f.pregao} onChange={(e) => set("pregao", e.target.value.toUpperCase())} placeholder="Ex.: PE 045/2026"
-                className="px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.accent}`, color: C.text, minWidth: 180 }} />
-            </div>
-          )}
-        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
@@ -350,6 +338,7 @@ function Fpp({ user, master }) {
                   onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
                 <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
+                <Inp label="Negociação" value={f.negociacao} onChange={(v) => set("negociacao", v.toUpperCase())} placeholder="Ex.: PE 045/2026 · BID 12 · DIRETA" />
                 <div className="flex items-end gap-2 pb-1 md:col-span-2">
                   <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) setOver({}); }} />
                   <span className="text-xs" style={{ color: C.sub }}>Alterar valores só nesta ficha</span>
@@ -472,7 +461,6 @@ function Fpp({ user, master }) {
             </div>
           </div>
         </div>
-        </>
       )}
     </div>
   );
@@ -611,7 +599,7 @@ const COLS = [
   { k: "item", label: "Item", tipo: "txt" },
   { k: "nomeComercial", label: "Nome comercial", tipo: "txt" },
   { k: "clienteNome", label: "Cliente", tipo: "txt", cliente: true },
-  { k: "tipo", label: "Tipo", tipo: "txt" },
+  { k: "negociacao", label: "Negociação", tipo: "txt" },
   { k: "qtde", label: "Qtde", tipo: "num", right: true },
   { k: "valorProposto", label: "Valor prop.", tipo: "num", right: true, master: true },
   { k: "margem", label: "Margem", tipo: "num", right: true, master: true },
@@ -650,7 +638,7 @@ function FichasSalvas({ master, onEditar }) {
   if (q) {
     dados = dados.filter((f) => {
       const alvo = [
-        f.item, f.nomeComercial, f.clienteNome, f.tipo, f.qtde,
+        f.item, f.nomeComercial, f.clienteNome, f.negociacao, f.qtde,
         f.condicaoPagamento, f.leadTime, f.criadoPorNome,
         f.valorProposto != null ? brl(f.valorProposto) : "",
         f.margem != null ? pct(f.margem) : "",
@@ -755,7 +743,7 @@ function FichaDetalhe({ f, master, onClose, onProposta }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.nomeComercial || f.item} · {f.tipo}</div>
+          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.nomeComercial || f.item}{f.negociacao ? ` · ${f.negociacao}` : ""}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 text-sm space-y-1.5">
