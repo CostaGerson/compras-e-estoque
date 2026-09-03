@@ -829,6 +829,7 @@ function FichasSalvas({ master, onEditar }) {
   const [sel, setSel] = useState(() => new Set());
   const [aberta, setAberta] = useState(null);
   const [proposta, setProposta] = useState(null);
+  const [imprimindo, setImprimindo] = useState(false);
 
   function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
   useEffect(carregar, []);
@@ -885,7 +886,6 @@ function FichasSalvas({ master, onEditar }) {
     setProposta(selecionadas);
   }
 
-  const [imprimindo, setImprimindo] = useState(false);
   async function imprimirSelecionadas() {
     if (!selecionadas.length) return;
     setImprimindo(true);
