@@ -119,6 +119,7 @@ function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mang
 function fichaVazia(tipo) {
   return {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
+    licitacao: false, pregao: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
@@ -324,6 +325,20 @@ function Fpp({ user, master }) {
       {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} />}
 
       {aba === "ficha" && (
+        <>
+        {/* Licitação: marca quando o orçamento é para um pregão */}
+        <div className="flex items-center gap-3 mb-4 p-3 rounded-lg flex-wrap"
+          style={{ background: f.licitacao ? C.accentSoft : C.panel, border: `1px solid ${f.licitacao ? C.accent : C.line}` }}>
+          <Toggle on={!!f.licitacao} onChange={(v) => set("licitacao", v)} />
+          <span className="text-sm font-semibold" style={{ color: f.licitacao ? C.accent : C.text }}>Licitação</span>
+          {f.licitacao && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: C.sub }}>Nº do pregão</span>
+              <input value={f.pregao} onChange={(e) => set("pregao", e.target.value.toUpperCase())} placeholder="Ex.: PE 045/2026"
+                className="px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.accent}`, color: C.text, minWidth: 180 }} />
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
@@ -435,7 +450,17 @@ function Fpp({ user, master }) {
                   <Lin l="Custo final" v={brl(r.custoFinal)} forte />
                   <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
                   <Lin l="ROIC" v={pct(r.roic)} cor={r.roic >= 0.3 ? C.green : r.roic >= 0.16 ? C.yellow : "#E5484D"} />
-                  <Lin l="Margem de contribuição" v={pct(r.margem)} />
+                  {(() => {
+                    const m = r.margem;
+                    const cor = m >= 0.4 ? C.green : m >= 0.3 ? C.green : m >= 0.16 ? C.yellow : "#E5484D";
+                    const soft = m >= 0.3 ? C.greenSoft : m >= 0.16 ? "#FEF6E7" : "#FDECEC";
+                    return (
+                      <div className="rounded-md px-3 py-2 my-1 flex items-center justify-between" style={{ background: soft, border: `1px solid ${cor}` }}>
+                        <span className="text-xs font-bold tracking-wide" style={{ color: cor }}>MARGEM DE CONTRIBUIÇÃO</span>
+                        <span style={{ color: cor, fontWeight: 800, fontSize: 20, lineHeight: 1 }}>{pct(m)}</span>
+                      </div>
+                    );
+                  })()}
                   <Lin l="Valor proposto" v={brl(num(f.valorProposto))} forte />
                   <Lin l="Total do item" v={brl(r.totalItem)} forte cor={C.accent} />
                 </div>
@@ -449,6 +474,7 @@ function Fpp({ user, master }) {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
@@ -924,23 +950,53 @@ function Toggle({ on, onChange, disabled }) {
   );
 }
 
-/* Autocomplete: vai filtrando as opções conforme digita */
+/* Autocomplete com teclado:
+   - Tab / ↓ correm a lista pra baixo (Shift+Tab / ↑ pra cima), preenchendo o campo ao vivo;
+   - Enter ou clicar fora confirmam a opção atual e fecham;
+   - com a lista fechada, o Tab é nativo → pula pro próximo campo. */
 function Combo({ label, value, onChange, onPick, options, placeholder }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState(value || "");
+  const [seed, setSeed] = useState("");     // texto digitado que filtra (não muda ao navegar → a lista não "afunila")
+  const [hi, setHi] = useState(0);          // índice destacado
   useEffect(() => { setQ(value || ""); }, [value]);
-  const lista = (options || []).filter((o) => o.toLowerCase().includes((q || "").toLowerCase()));
-  function pick(o) { setQ(o); setOpen(false); (onPick || onChange)?.(o); }
+  const lista = (options || []).filter((o) => o.toLowerCase().includes((seed || "").toLowerCase()));
+
+  function abrir() {
+    setSeed("");
+    const i = (options || []).findIndex((o) => o === q);
+    setHi(i >= 0 ? i : 0);
+    setOpen(true);
+  }
+  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); onChange?.(v); }
+  function mover(dir) {
+    if (!lista.length) return;
+    const n = (hi + dir + lista.length) % lista.length;
+    setHi(n); setQ(lista[n]); onChange?.(lista[n]);   // preenche ao vivo
+  }
+  function confirmar(o) {
+    const alvo = o != null ? o : (lista[hi] || q);
+    setQ(alvo); setSeed(alvo); setOpen(false); (onPick || onChange)?.(alvo);
+  }
+  function onKey(e) {
+    if (!open) return;                       // fechado → deixa o Tab pular de campo (nativo)
+    if (e.key === "Tab") { e.preventDefault(); mover(e.shiftKey ? -1 : 1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); mover(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); mover(-1); }
+    else if (e.key === "Enter") { e.preventDefault(); confirmar(); }
+    else if (e.key === "Escape") { setOpen(false); }
+  }
   return (
     <div style={{ position: "relative" }}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
-      <input value={q} placeholder={placeholder} onChange={(e) => { setQ(e.target.value); setOpen(true); onChange?.(e.target.value); }}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+      <input value={q} placeholder={placeholder} onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
+        onFocus={abrir} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
       {open && lista.length > 0 && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-          {lista.map((o) => (
-            <button key={o} onMouseDown={() => pick(o)} className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ color: C.text }}>{o}</button>
+          {lista.map((o, idx) => (
+            <button key={o} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(o); }}
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{o}</button>
           ))}
         </div>
       )}
@@ -952,10 +1008,12 @@ function Combo({ label, value, onChange, onPick, options, placeholder }) {
 function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState(value || "");
+  const [seed, setSeed] = useState("");
+  const [hi, setHi] = useState(0);
   const [criando, setCriando] = useState(false);
   useEffect(() => { setQ(value || ""); }, [value]);
   const nome = (c) => c.razaoSocial || c.nomeFantasia || "";
-  const lista = clientes.filter((c) => nome(c).toLowerCase().includes((q || "").toLowerCase())).slice(0, 30);
+  const lista = clientes.filter((c) => nome(c).toLowerCase().includes((seed || "").toLowerCase())).slice(0, 30);
   const exato = clientes.some((c) => nome(c).toLowerCase() === (q || "").trim().toLowerCase());
   async function criar() {
     setCriando(true);
@@ -963,19 +1021,35 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
     const c = await res.json(); setCriando(false); setOpen(false);
     if (res.ok) { setQ(c.razaoSocial); onCreated?.(c); }
   }
+  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); onType?.(v); }
+  function mover(dir) {
+    if (!lista.length) return;
+    const n = (hi + dir + lista.length) % lista.length;
+    setHi(n); setQ(nome(lista[n])); onType?.(nome(lista[n]));
+  }
+  function confirmar(c) { const alvo = c || lista[hi]; if (!alvo) return; setQ(nome(alvo)); setSeed(nome(alvo)); setOpen(false); onPick?.(alvo); }
+  function onKey(e) {
+    if (!open || !lista.length) return;
+    if (e.key === "Tab") { e.preventDefault(); mover(e.shiftKey ? -1 : 1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); mover(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); mover(-1); }
+    else if (e.key === "Enter") { e.preventDefault(); confirmar(); }
+    else if (e.key === "Escape") { setOpen(false); }
+  }
   return (
     <div style={{ position: "relative" }}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente</div>
-      <input value={q} placeholder="Buscar cliente…" onChange={(e) => { setQ(e.target.value); setOpen(true); onType?.(e.target.value); }}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 180)}
-        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+      <input value={q} placeholder="Buscar cliente…" onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
+        onFocus={() => { setSeed(q || ""); setHi(0); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 180)}
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
       {open && (q || "").trim() !== "" && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-          {lista.map((c) => (
-            <button key={c.id} onMouseDown={() => { setQ(nome(c)); setOpen(false); onPick?.(c); }} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text }}>{nome(c)}</button>
+          {lista.map((c, idx) => (
+            <button key={c.id} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(c); }}
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{nome(c)}</button>
           ))}
           {!exato && (
-            <button onMouseDown={criar} disabled={criando} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.accent, borderTop: lista.length ? `1px solid ${C.line}` : 0 }}>
+            <button tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); criar(); }} disabled={criando} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.accent, borderTop: lista.length ? `1px solid ${C.line}` : 0 }}>
               {criando ? "Registrando…" : `+ Registrar "${q.trim().toUpperCase()}"`}
             </button>
           )}
