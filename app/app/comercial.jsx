@@ -714,106 +714,99 @@ function HistModal({ paramId, onClose }) {
   );
 }
 
-/* Impressão da própria FPP como ficha PDF (usa entradas + resultados salvos) */
-function imprimirFicha(f, master) {
+/* Gera e BAIXA a FPP como PDF (usa entradas + resultados salvos). Mesmo layout para 1 ou várias. */
+async function imprimirFicha(f, master) {
+  const { jsPDF } = await import("jspdf");
   const e = f.entradas || {};
   const r = f.resultados || {};
   const isMalha = (f.tipo || e.tipo) === "MALHA";
-  const brlp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const brlp = (n) => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pctp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const hoje = new Date().toLocaleDateString("pt-BR");
-  const criada = f.createdAt ? new Date(f.createdAt).toLocaleString("pt-BR") : "—";
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = 210, M = 14; let y = 16;
 
-  const linhaP = (label, val) => `<tr><td class="k">${label}</td><td class="v">${val ?? "—"}</td></tr>`;
-  const money = (label, val, forte) => `<tr><td class="k">${label}</td><td class="v" style="text-align:right;${forte ? "font-weight:800" : ""}">${brlp(val)}</td></tr>`;
+  // cabeçalho
+  doc.setFillColor(0, 30, 65); doc.rect(0, 0, W, 8, "F");
+  doc.setFontSize(18); doc.setTextColor(0, 30, 65); doc.setFont(undefined, "bold");
+  doc.text("MERIDIAN", M, y);
+  doc.setFontSize(11); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "normal");
+  doc.text("Ficha de Precificação (FPP)", M + 46, y);
+  doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+  doc.text(new Date().toLocaleDateString("pt-BR"), W - M, y - 3, { align: "right" });
+  if (f.negociacao) { doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold"); doc.text(String(f.negociacao), W - M, y + 2, { align: "right" }); doc.setFont(undefined, "normal"); }
+  y += 6; doc.setDrawColor(255, 107, 26); doc.setLineWidth(0.6); doc.line(M, y, W - M, y); doc.setLineWidth(0.2); y += 7;
 
-  // personalização resumida
+  const sec = (t) => { doc.setFontSize(9); doc.setTextColor(102, 112, 133); doc.setFont(undefined, "bold"); doc.text(t.toUpperCase(), M, y); y += 1.5; doc.setDrawColor(228, 231, 236); doc.line(M, y, W - M, y); y += 4.5; doc.setFont(undefined, "normal"); };
+  const row = (k, v, opt = {}) => {
+    doc.setFontSize(9.5); doc.setTextColor(102, 112, 133); doc.setFont(undefined, "normal"); doc.text(String(k), M, y);
+    const c = opt.cor || [31, 39, 51]; doc.setTextColor(c[0], c[1], c[2]); doc.setFont(undefined, opt.forte ? "bold" : "normal");
+    doc.text(String(v == null ? "—" : v), W - M, y, { align: "right" }); doc.setFont(undefined, "normal"); y += 6;
+  };
+
+  sec("Identificação");
+  row("Item (peça)", f.item);
+  row("Nome comercial", f.nomeComercial || "—");
+  row("Cliente", f.clienteNome || "—");
+  row("Negociação", f.negociacao || "—");
+  row("Quantidade", f.qtde ?? "—");
+  row("Tipo", f.tipo || (isMalha ? "MALHA" : "PLANO"));
+  row("Cond. pagamento", f.condicaoPagamento || e.condPagamento || "—");
+  row("Lead time", f.leadTime != null ? f.leadTime + " dias" : "—");
+  y += 2;
+
+  sec("Matéria-prima");
+  if (isMalha) row("Artigo (malha)", e.nomeArtigo || "—");
+  else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); row("Artigo (forro)", e.nomeArtigoForro || "—"); }
+  row(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—");
+  if (!isMalha) row("Custo do forro (R$/m)", e.forroValor || "—");
+  y += 2;
+
+  sec("Aviamentos e produção");
+  if (isMalha) { row("Gola", e.gola || "—"); row("Punho", e.punho || "—"); } else row("Elástico", e.elastico || "—");
+  row("Faixa refletiva", e.faixa || "—");
+  row("Qtde de botões", e.botaoQtd || "—");
+  row("Facção (R$/peça)", e.faccao || "—");
   const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
-  const persoParts = [];
+  const pp = [];
   for (const [tec, lbl] of [["silk", "Silk/DTF"], ["bordado", "Bordado"], ["sublimacao", "Sublimação"]]) {
-    const p = e[tec] || {};
-    const pos = POS2.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
-    if (pos.length || Number(p.arte) > 0) persoParts.push(`${lbl}${pos.length ? " (" + pos.join(", ") + ")" : ""}`);
+    const p = e[tec] || {}; const pos = POS2.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
+    if (pos.length || Number(p.arte) > 0) pp.push(`${lbl}${pos.length ? " (" + pos.join(", ") + ")" : ""}`);
   }
-  const perso = persoParts.join(" · ") || "—";
+  row("Personalização", pp.join(" · ") || "—");
+  y += 2;
 
-  const mpArtigo = isMalha
-    ? linhaP("Artigo (malha)", e.nomeArtigo || "—")
-    : linhaP("Artigo (tecido externo)", e.nomeArtigo || "—") + linhaP("Artigo (forro)", e.nomeArtigoForro || "—");
+  if (master) {
+    sec("Composição de custo");
+    row("Matéria-prima", brlp(r.materiaPrima));
+    row("Aviamentos", brlp(r.aviamentos));
+    row("Produção", brlp(r.producao));
+    row("Personalização", brlp(r.personalizacao));
+    row("Logística", brlp(r.logistica));
+    row("Embalagem", brlp(r.embalagem));
+    row("Custo de produção", brlp(r.custoProducao), { forte: true });
+    row("Operação financeira", brlp(r.opFin));
+    row("Custo final", brlp(f.custoFinal ?? r.custoFinal), { forte: true });
+    row("ROIC", pctp(r.roic));
+    // margem de contribuição destacada
+    doc.setFillColor(255, 240, 230); doc.rect(M, y - 4, W - 2 * M, 7, "F");
+    doc.setDrawColor(255, 107, 26); doc.rect(M, y - 4, W - 2 * M, 7);
+    doc.setFontSize(10); doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold");
+    doc.text("MARGEM DE CONTRIBUIÇÃO", M + 2, y + 0.6);
+    doc.text(pctp(f.margem ?? r.margem), W - M - 2, y + 0.6, { align: "right" });
+    doc.setFont(undefined, "normal"); y += 8;
+    row("Valor proposto", brlp(f.valorProposto), { forte: true });
+    row("Total do item", brlp(f.totalItem), { forte: true, cor: [255, 107, 26] });
+  } else {
+    doc.setFontSize(9); doc.setTextColor(102, 112, 133); doc.text("Valores visíveis somente para o financeiro.", M, y); y += 6;
+  }
 
-  const custos = master ? `
-    <div class="sec">Composição de custo</div>
-    <table>
-      ${money("Matéria-prima", r.materiaPrima)}
-      ${money("Aviamentos", r.aviamentos)}
-      ${money("Produção", r.producao)}
-      ${money("Personalização", r.personalizacao)}
-      ${money("Logística", r.logistica)}
-      ${money("Embalagem", r.embalagem)}
-      ${money("Custo de produção", r.custoProducao, true)}
-      ${money("Operação financeira", r.opFin)}
-      ${money("Custo final", f.custoFinal ?? r.custoFinal, true)}
-      <tr><td class="k">ROIC</td><td class="v" style="text-align:right">${pctp(r.roic)}</td></tr>
-      <tr><td class="k">Margem de contribuição</td><td class="v" style="text-align:right;font-weight:800;color:#FF6B1A">${pctp(f.margem ?? r.margem)}</td></tr>
-      ${money("Valor proposto", f.valorProposto, true)}
-      ${money("Total do item", f.totalItem, true)}
-    </table>` : `<div class="obs">Valores visíveis somente para o financeiro.</div>`;
+  y += 4; doc.setDrawColor(228, 231, 236); doc.line(M, y, W - M, y); y += 4;
+  doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+  const criada = f.createdAt ? new Date(f.createdAt).toLocaleString("pt-BR") : "—";
+  doc.text(`FPP criada por ${f.criadoPorNome || "—"} em ${criada}. Gerado pelo sistema Meridian.`, M, y);
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>FPP ${f.nomeComercial || f.item}</title>
-    <style>
-      body{font-family:Montserrat,Arial,sans-serif;color:#1F2733;padding:28px;font-size:12px}
-      .top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #FF6B1A;padding-bottom:10px;margin-bottom:14px}
-      .marca{font-size:22px;font-weight:800;color:#001E41}
-      h1{font-size:15px;margin:0 0 2px}
-      .sec{font-size:11px;font-weight:800;text-transform:uppercase;color:#667085;margin:14px 0 4px}
-      table{width:100%;border-collapse:collapse;margin-bottom:4px}
-      td{border:1px solid #E4E7EC;padding:6px 8px;vertical-align:top}
-      td.k{color:#667085;width:45%}
-      td.v{color:#1F2733;font-weight:600}
-      .obs{color:#667085;font-size:11px;margin-top:18px}
-      .neg{display:inline-block;background:#FFF0E6;color:#FF6B1A;border:1px solid #FF6B1A;border-radius:6px;padding:2px 8px;font-weight:700}
-    </style></head><body>
-    <div class="top">
-      <div class="marca">MERIDIAN</div>
-      <div style="text-align:right"><h1>Ficha de Precificação (FPP)</h1>
-      <div style="color:#667085">${hoje}${f.negociacao ? ` · <span class="neg">${f.negociacao}</span>` : ""}</div></div>
-    </div>
-
-    <div class="sec">Identificação</div>
-    <table>
-      ${linhaP("Item (peça)", f.item)}
-      ${linhaP("Nome comercial", f.nomeComercial || "—")}
-      ${linhaP("Cliente", f.clienteNome || "—")}
-      ${linhaP("Negociação", f.negociacao || "—")}
-      ${linhaP("Quantidade", f.qtde ?? "—")}
-      ${linhaP("Tipo", f.tipo || (isMalha ? "MALHA" : "PLANO"))}
-      ${linhaP("Cond. pagamento", f.condicaoPagamento || e.condPagamento || "—")}
-      ${linhaP("Lead time", f.leadTime != null ? f.leadTime + " dias" : "—")}
-    </table>
-
-    <div class="sec">Matéria-prima</div>
-    <table>
-      ${mpArtigo}
-      ${linhaP(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—")}
-      ${!isMalha ? linhaP("Custo do forro (R$/m)", e.forroValor || "—") : ""}
-    </table>
-
-    <div class="sec">Aviamentos e produção</div>
-    <table>
-      ${isMalha ? linhaP("Gola", e.gola || "—") + linhaP("Punho", e.punho || "—") : linhaP("Elástico", e.elastico || "—")}
-      ${linhaP("Faixa refletiva", e.faixa || "—")}
-      ${linhaP("Qtde de botões", e.botaoQtd || "—")}
-      ${linhaP("Facção (R$/peça)", e.faccao || "—")}
-      ${linhaP("Personalização", perso)}
-    </table>
-
-    ${custos}
-
-    <div class="obs">FPP criada por ${f.criadoPorNome || "—"} em ${criada}. Documento gerado pelo sistema Meridian.</div>
-    </body></html>`;
-
-  const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 250); }
+  const nome = `FPP - ${f.item || "item"} - ${f.clienteNome || "cliente"}`.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80);
+  doc.save(nome + ".pdf");
 }
 
 /* ---------- Fichas salvas ---------- */
@@ -892,6 +885,17 @@ function FichasSalvas({ master, onEditar }) {
     setProposta(selecionadas);
   }
 
+  const [imprimindo, setImprimindo] = useState(false);
+  async function imprimirSelecionadas() {
+    if (!selecionadas.length) return;
+    setImprimindo(true);
+    for (const f of selecionadas) {
+      await imprimirFicha(f, master);
+      await new Promise((r) => setTimeout(r, 400)); // evita o navegador bloquear downloads em sequência
+    }
+    setImprimindo(false);
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -909,9 +913,15 @@ function FichasSalvas({ master, onEditar }) {
               className="pl-7 pr-2 py-1.5 rounded-md text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text, width: 240 }} />
           </div>
           {selecionadas.length > 0 && (
-            <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
-              Gerar proposta ({selecionadas.length})
-            </button>
+            <>
+              <button onClick={imprimirSelecionadas} disabled={imprimindo} title="Baixa 1 PDF por FPP selecionada"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, opacity: imprimindo ? 0.6 : 1 }}>
+                <Printer size={15} /> {imprimindo ? "Gerando…" : `Imprimir FPPs (${selecionadas.length})`}
+              </button>
+              <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+                Gerar proposta ({selecionadas.length})
+              </button>
+            </>
           )}
         </div>
       </div>
