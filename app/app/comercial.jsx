@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -20,47 +20,45 @@ const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return i
 
 /* ============================================================ */
 export default function Comercial({ user, master }) {
-  const [sub, setSub] = useState("crm");
-  const subs = [
-    { k: "crm", label: "CRM", icon: Briefcase },
-    { k: "fpp", label: "FPP", icon: Calculator },
-  ];
+  const [view, setView] = useState(null); // null = landing (2 cards) | "fpp"
+
+  if (view === "fpp") {
+    return (
+      <div>
+        <button onClick={() => setView(null)} className="flex items-center gap-1 mb-4 text-sm font-medium" style={{ color: C.accent }}>
+          <ChevronRight size={15} style={{ transform: "rotate(180deg)" }} /> Comercial
+        </button>
+        <Fpp user={user} master={master} />
+      </div>
+    );
+  }
+
+  const Card = ({ icon: Ico, titulo, sub, onClick, badge }) => (
+    <button onClick={onClick} className="flex-1 text-left rounded-2xl p-6 transition-shadow hover:shadow-lg"
+      style={{ background: C.panel, border: `1px solid ${C.line}`, minHeight: 180 }}>
+      <div className="flex items-center justify-center rounded-xl mb-4" style={{ width: 56, height: 56, background: C.accentSoft }}>
+        <Ico size={28} style={{ color: C.accent }} />
+      </div>
+      <div className="text-lg font-bold flex items-center gap-2" style={{ color: C.text }}>{titulo}{badge}</div>
+      <div className="text-sm mt-1" style={{ color: C.sub }}>{sub}</div>
+    </button>
+  );
+
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        {subs.map((s) => {
-          const Ico = s.icon; const on = sub === s.k;
-          return (
-            <button key={s.k} onClick={() => setSub(s.k)} className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
-              style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>
-              <Ico size={15} /> {s.label}
-            </button>
-          );
-        })}
+      <div className="text-sm mb-4" style={{ color: C.sub }}>Escolha uma área do comercial:</div>
+      <div className="flex flex-col md:flex-row gap-4 max-w-3xl">
+        <Card icon={Calculator} titulo="Orçamentação (FPP)" sub="Criar e gerenciar fichas de precificação e propostas" onClick={() => setView("fpp")} />
+        <Card icon={Briefcase} titulo="CRM"
+          sub="Abrir o CRM Meridian em uma nova aba"
+          onClick={() => window.open(CRM_URL, "_blank", "noopener")}
+          badge={<ExternalLink size={16} style={{ color: C.sub }} />} />
       </div>
-      {sub === "crm" && <CrmEmbed />}
-      {sub === "fpp" && <Fpp user={user} master={master} />}
     </div>
   );
 }
 
 /* ---------------- CRM embutido ---------------- */
-function CrmEmbed() {
-  return (
-    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-        <div className="text-sm font-semibold" style={{ color: C.text }}>CRM Meridian</div>
-        <a href={CRM_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm font-medium" style={{ color: C.accent }}>
-          Abrir em nova aba <ExternalLink size={14} />
-        </a>
-      </div>
-      <iframe src={CRM_URL} title="CRM Meridian" style={{ width: "100%", height: "calc(100vh - 220px)", border: 0 }} />
-      <div className="px-4 py-2 text-xs" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
-        Se a área acima ficar em branco, o CRM está bloqueando exibição embutida — use "Abrir em nova aba".
-      </div>
-    </div>
-  );
-}
 
 /* ============================================================
    FPP — Ficha de Precificação de Produtos
@@ -624,6 +622,7 @@ function FichasSalvas({ master, onEditar }) {
   const [lista, setLista] = useState(null);
   const [sort, setSort] = useState({ campo: "createdAt", dir: "desc" });
   const [filtroCliente, setFiltroCliente] = useState(null);
+  const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [aberta, setAberta] = useState(null);
   const [proposta, setProposta] = useState(null);
@@ -647,6 +646,19 @@ function FichasSalvas({ master, onEditar }) {
   if (!lista) return <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>;
 
   let dados = filtroCliente ? lista.filter((f) => (f.clienteNome || "—") === filtroCliente) : lista;
+  const q = busca.trim().toLowerCase();
+  if (q) {
+    dados = dados.filter((f) => {
+      const alvo = [
+        f.item, f.nomeComercial, f.clienteNome, f.tipo, f.qtde,
+        f.condicaoPagamento, f.leadTime, f.criadoPorNome,
+        f.valorProposto != null ? brl(f.valorProposto) : "",
+        f.margem != null ? pct(f.margem) : "",
+        f.createdAt ? new Date(f.createdAt).toLocaleDateString("pt-BR") : "",
+      ].map((x) => String(x ?? "").toLowerCase()).join(" ");
+      return alvo.includes(q);
+    });
+  }
   const col = COLS.find((c) => c.k === sort.campo) || COLS[COLS.length - 1];
   dados = [...dados].sort((a, b) => {
     let x = a[sort.campo], y = b[sort.campo];
@@ -678,13 +690,20 @@ function FichasSalvas({ master, onEditar }) {
             <button onClick={() => setFiltroCliente(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
               <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · Cliente: <b>{filtroCliente}</b>
             </button>
-          ) : `${lista.length} ficha(s)`}
+          ) : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
         </div>
-        {selecionadas.length > 0 && (
-          <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
-            Gerar proposta ({selecionadas.length})
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} style={{ color: C.sub, position: "absolute", left: 8, top: 9 }} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar em todas as FPPs…"
+              className="pl-7 pr-2 py-1.5 rounded-md text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text, width: 240 }} />
+          </div>
+          {selecionadas.length > 0 && (
+            <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+              Gerar proposta ({selecionadas.length})
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-auto">
