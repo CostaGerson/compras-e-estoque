@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
 } from "lucide-react";
 import { unzipSync } from "fflate";
+import MatrizCustos from "./matriz";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -69,7 +70,7 @@ export default function Financeiro({ user }) {
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
-      {tela.v === "matriz" && <EmConstrucao titulo="Matriz de custos" Ico={Grid3x3} texto="Custos fixos e variáveis por grupo e conta-caixa, com a base de rateio e o custo por peça." />}
+      {tela.v === "matriz" && <MatrizCustos user={user} />}
       {tela.v === "pagrec" && <PagarReceber />}
       {tela.v === "dfc" && <EmConstrucao titulo="DFC · Demonstrativo de fluxo de caixa futuro" Ico={LineChart} texto="Projeção de entradas e saídas por semana e por mês a partir das contas a pagar e a receber, com o saldo previsto de caixa." />}
     </div>
@@ -145,7 +146,7 @@ function FinDashboard({ user, ir }) {
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {[
           ["meses", CalendarRange, "Análise financeira mensal", "DRE do mês, importação dos documentos e identificação"],
-          ["matriz", Grid3x3, "Matriz de custos", "Custos fixos e variáveis, rateio e custo por peça"],
+          ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
           ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
           ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por semana e por mês"],
         ].map(([v, Ico, t, sub]) => (

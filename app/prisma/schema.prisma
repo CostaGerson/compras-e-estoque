@@ -766,3 +766,29 @@ model FinAnaliseIA {
 
   @@index([competencia])
 }
+
+// Matriz de custos: a oficial e os cenários (simulações). Todo o conteúdo fica em "dados" (JSON) e é
+// calculado por lib/matriz.js.
+model FinMatriz {
+  id           Int      @id @default(autoincrement())
+  nome         String
+  oficial      Boolean  @default(false)
+  dados        Json
+  atualizadoPor String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  versoes      FinMatrizVersao[]
+}
+
+// Cada gravação guarda uma versão (para conferir e restaurar)
+model FinMatrizVersao {
+  id          Int       @id @default(autoincrement())
+  matrizId    Int
+  matriz      FinMatriz @relation(fields: [matrizId], references: [id], onDelete: Cascade)
+  dados       Json
+  usuarioNome String?
+  resumo      String?
+  createdAt   DateTime  @default(now())
+
+  @@index([matrizId])
+}
