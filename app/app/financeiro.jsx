@@ -4,6 +4,7 @@ import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
+  LayoutDashboard, CalendarRange, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 
@@ -36,30 +37,368 @@ function statusCard(n, esperado, justificativa, arqs = []) {
 
 /* ============================================================ */
 export default function Financeiro({ user }) {
-  const [aba, setAba] = useState("importacao");
-  const [comp, setComp] = useState(mesAnterior());
-  const abas = [
-    { k: "importacao", label: "Importação mensal" },
-    { k: "identificacao", label: "Identificação" },
-    { k: "contas", label: "Plano de contas" },
-    { k: "regras", label: "Palavras-chave" },
-    { k: "senhas", label: "Senhas de PDF" },
-  ];
+  // tela: dash | meses | mes | contas | regras | senhas
+  const [tela, setTela] = useState({ v: "dash" });
+  const [ano, setAno] = useState(new Date().getFullYear());
+  const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
+  const migalhas = [{ t: "Financeiro", go: () => ir({ v: "dash" }) }];
+  if (tela.v === "meses" || tela.v === "mes") migalhas.push({ t: `Análise mensal ${tela.v === "mes" ? tela.comp.slice(0, 4) : ano}`, go: () => ir({ v: "meses" }) });
+  if (tela.v === "mes") migalhas.push({ t: nomeComp(tela.comp) });
+  if (tela.v === "contas") migalhas.push({ t: "Plano de contas" });
+  if (tela.v === "regras") migalhas.push({ t: "Palavras-chave" });
+  if (tela.v === "senhas") migalhas.push({ t: "Senhas de PDF" });
   return (
     <div>
-      <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {abas.map((a) => (
-          <button key={a.k} onClick={() => setAba(a.k)} className="px-4 py-2 text-sm font-medium"
-            style={{ color: aba === a.k ? C.accent : C.sub, borderBottom: aba === a.k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
-            {a.label}
+      {migalhas.length > 1 && (
+        <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
+          <button onClick={migalhas[migalhas.length - 2].go} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          {migalhas.map((m, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <ChevR size={13} style={{ color: C.sub }} />}
+              {m.go && i < migalhas.length - 1 ? <button onClick={m.go} style={{ color: C.sub }}>{m.t}</button> : <span className="font-semibold">{m.t}</span>}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+      {tela.v === "dash" && <FinDashboard user={user} ir={ir} />}
+      {tela.v === "meses" && <AnaliseMensal user={user} ano={ano} setAno={setAno} abrir={(comp) => ir({ v: "mes", comp, aba: "dre" })} />}
+      {tela.v === "mes" && <MesFinanceiro user={user} tela={tela} setTela={setTela} />}
+      {tela.v === "contas" && <PlanoContas user={user} />}
+      {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
+      {tela.v === "senhas" && <Senhas user={user} />}
+    </div>
+  );
+}
+
+/* ---------------- DASHBOARD (dia · mês · ano) ---------------- */
+function useResumo(user, ano) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    setD(null); setErro("");
+    fetch(`/api/fin/resumo?u=${user.id}&ano=${ano}`).then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
+  }, [ano]);
+  return [d, erro];
+}
+const moeda = (n) => "R$ " + brl(n);
+
+function Kpi({ rotulo, valor, cor, sub, Ico }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{Ico && <Ico size={14} />} {rotulo}</div>
+      <div className="text-xl font-bold mt-1" style={{ color: cor || C.text }}>{valor}</div>
+      {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
+    </div>
+  );
+}
+
+function BlocoPeriodo({ titulo, p }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{titulo}</div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><div className="text-[11px]" style={{ color: C.sub }}>Entradas</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.entradas)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>Saídas</div><div className="font-bold" style={{ color: C.red }}>{moeda(p.saidas)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>Resultado</div><div className="font-bold" style={{ color: p.resultado >= 0 ? C.green : C.red }}>{moeda(p.resultado)}</div></div>
+      </div>
+      <div className="text-[11px] mt-2" style={{ color: p.pend ? C.accent : C.sub }}>{p.n} lançamento(s){p.pend ? ` · ${p.pend} a identificar` : ""}</div>
+    </div>
+  );
+}
+
+function BarrasAno({ meses, onClick }) {
+  const ks = Object.keys(meses);
+  const max = Math.max(1, ...ks.map((k) => Math.max(meses[k].entradas, -meses[k].saidas)));
+  const H = 140;
+  return (
+    <div className="flex items-end gap-2" style={{ height: H + 34 }}>
+      {ks.map((k, i) => {
+        const m = meses[k];
+        const he = (m.entradas / max) * H, hs = (-m.saidas / max) * H;
+        return (
+          <button key={k} onClick={() => onClick(k)} className="flex-1 flex flex-col items-center gap-1 group" title={`${nomeComp(k)}\nEntradas ${moeda(m.entradas)}\nSaídas ${moeda(m.saidas)}\nResultado ${moeda(m.resultado)}`}>
+            <div className="flex items-end gap-0.5 w-full justify-center" style={{ height: H }}>
+              <div style={{ width: "38%", height: Math.max(he, m.entradas ? 2 : 0), background: C.blue, borderRadius: "3px 3px 0 0", opacity: 0.85 }} />
+              <div style={{ width: "38%", height: Math.max(hs, m.saidas ? 2 : 0), background: C.red, borderRadius: "3px 3px 0 0", opacity: 0.75 }} />
+            </div>
+            <div className="text-[10px] font-semibold" style={{ color: C.sub }}>{MESES[i].slice(0, 3)}</div>
+            <div className="text-[9px]" style={{ color: m.resultado >= 0 ? C.green : C.red }}>{m.n ? (m.resultado / 1000).toFixed(0) + "k" : ""}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FinDashboard({ user, ir }) {
+  const anoAtual = new Date().getFullYear();
+  const [d, erro] = useResumo(user, anoAtual);
+  const hoje = new Date();
+  return (
+    <div>
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+        <button onClick={() => ir({ v: "meses" })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+          <CalendarRange size={26} style={{ color: C.accent }} />
+          <div className="text-lg font-bold mt-2">Análise financeira mensal</div>
+          <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>DRE do mês, importação dos documentos e identificação</div>
+        </button>
+        {[["contas", BookOpen, "Plano de contas", "Contas-caixa da DRE"], ["regras", Wand2, "Palavras-chave", "Identificação automática"], ["senhas", KeyRound, "Senhas de PDF", "Abertura automática"]].map(([v, Ico, t, sub]) => (
+          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <Ico size={22} style={{ color: C.accent }} />
+            <div className="font-bold mt-2">{t}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
           </button>
         ))}
       </div>
-      {aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
-      {aba === "identificacao" && <Identificacao user={user} comp={comp} setComp={setComp} />}
-      {aba === "contas" && <PlanoContas user={user} />}
-      {aba === "regras" && <Regras user={user} comp={comp} />}
-      {aba === "senhas" && <Senhas user={user} />}
+
+      {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+      {d && (
+        <>
+          <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+            <BlocoPeriodo titulo={`Hoje · ${hoje.toLocaleDateString("pt-BR")}`} p={d.periodo.dia} />
+            <BlocoPeriodo titulo={`Mês · ${MESES[hoje.getMonth()]}/${anoAtual}`} p={d.periodo.mes} />
+            <BlocoPeriodo titulo={`Ano · ${anoAtual}`} p={d.periodo.ano} />
+          </div>
+          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Entradas × saídas por mês · {anoAtual}</div>
+              <div className="flex gap-3 text-[11px]" style={{ color: C.sub }}>
+                <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, background: C.blue, borderRadius: 2 }} /> Entradas</span>
+                <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, background: C.red, borderRadius: 2 }} /> Saídas</span>
+              </div>
+            </div>
+            <BarrasAno meses={d.meses} onClick={(k) => ir({ v: "mes", comp: k, aba: "dre" })} />
+          </div>
+          <div className="text-xs mt-3" style={{ color: C.sub }}>
+            Valores pela data dos lançamentos, sem transferências entre contas (conciliação). Os KPIs definitivos deste painel ainda serão definidos.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
+function AnaliseMensal({ user, ano, setAno, abrir }) {
+  const [d, erro] = useResumo(user, ano);
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+          <button onClick={() => setAno(ano - 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>‹</button>
+          <div className="px-4 py-2 font-bold text-lg">{ano}</div>
+          <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
+        </div>
+        <div className="text-sm" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
+      </div>
+      {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+      {d && (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+          {Object.entries(d.meses).map(([k, m], i) => {
+            const futuro = k > new Date().toISOString().slice(0, 7);
+            const doc = m.docs;
+            const temAlgo = m.n > 0 || doc.enviados > 0;
+            const completo = doc.pend === 0 && doc.erro === 0 && m.pend === 0 && m.n > 0;
+            const [stTxt, stCor, stBg] = futuro ? ["—", C.sub, C.panel2] : !temAlgo ? ["Sem dados", C.sub, C.panel2] : completo ? ["Completo", C.green, C.greenSoft] : ["Em andamento", C.accent, C.accentSoft];
+            const pctId = m.n ? Math.round(((m.n - m.pend) / m.n) * 100) : 0;
+            return (
+              <button key={k} onClick={() => !futuro && abrir(k)} disabled={futuro} className="text-left rounded-xl p-4 transition-shadow hover:shadow-lg"
+                style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${completo ? C.green : temAlgo ? C.accent : C.line}`, opacity: futuro ? 0.45 : 1 }}>
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-base">{MESES[i]}</div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: stCor, background: stBg }}>{stTxt}</span>
+                </div>
+                {temAlgo ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-1 mt-3 text-xs">
+                      <span style={{ color: C.sub }}>Entradas</span><span className="text-right font-semibold" style={{ color: C.blue }}>{moeda(m.entradas)}</span>
+                      <span style={{ color: C.sub }}>Saídas</span><span className="text-right font-semibold" style={{ color: C.red }}>{moeda(m.saidas)}</span>
+                      <span style={{ color: C.sub }}>Resultado</span><span className="text-right font-bold" style={{ color: m.resultado >= 0 ? C.green : C.red }}>{moeda(m.resultado)}</span>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between text-[10px]" style={{ color: C.sub }}><span>Identificado</span><span>{pctId}%</span></div>
+                      <div className="h-1.5 rounded-full mt-0.5" style={{ background: C.panel2 }}><div className="h-1.5 rounded-full" style={{ width: `${pctId}%`, background: pctId === 100 ? C.green : C.accent }} /></div>
+                    </div>
+                    <div className="text-[10px] mt-2" style={{ color: doc.pend || doc.erro ? C.red : C.sub }}>
+                      Documentos: {doc.ok}/{doc.total}{doc.just ? ` · ${doc.just} justif.` : ""}{doc.pend ? ` · ${doc.pend} pend.` : ""}{doc.erro ? ` · ${doc.erro} c/ erro` : ""}
+                    </div>
+                  </>
+                ) : !futuro && <div className="text-xs mt-3" style={{ color: C.sub }}>Nenhum documento enviado.</div>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- MÊS: DRE · IMPORTAÇÃO · IDENTIFICAÇÃO ---------------- */
+function MesFinanceiro({ user, tela, setTela }) {
+  const comp = tela.comp;
+  const setComp = (c) => setTela((t) => ({ ...t, comp: c }));
+  const setAba = (aba, extra = {}) => setTela((t) => ({ ...t, aba, ...extra }));
+  const abas = [["dre", "DRE do mês", PieIco], ["importacao", "Importação", FileStack], ["identificacao", "Identificação", Tag]];
+  return (
+    <div>
+      <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
+        {abas.map(([k, t, Ico]) => (
+          <button key={k} onClick={() => setAba(k, { contaFiltro: null })} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+            style={{ color: tela.aba === k ? C.accent : C.sub, borderBottom: tela.aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+            <Ico size={15} /> {t}
+          </button>
+        ))}
+      </div>
+      {tela.aba === "dre" && <DreMes user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
+      {tela.aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
+      {tela.aba === "identificacao" && <Identificacao key={`${comp}-${tela.contaFiltro || ""}`} user={user} comp={comp} setComp={setComp} contaInicial={tela.contaFiltro} />}
+    </div>
+  );
+}
+
+const CORES_PIZZA = ["#001E41", "#FF6B1A", "#2E7CD6", "#12A150", "#C08401", "#7A5AF8", "#D92D20", "#0E9384", "#DD2590", "#4E5BA6", "#B54708", "#667085"];
+
+function Pizza({ fatias, sel, onSel, tamanho = 260 }) {
+  const total = fatias.reduce((a, f) => a + f.valor, 0);
+  const R = tamanho / 2, r0 = R * 0.55;
+  let ang = -Math.PI / 2;
+  const pt = (a, r) => [R + r * Math.cos(a), R + r * Math.sin(a)];
+  const [hover, setHover] = useState(null);
+  if (!total) return <div className="flex items-center justify-center text-sm" style={{ width: tamanho, height: tamanho, color: C.sub }}>Sem valores</div>;
+  const f0 = fatias.find((f) => f.key === (hover ?? sel));
+  return (
+    <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} style={{ overflow: "visible" }}>
+      {fatias.map((f) => {
+        const frac = f.valor / total;
+        const a0 = ang, a1 = ang + frac * Math.PI * 2; ang = a1;
+        const meio = (a0 + a1) / 2, ativo = f.key === sel || f.key === hover;
+        const dx = ativo ? Math.cos(meio) * 8 : 0, dy = ativo ? Math.sin(meio) * 8 : 0;
+        const grande = a1 - a0 > Math.PI ? 1 : 0;
+        const [x0, y0] = pt(a0, R - 2), [x1, y1] = pt(a1, R - 2), [x2, y2] = pt(a1, r0), [x3, y3] = pt(a0, r0);
+        const d = frac >= 0.9999
+          ? `M ${R} 2 A ${R - 2} ${R - 2} 0 1 1 ${R - 0.01} 2 Z M ${R} ${R - r0} A ${r0} ${r0} 0 1 0 ${R + 0.01} ${R - r0} Z`
+          : `M ${x0} ${y0} A ${R - 2} ${R - 2} 0 ${grande} 1 ${x1} ${y1} L ${x2} ${y2} A ${r0} ${r0} 0 ${grande} 0 ${x3} ${y3} Z`;
+        return (
+          <path key={f.key} d={d} fill={f.cor} transform={`translate(${dx} ${dy})`} stroke="#fff" strokeWidth={1.5} fillRule="evenodd"
+            style={{ cursor: "pointer", opacity: sel && !ativo ? 0.45 : 1, transition: "transform .15s, opacity .15s" }}
+            onMouseEnter={() => setHover(f.key)} onMouseLeave={() => setHover(null)} onClick={() => onSel(f.key === sel ? null : f.key)} />
+        );
+      })}
+      <text x={R} y={R - 8} textAnchor="middle" style={{ fontSize: 11, fill: C.sub, fontWeight: 600 }}>{f0 ? f0.rotulo.slice(0, 26) : "Total"}</text>
+      <text x={R} y={R + 12} textAnchor="middle" style={{ fontSize: 15, fill: C.text, fontWeight: 700 }}>{moeda(f0 ? f0.valor : total)}</text>
+      <text x={R} y={R + 28} textAnchor="middle" style={{ fontSize: 11, fill: C.sub }}>{f0 ? `${((f0.valor / total) * 100).toFixed(1)}%` : `${fatias.length} contas`}</text>
+    </svg>
+  );
+}
+
+function DreMes({ user, comp, setComp, abrirConta }) {
+  const [dados, setDados] = useState(null);
+  const [lado, setLado] = useState("D"); // D despesas · C receitas
+  const [sel, setSel] = useState(null);
+  useEffect(() => {
+    setDados(null); setSel(null);
+    fetch(`/api/fin/lancamentos?u=${user.id}&competencia=${comp}`).then((r) => r.json()).then(setDados);
+  }, [comp]);
+  const contas = useMemo(() => Object.fromEntries((dados?.contas || []).map((c) => [c.id, c])), [dados]);
+  const ls = useMemo(() => (dados?.lancamentos || []).filter((l) => !l.desmembrado && !l.substituido), [dados]);
+  const conc = (dados?.contas || []).find((c) => c.codigo === "3000000");
+  const semConc = ls.filter((l) => !(conc && l.contaId === conc.id));
+  const ent = semConc.filter((l) => l.valor > 0).reduce((a, l) => a + l.valor, 0);
+  const sai = semConc.filter((l) => l.valor < 0).reduce((a, l) => a + l.valor, 0);
+  const pend = ls.filter((l) => !l.contaId);
+  const concSaldo = conc ? ls.filter((l) => l.contaId === conc.id).reduce((a, l) => a + l.valor, 0) : 0;
+
+  const fatias = useMemo(() => {
+    const m = {};
+    for (const l of semConc) {
+      if (lado === "D" ? l.valor >= 0 : l.valor <= 0) continue;
+      const k = l.contaId || "sem";
+      m[k] = (m[k] || 0) + Math.abs(l.valor);
+    }
+    const arr = Object.entries(m).map(([k, v]) => ({ key: k, valor: v, rotulo: k === "sem" ? "A IDENTIFICAR" : contas[k]?.nome || "?", codigo: k === "sem" ? "" : contas[k]?.codigo }))
+      .sort((a, b) => b.valor - a.valor);
+    return arr.map((f, i) => ({ ...f, cor: f.key === "sem" ? "#F79009" : CORES_PIZZA[i % CORES_PIZZA.length] }));
+  }, [semConc, lado, contas]);
+  const totalLado = fatias.reduce((a, f) => a + f.valor, 0);
+  const itensSel = sel ? semConc.filter((l) => String(l.contaId || "sem") === String(sel) && (lado === "D" ? l.valor < 0 : l.valor > 0)).sort((a, b) => a.valor - b.valor) : [];
+  const fSel = fatias.find((f) => f.key === sel);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SeletorMes comp={comp} setComp={setComp} />
+        <div className="text-xs px-3 py-1.5 rounded-lg" style={{ background: C.yellowSoft, color: C.yellow }}>
+          DRE por conta-caixa · a estrutura de grupos (receita bruta, CMV, despesas…) entra quando definirmos juntos.
+        </div>
+      </div>
+      {!dados && <div style={{ color: C.sub }}>Carregando…</div>}
+      {dados && (
+        <>
+          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            <Kpi rotulo="Entradas" valor={moeda(ent)} cor={C.blue} Ico={TrendingUp} />
+            <Kpi rotulo="Saídas" valor={moeda(sai)} cor={C.red} Ico={TrendingDown} />
+            <Kpi rotulo="Resultado" valor={moeda(ent + sai)} cor={ent + sai >= 0 ? C.green : C.red} sub={ent ? `margem ${(((ent + sai) / ent) * 100).toFixed(1)}%` : ""} />
+            <Kpi rotulo="A identificar" valor={`${pend.length}`} cor={pend.length ? C.accent : C.green} sub={pend.length ? moeda(pend.reduce((a, l) => a + l.valor, 0)) : "tudo identificado"} />
+            <Kpi rotulo="Conciliação" valor={moeda(concSaldo)} cor={Math.abs(concSaldo) < 0.005 ? C.green : C.red} sub={Math.abs(concSaldo) < 0.005 ? "fecha em zero ✓" : "deveria fechar em zero"} />
+          </div>
+
+          <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Concentração por conta-caixa</div>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+                {[["D", "Despesas"], ["C", "Receitas"]].map(([k, t]) => (
+                  <button key={k} onClick={() => { setLado(k); setSel(null); }} className="px-3 py-1.5 text-sm" style={{ background: lado === k ? C.navy : C.panel, color: lado === k ? "#fff" : C.sub }}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-8 items-start">
+              <Pizza fatias={fatias} sel={sel} onSel={setSel} />
+              <div className="flex-1" style={{ minWidth: 280 }}>
+                {fatias.map((f) => (
+                  <button key={f.key} onClick={() => setSel(f.key === sel ? null : f.key)} className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-left"
+                    style={{ background: f.key === sel ? C.accentSoft : "transparent" }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: f.cor }} className="shrink-0" />
+                    <span className="font-mono" style={{ color: C.sub, width: 56 }}>{f.codigo}</span>
+                    <span className="flex-1 font-semibold truncate">{f.rotulo}</span>
+                    <span style={{ color: C.sub, width: 48, textAlign: "right" }}>{((f.valor / totalLado) * 100).toFixed(1)}%</span>
+                    <span className="font-semibold" style={{ width: 110, textAlign: "right" }}>{moeda(f.valor)}</span>
+                  </button>
+                ))}
+                {!fatias.length && <div className="text-sm" style={{ color: C.sub }}>Sem lançamentos.</div>}
+              </div>
+            </div>
+          </div>
+
+          {fSel && (
+            <div className="rounded-xl mt-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: fSel.cor }} />
+                <div className="flex-1 font-bold text-sm">{fSel.codigo} {fSel.rotulo} · {itensSel.length} lançamento(s) · {moeda(fSel.valor)}</div>
+                <button onClick={() => abrirConta(sel === "sem" ? "_sem" : sel)} className="flex items-center gap-1 px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>
+                  <Tag size={12} /> Abrir na identificação
+                </button>
+                <button onClick={() => setSel(null)} style={{ color: C.sub }}><X size={16} /></button>
+              </div>
+              <div className="overflow-auto" style={{ maxHeight: 420 }}>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {itensSel.map((l) => (
+                      <tr key={l.id} style={{ borderBottom: `1px solid ${C.panel2}` }}>
+                        <td className="px-4 py-1.5" style={{ color: C.sub, width: 130 }}>{l.banco}</td>
+                        <td className="px-2 py-1.5" style={{ color: C.sub, width: 80 }}>{dBR(l.data)}</td>
+                        <td className="px-2 py-1.5">{l.historico}{l.identificacao && <div className="text-[10px]" style={{ color: C.sub }}>{l.identificacao}</div>}</td>
+                        <td className="px-4 py-1.5 text-right font-semibold" style={{ color: corValor(l.valor), width: 110 }}>{brl(l.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -105,6 +444,19 @@ function Importacao({ user, comp, setComp }) {
     cards.forEach((c) => { let g = m.find((x) => x.banco === c.tipo.banco); if (!g) m.push(g = { banco: c.tipo.banco, cards: [] }); g.cards.push(c); });
     return m;
   }, [cards]);
+
+  // clicar numa pílula rola até o(s) documento(s) daquele status (cliques seguidos passam para o próximo)
+  const cursor = useRef({});
+  const irPara = (ks) => {
+    const alvo = cards.filter((c) => ks.includes(c.st.k));
+    if (!alvo.length) return;
+    const i = (cursor.current[ks.join()] || 0) % alvo.length;
+    cursor.current[ks.join()] = i + 1;
+    const el = document.getElementById(`doc-${alvo[i].tipo.id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.animate([{ boxShadow: `0 0 0 0 ${C.accent}` }, { boxShadow: `0 0 0 4px ${C.accent}` }, { boxShadow: `0 0 0 0 ${C.accent}` }], { duration: 1400 });
+  };
 
   const tot = useMemo(() => ({
     total: cards.length,
@@ -205,10 +557,11 @@ function Importacao({ user, comp, setComp }) {
         {dados && (
           <div className="flex flex-wrap gap-2">
             <Pilula cor={C.green} bg={C.greenSoft} txt={`${tot.ok} de ${tot.total} enviados`} />
-            {tot.just > 0 && <Pilula cor={C.blue} bg={C.blueSoft} txt={`${tot.just} justificado${tot.just > 1 ? "s" : ""}`} />}
-            {tot.erro > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${tot.erro} com erro de leitura`} />}
-            <Pilula cor={tot.pend || tot.erro ? C.red : C.green} bg={tot.pend || tot.erro ? C.redSoft : C.greenSoft}
-              txt={tot.pend ? `${tot.pend} pendente${tot.pend > 1 ? "s" : ""}` : tot.erro ? "Corrigir leituras" : "Mês completo"} />
+            {tot.just > 0 && <Pilula cor={C.blue} bg={C.blueSoft} txt={`${tot.just} justificado${tot.just > 1 ? "s" : ""}`} onClick={() => irPara(["just"])} />}
+            {tot.erro > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${tot.erro} com erro de leitura`} onClick={() => irPara(["erro"])} />}
+            {tot.pend > 0
+              ? <Pilula cor={C.red} bg={C.redSoft} txt={`${tot.pend} pendente${tot.pend > 1 ? "s" : ""}`} onClick={() => irPara(["pend", "parc"])} />
+              : <Pilula cor={tot.erro ? C.red : C.green} bg={tot.erro ? C.redSoft : C.greenSoft} txt={tot.erro ? "Corrigir leituras" : "Mês completo"} />}
           </div>
         )}
       </div>
@@ -263,7 +616,8 @@ function ProvaChip({ a }) {
   return <span className="text-[10px] px-1.5 rounded font-semibold shrink-0 cursor-help" style={{ background: bg, color: cor }} title={p.msg}>{txt}</span>;
 }
 
-function Pilula({ cor, bg, txt }) {
+function Pilula({ cor, bg, txt, onClick }) {
+  if (onClick) return <button onClick={onClick} title="Clique para ir até o documento" className="px-3 py-1 rounded-full text-xs font-semibold hover:underline" style={{ color: cor, background: bg }}>{txt} ↓</button>;
   return <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ color: cor, background: bg }}>{txt}</span>;
 }
 
@@ -290,8 +644,8 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou }) {
   };
 
   return (
-    <div className="rounded-xl flex flex-col"
-      style={{ background: C.panel, border: `1px solid ${drag ? C.accent : st.k === "pend" ? "#F5C2BD" : C.line}`, borderTop: `3px solid ${st.cor}` }}
+    <div id={`doc-${tipo.id}`} className="rounded-xl flex flex-col"
+      style={{ scrollMarginTop: 80, background: C.panel, border: `1px solid ${drag ? C.accent : st.k === "pend" ? "#F5C2BD" : C.line}`, borderTop: `3px solid ${st.cor}` }}
       onDragOver={(e) => { if (!podeMais) return; e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeMais) onArquivos(e.dataTransfer.files); }}>
@@ -577,12 +931,12 @@ const api = async (url, method, body) => {
   return d;
 };
 
-function Identificacao({ user, comp, setComp }) {
+function Identificacao({ user, comp, setComp, contaInicial }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [agrupar, setAgrupar] = useState("banco");
   const [fBanco, setFBanco] = useState("");
-  const [fConta, setFConta] = useState("");
+  const [fConta, setFConta] = useState(contaInicial ? String(contaInicial) : "");
   const [fStatus, setFStatus] = useState("todos");
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(new Set());
