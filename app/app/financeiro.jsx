@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
+  FolderArchive, Loader2, Copy, HelpCircle,
 } from "lucide-react";
+import { unzipSync } from "fflate";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -19,6 +21,8 @@ const nomeComp = (c) => { const [a, m] = c.split("-"); return `${MESES[Number(m)
 const somaMes = (c, n) => { const [a, m] = c.split("-").map(Number); const d = new Date(a, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 const dataHora = (v) => { const d = new Date(v); return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
+const u8ToB64 = (u8) => { let s = ""; const k = 0x8000; for (let i = 0; i < u8.length; i += k) s += String.fromCharCode.apply(null, u8.subarray(i, i + k)); return btoa(s); };
+const readU8 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(new Uint8Array(fr.result)); fr.readAsArrayBuffer(file); });
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
 
 function statusCard(n, esperado, justificativa) {
@@ -95,7 +99,7 @@ function Importacao({ user }) {
   const enviar = async (tipo, file, b64, senha, salvarSenha, rotuloSenha) => {
     const r = await fetch("/api/fin/arquivos", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuarioId: user.id, competencia: comp, tipoId: tipo.id, nome: file.name, conteudo: b64, senha, salvarSenha, rotuloSenha }),
+      body: JSON.stringify({ usuarioId: user.id, competencia: comp, tipoId: tipo ? tipo.id : "auto", nome: file.name, conteudo: b64, senha, salvarSenha, rotuloSenha }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.status === 423 && d.precisaSenha) { setPedirSenha({ tipo, file, b64, errada: !!d.senhaErrada }); return "senha"; }
@@ -113,6 +117,47 @@ function Importacao({ user }) {
     carregar();
   };
 
+  // ---- importação em lote (ZIP e/ou vários PDFs): classifica cada arquivo sozinho ----
+  const loteInp = useRef(null);
+  const [lote, setLote] = useState(null); // [{ nome, b64, st, msg, tipo }]
+
+  const abrirLote = async (files) => {
+    const itens = [];
+    for (const f of Array.from(files || [])) {
+      if (/\.zip$/i.test(f.name)) {
+        try {
+          const ent = unzipSync(await readU8(f));
+          Object.entries(ent).forEach(([caminho, u8]) => {
+            const nome = caminho.split("/").pop();
+            if (!nome || caminho.includes("__MACOSX") || nome.startsWith(".")) return;
+            if (!/\.pdf$/i.test(nome)) { itens.push({ nome, st: "ignorado", msg: "Não é PDF" }); return; }
+            itens.push({ nome, b64: u8ToB64(u8), st: "fila" });
+          });
+        } catch { itens.push({ nome: f.name, st: "erro", msg: "ZIP inválido" }); }
+      } else if (/\.pdf$/i.test(f.name)) {
+        itens.push({ nome: f.name, b64: await readB64(f), st: "fila" });
+      } else itens.push({ nome: f.name, st: "ignorado", msg: "Não é PDF nem ZIP" });
+    }
+    setLote(itens);
+    for (let i = 0; i < itens.length; i++) if (itens[i].st === "fila") await processarLote(i, itens[i]);
+    carregar();
+  };
+
+  const processarLote = async (i, it, extra = {}) => {
+    const upd = (patch) => setLote((l) => l && l.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+    upd({ st: "enviando", msg: "" });
+    const r = await fetch("/api/fin/arquivos", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuarioId: user.id, competencia: comp, tipoId: extra.tipoId || "auto", nome: it.nome, conteudo: it.b64, senha: extra.senha, salvarSenha: extra.salvarSenha, rotuloSenha: extra.rotuloSenha }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) return upd({ st: "ok", tipo: d.tipo, msg: d.protegido ? "PDF com senha aberto" : "" });
+    if (r.status === 423) return upd({ st: "senha", msg: d.senhaErrada ? "Senha incorreta" : "PDF com senha" });
+    if (r.status === 409) return upd({ st: "duplicado", msg: d.error });
+    if (d.naoReconhecido) return upd({ st: "manual", msg: d.error });
+    return upd({ st: "erro", msg: d.error || "Erro ao enviar" });
+  };
+
   const excluir = async (a) => {
     if (!confirm(`Excluir o arquivo ${a.nome}?`)) return;
     await fetch(`/api/fin/arquivos/${a.id}?u=${user.id}`, { method: "DELETE" });
@@ -128,6 +173,13 @@ function Importacao({ user }) {
           <div className="px-3 py-2 font-semibold" style={{ minWidth: 150, textAlign: "center" }}>{nomeComp(comp)}</div>
           <button onClick={() => setComp(somaMes(comp, 1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
+        <input ref={loteInp} type="file" accept=".zip,application/zip,application/pdf,.pdf" multiple className="hidden"
+          onChange={(e) => { abrirLote(e.target.files); e.target.value = ""; }} />
+        <button onClick={() => loteInp.current?.click()} disabled={!dados}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.accent, color: "#fff", opacity: dados ? 1 : 0.5 }}>
+          <FolderArchive size={16} /> Importar ZIP / vários PDFs
+        </button>
         {dados && (
           <div className="flex flex-wrap gap-2">
             <Pilula cor={C.green} bg={C.greenSoft} txt={`${tot.ok} de ${tot.total} enviados`} />
@@ -161,6 +213,12 @@ function Importacao({ user }) {
           </div>
         </div>
       ))}
+
+      {lote && (
+        <LoteModal itens={lote} tipos={dados?.tipos || []} comp={comp}
+          onReenviar={(i, extra) => processarLote(i, lote[i], extra).then(carregar)}
+          onClose={() => { setLote(null); carregar(); }} />
+      )}
 
       {pedirSenha && (
         <SenhaModal info={pedirSenha} onClose={() => { setPedirSenha(null); carregar(); }}
@@ -282,7 +340,7 @@ function SenhaModal({ info, onClose, onEnviar }) {
   const [senha, setSenha] = useState("");
   const [ver, setVer] = useState(false);
   const [salvar, setSalvar] = useState(true);
-  const [rotulo, setRotulo] = useState(`${info.tipo.banco} · ${info.tipo.documento}`);
+  const [rotulo, setRotulo] = useState(info.tipo ? `${info.tipo.banco} · ${info.tipo.documento}` : "");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
       <div className="rounded-xl w-full max-w-md p-5" style={{ background: C.panel }}>
@@ -309,6 +367,93 @@ function SenhaModal({ info, onClose, onEnviar }) {
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2, color: C.text }}>Cancelar</button>
           <button disabled={!senha} onClick={() => onEnviar(senha, salvar, rotulo)} className="px-4 py-2 rounded-lg text-sm font-semibold"
             style={{ background: C.accent, color: "#fff", opacity: senha ? 1 : 0.5 }}>Abrir e enviar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- RESULTADO DA IMPORTAÇÃO EM LOTE ---------------- */
+const ST_LOTE = {
+  fila:      { txt: "Na fila",      cor: C.sub,    bg: C.panel2 },
+  enviando:  { txt: "Lendo…",       cor: C.blue,   bg: C.blueSoft },
+  ok:        { txt: "Classificado", cor: C.green,  bg: C.greenSoft },
+  duplicado: { txt: "Já enviado",   cor: C.sub,    bg: C.panel2 },
+  senha:     { txt: "Senha",        cor: C.yellow, bg: C.yellowSoft },
+  manual:    { txt: "Escolher",     cor: C.yellow, bg: C.yellowSoft },
+  ignorado:  { txt: "Ignorado",     cor: C.sub,    bg: C.panel2 },
+  erro:      { txt: "Erro",         cor: C.red,    bg: C.redSoft },
+};
+
+function LoteModal({ itens, tipos, comp, onReenviar, onClose }) {
+  const [senhas, setSenhas] = useState({});
+  const [escolha, setEscolha] = useState({});
+  const ok = itens.filter((x) => x.st === "ok").length;
+  const processando = itens.some((x) => x.st === "fila" || x.st === "enviando");
+  const pendentes = itens.filter((x) => x.st === "senha" || x.st === "manual").length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
+      <div className="rounded-xl w-full max-w-3xl flex flex-col" style={{ background: C.panel, maxHeight: "88vh" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div>
+            <div className="font-semibold flex items-center gap-2"><FolderArchive size={18} style={{ color: C.accent }} /> Importação em lote · {nomeComp(comp)}</div>
+            <div className="text-xs mt-0.5" style={{ color: C.sub }}>
+              {processando ? "Lendo e classificando os arquivos…" : `${ok} de ${itens.length} classificados${pendentes ? ` · ${pendentes} precisam de você` : ""}`}
+            </div>
+          </div>
+          <button onClick={onClose} disabled={processando} style={{ color: C.sub, opacity: processando ? 0.4 : 1 }}><X size={18} /></button>
+        </div>
+        <div className="overflow-auto px-5 py-3 flex flex-col gap-2">
+          {itens.map((it, i) => {
+            const st = ST_LOTE[it.st] || ST_LOTE.erro;
+            return (
+              <div key={i} className="rounded-lg px-3 py-2" style={{ border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0" style={{ color: st.cor, background: st.bg, minWidth: 92, justifyContent: "center" }}>
+                    {it.st === "enviando" && <Loader2 size={11} className="animate-spin" />}
+                    {it.st === "duplicado" && <Copy size={11} />}
+                    {it.st === "manual" && <HelpCircle size={11} />}
+                    {it.st === "senha" && <KeyRound size={11} />}
+                    {st.txt}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate" title={it.nome}>{it.nome}</div>
+                    <div className="text-[11px]" style={{ color: it.st === "ok" ? C.green : C.sub }}>
+                      {it.st === "ok" && it.tipo ? `→ ${it.tipo.banco} · ${it.tipo.documento}` : ""}{it.msg ? (it.st === "ok" ? ` · ${it.msg}` : it.msg) : ""}
+                    </div>
+                  </div>
+                </div>
+                {it.st === "senha" && (
+                  <div className="flex gap-2 mt-2 pl-[104px]">
+                    <input type="password" placeholder="Senha do PDF" value={senhas[i] || ""} onChange={(e) => setSenhas((s) => ({ ...s, [i]: e.target.value }))}
+                      className="flex-1 px-2 py-1 text-xs rounded" style={{ border: `1px solid ${C.line}` }} />
+                    <button disabled={!senhas[i]} onClick={() => onReenviar(i, { senha: senhas[i], salvarSenha: true, rotuloSenha: "" })}
+                      className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff", opacity: senhas[i] ? 1 : 0.5 }}>
+                      Abrir e salvar senha
+                    </button>
+                  </div>
+                )}
+                {it.st === "manual" && (
+                  <div className="flex gap-2 mt-2 pl-[104px]">
+                    <select value={escolha[i] || ""} onChange={(e) => setEscolha((s) => ({ ...s, [i]: e.target.value }))}
+                      className="flex-1 px-2 py-1 text-xs rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+                      <option value="">Escolha o documento…</option>
+                      {tipos.map((t) => <option key={t.id} value={t.id}>{t.banco} · {t.documento}</option>)}
+                    </select>
+                    <button disabled={!escolha[i]} onClick={() => onReenviar(i, { tipoId: Number(escolha[i]) })}
+                      className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff", opacity: escolha[i] ? 1 : 0.5 }}>
+                      Enviar
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-5 py-3 flex justify-end" style={{ borderTop: `1px solid ${C.line}` }}>
+          <button onClick={onClose} disabled={processando} className="px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: C.accent, color: "#fff", opacity: processando ? 0.5 : 1 }}>Concluir</button>
         </div>
       </div>
     </div>

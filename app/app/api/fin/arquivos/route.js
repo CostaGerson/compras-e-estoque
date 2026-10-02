@@ -2,17 +2,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, abrirPdf } from "@/lib/fin";
+import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos } from "@/lib/fin";
 
-// POST { usuarioId, competencia, tipoId, nome, conteudo(base64), senha?, salvarSenha?, rotuloSenha? }
+// POST { usuarioId, competencia, tipoId ("auto" = classifica pelo texto), nome, conteudo(base64), senha?, salvarSenha?, rotuloSenha? }
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
-  const tipo = await prisma.finDocTipo.findUnique({ where: { id: Number(b.tipoId) } });
-  if (!tipo) return Response.json({ error: "Documento não encontrado." }, { status: 400 });
+  const auto = b.tipoId === "auto";
+  let tipo = null;
+  if (!auto) {
+    tipo = await prisma.finDocTipo.findUnique({ where: { id: Number(b.tipoId) } });
+    if (!tipo) return Response.json({ error: "Documento não encontrado." }, { status: 400 });
+  }
   if (!b.conteudo) return Response.json({ error: "Arquivo vazio." }, { status: 400 });
 
   const buf = Buffer.from(String(b.conteudo), "base64");
@@ -36,6 +40,21 @@ export async function POST(req) {
   }
   if (!r.ok) return Response.json({ error: "Não consegui abrir o PDF: " + r.erro }, { status: 422 });
 
+  // classificação automática
+  if (auto) {
+    const cl = classificarTexto(r.texto);
+    if (cl.codigo) {
+      await garantirTipos();
+      tipo = await prisma.finDocTipo.findUnique({ where: { codigo: cl.codigo } });
+    }
+    if (!tipo) {
+      return Response.json({
+        naoReconhecido: true,
+        error: cl.semTexto ? "PDF sem texto (imagem/impressão) — escolha o documento." : "Documento não reconhecido — escolha o documento.",
+      }, { status: 422 });
+    }
+  }
+
   if (r.senha && b.senha && b.salvarSenha && !salvas.includes(r.senha)) {
     await prisma.finSenhaPdf.create({ data: { rotulo: String(b.rotuloSenha || `${tipo.banco} · ${tipo.documento}`).toUpperCase(), senha: r.senha } });
   }
@@ -48,5 +67,5 @@ export async function POST(req) {
     },
     select: { id: true, tipoId: true, nome: true, tamanho: true, enviadoPorNome: true, createdAt: true },
   });
-  return Response.json({ ...a, protegido: !!r.senha, paginas: r.paginas });
+  return Response.json({ ...a, protegido: !!r.senha, paginas: r.paginas, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } });
 }

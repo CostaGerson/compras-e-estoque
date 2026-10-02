@@ -55,20 +55,60 @@ export async function abrirPdf(buf, senhasTentar) {
     try {
       const doc = await PDFJS.getDocument({ data: new Uint8Array(buf), password });
       const paginas = doc.numPages;
+      let texto = "";
+      for (let i = 1; i <= Math.min(3, paginas); i++) {
+        const pg = await doc.getPage(i);
+        const c = await pg.getTextContent();
+        texto += c.items.map((x) => x.str).join(" ") + "\n";
+      }
       doc.destroy();
-      return { ok: true, paginas };
+      return { ok: true, paginas, texto };
     } catch (e) {
       if (e && e.name === "PasswordException") return { ok: false, senha: true };
       return { ok: false, erro: e?.message || "PDF inválido" };
     }
   };
   const r0 = await tenta(undefined);
-  if (r0.ok) return { ok: true, senha: null, paginas: r0.paginas };
+  if (r0.ok) return { ok: true, senha: null, paginas: r0.paginas, texto: r0.texto };
   if (!r0.senha) return { ok: false, erro: r0.erro };
   for (const s of senhasTentar) {
     if (!s) continue;
     const r = await tenta(s);
-    if (r.ok) return { ok: true, senha: s, paginas: r.paginas };
+    if (r.ok) return { ok: true, senha: s, paginas: r.paginas, texto: r.texto };
   }
   return { ok: false, precisaSenha: true };
+}
+
+// ---------- Classificação automática (pelo texto do PDF) ----------
+// Texto normalizado: maiúsculo, sem acento e SEM espaços (alguns bancos espaçam letra a letra).
+export const normalizarTexto = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, "");
+
+const tem = (n, ...xs) => xs.every((x) => n.includes(x));
+const algum = (n, ...xs) => xs.some((x) => n.includes(x));
+
+// Ordem importa: regras mais específicas primeiro.
+export const REGRAS_CLASSIFICACAO = [
+  ["IFOOD_RECARGA",     (n) => tem(n, "RELATORIODERECARGA", "IFOODBENEFICIOS")],
+  ["BRADESCO_COBRANCA", (n) => tem(n, "TITULOSPAGOSPORCONTACREDITO")],
+  ["BRADESCO_FOLHA",    (n) => tem(n, "CREDITOEMCONTASALARIO")],
+  ["BRADESCO_FATURA",   (n) => tem(n, "NOVACONSULTADEEXTRATO", "NUMERODOCARTAO")],
+  ["BRADESCO_EXTRATO",  (n) => tem(n, "EXTRATODE:AG:") || tem(n, "EXTRATOMENSAL/PORPERIODO")],
+  ["ITAU_PAGAMENTOS",   (n) => tem(n, "CONSULTADEPAGAMENTOS,TRANSFERENCIASEPIX")],
+  ["ITAU_FATURA",       (n) => tem(n, "ITAUEMPRESASMASTERCARD")],
+  ["ITAU_EXTRATO",      (n) => tem(n, "LANCAMENTOSDOPERIODO", "RAZAOSOCIAL", "SALDOTOTALDISPONIVELDIA")],
+  ["INTER_FATURA",      (n) => algum(n, "BANCOINTERS/A", "SUAFATURACHEGOU") && algum(n, "RESUMODAFATURA", "DESPESASDAFATURA")],
+  ["INTER_EXTRATO",     (n) => tem(n, "INSTITUICAO:BANCOINTER")],
+  ["C6_EXTRATO",        (n) => tem(n, "EXTRATOEXPORTADONODIA")],
+  ["C6_FATURA",         (n) => algum(n, "C6BANK", "C6BUSINESS", "BANCOC6") && algum(n, "VALORDAFATURA", "PAGAMENTODEFATURA", "RESUMODAFATURA")],
+  ["BB_FATURA",         (n) => algum(n, "OUROCARD", "BANCODOBRASILS/A") && tem(n, "RESUMODAFATURA")],
+  ["BB_EXTRATO",        (n) => tem(n, "EXTRATODECONTACORRENTE", "MOVIMENTACAOEM")],
+  ["CAIXA_FATURA",      (n) => tem(n, "CARTOESCAIXA")],
+  ["CAIXA_EXTRATO",     (n) => tem(n, "PRODUTO:", "DATADEMOVIMENTO", "HISTORICO")],
+];
+
+export function classificarTexto(texto) {
+  const n = normalizarTexto(texto);
+  if (n.length < 30) return { codigo: null, semTexto: true };
+  for (const [codigo, f] of REGRAS_CLASSIFICACAO) if (f(n)) return { codigo };
+  return { codigo: null };
 }
