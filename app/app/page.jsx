@@ -4,7 +4,7 @@ import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
-  Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark,
+  Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
 import Comercial from "./comercial";
 import Financeiro from "./financeiro";
@@ -53,21 +53,49 @@ const COMPONENTES = {
   AVENTAL: ["MODELAGEM","TECIDO","BOLSO DO AVENTAL","ALÇA DO AVENTAL","EXTRA DO AVENTAL","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
 };
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
-const NAV = [
-  { key: "inicio", label: "Início", icon: LayoutDashboard, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
-  { key: "pedidos", label: "Pedidos", icon: ClipboardList, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
-  { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"] },
-  { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"] },
-  { key: "producao", label: "Produção", icon: Workflow, perfis: ["FINANCEIRO","PCP","ESTOQUE"] },
-  { key: "pp", label: "Lançar PP", icon: FileText, perfis: ["FINANCEIRO","PCP"] },
-  { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO","PCP"] },
-  { key: "oc", label: "Ordens de Compra", icon: ShoppingCart, perfis: ["FINANCEIRO","COMPRAS"] },
-  { key: "nf", label: "Notas Fiscais", icon: FileText, perfis: ["FINANCEIRO","COMPRAS"] },
-  { key: "estoque", label: "Estoque", icon: Boxes, perfis: ["FINANCEIRO","ESTOQUE"] },
-  { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO","ESTOQUE"] },
-  { key: "banco", label: "Banco de dados", icon: Database, perfis: ["FINANCEIRO","PCP","COMPRAS"] },
-  { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"] },
+const TODOS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
+// Menu em árvore: grupos (com filhos) abrem uma tela de cards; folhas abrem o módulo.
+const MENU = [
+  { key: "gestao", label: "Gestão", icon: Compass, desc: "Visão geral, pedidos e chão de fábrica", filhos: [
+    { key: "inicio", label: "Painel geral", icon: LayoutDashboard, perfis: TODOS, desc: "Indicadores de pedidos, produção, compras e estoque" },
+    { key: "pedidos", label: "Pedidos", icon: ClipboardList, perfis: TODOS, desc: "Lista, kanban, dashboard e calendário dos pedidos" },
+    { key: "pp", label: "Lançar PP", icon: FileText, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido de produção a partir da solicitação do PCP" },
+    { key: "fabrica", label: "Chão de fábrica", icon: Workflow, perfis: ["FINANCEIRO", "PCP", "ESTOQUE"], desc: "Etapas: corte, personalização, costura e acabamento" },
+  ] },
+  { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"], desc: "Clientes, propostas e vendas" },
+  { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
+  { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
+    { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário, ordens de compra e NF de entrada", filhos: [
+      { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido interno de compras consolidado do dia" },
+      { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
+      { key: "nf", label: "NF de entrada", icon: FileText, perfis: ["FINANCEIRO", "COMPRAS"], desc: "Importação de XML/PDF e estratificação" },
+    ] },
+    { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
+      { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Tecidos, malhas, aviamentos e outros" },
+      { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
+    ] },
+  ] },
+  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores e artigos", filhos: [
+    { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
+    { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
+    { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
+  ] },
+  { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
+// filtra o menu para o perfil (grupo aparece se algum filho aparecer)
+function menuDoPerfil(perfil) {
+  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
+  return f(MENU);
+}
+// caminho (lista de nós) até a chave
+function caminhoMenu(lista, key, acc = []) {
+  for (const n of lista) {
+    if (n.key === key) return [...acc, n];
+    if (n.filhos) { const r = caminhoMenu(n.filhos, key, [...acc, n]); if (r) return r; }
+  }
+  return null;
+}
 
 // sessão do usuário logado (guardada no navegador)
 function lerSessao() {
@@ -98,7 +126,10 @@ export default function Home() {
 
   const master = !!(user.isMaster || user.setor === "FINANCEIRO");
   const perfil = master ? "FINANCEIRO" : user.setor;
-  const nav = NAV.filter((n) => n.perfis.includes(perfil) || (perfil === "ADMINISTRATIVO" && n.key !== "usuarios" && n.key !== "financeiro"));
+  const menu = menuDoPerfil(perfil);
+  const caminho = caminhoMenu(menu, view) || [];
+  const noAtual = caminho[caminho.length - 1];
+  const ir = (k) => { setView(k); setTab("lista"); };
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
@@ -115,17 +146,7 @@ export default function Home() {
           </button>
         </div>
         <nav className="flex-1 py-2 overflow-y-auto">
-          {nav.map((n) => {
-            const Ico = n.icon; const on = view === n.key;
-            return (
-              <button key={n.key} onClick={() => { setView(n.key); setTab("lista"); }}
-                className="w-full flex items-center gap-3 px-4 py-2 transition-colors"
-                style={{ background: on ? "#0C2C52" : "transparent", color: on ? C.accent : C.sidebarSub,
-                  borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent" }}>
-                <Ico size={17} /> <span>{n.label}</span>
-              </button>
-            );
-          })}
+          <MenuArvore itens={menu} view={view} caminho={caminho} ir={ir} />
         </nav>
         <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
           Sistema de Gestão · v1
@@ -142,7 +163,16 @@ export default function Home() {
                 <ChevronRight size={18} />
               </button>
             )}
-            <div className="font-semibold">{NAV.find((n) => n.key === view)?.label || (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : "")}</div>
+            <div className="font-semibold flex items-center gap-1">
+              {caminho.length ? caminho.map((n, i) => (
+                <React.Fragment key={n.key}>
+                  {i > 0 && <ChevronRight size={14} style={{ color: C.sub }} />}
+                  {i < caminho.length - 1
+                    ? <button onClick={() => ir(n.key)} className="font-normal hover:underline" style={{ color: C.sub }}>{n.label}</button>
+                    : <span>{n.label}</span>}
+                </React.Fragment>
+              )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : "")}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {master && (
@@ -158,18 +188,19 @@ export default function Home() {
         </header>
 
         <div className="flex-1 overflow-auto p-6">
+          {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "inicio" && <Inicio money={money} master={master} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
           {view === "financeiro" && master && <Financeiro user={user} />}
-          {view === "producao" && <Producao />}
+          {view === "fabrica" && <Producao />}
           {view === "pp" && <LancarPP />}
           {view === "pic" && <PIC />}
           {view === "oc" && <OC money={money} />}
           {view === "nf" && <NF master={master} money={money} perfil={perfil} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME user={user} perfil={perfil} />}
-          {view === "banco" && <BancoDados master={master} money={money} perfil={perfil} />}
+          {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
@@ -179,6 +210,72 @@ export default function Home() {
         <UsuarioModal usuario={user} self onClose={() => setPerfilAberto(false)}
           onSavedUser={(u) => { atualizarUser(u); setPerfilAberto(false); }} />
       )}
+    </div>
+  );
+}
+
+/* ===== Menu lateral em árvore ===== */
+function MenuArvore({ itens, view, caminho, ir, nivel = 0 }) {
+  const abertos = new Set(caminho.map((n) => n.key));
+  const [extra, setExtra] = useState({}); // grupos abertos/fechados à mão
+  return itens.map((n) => {
+    const Ico = n.icon;
+    const on = view === n.key;
+    const noCaminho = abertos.has(n.key);
+    const aberto = n.filhos && (extra[n.key] ?? noCaminho);
+    return (
+      <div key={n.key}>
+        <div className="flex items-center" style={{ background: on ? "#0C2C52" : "transparent", borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent" }}>
+          <button onClick={() => { ir(n.key); if (n.filhos) setExtra((e) => ({ ...e, [n.key]: true })); }}
+            className="flex-1 flex items-center gap-3 py-2 transition-colors text-left"
+            style={{ paddingLeft: 16 + nivel * 16, color: on ? C.accent : noCaminho ? "#fff" : C.sidebarSub, fontSize: nivel ? 13 : 14, fontWeight: nivel === 0 && noCaminho ? 600 : 400 }}>
+            <Ico size={nivel ? 15 : 17} /> <span>{n.label}</span>
+          </button>
+          {n.filhos && (
+            <button onClick={() => setExtra((e) => ({ ...e, [n.key]: !aberto }))} className="px-3 py-2" style={{ color: C.sidebarSub }} title={aberto ? "Recolher" : "Expandir"}>
+              <ChevronDown size={14} style={{ transform: aberto ? "none" : "rotate(-90deg)", transition: "transform .15s" }} />
+            </button>
+          )}
+        </div>
+        {aberto && <MenuArvore itens={n.filhos} view={view} caminho={caminho} ir={ir} nivel={nivel + 1} />}
+      </div>
+    );
+  });
+}
+
+/* ===== Tela de um grupo: cards das subabas ===== */
+function CardsGrupo({ grupo, ir }) {
+  const Ico = grupo.icon;
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="rounded-xl p-2.5" style={{ background: C.sidebar }}><Ico size={22} style={{ color: C.accent }} /></div>
+        <div>
+          <div className="text-lg font-bold" style={{ color: C.sidebar }}>{grupo.label}</div>
+          <div className="text-xs" style={{ color: C.sub }}>{grupo.desc}</div>
+        </div>
+      </div>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
+        {grupo.filhos.map((f) => {
+          const I = f.icon;
+          return (
+            <button key={f.key} onClick={() => ir(f.key)} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg"
+              style={f.filhos ? { background: C.sidebar, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}` }}>
+              <I size={24} style={{ color: C.accent }} />
+              <div className="text-base font-bold mt-2">{f.label}</div>
+              <div className="text-xs mt-1" style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
+              {f.filhos && (
+                <div className="flex flex-wrap gap-1 mt-3">
+                  {f.filhos.map((x) => (
+                    <span key={x.key} onClick={(e) => { e.stopPropagation(); ir(x.key); }} className="px-2 py-0.5 rounded-full text-[11px] cursor-pointer hover:opacity-80"
+                      style={{ background: "#0C2C52", color: "#fff" }}>{x.label}</span>
+                  ))}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2865,8 +2962,8 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
 /* ============================================================
    BANCO DE DADOS — Clientes / Fornecedores
    ============================================================ */
-function BancoDados({ master, money, perfil }) {
-  const [aba, setAba] = useState("clientes");
+function BancoDados({ master, money, perfil, abaFixa }) {
+  const [aba, setAba] = useState(abaFixa || "clientes");
   const [fornecedores, setFornecedores] = useState([]);
   const [artigos, setArtigos] = useState([]);
   const carregar = async () => {
@@ -2882,7 +2979,7 @@ function BancoDados({ master, money, perfil }) {
   useEffect(() => { carregar(); }, []);
   return (
     <div>
-      <div className="flex gap-1 mb-5">
+      {!abaFixa && <div className="flex gap-1 mb-5">
         {[["clientes", "Clientes"], ["fornecedores", "Fornecedores"], ["artigos", "Artigos"]].map(([k, l]) => {
           const on = aba === k;
           return (
@@ -2890,7 +2987,7 @@ function BancoDados({ master, money, perfil }) {
               style={{ background: on ? C.accentSoft : C.panel, color: on ? C.accent : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
           );
         })}
-      </div>
+      </div>}
       {aba === "clientes" && <ClientesPane master={master} money={money} />}
       {aba === "fornecedores" && <FornecedoresBancoPane master={master} money={money} perfil={perfil} />}
       {aba === "artigos" && <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />}
