@@ -4,7 +4,7 @@ import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
-  LayoutDashboard, CalendarRange, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
+  LayoutDashboard, Sparkles, CalendarRange, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 
@@ -1190,6 +1190,11 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
           </button>
         )}
         {dados && (
+          <button onClick={() => setModal({ tipo: "ia" })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>
+            <Sparkles size={15} style={{ color: C.accent }} /> Analisar com IA
+          </button>
+        )}
+        {dados && (
           <div className="flex flex-wrap gap-2 ml-auto">
             <Pilula cor={C.text} bg={C.panel2} txt={`${tot.n} lançamentos`} />
             <Pilula cor={tot.pend ? C.accent : C.green} bg={tot.pend ? C.accentSoft : C.greenSoft} txt={tot.pend ? `${tot.pend} a identificar` : "Tudo identificado"} />
@@ -1311,6 +1316,10 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
         </div>
       )}
 
+      {modal?.tipo === "ia" && (
+        <AnaliseIAModal user={user} comp={comp} contas={dados.contas.filter((c) => c.ativo)} todas={dados.contas}
+          onClose={(mudou) => { setModal(null); if (mudou) carregar(); }} />
+      )}
       {modal?.tipo === "identificar" && (
         <IdentificarModal user={user} itens={modal.itens} contas={dados.contas.filter((c) => c.ativo)}
           onClose={() => setModal(null)}
@@ -1514,6 +1523,159 @@ function ContaPicker({ contas, value, onChange, autoFocus }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------------- ANÁLISE COM IA ---------------- */
+const CONF = { ALTA: [C.green, C.greenSoft], MEDIA: [C.yellow, C.yellowSoft], BAIXA: [C.red, C.redSoft] };
+function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [aba, setAba] = useState("sug");
+  const [sug, setSug] = useState([]);
+  const [inc, setInc] = useState([]);
+  const [salvando, setSalvando] = useState(false);
+  const [mudou, setMudou] = useState(false);
+  const [msg, setMsg] = useState("");
+  const porId = useMemo(() => Object.fromEntries(todas.map((c) => [c.id, c])), [todas]);
+  useEffect(() => {
+    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp })
+      .then((j) => {
+        setD(j);
+        setSug(j.sugestoes.map((s) => ({ ...s, marcado: !!s.contaId && s.confianca === "ALTA", salvarTermo: false })));
+        setInc(j.incongruencias);
+        if (!j.sugestoes.length && j.incongruencias.length) setAba("inc");
+      })
+      .catch((e) => setErro(e.message));
+  }, []);
+  const muda = (g, k, v) => setSug((l) => l.map((s) => (s.g === g ? { ...s, [k]: v } : s)));
+  const marcados = sug.filter((s) => s.marcado && s.contaId);
+  const aplicar = async () => {
+    setSalvando(true); setMsg("");
+    let n = 0, r = 0;
+    try {
+      for (const s of marcados) {
+        const regras = s.salvarTermo && s.termo ? [{ termo: s.termo, dc: s.sinal }] : [];
+        const j = await api("/api/fin/lancamentos/identificar", "POST", { usuarioId: user.id, ids: s.ids, contaId: s.contaId, regras });
+        n += s.ids.length; r += j.regras || 0;
+      }
+      const feitos = new Set(marcados.map((s) => s.g));
+      setSug((l) => l.filter((s) => !feitos.has(s.g)));
+      setMudou(true);
+      setMsg(`${n} lançamento(s) identificados${r ? ` · ${r} palavra(s)-chave salvas` : ""}.`);
+    } catch (e) { setMsg(e.message); }
+    setSalvando(false);
+  };
+  const trocar = async (it) => {
+    try {
+      await api("/api/fin/lancamentos/identificar", "POST", { usuarioId: user.id, ids: [it.id], contaId: it.contaSugeridaId });
+      setInc((l) => l.filter((x) => x.i !== it.i)); setMudou(true);
+    } catch (e) { setMsg(e.message); }
+  };
+  const nomeConta = (id) => (porId[id] ? `${porId[id].codigo} · ${porId[id].nome}` : "—");
+  const tab = (k, t, n) => (
+    <button onClick={() => setAba(k)} className="px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+      {t} <span className="ml-1 px-1.5 rounded-full text-[10px]" style={{ background: C.panel2 }}>{n}</span>
+    </button>
+  );
+  return (
+    <Modal titulo={`Análise com IA · ${nomeComp(comp)}`} icone={Sparkles} onClose={() => onClose(mudou)} largura={1100}>
+      {!d && !erro && (
+        <div className="flex flex-col items-center gap-2 py-12 text-sm" style={{ color: C.sub }}>
+          <Loader2 size={24} className="animate-spin" style={{ color: C.accent }} />
+          Comparando com o histórico de identificações e consultando a IA… (pode levar até 1 minuto)
+        </div>
+      )}
+      {erro && <div className="p-3 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {d && (
+        <>
+          <div className="text-xs mb-3 flex flex-wrap gap-3" style={{ color: C.sub }}>
+            <span>Base: <b>{d.historico.toLocaleString("pt-BR")}</b> identificações de outros meses</span>
+            <span style={{ color: d.ia ? C.green : C.yellow }}>{d.ia ? "IA ativa" : "Só histórico (sem IA)"}</span>
+            {d.descartadas > 0 && <span>{d.descartadas} alerta(s) descartado(s) pela IA como corretos</span>}
+          </div>
+          {d.aviso && <div className="p-2 rounded mb-3 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{d.aviso}</div>}
+          {msg && <div className="p-2 rounded mb-3 text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{msg}</div>}
+          <div className="flex gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+            {tab("sug", "Sugestões para identificar", sug.length)}
+            {tab("inc", "Incongruências", inc.length)}
+          </div>
+
+          {aba === "sug" && (sug.length === 0 ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nada a identificar neste mês.</div> : (
+            <>
+              <div className="flex items-center gap-3 mb-2 text-xs">
+                <button onClick={() => setSug((l) => l.map((s) => ({ ...s, marcado: !!s.contaId })))} style={{ color: C.blue }}>Marcar todas com conta</button>
+                <button onClick={() => setSug((l) => l.map((s) => ({ ...s, marcado: false })))} style={{ color: C.sub }}>Desmarcar</button>
+                <span style={{ color: C.sub }}>Já vêm marcadas as de confiança ALTA. Ajuste a conta onde precisar.</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+                    {["", "Histórico", "Qtd", "Valor", "Conta sugerida", "Confiança", "Motivo", "Palavra-chave"].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+                  </tr></thead>
+                  <tbody>{sug.map((s) => {
+                    const [cc, cb] = CONF[s.confianca] || [C.sub, C.panel2];
+                    return (
+                      <tr key={s.g} style={{ borderBottom: `1px solid ${C.line}`, background: s.marcado ? C.accentSoft : undefined }}>
+                        <td className="px-2 py-1.5"><input type="checkbox" checked={!!s.marcado} disabled={!s.contaId} onChange={(e) => muda(s.g, "marcado", e.target.checked)} /></td>
+                        <td className="px-2 py-1.5" style={{ maxWidth: 260 }}>
+                          <div className="font-semibold">{s.historico}</div>
+                          <div style={{ color: C.sub }}>{s.banco} · {s.sinal === "C" ? "entrada" : "saída"}</div>
+                        </td>
+                        <td className="px-2 py-1.5">{s.qtd}</td>
+                        <td className="px-2 py-1.5 font-semibold whitespace-nowrap" style={{ color: s.total >= 0 ? C.blue : C.red }}>{brl(s.total)}</td>
+                        <td className="px-2 py-1.5" style={{ minWidth: 230 }}><ContaPicker contas={contas} value={s.contaId} onChange={(id) => setSug((l) => l.map((x) => (x.g === s.g ? { ...x, contaId: id, marcado: true } : x)))} /></td>
+                        <td className="px-2 py-1.5">{s.confianca && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: cc, background: cb }}>{s.confianca}</span>}
+                          {s.fonte && <div className="text-[9px] mt-0.5" style={{ color: C.sub }}>{s.fonte}</div>}</td>
+                        <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 240 }}>{s.motivo}</td>
+                        <td className="px-2 py-1.5" style={{ minWidth: 160 }}>
+                          <label className="flex items-center gap-1">
+                            <input type="checkbox" checked={!!s.salvarTermo} onChange={(e) => muda(s.g, "salvarTermo", e.target.checked)} />
+                            <input value={s.termo || ""} onChange={(e) => muda(s.g, "termo", e.target.value.toUpperCase())} placeholder="—"
+                              className="w-full px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }} />
+                          </label>
+                        </td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              </div>
+              <div className="flex justify-end mt-4">
+                <button onClick={aplicar} disabled={!marcados.length || salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: C.accent, opacity: !marcados.length || salvando ? 0.5 : 1 }}>
+                  {salvando ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  Identificar {marcados.reduce((n, s) => n + s.qtd, 0)} lançamento(s)
+                </button>
+              </div>
+            </>
+          ))}
+
+          {aba === "inc" && (inc.length === 0 ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma incongruência encontrada.</div> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+                  {["Data", "Histórico", "Valor", "Conta atual", "Trocar para", "Motivo", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+                </tr></thead>
+                <tbody>{inc.map((it) => (
+                  <tr key={it.i} style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{it.data.split("-").reverse().join("/")}</td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 260 }}><div className="font-semibold">{it.historico}</div><div style={{ color: C.sub }}>{it.banco}</div></td>
+                    <td className="px-2 py-1.5 font-semibold whitespace-nowrap" style={{ color: it.valor >= 0 ? C.blue : C.red }}>{brl(it.valor)}</td>
+                    <td className="px-2 py-1.5" style={{ color: C.red }}>{nomeConta(it.contaAtualId)}</td>
+                    <td className="px-2 py-1.5" style={{ minWidth: 220 }}><ContaPicker contas={contas} value={it.contaSugeridaId} onChange={(id) => setInc((l) => l.map((x) => (x.i === it.i ? { ...x, contaSugeridaId: id } : x)))} /></td>
+                    <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 260 }}>{it.motivo}<div className="text-[9px] mt-0.5">{it.fonte}</div></td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <button onClick={() => trocar(it)} disabled={!it.contaSugeridaId} className="px-2 py-1 rounded font-semibold text-white mr-1" style={{ background: C.accent, opacity: it.contaSugeridaId ? 1 : 0.4 }}>Trocar</button>
+                      <button onClick={() => setInc((l) => l.filter((x) => x.i !== it.i))} className="px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Ignorar</button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ))}
+        </>
+      )}
+    </Modal>
   );
 }
 
