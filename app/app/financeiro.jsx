@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
+import ContasPagarReceber from "./contas";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -71,7 +72,7 @@ export default function Financeiro({ user }) {
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
       {tela.v === "matriz" && <MatrizCustos user={user} />}
-      {tela.v === "pagrec" && <PagarReceber />}
+      {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
       {tela.v === "dfc" && <EmConstrucao titulo="DFC · Demonstrativo de fluxo de caixa futuro" Ico={LineChart} texto="Projeção de entradas e saídas por semana e por mês a partir das contas a pagar e a receber, com o saldo previsto de caixa." />}
     </div>
   );

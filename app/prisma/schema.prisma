@@ -792,3 +792,58 @@ model FinMatrizVersao {
 
   @@index([matrizId])
 }
+
+// ===== Contas a pagar e a receber =====
+// Título = uma conta (uma parcela). Pode ser previsão (ex.: gerada por recorrência) ou real.
+model FinTitulo {
+  id               Int       @id @default(autoincrement())
+  tipo             String    // PAGAR | RECEBER
+  titulo           String
+  parceiro         String    // fornecedor (pagar) ou cliente (receber)
+  documento        String?   // CNPJ/CPF do parceiro (só dígitos)
+  numeroDoc        String?   // nº da NF / boleto / parcela
+  valor            Decimal   @db.Decimal(14, 2)
+  vencimento       DateTime  @db.Date
+  competencia      String    // AAAA-MM do vencimento
+  previsao         Boolean   @default(false)
+  status           String    @default("ABERTO") // ABERTO | PAGO | CANCELADO
+  dataPagamento    DateTime? @db.Date
+  valorPago        Decimal?  @db.Decimal(14, 2)
+  rateio           Json      // [{ contaId, pct }]
+  observacao       String?
+  forma            String    @default("MANUAL") // MANUAL | NF_XML | EXCEL | RECORRENCIA
+  chaveImport      String?   @unique            // evita importar a mesma NF/parcela duas vezes
+  arquivoXml       String?
+  recorrenciaId    Int?
+  recorrencia      FinRecorrencia? @relation(fields: [recorrenciaId], references: [id], onDelete: SetNull)
+  valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
+  criadoPorId      Int?
+  criadoPorNome    String?
+  atualizadoPorNome String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([recorrenciaId, competencia])
+  @@index([tipo, competencia])
+  @@index([tipo, status])
+}
+
+// Conta recorrente: gera um título (previsão) por mês
+model FinRecorrencia {
+  id            Int      @id @default(autoincrement())
+  tipo          String
+  titulo        String
+  parceiro      String
+  documento     String?
+  valor         Decimal  @db.Decimal(14, 2)
+  diaVencimento Int
+  rateio        Json
+  inicio        String   // AAAA-MM
+  fim           String?  // AAAA-MM (vazio = sem fim)
+  ativo         Boolean  @default(true)
+  observacao    String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  titulos       FinTitulo[]
+}

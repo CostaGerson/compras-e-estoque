@@ -1,0 +1,106 @@
+// Contas a pagar e a receber: regras compartilhadas pelas rotas
+import { prisma } from "@/lib/prisma";
+import { XMLParser } from "fast-xml-parser";
+
+export const MESES_A_FRENTE = 12; // recorrências: gera previsões até 12 meses à frente
+export const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
+export const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+export const so = (t) => String(t || "").replace(/\D/g, "");
+export const mesDe = (d) => (typeof d === "string" ? d.slice(0, 7) : d.toISOString().slice(0, 7));
+export const mesAtual = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+export const somaMes = (c, n) => { const [a, m] = c.split("-").map(Number); const d = new Date(Date.UTC(a, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+export const dataUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
+// vencimento no dia X do mês (ajusta para o último dia em meses curtos)
+export const vencNoMes = (comp, dia) => {
+  const [a, m] = comp.split("-").map(Number);
+  const ult = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  return new Date(Date.UTC(a, m - 1, Math.min(Math.max(1, dia), ult)));
+};
+
+// rateio: [{contaId, pct}] somando 100
+export function validarRateio(rateio) {
+  const l = (Array.isArray(rateio) ? rateio : []).map((r) => ({ contaId: Number(r.contaId), pct: r2(r.pct) })).filter((r) => r.contaId && r.pct > 0);
+  if (!l.length) return { erro: "Informe a conta-caixa do rateio." };
+  const tot = r2(l.reduce((s, r) => s + r.pct, 0));
+  if (Math.abs(tot - 100) > 0.01) return { erro: `O rateio soma ${tot}% — precisa somar 100%.` };
+  return { rateio: l };
+}
+
+export const tituloOut = (t) => ({
+  ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null,
+  vencimento: t.vencimento.toISOString().slice(0, 10), dataPagamento: t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10) : null,
+  arquivoXml: undefined, temXml: !!t.arquivoXml,
+});
+
+// Gera as previsões das recorrências que faltam (do início até 12 meses à frente)
+export async function gerarRecorrencias(tipo) {
+  const recs = await prisma.finRecorrencia.findMany({ where: { ativo: true, ...(tipo ? { tipo } : {}) } });
+  if (!recs.length) return 0;
+  const ate = somaMes(mesAtual(), MESES_A_FRENTE);
+  const exist = await prisma.finTitulo.findMany({ where: { recorrenciaId: { in: recs.map((r) => r.id) } }, select: { recorrenciaId: true, competencia: true } });
+  const tem = new Set(exist.map((e) => `${e.recorrenciaId}|${e.competencia}`));
+  const data = [];
+  for (const r of recs) {
+    const fim = r.fim && r.fim < ate ? r.fim : ate;
+    for (let c = r.inicio; c <= fim; c = somaMes(c, 1)) {
+      if (tem.has(`${r.id}|${c}`)) continue;
+      data.push({
+        tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento),
+        competencia: c, previsao: true, rateio: r.rateio, observacao: r.observacao, forma: "RECORRENCIA", recorrenciaId: r.id, criadoPorNome: r.criadoPorNome,
+      });
+    }
+  }
+  if (data.length) await prisma.finTitulo.createMany({ data, skipDuplicates: true });
+  return data.length;
+}
+
+// ---------- leitura de XML: NF-e (compra) e NFS-e (serviço, vários padrões) ----------
+const P = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", removeNSPrefix: true, parseTagValue: false });
+const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
+const num = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+// procura a 1ª chave (sem diferenciar maiúsculas) em qualquer nível; "dentro" restringe a um ramo (ex.: prestador)
+function achar(obj, nomes, dentro) {
+  const alvo = nomes.map((n) => n.toLowerCase());
+  let achado;
+  const vis = (o, ok) => {
+    if (achado !== undefined || o == null || typeof o !== "object") return;
+    for (const [k, v] of Object.entries(o)) {
+      const kl = k.toLowerCase();
+      const ok2 = ok || (dentro ? dentro.some((d) => kl.includes(d)) : true);
+      if (ok2 && alvo.includes(kl) && (typeof v !== "object" || v?.["#text"] != null)) { achado = typeof v === "object" ? v["#text"] : v; return; }
+      vis(v, ok2);
+      if (achado !== undefined) return;
+    }
+  };
+  vis(obj, !dentro);
+  return achado;
+}
+
+export function lerXmlTitulo(xml, nomeArq = "") {
+  const d = P.parse(xml);
+  const inf = d?.nfeProc?.NFe?.infNFe || d?.NFe?.infNFe;
+  if (inf) {
+    const chave = String(inf["@_Id"] || "").replace(/^NFe/, "");
+    const emit = inf.emit || {}, ide = inf.ide || {};
+    const total = num(inf.total?.ICMSTot?.vNF);
+    const dups = arr(inf.cobr?.dup);
+    const base = { modelo: "NF-e", parceiro: String(emit.xFant || emit.xNome || "").toUpperCase(), razao: String(emit.xNome || "").toUpperCase(),
+      documento: so(emit.CNPJ || emit.CPF), numero: String(ide.nNF || ""), emissao: String(ide.dhEmi || ide.dEmi || "").slice(0, 10), total, chave, natOp: ide.natOp || "" };
+    const parcelas = dups.length
+      ? dups.map((p, i) => ({ parcela: String(p.nDup || i + 1), vencimento: String(p.dVenc || base.emissao).slice(0, 10), valor: num(p.vDup) }))
+      : [{ parcela: "1", vencimento: base.emissao, valor: total, semVencimento: true }];
+    return { ...base, parcelas, chaveBase: `NFE|${chave}` };
+  }
+  // NFS-e: ABRASF, padrão nacional e variações municipais
+  const valor = num(achar(d, ["vLiq", "ValorLiquidoNfse", "ValorLiquido", "vServ", "ValorServicos", "ValorTotal", "ValorNota"]));
+  if (!valor) throw new Error(`${nomeArq || "arquivo"}: não reconheci como NF-e nem NFS-e.`);
+  const prest = ["prestador", "emit"];
+  const parceiro = String(achar(d, ["xFant", "NomeFantasia", "xNome", "RazaoSocial", "Nome"], prest) || "").toUpperCase();
+  const documento = so(achar(d, ["CNPJ", "Cnpj", "CPF", "Cpf"], prest));
+  const numero = String(achar(d, ["nNFSe", "Numero", "NumeroNfse", "nDFSe"]) || "");
+  const emissao = String(achar(d, ["dhEmi", "DataEmissao", "dhProc", "DataEmissaoNfse", "Competencia", "dCompet"]) || "").slice(0, 10);
+  return {
+    modelo: "NFS-e", parceiro, razao: parceiro, documento, numero, emissao, total: valor, chave: "", natOp: "",
+    parcelas: [{ parcela: "1", vencimento: emissao, valor, semVencimento: true }], chaveBase: `NFSE|${documento}|${numero}`,
+  };
+}

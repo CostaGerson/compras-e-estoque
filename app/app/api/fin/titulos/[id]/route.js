@@ -1,0 +1,79 @@
+export const dynamic = "force-dynamic";
+import { prisma } from "@/lib/prisma";
+import { usuarioMaster, negado } from "@/lib/fin";
+import { tituloOut, validarRateio, nomeU, r2, so, dataUTC, mesDe } from "@/lib/finTitulos";
+
+// PATCH { usuarioId, acao, ... }
+//  acao "editar"    → campos do título (valor de recorrência editado = conferido)
+//  acao "baixar"    → { dataPagamento, valorPago }
+//  acao "estornar"  → volta para ABERTO
+//  acao "confirmar" → { valor, aplicarFuturos } confere o valor do mês da recorrência
+//  acao "cancelar" / "reabrir"
+export async function PATCH(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  const u = await usuarioMaster(b.usuarioId);
+  if (!u) return negado();
+  const id = Number(params.id);
+  const t = await prisma.finTitulo.findUnique({ where: { id } });
+  if (!t) return Response.json({ error: "Título não encontrado." }, { status: 404 });
+  const quem = { atualizadoPorNome: nomeU(u) };
+  let data = {};
+
+  if (b.acao === "baixar") {
+    const vp = r2(b.valorPago ?? t.valor);
+    if (!b.dataPagamento) return Response.json({ error: "Informe a data do pagamento." }, { status: 400 });
+    data = { status: "PAGO", dataPagamento: dataUTC(b.dataPagamento), valorPago: vp, previsao: false, valorConfirmado: true };
+  } else if (b.acao === "estornar") {
+    data = { status: "ABERTO", dataPagamento: null, valorPago: null };
+  } else if (b.acao === "cancelar") {
+    data = { status: "CANCELADO" };
+  } else if (b.acao === "reabrir") {
+    data = { status: "ABERTO" };
+  } else if (b.acao === "confirmar") {
+    const v = r2(b.valor ?? t.valor);
+    if (!(v > 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
+    data = { valor: v, valorConfirmado: true };
+    if (b.aplicarFuturos && t.recorrenciaId) {
+      await prisma.finTitulo.updateMany({ where: { recorrenciaId: t.recorrenciaId, competencia: { gt: t.competencia }, valorConfirmado: false, status: "ABERTO" }, data: { valor: v } });
+      await prisma.finRecorrencia.update({ where: { id: t.recorrenciaId }, data: { valor: v } });
+    }
+  } else {
+    // editar
+    if (b.titulo !== undefined) data.titulo = String(b.titulo).trim().toUpperCase();
+    if (b.parceiro !== undefined) data.parceiro = String(b.parceiro).trim().toUpperCase();
+    if (b.documento !== undefined) data.documento = so(b.documento) || null;
+    if (b.numeroDoc !== undefined) data.numeroDoc = b.numeroDoc || null;
+    if (b.observacao !== undefined) data.observacao = b.observacao || null;
+    if (b.previsao !== undefined) data.previsao = !!b.previsao;
+    if (b.valor !== undefined) {
+      const v = r2(b.valor);
+      if (!(v > 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
+      data.valor = v;
+      if (t.recorrenciaId) data.valorConfirmado = true;
+    }
+    if (b.vencimento) { data.vencimento = dataUTC(b.vencimento); data.competencia = mesDe(b.vencimento); }
+    if (b.rateio !== undefined) {
+      const rt = validarRateio(b.rateio);
+      if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 });
+      data.rateio = rt.rateio;
+    }
+    if (data.competencia && t.recorrenciaId && data.competencia !== t.competencia) {
+      const choque = await prisma.finTitulo.findFirst({ where: { recorrenciaId: t.recorrenciaId, competencia: data.competencia, id: { not: id } } });
+      if (choque) return Response.json({ error: "Já existe uma parcela desta recorrência nesse mês." }, { status: 400 });
+    }
+  }
+  const n = await prisma.finTitulo.update({ where: { id }, data: { ...data, ...quem } });
+  return Response.json(tituloOut(n));
+}
+
+// DELETE { usuarioId } → exclui o título (de recorrência: o mês não é recriado — vira cancelado)
+export async function DELETE(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  const u = await usuarioMaster(b.usuarioId);
+  if (!u) return negado();
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(params.id) } });
+  if (!t) return Response.json({ ok: true });
+  if (t.recorrenciaId) await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "CANCELADO", atualizadoPorNome: nomeU(u) } });
+  else await prisma.finTitulo.delete({ where: { id: t.id } });
+  return Response.json({ ok: true });
+}
