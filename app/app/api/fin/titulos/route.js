@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
+import { garantirRecorrenciasMatriz } from "@/lib/finMatrizRecDb";
 import { gerarRecorrencias, tituloOut, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
 
 const TIPOS = ["PAGAR", "RECEBER"];
@@ -11,6 +12,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   const tipo = TIPOS.includes(sp.get("tipo")) ? sp.get("tipo") : "PAGAR";
   await garantirContas();
+  const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   await gerarRecorrencias(tipo);
   const de = sp.get("de") || mesAtual(), ate = sp.get("ate") || de;
   const hoje = mesAtual();
@@ -26,7 +28,7 @@ export async function GET(req) {
   ]);
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
-    tipo, de, ate,
+    tipo, de, ate, autoMatriz,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
   });

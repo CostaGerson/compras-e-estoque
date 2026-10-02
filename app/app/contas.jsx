@@ -157,7 +157,10 @@ export default function ContasPagarReceber({ user }) {
   const [modal, setModal] = useState(null);
   const [aviso, setAviso] = useState("");
 
-  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipo}&de=${mes}&ate=${mes}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipo}&de=${mes}&ate=${mes}`).then((j) => {
+    setD(j); setErro("");
+    if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
+  }).catch((e) => setErro(e.message));
   useEffect(() => { setD(null); carregar(); }, [tipo, mes]);
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 3000); carregar(); };
 
