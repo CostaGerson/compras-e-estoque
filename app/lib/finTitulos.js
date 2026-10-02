@@ -10,8 +10,21 @@ export const mesDe = (d) => (typeof d === "string" ? d.slice(0, 7) : d.toISOStri
 export const mesAtual = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 export const somaMes = (c, n) => { const [a, m] = c.split("-").map(Number); const d = new Date(Date.UTC(a, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 export const dataUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
-// vencimento no dia X do mês (ajusta para o último dia em meses curtos)
-export const vencNoMes = (comp, dia) => {
+// feriados nacionais fixos (dia útil = seg a sex fora deles)
+const FERIADOS = ["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"];
+export function nDiaUtil(comp, n) {
+  const [a, m] = comp.split("-").map(Number);
+  let d = new Date(Date.UTC(a, m - 1, 1)), cont = 0;
+  while (d.getUTCMonth() === m - 1) {
+    const dow = d.getUTCDay(), md = d.toISOString().slice(5, 10);
+    if (dow !== 0 && dow !== 6 && !FERIADOS.includes(md) && ++cont === n) return d;
+    d = new Date(d.getTime() + 86400000);
+  }
+  return new Date(Date.UTC(a, m, 0));
+}
+// vencimento no dia X do mês (ajusta para o último dia em meses curtos) — ou no X-ésimo dia útil
+export const vencNoMes = (comp, dia, util = false) => {
+  if (util) return nDiaUtil(comp, dia);
   const [a, m] = comp.split("-").map(Number);
   const ult = new Date(Date.UTC(a, m, 0)).getUTCDate();
   return new Date(Date.UTC(a, m - 1, Math.min(Math.max(1, dia), ult)));
@@ -45,7 +58,7 @@ export async function gerarRecorrencias(tipo) {
     for (let c = r.inicio; c <= fim; c = somaMes(c, 1)) {
       if (tem.has(`${r.id}|${c}`)) continue;
       data.push({
-        tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento),
+        tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento, r.diaUtil),
         competencia: c, previsao: true, rateio: r.rateio, observacao: r.observacao, forma: "RECORRENCIA", recorrenciaId: r.id, criadoPorNome: r.criadoPorNome,
       });
     }

@@ -16,8 +16,9 @@ export async function PATCH(req, { params }) {
   if (b.parceiro !== undefined) d.parceiro = String(b.parceiro).trim().toUpperCase();
   if (b.documento !== undefined) d.documento = so(b.documento) || null;
   if (b.observacao !== undefined) d.observacao = b.observacao || null;
-  if (b.valor !== undefined) { d.valor = r2(b.valor); if (!(d.valor > 0)) return Response.json({ error: "Valor inválido." }, { status: 400 }); }
+  if (b.valor !== undefined) { d.valor = r2(b.valor); if (!(d.valor >= 0)) return Response.json({ error: "Valor inválido." }, { status: 400 }); }
   if (b.diaVencimento !== undefined) d.diaVencimento = Math.min(31, Math.max(1, Number(b.diaVencimento) || 1));
+  if (b.diaUtil !== undefined) d.diaUtil = !!b.diaUtil;
   if (b.rateio !== undefined) { const rt = validarRateio(b.rateio); if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 }); d.rateio = rt.rateio; }
   if (b.fim !== undefined) d.fim = b.fim ? String(b.fim).slice(0, 7) : null;
   if (b.ativo !== undefined) d.ativo = !!b.ativo;
@@ -32,7 +33,7 @@ export async function PATCH(req, { params }) {
   for (const t of fut) {
     const up = {};
     for (const k of ["titulo", "parceiro", "documento", "observacao", "rateio", "valor"]) if (d[k] !== undefined) up[k] = d[k];
-    if (d.diaVencimento) up.vencimento = vencNoMes(t.competencia, d.diaVencimento);
+    if (d.diaVencimento || d.diaUtil !== undefined) up.vencimento = vencNoMes(t.competencia, d.diaVencimento ?? r.diaVencimento, d.diaUtil ?? r.diaUtil);
     if (Object.keys(up).length) await prisma.finTitulo.update({ where: { id: t.id }, data: up });
   }
   await gerarRecorrencias(r.tipo);

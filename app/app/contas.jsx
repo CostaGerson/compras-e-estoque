@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
-  AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff,
+  AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
 } from "lucide-react";
 
 const C = {
@@ -552,6 +552,103 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo, lidosIniciais }) {
   );
 }
 
+/* ---------------- recorrências a partir da matriz de custos ---------------- */
+function MatrizRecModal({ user, contasPorId, onClose, onVoltar }) {
+  const [d, setD] = useState(null);
+  const [sel, setSel] = useState(new Set());
+  const [atu, setAtu] = useState(new Set());
+  const [enc, setEnc] = useState(new Set());
+  const [inicio, setInicio] = useState(mesAtual());
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const [fim, setFim] = useState(null);
+  useEffect(() => {
+    api(`/api/fin/recorrencias/matriz?u=${user.id}`).then((j) => {
+      setD(j);
+      setSel(new Set(j.propostas.filter((p) => !p.jaExiste).map((p) => p.chave)));
+      setAtu(new Set(j.propostas.filter((p) => p.jaExiste && p.mudou).map((p) => p.chave)));
+      setEnc(new Set(j.obsoletas.map((o) => o.id)));
+    }).catch((e) => setErro(e.message));
+  }, []);
+  const grupos = useMemo(() => {
+    const g = {};
+    (d?.propostas || []).forEach((p) => (g[p.grupo] ||= []).push(p));
+    return Object.entries(g);
+  }, [d]);
+  const tog = (k) => setSel((s) => { const x = new Set(s); x.has(k) ? x.delete(k) : x.add(k); return x; });
+  const escolhidas = (d?.propostas || []).filter((p) => sel.has(p.chave) && !p.jaExiste);
+  const nAcoes = escolhidas.length + atu.size + enc.size;
+  const togS = (set, k) => set((s) => { const x = new Set(s); x.has(k) ? x.delete(k) : x.add(k); return x; });
+  const criar = async () => {
+    setSt("Gravando…"); setErro("");
+    try { const j = await api("/api/fin/recorrencias/matriz", "POST", { usuarioId: user.id, chaves: [...sel], atualizar: [...atu], encerrar: [...enc], inicio }); setFim(j); } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  return (
+    <Modal titulo="Contas recorrentes da Matriz de custos" icone={Grid3x3} onClose={onClose} largura={1000}
+      rodape={fim ? <BtnP onClick={onClose}>Concluir</BtnP> : <>
+        <button onClick={onVoltar} className="mr-auto px-3 py-2 text-sm" style={{ color: C.sub }}>← Voltar</button>
+        <span className="text-xs" style={{ color: C.sub }}>A partir de</span>
+        <input type="month" value={inicio} onChange={(e) => setInicio(e.target.value)} className="rounded px-2 py-1.5 text-sm" style={inpS} />
+        <BtnP onClick={criar} disabled={!nAcoes || !!st}>{st && <Loader2 size={14} className="animate-spin" />}
+          {[escolhidas.length && `Criar ${escolhidas.length}`, atu.size && `atualizar ${atu.size}`, enc.size && `encerrar ${enc.size}`].filter(Boolean).join(" · ") || "Nada a fazer"}</BtnP>
+      </>}>
+      {fim ? (
+        <div className="p-4 rounded-lg text-sm" style={{ background: C.greenSoft, color: C.green }}>
+          <b>{fim.criadas} criada(s) · {fim.atualizadas} atualizada(s) · {fim.encerradas} encerrada(s)</b> — {fim.geradas} previsões lançadas até 12 meses à frente.
+          <div className="mt-1" style={{ color: C.text }}>Elas aparecem na lista como <b>Previsão</b> e com "conferir valor" no mês atual: ajuste dia de vencimento, fornecedor e conta-caixa em <b>Recorrências</b>, e o valor do mês na conferência.</div>
+        </div>
+      ) : !d ? (erro ? null : <Loader2 size={18} className="animate-spin" />) : (
+        <>
+          <div className="text-xs mb-3" style={{ color: C.sub }}>
+            Montado a partir da matriz <b>oficial</b> (custo do negócio {moeda(d.totalMatriz)}/mês). Os itens marcados como CDB e as provisões do pessoal viram uma única conta, <b>PROVISÃO GERAL (CDB)</b>, no dia 30.
+            Os demais têm uma conta cada. Dia de vencimento, fornecedor e conta-caixa vêm sugeridos — ajuste depois em Recorrências.
+          </div>
+          {d.obsoletas.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg" style={{ background: C.yellowSoft }}>
+              <div className="text-xs font-semibold mb-1" style={{ color: C.yellow }}>Recorrências geradas antes que não existem mais na matriz (ex.: salário por pessoa) — encerrar:</div>
+              {d.obsoletas.map((o) => (
+                <label key={o.id} className="flex items-center gap-2 text-xs py-0.5">
+                  <input type="checkbox" checked={enc.has(o.id)} onChange={() => togS(setEnc, o.id)} /> {o.titulo} <span style={{ color: C.sub }}>· {moeda(o.valor)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {grupos.map(([g, ps]) => {
+            const todas = ps.filter((p) => !p.jaExiste).every((p) => sel.has(p.chave));
+            return (
+              <div key={g} className="mb-4">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: C.panel2 }}>
+                  <input type="checkbox" checked={todas} onChange={() => setSel((s) => { const x = new Set(s); ps.filter((p) => !p.jaExiste).forEach((p) => (todas ? x.delete(p.chave) : x.add(p.chave))); return x; })} />
+                  <b style={{ color: C.navy }}>{g}</b>
+                  <span className="text-xs" style={{ color: C.sub }}>· {moeda(ps.reduce((s, p) => s + p.valor, 0))}</span>
+                </div>
+                <table className="w-full text-xs">
+                  <tbody>{ps.map((p) => (
+                    <tr key={p.chave} style={{ borderBottom: `1px solid ${C.line}`, opacity: p.jaExiste && !p.mudou ? 0.45 : 1 }}>
+                      <td className="px-2 py-1.5 w-6"><input type="checkbox" disabled={p.jaExiste} checked={p.jaExiste || sel.has(p.chave)} onChange={() => tog(p.chave)} /></td>
+                      <td className="px-2 py-1.5"><b>{p.titulo}</b>{p.obs && <div style={{ color: C.sub }}>{p.obs}</div>}</td>
+                      <td className="px-2 py-1.5" style={{ color: C.sub }}>{p.parceiro}</td>
+                      <td className="px-2 py-1.5" style={{ maxWidth: 260 }}>{p.rateio.map((r, i) => <div key={i} className="truncate">{contasPorId[r.contaId] ? `${contasPorId[r.contaId].codigo} ${contasPorId[r.contaId].nome}` : "?"}{p.rateio.length > 1 && ` · ${brl(r.pct)}%`}</div>)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{p.util ? `${p.dia}º dia útil` : `dia ${p.dia}`}</td>
+                      <td className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{brl(p.valor)}{p.jaExiste && p.mudou && <div className="font-normal" style={{ color: C.sub }}>hoje {brl(p.valorAtual)}</div>}</td>
+                      <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">
+                        {p.jaExiste && p.mudou ? <label className="flex items-center gap-1" style={{ color: C.yellow }}><input type="checkbox" checked={atu.has(p.chave)} onChange={() => togS(setAtu, p.chave)} /> atualizar pela matriz</label>
+                          : p.jaExiste ? <span style={{ color: C.green }}>já criada</span> : ""}
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            );
+          })}
+        </>
+      )}
+      {erro && <div className="p-2 mt-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
 /* ---------------- notas lançadas pelo Compras ---------------- */
 function NfsComprasModal({ user, onClose, onLancar }) {
   const [ver, setVer] = useState("pendentes");
@@ -623,12 +720,13 @@ function NfsComprasModal({ user, onClose, onLancar }) {
 
 /* ---------------- recorrências ---------------- */
 function RecorrenciasModal({ user, d, contasPorId, onClose }) {
+  const [daMatriz, setDaMatriz] = useState(false);
   const [l, setL] = useState(d.recorrencias.map((r) => ({ ...r, fim: r.fim || "" })));
   const [edit, setEdit] = useState(null);
   const [erro, setErro] = useState("");
   const salvar = async (r) => {
     try {
-      await api(`/api/fin/recorrencias/${r.id}`, "PATCH", { usuarioId: user.id, titulo: r.titulo, parceiro: r.parceiro, valor: r.valor, diaVencimento: r.diaVencimento, fim: r.fim || null, rateio: r.rateio, ativo: r.ativo });
+      await api(`/api/fin/recorrencias/${r.id}`, "PATCH", { usuarioId: user.id, titulo: r.titulo, parceiro: r.parceiro, valor: r.valor, diaVencimento: r.diaVencimento, diaUtil: !!r.diaUtil, fim: r.fim || null, rateio: r.rateio, ativo: r.ativo });
       setEdit(null); setErro("");
     } catch (e) { setErro(e.message); }
   };
@@ -638,13 +736,15 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
   };
   const alt = (id, k, v) => setL((x) => x.map((y) => (y.id === id ? { ...y, [k]: v } : y)));
   return (
-    <Modal titulo="Contas recorrentes" icone={Repeat} onClose={onClose} largura={1000} rodape={<BtnP onClick={onClose}>Fechar</BtnP>}>
+    daMatriz ? <MatrizRecModal user={user} contasPorId={contasPorId} onClose={onClose} onVoltar={() => setDaMatriz(false)} /> :
+    <Modal titulo="Contas recorrentes" icone={Repeat} onClose={onClose} largura={1000}
+      rodape={<>{d.tipo === "PAGAR" && <span className="mr-auto"><BtnS onClick={() => setDaMatriz(true)}><Grid3x3 size={15} /> Gerar a partir da Matriz de custos</BtnS></span>}<BtnP onClick={onClose}>Fechar</BtnP></>}>
       <div className="text-xs mb-3" style={{ color: C.sub }}>Alterações aqui valem a partir deste mês, nos meses ainda não conferidos nem pagos. Para criar uma nova, use <b>Nova conta</b> com a chave "Conta recorrente".</div>
       {erro && <div className="p-2 mb-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!l.length ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma conta recorrente.</div> : (
         <table className="w-full text-xs">
           <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
-            {["Título", "Fornecedor", "Conta-caixa", "Valor base", "Dia", "Início", "Até", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+            {["Título", "Fornecedor", "Conta-caixa", "Valor base", "Vencimento", "Início", "Até", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
           </tr></thead>
           <tbody>{l.map((r) => {
             const e = edit === r.id;
@@ -654,7 +754,10 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
                 <td className="px-2 py-1.5">{e ? <input value={r.parceiro} onChange={(ev) => alt(r.id, "parceiro", ev.target.value.toUpperCase())} className={inp} style={inpS} /> : r.parceiro}</td>
                 <td className="px-2 py-1.5" style={{ minWidth: 200 }}>{e ? <Rateio contas={d.contas} valor={r.valor} value={r.rateio} onChange={(v) => alt(r.id, "rateio", v)} /> : (r.rateio || []).map((x) => contasPorId[x.contaId]?.nome).join(", ")}</td>
                 <td className="px-2 py-1.5">{e ? <Valor value={r.valor} onChange={(v) => alt(r.id, "valor", v)} width={110} /> : moeda(r.valor)}</td>
-                <td className="px-2 py-1.5">{e ? <input type="number" min={1} max={31} value={r.diaVencimento} onChange={(ev) => alt(r.id, "diaVencimento", Number(ev.target.value))} className="rounded px-2 py-1 w-14" style={inpS} /> : r.diaVencimento}</td>
+                <td className="px-2 py-1.5 whitespace-nowrap">{e ? <>
+                  <input type="number" min={1} max={31} value={r.diaVencimento} onChange={(ev) => alt(r.id, "diaVencimento", Number(ev.target.value))} className="rounded px-2 py-1 w-14" style={inpS} />
+                  <label className="flex items-center gap-1 mt-1"><input type="checkbox" checked={!!r.diaUtil} onChange={(ev) => alt(r.id, "diaUtil", ev.target.checked)} /> dia útil</label>
+                </> : r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{nomeMes(r.inicio)}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{e ? <input type="month" value={r.fim} onChange={(ev) => alt(r.id, "fim", ev.target.value)} className="rounded px-2 py-1" style={inpS} /> : r.fim ? nomeMes(r.fim) : "sem fim"}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap text-right">

@@ -134,6 +134,7 @@ export const FORMULAS = {
     ["Férias", "salário ÷ 12 + salário ÷ 36 (1/3 de férias). Estágio: não tem"],
     ["Aviso", "salário ÷ 12 (só CLT)"],
     ["Multa", "40% do FGTS (só CLT)"],
+    ["Adiantamento", "quem tem a caixa marcada recebe 20% do líquido no dia 20; o restante vai no salário (5º dia útil). Não muda o custo, só a data de pagamento."],
     ["Total", "bônus + líquido + INSS patronal + INSS funcionário + FGTS + VT + VR + PS + ASS + saldo livre + 13º + férias + aviso + multa + R. férias. O desconto de VT entra uma vez só (dentro do líquido)."],
   ],
   painel: [

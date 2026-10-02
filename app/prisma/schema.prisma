@@ -843,11 +843,13 @@ model FinRecorrencia {
   documento     String?
   valor         Decimal  @db.Decimal(14, 2)
   diaVencimento Int
+  diaUtil       Boolean  @default(false) // true: vence no N-ésimo dia útil do mês (N = diaVencimento)
   rateio        Json
   inicio        String   // AAAA-MM
   fim           String?  // AAAA-MM (vazio = sem fim)
   ativo         Boolean  @default(true)
   observacao    String?
+  chaveOrigem   String?  @unique   // ex.: MATRIZ|vidaVegetativa|<item> — evita gerar duas vezes
   criadoPorNome String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

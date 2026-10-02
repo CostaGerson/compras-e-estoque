@@ -31,7 +31,7 @@ export async function PATCH(req, { params }) {
     data = { status: "ABERTO" };
   } else if (b.acao === "confirmar") {
     const v = r2(b.valor ?? t.valor);
-    if (!(v > 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
+    if (!(v >= 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
     data = { valor: v, valorConfirmado: true };
     if (b.aplicarFuturos && t.recorrenciaId) {
       await prisma.finTitulo.updateMany({ where: { recorrenciaId: t.recorrenciaId, competencia: { gt: t.competencia }, valorConfirmado: false, status: "ABERTO" }, data: { valor: v } });
@@ -47,7 +47,7 @@ export async function PATCH(req, { params }) {
     if (b.previsao !== undefined) data.previsao = !!b.previsao;
     if (b.valor !== undefined) {
       const v = r2(b.valor);
-      if (!(v > 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
+      if (!(v >= 0) || (v === 0 && !t.recorrenciaId)) return Response.json({ error: "Valor inválido." }, { status: 400 });
       data.valor = v;
       if (t.recorrenciaId) data.valorConfirmado = true;
     }

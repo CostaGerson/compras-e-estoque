@@ -588,7 +588,7 @@ function Pessoal({ dados, calc, muda, cenario }) {
                       <td className="px-3 py-1.5 sticky left-0" style={{ background: C.panel, minWidth: 200 }}>
                         <button onClick={() => setEdit(p)} className="text-left">
                           <div className="font-semibold" style={{ color: C.navy }}>{p.nome || <i style={{ color: C.yellow }}>VAGA</i>}{off && " (desligado)"}</div>
-                          <div style={{ color: C.sub }}>{p.cargo}</div>
+                          <div style={{ color: C.sub }}>{p.cargo}{p.adiantamento && <span className="ml-1 px-1 rounded text-[9px] font-semibold" style={{ background: C.blueSoft, color: C.blue }} title="Recebe adiantamento salarial (20% do líquido) no dia 20">ADIANT.</span>}</div>
                         </button>
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: C.sub }}>{REGIMES[p.regime] || p.regime}</td>
@@ -667,6 +667,9 @@ function EditarFuncionario({ p: inicial, par, onClose, onSalvar, onExcluir }) {
             <Campo t="Plano de saúde"><NumInput value={p.ps} onChange={(v) => s("ps", v)} width="100%" /></Campo>
             <Campo t="Assiduidade" dica="% do salário"><NumInput tipo="pct" value={p.assPct} onChange={(v) => s("assPct", v)} width="100%" /></Campo>
             <Campo t="R. férias"><NumInput value={p.rFerias} onChange={(v) => s("rFerias", v)} width="100%" /></Campo>
+            <Campo t="Adiantamento salarial" dica="dia 20">
+              <label className="flex items-center gap-1.5 text-xs mt-1.5"><input type="checkbox" checked={!!p.adiantamento} onChange={(e) => s("adiantamento", e.target.checked)} /> recebe 20% do líquido</label>
+            </Campo>
             <Campo t="Desconto de VT">
               <label className="flex items-center gap-1.5 text-xs mt-1.5"><input type="checkbox" checked={!!p.descontaVt} onChange={(e) => s("descontaVt", e.target.checked)} /> desconta {pct(par.vtDesconto, 0)} do salário</label>
             </Campo>
@@ -683,6 +686,7 @@ function EditarFuncionario({ p: inicial, par, onClose, onSalvar, onExcluir }) {
           <div className="flex justify-between py-0.5" style={{ color: C.sub }}><span>Provisões (CDB)</span><span>{brl(c.provisoes)}</span></div>
           {est && <div className="mt-2 text-[10px]" style={{ color: C.sub }}>Estágio: sem INSS, FGTS, férias, aviso e multa.</div>}
           {p.regime === "DIRETOR" && <div className="mt-2 text-[10px]" style={{ color: C.sub }}>Diretor: 13º sobre pró-labore + bônus; sem aviso e multa.</div>}
+          {p.adiantamento && <div className="flex justify-between pt-2 mt-2" style={{ borderTop: `1px solid ${C.line}`, color: C.blue }}><span>Adiantamento (dia 20)</span><span>{brl(c.liquido * 0.2)}</span></div>}
         </div>
       </div>
     </Modal>
