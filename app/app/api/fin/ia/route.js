@@ -37,7 +37,8 @@ Responda SOMENTE um JSON (lista): [{"i": <número do item>, "acao": "TROCAR"|"OK
 // POST { usuarioId, competencia } → { sugestoes:[], incongruencias:[], ia, aviso }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioMaster(b.usuarioId))) return negado();
+  const u = await usuarioMaster(b.usuarioId);
+  if (!u) return negado();
   const comp = b.competencia;
   if (!competenciaValida(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
@@ -196,5 +197,22 @@ export async function POST(req) {
     };
   }).filter(Boolean);
 
-  return Response.json({ ia, aviso, pagFatura, pesquisados: semHist.length, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length });
+  const resultado = { ia, aviso, pagFatura, pesquisados: semHist.length, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length };
+  const salva = await prisma.finAnaliseIA.create({
+    data: { competencia: comp, usuarioNome: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase(), ia, nSugestoes: sugestoes.length, nIncong: incongruencias.length, resultado },
+  });
+  return Response.json({ ...resultado, analiseId: salva.id, criadaEm: salva.createdAt, usuarioNome: salva.usuarioNome });
+}
+
+// GET ?u=&competencia= → análises salvas do mês (mais nova primeiro)
+export async function GET(req) {
+  const sp = new URL(req.url).searchParams;
+  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  const comp = sp.get("competencia");
+  if (!competenciaValida(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+  const lista = await prisma.finAnaliseIA.findMany({
+    where: { competencia: comp }, orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true, usuarioNome: true, ia: true, nSugestoes: true, nIncong: true },
+  });
+  return Response.json(lista);
 }

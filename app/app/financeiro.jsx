@@ -1546,18 +1546,35 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
   const [mudou, setMudou] = useState(false);
   const [msg, setMsg] = useState("");
   const porId = useMemo(() => Object.fromEntries(todas.map((c) => [c.id, c])), [todas]);
-  const rodar = (refazerPesquisa = false) => {
-    setD(null); setErro(""); setMsg("");
-    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp, refazerPesquisa })
-      .then((j) => {
-        setD(j);
-        setSug(j.sugestoes.map((s) => ({ ...s, marcado: !!s.contaId && s.confianca === "ALTA", salvarTermo: false })));
-        setInc(j.incongruencias);
-        if (!j.sugestoes.length && j.incongruencias.length) setAba("inc");
-      })
-      .catch((e) => setErro(e.message));
+  const [lista, setLista] = useState(null); // análises salvas do mês
+  const [modo, setModo] = useState("inicio"); // inicio | lista | rodando | abrindo | res
+  const mostrar = (j) => {
+    setD(j);
+    setSug(j.sugestoes.map((s) => ({ ...s, marcado: !!s.contaId && s.confianca === "ALTA", salvarTermo: false })));
+    setInc(j.incongruencias);
+    setAba(!j.sugestoes.length && j.incongruencias.length ? "inc" : "sug");
+    setModo("res");
   };
-  useEffect(() => { rodar(); }, []);
+  const rodar = (refazerPesquisa = false) => {
+    setD(null); setErro(""); setMsg(""); setModo("rodando");
+    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp, refazerPesquisa })
+      .then(mostrar).catch((e) => { setErro(e.message); setModo("lista"); });
+  };
+  const abrir = (id) => {
+    setD(null); setErro(""); setMsg(""); setModo("abrindo");
+    fetch(`/api/fin/ia/${id}?u=${user.id}`).then((r) => r.json().then((j) => (r.ok ? mostrar(j) : Promise.reject(new Error(j.error || "Erro")))))
+      .catch((e) => { setErro(e.message); setModo("lista"); });
+  };
+  const listar = () => {
+    setModo("lista"); setErro("");
+    return fetch(`/api/fin/ia?u=${user.id}&competencia=${comp}`).then((r) => r.json()).then((l) => { setLista(Array.isArray(l) ? l : []); return l; });
+  };
+  const excluir = async (id) => {
+    if (!confirm("Apagar esta análise salva?")) return;
+    await api(`/api/fin/ia/${id}`, "DELETE", { usuarioId: user.id }).catch(() => {});
+    listar();
+  };
+  useEffect(() => { listar().then((l) => { if (!Array.isArray(l) || !l.length) rodar(); }).catch(() => rodar()); }, []);
   const muda = (g, k, v) => setSug((l) => l.map((s) => (s.g === g ? { ...s, [k]: v } : s)));
   const marcados = sug.filter((s) => s.marcado && s.contaId);
   const [ordS, setOrdS] = useState({ k: null, dir: 1 });
@@ -1595,6 +1612,10 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
       setInc((l) => l.filter((x) => x.i !== it.i)); setMudou(true);
     } catch (e) { setMsg(e.message); }
   };
+  const ignorar = (it) => {
+    setInc((l) => l.filter((x) => x.i !== it.i));
+    if (d?.analiseId) api(`/api/fin/ia/${d.analiseId}`, "PATCH", { usuarioId: user.id, ignorar: it.i }).catch(() => {});
+  };
   const nomeConta = (id) => (porId[id] ? `${porId[id].codigo} · ${porId[id].nome}` : "—");
   const tab = (k, t, n) => (
     <button onClick={() => setAba(k)} className="px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
@@ -1603,15 +1624,44 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
   );
   return (
     <Modal titulo={`Análise com IA · ${nomeComp(comp)}`} icone={Sparkles} onClose={() => onClose(mudou)} largura={1100}>
-      {!d && !erro && (
+      {(modo === "rodando" || modo === "abrindo" || modo === "inicio") && (
         <div className="flex flex-col items-center gap-2 py-12 text-sm" style={{ color: C.sub }}>
           <Loader2 size={24} className="animate-spin" style={{ color: C.accent }} />
-          Comparando com o histórico, consultando a IA e pesquisando na internet o que não tem histórico… (pode levar alguns minutos)
+          {modo === "rodando" ? "Comparando com o histórico, consultando a IA e pesquisando na internet o que não tem histórico… (pode levar alguns minutos)" : "Carregando…"}
         </div>
       )}
-      {erro && <div className="p-3 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-      {d && (
+      {erro && <div className="p-3 rounded text-sm mb-3" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {modo === "lista" && lista && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm" style={{ color: C.sub }}>{lista.length ? "Análises salvas deste mês. Abra uma anterior (sem custo) ou faça uma nova." : "Nenhuma análise salva neste mês."}</div>
+            <button onClick={() => rodar()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>
+              <Sparkles size={15} /> Nova análise
+            </button>
+          </div>
+          {lista.map((a, i) => (
+            <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg mb-2" style={{ border: `1px solid ${C.line}`, background: i === 0 ? C.panel2 : C.panel }}>
+              <Sparkles size={16} style={{ color: a.ia ? C.accent : C.sub }} />
+              <div className="flex-1 text-sm">
+                <div className="font-semibold">{dataHora(a.createdAt)}{i === 0 && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>mais recente</span>}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{a.usuarioNome || "—"} · {a.nSugestoes} sugestão(ões) · {a.nIncong} incongruência(s) · {a.ia ? "com IA" : "só histórico"}</div>
+              </div>
+              <button onClick={() => abrir(a.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Abrir</button>
+              <button onClick={() => excluir(a.id)} title="Apagar" style={{ color: C.sub }}><Trash2 size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modo === "res" && d && (
         <>
+          <div className="flex flex-wrap items-center gap-2 mb-3 pb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div className="text-sm flex-1">
+              <b>Análise de {dataHora(d.criadaEm || Date.now())}</b>{d.usuarioNome && <span style={{ color: C.sub }}> · {d.usuarioNome}</span>}
+              {d.salva && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.blueSoft, color: C.blue }}>salva{d.resolvidas ? ` · ${d.resolvidas} já resolvida(s)` : ""}</span>}
+            </div>
+            <button onClick={listar} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text }}>Análises anteriores</button>
+            <button onClick={() => rodar()} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}><Sparkles size={13} /> Nova análise</button>
+          </div>
           <div className="text-xs mb-3 flex flex-wrap gap-3" style={{ color: C.sub }}>
             <span>Base: <b>{d.historico.toLocaleString("pt-BR")}</b> identificações de outros meses</span>
             <span style={{ color: d.ia ? C.green : C.yellow }}>{d.ia ? "IA ativa" : "Só histórico (sem IA)"}</span>
@@ -1699,7 +1749,7 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
                     <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 260 }}>{it.motivo}<div className="text-[9px] mt-0.5">{it.fonte}</div></td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
                       <button onClick={() => trocar(it)} disabled={!it.contaSugeridaId} className="px-2 py-1 rounded font-semibold text-white mr-1" style={{ background: C.accent, opacity: it.contaSugeridaId ? 1 : 0.4 }}>Trocar</button>
-                      <button onClick={() => setInc((l) => l.filter((x) => x.i !== it.i))} className="px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Ignorar</button>
+                      <button onClick={() => ignorar(it)} className="px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Ignorar</button>
                     </td>
                   </tr>
                 ))}</tbody>

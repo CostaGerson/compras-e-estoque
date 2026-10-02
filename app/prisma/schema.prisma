@@ -751,3 +751,18 @@ model FinPesquisa {
   termo       String?
   createdAt   DateTime @default(now())
 }
+
+// Análises de IA salvas por mês (reabrir sem gastar uma nova análise)
+model FinAnaliseIA {
+  id          Int      @id @default(autoincrement())
+  competencia String
+  usuarioNome String?
+  ia          Boolean  @default(false)
+  nSugestoes  Int      @default(0)
+  nIncong     Int      @default(0)
+  resultado   Json
+  ignorados   Json?    // incongruências marcadas como "ignorar"
+  createdAt   DateTime @default(now())
+
+  @@index([competencia])
+}
