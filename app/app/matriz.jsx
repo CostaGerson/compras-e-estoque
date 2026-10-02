@@ -243,7 +243,8 @@ export default function MatrizCustos({ user }) {
         ))}
       </div>
 
-      {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} />}
+      {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao}
+        setPr={(k, v) => muda("producao", (x) => ({ ...x, [k]: v }))} />}
       {aba === "pessoal" && <Pessoal dados={dados} calc={calc} muda={muda} />}
       {aba === "vidaVegetativa" && <Lista titulo="Vida vegetativa" sub="Custos fixos do imóvel e da estrutura." itens={dados.vidaVegetativa} set={(f) => muda("vidaVegetativa", f)} cdb />}
       {aba === "logistica" && <Lista titulo="Logística / Manutenção" sub="Veículos, seguros, impostos e manutenção." itens={dados.logistica} set={(f) => muda("logistica", f)} cdb />}
@@ -267,7 +268,7 @@ function BtnSec({ onClick, Ico, t, cor }) {
 }
 
 /* ---------------- PAINEL ---------------- */
-function Painel({ calc, calcOf, ir }) {
+function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr }) {
   const b = calc.blocos;
   const linhaBloco = [
     ["vidaVegetativa", "Vida vegetativa", Leaf, b.vidaVegetativa],
@@ -290,8 +291,30 @@ function Painel({ calc, calcOf, ir }) {
     ["Operação precificada", calc.operacaoPrecificada, null, calcOf?.operacaoPrecificada, true],
     ["Custo administrativo", calc.custoAdministrativo, null, calcOf?.custoAdministrativo, true],
   ];
+  const alavancas = [
+    ["ticketMedio", "Ticket médio", "moeda", 2, (v) => moeda(v)],
+    ["margemContribuicao", "Margem de contribuição", "pct", 2, (v) => pct(v)],
+    ["metaPecas", "Peças faturadas (mês)", "num", 0, (v) => int(v)],
+  ];
   return (
     <div className="space-y-5">
+      {cenario && (
+        <div className="rounded-xl p-4" style={{ background: C.navy, color: "#fff" }}>
+          <div className="flex flex-wrap items-end gap-5">
+            <div className="flex-1 min-w-[200px]">
+              <div className="font-bold flex items-center gap-1.5"><SlidersHorizontal size={16} style={{ color: C.accent }} /> Simule aqui</div>
+              <div className="text-xs mt-0.5" style={{ color: "#9FB0C7" }}>Mude os valores e veja metas, lucro e breakeven recalcularem na hora. Salve para guardar o cenário.</div>
+            </div>
+            {alavancas.map(([k, t, tipo, casas, fmt]) => (
+              <div key={k}>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: "#C9D3E0" }}>{t}</div>
+                <NumInput tipo={tipo} casas={casas} value={pr[k]} onChange={(v) => setPr(k, v)} width={130} style={{ fontSize: 14, fontWeight: 700, padding: "6px 8px", paddingLeft: tipo === "moeda" ? 24 : 8 }} />
+                {prOf && <div className="text-[10px] mt-1" style={{ color: Number(pr[k]) === Number(prOf[k]) ? "#9FB0C7" : C.accent }}>oficial: {fmt(prOf[k])}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex justify-end"><ComoCalcula itens={FORMULAS.painel} /></div>
       {/* blocos */}
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
