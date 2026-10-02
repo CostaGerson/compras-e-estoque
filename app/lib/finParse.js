@@ -1,0 +1,271 @@
+// Leitura dos extratos bancários (PDF) → lançamentos.
+// Cada leitor recebe as linhas posicionais do PDF e devolve
+// { saldoAnterior, lancamentos: [{ data: "AAAA-MM-DD", historico, documento, identificacao, valor }] }
+
+const MESES = { JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6, JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12 };
+const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+// "1.234,56" | "-R$ 1.234,56" | "- 21,39" | "65,79 D" → número (com sinal)
+export function valorBR(s) {
+  if (s == null) return null;
+  let t = String(s).replace(/\s+/g, "");
+  if (!/\d,\d{2}/.test(t)) return null;
+  let neg = /^-|^\(|-R\$/.test(t) || /D$/.test(t);
+  t = t.replace(/[^\d,]/g, "").replace(",", ".");
+  const n = parseFloat(t);
+  if (isNaN(n)) return null;
+  return Math.round((neg ? -n : n) * 100) / 100;
+}
+const dataBR = (s) => { const m = String(s || "").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+
+// ---------- PDF → páginas → linhas (y) com itens posicionados ----------
+export async function linhasPdf(buf, senha) {
+  const mod = await import("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js");
+  const PDFJS = mod.default || mod;
+  PDFJS.disableWorker = true;
+  const doc = await PDFJS.getDocument({ data: new Uint8Array(buf), password: senha || undefined });
+  const paginas = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const pg = await doc.getPage(i);
+    const c = await pg.getTextContent();
+    const rows = new Map();
+    for (const it of c.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(it.transform[5]);
+      // junta itens com y muito próximo (±1)
+      let key = y;
+      for (const k of rows.keys()) if (Math.abs(k - y) <= 1) { key = k; break; }
+      if (!rows.has(key)) rows.set(key, []);
+      rows.get(key).push({ x: it.transform[4], w: it.width || 0, s: it.str });
+    }
+    const linhas = [...rows.entries()].sort((a, b) => b[0] - a[0])
+      .map(([y, its]) => ({ y, its: its.sort((a, b) => a.x - b.x) }));
+    paginas.push(linhas);
+  }
+  doc.destroy();
+  return paginas;
+}
+
+// texto dos itens com x em [x0, x1), juntando letras "espaçadas" sem criar espaços falsos
+export function col(linha, x0, x1) {
+  const its = linha.its.filter((i) => i.x >= x0 && i.x < x1);
+  let out = "", fim = null;
+  for (const i of its) {
+    if (fim !== null && i.x - fim > 1.6) out += " ";
+    out += i.s;
+    fim = i.x + i.w;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+const txt = (linha) => col(linha, -1, 9999);
+
+// ordem de leitura: órfãs carregadas (vieram de cima) + linhas acima da âncora + âncora + abaixo
+function ordemLeitura(g) {
+  const acima = g.extras.filter((e) => e.y > g.ancora.y || e._carregada).sort((a, b) => b.y - a.y);
+  const abaixo = g.extras.filter((e) => e.y <= g.ancora.y && !e._carregada && e !== g.ancora).sort((a, b) => b.y - a.y);
+  const carregadas = acima.filter((e) => e._carregada);
+  const resto = acima.filter((e) => !e._carregada);
+  return [...carregadas, ...resto, g.ancora, ...abaixo];
+}
+
+// ============================ BRADESCO ============================
+function lerBradesco(paginas) {
+  // corta tudo depois da linha "Total"
+  let fim = false, saldoAnterior = null;
+  const pags = paginas.map((linhas) => linhas.filter((l) => {
+    if (fim) return false;
+    const d = col(l, 0, 95);
+    if (/^Total$/i.test(d)) { fim = true; return false; }
+    return true;
+  }));
+  const CAB = /Extrato Mensal|MERIDIAN LTDA \||Nome do usu|Data da opera|^Folha|Agência \| Conta|Total Dispon|Extrato de: Ag|Lançamento|^01408/;
+  const ignorar = (l) => CAB.test(txt(l)) || l.y > 835 || (!col(l, 95, 9999) && !col(l, 0, 95));
+  const ehAncora = (l) => valorBR(col(l, 335, 430)) !== null || valorBR(col(l, 430, 520)) !== null;
+  // marca órfãs carregadas
+  const grupos = [];
+  let carregar = [];
+  for (const linhas of pags) {
+    const uteis = linhas.filter((l) => !ignorar(l));
+    for (const l of uteis) if (/SALDO ANTERIOR/.test(col(l, 95, 265))) saldoAnterior = valorBR(col(l, 520, 9999));
+    const corpo = uteis.filter((l) => !/SALDO ANTERIOR/.test(col(l, 95, 265)));
+    const ancoras = corpo.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
+    if (!ancoras.length) continue;
+    carregar.forEach((c) => { c._carregada = true; ancoras[0].extras.push(c); });
+    carregar = [];
+    for (const l of corpo) {
+      if (ehAncora(l)) continue;
+      let melhor = null, dist = Infinity;
+      for (const a of ancoras) { const d = Math.abs(a.ancora.y - l.y); if (d < dist) { dist = d; melhor = a; } }
+      if (l.y < ancoras[ancoras.length - 1].ancora.y && dist > 7) { carregar.push(l); continue; }
+      melhor.extras.push(l);
+    }
+    grupos.push(...ancoras);
+  }
+  let dataAtual = null;
+  const out = [];
+  for (const g of grupos) {
+    const linhas = ordemLeitura(g);
+    const datas = linhas.map((l) => dataBR(col(l, 0, 95))).filter(Boolean);
+    if (datas.length) dataAtual = datas[0];
+    const historico = linhas.map((l) => col(l, 95, 265)).filter(Boolean).join(" ");
+    const c = valorBR(col(g.ancora, 335, 430)), d = valorBR(col(g.ancora, 430, 520));
+    out.push({ data: dataAtual, historico, documento: col(g.ancora, 265, 335) || null, identificacao: null, valor: c !== null ? c : d });
+  }
+  return { saldoAnterior, lancamentos: out };
+}
+
+// ============================== ITAÚ ==============================
+function lerItau(paginas) {
+  let fim = false, saldoAnterior = null;
+  const pags = paginas.map((linhas) => linhas.filter((l) => {
+    if (fim) return false;
+    if (/^aviso:/i.test(txt(l))) { fim = true; return false; }
+    return true;
+  }));
+  const ignorar = (l) => l.y > 640 && /Saldo total|Limite da conta|Lançamentos do período|MERIDIAN ARTIGOS MILITARES E OUTDOOR\s+CNPJ|R\$ 20\.700|Razão Social|^-R\$/.test(txt(l));
+  const grupos = [];
+  for (const linhas of pags) {
+    const uteis = linhas.filter((l) => !ignorar(l) && !/Data\s+Lançamentos/.test(txt(l)));
+    for (const l of uteis) if (/SALDO ANTERIOR/.test(col(l, 88, 227))) saldoAnterior = valorBR(col(l, 515, 9999));
+    const ehAncora = (l) => dataBR(col(l, 0, 88)) && valorBR(col(l, 455, 515)) !== null;
+    const ancoras = uteis.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
+    for (const l of uteis) {
+      if (ehAncora(l) || dataBR(col(l, 0, 88))) continue;
+      let melhor = null, dist = Infinity;
+      for (const a of ancoras) { const d = Math.abs(a.ancora.y - l.y); if (d < dist) { dist = d; melhor = a; } }
+      if (melhor && dist <= 7) melhor.extras.push(l);
+    }
+    grupos.push(...ancoras);
+  }
+  return {
+    saldoAnterior,
+    lancamentos: grupos.map((g) => {
+      const ls = ordemLeitura(g);
+      const junta = (x0, x1) => ls.map((l) => col(l, x0, x1)).filter(Boolean).join(" ").replace(/-\s+(\d)/g, "-$1");
+      const hist = junta(88, 227), razao = junta(227, 363), doc = junta(363, 455);
+      return {
+        data: dataBR(col(g.ancora, 0, 88)),
+        historico: [hist, razao].filter(Boolean).join(" "),
+        documento: null,
+        identificacao: doc || null,
+        valor: valorBR(col(g.ancora, 455, 515)),
+      };
+    }),
+  };
+}
+
+// ============================== INTER ==============================
+function lerInter(paginas) {
+  let data = null;
+  const out = [];
+  for (const linhas of paginas) {
+    for (const l of linhas) {
+      const esq = col(l, 0, 400);
+      const sa = semAcento(esq).replace(/\s+/g, "").toUpperCase();
+      const m = sa.match(/^(\d{1,2})DE([A-Z]+)DE(\d{4})SALDODODIA/);
+      if (m && MESES[m[2]]) { data = `${m[3]}-${String(MESES[m[2]]).padStart(2, "0")}-${m[1].padStart(2, "0")}`; continue; }
+      if (!data) continue;
+      const v = valorBR(col(l, 395, 500));
+      if (v === null || l.its[0].x > 60) continue;
+      out.push({ data, historico: esq.replace(/"/g, "").replace(/\s+/g, " ").trim(), documento: null, identificacao: null, valor: v, _saldo: valorBR(col(l, 500, 9999)) });
+    }
+  }
+  const p = out[0];
+  const saldoAnterior = p && p._saldo !== null ? Math.round((p._saldo - p.valor) * 100) / 100 : null;
+  out.forEach((o) => delete o._saldo);
+  return { saldoAnterior, lancamentos: out };
+}
+
+// =============================== C6 ================================
+function lerC6(paginas) {
+  let ano = null;
+  const out = [];
+  for (const linhas of paginas) {
+    for (const l of linhas) {
+      const t = txt(l);
+      const m = t.match(/Per[ií]odo.*?(\d{4})/);
+      if (m && !ano) ano = m[1];
+      const dl = col(l, 0, 90);
+      if (!/^\d{2}\/\d{2}$/.test(dl)) continue;
+      const v = valorBR(col(l, 480, 9999));
+      if (v === null) continue;
+      const [d, mm] = dl.split("/");
+      out.push({ data: `${ano || new Date().getFullYear()}-${mm}-${d}`, historico: col(l, 230, 480), documento: null, identificacao: col(l, 150, 230) || null, valor: v });
+    }
+  }
+  return { saldoAnterior: null, lancamentos: out };
+}
+
+// ======================== BANCO DO BRASIL ==========================
+function lerBB(paginas) {
+  let saldoAnterior = null;
+  const grupos = [];
+  for (const linhas of paginas) {
+    const uteis = linhas.filter((l) => l.y < 690 || !/Extrato de Conta|Cliente|Nome|MERIDIAN LTDA|Movimentação em|Histórico/.test(txt(l)));
+    const ehLinhaData = (l) => dataBR(col(l, 0, 100));
+    for (const l of uteis) if (ehLinhaData(l) && /Saldo Anterior/i.test(col(l, 145, 380))) saldoAnterior = valorBR(col(l, 495, 9999));
+    const ehAncora = (l) => ehLinhaData(l) && valorBR(col(l, 495, 9999)) !== null && !/^Saldo/i.test(col(l, 145, 380));
+    const ancoras = uteis.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
+    for (const l of uteis) {
+      if (ehLinhaData(l)) continue;
+      if (/bb\.com\.br|Pág\.|Extrato de Conta|Data\s+Origem/.test(txt(l))) continue;
+      let melhor = null, dist = Infinity;
+      for (const a of ancoras) { const d = a.ancora.y - l.y; if (d > 0 && d < dist) { dist = d; melhor = a; } } // continuação fica ABAIXO da âncora
+      if (melhor && dist <= 12) melhor.extras.push(l);
+    }
+    grupos.push(...ancoras);
+  }
+  let ls = grupos.map((g) => ({
+    data: dataBR(col(g.ancora, 0, 100)),
+    historico: [col(g.ancora, 145, 380), ...g.extras.map((e) => col(e, 145, 380))].filter(Boolean).join(" "),
+    documento: col(g.ancora, 380, 460) || null,
+    identificacao: null,
+    valor: valorBR(col(g.ancora, 495, 9999)),
+  }));
+  // débito + "Estorno de Débito" (mesmo documento/valor/dia) se anulam
+  const usados = new Set();
+  ls.forEach((e, i) => {
+    if (!/^Estorno de D/i.test(e.historico) || usados.has(i)) return;
+    const j = ls.findIndex((x, k) => !usados.has(k) && k !== i && x.data === e.data && x.documento === e.documento && Math.abs(x.valor + e.valor) < 0.005 && x.valor < 0);
+    if (j >= 0) { usados.add(i); usados.add(j); }
+  });
+  ls = ls.filter((_, i) => !usados.has(i)).reverse(); // BB vem do mais recente para o mais antigo
+  return { saldoAnterior, lancamentos: ls };
+}
+
+// ============================== CAIXA ==============================
+function lerCaixa(paginas) {
+  const out = [];
+  for (const linhas of paginas) {
+    for (const l of linhas) {
+      const d = dataBR(col(l, 0, 130));
+      if (!d) continue;
+      const hist = col(l, 300, 450);
+      if (/^SALDO DIA/i.test(hist)) continue;
+      const v = valorBR(col(l, 450, 512));
+      if (v === null) continue;
+      const doc = col(l, 240, 300);
+      out.push({ data: d, historico: hist, documento: doc && doc !== "0" ? doc : null, identificacao: null, valor: v });
+    }
+  }
+  return { saldoAnterior: null, lancamentos: out };
+}
+
+// ------------------------------------------------------------------
+export const LEITORES = {
+  BRADESCO_EXTRATO: { banco: "BRADESCO PJ", ler: lerBradesco },
+  ITAU_EXTRATO: { banco: "ITAU PJ", ler: lerItau },
+  INTER_EXTRATO: { banco: "INTER PJ", ler: lerInter },
+  C6_EXTRATO: { banco: "C6BANK EXTRATO", ler: lerC6 },
+  BB_EXTRATO: { banco: "BB PJ", ler: lerBB },
+  CAIXA_EXTRATO: { banco: "CAIXA PJ", ler: lerCaixa },
+};
+
+export async function lerArquivo(codigo, buf, senha) {
+  const L = LEITORES[codigo];
+  if (!L) return null;
+  const paginas = await linhasPdf(buf, senha);
+  const r = L.ler(paginas);
+  r.lancamentos = r.lancamentos.filter((x) => x.data && x.valor !== null && x.valor !== 0);
+  return { banco: L.banco, ...r };
+}

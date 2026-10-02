@@ -640,7 +640,11 @@ model FinArquivo {
   enviadoPorNome String?
   createdAt      DateTime @default(now())
 
-  tipo FinDocTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  processado     Boolean  @default(false)  // já virou lançamentos
+  saldoAnterior  Decimal? @db.Decimal(14, 2)
+
+  tipo        FinDocTipo      @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  lancamentos FinLancamento[]
 
   @@index([competencia])
 }
@@ -666,4 +670,56 @@ model FinSenhaPdf {
   rotulo    String
   senha     String
   createdAt DateTime @default(now())
+}
+
+// Plano de contas (conta-caixa). 1xxxxxx receita · 2xxxxxx despesa · 3xxxxxx conciliação
+model FinConta {
+  id        Int      @id @default(autoincrement())
+  codigo    String   @unique
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  lancamentos FinLancamento[]
+  regras      FinRegra[]
+}
+
+// Palavra-chave → conta-caixa (identificação automática)
+model FinRegra {
+  id            Int      @id @default(autoincrement())
+  termo         String   // texto normalizado procurado no histórico/identificação
+  contaId       Int
+  banco         String?  // opcional: só vale para este banco
+  usos          Int      @default(0)
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  conta FinConta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+}
+
+// Lançamento financeiro (vem dos extratos/faturas ou manual)
+model FinLancamento {
+  id                Int      @id @default(autoincrement())
+  competencia       String
+  arquivoId         Int?
+  banco             String
+  data              DateTime @db.Date
+  historico         String
+  documento         String?
+  identificacao     String?
+  valor             Decimal  @db.Decimal(14, 2)
+  contaId           Int?
+  regraId           Int?
+  origem            String   @default("EXTRATO") // EXTRATO | MANUAL | PARTE
+  paiId             Int?     // parte de um lançamento desmembrado
+  desmembrado       Boolean  @default(false)    // original oculto, substituído pelas partes
+  ordem             Int      @default(0)
+  identificadoPor   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  arquivo FinArquivo? @relation(fields: [arquivoId], references: [id], onDelete: Cascade)
+  conta   FinConta?   @relation(fields: [contaId], references: [id], onDelete: SetNull)
+
+  @@index([competencia])
 }

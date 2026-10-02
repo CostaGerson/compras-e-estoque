@@ -112,3 +112,111 @@ export function classificarTexto(texto) {
   for (const [codigo, f] of REGRAS_CLASSIFICACAO) if (f(n)) return { codigo };
   return { codigo: null };
 }
+
+// ---------- Plano de contas (base atual da Meridian) ----------
+export const CONTAS_PADRAO = [
+  ["1111000","VENDA DE UNIFORMES"],["1115000","VENDA LICITAÇÕES"],["1121000","VENDA DE PATRIMÔNIO"],
+  ["1122000","RENDIMENTO OU RESGATE DE CAPITAL"],["1132000","EMPRÉSTIMO SÓCIO"],["1133000","ANTECIPAÇÃO FACTORING"],
+  ["2111100","COMBUSTÍVEL"],["2111210","FRETE COMPRA"],["2111220","FRETE ENTREGA"],["2111310","LALAMOVE"],
+  ["2111320","FRETEBRAS"],["2111330","PEDÁGIO"],["2111400","UBER"],["2111500","CORREIO"],
+  ["2112100","TECIDO"],["2112200","AVIAMENTO"],["2112300","EMBALAGEM"],["2112600","INSUMO SILK"],
+  ["2113100","PESSOAL DE CORTE"],["2113200","PESSOAL DE EXPEDIÇÃO"],["2113400","VT PRODUÇÃO"],
+  ["2113500","PESSOAL DE COSTURA"],["2113600","PESSOAL DE LOGÍSTICA"],["2113700","BENEFICIOS PESSOAL DE PRODUÇÃO"],
+  ["2114100","BORDADO"],["2114200","SILK"],["2114300","SUBLIMAÇÃO"],["2114600","FACÇÃO"],["2115100","IMPOSTO"],
+  ["2116100","SV MANUTENÇÃO MÁQUINAS"],["2116200","SV MANUTENÇÃO VIATURAS"],["2116300","PEÇAS DE MÁQUINAS"],
+  ["2117200","FREELANCER DE CORTE"],["2117300","FREELANCER DE EXPEDIÇÃO"],["2117400","FREELANCER DE COSTURA"],
+  ["2117510","FREELANCER SILK"],["2117520","FREELANCER BORDADO"],["2118000","PRODUTO REVENDA"],
+  ["2121000","VIDA VEGETATIVA"],["2122000","SISTEMAS E SERVIÇOS ADM"],["2123300","MATERIAL DE EXPEDIENTE"],
+  ["2124000","CONFRATERNIZAÇÃO"],["2125000","EDUCAÇÃO"],["2126000","PRO LABORE"],["2128100","BENEFÍCIOS TRABALHISTAS"],
+  ["2128200","PESSOAL DE ADMINISTRAÇÃO"],["2131100","PGTO DIVIDAS BANCARIAS"],["2131200","PGTO DIVIDAS C/ SÓCIOS"],
+  ["2131300","PGTO ANTECIPAÇÃO FACTORING"],["2133100","RESERVA CAPITAL"],["2133200","PATRIMÔNIO"],
+  ["2133300","MAQUINÁRIO"],["2133400","INVESTIMENTO NA PLANTA"],["2134000","TAXAS"],["2135000","JUROS"],
+  ["2220000","DESPESA ADMINISTRATIVA"],["2240000","DESPESA COMERCIAL"],["3000000","CONCILIAÇÃO"],
+];
+export async function garantirContas() {
+  const n = await prisma.finConta.count();
+  if (n > 0) return;
+  await prisma.finConta.createMany({ data: CONTAS_PADRAO.map(([codigo, nome]) => ({ codigo, nome })), skipDuplicates: true });
+}
+
+// ---------- Regras (palavra-chave → conta) ----------
+// normalização para comparar: maiúsculo, sem acento, só letras/números com 1 espaço
+export const normRegra = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
+  .replace(/[^A-Z0-9]+/g, " ").trim();
+
+// Sugere o termo de uma regra a partir do histórico (tira datas, horas e números soltos)
+export function sugerirTermo(historico) {
+  return normRegra(historico)
+    .replace(/\b\d{2} \d{2}( \d{2,4})?\b/g, " ")
+    .replace(/\b\d+\b/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
+// escolhe a regra mais específica (termo mais longo) que casa com o lançamento
+export function acharRegra(regras, l) {
+  const base = normRegra(`${l.historico} ${l.identificacao || ""}`);
+  const alvo = " " + base + " ";
+  const alvoJunto = base.replace(/ /g, ""); // tolera banco que "cola" palavras (TEDTRANSF x TED-TRANSF)
+  let melhor = null;
+  for (const r of regras) {
+    if (r.banco && r.banco !== l.banco) continue;
+    if (!r.termo) continue;
+    const junto = r.termo.replace(/ /g, "");
+    const casa = alvo.includes(" " + r.termo + " ") || (junto.length >= 8 && alvoJunto.includes(junto));
+    if (!casa) continue;
+    if (!melhor || r.termo.length > melhor.termo.length) melhor = r;
+  }
+  return melhor;
+}
+
+// aplica regras nos lançamentos SEM conta da competência (ou nos ids informados)
+export async function aplicarRegras(competencia, ids) {
+  const regras = await prisma.finRegra.findMany();
+  if (!regras.length) return 0;
+  const where = { competencia, contaId: null, desmembrado: false };
+  if (ids) where.id = { in: ids };
+  const ls = await prisma.finLancamento.findMany({ where });
+  let n = 0;
+  const usos = {};
+  for (const l of ls) {
+    const r = acharRegra(regras, l);
+    if (!r) continue;
+    await prisma.finLancamento.update({ where: { id: l.id }, data: { contaId: r.contaId, regraId: r.id, identificadoPor: "REGRA" } });
+    usos[r.id] = (usos[r.id] || 0) + 1;
+    n++;
+  }
+  for (const [id, q] of Object.entries(usos)) await prisma.finRegra.update({ where: { id: Number(id) }, data: { usos: { increment: q } } });
+  return n;
+}
+
+// ---------- Processa um arquivo (PDF → lançamentos) ----------
+export async function processarArquivo(arquivoId) {
+  const { lerArquivo, LEITORES } = await import("@/lib/finParse");
+  const a = await prisma.finArquivo.findUnique({ where: { id: arquivoId }, include: { tipo: true } });
+  if (!a || a.processado) return { ok: true, n: 0 };
+  if (!LEITORES[a.tipo.codigo]) return { ok: true, n: 0, semLeitor: true };
+  const r = await lerArquivo(a.tipo.codigo, Buffer.from(a.conteudo, "base64"), a.senhaPdf);
+  await prisma.$transaction([
+    prisma.finLancamento.deleteMany({ where: { arquivoId: a.id } }),
+    prisma.finLancamento.createMany({
+      data: r.lancamentos.map((l, i) => ({
+        competencia: a.competencia, arquivoId: a.id, banco: r.banco,
+        data: new Date(l.data + "T00:00:00Z"), historico: String(l.historico || "").toUpperCase(),
+        documento: l.documento || null, identificacao: l.identificacao ? String(l.identificacao).toUpperCase() : null,
+        valor: l.valor, ordem: i,
+      })),
+    }),
+    prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: r.saldoAnterior } }),
+  ]);
+  const auto = await aplicarRegras(a.competencia);
+  return { ok: true, n: r.lancamentos.length, auto };
+}
+
+// ---------- serialização ----------
+const num = (d) => (d == null ? null : Number(d));
+export const lancOut = (l) => ({
+  id: l.id, banco: l.banco, data: l.data.toISOString().slice(0, 10), historico: l.historico, documento: l.documento,
+  identificacao: l.identificacao, valor: num(l.valor), contaId: l.contaId, regraId: l.regraId, origem: l.origem,
+  paiId: l.paiId, desmembrado: l.desmembrado, identificadoPor: l.identificadoPor, arquivoId: l.arquivoId, ordem: l.ordem,
+});
+

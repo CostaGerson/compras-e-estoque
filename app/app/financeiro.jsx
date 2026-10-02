@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
-  FolderArchive, Loader2, Copy, HelpCircle,
+  FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 
@@ -35,8 +35,12 @@ function statusCard(n, esperado, justificativa) {
 /* ============================================================ */
 export default function Financeiro({ user }) {
   const [aba, setAba] = useState("importacao");
+  const [comp, setComp] = useState(mesAnterior());
   const abas = [
     { k: "importacao", label: "Importação mensal" },
+    { k: "identificacao", label: "Identificação" },
+    { k: "contas", label: "Plano de contas" },
+    { k: "regras", label: "Palavras-chave" },
     { k: "senhas", label: "Senhas de PDF" },
   ];
   return (
@@ -49,15 +53,27 @@ export default function Financeiro({ user }) {
           </button>
         ))}
       </div>
-      {aba === "importacao" && <Importacao user={user} />}
+      {aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
+      {aba === "identificacao" && <Identificacao user={user} comp={comp} setComp={setComp} />}
+      {aba === "contas" && <PlanoContas user={user} />}
+      {aba === "regras" && <Regras user={user} />}
       {aba === "senhas" && <Senhas user={user} />}
     </div>
   );
 }
 
 /* ---------------- IMPORTAÇÃO MENSAL ---------------- */
-function Importacao({ user }) {
-  const [comp, setComp] = useState(mesAnterior());
+function SeletorMes({ comp, setComp }) {
+  return (
+    <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+      <button onClick={() => setComp(somaMes(comp, -1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>‹</button>
+      <div className="px-3 py-2 font-semibold" style={{ minWidth: 150, textAlign: "center" }}>{nomeComp(comp)}</div>
+      <button onClick={() => setComp(somaMes(comp, 1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
+    </div>
+  );
+}
+
+function Importacao({ user, comp, setComp }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [pedirSenha, setPedirSenha] = useState(null); // { tipo, file, b64, errada }
@@ -151,7 +167,10 @@ function Importacao({ user }) {
       body: JSON.stringify({ usuarioId: user.id, competencia: comp, tipoId: extra.tipoId || "auto", nome: it.nome, conteudo: it.b64, senha: extra.senha, salvarSenha: extra.salvarSenha, rotuloSenha: extra.rotuloSenha }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok) return upd({ st: "ok", tipo: d.tipo, msg: d.protegido ? "PDF com senha aberto" : "" });
+    if (r.ok) {
+      const lidos = d.leitura?.n ? `${d.leitura.n} lançamentos lidos` : "";
+      return upd({ st: "ok", tipo: d.tipo, msg: [d.protegido ? "PDF com senha aberto" : "", lidos].filter(Boolean).join(" · ") });
+    }
     if (r.status === 423) return upd({ st: "senha", msg: d.senhaErrada ? "Senha incorreta" : "PDF com senha" });
     if (r.status === 409) return upd({ st: "duplicado", msg: d.error });
     if (d.naoReconhecido) return upd({ st: "manual", msg: d.error });
@@ -159,7 +178,7 @@ function Importacao({ user }) {
   };
 
   const excluir = async (a) => {
-    if (!confirm(`Excluir o arquivo ${a.nome}?`)) return;
+    if (!confirm(`Excluir o arquivo ${a.nome}?\nOs lançamentos lidos dele (inclusive os já identificados) também serão excluídos.`)) return;
     await fetch(`/api/fin/arquivos/${a.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -168,11 +187,7 @@ function Importacao({ user }) {
     <div>
       {/* topo: competência + resumo */}
       <div className="flex flex-wrap items-center gap-4 mb-5">
-        <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
-          <button onClick={() => setComp(somaMes(comp, -1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>‹</button>
-          <div className="px-3 py-2 font-semibold" style={{ minWidth: 150, textAlign: "center" }}>{nomeComp(comp)}</div>
-          <button onClick={() => setComp(somaMes(comp, 1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
-        </div>
+        <SeletorMes comp={comp} setComp={setComp} />
         <input ref={loteInp} type="file" accept=".zip,application/zip,application/pdf,.pdf" multiple className="hidden"
           onChange={(e) => { abrirLote(e.target.files); e.target.value = ""; }} />
         <button onClick={() => loteInp.current?.click()} disabled={!dados}
@@ -516,6 +531,607 @@ function Senhas({ user }) {
             <div className="text-sm font-mono" style={{ color: C.sub }}>{ver[s.id] ? s.senha : "••••••"}</div>
             <button onClick={() => setVer((v) => ({ ...v, [s.id]: !v[s.id] }))} style={{ color: C.sub }}>{ver[s.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
             <button onClick={() => del(s)} style={{ color: C.sub }}><Trash2 size={15} /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ======================================================================
+   IDENTIFICAÇÃO DE LANÇAMENTOS (conta-caixa)
+   ====================================================================== */
+const ROXO = "#7A5AF8";
+const brl = (n) => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dBR = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
+const normC = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+const sugerirTermoC = (h) => normC(h).replace(/\b\d{2} \d{2}( \d{2,4})?\b/g, " ").replace(/\b\d+\b/g, " ").replace(/\s+/g, " ").trim();
+const corConta = (conta) => !conta ? C.text : conta.codigo[0] === "1" ? C.green : conta.codigo[0] === "2" ? C.red : ROXO;
+const corValor = (v) => (v < 0 ? C.red : C.blue);
+const api = async (url, method, body) => {
+  const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Erro");
+  return d;
+};
+
+function Identificacao({ user, comp, setComp }) {
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [agrupar, setAgrupar] = useState("banco");
+  const [fBanco, setFBanco] = useState("");
+  const [fConta, setFConta] = useState("");
+  const [fStatus, setFStatus] = useState("todos");
+  const [busca, setBusca] = useState("");
+  const [sel, setSel] = useState(new Set());
+  const [modal, setModal] = useState(null); // {tipo:'identificar'|'editar'|'novo'|'desmembrar', itens|lanc}
+  const [aviso, setAviso] = useState("");
+  const [lendo, setLendo] = useState(false);
+
+  const carregar = async () => {
+    setErro("");
+    try {
+      const r = await fetch(`/api/fin/lancamentos?u=${user.id}&competencia=${comp}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Erro ao carregar.");
+      setDados(d);
+    } catch (e) { setErro(e.message); }
+  };
+  useEffect(() => { setDados(null); setSel(new Set()); carregar(); }, [comp]);
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(""), 5000); return () => clearTimeout(t); }, [aviso]);
+
+  const contasById = useMemo(() => Object.fromEntries((dados?.contas || []).map((c) => [c.id, c])), [dados]);
+  const bancos = useMemo(() => [...new Set((dados?.lancamentos || []).map((l) => l.banco))].sort(), [dados]);
+
+  const visiveis = useMemo(() => {
+    if (!dados) return [];
+    const b = normC(busca);
+    return dados.lancamentos.filter((l) => {
+      if (l.desmembrado) return false;
+      if (fBanco && l.banco !== fBanco) return false;
+      if (fConta === "_sem" ? l.contaId : fConta && String(l.contaId) !== fConta) return false;
+      if (fStatus === "pend" && l.contaId) return false;
+      if (fStatus === "ok" && !l.contaId) return false;
+      if (b && !normC(`${l.historico} ${l.identificacao || ""} ${l.documento || ""} ${brl(l.valor)}`).includes(b)) return false;
+      return true;
+    });
+  }, [dados, fBanco, fConta, fStatus, busca]);
+
+  const grupos = useMemo(() => {
+    const m = new Map();
+    const chave = (l) => agrupar === "banco" ? l.banco : (l.contaId ? contasById[l.contaId]?.codigo : "~");
+    for (const l of visiveis) { const k = chave(l); if (!m.has(k)) m.set(k, []); m.get(k).push(l); }
+    const ks = [...m.keys()].sort((a, b) => (a === "~" ? -1 : b === "~" ? 1 : a.localeCompare(b)));
+    return ks.map((k) => {
+      const itens = m.get(k).slice().sort((a, b) => a.data.localeCompare(b.data) || (a.arquivoId || 0) - (b.arquivoId || 0) || a.ordem - b.ordem || a.id - b.id);
+      const conta = agrupar === "conta" && k !== "~" ? (dados.contas.find((c) => c.codigo === k)) : null;
+      const titulo = agrupar === "banco" ? k : k === "~" ? "A IDENTIFICAR" : `${conta.codigo} · ${conta.nome}`;
+      const inicial = agrupar === "banco" && !fConta && fStatus === "todos" && !busca ? (dados.saldos[k] || 0) : 0;
+      return { k, titulo, conta, itens, inicial };
+    });
+  }, [visiveis, agrupar, contasById, dados, fConta, fStatus, busca]);
+
+  const tot = useMemo(() => {
+    const ls = (dados?.lancamentos || []).filter((l) => !l.desmembrado);
+    const conc = (dados?.contas || []).find((c) => c.codigo === "3000000");
+    return {
+      n: ls.length,
+      pend: ls.filter((l) => !l.contaId).length,
+      ent: ls.filter((l) => l.valor > 0 && !(conc && l.contaId === conc.id)).reduce((a, l) => a + l.valor, 0),
+      sai: ls.filter((l) => l.valor < 0 && !(conc && l.contaId === conc.id)).reduce((a, l) => a + l.valor, 0),
+      conc: conc ? ls.filter((l) => l.contaId === conc.id).reduce((a, l) => a + l.valor, 0) : 0,
+      temConc: conc ? ls.some((l) => l.contaId === conc.id) : false,
+    };
+  }, [dados]);
+
+  const somaSel = useMemo(() => visiveis.filter((l) => sel.has(l.id)).reduce((a, l) => a + l.valor, 0), [sel, visiveis]);
+  const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleGrupo = (g) => setSel((s) => { const n = new Set(s); const todos = g.itens.every((l) => n.has(l.id)); g.itens.forEach((l) => (todos ? n.delete(l.id) : n.add(l.id))); return n; });
+
+  const lerPendentes = async () => {
+    setLendo(true);
+    try {
+      const d = await api("/api/fin/processar", "POST", { usuarioId: user.id, competencia: comp });
+      const n = d.arquivos.reduce((a, x) => a + (x.n || 0), 0);
+      const falhas = d.arquivos.filter((x) => x.ok === false);
+      setAviso(`${n} lançamentos lidos${d.auto ? ` · ${d.auto} identificados por palavra-chave` : ""}${falhas.length ? ` · ${falhas.length} arquivo(s) com erro` : ""}`);
+    } catch (e) { alert(e.message); }
+    setLendo(false);
+    carregar();
+  };
+
+  const excluir = async (l) => {
+    const msg = l.paiId ? "Excluir uma parte desfaz o desmembramento inteiro. Continuar?" : `Excluir o lançamento "${l.historico}"?`;
+    if (!confirm(msg)) return;
+    await fetch(`/api/fin/lancamentos/${l.id}?u=${user.id}`, { method: "DELETE" });
+    carregar();
+  };
+  const excluirSel = async () => {
+    if (!confirm(`Excluir ${sel.size} lançamento(s)?`)) return;
+    for (const id of sel) await fetch(`/api/fin/lancamentos/${id}?u=${user.id}`, { method: "DELETE" });
+    setSel(new Set()); carregar();
+  };
+
+  const Th = ({ children, right, w }) => (
+    <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-wide" style={{ color: C.navy, textAlign: right ? "right" : "left", width: w, whiteSpace: "nowrap" }}>{children}</th>
+  );
+  const sel2 = { border: `1px solid ${C.line}`, background: C.panel, color: C.text };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SeletorMes comp={comp} setComp={setComp} />
+        {dados?.arquivosPendentes > 0 && (
+          <button onClick={lerPendentes} disabled={lendo} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>
+            {lendo ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Ler {dados.arquivosPendentes} extrato(s) pendente(s)
+          </button>
+        )}
+        <button onClick={() => setModal({ tipo: "novo" })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>
+          <Plus size={15} /> Lançamento
+        </button>
+        {dados && (
+          <div className="flex flex-wrap gap-2 ml-auto">
+            <Pilula cor={C.text} bg={C.panel2} txt={`${tot.n} lançamentos`} />
+            <Pilula cor={tot.pend ? C.accent : C.green} bg={tot.pend ? C.accentSoft : C.greenSoft} txt={tot.pend ? `${tot.pend} a identificar` : "Tudo identificado"} />
+            <Pilula cor={C.blue} bg={C.blueSoft} txt={`Entradas R$ ${brl(tot.ent)}`} />
+            <Pilula cor={C.red} bg={C.redSoft} txt={`Saídas R$ ${brl(tot.sai)}`} />
+            {tot.temConc && <Pilula cor={Math.abs(tot.conc) < 0.005 ? C.green : C.red} bg={Math.abs(tot.conc) < 0.005 ? C.greenSoft : C.redSoft} txt={`Conciliação R$ ${brl(tot.conc)}`} />}
+          </div>
+        )}
+      </div>
+
+      {/* filtros */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex items-center rounded-lg px-2" style={sel2}>
+          <Search size={14} style={{ color: C.sub }} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar histórico, valor…" className="px-2 py-1.5 text-sm" style={{ outline: "none", width: 220 }} />
+        </div>
+        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="px-2 py-1.5 rounded-lg text-sm" style={sel2}>
+          <option value="todos">Todos</option><option value="pend">A identificar</option><option value="ok">Identificados</option>
+        </select>
+        <select value={fBanco} onChange={(e) => setFBanco(e.target.value)} className="px-2 py-1.5 rounded-lg text-sm" style={sel2}>
+          <option value="">Todos os bancos</option>{bancos.map((b) => <option key={b}>{b}</option>)}
+        </select>
+        <select value={fConta} onChange={(e) => setFConta(e.target.value)} className="px-2 py-1.5 rounded-lg text-sm" style={{ ...sel2, maxWidth: 260 }}>
+          <option value="">Todas as contas</option><option value="_sem">— sem conta —</option>
+          {(dados?.contas || []).map((c) => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}
+        </select>
+        <div className="flex rounded-lg overflow-hidden ml-auto" style={{ border: `1px solid ${C.line}` }}>
+          {[["banco", "Por banco"], ["conta", "Por conta-caixa"]].map(([k, t]) => (
+            <button key={k} onClick={() => setAgrupar(k)} className="px-3 py-1.5 text-sm" style={{ background: agrupar === k ? C.navy : C.panel, color: agrupar === k ? "#fff" : C.sub }}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      {sel.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 mb-3 rounded-lg sticky top-0 z-10" style={{ background: C.navy, color: "#fff" }}>
+          <div className="text-sm font-semibold">{sel.size} selecionado(s) · R$ {brl(somaSel)}</div>
+          <button onClick={() => setModal({ tipo: "identificar", itens: visiveis.filter((l) => sel.has(l.id)) })} className="flex items-center gap-1 px-3 py-1 rounded text-sm font-semibold" style={{ background: C.green }}>
+            <Tag size={14} /> Identificar
+          </button>
+          <button onClick={excluirSel} className="flex items-center gap-1 px-3 py-1 rounded text-sm" style={{ background: "rgba(255,255,255,.12)" }}><Trash2 size={14} /> Excluir</button>
+          <button onClick={() => setSel(new Set())} className="ml-auto text-sm opacity-80">Limpar seleção</button>
+        </div>
+      )}
+
+      {aviso && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
+      {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!dados && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+      {dados && dados.lancamentos.length === 0 && (
+        <div className="p-6 rounded-xl text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+          Nenhum lançamento em {nomeComp(comp)}. Envie os extratos na aba <b>Importação mensal</b>{dados.arquivosPendentes ? " ou clique em “Ler extratos pendentes”." : "."}
+        </div>
+      )}
+
+      {dados && grupos.length > 0 && (
+        <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1100 }}>
+            <thead style={{ borderBottom: `2px solid ${C.line}` }}>
+              <tr>
+                <th style={{ width: 28 }} />
+                <Th w={130}>Banco</Th><Th w={82}>Data</Th><Th>Histórico</Th><Th w={90}>Documento</Th><Th w={140}>Identificação</Th>
+                <Th w={70}>Conta</Th><Th w={170}>Descrição</Th><Th right w={95}>Valor</Th><Th right w={100}>Saldo</Th><th style={{ width: 128 }} />
+              </tr>
+            </thead>
+            {grupos.map((g) => {
+              let saldo = g.inicial;
+              const soma = g.itens.reduce((a, l) => a + l.valor, 0);
+              return (
+                <tbody key={g.k}>
+                  <tr style={{ background: C.panel2, borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-2 py-2"><input type="checkbox" checked={g.itens.every((l) => sel.has(l.id))} onChange={() => toggleGrupo(g)} /></td>
+                    <td colSpan={7} className="px-2 py-2 font-bold" style={{ color: g.k === "~" ? C.accent : C.navy }}>
+                      {g.titulo} <span className="font-normal" style={{ color: C.sub }}>· {g.itens.length} lanç. · soma R$ {brl(soma)}</span>
+                    </td>
+                    <td className="px-2 py-2 text-right font-semibold" style={{ color: C.sub }}>SALDO ANTERIOR</td>
+                    <td className="px-2 py-2 text-right font-bold">{brl(g.inicial)}</td>
+                    <td />
+                  </tr>
+                  {g.itens.map((l) => {
+                    saldo += l.valor;
+                    const conta = l.contaId ? contasById[l.contaId] : null;
+                    const cor = corConta(conta);
+                    return (
+                      <tr key={l.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(l.id) ? C.accentSoft : undefined, boxShadow: conta ? undefined : `inset 3px 0 0 ${C.accent}` }}>
+                        <td className="px-2 py-1.5"><input type="checkbox" checked={sel.has(l.id)} onChange={() => toggle(l.id)} /></td>
+                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{l.banco}</td>
+                        <td className="px-2 py-1.5" style={{ color: cor }}>{dBR(l.data)}</td>
+                        <td className="px-2 py-1.5" style={{ color: cor }}>
+                          <span style={{ fontSize: 11 }}>{l.historico}</span>
+                          {l.origem === "PARTE" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>parte</span>}
+                          {l.origem === "MANUAL" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>manual</span>}
+                          {l.identificadoPor === "REGRA" && <Wand2 size={11} className="inline ml-1" style={{ color: C.sub }} title="Identificado por palavra-chave" />}
+                        </td>
+                        <td className="px-2 py-1.5" style={{ color: cor, fontSize: 11 }}>{l.documento}</td>
+                        <td className="px-2 py-1.5" style={{ color: cor, fontSize: 11 }}>{l.identificacao}</td>
+                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{conta?.codigo || ""}</td>
+                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{conta?.nome || <span style={{ color: C.accent }}>A IDENTIFICAR</span>}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold" style={{ color: corValor(l.valor) }}>{brl(l.valor)}</td>
+                        <td className="px-2 py-1.5 text-right" style={{ color: corValor(saldo) }}>{brl(saldo)}</td>
+                        <td className="px-2 py-1">
+                          <div className="flex justify-end gap-1">
+                            <IconBtn t="Desmembrar" onClick={() => setModal({ tipo: "desmembrar", lanc: l })} disabled={!!l.paiId}><Scissors size={13} /></IconBtn>
+                            <IconBtn t="Editar" onClick={() => setModal({ tipo: "editar", lanc: l })}><Pencil size={13} /></IconBtn>
+                            <IconBtn t="Excluir" onClick={() => excluir(l)}><Trash2 size={13} /></IconBtn>
+                            <button title="Identificar" onClick={() => setModal({ tipo: "identificar", itens: [l] })}
+                              className="flex items-center justify-center rounded" style={{ width: 26, height: 26, background: conta ? C.panel2 : C.green, color: conta ? C.green : "#fff" }}>
+                              <Tag size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
+      )}
+
+      {modal?.tipo === "identificar" && (
+        <IdentificarModal user={user} itens={modal.itens} contas={dados.contas.filter((c) => c.ativo)}
+          onClose={() => setModal(null)}
+          onSalvo={(d) => { setModal(null); setSel(new Set()); setAviso(`${d.atualizados} identificado(s)${d.porRegra ? ` · +${d.porRegra} pela nova palavra-chave` : ""}`); carregar(); }} />
+      )}
+      {(modal?.tipo === "editar" || modal?.tipo === "novo") && (
+        <EditarLancModal user={user} comp={comp} lanc={modal.lanc} bancos={bancos} contas={dados?.contas || []}
+          onClose={() => setModal(null)} onSalvo={() => { setModal(null); carregar(); }} />
+      )}
+      {modal?.tipo === "desmembrar" && (
+        <DesmembrarModal user={user} lanc={modal.lanc} contas={dados.contas.filter((c) => c.ativo)}
+          onClose={() => setModal(null)} onSalvo={() => { setModal(null); carregar(); }} />
+      )}
+    </div>
+  );
+}
+
+function IconBtn({ t, onClick, disabled, children }) {
+  return (
+    <button title={t} onClick={onClick} disabled={disabled} className="flex items-center justify-center rounded"
+      style={{ width: 26, height: 26, border: `1px solid ${C.line}`, color: C.sub, background: C.panel, opacity: disabled ? 0.35 : 1 }}>{children}</button>
+  );
+}
+
+function Modal({ titulo, icone: Ico, onClose, children, largura = 560 }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
+      <div className="rounded-xl w-full flex flex-col" style={{ background: C.panel, maxWidth: largura, maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-semibold flex items-center gap-2">{Ico && <Ico size={18} style={{ color: C.accent }} />} {titulo}</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="overflow-auto p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// escolha de conta-caixa por código ou nome
+function ContaPicker({ contas, value, onChange, autoFocus }) {
+  const [q, setQ] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const atual = contas.find((c) => c.id === value);
+  const lista = useMemo(() => {
+    const n = normC(q);
+    return contas.filter((c) => !n || c.codigo.startsWith(n.replace(/\s/g, "")) || normC(c.nome).includes(n)).slice(0, 60);
+  }, [q, contas]);
+  return (
+    <div className="relative">
+      <input autoFocus={autoFocus} value={aberto ? q : atual ? `${atual.codigo} · ${atual.nome}` : q}
+        onFocus={() => { setAberto(true); setQ(""); }} onBlur={() => setTimeout(() => setAberto(false), 150)}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && lista[0]) { onChange(lista[0].id); setAberto(false); e.target.blur(); } }}
+        placeholder="Digite código ou nome da conta-caixa…" className="w-full px-3 py-2 rounded-lg text-sm"
+        style={{ border: `1px solid ${C.line}`, color: atual && !aberto ? corConta(atual) : C.text, fontWeight: atual && !aberto ? 600 : 400 }} />
+      {aberto && (
+        <div className="absolute z-20 w-full mt-1 rounded-lg overflow-auto shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, maxHeight: 260 }}>
+          {lista.length === 0 && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhuma conta encontrada.</div>}
+          {lista.map((c) => (
+            <button key={c.id} onMouseDown={() => { onChange(c.id); setAberto(false); }} className="w-full text-left px-3 py-1.5 text-xs flex gap-2 hover:bg-gray-50">
+              <span className="font-semibold" style={{ color: corConta(c), width: 60 }}>{c.codigo}</span><span>{c.nome}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
+  const um = itens.length === 1 ? itens[0] : null;
+  const [contaId, setContaId] = useState(um?.contaId || null);
+  const [ident, setIdent] = useState(um?.identificacao || "");
+  const [criarRegra, setCriarRegra] = useState(true);
+  const [termo, setTermo] = useState(sugerirTermoC(itens[0].historico));
+  const [soBanco, setSoBanco] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const soma = itens.reduce((a, l) => a + l.valor, 0);
+
+  const salvar = async () => {
+    if (!contaId) return setErro("Escolha a conta-caixa.");
+    setSalvando(true); setErro("");
+    try {
+      const d = await api("/api/fin/lancamentos/identificar", "POST", {
+        usuarioId: user.id, ids: itens.map((l) => l.id), contaId, identificacao: um ? ident : undefined,
+        regra: criarRegra && termo.trim() ? { termo, banco: soBanco ? itens[0].banco : null } : null,
+      });
+      onSalvo(d);
+    } catch (e) { setErro(e.message); setSalvando(false); }
+  };
+
+  return (
+    <Modal titulo={um ? "Identificar lançamento" : `Identificar ${itens.length} lançamentos`} icone={Tag} onClose={onClose}>
+      <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: C.panel2 }}>
+        {um ? (
+          <>
+            <div className="font-semibold mb-1">{um.historico}</div>
+            <div style={{ color: C.sub }}>{um.banco} · {dBR(um.data)}{um.documento ? ` · doc ${um.documento}` : ""} · <b style={{ color: corValor(um.valor) }}>R$ {brl(um.valor)}</b></div>
+          </>
+        ) : (
+          <div>{itens.length} lançamentos · soma <b style={{ color: corValor(soma) }}>R$ {brl(soma)}</b></div>
+        )}
+      </div>
+      <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Conta-caixa *</div>
+      <ContaPicker contas={contas} value={contaId} onChange={setContaId} autoFocus />
+      {um && (
+        <>
+          <div className="text-xs font-semibold mb-1 mt-3" style={{ color: C.sub }}>Identificação (opcional)</div>
+          <input value={ident} onChange={(e) => setIdent(e.target.value)} placeholder="EX.: NF 1234 / PEDIDO 26070040"
+            className="w-full px-3 py-2 rounded-lg text-sm uppercase" style={{ border: `1px solid ${C.line}` }} />
+        </>
+      )}
+      <div className="rounded-lg p-3 mt-4" style={{ border: `1px dashed ${C.line}` }}>
+        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+          <input type="checkbox" checked={criarRegra} onChange={(e) => setCriarRegra(e.target.checked)} />
+          <Wand2 size={14} style={{ color: C.accent }} /> Salvar como palavra-chave
+        </label>
+        {criarRegra && (
+          <>
+            <div className="text-[11px] mt-2 mb-1" style={{ color: C.sub }}>Sempre que o histórico contiver este texto, usar esta conta. Deixe só a parte que identifica (ex.: o nome do fornecedor).</div>
+            <input value={termo} onChange={(e) => setTermo(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm uppercase font-mono" style={{ border: `1px solid ${C.line}` }} />
+            <label className="flex items-center gap-2 text-xs mt-2 cursor-pointer" style={{ color: C.sub }}>
+              <input type="checkbox" checked={soBanco} onChange={(e) => setSoBanco(e.target.checked)} /> Valer só para {itens[0].banco}
+            </label>
+          </>
+        )}
+      </div>
+      {erro && <div className="text-xs mt-3" style={{ color: C.red }}>{erro}</div>}
+      <div className="flex justify-end gap-2 mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
+        <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.green, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+          {salvando ? "Salvando…" : "Identificar"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function EditarLancModal({ user, comp, lanc, bancos, contas, onClose, onSalvo }) {
+  const novo = !lanc;
+  const [f, setF] = useState(() => lanc ? { ...lanc, valor: String(lanc.valor).replace(".", ",") } : {
+    banco: bancos[0] || "", data: `${comp}-01`, historico: "", documento: "", identificacao: "", valor: "", contaId: null,
+  });
+  const [erro, setErro] = useState("");
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const salvar = async () => {
+    const valor = Number(String(f.valor).replace(/\./g, "").replace(",", "."));
+    if (!f.banco || !f.data || !f.historico || !valor) return setErro("Preencha banco, data, histórico e valor (use - para saída).");
+    try {
+      const body = { usuarioId: user.id, banco: f.banco, data: f.data, historico: f.historico, documento: f.documento, identificacao: f.identificacao, valor };
+      if (novo) await api("/api/fin/lancamentos", "POST", { ...body, competencia: comp, contaId: f.contaId });
+      else await api(`/api/fin/lancamentos/${lanc.id}`, "PATCH", { ...body, ...(f.contaId !== lanc.contaId ? { contaId: f.contaId } : {}) });
+      onSalvo();
+    } catch (e) { setErro(e.message); }
+  };
+  const inp = "w-full px-3 py-2 rounded-lg text-sm";
+  const st = { border: `1px solid ${C.line}` };
+  return (
+    <Modal titulo={novo ? "Novo lançamento" : "Editar lançamento"} icone={Pencil} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Banco</div>
+          <input list="fin-bancos" value={f.banco} onChange={(e) => set("banco", e.target.value.toUpperCase())} className={inp} style={st} />
+          <datalist id="fin-bancos">{bancos.map((b) => <option key={b} value={b} />)}<option value="CAIXA FÍSICO" /></datalist>
+        </div>
+        <div>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Data</div>
+          <input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} style={st} />
+        </div>
+        <div className="col-span-2">
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Histórico</div>
+          <input value={f.historico} onChange={(e) => set("historico", e.target.value)} className={inp + " uppercase"} style={st} />
+        </div>
+        <div>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Documento</div>
+          <input value={f.documento || ""} onChange={(e) => set("documento", e.target.value)} className={inp} style={st} />
+        </div>
+        <div>
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Valor (− para saída)</div>
+          <input value={f.valor} onChange={(e) => set("valor", e.target.value)} placeholder="-1.234,56" className={inp + " text-right"} style={st} />
+        </div>
+        <div className="col-span-2">
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Identificação</div>
+          <input value={f.identificacao || ""} onChange={(e) => set("identificacao", e.target.value)} className={inp + " uppercase"} style={st} />
+        </div>
+        <div className="col-span-2">
+          <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Conta-caixa</div>
+          <ContaPicker contas={contas.filter((c) => c.ativo)} value={f.contaId} onChange={(v) => set("contaId", v)} />
+        </div>
+      </div>
+      {erro && <div className="text-xs mt-3" style={{ color: C.red }}>{erro}</div>}
+      <div className="flex justify-end gap-2 mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
+        <button onClick={salvar} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+      </div>
+    </Modal>
+  );
+}
+
+function DesmembrarModal({ user, lanc, contas, onClose, onSalvo }) {
+  const fmt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+  const [partes, setPartes] = useState([{ valor: fmt(lanc.valor), contaId: lanc.contaId, historico: "" }, { valor: "", contaId: null, historico: "" }]);
+  const [erro, setErro] = useState("");
+  const n = (v) => Number(String(v || "").replace(/\./g, "").replace(",", ".")) || 0;
+  const soma = partes.reduce((a, p) => a + n(p.valor), 0);
+  const resto = Math.round((lanc.valor - soma) * 100) / 100;
+  const set = (i, k, v) => setPartes((ps) => ps.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
+  const salvar = async () => {
+    try {
+      await api(`/api/fin/lancamentos/${lanc.id}/desmembrar`, "POST", { usuarioId: user.id, partes: partes.map((p) => ({ ...p, valor: n(p.valor) })) });
+      onSalvo();
+    } catch (e) { setErro(e.message); }
+  };
+  return (
+    <Modal titulo="Desmembrar lançamento" icone={Scissors} onClose={onClose} largura={720}>
+      <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: C.panel2 }}>
+        <div className="font-semibold mb-1">{lanc.historico}</div>
+        <div style={{ color: C.sub }}>{lanc.banco} · {dBR(lanc.data)} · total <b style={{ color: corValor(lanc.valor) }}>R$ {brl(lanc.valor)}</b></div>
+      </div>
+      {partes.map((p, i) => (
+        <div key={i} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "110px 1fr 1fr 28px" }}>
+          <input value={p.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="Valor" className="px-2 py-2 rounded-lg text-sm text-right" style={{ border: `1px solid ${C.line}` }} />
+          <ContaPicker contas={contas} value={p.contaId} onChange={(v) => set(i, "contaId", v)} />
+          <input value={p.historico} onChange={(e) => set(i, "historico", e.target.value)} placeholder="Histórico (opcional)" className="px-2 py-2 rounded-lg text-sm uppercase" style={{ border: `1px solid ${C.line}` }} />
+          <button onClick={() => setPartes((ps) => ps.filter((_, j) => j !== i))} disabled={partes.length <= 2} style={{ color: C.sub, opacity: partes.length <= 2 ? 0.3 : 1 }}><X size={16} /></button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between mt-2">
+        <button onClick={() => setPartes((ps) => [...ps, { valor: resto ? fmt(resto) : "", contaId: null, historico: "" }])} className="flex items-center gap-1 text-sm font-medium" style={{ color: C.accent }}>
+          <Plus size={14} /> Adicionar parte
+        </button>
+        <div className="text-sm" style={{ color: Math.abs(resto) < 0.005 ? C.green : C.red }}>
+          {Math.abs(resto) < 0.005 ? "Soma confere ✓" : `Falta distribuir R$ ${brl(resto)}`}
+        </div>
+      </div>
+      {erro && <div className="text-xs mt-3" style={{ color: C.red }}>{erro}</div>}
+      <div className="flex justify-end gap-2 mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
+        <button onClick={salvar} disabled={Math.abs(resto) >= 0.005} className="px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.accent, color: "#fff", opacity: Math.abs(resto) >= 0.005 ? 0.5 : 1 }}>Desmembrar</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- PLANO DE CONTAS ---------------- */
+function PlanoContas({ user }) {
+  const [lista, setLista] = useState([]);
+  const [novo, setNovo] = useState({ codigo: "", nome: "" });
+  const [edit, setEdit] = useState({});
+  const [erro, setErro] = useState("");
+  const [busca, setBusca] = useState("");
+  const carregar = async () => { const r = await fetch(`/api/fin/contas?u=${user.id}`); setLista(await r.json().catch(() => [])); };
+  useEffect(() => { carregar(); }, []);
+  const add = async () => {
+    setErro("");
+    try { await api("/api/fin/contas", "POST", { usuarioId: user.id, ...novo }); setNovo({ codigo: "", nome: "" }); carregar(); } catch (e) { setErro(e.message); }
+  };
+  const salvar = async (c, patch) => {
+    try { await api(`/api/fin/contas/${c.id}`, "PATCH", { usuarioId: user.id, ...patch }); setEdit((e) => { const n = { ...e }; delete n[c.id]; return n; }); carregar(); } catch (e) { alert(e.message); }
+  };
+  const nat = (cod) => cod[0] === "1" ? ["RECEITA", C.green] : cod[0] === "2" ? ["DESPESA", C.red] : ["CONCILIAÇÃO", ROXO];
+  const vis = lista.filter((c) => !busca || c.codigo.includes(busca) || normC(c.nome).includes(normC(busca)));
+  return (
+    <div className="max-w-3xl">
+      <div className="text-sm mb-4" style={{ color: C.sub }}>
+        Contas-caixa usadas na identificação. Código começando com <b style={{ color: C.green }}>1</b> = receita, <b style={{ color: C.red }}>2</b> = despesa, <b style={{ color: ROXO }}>3</b> = conciliação. Os grupos do DRE virão na próxima etapa.
+      </div>
+      <div className="rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-end" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div style={{ width: 130 }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Código</div>
+          <input value={novo.codigo} onChange={(e) => setNovo({ ...novo, codigo: e.target.value })} placeholder="2112400" className="w-full px-3 py-2 rounded-lg text-sm" style={{ border: `1px solid ${C.line}` }} />
+        </div>
+        <div className="flex-1" style={{ minWidth: 200 }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Nome</div>
+          <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm uppercase" style={{ border: `1px solid ${C.line}` }} />
+        </div>
+        <button onClick={add} className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Adicionar</button>
+        {erro && <div className="w-full text-xs" style={{ color: C.red }}>{erro}</div>}
+      </div>
+      <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta…" className="px-3 py-2 rounded-lg text-sm mb-3" style={{ border: `1px solid ${C.line}`, width: 260 }} />
+      <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        {vis.map((c) => {
+          const [nt, cor] = nat(c.codigo);
+          const e = edit[c.id];
+          return (
+            <div key={c.id} className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.5 }}>
+              {e ? (
+                <>
+                  <input value={e.codigo} onChange={(ev) => setEdit({ ...edit, [c.id]: { ...e, codigo: ev.target.value } })} className="px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, width: 100 }} />
+                  <input value={e.nome} onChange={(ev) => setEdit({ ...edit, [c.id]: { ...e, nome: ev.target.value } })} className="flex-1 px-2 py-1 rounded text-sm uppercase" style={{ border: `1px solid ${C.line}` }} />
+                  <button onClick={() => salvar(c, e)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+                  <button onClick={() => setEdit((x) => { const n = { ...x }; delete n[c.id]; return n; })} style={{ color: C.sub }}><X size={15} /></button>
+                </>
+              ) : (
+                <>
+                  <div className="font-mono font-semibold text-sm" style={{ color: cor, width: 80 }}>{c.codigo}</div>
+                  <div className="flex-1 text-sm">{c.nome}</div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: cor, background: C.panel2 }}>{nt}</span>
+                  <button onClick={() => setEdit({ ...edit, [c.id]: { codigo: c.codigo, nome: c.nome } })} style={{ color: C.sub }} title="Editar"><Pencil size={14} /></button>
+                  <button onClick={() => salvar(c, { ativo: !c.ativo })} className="text-xs" style={{ color: C.sub }}>{c.ativo ? "Inativar" : "Ativar"}</button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- PALAVRAS-CHAVE (REGRAS) ---------------- */
+function Regras({ user }) {
+  const [lista, setLista] = useState([]);
+  const [busca, setBusca] = useState("");
+  const carregar = async () => { const r = await fetch(`/api/fin/regras?u=${user.id}`); const d = await r.json().catch(() => []); setLista(Array.isArray(d) ? d : []); };
+  useEffect(() => { carregar(); }, []);
+  const del = async (r) => { if (!confirm(`Excluir a palavra-chave "${r.termo}"?`)) return; await fetch(`/api/fin/regras/${r.id}?u=${user.id}`, { method: "DELETE" }); carregar(); };
+  const editar = async (r) => {
+    const t = prompt("Palavra-chave:", r.termo);
+    if (t === null || !t.trim()) return;
+    await api(`/api/fin/regras/${r.id}`, "PATCH", { usuarioId: user.id, termo: t });
+    carregar();
+  };
+  const vis = lista.filter((r) => !busca || r.termo.includes(normC(busca)) || normC(r.conta?.nome).includes(normC(busca)));
+  return (
+    <div className="max-w-4xl">
+      <div className="text-sm mb-4" style={{ color: C.sub }}>
+        Criadas ao identificar um lançamento com “Salvar como palavra-chave”. Na leitura dos extratos, o sistema usa a palavra-chave mais específica (mais longa) que aparecer no histórico.
+      </div>
+      <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="px-3 py-2 rounded-lg text-sm mb-3" style={{ border: `1px solid ${C.line}`, width: 260 }} />
+      <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        {vis.length === 0 && <div className="p-4 text-sm" style={{ color: C.sub }}>Nenhuma palavra-chave ainda.</div>}
+        {vis.map((r) => (
+          <div key={r.id} className="flex items-center gap-3 px-4 py-2 text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <Wand2 size={14} style={{ color: C.accent }} />
+            <div className="flex-1 font-mono text-xs">{r.termo}</div>
+            {r.banco && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }}>{r.banco}</span>}
+            <div className="text-xs font-semibold" style={{ color: corConta(r.conta), width: 240 }}>{r.conta?.codigo} · {r.conta?.nome}</div>
+            <div className="text-xs" style={{ color: C.sub, width: 60, textAlign: "right" }}>{r.usos} usos</div>
+            <button onClick={() => editar(r)} style={{ color: C.sub }}><Pencil size={14} /></button>
+            <button onClick={() => del(r)} style={{ color: C.sub }}><Trash2 size={14} /></button>
           </div>
         ))}
       </div>

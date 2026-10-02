@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos } from "@/lib/fin";
+import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos, processarArquivo } from "@/lib/fin";
 
 // POST { usuarioId, competencia, tipoId ("auto" = classifica pelo texto), nome, conteudo(base64), senha?, salvarSenha?, rotuloSenha? }
 export async function POST(req) {
@@ -67,5 +67,9 @@ export async function POST(req) {
     },
     select: { id: true, tipoId: true, nome: true, tamanho: true, enviadoPorNome: true, createdAt: true },
   });
-  return Response.json({ ...a, protegido: !!r.senha, paginas: r.paginas, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } });
+  // lê o extrato na hora (se houver leitor para esse documento)
+  let leitura = null;
+  try { leitura = await processarArquivo(a.id); } catch (e) { leitura = { ok: false, erro: e.message }; }
+
+  return Response.json({ ...a, leitura, protegido: !!r.senha, paginas: r.paginas, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } });
 }
