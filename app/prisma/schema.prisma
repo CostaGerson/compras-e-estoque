@@ -738,3 +738,16 @@ model FinLancamento {
 
   @@index([competencia])
 }
+
+// Resultado da pesquisa da IA na internet para históricos sem precedente (evita pesquisar e pagar de novo)
+model FinPesquisa {
+  id          Int      @id @default(autoincrement())
+  chave       String   @unique   // sinal|histórico normalizado
+  historico   String
+  achado      String?            // o que a IA descobriu (ramo, empresa…)
+  contaCodigo String?
+  confianca   String?
+  motivo      String?
+  termo       String?
+  createdAt   DateTime @default(now())
+}

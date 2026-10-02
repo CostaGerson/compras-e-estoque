@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, garantirContas, normalizarTexto } from "@/lib/fin";
+import { usuarioMaster, negado, garantirContas, normalizarTexto, descartarPagamentosFatura } from "@/lib/fin";
 import { lerHistorico } from "@/lib/finHistorico";
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -70,6 +70,7 @@ export async function POST(req) {
       prisma.finLancamento.createMany({ data }),
     ]);
     gravados += data.length;
+    r.pagFaturaDescartados = await descartarPagamentosFatura(r.competencia);
   }
   return Response.json({ ok: true, gravados, meses: resumo, erros, naoAchadas });
 }

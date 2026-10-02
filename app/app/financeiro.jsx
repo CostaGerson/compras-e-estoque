@@ -1197,6 +1197,14 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
         {dados && (
           <div className="flex flex-wrap gap-2 ml-auto">
             <Pilula cor={C.text} bg={C.panel2} txt={`${tot.n} lançamentos`} />
+            {(() => {
+              const pf = dados.lancamentos.filter((l) => l.substituido && String(l.substGrupo || "").startsWith("PAGFAT|"));
+              return pf.length > 0 && (
+                <span title={pf.map((l) => `${l.data.split("-").reverse().join("/")} · ${l.banco} · ${l.historico} · R$ ${brl(l.valor)} = fatura ${l.substGrupo.slice(7)}`).join("\n")}>
+                  <Pilula cor={C.blue} bg={C.blueSoft} txt={`${pf.length} pagamento(s) de fatura desconsiderado(s)`} />
+                </span>
+              );
+            })()}
             <Pilula cor={tot.pend ? C.accent : C.green} bg={tot.pend ? C.accentSoft : C.greenSoft} txt={tot.pend ? `${tot.pend} a identificar` : "Tudo identificado"} />
             <Pilula cor={C.blue} bg={C.blueSoft} txt={`Entradas R$ ${brl(tot.ent)}`} />
             <Pilula cor={C.red} bg={C.redSoft} txt={`Saídas R$ ${brl(tot.sai)}`} />
@@ -1538,8 +1546,9 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
   const [mudou, setMudou] = useState(false);
   const [msg, setMsg] = useState("");
   const porId = useMemo(() => Object.fromEntries(todas.map((c) => [c.id, c])), [todas]);
-  useEffect(() => {
-    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp })
+  const rodar = (refazerPesquisa = false) => {
+    setD(null); setErro(""); setMsg("");
+    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp, refazerPesquisa })
       .then((j) => {
         setD(j);
         setSug(j.sugestoes.map((s) => ({ ...s, marcado: !!s.contaId && s.confianca === "ALTA", salvarTermo: false })));
@@ -1547,9 +1556,23 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
         if (!j.sugestoes.length && j.incongruencias.length) setAba("inc");
       })
       .catch((e) => setErro(e.message));
-  }, []);
+  };
+  useEffect(() => { rodar(); }, []);
   const muda = (g, k, v) => setSug((l) => l.map((s) => (s.g === g ? { ...s, [k]: v } : s)));
   const marcados = sug.filter((s) => s.marcado && s.contaId);
+  const [ordS, setOrdS] = useState({ k: null, dir: 1 });
+  const PESO = { ALTA: 3, MEDIA: 2, BAIXA: 1 };
+  const valS = (s, k) => k === "conf" ? (PESO[s.confianca] || 0) : k === "qtd" ? s.qtd : k === "valor" ? Math.abs(s.total) : k === "hist" ? s.historico : k === "conta" ? (porId[s.contaId]?.codigo || "") : 0;
+  const sugOrd = useMemo(() => {
+    if (!ordS.k) return sug;
+    return [...sug].sort((a, b) => {
+      const va = valS(a, ordS.k), vb = valS(b, ordS.k);
+      const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "pt-BR");
+      return c * ordS.dir || Math.abs(b.total) - Math.abs(a.total);
+    });
+  }, [sug, ordS]);
+  // 1º clique: confiança/qtd/valor do maior para o menor; texto de A a Z. 2º clique inverte.
+  const ordenarS = (k) => setOrdS((o) => (o.k === k ? { k, dir: -o.dir } : { k, dir: k === "hist" || k === "conta" ? 1 : -1 }));
   const aplicar = async () => {
     setSalvando(true); setMsg("");
     let n = 0, r = 0;
@@ -1583,7 +1606,7 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
       {!d && !erro && (
         <div className="flex flex-col items-center gap-2 py-12 text-sm" style={{ color: C.sub }}>
           <Loader2 size={24} className="animate-spin" style={{ color: C.accent }} />
-          Comparando com o histórico de identificações e consultando a IA… (pode levar até 1 minuto)
+          Comparando com o histórico, consultando a IA e pesquisando na internet o que não tem histórico… (pode levar alguns minutos)
         </div>
       )}
       {erro && <div className="p-3 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -1593,6 +1616,9 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
             <span>Base: <b>{d.historico.toLocaleString("pt-BR")}</b> identificações de outros meses</span>
             <span style={{ color: d.ia ? C.green : C.yellow }}>{d.ia ? "IA ativa" : "Só histórico (sem IA)"}</span>
             {d.descartadas > 0 && <span>{d.descartadas} alerta(s) descartado(s) pela IA como corretos</span>}
+            {d.pagFatura > 0 && <span style={{ color: C.blue }}>{d.pagFatura} pagamento(s) de fatura desconsiderado(s) — batem com a fatura</span>}
+            {d.pesquisados > 0 && <span>🔎 {d.pesquisados} sem histórico, pesquisados na internet</span>}
+            {d.pesquisados > 0 && d.ia && <button onClick={() => rodar(true)} className="underline" style={{ color: C.blue }}>Refazer pesquisas</button>}
           </div>
           {d.aviso && <div className="p-2 rounded mb-3 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{d.aviso}</div>}
           {msg && <div className="p-2 rounded mb-3 text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{msg}</div>}
@@ -1611,9 +1637,13 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
-                    {["", "Histórico", "Qtd", "Valor", "Conta sugerida", "Confiança", "Motivo", "Palavra-chave"].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+                    {[["", null], ["Histórico", "hist"], ["Qtd", "qtd"], ["Valor", "valor"], ["Conta sugerida", "conta"], ["Confiança", "conf"], ["Motivo", null], ["Palavra-chave", null]].map(([h, k], i) => (
+                      <th key={i} onClick={() => k && ordenarS(k)} className="text-left px-2 py-1.5 font-semibold select-none" style={{ cursor: k ? "pointer" : "default", color: ordS.k === k && k ? C.accent : undefined }}>
+                        {h}{k && <span className="ml-1">{ordS.k === k ? (ordS.dir === 1 ? "▲" : "▼") : <span style={{ opacity: 0.3 }}>↕</span>}</span>}
+                      </th>
+                    ))}
                   </tr></thead>
-                  <tbody>{sug.map((s) => {
+                  <tbody>{sugOrd.map((s) => {
                     const [cc, cb] = CONF[s.confianca] || [C.sub, C.panel2];
                     return (
                       <tr key={s.g} style={{ borderBottom: `1px solid ${C.line}`, background: s.marcado ? C.accentSoft : undefined }}>
@@ -1627,7 +1657,10 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
                         <td className="px-2 py-1.5" style={{ minWidth: 230 }}><ContaPicker contas={contas} value={s.contaId} onChange={(id) => setSug((l) => l.map((x) => (x.g === s.g ? { ...x, contaId: id, marcado: true } : x)))} /></td>
                         <td className="px-2 py-1.5">{s.confianca && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: cc, background: cb }}>{s.confianca}</span>}
                           {s.fonte && <div className="text-[9px] mt-0.5" style={{ color: C.sub }}>{s.fonte}</div>}</td>
-                        <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 240 }}>{s.motivo}</td>
+                        <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 260 }}>
+                          {s.achado && <div className="font-semibold mb-0.5" style={{ color: C.navy }}>🔎 {s.achado}</div>}
+                          {s.motivo}
+                        </td>
                         <td className="px-2 py-1.5" style={{ minWidth: 160 }}>
                           <label className="flex items-center gap-1">
                             <input type="checkbox" checked={!!s.salvarTermo} onChange={(e) => muda(s.g, "salvarTermo", e.target.checked)} />

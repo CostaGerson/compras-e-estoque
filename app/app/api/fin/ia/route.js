@@ -1,11 +1,23 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, garantirContas, sugerirTermo } from "@/lib/fin";
-import { indiceHistorico, candidatos, topConta, chaveHist, iaDisponivel, perguntarIA } from "@/lib/finIA";
+import { usuarioMaster, negado, competenciaValida, garantirContas, sugerirTermo, descartarPagamentosFatura } from "@/lib/fin";
+import { indiceHistorico, candidatos, topConta, chaveHist, iaDisponivel, perguntarIA, acharCnpj, consultarCnpj } from "@/lib/finIA";
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const LOTE = 50;
+const LOTE_WEB = 8;
+
+const SYS_WEB = `Você é o analista financeiro da Meridian, indústria de uniformes corporativos em Belo Horizonte/MG (compra tecidos, malhas e aviamentos; usa facções, bordado, silk, sublimação, DTF; tem frota, frete e equipe administrativa).
+Você recebe lançamentos de extrato/fatura SEM NENHUM PRECEDENTE no histórico da empresa. Descubra do que se trata e escolha a conta-caixa.
+Como pesquisar:
+- Para EMPRESAS, estabelecimentos, marcas, sites e apps (nome fantasia, razão social, descritor de cartão como "MP *LOJAX", "PAG*FULANO", "EC *", "IFD*"), use a busca na internet: descubra o ramo (posto, restaurante, software, loja de tecidos, gráfica, transportadora...). Se vier "Dados do CNPJ", já use-os e só pesquise se ainda faltar clareza.
+- Descritores comuns: "MP*" = Mercado Pago, "PAG*"/"PAGSEGURO" = PagSeguro, "IFD*"/"IFOOD" = iFood, "UBER*"/"99*" = transporte, "EC *" = maquininha.
+- NÃO pesquise nomes de PESSOAS FÍSICAS (privacidade). Para PIX/TED a pessoas, deduza pelo contexto (valor, banco, padrão: na Meridian pagamentos a pessoas costumam ser facção, freelancer de corte/costura/expedição, ou pessoal) e dê confiança BAIXA.
+- Faça no máximo 1 ou 2 buscas por lançamento; agrupe quando possível.
+Regras de conta: 1xxxxxx receitas (entradas), 2xxxxxx despesas (saídas), 3000000 CONCILIAÇÃO (transferência entre contas da própria empresa). Nunca invente conta fora do plano; respeite o sinal (C = entrada, D = saída).
+Ao final, responda com a lista JSON entre <json> e </json>:
+<json>[{"g": <número do grupo>, "contaCodigo": "2111100" | null, "confianca": "ALTA"|"MEDIA"|"BAIXA", "achado": "o que você descobriu, em até 15 palavras (ex.: posto de combustível em Contagem/MG)", "motivo": "por que essa conta, frase curta", "termo": "PALAVRA-CHAVE curta para o futuro" | null}]</json>`;
 
 const SYS_SUG = `Você é o analista financeiro da Meridian (indústria de uniformes). Classifica lançamentos de extratos e faturas em contas-caixa.
 Para cada grupo de lançamentos A IDENTIFICAR você recebe: histórico, banco, sinal (C = entrada, D = saída), quantidade, valor total e os CANDIDATOS vindos do histórico de identificações da empresa (histórico parecido → conta usada e quantas vezes).
@@ -29,6 +41,7 @@ export async function POST(req) {
   const comp = b.competencia;
   if (!competenciaValida(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
+  const pagFatura = await descartarPagamentosFatura(comp);
 
   const [contas, ls, regras, idx] = await Promise.all([
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
@@ -69,6 +82,20 @@ export async function POST(req) {
     };
   });
 
+  // grupos sem precedente no histórico → pesquisa na internet (com cache)
+  grupos.forEach((g) => {
+    const c = candidatos(idx, g.ex, 1);
+    g.chavePesq = `${g.sinal}|${chaveHist(g.historico)}`;
+    g.semHist = !c.exata && (!c.parecidos.length || c.parecidos[0].s < 0.5);
+  });
+  const semHist = grupos.filter((g) => g.semHist);
+  const salvas = semHist.length ? await prisma.finPesquisa.findMany({ where: { chave: { in: semHist.map((g) => g.chavePesq) } } }) : [];
+  const salvaPor = Object.fromEntries(salvas.map((p) => [p.chave, p]));
+  if (b.refazerPesquisa) {
+    await prisma.finPesquisa.deleteMany({ where: { chave: { in: semHist.map((g) => g.chavePesq) } } });
+    for (const k of Object.keys(salvaPor)) delete salvaPor[k];
+  }
+
   // ---------- 2. SUSPEITOS entre os identificados ----------
   const suspeitos = [];
   for (const l of ls.filter((x) => x.contaId)) {
@@ -101,9 +128,38 @@ export async function POST(req) {
       (s.cand.exata ? `   histórico exato → ${fmtContas(s.cand.exata.contas)}\n` : "") +
       s.cand.parecidos.slice(0, 2).map((p) => `   parecido "${p.c.exemplo}" → ${fmtContas(p.c.contas)}`).join("\n");
     const tarefas = [];
-    for (let i = 0; i < grupos.length; i += LOTE) {
-      const lote = grupos.slice(i, i + LOTE);
+    // a) grupos com histórico: IA decide com base nos candidatos
+    const comHist = grupos.filter((g) => !g.semHist);
+    for (let i = 0; i < comHist.length; i += LOTE) {
+      const lote = comHist.slice(i, i + LOTE);
       tarefas.push(perguntarIA(SYS_SUG, `PLANO DE CONTAS:\n${plano}\n\nGRUPOS A IDENTIFICAR:\n${lote.map(txtG).join("\n")}`).then((r) => r.forEach((x) => (respSug[x.g] = x))));
+    }
+    // b) grupos sem histórico: pesquisa salva ou pesquisa na internet (+ dados do CNPJ)
+    const novos = semHist.filter((g) => {
+      const p = salvaPor[g.chavePesq];
+      if (p) respSug[g.g] = { g: g.g, contaCodigo: p.contaCodigo, confianca: p.confianca, motivo: p.motivo, termo: p.termo, achado: p.achado, salva: true };
+      return !p;
+    });
+    if (novos.length) {
+      await Promise.all(novos.map(async (g) => {
+        const cnpj = acharCnpj(`${g.historico} ${g.ex.identificacao || ""} ${g.ex.documento || ""}`);
+        g.cnpj = cnpj ? await consultarCnpj(cnpj) : null;
+      }));
+      const txtW = (g) => `#${g.g} | ${g.sinal} | ${g.banco} | ${g.historico}${g.ex.identificacao ? " / " + g.ex.identificacao : ""} | ${g.ids.length} lanç. | R$ ${g.total.toFixed(2)}` +
+        (g.cnpj ? `\n   Dados do CNPJ: ${g.cnpj.razao}${g.cnpj.fantasia ? " (" + g.cnpj.fantasia + ")" : ""} · atividade: ${g.cnpj.atividade} · ${g.cnpj.cidade}` : "");
+      for (let i = 0; i < novos.length; i += LOTE_WEB) {
+        const lote = novos.slice(i, i + LOTE_WEB);
+        tarefas.push(perguntarIA(SYS_WEB, `PLANO DE CONTAS:\n${plano}\n\nLANÇAMENTOS SEM HISTÓRICO:\n${lote.map(txtW).join("\n")}`, { web: true, maxBuscas: lote.length * 2 })
+          .then(async (r) => {
+            for (const x of r) {
+              const g = lote.find((y) => y.g === Number(x.g));
+              if (!g) continue;
+              respSug[g.g] = { ...x, web: true };
+              const dado = { historico: g.historico, achado: x.achado || null, contaCodigo: x.contaCodigo || null, confianca: x.confianca || null, motivo: x.motivo || null, termo: x.termo || null };
+              await prisma.finPesquisa.upsert({ where: { chave: g.chavePesq }, update: dado, create: { chave: g.chavePesq, ...dado } }).catch(() => {});
+            }
+          }));
+      }
     }
     for (let i = 0; i < susp.length; i += LOTE) {
       const lote = susp.slice(i, i + LOTE);
@@ -124,7 +180,8 @@ export async function POST(req) {
       contaId, confianca: r ? r.confianca : g.sistema?.confianca || null,
       motivo: r ? r.motivo : g.sistema?.motivo || "Sem histórico parecido.",
       termo: r ? r.termo || null : g.sistema ? sugerirTermo(g.historico) : null,
-      fonte: r ? "IA" : g.sistema ? "HISTÓRICO" : null,
+      fonte: r ? (r.salva ? "PESQUISA SALVA" : r.web ? "INTERNET" : "IA") : g.sistema ? "HISTÓRICO" : null,
+      achado: r?.achado || null, semHist: !!g.semHist,
     };
   }).sort((a, b) => (b.contaId ? 1 : 0) - (a.contaId ? 1 : 0) || Math.abs(b.total) - Math.abs(a.total));
 
@@ -139,5 +196,5 @@ export async function POST(req) {
     };
   }).filter(Boolean);
 
-  return Response.json({ ia, aviso, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length });
+  return Response.json({ ia, aviso, pagFatura, pesquisados: semHist.length, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length });
 }

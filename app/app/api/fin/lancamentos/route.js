@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut } from "@/lib/fin";
+import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, descartarPagamentosFatura } from "@/lib/fin";
 import { LEITORES, LEITORES_DETALHE } from "@/lib/finParse";
 import { CONSOLIDADOS } from "@/lib/finConcilia";
 
@@ -11,6 +11,7 @@ export async function GET(req) {
   const competencia = sp.get("competencia");
   if (!competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
+  await descartarPagamentosFatura(competencia);
   const [ls, contas, arqs, pendentes, detalhes] = await Promise.all([
     prisma.finLancamento.findMany({ where: { competencia }, orderBy: [{ data: "asc" }, { arquivoId: "asc" }, { ordem: "asc" }, { id: "asc" }] }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),

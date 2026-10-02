@@ -60,22 +60,52 @@ export const topConta = (contas) => {
 // ---------- chamada à API da Anthropic ----------
 export const iaDisponivel = () => !!process.env.ANTHROPIC_API_KEY;
 
-export async function perguntarIA(system, conteudo) {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-      max_tokens: 16000,
-      system,
-      messages: [{ role: "user", content: conteudo }],
-    }),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j?.error?.message || `API da IA respondeu ${r.status}`);
-  const txt = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
-  const limpo = txt.replace(/```json|```/g, "").trim();
+// Chama o Claude. Com { web: true } a IA pode pesquisar na internet (ferramenta web_search da Anthropic).
+// A resposta deve vir como lista JSON, de preferência entre <json></json>.
+export async function perguntarIA(system, conteudo, { web = false, maxBuscas = 12 } = {}) {
+  const messages = [{ role: "user", content: conteudo }];
+  const body = { model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5", max_tokens: 16000, system, messages };
+  if (web) body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: maxBuscas, user_location: { type: "approximate", country: "BR", region: "Minas Gerais", city: "Belo Horizonte", timezone: "America/Sao_Paulo" } }];
+  let txt = "";
+  for (let volta = 0; volta < 4; volta++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message || `API da IA respondeu ${r.status}`);
+    txt += (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
+    if (j.stop_reason !== "pause_turn") break;
+    // pesquisa longa: devolve o que já veio e pede para continuar
+    messages.push({ role: "assistant", content: j.content });
+  }
+  const tag = txt.match(/<json>([\s\S]*?)<\/json>/i);
+  const limpo = (tag ? tag[1] : txt).replace(/```json|```/g, "").trim();
   const ini = limpo.indexOf("["), fim = limpo.lastIndexOf("]");
   if (ini < 0 || fim < ini) throw new Error("A IA não devolveu uma lista válida.");
   return JSON.parse(limpo.slice(ini, fim + 1));
+}
+
+// ---------- CNPJ: razão social e atividade (BrasilAPI, gratuita) ----------
+const cacheCnpj = new Map();
+export const acharCnpj = (t) => {
+  const m = String(t || "").replace(/[.\/-]/g, "").match(/(?<!\d)\d{14}(?!\d)/);
+  return m ? m[0] : null;
+};
+export async function consultarCnpj(cnpj) {
+  if (cacheCnpj.has(cnpj)) return cacheCnpj.get(cnpj);
+  let out = null;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: ctl.signal });
+    clearTimeout(t);
+    if (r.ok) {
+      const j = await r.json();
+      out = { razao: j.razao_social, fantasia: j.nome_fantasia || null, atividade: j.cnae_fiscal_descricao, cidade: [j.municipio, j.uf].filter(Boolean).join("/") };
+    }
+  } catch {}
+  cacheCnpj.set(cnpj, out);
+  return out;
 }

@@ -299,6 +299,7 @@ export async function conciliarCompetencia(competencia) {
   const todos = new Set([...Object.keys(lancPorGrupo), ...Object.keys(substPorGrupo)]);
   const jaFeitos = new Set();
   for (const k of todos) {
+    if (String(k).startsWith("PAGFAT|")) continue; // pagamento de fatura descartado (ver descartarPagamentosFatura)
     const valido = chaves.has(k) && lancPorGrupo[k] > 0 && substPorGrupo[k] > 0;
     if (valido) { jaFeitos.add(k); continue; }
     await prisma.$transaction([
@@ -343,8 +344,43 @@ export async function conciliarCompetencia(competencia) {
   for (const d of docs) {
     await prisma.finArquivo.update({ where: { id: d.arquivoId }, data: { conciliacao: resultado.filter((x) => x.arquivoIds.includes(d.arquivoId)) } });
   }
+  await descartarPagamentosFatura(competencia);
   await aplicarRegras(competencia);
   return resultado;
+}
+
+// ---------- Pagamento de fatura de cartão ----------
+// Se o pagamento da fatura no extrato BATE com a soma dos lançamentos do cartão no mês, ele é desconsiderado
+// (as compras do cartão já estão lançadas uma a uma; manter o pagamento contaria a despesa duas vezes).
+const RE_PAG_FATURA = /FATURA|CART[AÃ]O|CARTAO|CARTOES|CARD|OUROCARD|BANCO BRADESCO S\.?A|ITAU UNIBANCO|C6/i;
+const ehCartao = (banco) => /^CART(Ã|A)O/i.test(banco || "");
+export async function descartarPagamentosFatura(competencia) {
+  const ls = await prisma.finLancamento.findMany({
+    where: { competencia, desmembrado: false, OR: [{ substituido: false }, { substGrupo: { startsWith: "PAGFAT|" } }] },
+    select: { id: true, banco: true, historico: true, valor: true, substituido: true, substGrupo: true },
+  });
+  // total de cada cartão no mês
+  const tot = {};
+  ls.filter((l) => ehCartao(l.banco) && !l.substituido).forEach((l) => (tot[l.banco] = (tot[l.banco] || 0) + Number(l.valor)));
+  const totais = Object.entries(tot).map(([banco, v]) => [banco, Math.round(v * 100) / 100]).filter(([, v]) => v < 0);
+  const usados = new Set();
+  const marcar = [];
+  const pagamentos = ls.filter((l) => !ehCartao(l.banco) && Number(l.valor) < 0 && RE_PAG_FATURA.test(l.historico));
+  for (const p of pagamentos) {
+    const v = Math.round(Number(p.valor) * 100) / 100;
+    const hit = totais.find(([banco, t]) => !usados.has(banco) && Math.abs(t - v) < 0.005);
+    if (hit) { usados.add(hit[0]); marcar.push([p.id, hit[0]]); }
+  }
+  // desfaz descartes que deixaram de bater (fatura mudou)
+  const validos = new Set(marcar.map(([id]) => id));
+  const desfazer = ls.filter((l) => l.substituido && String(l.substGrupo).startsWith("PAGFAT|") && !validos.has(l.id)).map((l) => l.id);
+  if (desfazer.length) await prisma.finLancamento.updateMany({ where: { id: { in: desfazer } }, data: { substituido: false, substGrupo: null } });
+  for (const [id, banco] of marcar) {
+    const l = ls.find((x) => x.id === id);
+    if (l.substituido) continue;
+    await prisma.finLancamento.update({ where: { id }, data: { substituido: true, substGrupo: `PAGFAT|${banco}` } });
+  }
+  return marcar.length;
 }
 
 // Vínculo manual (quando não bate): troca os lançamentos escolhidos pelo detalhamento + linha de diferença
