@@ -16,9 +16,16 @@ export async function POST(req) {
   await prisma.finLancamento.updateMany({ where: { id: { in: ids } }, data });
 
   let porRegra = 0, regraCriada = null;
-  const termo = normRegra(b.regra?.termo);
-  if (termo && termo.length >= 3) {
-    regraCriada = await prisma.finRegra.create({ data: { termo, contaId, banco: b.regra.banco || null, criadoPorNome: quem, usos: ids.length } });
+  const termo = String(b.regra?.termo || "").split(";").map((t) => t.trim().toUpperCase()).filter(Boolean).join(";");
+  if (termo && normRegra(termo).length >= 2) {
+    const conta = await prisma.finConta.findUnique({ where: { id: contaId } });
+    const min = await prisma.finRegra.aggregate({ _min: { ordem: true } });
+    regraCriada = await prisma.finRegra.create({
+      data: {
+        termo, contaId, banco: b.regra.banco || null, dc: b.regra.dc === "D" || b.regra.dc === "C" ? b.regra.dc : null,
+        descricao: conta?.nome || null, ordem: (min._min.ordem ?? 10) - 10, origem: "MANUAL", criadoPorNome: quem, usos: ids.length,
+      },
+    });
     const um = await prisma.finLancamento.findUnique({ where: { id: ids[0] }, select: { competencia: true } });
     if (um) porRegra = await aplicarRegras(um.competencia);
   }

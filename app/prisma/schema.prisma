@@ -684,15 +684,23 @@ model FinConta {
   regras      FinRegra[]
 }
 
-// Palavra-chave → conta-caixa (identificação automática)
+// Palavra-chave → conta-caixa (identificação automática). Ordem = prioridade: a 1ª que casar vence.
 model FinRegra {
   id            Int      @id @default(autoincrement())
-  termo         String   // texto normalizado procurado no histórico/identificação
+  ordem         Int      @default(0)
+  descricao     String?
+  comparar      String   @default("CONTEM")  // CONTEM | INICIA | TERMINA | IGUAL
+  termo         String   // palavras-chave; várias separadas por ";"
+  campo         String   @default("TODOS")   // TODOS | HISTORICO | IDENTIFICACAO
+  banco         String?  // vazio = todos os bancos
+  dc            String?  // D = só saídas · C = só entradas · vazio = ambos
   contaId       Int
-  banco         String?  // opcional: só vale para este banco
+  ativo         Boolean  @default(true)
+  origem        String   @default("MANUAL")  // BASE (sistema anterior) | MANUAL
   usos          Int      @default(0)
   criadoPorNome String?
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   conta FinConta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 }
