@@ -4,9 +4,10 @@ import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
-  Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase,
+  Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark,
 } from "lucide-react";
 import Comercial from "./comercial";
+import Financeiro from "./financeiro";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -56,6 +57,7 @@ const NAV = [
   { key: "inicio", label: "Início", icon: LayoutDashboard, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
   { key: "pedidos", label: "Pedidos", icon: ClipboardList, perfis: ["FINANCEIRO","PCP","COMPRAS","ESTOQUE"] },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"] },
+  { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"] },
   { key: "producao", label: "Produção", icon: Workflow, perfis: ["FINANCEIRO","PCP","ESTOQUE"] },
   { key: "pp", label: "Lançar PP", icon: FileText, perfis: ["FINANCEIRO","PCP"] },
   { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO","PCP"] },
@@ -96,7 +98,7 @@ export default function Home() {
 
   const master = !!(user.isMaster || user.setor === "FINANCEIRO");
   const perfil = master ? "FINANCEIRO" : user.setor;
-  const nav = NAV.filter((n) => n.perfis.includes(perfil) || (perfil === "ADMINISTRATIVO" && n.key !== "usuarios"));
+  const nav = NAV.filter((n) => n.perfis.includes(perfil) || (perfil === "ADMINISTRATIVO" && n.key !== "usuarios" && n.key !== "financeiro"));
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
@@ -159,6 +161,7 @@ export default function Home() {
           {view === "inicio" && <Inicio money={money} master={master} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
+          {view === "financeiro" && master && <Financeiro user={user} />}
           {view === "producao" && <Producao />}
           {view === "pp" && <LancarPP />}
           {view === "pic" && <PIC />}

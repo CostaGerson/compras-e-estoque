@@ -608,3 +608,62 @@ model Fpp {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// ---------------- FINANCEIRO · IMPORTAÇÃO MENSAL ----------------
+// Catálogo dos documentos obrigatórios por mês (1 card por tipo).
+model FinDocTipo {
+  id          Int     @id @default(autoincrement())
+  codigo      String  @unique   // ex: BRADESCO_EXTRATO
+  banco       String
+  documento   String
+  descricao   String?
+  qtdEsperada Int     @default(1)   // ex: 3 faturas (1 por portador)
+  multiplo    Boolean @default(false)
+  ordem       Int     @default(0)
+  ativo       Boolean @default(true)
+
+  arquivos       FinArquivo[]
+  justificativas FinJustificativa[]
+}
+
+// Arquivo enviado (PDF em base64 no banco). hash evita duplicidade.
+model FinArquivo {
+  id             Int      @id @default(autoincrement())
+  competencia    String   // AAAA-MM
+  tipoId         Int
+  nome           String
+  tamanho        Int      @default(0)
+  hash           String   @unique
+  conteudo       String
+  senhaPdf       String?  // senha que abriu o PDF (se protegido)
+  enviadoPorId   Int?
+  enviadoPorNome String?
+  createdAt      DateTime @default(now())
+
+  tipo FinDocTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+
+  @@index([competencia])
+}
+
+// Justificativa de documento não enviado (ou enviado parcialmente) no mês.
+model FinJustificativa {
+  id          Int      @id @default(autoincrement())
+  competencia String
+  tipoId      Int
+  texto       String
+  usuarioId   Int?
+  usuarioNome String?
+  updatedAt   DateTime @updatedAt
+
+  tipo FinDocTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+
+  @@unique([competencia, tipoId])
+}
+
+// Senhas de PDF (ex.: fatura C6). Testadas automaticamente no upload.
+model FinSenhaPdf {
+  id        Int      @id @default(autoincrement())
+  rotulo    String
+  senha     String
+  createdAt DateTime @default(now())
+}
