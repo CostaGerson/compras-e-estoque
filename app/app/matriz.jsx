@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Grid3x3, Save, Undo2, Plus, Trash2, X, Loader2, HelpCircle, History, Copy, Pencil, Users, Leaf, Truck, Briefcase,
-  Cpu, Landmark, Factory, SlidersHorizontal, LayoutDashboard, UserX, UserCheck, AlertTriangle, PiggyBank, Columns3,
+  Cpu, Landmark, Factory, SlidersHorizontal, LayoutDashboard, UserX, UserCheck, AlertTriangle, PiggyBank, Columns3, RotateCcw,
 } from "lucide-react";
 import { calcularMatriz, calcFuncionario, calcFreelancer, DEPTOS, REGIMES, FORMULAS } from "@/lib/matriz";
 
@@ -189,6 +189,17 @@ export default function MatrizCustos({ user }) {
     const r = await api("/api/fin/matriz", "POST", { usuarioId: user.id, nome, copiarDe: doc.id }).catch((e) => setErro(e.message));
     if (r) { await carregarLista(); await abrir(r.id); }
   };
+  const resetar = async () => {
+    if (!confirm(`Resetar "${doc.nome}" para ficar exatamente igual à matriz oficial?\n\nTodas as alterações deste cenário serão substituídas. Depois clique em Salvar (a versão anterior fica no Histórico).`)) return;
+    try {
+      let of = oficialDados;
+      const reg = (lista || []).find((x) => x.oficial);
+      if (reg) { const m = await api(`/api/fin/matriz/${reg.id}?u=${user.id}`); of = m.dados; setOficialDados(m.dados); }
+      if (!of) throw new Error("Matriz oficial não encontrada.");
+      setDados(JSON.parse(JSON.stringify(of)));
+      setMexidos((m) => (m.includes("Reset para a oficial") ? m : [...m, "Reset para a oficial"]));
+    } catch (e) { setErro(e.message); }
+  };
   const renomear = async () => {
     const nome = prompt("Novo nome:", doc.nome);
     if (!nome) return;
@@ -220,6 +231,7 @@ export default function MatrizCustos({ user }) {
         <span className="text-xs" style={{ color: C.sub }}>Atualizada {dataHora(doc.updatedAt)}{doc.atualizadoPor ? ` · ${doc.atualizadoPor}` : ""}</span>
         <div className="flex-1" />
         <BtnSec onClick={novoCenario} Ico={Copy} t="Novo cenário" />
+        {!doc.oficial && <BtnSec onClick={resetar} Ico={RotateCcw} t="Resetar p/ oficial" />}
         {!doc.oficial && <BtnSec onClick={renomear} Ico={Pencil} t="Renomear" />}
         {!doc.oficial && <BtnSec onClick={apagar} Ico={Trash2} t="Apagar" cor={C.red} />}
         <BtnSec onClick={() => setModal("versoes")} Ico={History} t="Histórico" />
@@ -245,7 +257,7 @@ export default function MatrizCustos({ user }) {
 
       {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao}
         setPr={(k, v) => muda("producao", (x) => ({ ...x, [k]: v }))} />}
-      {aba === "pessoal" && <Pessoal dados={dados} calc={calc} muda={muda} />}
+      {aba === "pessoal" && <Pessoal dados={dados} calc={calc} muda={muda} cenario={!doc.oficial} />}
       {aba === "vidaVegetativa" && <Lista titulo="Vida vegetativa" sub="Custos fixos do imóvel e da estrutura." itens={dados.vidaVegetativa} set={(f) => muda("vidaVegetativa", f)} cdb />}
       {aba === "logistica" && <Lista titulo="Logística / Manutenção" sub="Veículos, seguros, impostos e manutenção." itens={dados.logistica} set={(f) => muda("logistica", f)} cdb />}
       {aba === "administracao" && <Lista titulo="Administração" sub="Contribuições, serviços, assinaturas e eventos." itens={dados.administracao} set={(f) => muda("administracao", f)} cdb />}
@@ -511,7 +523,7 @@ const COLS_TODAS = [
   ["vt", "VT"], ["vtDesc", "VT desc."], ["vr", "VR"], ["ps", "PS"], ["ass", "ASS"], ["saldoLivre", "Saldo livre"],
   ["decimo", "13º"], ["ferias", "Férias"], ["aviso", "Aviso"], ["multa", "Multa"], ["rFerias", "R. férias"], ["total", "TOTAL"],
 ];
-function Pessoal({ dados, calc, muda }) {
+function Pessoal({ dados, calc, muda, cenario }) {
   const [edit, setEdit] = useState(null);
   const [todas, setTodas] = useState(false);
   const [verDeslig, setVerDeslig] = useState(false);
@@ -522,6 +534,11 @@ function Pessoal({ dados, calc, muda }) {
     muda("pessoal", (l) => (l.some((x) => x.id === p.id) ? l.map((x) => (x.id === p.id ? p : x)) : [...l, p]));
     setEdit(null);
   };
+  const duplicar = (p) => muda("pessoal", (l) => {
+    const i = l.findIndex((x) => x.id === p.id);
+    const copia = { ...p, id: novoId("p"), nome: `CÓPIA DE ${p.nome || p.cargo || "FUNCIONÁRIO"}`.toUpperCase() };
+    return [...l.slice(0, i + 1), copia, ...l.slice(i + 1)];
+  });
   const alternar = (p) => muda("pessoal", (l) => l.map((x) => (x.id === p.id ? { ...x, ativo: x.ativo === false } : x)));
   const novo = () => setEdit({ id: novoId("p"), nome: "", cargo: "", depto: "COS", regime: "CLT", salario: 0, bonus: 0, vt: 287.5, descontaVt: true, vr: 100, ps: 54.9, assPct: 0.05, saldoLivre: 0, rFerias: 0, ativo: true, obs: "" });
   return (
@@ -589,6 +606,7 @@ function Pessoal({ dados, calc, muda }) {
                       )}
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <button onClick={() => setEdit(p)} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={14} /></button>
+                        {cenario && <button onClick={() => duplicar(p)} title="Duplicar funcionário" className="mr-2" style={{ color: C.sub }}><Copy size={14} /></button>}
                         <button onClick={() => alternar(p)} title={off ? "Reativar" : "Desligar (sai do cálculo)"} style={{ color: off ? C.green : C.sub }}>{off ? <UserCheck size={14} /> : <UserX size={14} />}</button>
                       </td>
                     </tr>
