@@ -71,13 +71,13 @@ export default function Financeiro({ user }) {
 }
 
 /* ---------------- DASHBOARD (dia · mês · ano) ---------------- */
-function useResumo(user, ano) {
+function useResumo(user, ano, rk = 0) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   useEffect(() => {
     setD(null); setErro("");
     fetch(`/api/fin/resumo?u=${user.id}&ano=${ano}`).then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
-  }, [ano]);
+  }, [ano, rk]);
   return [d, erro];
 }
 const moeda = (n) => "R$ " + brl(n);
@@ -181,7 +181,9 @@ function FinDashboard({ user, ir }) {
 
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
 function AnaliseMensal({ user, ano, setAno, abrir }) {
-  const [d, erro] = useResumo(user, ano);
+  const [rk, setRk] = useState(0);
+  const [d, erro] = useResumo(user, ano, rk);
+  const [hist, setHist] = useState(false);
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
@@ -190,8 +192,12 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
           <div className="px-4 py-2 font-bold text-lg">{ano}</div>
           <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
         </div>
-        <div className="text-sm" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
+        <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
+        <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+          <Upload size={15} /> Importar histórico
+        </button>
       </div>
+      {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {d && (
@@ -200,7 +206,7 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
             const futuro = k > new Date().toISOString().slice(0, 7);
             const doc = m.docs;
             const temAlgo = m.n > 0 || doc.enviados > 0;
-            const completo = doc.pend === 0 && doc.erro === 0 && m.pend === 0 && m.n > 0;
+            const completo = (m.hist > 0 || (doc.pend === 0 && doc.erro === 0)) && m.pend === 0 && m.n > 0;
             const [stTxt, stCor, stBg] = futuro ? ["—", C.sub, C.panel2] : !temAlgo ? ["Sem dados", C.sub, C.panel2] : completo ? ["Completo", C.green, C.greenSoft] : ["Em andamento", C.accent, C.accentSoft];
             const pctId = m.n ? Math.round(((m.n - m.pend) / m.n) * 100) : 0;
             return (
@@ -221,9 +227,13 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
                       <div className="flex justify-between text-[10px]" style={{ color: C.sub }}><span>Identificado</span><span>{pctId}%</span></div>
                       <div className="h-1.5 rounded-full mt-0.5" style={{ background: C.panel2 }}><div className="h-1.5 rounded-full" style={{ width: `${pctId}%`, background: pctId === 100 ? C.green : C.accent }} /></div>
                     </div>
+                    {m.hist > 0 ? (
+                    <div className="text-[10px] mt-2" style={{ color: C.blue }}>Histórico do sistema anterior · {m.hist} lanç.{m.pend ? ` · ${m.pend} a identificar` : ""}</div>
+                    ) : (
                     <div className="text-[10px] mt-2" style={{ color: doc.pend || doc.erro ? C.red : C.sub }}>
                       Documentos: {doc.ok}/{doc.total}{doc.just ? ` · ${doc.just} justif.` : ""}{doc.pend ? ` · ${doc.pend} pend.` : ""}{doc.erro ? ` · ${doc.erro} c/ erro` : ""}
                     </div>
+                    )}
                   </>
                 ) : !futuro && <div className="text-xs mt-3" style={{ color: C.sub }}>Nenhum documento enviado.</div>}
               </button>
@@ -231,6 +241,113 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------- IMPORTAR HISTÓRICO (sistema anterior) ---------------- */
+function ImportarHistorico({ user, fechar }) {
+  const [texto, setTexto] = useState("");
+  const [nome, setNome] = useState("");
+  const [prev, setPrev] = useState(null);
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const [fim, setFim] = useState(null);
+  const enviar = async (simular, t = texto) => {
+    setErro(""); setSt(simular ? "Lendo arquivo…" : "Gravando lançamentos…");
+    try {
+      const r = await fetch("/api/fin/historico", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, texto: t, simular }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Erro");
+      simular ? setPrev(j) : setFim(j);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const escolher = async (f) => {
+    if (!f) return;
+    const u8 = await readU8(f);
+    let t = new TextDecoder("utf-8").decode(u8);
+    if (t.includes("\uFFFD")) t = new TextDecoder("windows-1252").decode(u8);
+    setNome(f.name); setTexto(t); setPrev(null); setFim(null);
+    enviar(true, t);
+  };
+  const SIT = { NOVO: ["Novo", C.green, C.greenSoft], SUBSTITUI: ["Substitui histórico", C.accent, C.accentSoft], BLOQUEADO: ["Fica de fora", C.red, C.redSoft] };
+  const validos = prev ? prev.meses.filter((m) => m.situacao !== "BLOQUEADO") : [];
+  const bloqueados = prev ? prev.meses.filter((m) => m.situacao === "BLOQUEADO") : [];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(3,10,22,0.55)" }}>
+      <div className="rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col" style={{ background: C.panel }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ background: C.panel2, borderBottom: `1px solid ${C.line}`, borderRadius: "12px 12px 0 0" }}>
+          <div className="font-bold" style={{ color: C.navy }}>Importar histórico de identificações</div>
+          <button onClick={() => fechar(!!fim)}><X size={18} /></button>
+        </div>
+        <div className="p-5 overflow-auto">
+          {!fim && (
+            <label className="flex items-center gap-3 p-4 rounded-lg cursor-pointer" style={{ border: `2px dashed ${C.line}` }}>
+              <Upload size={20} style={{ color: C.accent }} />
+              <div className="text-sm">
+                <div className="font-semibold">{nome || "Escolher o .txt do Extrato do sistema anterior"}</div>
+                <div className="text-xs" style={{ color: C.sub }}>Cada mês do arquivo entra já identificado pela conta-caixa. Reimportar substitui o histórico do mês.</div>
+              </div>
+              <input type="file" accept=".txt,.csv,.tsv" className="hidden" onChange={(e) => escolher(e.target.files[0])} />
+            </label>
+          )}
+          {st && <div className="flex items-center gap-2 mt-4 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> {st}</div>}
+          {erro && <div className="p-3 rounded mt-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+          {(fim || prev) && (() => {
+            const p = fim || prev;
+            return (
+              <>
+                {fim && <div className="p-3 rounded mb-4 text-sm font-semibold" style={{ background: C.greenSoft, color: C.green }}>{fim.gravados.toLocaleString("pt-BR")} lançamentos gravados.</div>}
+                <div className="overflow-x-auto mt-4">
+                  <table className="w-full text-xs">
+                    <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+                      {["Mês", "Lanç.", "Sem conta", "Entradas", "Saídas", "Resultado", "Conciliação", "Situação"].map((h) => <th key={h} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+                    </tr></thead>
+                    <tbody>{p.meses.map((m) => {
+                      const [t, c, bg] = SIT[m.situacao];
+                      return (
+                        <tr key={m.competencia} style={{ borderBottom: `1px solid ${C.line}` }}>
+                          <td className="px-2 py-1.5 font-semibold">{nomeComp(m.competencia)}</td>
+                          <td className="px-2 py-1.5">{m.n}</td>
+                          <td className="px-2 py-1.5" style={{ color: m.semConta ? C.red : C.sub }}>{m.semConta}</td>
+                          <td className="px-2 py-1.5" style={{ color: C.blue }}>{moeda(m.entradas)}</td>
+                          <td className="px-2 py-1.5" style={{ color: C.red }}>{moeda(m.saidas)}</td>
+                          <td className="px-2 py-1.5 font-semibold" style={{ color: m.resultado >= 0 ? C.green : C.red }}>{moeda(m.resultado)}</td>
+                          <td className="px-2 py-1.5" style={{ color: Math.abs(m.conciliacao) > 0.009 ? C.yellow : C.sub }}>{moeda(m.conciliacao)}</td>
+                          <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: c, background: bg }}>{t}</span></td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+                {bloqueados.length > 0 && !fim && (
+                  <div className="text-xs mt-3" style={{ color: C.red }}>
+                    {bloqueados.map((m) => nomeComp(m.competencia)).join(", ")}: já têm lançamentos de documentos deste sistema e não serão importados.
+                  </div>
+                )}
+                {Object.keys(p.naoAchadas || {}).length > 0 && (
+                  <div className="text-xs mt-2" style={{ color: C.yellow }}>Contas não encontradas no plano (ficam sem conta): {Object.entries(p.naoAchadas).map(([k, v]) => `${k} (${v})`).join(", ")}</div>
+                )}
+                <div className="text-xs mt-2" style={{ color: C.sub }}>Lançamentos "INDEFINIDO" do sistema anterior entram como <b>a identificar</b>.</div>
+              </>
+            );
+          })()}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ background: C.panel2, borderTop: `1px solid ${C.line}`, borderRadius: "0 0 12px 12px" }}>
+          {fim ? (
+            <button onClick={() => fechar(true)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Concluir</button>
+          ) : (
+            <>
+              <button onClick={() => fechar(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
+              <button disabled={!validos.length || !!st} onClick={() => enviar(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: C.accent, opacity: !validos.length || st ? 0.5 : 1 }}>
+                Importar {validos.reduce((s, m) => s + m.n, 0).toLocaleString("pt-BR")} lançamentos ({validos.length} {validos.length === 1 ? "mês" : "meses"})
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1165,6 +1282,7 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
                           <span style={{ fontSize: 11 }}>{l.historico}</span>
                           {l.origem === "PARTE" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>parte</span>}
                           {l.origem === "DETALHE" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.blueSoft, color: C.blue }}>detalhe</span>}
+                          {l.origem === "HISTORICO" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.blueSoft, color: C.blue }}>histórico</span>}
                           {l.origem === "MANUAL" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>manual</span>}
                           {l.identificadoPor === "REGRA" && <Wand2 size={11} className="inline ml-1" style={{ color: C.sub }} title="Identificado por palavra-chave" />}
                           {l.identificacao && <div className="text-[10px]" style={{ color: C.sub }}>{l.identificacao}</div>}

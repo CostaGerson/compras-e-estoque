@@ -12,16 +12,17 @@ export async function GET(req) {
   const [ls, tipos, arqs, justs] = await Promise.all([
     prisma.finLancamento.findMany({
       where: { competencia: { startsWith: ano }, substituido: false, desmembrado: false },
-      select: { competencia: true, data: true, valor: true, contaId: true },
+      select: { competencia: true, data: true, valor: true, contaId: true, origem: true },
     }),
     prisma.finDocTipo.findMany({ where: { ativo: true }, select: { id: true, qtdEsperada: true } }),
     prisma.finArquivo.findMany({ where: { competencia: { startsWith: ano } }, select: { competencia: true, tipoId: true, prova: true } }),
     prisma.finJustificativa.findMany({ where: { competencia: { startsWith: ano } }, select: { competencia: true, tipoId: true } }),
   ]);
-  const vazio = () => ({ entradas: 0, saidas: 0, n: 0, pend: 0, valorPend: 0, conciliacao: 0 });
+  const vazio = () => ({ entradas: 0, saidas: 0, n: 0, pend: 0, valorPend: 0, conciliacao: 0, hist: 0 });
   const add = (o, l) => {
     const v = Number(l.valor);
     o.n++;
+    if (l.origem === "HISTORICO") o.hist++;
     if (!l.contaId) { o.pend++; o.valorPend += v; }
     if (conc && l.contaId === conc.id) { o.conciliacao += v; return; }
     if (v > 0) o.entradas += v; else o.saidas += v;
