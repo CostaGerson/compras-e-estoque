@@ -14,6 +14,7 @@ export async function PATCH(req, { params }) {
   if (b.identificacao !== undefined) d.identificacao = b.identificacao ? String(b.identificacao).toUpperCase() : null;
   if (b.banco) d.banco = String(b.banco).toUpperCase();
   if (b.valor !== undefined && Number(b.valor)) d.valor = Number(b.valor);
+  if (b.revisado !== undefined) d.revisado = !!b.revisado;
   if (b.contaId !== undefined) {
     d.contaId = b.contaId ? Number(b.contaId) : null;
     d.regraId = null;

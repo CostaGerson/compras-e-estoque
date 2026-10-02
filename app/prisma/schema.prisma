@@ -642,6 +642,8 @@ model FinArquivo {
 
   processado     Boolean  @default(false)  // já virou lançamentos
   saldoAnterior  Decimal? @db.Decimal(14, 2)
+  itens          Json?    // documentos de detalhamento: itens lidos (fatura, cobrança, folha, iFood…)
+  conciliacao    Json?    // resultado da conferência com o extrato
 
   tipo        FinDocTipo      @relation(fields: [tipoId], references: [id], onDelete: Cascade)
   lancamentos FinLancamento[]
@@ -718,9 +720,13 @@ model FinLancamento {
   valor             Decimal  @db.Decimal(14, 2)
   contaId           Int?
   regraId           Int?
-  origem            String   @default("EXTRATO") // EXTRATO | MANUAL | PARTE
+  origem            String   @default("EXTRATO") // EXTRATO | MANUAL | PARTE | DETALHE
   paiId             Int?     // parte de um lançamento desmembrado
   desmembrado       Boolean  @default(false)    // original oculto, substituído pelas partes
+  grupo             String?  // lançamento de DETALHAMENTO: chave do grupo conciliado
+  substituido       Boolean  @default(false)    // consolidado do extrato trocado pelo detalhamento
+  substGrupo        String?  // grupo que substituiu este consolidado
+  revisado          Boolean  @default(false)    // crítica "consolidado sem detalhamento" conferida à mão
   ordem             Int      @default(0)
   identificadoPor   String?
   createdAt         DateTime @default(now())

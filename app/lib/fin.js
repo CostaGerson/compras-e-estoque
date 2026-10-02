@@ -224,13 +224,23 @@ export async function aplicarRegras(competencia, ids) {
   return n;
 }
 
-// ---------- Processa um arquivo (PDF → lançamentos) ----------
-export async function processarArquivo(arquivoId) {
-  const { lerArquivo, LEITORES } = await import("@/lib/finParse");
+// ---------- Processa um arquivo (PDF → lançamentos ou itens de detalhamento) ----------
+export async function processarArquivo(arquivoId, { conciliarDepois = true } = {}) {
+  const { lerArquivo, LEITORES, lerDetalhe, LEITORES_DETALHE } = await import("@/lib/finParse");
   const a = await prisma.finArquivo.findUnique({ where: { id: arquivoId }, include: { tipo: true } });
   if (!a || a.processado) return { ok: true, n: 0 };
+  const buf = Buffer.from(a.conteudo, "base64");
+
+  if (LEITORES_DETALHE[a.tipo.codigo]) {
+    const r = await lerDetalhe(a.tipo.codigo, buf, a.senhaPdf);
+    await prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, itens: r } });
+    const conf = conciliarDepois ? await conciliarCompetencia(a.competencia) : null;
+    const minha = conf?.find((c) => c.arquivoIds.includes(a.id));
+    return { ok: true, n: r.itens.length, detalhe: true, total: r.total, conciliado: minha ? minha.ok : null };
+  }
   if (!LEITORES[a.tipo.codigo]) return { ok: true, n: 0, semLeitor: true };
-  const r = await lerArquivo(a.tipo.codigo, Buffer.from(a.conteudo, "base64"), a.senhaPdf);
+
+  const r = await lerArquivo(a.tipo.codigo, buf, a.senhaPdf);
   await prisma.$transaction([
     prisma.finLancamento.deleteMany({ where: { arquivoId: a.id } }),
     prisma.finLancamento.createMany({
@@ -243,8 +253,127 @@ export async function processarArquivo(arquivoId) {
     }),
     prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: r.saldoAnterior } }),
   ]);
+  if (conciliarDepois) await conciliarCompetencia(a.competencia);
   const auto = await aplicarRegras(a.competencia);
   return { ok: true, n: r.lancamentos.length, auto };
+}
+
+// ---------- Conferência: detalhamento x consolidado do extrato ----------
+const dIso = (d) => d.toISOString().slice(0, 10);
+async function docsDetalhe(competencia) {
+  const { LEITORES_DETALHE } = await import("@/lib/finParse");
+  const arqs = await prisma.finArquivo.findMany({
+    where: { competencia, processado: true, tipo: { codigo: { in: Object.keys(LEITORES_DETALHE) } } },
+    select: { id: true, nome: true, itens: true, conciliacao: true, tipo: { select: { codigo: true } } },
+  });
+  return arqs.map((a) => ({ arquivoId: a.id, codigo: a.tipo.codigo, nome: a.nome, r: a.itens, conciliacao: a.conciliacao }));
+}
+
+export async function conciliarCompetencia(competencia) {
+  const { montarGrupos, conciliar } = await import("@/lib/finConcilia");
+  const docs = await docsDetalhe(competencia);
+  const grupos = montarGrupos(docs);
+  const chaves = new Set(grupos.map((g) => g.chave));
+
+  // 1) limpa grupos que deixaram de existir (arquivo apagado, fatura nova no grupo…)
+  const det = await prisma.finLancamento.findMany({ where: { competencia, origem: "DETALHE" }, select: { id: true, grupo: true } });
+  const subst = await prisma.finLancamento.findMany({ where: { competencia, substituido: true }, select: { id: true, substGrupo: true } });
+  const lancPorGrupo = {}, substPorGrupo = {};
+  det.forEach((l) => (lancPorGrupo[l.grupo] = (lancPorGrupo[l.grupo] || 0) + 1));
+  subst.forEach((l) => (substPorGrupo[l.substGrupo] = (substPorGrupo[l.substGrupo] || 0) + 1));
+  const todos = new Set([...Object.keys(lancPorGrupo), ...Object.keys(substPorGrupo)]);
+  const jaFeitos = new Set();
+  for (const k of todos) {
+    const valido = chaves.has(k) && lancPorGrupo[k] > 0 && substPorGrupo[k] > 0;
+    if (valido) { jaFeitos.add(k); continue; }
+    await prisma.$transaction([
+      prisma.finLancamento.deleteMany({ where: { competencia, origem: "DETALHE", grupo: k } }),
+      prisma.finLancamento.updateMany({ where: { competencia, substGrupo: k }, data: { substituido: false, substGrupo: null } }),
+    ]);
+  }
+
+  // 2) concilia o que falta
+  const disp = await prisma.finLancamento.findMany({
+    where: { competencia, origem: "EXTRATO", substituido: false, desmembrado: false },
+    select: { id: true, banco: true, data: true, historico: true, documento: true, valor: true },
+  });
+  const extrato = disp.map((l) => ({ ...l, data: dIso(l.data), valor: Number(l.valor) }));
+  const res = conciliar(grupos, extrato, jaFeitos);
+
+  for (const r of res) {
+    if (!r.ok || !r.vinculos.length) continue;
+    const g = grupos.find((x) => x.chave === r.chave);
+    await prisma.$transaction([
+      prisma.finLancamento.createMany({
+        data: r.itens.map((it, i) => ({
+          competencia, arquivoId: g.arquivoIds[0], banco: it.banco, data: new Date(it.data + "T00:00:00Z"),
+          historico: String(it.historico).toUpperCase(), identificacao: it.identificacao ? String(it.identificacao).toUpperCase() : null,
+          valor: it.valor, origem: "DETALHE", grupo: r.chave, ordem: i,
+        })),
+      }),
+      prisma.finLancamento.updateMany({ where: { id: { in: r.vinculos } }, data: { substituido: true, substGrupo: r.chave } }),
+    ]);
+  }
+
+  // 3) grava o resultado em cada arquivo de detalhamento
+  const resultado = grupos.map((g) => {
+    const r = res.find((x) => x.chave === g.chave);
+    const anterior = docs.flatMap((d) => d.conciliacao || []).find((c) => c.chave === g.chave);
+    return {
+      chave: g.chave, rotulo: g.rotulo, codigo: g.codigo, arquivoIds: g.arquivoIds, total: g.total, dataRef: g.dataRef,
+      ok: r ? r.ok : true, aviso: r?.aviso || false,
+      msg: r ? r.msg : (anterior?.ok ? anterior.msg : "Conciliado."), candidatos: r?.candidatos || [],
+    };
+  });
+  for (const d of docs) {
+    await prisma.finArquivo.update({ where: { id: d.arquivoId }, data: { conciliacao: resultado.filter((x) => x.arquivoIds.includes(d.arquivoId)) } });
+  }
+  await aplicarRegras(competencia);
+  return resultado;
+}
+
+// Vínculo manual (quando não bate): troca os lançamentos escolhidos pelo detalhamento + linha de diferença
+export async function forcarVinculo(competencia, chave, ids, quem) {
+  const { montarGrupos } = await import("@/lib/finConcilia");
+  const grupos = montarGrupos(await docsDetalhe(competencia));
+  const g = grupos.find((x) => x.chave === chave);
+  if (!g) throw new Error("Grupo não encontrado — recarregue a tela.");
+  const linhas = await prisma.finLancamento.findMany({ where: { id: { in: ids }, competencia, substituido: false, desmembrado: false } });
+  if (!linhas.length) throw new Error("Escolha ao menos um lançamento do extrato.");
+  const somaLinhas = Math.round(linhas.reduce((a, l) => a + Number(l.valor), 0) * 100) / 100;
+  const dif = Math.round((somaLinhas - g.total) * 100) / 100;
+  const data = new Date(linhas.map((l) => dIso(l.data)).sort().pop() + "T00:00:00Z");
+  const banco = g.bancoItens || linhas[0].banco;
+  const itens = g.itens.map((it, i) => ({
+    competencia, arquivoId: g.arquivoIds[0], banco, data: g.modo === "FOLHA" ? new Date(it.data + "T00:00:00Z") : data,
+    historico: String(it.historico).toUpperCase(), identificacao: it.identificacao ? String(it.identificacao).toUpperCase() : null,
+    valor: it.valor, origem: "DETALHE", grupo: chave, ordem: i,
+  }));
+  if (Math.abs(dif) >= 0.005) itens.push({
+    competencia, arquivoId: g.arquivoIds[0], banco, data, historico: `DIFERENÇA ENTRE EXTRATO E DETALHAMENTO · ${String(g.rotulo || "").toUpperCase()}`,
+    identificacao: `VÍNCULO MANUAL · ${quem}`, valor: dif, origem: "DETALHE", grupo: chave, ordem: itens.length,
+  });
+  await prisma.$transaction([
+    prisma.finLancamento.createMany({ data: itens }),
+    prisma.finLancamento.updateMany({ where: { id: { in: linhas.map((l) => l.id) } }, data: { substituido: true, substGrupo: chave } }),
+  ]);
+  const docs = await docsDetalhe(competencia);
+  for (const d of docs) {
+    if (!g.arquivoIds.includes(d.arquivoId)) continue;
+    const conc = (d.conciliacao || []).map((c) => c.chave === chave ? { ...c, ok: true, aviso: false, candidatos: [],
+      msg: `Vinculado manualmente por ${quem}${Math.abs(dif) >= 0.005 ? ` · diferença de R$ ${Math.abs(dif).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} lançada à parte` : ""}.` } : c);
+    await prisma.finArquivo.update({ where: { id: d.arquivoId }, data: { conciliacao: conc } });
+  }
+  await aplicarRegras(competencia);
+  return { ok: true, diferenca: dif };
+}
+
+export async function desfazerVinculo(competencia, chave) {
+  await prisma.$transaction([
+    prisma.finLancamento.deleteMany({ where: { competencia, origem: "DETALHE", grupo: chave } }),
+    prisma.finLancamento.updateMany({ where: { competencia, substGrupo: chave }, data: { substituido: false, substGrupo: null } }),
+  ]);
+  return conciliarCompetencia(competencia);
 }
 
 // ---------- serialização ----------
@@ -253,6 +382,7 @@ export const lancOut = (l) => ({
   id: l.id, banco: l.banco, data: l.data.toISOString().slice(0, 10), historico: l.historico, documento: l.documento,
   identificacao: l.identificacao, valor: num(l.valor), contaId: l.contaId, regraId: l.regraId, origem: l.origem,
   paiId: l.paiId, desmembrado: l.desmembrado, identificadoPor: l.identificadoPor, arquivoId: l.arquivoId, ordem: l.ordem,
+  grupo: l.grupo, substituido: l.substituido, substGrupo: l.substGrupo, revisado: l.revisado,
 });
 
 

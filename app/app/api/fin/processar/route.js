@@ -1,9 +1,9 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, processarArquivo, aplicarRegras } from "@/lib/fin";
+import { usuarioMaster, negado, competenciaValida, processarArquivo, conciliarCompetencia } from "@/lib/fin";
 
-// POST { usuarioId, competencia, reler?: [arquivoId] } — lê arquivos ainda não processados e aplica regras
+// POST { usuarioId, competencia, reler?: [arquivoId] } — lê arquivos pendentes, confere detalhamentos e aplica palavras-chave
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   if (!(await usuarioMaster(b.usuarioId))) return negado();
@@ -14,9 +14,9 @@ export async function POST(req) {
   const arqs = await prisma.finArquivo.findMany({ where: { competencia: b.competencia, processado: false }, select: { id: true, nome: true } });
   const res = [];
   for (const a of arqs) {
-    try { res.push({ nome: a.nome, ...(await processarArquivo(a.id)) }); }
+    try { res.push({ nome: a.nome, ...(await processarArquivo(a.id, { conciliarDepois: false })) }); }
     catch (e) { res.push({ nome: a.nome, ok: false, erro: e.message }); }
   }
-  const auto = await aplicarRegras(b.competencia);
-  return Response.json({ arquivos: res, auto });
+  const conferencia = await conciliarCompetencia(b.competencia);
+  return Response.json({ arquivos: res, conferencia });
 }

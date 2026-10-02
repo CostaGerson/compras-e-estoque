@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
-  ChevronUp, ChevronDown, ChevronsUp, FlaskConical,
+  ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 
@@ -169,7 +169,9 @@ function Importacao({ user, comp, setComp }) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
-      const lidos = d.leitura?.n ? `${d.leitura.n} lançamentos lidos` : "";
+      const lidos = d.leitura?.detalhe
+        ? `${d.leitura.n} itens · ${d.leitura.conciliado === true ? "conferido com o extrato ✓" : d.leitura.conciliado === false ? "ainda não bate com o extrato (ver Identificação)" : "aguardando extrato"}`
+        : d.leitura?.n ? `${d.leitura.n} lançamentos lidos` : "";
       return upd({ st: "ok", tipo: d.tipo, msg: [d.protegido ? "PDF com senha aberto" : "", lidos].filter(Boolean).join(" · ") });
     }
     if (r.status === 423) return upd({ st: "senha", msg: d.senhaErrada ? "Senha incorreta" : "PDF com senha" });
@@ -568,6 +570,8 @@ function Identificacao({ user, comp, setComp }) {
   const [modal, setModal] = useState(null); // {tipo:'identificar'|'editar'|'novo'|'desmembrar', itens|lanc}
   const [aviso, setAviso] = useState("");
   const [lendo, setLendo] = useState(false);
+  const [ord, setOrd] = useState({ k: "data", dir: 1 });
+  const ordenarPor = (k) => setOrd((o) => (o.k === k ? { k, dir: -o.dir } : { k, dir: 1 }));
 
   const carregar = async () => {
     setErro("");
@@ -588,15 +592,15 @@ function Identificacao({ user, comp, setComp }) {
     if (!dados) return [];
     const b = normC(busca);
     return dados.lancamentos.filter((l) => {
-      if (l.desmembrado) return false;
+      if (l.desmembrado || l.substituido) return false;
       if (fBanco && l.banco !== fBanco) return false;
       if (fConta === "_sem" ? l.contaId : fConta && String(l.contaId) !== fConta) return false;
       if (fStatus === "pend" && l.contaId) return false;
       if (fStatus === "ok" && !l.contaId) return false;
-      if (b && !normC(`${l.historico} ${l.identificacao || ""} ${l.documento || ""} ${brl(l.valor)}`).includes(b)) return false;
+      if (b && !normC(`${l.historico} ${l.identificacao || ""} ${l.documento || ""} ${brl(l.valor)} ${contasById[l.contaId]?.nome || ""}`).includes(b)) return false;
       return true;
     });
-  }, [dados, fBanco, fConta, fStatus, busca]);
+  }, [dados, fBanco, fConta, fStatus, busca, contasById]);
 
   const grupos = useMemo(() => {
     const m = new Map();
@@ -604,16 +608,22 @@ function Identificacao({ user, comp, setComp }) {
     for (const l of visiveis) { const k = chave(l); if (!m.has(k)) m.set(k, []); m.get(k).push(l); }
     const ks = [...m.keys()].sort((a, b) => (a === "~" ? -1 : b === "~" ? 1 : a.localeCompare(b)));
     return ks.map((k) => {
-      const itens = m.get(k).slice().sort((a, b) => a.data.localeCompare(b.data) || (a.arquivoId || 0) - (b.arquivoId || 0) || a.ordem - b.ordem || a.id - b.id);
+      const chaveOrd = (l) => ord.k === "banco" ? l.banco : ord.k === "historico" ? l.historico : ord.k === "descricao" ? (contasById[l.contaId]?.nome || "") : ord.k === "valor" ? l.valor : l.data;
+      const base = (a, b) => a.data.localeCompare(b.data) || (a.arquivoId || 0) - (b.arquivoId || 0) || a.ordem - b.ordem || a.id - b.id;
+      const itens = m.get(k).slice().sort((a, b) => {
+        const va = chaveOrd(a), vb = chaveOrd(b);
+        const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "pt-BR");
+        return c * ord.dir || base(a, b);
+      });
       const conta = agrupar === "conta" && k !== "~" ? (dados.contas.find((c) => c.codigo === k)) : null;
       const titulo = agrupar === "banco" ? k : k === "~" ? "A IDENTIFICAR" : `${conta.codigo} · ${conta.nome}`;
       const inicial = agrupar === "banco" && !fConta && fStatus === "todos" && !busca ? (dados.saldos[k] || 0) : 0;
       return { k, titulo, conta, itens, inicial };
     });
-  }, [visiveis, agrupar, contasById, dados, fConta, fStatus, busca]);
+  }, [visiveis, agrupar, contasById, dados, fConta, fStatus, busca, ord]);
 
   const tot = useMemo(() => {
-    const ls = (dados?.lancamentos || []).filter((l) => !l.desmembrado);
+    const ls = (dados?.lancamentos || []).filter((l) => !l.desmembrado && !l.substituido);
     const conc = (dados?.contas || []).find((c) => c.codigo === "3000000");
     return {
       n: ls.length,
@@ -635,7 +645,8 @@ function Identificacao({ user, comp, setComp }) {
       const d = await api("/api/fin/processar", "POST", { usuarioId: user.id, competencia: comp });
       const n = d.arquivos.reduce((a, x) => a + (x.n || 0), 0);
       const falhas = d.arquivos.filter((x) => x.ok === false);
-      setAviso(`${n} lançamentos lidos${d.auto ? ` · ${d.auto} identificados por palavra-chave` : ""}${falhas.length ? ` · ${falhas.length} arquivo(s) com erro` : ""}`);
+      const conf = d.conferencia || [];
+      setAviso(`${d.arquivos.length} arquivo(s) lido(s) · ${n} itens${conf.length ? ` · conferência: ${conf.filter((c) => c.ok).length} ok, ${conf.filter((c) => !c.ok).length} com crítica` : ""}${falhas.length ? ` · ${falhas.length} com erro` : ""}`);
     } catch (e) { alert(e.message); }
     setLendo(false);
     carregar();
@@ -660,8 +671,14 @@ function Identificacao({ user, comp, setComp }) {
     setSel(new Set()); carregar();
   };
 
-  const Th = ({ children, right, w }) => (
-    <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-wide" style={{ color: C.navy, textAlign: right ? "right" : "left", width: w, whiteSpace: "nowrap" }}>{children}</th>
+  const Th = ({ children, right, w, k }) => (
+    <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-wide" onClick={k ? () => ordenarPor(k) : undefined}
+      style={{ color: ord.k === k ? C.accent : C.navy, textAlign: right ? "right" : "left", width: w, whiteSpace: "nowrap", cursor: k ? "pointer" : "default", userSelect: "none" }}>
+      <span className="inline-flex items-center gap-1" style={{ flexDirection: right ? "row-reverse" : "row" }}>
+        {children}
+        {k && (ord.k === k ? (ord.dir > 0 ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} style={{ opacity: 0.35 }} />)}
+      </span>
+    </th>
   );
   const sel2 = { border: `1px solid ${C.line}`, background: C.panel, color: C.text };
 
@@ -671,7 +688,7 @@ function Identificacao({ user, comp, setComp }) {
         <SeletorMes comp={comp} setComp={setComp} />
         {dados?.arquivosPendentes > 0 && (
           <button onClick={lerPendentes} disabled={lendo} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>
-            {lendo ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Ler {dados.arquivosPendentes} extrato(s) pendente(s)
+            {lendo ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Ler {dados.arquivosPendentes} arquivo(s) pendente(s)
           </button>
         )}
         <button onClick={() => setModal({ tipo: "novo" })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>
@@ -692,6 +709,8 @@ function Identificacao({ user, comp, setComp }) {
           </div>
         )}
       </div>
+
+      {dados && <Conferencia user={user} comp={comp} dados={dados} onMudou={carregar} setAviso={setAviso} />}
 
       {/* filtros */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -738,12 +757,12 @@ function Identificacao({ user, comp, setComp }) {
 
       {dados && grupos.length > 0 && (
         <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1100 }}>
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 960 }}>
             <thead style={{ borderBottom: `2px solid ${C.line}` }}>
               <tr>
                 <th style={{ width: 28 }} />
-                <Th w={130}>Banco</Th><Th w={82}>Data</Th><Th>Histórico</Th><Th w={90}>Documento</Th><Th w={140}>Identificação</Th>
-                <Th w={70}>Conta</Th><Th w={170}>Descrição</Th><Th right w={95}>Valor</Th><Th right w={100}>Saldo</Th><th style={{ width: 128 }} />
+                <Th w={130} k="banco">Banco</Th><Th w={86} k="data">Data</Th><Th k="historico">Histórico</Th>
+                <Th w={200} k="descricao">Descrição</Th><Th right w={100} k="valor">Valor</Th><Th right w={105}>Saldo</Th><th style={{ width: 128 }} />
               </tr>
             </thead>
             {grupos.map((g) => {
@@ -753,7 +772,7 @@ function Identificacao({ user, comp, setComp }) {
                 <tbody key={g.k}>
                   <tr style={{ background: C.panel2, borderTop: `1px solid ${C.line}` }}>
                     <td className="px-2 py-2"><input type="checkbox" checked={g.itens.every((l) => sel.has(l.id))} onChange={() => toggleGrupo(g)} /></td>
-                    <td colSpan={7} className="px-2 py-2 font-bold" style={{ color: g.k === "~" ? C.accent : C.navy }}>
+                    <td colSpan={4} className="px-2 py-2 font-bold" style={{ color: g.k === "~" ? C.accent : C.navy }}>
                       {g.titulo} <span className="font-normal" style={{ color: C.sub }}>· {g.itens.length} lanç. · soma R$ {brl(soma)}</span>
                     </td>
                     <td className="px-2 py-2 text-right font-semibold" style={{ color: C.sub }}>SALDO ANTERIOR</td>
@@ -769,16 +788,15 @@ function Identificacao({ user, comp, setComp }) {
                         <td className="px-2 py-1.5"><input type="checkbox" checked={sel.has(l.id)} onChange={() => toggle(l.id)} /></td>
                         <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{l.banco}</td>
                         <td className="px-2 py-1.5" style={{ color: cor }}>{dBR(l.data)}</td>
-                        <td className="px-2 py-1.5" style={{ color: cor }}>
+                        <td className="px-2 py-1.5" style={{ color: cor }} title={l.documento ? `Documento ${l.documento}` : undefined}>
                           <span style={{ fontSize: 11 }}>{l.historico}</span>
                           {l.origem === "PARTE" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>parte</span>}
+                          {l.origem === "DETALHE" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.blueSoft, color: C.blue }}>detalhe</span>}
                           {l.origem === "MANUAL" && <span className="ml-1 px-1 rounded text-[10px]" style={{ background: C.panel2, color: C.sub }}>manual</span>}
                           {l.identificadoPor === "REGRA" && <Wand2 size={11} className="inline ml-1" style={{ color: C.sub }} title="Identificado por palavra-chave" />}
+                          {l.identificacao && <div className="text-[10px]" style={{ color: C.sub }}>{l.identificacao}</div>}
                         </td>
-                        <td className="px-2 py-1.5" style={{ color: cor, fontSize: 11 }}>{l.documento}</td>
-                        <td className="px-2 py-1.5" style={{ color: cor, fontSize: 11 }}>{l.identificacao}</td>
-                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{conta?.codigo || ""}</td>
-                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{conta?.nome || <span style={{ color: C.accent }}>A IDENTIFICAR</span>}</td>
+                        <td className="px-2 py-1.5 font-semibold" style={{ color: cor }} title={conta ? conta.codigo : undefined}>{conta?.nome || <span style={{ color: C.accent }}>A IDENTIFICAR</span>}</td>
                         <td className="px-2 py-1.5 text-right font-semibold" style={{ color: corValor(l.valor) }}>{brl(l.valor)}</td>
                         <td className="px-2 py-1.5 text-right" style={{ color: corValor(saldo) }}>{brl(saldo)}</td>
                         <td className="px-2 py-1">
@@ -816,6 +834,134 @@ function Identificacao({ user, comp, setComp }) {
           onClose={() => setModal(null)} onSalvo={() => { setModal(null); carregar(); }} />
       )}
     </div>
+  );
+}
+
+/* ---------- Conferência: detalhamentos x consolidados do extrato ---------- */
+function Conferencia({ user, comp, dados, onMudou, setAviso }) {
+  const [aberto, setAberto] = useState(false);
+  const [vinc, setVinc] = useState(null); // grupo para vínculo manual
+  const porId = useMemo(() => Object.fromEntries(dados.lancamentos.map((l) => [l.id, l])), [dados]);
+  const conf = dados.conferencia || [];
+  const ok = conf.filter((c) => c.ok);
+  const erros = conf.filter((c) => !c.ok && !c.aviso);
+  const avisos = conf.filter((c) => !c.ok && c.aviso);
+  const consol = (dados.consolidados || []).map((c) => ({ ...c, l: porId[c.id] })).filter((c) => c.l);
+  if (!conf.length && !consol.length) return null;
+  const problemas = erros.length + consol.length;
+
+  const acao = async (body, msg) => {
+    try { await api("/api/fin/conciliar", "POST", { usuarioId: user.id, competencia: comp, ...body }); if (msg) setAviso(msg); onMudou(); }
+    catch (e) { alert(e.message); }
+  };
+  const conferido = async (l) => { await api(`/api/fin/lancamentos/${l.id}`, "PATCH", { usuarioId: user.id, revisado: true }); onMudou(); };
+
+  return (
+    <div className="rounded-xl mb-4" style={{ background: C.panel, border: `1px solid ${problemas ? "#F5C2BD" : C.line}` }}>
+      <button onClick={() => setAberto((a) => !a)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+        <ShieldCheck size={18} style={{ color: problemas ? C.red : C.green }} />
+        <div className="flex-1">
+          <div className="text-sm font-semibold">Conferência com o extrato</div>
+          <div className="text-xs" style={{ color: C.sub }}>
+            {ok.length} detalhamento(s) conferido(s)
+            {erros.length > 0 && <> · <b style={{ color: C.red }}>{erros.length} não bate(m)</b></>}
+            {consol.length > 0 && <> · <b style={{ color: C.red }}>{consol.length} consolidado(s) sem detalhamento</b></>}
+            {avisos.length > 0 && <> · {avisos.length} para o mês seguinte</>}
+          </div>
+        </div>
+        <ChevR size={16} style={{ color: C.sub, transform: aberto ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+      </button>
+      {aberto && (
+        <div className="px-4 pb-4 flex flex-col gap-2">
+          {erros.map((c) => (
+            <div key={c.chave} className="rounded-lg p-3 text-xs" style={{ background: C.redSoft }}>
+              <div className="font-semibold" style={{ color: C.red }}>{c.rotulo}</div>
+              <div className="mt-0.5" style={{ color: C.text }}>{c.msg}</div>
+              <button onClick={() => setVinc(c)} className="mt-2 flex items-center gap-1 px-2 py-1 rounded font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
+                <Link2 size={12} /> Vincular manualmente
+              </button>
+            </div>
+          ))}
+          {consol.map((c) => (
+            <div key={c.id} className="rounded-lg p-3 text-xs flex items-start gap-3" style={{ background: C.yellowSoft }}>
+              <div className="flex-1">
+                <div className="font-semibold" style={{ color: C.yellow }}>Consolidado sem detalhamento · falta: {c.doc}</div>
+                <div className="mt-0.5">{c.l.banco} · {dBR(c.l.data)} · {c.l.historico} · <b style={{ color: corValor(c.l.valor) }}>R$ {brl(c.l.valor)}</b></div>
+              </div>
+              <button onClick={() => conferido(c.l)} className="px-2 py-1 rounded font-semibold shrink-0" style={{ background: C.panel, border: `1px solid ${C.line}` }}>Marcar como conferido</button>
+            </div>
+          ))}
+          {avisos.map((c) => (
+            <div key={c.chave} className="rounded-lg p-3 text-xs" style={{ background: C.panel2 }}>
+              <b>{c.rotulo}</b> · {c.msg}
+            </div>
+          ))}
+          {ok.length > 0 && (
+            <details className="text-xs mt-1">
+              <summary className="cursor-pointer" style={{ color: C.sub }}>Ver {ok.length} conferido(s)</summary>
+              <div className="mt-2 flex flex-col gap-1">
+                {ok.map((c) => (
+                  <div key={c.chave} className="flex items-center gap-2 rounded px-2 py-1" style={{ background: C.greenSoft }}>
+                    <CheckCircle2 size={12} style={{ color: C.green }} className="shrink-0" />
+                    <div className="flex-1"><b>{c.rotulo}</b> · {c.msg}</div>
+                    {!/já detalhados|Sem valores/.test(c.msg) && (
+                      <button onClick={() => { if (confirm("Desfazer esta troca? O lançamento consolidado volta para o extrato.")) acao({ acao: "desfazer", chave: c.chave }, "Troca desfeita."); }}
+                        title="Desfazer" style={{ color: C.sub }}><Undo2 size={13} /></button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+      {vinc && <VinculoModal grupo={vinc} porId={porId} lancamentos={dados.lancamentos} onClose={() => setVinc(null)}
+        onConfirmar={async (ids) => { setVinc(null); await acao({ acao: "forcar", chave: vinc.chave, ids }, "Vínculo manual feito."); }} />}
+    </div>
+  );
+}
+
+function VinculoModal({ grupo, porId, lancamentos, onClose, onConfirmar }) {
+  const sinal = grupo.total >= 0 ? 1 : -1;
+  const sugeridos = (grupo.candidatos || []).map((id) => porId[id]).filter((l) => l && !l.substituido);
+  const [todos, setTodos] = useState(!sugeridos.length);
+  const [sel, setSel] = useState(new Set());
+  const lista = todos
+    ? lancamentos.filter((l) => l.origem === "EXTRATO" && !l.substituido && !l.desmembrado && Math.sign(l.valor) === sinal)
+    : sugeridos;
+  const somaSel = lista.filter((l) => sel.has(l.id)).reduce((a, l) => a + l.valor, 0);
+  const dif = Math.round((somaSel - grupo.total) * 100) / 100;
+  const tg = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  return (
+    <Modal titulo="Vincular manualmente" icone={Link2} onClose={onClose} largura={760}>
+      <div className="rounded-lg p-3 mb-3 text-xs" style={{ background: C.panel2 }}>
+        <div className="font-semibold">{grupo.rotulo}</div>
+        <div style={{ color: C.sub }}>Detalhamento soma <b style={{ color: corValor(grupo.total) }}>R$ {brl(grupo.total)}</b>. Escolha o(s) lançamento(s) do extrato que ele substitui.</div>
+      </div>
+      <label className="flex items-center gap-2 text-xs mb-2 cursor-pointer" style={{ color: C.sub }}>
+        <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> Mostrar todos os lançamentos do mês ({sinal < 0 ? "saídas" : "entradas"})
+      </label>
+      <div className="overflow-auto rounded-lg" style={{ maxHeight: 320, border: `1px solid ${C.line}` }}>
+        {lista.length === 0 && <div className="p-3 text-xs" style={{ color: C.sub }}>Nenhum lançamento disponível.</div>}
+        {lista.map((l) => (
+          <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer" style={{ borderBottom: `1px solid ${C.panel2}`, background: sel.has(l.id) ? C.accentSoft : undefined }}>
+            <input type="checkbox" checked={sel.has(l.id)} onChange={() => tg(l.id)} />
+            <span style={{ width: 110, color: C.sub }}>{l.banco}</span><span style={{ width: 72, color: C.sub }}>{dBR(l.data)}</span>
+            <span className="flex-1 truncate">{l.historico}</span>
+            <span style={{ width: 90, textAlign: "right", color: corValor(l.valor), fontWeight: 600 }}>{brl(l.valor)}</span>
+          </label>
+        ))}
+      </div>
+      {sel.size > 0 && (
+        <div className="text-xs mt-3" style={{ color: Math.abs(dif) < 0.005 ? C.green : C.yellow }}>
+          Selecionado R$ {brl(somaSel)} · {Math.abs(dif) < 0.005 ? "bate exatamente ✓" : `diferença de R$ ${brl(dif)} será lançada à parte (sem conta) para você identificar`}
+        </div>
+      )}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
+        <button disabled={!sel.size} onClick={() => onConfirmar([...sel])} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: sel.size ? 1 : 0.5 }}>Vincular</button>
+      </div>
+    </Modal>
   );
 }
 
