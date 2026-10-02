@@ -4,7 +4,7 @@ import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
-  LayoutDashboard, Sparkles, CalendarRange, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
+  LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 
@@ -47,6 +47,9 @@ export default function Financeiro({ user }) {
   if (tela.v === "contas") migalhas.push({ t: "Plano de contas" });
   if (tela.v === "regras") migalhas.push({ t: "Palavras-chave" });
   if (tela.v === "senhas") migalhas.push({ t: "Senhas de PDF" });
+  if (tela.v === "matriz") migalhas.push({ t: "Matriz de custos" });
+  if (tela.v === "pagrec") migalhas.push({ t: "Contas a pagar e receber" });
+  if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
   return (
     <div>
       {migalhas.length > 1 && (
@@ -66,6 +69,9 @@ export default function Financeiro({ user }) {
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
+      {tela.v === "matriz" && <EmConstrucao titulo="Matriz de custos" Ico={Grid3x3} texto="Custos fixos e variáveis por grupo e conta-caixa, com a base de rateio e o custo por peça." />}
+      {tela.v === "pagrec" && <PagarReceber />}
+      {tela.v === "dfc" && <EmConstrucao titulo="DFC · Demonstrativo de fluxo de caixa futuro" Ico={LineChart} texto="Projeção de entradas e saídas por semana e por mês a partir das contas a pagar e a receber, com o saldo previsto de caixa." />}
     </div>
   );
 }
@@ -137,16 +143,27 @@ function FinDashboard({ user, ir }) {
   return (
     <div>
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-        <button onClick={() => ir({ v: "meses" })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
-          <CalendarRange size={26} style={{ color: C.accent }} />
-          <div className="text-lg font-bold mt-2">Análise financeira mensal</div>
-          <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>DRE do mês, importação dos documentos e identificação</div>
-        </button>
+        {[
+          ["meses", CalendarRange, "Análise financeira mensal", "DRE do mês, importação dos documentos e identificação"],
+          ["matriz", Grid3x3, "Matriz de custos", "Custos fixos e variáveis, rateio e custo por peça"],
+          ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
+          ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por semana e por mês"],
+        ].map(([v, Ico, t, sub]) => (
+          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+            <Ico size={26} style={{ color: C.accent }} />
+            <div className="text-lg font-bold mt-2">{t}</div>
+            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {[["contas", BookOpen, "Plano de contas", "Contas-caixa da DRE"], ["regras", Wand2, "Palavras-chave", "Identificação automática"], ["senhas", KeyRound, "Senhas de PDF", "Abertura automática"]].map(([v, Ico, t, sub]) => (
-          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <Ico size={22} style={{ color: C.accent }} />
-            <div className="font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
+          <button key={v} onClick={() => ir({ v })} className="flex items-center gap-3 text-left rounded-xl px-4 py-3 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <Ico size={20} style={{ color: C.accent }} />
+            <div>
+              <div className="font-bold text-sm">{t}</div>
+              <div className="text-xs" style={{ color: C.sub }}>{sub}</div>
+            </div>
           </button>
         ))}
       </div>
@@ -175,6 +192,38 @@ function FinDashboard({ user, ir }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------------- MÓDULOS EM CONSTRUÇÃO ---------------- */
+function EmConstrucao({ titulo, Ico, texto }) {
+  return (
+    <div className="rounded-2xl p-10 text-center" style={{ background: C.panel, border: `1px dashed ${C.line}` }}>
+      <Ico size={36} style={{ color: C.accent, margin: "0 auto" }} />
+      <div className="text-lg font-bold mt-3" style={{ color: C.navy }}>{titulo}</div>
+      <div className="text-sm mt-1 max-w-lg mx-auto" style={{ color: C.sub }}>{texto}</div>
+      <div className="inline-flex items-center gap-1.5 mt-4 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: C.accentSoft, color: C.accent }}>
+        <Construction size={13} /> Em construção
+      </div>
+    </div>
+  );
+}
+function PagarReceber() {
+  const [aba, setAba] = useState("pagar");
+  return (
+    <div>
+      <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
+        {[["pagar", "Contas a pagar", TrendingDown], ["receber", "Contas a receber", TrendingUp]].map(([k, t, I]) => (
+          <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+            style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+            <I size={15} /> {t}
+          </button>
+        ))}
+      </div>
+      {aba === "pagar"
+        ? <EmConstrucao titulo="Contas a pagar" Ico={TrendingDown} texto="Fornecedores, impostos, folha e demais títulos: vencimento, valor, conta-caixa e baixa pelo extrato." />
+        : <EmConstrucao titulo="Contas a receber" Ico={TrendingUp} texto="Pedidos e boletos de clientes: vencimento, valor, situação e baixa pela cobrança e pelo extrato." />}
     </div>
   );
 }
