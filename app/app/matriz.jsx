@@ -50,7 +50,7 @@ function NumInput({ value, onChange, tipo = "moeda", casas = 2, className = "", 
         onBlur={() => { setFoco(false); const v = lerNum(txt); onChange(tipo === "pct" ? v / 100 : v); }}
         onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
         className={`w-full text-right rounded px-2 py-1 text-xs outline-none ${className}`}
-        style={{ border: `1px solid ${C.line}`, paddingLeft: tipo === "moeda" ? 22 : 8, paddingRight: tipo === "pct" ? 18 : 8, background: disabled ? C.panel2 : "#fff", ...style }} />
+        style={{ border: `1px solid ${C.line}`, paddingLeft: tipo === "moeda" ? 22 : 8, paddingRight: tipo === "pct" ? 18 : 8, background: disabled ? C.panel2 : "#fff", color: C.text, ...style }} />
       {tipo === "pct" && <span className="absolute right-2 text-[10px]" style={{ color: C.sub }}>%</span>}
     </div>
   );
@@ -316,16 +316,21 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr }) {
         </div>
       )}
       <div className="flex justify-end"><ComoCalcula itens={FORMULAS.painel} /></div>
-      {/* blocos */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+      {/* distribuição (pizza) + blocos */}
+      <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
+        <Cartao titulo="Distribuição do custo do negócio">
+          <Pizza fatias={linhaBloco.map(([k, t, , v]) => ({ k, t, v, cor: COR_BLOCO[k] }))} total={calc.custoNegocio} ir={ir} />
+        </Cartao>
+      <div className="grid gap-3 content-start" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
         {linhaBloco.map(([k, t, I, v]) => (
           <button key={k} onClick={() => ir(k)} className="text-left p-4 rounded-xl hover:shadow-md transition-shadow" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><I size={14} style={{ color: C.accent }} /> {t}</div>
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><span className="w-2.5 h-2.5 rounded-sm" style={{ background: COR_BLOCO[k] }} /><I size={14} style={{ color: C.accent }} /> {t}</div>
             <div className="text-lg font-bold mt-1" style={{ color: C.navy }}>{moeda(v)}</div>
             <div className="text-[10px]" style={{ color: C.sub }}>{pct(calc.custoNegocio ? v / calc.custoNegocio : 0, 1)} do custo do negócio</div>
             {calcOf && <Dif a={v} o={calcOf.blocos[k]} inverso />}
           </button>
         ))}
+      </div>
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
@@ -388,6 +393,54 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr }) {
     </div>
   );
 }
+const COR_BLOCO = { pessoal: "#001E41", vidaVegetativa: "#FF6B1A", dividas: "#D92D20", administracao: "#2E7CD6", logistica: "#12A150", sistemas: "#C08401" };
+function Pizza({ fatias, total, ir }) {
+  const [ativo, setAtivo] = useState(null);
+  const R = 90, cx = 100, cy = 100;
+  const ord = [...fatias].filter((f) => f.v > 0).sort((a, b) => b.v - a.v);
+  let ang = -Math.PI / 2;
+  const arcos = ord.map((f) => {
+    const a = total ? (f.v / total) * Math.PI * 2 : 0;
+    const a0 = ang, a1 = ang + a; ang = a1;
+    const m = (a0 + a1) / 2, off = ativo === f.k ? 6 : 0;
+    const dx = Math.cos(m) * off, dy = Math.sin(m) * off;
+    const p = (t) => [cx + dx + R * Math.cos(t), cy + dy + R * Math.sin(t)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    const d = a >= Math.PI * 2 - 1e-6
+      ? `M ${cx - R} ${cy} a ${R} ${R} 0 1 0 ${2 * R} 0 a ${R} ${R} 0 1 0 ${-2 * R} 0`
+      : `M ${cx + dx} ${cy + dy} L ${x0} ${y0} A ${R} ${R} 0 ${a > Math.PI ? 1 : 0} 1 ${x1} ${y1} Z`;
+    const lx = cx + dx + R * 0.62 * Math.cos(m), ly = cy + dy + R * 0.62 * Math.sin(m);
+    return { ...f, d, lx, ly, pc: total ? f.v / total : 0 };
+  });
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <svg viewBox="0 0 200 200" style={{ width: 210, height: 210, flex: "none" }}>
+        {arcos.map((a) => (
+          <path key={a.k} d={a.d} fill={a.cor} stroke="#fff" strokeWidth="1.5" style={{ cursor: "pointer", opacity: ativo && ativo !== a.k ? 0.55 : 1, transition: "opacity .15s" }}
+            onMouseEnter={() => setAtivo(a.k)} onMouseLeave={() => setAtivo(null)} onClick={() => ir(a.k)}>
+            <title>{`${a.t}: ${moeda(a.v)} (${pct(a.pc, 1)})`}</title>
+          </path>
+        ))}
+        {arcos.filter((a) => a.pc >= 0.06).map((a) => (
+          <text key={a.k} x={a.lx} y={a.ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="700" fill="#fff" style={{ pointerEvents: "none" }}>{pct(a.pc, 0)}</text>
+        ))}
+      </svg>
+      <div className="flex-1 min-w-[170px] text-sm">
+        {arcos.map((a) => (
+          <button key={a.k} onClick={() => ir(a.k)} onMouseEnter={() => setAtivo(a.k)} onMouseLeave={() => setAtivo(null)}
+            className="w-full flex items-center gap-2 py-1.5 text-left" style={{ borderBottom: `1px solid ${C.line}`, background: ativo === a.k ? C.panel2 : "transparent" }}>
+            <span className="w-3 h-3 rounded-sm flex-none" style={{ background: a.cor }} />
+            <span className="flex-1">{a.t}</span>
+            <span className="text-xs" style={{ color: C.sub }}>{pct(a.pc, 1)}</span>
+            <span className="font-semibold text-right" style={{ minWidth: 92 }}>{brl(a.v)}</span>
+          </button>
+        ))}
+        <div className="flex justify-between pt-2 font-bold" style={{ color: C.navy }}><span>Custo do negócio</span><span>{moeda(total)}</span></div>
+      </div>
+    </div>
+  );
+}
+
 function Cartao({ titulo, children, Ico }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
