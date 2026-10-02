@@ -397,7 +397,11 @@ model NotaFiscal {
   dataEmissao  DateTime?
   valorTotal   Decimal? @db.Decimal(14, 2)
   status       StatusNf @default(LANCADA)
+  modelo       String   @default("NFE")   // NFE | NFSE (serviço: não movimenta estoque)
+  finIgnorada  Boolean  @default(false)   // financeiro marcou que não vira conta a pagar
   createdAt    DateTime @default(now())
+
+  titulos       FinTitulo[]
 
   fornecedor    Fornecedor            @relation(fields: [fornecedorId], references: [id])
   itens         NfItem[]
@@ -816,6 +820,8 @@ model FinTitulo {
   arquivoXml       String?
   recorrenciaId    Int?
   recorrencia      FinRecorrencia? @relation(fields: [recorrenciaId], references: [id], onDelete: SetNull)
+  nfId             Int?                         // NF lançada pelo Compras que originou a conta
+  nf               NotaFiscal?     @relation(fields: [nfId], references: [id], onDelete: SetNull)
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
   criadoPorId      Int?
   criadoPorNome    String?

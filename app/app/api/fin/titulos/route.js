@@ -24,10 +24,11 @@ export async function GET(req) {
     prisma.finTitulo.findMany({ where: { tipo }, distinct: ["parceiro"], select: { parceiro: true, documento: true }, orderBy: { parceiro: "asc" }, take: 2000 }),
     prisma.finRecorrencia.findMany({ where: { tipo }, orderBy: { titulo: "asc" } }),
   ]);
+  const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
     tipo, de, ate,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
-    contas, parceiros, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
+    contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
   });
 }
 

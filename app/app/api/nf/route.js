@@ -5,7 +5,7 @@ export async function GET() {
   const nfs = await prisma.notaFiscal.findMany({
     select: {
       id: true, numero: true, status: true,
-      dataEmissao: true, valorTotal: true, temPdf: true, temXml: true,
+      dataEmissao: true, valorTotal: true, temPdf: true, temXml: true, modelo: true,
       fornecedor: { select: { id: true, nome: true } },
       _count: { select: { itens: true } },
     },

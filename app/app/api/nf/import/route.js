@@ -1,10 +1,33 @@
 import { prisma } from "@/lib/prisma";
 import { parseXmlNfe, parsePdfNfe, validarVenda, camposDoTexto, unidadeDoUCom } from "@/lib/nf";
+import { lerXmlTitulo } from "@/lib/finTitulos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const up = (v) => (v ? String(v).toUpperCase() : v);
+
+// NFS-e: fornecedor pelo CNPJ do prestador + registro da nota (sem itens/estoque)
+async function gravarServico(sv, xml, pdfBase64) {
+  if (!sv.documento) return Response.json({ error: "NFS-e sem CNPJ/CPF do prestador." }, { status: 422 });
+  let fornecedorId;
+  const cnpjRow = await prisma.fornecedorCnpj.findUnique({ where: { cnpj: sv.documento } });
+  if (cnpjRow) fornecedorId = cnpjRow.fornecedorId;
+  else {
+    const forn = await prisma.fornecedor.create({ data: { nome: "", razaoSocial: sv.razao || null, cnpjs: { create: [{ cnpj: sv.documento, razaoSocial: sv.razao || null }] } } });
+    fornecedorId = forn.id;
+  }
+  const numero = sv.numero || "S/N";
+  const existe = await prisma.notaFiscal.findFirst({ where: { modelo: "NFSE", fornecedorId, numero } });
+  if (existe) return Response.json({ ok: true, jaExistia: true, numero, natureza: "SERVIÇO (NFS-e)", origem: "XML", itensCriados: 0, artigosCriados: 0, artigosVinculados: 0, artigosReativados: 0 }, { status: 201 });
+  await prisma.notaFiscal.create({
+    data: {
+      numero, chave: null, fornecedorId, modelo: "NFSE", status: "LANCADA", arquivoXml: xml, temXml: true,
+      arquivoPdf: pdfBase64 || null, temPdf: !!pdfBase64, dataEmissao: sv.emissao ? new Date(sv.emissao + "T12:00:00Z") : null, valorTotal: sv.total || null,
+    },
+  });
+  return Response.json({ ok: true, jaExistia: false, numero, natureza: "SERVIÇO (NFS-e)", origem: "XML", itensCriados: 0, artigosCriados: 0, artigosVinculados: 0, artigosReativados: 0 }, { status: 201 });
+}
 
 export async function POST(req) {
   let body;
@@ -17,7 +40,14 @@ export async function POST(req) {
   let nf, arquivoXml = null, arquivoPdf = null;
   try {
     if (tipo === "xml") {
-      nf = parseXmlNfe(conteudo);
+      try { nf = parseXmlNfe(conteudo); }
+      catch (eNfe) {
+        // não é NF-e: tenta NFS-e (nota de serviço) — fica registrada para o financeiro, sem estoque
+        let sv;
+        try { sv = lerXmlTitulo(conteudo); } catch { throw eNfe; }
+        if (sv.modelo !== "NFS-e") throw eNfe;
+        return await gravarServico(sv, conteudo, pdfBase64);
+      }
       arquivoXml = conteudo;
       arquivoPdf = pdfBase64 || null;
     } else if (tipo === "pdf") {

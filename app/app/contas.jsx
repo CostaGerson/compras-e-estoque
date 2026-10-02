@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
-  AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock,
+  AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff,
 } from "lucide-react";
 
 const C = {
@@ -203,6 +203,15 @@ export default function ContasPagarReceber({ user }) {
         ))}
       </div>
 
+      {/* NFs lançadas pelo Compras */}
+      {P && d && d.nfsPendentes > 0 && (
+        <button onClick={() => setModal({ t: "nfs" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left" style={{ background: C.blueSoft, border: `1px solid ${C.blue}55`, color: C.text }}>
+          <Inbox size={18} style={{ color: C.blue }} />
+          <span className="flex-1"><b>{d.nfsPendentes} nota(s) fiscal(is)</b> lançada(s) pelo Compras aguardando virar conta a pagar.</span>
+          <span className="font-semibold" style={{ color: C.blue }}>Ver notas →</span>
+        </button>
+      )}
+
       {/* crítica das recorrências */}
       {d && d.criticas.length > 0 && (
         <button onClick={() => setModal({ t: "conferir" })} className="w-full flex items-center gap-2 px-4 py-3 mb-4 rounded-xl text-sm text-left" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}55`, color: C.text }}>
@@ -267,7 +276,8 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "titulo" && <TituloModal user={user} tipo={tipo} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
-      {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
     </div>
   );
@@ -459,8 +469,14 @@ function ConferirModal({ user, itens, contasPorId, onClose }) {
 }
 
 /* ---------------- importar XML ---------------- */
-function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
-  const [notas, setNotas] = useState(null);
+const prepararNotas = (lidos) => lidos.map((n) => ({
+  ...n,
+  titulo: n.modelo === "NF-e" ? `COMPRA NF ${n.numero}` : `SERVIÇO NFS-e ${n.numero}`,
+  rateio: n.rateioSugerido || [{ contaId: null, pct: 100 }],
+  parcelas: n.parcelas.map((p) => ({ ...p, marcado: !p.jaImportada })),
+}));
+function XmlModal({ user, tipo, contas, onClose, onSalvo, lidosIniciais }) {
+  const [notas, setNotas] = useState(lidosIniciais ? prepararNotas(lidosIniciais) : null);
   const [erros, setErros] = useState([]);
   const [st, setSt] = useState("");
   const [erro, setErro] = useState("");
@@ -470,12 +486,7 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
       const arquivos = await Promise.all([...files].map(async (f) => ({ nome: f.name, xml: await f.text() })));
       const j = await api("/api/fin/titulos/xml", "POST", { usuarioId: user.id, tipo, arquivos });
       setErros(j.erros);
-      setNotas(j.lidos.map((n) => ({
-        ...n,
-        titulo: n.modelo === "NF-e" ? `COMPRA NF ${n.numero}` : `SERVIÇO NFS-e ${n.numero}`,
-        rateio: n.rateioSugerido || [{ contaId: null, pct: 100 }],
-        parcelas: n.parcelas.map((p) => ({ ...p, marcado: !p.jaImportada })),
-      })));
+      setNotas(prepararNotas(j.lidos));
     } catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -484,7 +495,7 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
   const itens = (notas || []).flatMap((n) => n.parcelas.filter((p) => p.marcado).map((p) => ({
     titulo: n.parcelas.length > 1 ? `${n.titulo} (${p.parcela}/${n.parcelas.length})` : n.titulo, parceiro: n.parceiro, documento: n.documento,
     numeroDoc: `${n.modelo} ${n.numero}${n.parcelas.length > 1 ? ` · PARC ${p.parcela}` : ""}`, valor: p.valor, vencimento: p.vencimento, rateio: n.rateio,
-    chaveImport: p.chaveImport, xml: n.xml, previsao: false,
+    chaveImport: p.chaveImport, xml: n.xml, nfId: n.nfId || null, previsao: false,
   })));
   const gravar = async () => {
     setSt("Gravando…"); setErro("");
@@ -492,7 +503,7 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
     catch (e) { setErro(e.message); setSt(""); }
   };
   return (
-    <Modal titulo="Importar XML de compra ou serviço" icone={FileCode2} onClose={onClose} largura={980}
+    <Modal titulo={lidosIniciais ? "Lançar notas do Compras" : "Importar XML de compra ou serviço"} icone={FileCode2} onClose={onClose} largura={980}
       rodape={notas && <><span className="mr-auto text-xs" style={{ color: C.sub }}>{itens.length} conta(s) · {moeda(itens.reduce((s, i) => s + i.valor, 0))}</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
         <BtnP onClick={gravar} disabled={!itens.length || !!st}>{st && <Loader2 size={14} className="animate-spin" />} Lançar {itens.length} conta(s)</BtnP></>}>
@@ -512,6 +523,8 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
             <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: C.blueSoft, color: C.blue }}>{n.modelo} {n.numero}</span>
             <span>{n.razao} · {fmtDoc(n.documento)} · emissão {dBR(n.emissao)} · total {moeda(n.total)}</span>
             {n.rateioSugerido && <span style={{ color: C.green }}>rateio sugerido pela última conta deste fornecedor</span>}
+            {n.nfId && <span style={{ color: C.blue }}>lançada pelo Compras</span>}
+            {n.semXml && <span style={{ color: C.yellow }}>nota sem XML — confira parcelas e vencimento</span>}
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <Campo t="Título"><input value={n.titulo} onChange={(e) => altN(i, "titulo", e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo>
@@ -535,6 +548,75 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo }) {
           </table>
         </div>
       ))}
+    </Modal>
+  );
+}
+
+/* ---------------- notas lançadas pelo Compras ---------------- */
+function NfsComprasModal({ user, onClose, onLancar }) {
+  const [ver, setVer] = useState("pendentes");
+  const [l, setL] = useState(null);
+  const [sel, setSel] = useState(new Set());
+  const [busca, setBusca] = useState("");
+  const [antes, setAntes] = useState("");
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const carregar = () => { setL(null); setSel(new Set()); api(`/api/fin/titulos/nfs?u=${user.id}&ver=${ver}`).then(setL).catch((e) => setErro(e.message)); };
+  useEffect(carregar, [ver]);
+  const vis = (l || []).filter((n) => !busca || `${n.fornecedor} ${n.numero} ${n.cnpj}`.toUpperCase().includes(busca.toUpperCase()));
+  const tog = (id) => setSel((s) => { const x = new Set(s); x.has(id) ? x.delete(id) : x.add(id); return x; });
+  const todos = vis.length > 0 && vis.every((n) => sel.has(n.id));
+  const acao = async (acao, extra = {}) => {
+    setSt("…"); setErro("");
+    try {
+      const j = await api("/api/fin/titulos/nfs", "POST", { usuarioId: user.id, acao, ids: [...sel], ...extra });
+      if (acao === "ler") return onLancar(j.lidos);
+      carregar();
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  return (
+    <Modal titulo="Notas fiscais lançadas pelo Compras" icone={Inbox} onClose={onClose} largura={980}
+      rodape={ver === "pendentes" ? <>
+        <span className="mr-auto text-xs" style={{ color: C.sub }}>{sel.size} selecionada(s)</span>
+        <BtnS onClick={() => acao("ignorar")} cor={C.sub}><EyeOff size={14} /> Não lançar</BtnS>
+        <BtnP onClick={() => acao("ler")} disabled={!sel.size || !!st}>{st && <Loader2 size={14} className="animate-spin" />} Lançar {sel.size || ""} como conta a pagar</BtnP>
+      </> : <><span className="mr-auto text-xs" style={{ color: C.sub }}>{sel.size} selecionada(s)</span><BtnP onClick={() => acao("reativar")} disabled={!sel.size}>Voltar para pendentes</BtnP></>}>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {[["pendentes", "Pendentes"], ["ignoradas", "Marcadas para não lançar"]].map(([k, t]) => (
+          <button key={k} onClick={() => setVer(k)} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={ver === k ? { background: C.navy, color: "#fff" } : { border: `1px solid ${C.line}`, color: C.sub }}>{t}</button>
+        ))}
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar fornecedor, nº, CNPJ…" className="rounded-lg px-3 py-1.5 text-xs outline-none" style={{ ...inpS, width: 220 }} />
+        <div className="flex-1" />
+        {ver === "pendentes" && (
+          <div className="flex items-center gap-1 text-xs" style={{ color: C.sub }}>
+            Não lançar as emitidas antes de
+            <input type="date" value={antes} onChange={(e) => setAntes(e.target.value)} className="rounded px-2 py-1" style={inpS} />
+            <button disabled={!antes} onClick={() => { if (confirm("Marcar todas as notas pendentes emitidas antes dessa data para não lançar?")) acao("ignorarAntes", { data: antes }); }}
+              className="px-2 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, opacity: antes ? 1 : 0.5 }}>Aplicar</button>
+          </div>
+        )}
+      </div>
+      {erro && <div className="p-2 mb-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!l ? <Loader2 size={18} className="animate-spin" /> : !vis.length ? <div className="text-sm py-8 text-center" style={{ color: C.sub }}>{ver === "pendentes" ? "Nenhuma nota aguardando o financeiro." : "Nenhuma nota marcada."}</div> : (
+        <table className="w-full text-xs">
+          <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+            <th className="px-2 py-1.5"><input type="checkbox" checked={todos} onChange={() => setSel(todos ? new Set() : new Set(vis.map((n) => n.id)))} /></th>
+            {["Emissão", "Fornecedor", "Nota", "Valor", "Arquivos", "Lançada pelo Compras em"].map((h) => <th key={h} className={`px-2 py-1.5 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+          </tr></thead>
+          <tbody>{vis.map((n) => (
+            <tr key={n.id} onClick={() => tog(n.id)} className="cursor-pointer hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}`, background: sel.has(n.id) ? C.accentSoft : undefined }}>
+              <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={sel.has(n.id)} onChange={() => tog(n.id)} onClick={(e) => e.stopPropagation()} /></td>
+              <td className="px-2 py-1.5 whitespace-nowrap">{n.dataEmissao ? dBR(n.dataEmissao) : "—"}</td>
+              <td className="px-2 py-1.5"><div className="font-semibold" style={{ color: C.navy }}>{n.fornecedor || "(sem nome)"}</div><div style={{ color: C.sub }}>{fmtDoc(n.cnpj)}</div></td>
+              <td className="px-2 py-1.5 whitespace-nowrap"><span className="px-1.5 py-0.5 rounded text-[10px] font-semibold mr-1" style={{ background: n.modelo === "NFSE" ? C.roxoSoft : C.blueSoft, color: n.modelo === "NFSE" ? C.roxo : C.blue }}>{n.modelo === "NFSE" ? "NFS-e" : "NF-e"}</span>{n.numero}</td>
+              <td className="px-2 py-1.5 text-right font-semibold">{n.valorTotal != null ? brl(n.valorTotal) : "—"}</td>
+              <td className="px-2 py-1.5">{[n.temXml && "XML", n.temPdf && "PDF"].filter(Boolean).join(" + ") || "—"}</td>
+              <td className="px-2 py-1.5" style={{ color: C.sub }}>{new Date(n.createdAt).toLocaleDateString("pt-BR")}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
     </Modal>
   );
 }

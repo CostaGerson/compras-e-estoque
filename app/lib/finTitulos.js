@@ -104,3 +104,35 @@ export function lerXmlTitulo(xml, nomeArq = "") {
     parcelas: [{ parcela: "1", vencimento: emissao, valor, semVencimento: true }], chaveBase: `NFSE|${documento}|${numero}`,
   };
 }
+
+// Prévia de uma nota para virar conta(s) a pagar: sugere nome/rateio já usados e marca parcelas já lançadas
+export async function previaNota(tipo, x, extra = {}) {
+  const ant = x.documento ? await prisma.finTitulo.findFirst({ where: { tipo, documento: x.documento }, orderBy: { createdAt: "desc" } }) : null;
+  const chaves = x.parcelas.map((p) => `${x.chaveBase}|${p.parcela}`);
+  const ja = await prisma.finTitulo.findMany({ where: { chaveImport: { in: chaves } }, select: { chaveImport: true } });
+  const jaSet = new Set(ja.map((j) => j.chaveImport));
+  return {
+    ...x, ...extra, parceiro: ant?.parceiro || x.parceiro, rateioSugerido: ant?.rateio || null,
+    parcelas: x.parcelas.map((p) => ({ ...p, chaveImport: `${x.chaveBase}|${p.parcela}`, jaImportada: jaSet.has(`${x.chaveBase}|${p.parcela}`) })),
+  };
+}
+
+// Nota lançada pelo Compras → estrutura de leitura (pelo XML guardado ou, sem XML, pelos dados da nota)
+export function notaParaLeitura(nf) {
+  const f = nf.fornecedor || {};
+  const nomeF = (f.nome || f.nomeFantasia || f.razaoSocial || "").toUpperCase();
+  if (nf.arquivoXml) {
+    try {
+      const x = lerXmlTitulo(nf.arquivoXml, `NF ${nf.numero}`);
+      return { ...x, parceiro: nomeF || x.parceiro };
+    } catch {}
+  }
+  const emissao = nf.dataEmissao ? nf.dataEmissao.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const total = Number(nf.valorTotal || 0);
+  return {
+    modelo: nf.modelo === "NFSE" ? "NFS-e" : "NF-e", parceiro: nomeF, razao: (f.razaoSocial || nomeF).toUpperCase(),
+    documento: f.cnpjs?.[0]?.cnpj || "", numero: nf.numero, emissao, total, chave: nf.chave || "", natOp: "",
+    parcelas: [{ parcela: "1", vencimento: emissao, valor: total, semVencimento: true }],
+    chaveBase: nf.chave ? `NFE|${nf.chave}` : `NF|${nf.id}`, semXml: true,
+  };
+}
