@@ -233,10 +233,10 @@ export async function processarArquivo(arquivoId, { conciliarDepois = true } = {
 
   if (LEITORES_DETALHE[a.tipo.codigo]) {
     const r = await lerDetalhe(a.tipo.codigo, buf, a.senhaPdf);
-    await prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, itens: r } });
+    await prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, itens: r, prova: r.prova } });
     const conf = conciliarDepois ? await conciliarCompetencia(a.competencia) : null;
     const minha = conf?.find((c) => c.arquivoIds.includes(a.id));
-    return { ok: true, n: r.itens.length, detalhe: true, total: r.total, conciliado: minha ? minha.ok : null };
+    return { ok: true, n: r.itens.length, detalhe: true, total: r.total, conciliado: minha ? minha.ok : null, prova: r.prova };
   }
   if (!LEITORES[a.tipo.codigo]) return { ok: true, n: 0, semLeitor: true };
 
@@ -251,11 +251,26 @@ export async function processarArquivo(arquivoId, { conciliarDepois = true } = {
         valor: l.valor, ordem: i,
       })),
     }),
-    prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: r.saldoAnterior } }),
+    prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: r.saldoAnterior, prova: r.prova } }),
   ]);
   if (conciliarDepois) await conciliarCompetencia(a.competencia);
   const auto = await aplicarRegras(a.competencia);
-  return { ok: true, n: r.lancamentos.length, auto };
+  return { ok: true, n: r.lancamentos.length, auto, prova: r.prova };
+}
+
+// Só refaz a prova real de um arquivo (não mexe nos lançamentos — usado para arquivos lidos antes da v50)
+export async function provarArquivo(arquivoId) {
+  const { lerArquivo, LEITORES, lerDetalhe, LEITORES_DETALHE } = await import("@/lib/finParse");
+  const a = await prisma.finArquivo.findUnique({ where: { id: arquivoId }, include: { tipo: true } });
+  if (!a) return null;
+  const buf = Buffer.from(a.conteudo, "base64");
+  let prova = null;
+  try {
+    if (LEITORES_DETALHE[a.tipo.codigo]) prova = (await lerDetalhe(a.tipo.codigo, buf, a.senhaPdf)).prova;
+    else if (LEITORES[a.tipo.codigo]) prova = (await lerArquivo(a.tipo.codigo, buf, a.senhaPdf)).prova;
+  } catch (e) { prova = { ok: false, checks: [], msg: "Erro ao ler: " + e.message }; }
+  if (prova) await prisma.finArquivo.update({ where: { id: a.id }, data: { prova } });
+  return prova;
 }
 
 // ---------- Conferência: detalhamento x consolidado do extrato ----------

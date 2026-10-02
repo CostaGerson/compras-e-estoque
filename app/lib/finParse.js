@@ -16,6 +16,7 @@ export function valorBR(s) {
   if (isNaN(n)) return null;
   return Math.round((neg ? -n : n) * 100) / 100;
 }
+const r2 = (n) => Math.round(n * 100) / 100;
 const dataBR = (s) => { const m = String(s || "").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
 
 // ---------- PDF → páginas → linhas (y) com itens posicionados ----------
@@ -72,10 +73,15 @@ function ordemLeitura(g) {
 function lerBradesco(paginas) {
   // corta tudo depois da linha "Total"
   let fim = false, saldoAnterior = null;
+  const declarado = {};
   const pags = paginas.map((linhas) => linhas.filter((l) => {
     if (fim) return false;
     const d = col(l, 0, 95);
-    if (/^Total$/i.test(d)) { fim = true; return false; }
+    if (/^Total$/i.test(d)) {
+      fim = true;
+      declarado.creditos = valorBR(col(l, 335, 430)); declarado.debitos = valorBR(col(l, 430, 520)); declarado.saldoFinal = valorBR(col(l, 520, 9999));
+      return false;
+    }
     return true;
   }));
   const CAB = /Extrato Mensal|MERIDIAN LTDA \||Nome do usu|Data da opera|^Folha|Agência \| Conta|Total Dispon|Extrato de: Ag|Lançamento|^01408/;
@@ -111,7 +117,7 @@ function lerBradesco(paginas) {
     const c = valorBR(col(g.ancora, 335, 430)), d = valorBR(col(g.ancora, 430, 520));
     out.push({ data: dataAtual, historico, documento: col(g.ancora, 265, 335) || null, identificacao: null, valor: c !== null ? c : d });
   }
-  return { saldoAnterior, lancamentos: out };
+  return { saldoAnterior, lancamentos: out, declarado };
 }
 
 // ============================== ITAÚ ==============================
@@ -124,9 +130,11 @@ function lerItau(paginas) {
   }));
   const ignorar = (l) => l.y > 640 && /Saldo total|Limite da conta|Lançamentos do período|MERIDIAN ARTIGOS MILITARES E OUTDOOR\s+CNPJ|R\$ 20\.700|Razão Social|^-R\$/.test(txt(l));
   const grupos = [];
+  const declarado = {};
   for (const linhas of pags) {
     const uteis = linhas.filter((l) => !ignorar(l) && !/Data\s+Lançamentos/.test(txt(l)));
     for (const l of uteis) if (/SALDO ANTERIOR/.test(col(l, 88, 227))) saldoAnterior = valorBR(col(l, 515, 9999));
+    for (const l of uteis) if (/SALDO TOTAL DISPON/.test(col(l, 88, 227))) declarado.saldoFinal = valorBR(col(l, 515, 9999));
     const ehAncora = (l) => dataBR(col(l, 0, 88)) && valorBR(col(l, 455, 515)) !== null;
     const ancoras = uteis.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
     for (const l of uteis) {
@@ -138,7 +146,7 @@ function lerItau(paginas) {
     grupos.push(...ancoras);
   }
   return {
-    saldoAnterior,
+    saldoAnterior, declarado,
     lancamentos: grupos.map((g) => {
       const ls = ordemLeitura(g);
       const junta = (x0, x1) => ls.map((l) => col(l, x0, x1)).filter(Boolean).join(" ").replace(/-\s+(\d)/g, "-$1");
@@ -172,17 +180,22 @@ function lerInter(paginas) {
   }
   const p = out[0];
   const saldoAnterior = p && p._saldo !== null ? Math.round((p._saldo - p.valor) * 100) / 100 : null;
+  const sequencia = conferirSequencia(out, saldoAnterior, 1);
+  const declarado = { saldoFinal: out.length ? out[out.length - 1]._saldo : null };
   out.forEach((o) => delete o._saldo);
-  return { saldoAnterior, lancamentos: out };
+  return { saldoAnterior, lancamentos: out, declarado, sequencia };
 }
 
 // =============================== C6 ================================
 function lerC6(paginas) {
   let ano = null;
   const out = [];
+  const declarado = {};
   for (const linhas of paginas) {
     for (const l of linhas) {
       const t = txt(l);
+      const me = t.match(/Entradas:\s*R\$\s*([\d.]+,\d{2}).*Saídas:\s*R\$\s*([\d.]+,\d{2})/i);
+      if (me) { declarado.creditos = (declarado.creditos || 0) + valorBR(me[1]); declarado.debitos = (declarado.debitos || 0) - valorBR(me[2]); }
       const m = t.match(/Per[ií]odo.*?(\d{4})/);
       if (m && !ano) ano = m[1];
       const dl = col(l, 0, 90);
@@ -193,17 +206,20 @@ function lerC6(paginas) {
       out.push({ data: `${ano || new Date().getFullYear()}-${mm}-${d}`, historico: col(l, 230, 480), documento: null, identificacao: col(l, 150, 230) || null, valor: v });
     }
   }
-  return { saldoAnterior: null, lancamentos: out };
+  if (declarado.creditos != null) { declarado.creditos = r2(declarado.creditos); declarado.debitos = r2(declarado.debitos); }
+  return { saldoAnterior: null, lancamentos: out, declarado };
 }
 
 // ======================== BANCO DO BRASIL ==========================
 function lerBB(paginas) {
   let saldoAnterior = null;
+  const declarado = {};
   const grupos = [];
   for (const linhas of paginas) {
     const uteis = linhas.filter((l) => l.y < 690 || !/Extrato de Conta|Cliente|Nome|MERIDIAN LTDA|Movimentação em|Histórico/.test(txt(l)));
     const ehLinhaData = (l) => dataBR(col(l, 0, 100));
     for (const l of uteis) if (ehLinhaData(l) && /Saldo Anterior/i.test(col(l, 145, 380))) saldoAnterior = valorBR(col(l, 495, 9999));
+    for (const l of uteis) if (ehLinhaData(l) && /^Saldo do dia/i.test(col(l, 145, 380)) && declarado.saldoFinal === undefined) declarado.saldoFinal = valorBR(col(l, 495, 9999)); // 1º = mais recente
     const ehAncora = (l) => ehLinhaData(l) && valorBR(col(l, 495, 9999)) !== null && !/^Saldo/i.test(col(l, 145, 380));
     const ancoras = uteis.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
     for (const l of uteis) {
@@ -230,7 +246,7 @@ function lerBB(paginas) {
     if (j >= 0) { usados.add(i); usados.add(j); }
   });
   ls = ls.filter((_, i) => !usados.has(i)).reverse(); // BB vem do mais recente para o mais antigo
-  return { saldoAnterior, lancamentos: ls };
+  return { saldoAnterior, lancamentos: ls, declarado };
 }
 
 // ============================== CAIXA ==============================
@@ -245,10 +261,33 @@ function lerCaixa(paginas) {
       const v = valorBR(col(l, 450, 512));
       if (v === null) continue;
       const doc = col(l, 240, 300);
-      out.push({ data: d, historico: hist, documento: doc && doc !== "0" ? doc : null, identificacao: null, valor: v });
+      out.push({ data: d, historico: hist, documento: doc && doc !== "0" ? doc : null, identificacao: null, valor: v, _saldo: valorBR(col(l, 512, 9999)) });
     }
   }
-  return { saldoAnterior: null, lancamentos: out };
+  // o extrato Caixa mostra o saldo sem sinal: testa as duas leituras (positivo / negativo)
+  let sequencia = null, saldoAnterior = null;
+  for (const sinal of [1, -1]) {
+    const ant = out.length && out[0]._saldo !== null ? r2(sinal * out[0]._saldo - out[0].valor) : null;
+    const seq = conferirSequencia(out, ant, sinal);
+    if (seq.ok || !sequencia) { sequencia = seq; saldoAnterior = ant; }
+    if (seq.ok) break;
+  }
+  out.forEach((o) => delete o._saldo);
+  return { saldoAnterior, lancamentos: out, sequencia };
+}
+
+// confere linha a linha: saldo anterior + valor = saldo impresso (pega linha pulada ou valor lido errado)
+function conferirSequencia(ls, saldoAnterior, sinal) {
+  if (saldoAnterior === null || !ls.length) return { ok: null };
+  let s = saldoAnterior;
+  for (let i = 0; i < ls.length; i++) {
+    s = r2(s + ls[i].valor);
+    if (ls[i]._saldo === null || ls[i]._saldo === undefined) continue;
+    if (Math.abs(s - sinal * ls[i]._saldo) > 0.01) {
+      return { ok: false, msg: `saldo não confere a partir de ${ls[i].data.split("-").reverse().join("/")} · ${ls[i].historico} (esperado R$ ${sinal * ls[i]._saldo}, calculado R$ ${s})` };
+    }
+  }
+  return { ok: true };
 }
 
 // ------------------------------------------------------------------
@@ -267,7 +306,38 @@ export async function lerArquivo(codigo, buf, senha) {
   const paginas = await linhasPdf(buf, senha);
   const r = L.ler(paginas);
   r.lancamentos = r.lancamentos.filter((x) => x.data && x.valor !== null && x.valor !== 0);
+  r.prova = provaExtrato(r, paginas);
   return { banco: L.banco, ...r };
+}
+
+// ======================================================================
+//  PROVA REAL: compara o que foi lido com o que o próprio PDF declara
+//  → { ok: true | false | null(sem referência), checks: [{rotulo, pdf, lido, ok}], msg }
+// ======================================================================
+const semTexto = (paginas) => paginas.every((ls) => ls.length === 0);
+function fechar(checks, vazio, extraMsg) {
+  if (vazio) return { ok: false, checks, msg: vazio };
+  const falhas = checks.filter((c) => c.ok === false);
+  if (falhas.length) return { ok: false, checks, msg: falhas.map((c) => `${c.rotulo}: PDF ${c.pdf} × lido ${c.lido}`).join(" · ") + (extraMsg ? ` · ${extraMsg}` : "") };
+  if (!checks.some((c) => c.ok === true)) return { ok: null, checks, msg: extraMsg || "O PDF não traz total de referência para conferir." };
+  return { ok: true, checks, msg: checks.filter((c) => c.ok).map((c) => `${c.rotulo} ${c.pdf}`).join(" · ") };
+}
+const chk = (rotulo, pdf, lido, tol = 0.01) => (pdf === null || pdf === undefined ? null : { rotulo, pdf: r2(pdf), lido: r2(lido), ok: Math.abs(pdf - lido) <= tol });
+
+function provaExtrato(r, paginas) {
+  if (semTexto(paginas)) return fechar([], "PDF sem texto (imagem/impressão) — não dá para ler.");
+  const ls = r.lancamentos;
+  const cred = ls.filter((x) => x.valor > 0).reduce((a, x) => a + x.valor, 0);
+  const deb = ls.filter((x) => x.valor < 0).reduce((a, x) => a + x.valor, 0);
+  const d = r.declarado || {};
+  const checks = [
+    chk("créditos", d.creditos, cred), chk("débitos", d.debitos, deb),
+    r.saldoAnterior !== null && r.saldoAnterior !== undefined && d.saldoFinal !== null && d.saldoFinal !== undefined
+      ? chk("saldo final", d.saldoFinal, r.saldoAnterior + cred + deb) : null,
+  ].filter(Boolean);
+  if (r.sequencia && r.sequencia.ok !== null) checks.push({ rotulo: "saldo linha a linha", pdf: "ok", lido: r.sequencia.ok ? "ok" : "erro", ok: r.sequencia.ok });
+  const vazio = ls.length ? null : (Object.values(d).some((v) => v) ? "Nenhum lançamento lido, mas o PDF tem movimento — formato pode ter mudado." : null);
+  return fechar(checks, vazio, r.sequencia && r.sequencia.ok === false ? r.sequencia.msg : (!ls.length ? "Extrato sem movimentação." : ""));
 }
 
 // ======================================================================
@@ -276,7 +346,6 @@ export async function lerArquivo(codigo, buf, senha) {
 //  valor do ponto de vista da empresa: despesa NEGATIVA, recebimento POSITIVO.
 // ======================================================================
 const MES3 = { JAN: 1, FEV: 2, MAR: 3, ABR: 4, MAI: 5, JUN: 6, JUL: 7, AGO: 8, SET: 9, OUT: 10, NOV: 11, DEZ: 12 };
-const r2 = (n) => Math.round(n * 100) / 100;
 const soma = (its) => r2(its.reduce((a, i) => a + i.valor, 0));
 const todasLinhas = (paginas) => paginas.flatMap((ls, p) => ls.map((l) => ({ ...l, p })));
 const ddmm = (s) => { const m = String(s || "").match(/^(\d{2})\/(\d{2})$/); return m ? m : null; };
@@ -302,7 +371,7 @@ function lerFaturaBradesco(paginas) {
     const h = col(l, 105, 430);
     itens.push({ data: dataCompra(dm, venc), historico: h, identificacao: `${portador} · COMPRA ${d}`, valor: -v });
   }
-  return { modo: "FATURA", total: total !== null ? -total : soma(itens), dataRef: venc, portador, itens };
+  return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, portador, itens };
 }
 
 // ---------- Fatura Itaú (vários portadores) ----------
@@ -325,7 +394,7 @@ function lerFaturaItau(paginas) {
     if (/PAGAMENTO EFETUADO/i.test(h)) continue;
     itens.push({ data: dataCompra(dm, venc), historico: h, identificacao: `${portador} · COMPRA ${dm[0]}`, valor: -v });
   }
-  return { modo: "FATURA", total: total !== null ? -total : soma(itens), dataRef: venc, itens };
+  return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, itens };
 }
 
 // ---------- Fatura Inter ----------
@@ -344,7 +413,7 @@ function lerFaturaInter(paginas) {
     const v = valorBR(vt); if (v === null) continue;
     itens.push({ data: `${m[3]}-${String(MES3[m[2]]).padStart(2, "0")}-${m[1].padStart(2, "0")}`, historico: col(l, 75, 295), identificacao: `COMPRA ${m[1]}/${String(MES3[m[2]]).padStart(2, "0")}`, valor: -Math.abs(v) });
   }
-  return { modo: "FATURA", total: total !== null ? -r2(total) : soma(itens), dataRef: venc, itens };
+  return { modo: "FATURA", total: total !== null ? -r2(total) : soma(itens), totalDeclarado: total !== null ? -r2(total) : null, dataRef: venc, itens };
 }
 
 // ---------- Fatura C6 (texto; o PDF original vem com senha) ----------
@@ -371,7 +440,7 @@ function lerFaturaC6(paginas) {
     const mm = String(MES3[m[2].toUpperCase()]).padStart(2, "0");
     itens.push({ data: dataCompra([null, m[1].padStart(2, "0"), mm], venc), historico: m[3], identificacao: `${portador} · COMPRA ${m[1].padStart(2, "0")}/${mm}`.replace(/^ · /, ""), valor: -valorBR(m[4]) });
   }
-  return { modo: "FATURA", total: total !== null ? -total : soma(itens), dataRef: venc, itens };
+  return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, itens };
 }
 
 // ---------- Fatura Banco do Brasil (1 PDF por portador) ----------
@@ -392,7 +461,7 @@ function lerFaturaBB(paginas) {
     if (/PGTO DEBITO CONTA|PAGAMENTO/i.test(h) && v < 0) continue;
     itens.push({ data: dataCompra(dm, venc), historico: h, identificacao: `${portador || "EMPRESA"} · COMPRA ${dm[0]}`, valor: -v });
   }
-  return { modo: "FATURA", total: total !== null ? -total : soma(itens), dataRef: venc, boleto, itens };
+  return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, boleto, itens };
 }
 
 // ---------- Fatura Caixa (Elo) ----------
@@ -420,13 +489,15 @@ function lerFaturaCaixa(paginas) {
       valor: v, // "D" já vem negativo (despesa); "C" (ajuste/crédito) positivo
     });
   }
-  return { modo: "FATURA", total: total !== null ? -total : soma(itens), dataRef: venc, itens };
+  return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, itens };
 }
 
 // ---------- Bradesco · títulos pagos (cobrança) ----------
 function lerCobranca(paginas) {
   const itens = [];
+  let totalDeclarado = null;
   for (const linhas of paginas) {
+    for (const l of linhas) if (/^Total$/i.test(col(l, 0, 60))) totalDeclarado = valorBR(col(l, 385, 450));
     const ancoras = linhas.filter((l) => dataBR(col(l, 240, 315)) && valorBR(col(l, 385, 450)) !== null);
     for (const a of ancoras) {
       const nomes = [col(a, 125, 185)];
@@ -439,7 +510,7 @@ function lerCobranca(paginas) {
       });
     }
   }
-  return { modo: "COBRANCA", total: soma(itens), itens };
+  return { modo: "COBRANCA", total: soma(itens), totalDeclarado, itens };
 }
 
 // ---------- Bradesco · comprovantes de folha (1 por página) ----------
@@ -453,7 +524,7 @@ function lerFolha(paginas) {
     const v = valorBR((t.match(/Valor \(R\$\):\s*([\d.]+,\d{2})/) || [])[1]);
     if (nome && data && v) itens.push({ data, historico: `SALÁRIO ${nome.trim()}`, identificacao: cpf ? `CPF ${cpf}` : null, valor: -v });
   }
-  return { modo: "FOLHA", total: soma(itens), itens };
+  return { modo: "FOLHA", total: soma(itens), qtdDeclarada: paginas.filter((ls) => ls.some((l) => /Comprovante de Pagamento/i.test(txt(l)))).length, itens };
 }
 
 // ---------- iFood Benefícios · relatório de recarga ----------
@@ -464,6 +535,9 @@ function lerIfood(paginas) {
   const id = (t.match(/ID da recarga:?\s*\n?\s*(#\w+)/) || t.match(/(#\w{3,})/) || [])[1] || "";
   const total = valorBR((t.match(/Valor total da recarga\s*[^\n]*\n\s*(R\$\s*[\d.]+,\d{2})/) || t.match(/R\$\s*([\d.]+,\d{2})/) || [])[1]);
   const criacao = dataBR((t.match(/Data de criação:[\s\S]*?(\d{2}\/\d{2}\/\d{4})/) || [])[1]);
+  const mq = t.match(/Valor total da recarga\s+Colaboradores[^\n]*\n\s*R\$\s*[\d.]+,\d{2}\s+(\d+)/);
+  const qtdDeclarada = mq ? Number(mq[1]) : null;
+  const cpfs = new Set();
   const itens = [];
   for (let p = 0; p < paginas.length; p++) {
     const linhas = paginas[p];
@@ -474,19 +548,24 @@ function lerIfood(paginas) {
       for (const [x0, x1, ben] of BENEFICIOS) {
         const v = valorBR(col(a, x0, x1));
         if (v) itens.push({ data: criacao, historico: `IFOOD ${ben} · ${nome}`, identificacao: `RECARGA ${id} · CPF ${col(a, 70, 150)}`, valor: -v });
+        cpfs.add(col(a, 70, 150));
       }
     });
   }
-  return { modo: "IFOOD", total: total !== null ? -total : soma(itens), dataRef: criacao, itens };
+  return { modo: "IFOOD", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, qtdDeclarada, qtdLida: cpfs.size, rotuloQtd: "colaboradores", dataRef: criacao, itens };
 }
 
 // ---------- Itaú · relatório de pagamentos / Pix (detalha o SISPAG) ----------
 function lerPagamentosItau(paginas) {
   const itens = [];
+  let qtdTodos = 0, somaTodos = 0, totalRel = null, qtdRel = null;
   for (const linhas of paginas) {
     linhas.forEach((l, k) => {
       const s = txt(l);
-      const m = s.match(/(\d{2}\/\d{2}\/\d{4})\s+([\d.]+,\d{2})\s+(efetuado|não efetuado|nao efetuado|agendado|cancelado|devolvido)\s*$/i);
+      const mt = s.match(/^total\s+R\$\s*([\d.]+,\d{2})\s+(\d+)\s+pagamentos/i);
+      if (mt) { totalRel = valorBR(mt[1]); qtdRel = Number(mt[2]); return; }
+      const m = s.match(/(\d{2}\/\d{2}\/\d{4})\s+([\d.]+,\d{2})\s+(efetuado|não efetuado|nao efetuado|agendado|cancelado|devolvido|pendente)\s*$/i);
+      if (m) { qtdTodos++; somaTodos += valorBR(m[2]); }
       if (!m || !/^efetuado$/i.test(m[3])) return;
       const doc = (s.match(/(\*{3}\.\d{3}\.\d{3}-\*{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/) || [])[1] || "";
       // nome pode quebrar em 2 linhas, logo acima e logo abaixo da linha do valor
@@ -495,7 +574,8 @@ function lerPagamentosItau(paginas) {
       itens.push({ data: dataBR(m[1]), historico: `PAGAMENTO ${nome.replace(/\s+/g, " ").trim()}`, identificacao: doc || null, valor: -valorBR(m[2]) });
     });
   }
-  return { modo: "PAGAMENTOS", total: soma(itens), itens };
+  return { modo: "PAGAMENTOS", total: soma(itens), itens,
+    relatorio: { totalDeclarado: totalRel, qtdDeclarada: qtdRel, somaLida: r2(somaTodos), qtdLida: qtdTodos } };
 }
 
 export const LEITORES_DETALHE = {
@@ -514,9 +594,32 @@ export const LEITORES_DETALHE = {
 export async function lerDetalhe(codigo, buf, senha) {
   const L = LEITORES_DETALHE[codigo];
   if (!L) return null;
-  const r = L.ler(await linhasPdf(buf, senha));
+  const paginas = await linhasPdf(buf, senha);
+  const r = L.ler(paginas);
+  const todos = r.itens.length;
   r.itens = r.itens.filter((i) => i.data && i.valor);
+  r.semData = todos - r.itens.length;
   r.soma = soma(r.itens);
   r.bancoItens = L.banco;
+  r.prova = provaDetalhe(r, paginas);
   return r;
+}
+
+function provaDetalhe(r, paginas) {
+  if (semTexto(paginas)) return fechar([], "PDF sem texto (imagem/impressão) — não dá para ler. Envie o PDF original.");
+  const checks = [];
+  if (r.modo === "PAGAMENTOS") {
+    const rel = r.relatorio || {};
+    const c1 = chk("total do relatório", rel.totalDeclarado, rel.somaLida); if (c1) checks.push(c1);
+    const c2 = chk("nº de pagamentos", rel.qtdDeclarada, rel.qtdLida, 0); if (c2) checks.push(c2);
+  } else {
+    const c = chk(r.modo === "FATURA" ? "total da fatura" : r.modo === "IFOOD" ? "total da recarga" : "total", r.totalDeclarado, r.soma); if (c) checks.push(c);
+    if (r.qtdDeclarada !== null && r.qtdDeclarada !== undefined) {
+      const q = chk(r.rotuloQtd || "nº de comprovantes", r.qtdDeclarada, r.qtdLida !== undefined ? r.qtdLida : r.itens.length, 0); if (q) checks.push(q);
+    }
+  }
+  if (r.semData) checks.push({ rotulo: "itens sem data", pdf: 0, lido: r.semData, ok: false });
+  const zerada = r.totalDeclarado !== null && r.totalDeclarado !== undefined && Math.abs(r.totalDeclarado) < 0.005;
+  const vazio = !r.itens.length && !zerada && !(r.modo === "PAGAMENTOS" && r.relatorio?.qtdDeclarada === 0) ? "Nenhum item lido — o formato do PDF pode ter mudado." : null;
+  return fechar(checks, vazio, zerada ? "Fatura zerada." : "");
 }

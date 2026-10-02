@@ -26,7 +26,8 @@ const u8ToB64 = (u8) => { let s = ""; const k = 0x8000; for (let i = 0; i < u8.l
 const readU8 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(new Uint8Array(fr.result)); fr.readAsArrayBuffer(file); });
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
 
-function statusCard(n, esperado, justificativa) {
+function statusCard(n, esperado, justificativa, arqs = []) {
+  if (arqs.some((a) => a.prova && a.prova.ok === false)) return { k: "erro", label: "Erro de leitura", cor: C.red, bg: C.redSoft, Ico: AlertTriangle };
   if (n >= esperado) return { k: "ok", label: "Enviado", cor: C.green, bg: C.greenSoft, Ico: CheckCircle2 };
   if (justificativa) return { k: "just", label: n > 0 ? "Parcial · justificado" : "Justificado", cor: C.blue, bg: C.blueSoft, Ico: CheckCircle2 };
   if (n > 0) return { k: "parc", label: `Parcial ${n}/${esperado}`, cor: C.yellow, bg: C.yellowSoft, Ico: AlertTriangle };
@@ -95,7 +96,7 @@ function Importacao({ user, comp, setComp }) {
     return dados.tipos.map((t) => {
       const arqs = dados.arquivos.filter((a) => a.tipoId === t.id);
       const just = dados.justificativas.find((j) => j.tipoId === t.id) || null;
-      return { tipo: t, arqs, just, st: statusCard(arqs.length, t.qtdEsperada, just) };
+      return { tipo: t, arqs, just, st: statusCard(arqs.length, t.qtdEsperada, just, arqs) };
     });
   }, [dados]);
 
@@ -110,6 +111,7 @@ function Importacao({ user, comp, setComp }) {
     ok: cards.filter((c) => c.st.k === "ok").length,
     just: cards.filter((c) => c.st.k === "just").length,
     pend: cards.filter((c) => c.st.k === "pend" || c.st.k === "parc").length,
+    erro: cards.filter((c) => c.st.k === "erro").length,
   }), [cards]);
 
   // envia 1 arquivo; se pedir senha, abre o modal
@@ -172,7 +174,9 @@ function Importacao({ user, comp, setComp }) {
       const lidos = d.leitura?.detalhe
         ? `${d.leitura.n} itens · ${d.leitura.conciliado === true ? "conferido com o extrato ✓" : d.leitura.conciliado === false ? "ainda não bate com o extrato (ver Identificação)" : "aguardando extrato"}`
         : d.leitura?.n ? `${d.leitura.n} lançamentos lidos` : "";
-      return upd({ st: "ok", tipo: d.tipo, msg: [d.protegido ? "PDF com senha aberto" : "", lidos].filter(Boolean).join(" · ") });
+      const pv = d.leitura?.prova;
+      if (pv && pv.ok === false) return upd({ st: "erro", tipo: d.tipo, msg: `Enviado, mas a leitura não confere: ${pv.msg}` });
+      return upd({ st: "ok", tipo: d.tipo, msg: [d.protegido ? "PDF com senha aberto" : "", lidos, pv?.ok ? "prova real ✓" : ""].filter(Boolean).join(" · ") });
     }
     if (r.status === 423) return upd({ st: "senha", msg: d.senhaErrada ? "Senha incorreta" : "PDF com senha" });
     if (r.status === 409) return upd({ st: "duplicado", msg: d.error });
@@ -202,8 +206,9 @@ function Importacao({ user, comp, setComp }) {
           <div className="flex flex-wrap gap-2">
             <Pilula cor={C.green} bg={C.greenSoft} txt={`${tot.ok} de ${tot.total} enviados`} />
             {tot.just > 0 && <Pilula cor={C.blue} bg={C.blueSoft} txt={`${tot.just} justificado${tot.just > 1 ? "s" : ""}`} />}
-            <Pilula cor={tot.pend ? C.red : C.green} bg={tot.pend ? C.redSoft : C.greenSoft}
-              txt={tot.pend ? `${tot.pend} pendente${tot.pend > 1 ? "s" : ""}` : "Mês completo"} />
+            {tot.erro > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${tot.erro} com erro de leitura`} />}
+            <Pilula cor={tot.pend || tot.erro ? C.red : C.green} bg={tot.pend || tot.erro ? C.redSoft : C.greenSoft}
+              txt={tot.pend ? `${tot.pend} pendente${tot.pend > 1 ? "s" : ""}` : tot.erro ? "Corrigir leituras" : "Mês completo"} />
           </div>
         )}
       </div>
@@ -248,6 +253,14 @@ function Importacao({ user, comp, setComp }) {
       )}
     </div>
   );
+}
+
+// prova real da leitura de cada arquivo
+function ProvaChip({ a }) {
+  const p = a.prova;
+  if (!p) return <span className="text-[10px] px-1.5 rounded shrink-0" style={{ background: C.panel2, color: C.sub }} title="Ainda não lido">não lido</span>;
+  const [txt, cor, bg] = p.ok === true ? ["✓ conferido", C.green, C.greenSoft] : p.ok === false ? ["✗ não confere", C.red, C.redSoft] : ["sem total", C.yellow, C.yellowSoft];
+  return <span className="text-[10px] px-1.5 rounded font-semibold shrink-0 cursor-help" style={{ background: bg, color: cor }} title={p.msg}>{txt}</span>;
 }
 
 function Pilula({ cor, bg, txt }) {
@@ -297,6 +310,11 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou }) {
         )}
       </div>
 
+      {arqs.filter((a) => a.prova && a.prova.ok === false).map((a) => (
+        <div key={"e" + a.id} className="mx-4 mb-2 rounded-lg p-2 text-[11px]" style={{ background: C.redSoft, color: C.red }}>
+          <b>{a.nome}:</b> {a.prova.msg} <span style={{ color: C.text }}>— exclua e envie de novo; se continuar, o formato mudou e o leitor precisa de ajuste.</span>
+        </div>
+      ))}
       {arqs.length > 0 && (
         <div className="px-4 pb-2 flex flex-col gap-1">
           {arqs.map((a) => (
@@ -306,6 +324,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou }) {
                 <div className="text-xs font-medium truncate" style={{ color: C.text }} title={a.nome}>{a.nome}</div>
                 <div className="text-[11px]" style={{ color: C.sub }}>{kb(a.tamanho)} · {dataHora(a.createdAt)}{a.enviadoPorNome ? ` · ${a.enviadoPorNome}` : ""}</div>
               </a>
+              <ProvaChip a={a} />
               {a.protegido && <Lock size={13} style={{ color: C.sub }} title="PDF com senha" />}
               <button onClick={() => onExcluir(a)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>
             </div>
@@ -437,8 +456,8 @@ function LoteModal({ itens, tipos, comp, onReenviar, onClose }) {
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate" title={it.nome}>{it.nome}</div>
-                    <div className="text-[11px]" style={{ color: it.st === "ok" ? C.green : C.sub }}>
-                      {it.st === "ok" && it.tipo ? `→ ${it.tipo.banco} · ${it.tipo.documento}` : ""}{it.msg ? (it.st === "ok" ? ` · ${it.msg}` : it.msg) : ""}
+                    <div className="text-[11px]" style={{ color: it.st === "ok" ? C.green : it.st === "erro" ? C.red : C.sub }}>
+                      {(it.st === "ok" || it.st === "erro") && it.tipo ? `→ ${it.tipo.banco} · ${it.tipo.documento} · ` : ""}{it.msg || ""}
                     </div>
                   </div>
                 </div>
@@ -847,8 +866,9 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
   const erros = conf.filter((c) => !c.ok && !c.aviso);
   const avisos = conf.filter((c) => !c.ok && c.aviso);
   const consol = (dados.consolidados || []).map((c) => ({ ...c, l: porId[c.id] })).filter((c) => c.l);
-  if (!conf.length && !consol.length) return null;
-  const problemas = erros.length + consol.length;
+  const leitura = dados.leitura || [];
+  if (!conf.length && !consol.length && !leitura.length) return null;
+  const problemas = erros.length + consol.length + leitura.length;
 
   const acao = async (body, msg) => {
     try { await api("/api/fin/conciliar", "POST", { usuarioId: user.id, competencia: comp, ...body }); if (msg) setAviso(msg); onMudou(); }
@@ -863,6 +883,7 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
         <div className="flex-1">
           <div className="text-sm font-semibold">Conferência com o extrato</div>
           <div className="text-xs" style={{ color: C.sub }}>
+            {leitura.length > 0 && <><b style={{ color: C.red }}>{leitura.length} arquivo(s) com leitura que não confere</b> · </>}
             {ok.length} detalhamento(s) conferido(s)
             {erros.length > 0 && <> · <b style={{ color: C.red }}>{erros.length} não bate(m)</b></>}
             {consol.length > 0 && <> · <b style={{ color: C.red }}>{consol.length} consolidado(s) sem detalhamento</b></>}
@@ -873,6 +894,13 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
       </button>
       {aberto && (
         <div className="px-4 pb-4 flex flex-col gap-2">
+          {leitura.map((a) => (
+            <div key={"l" + a.id} className="rounded-lg p-3 text-xs" style={{ background: C.redSoft }}>
+              <div className="font-semibold" style={{ color: C.red }}>Leitura não confere · {a.banco} · {a.documento}</div>
+              <div className="mt-0.5">{a.nome}: {a.msg}</div>
+              <div className="mt-0.5" style={{ color: C.sub }}>Os lançamentos deste arquivo podem estar incompletos. Exclua e envie de novo na aba Importação; se persistir, o layout do banco mudou.</div>
+            </div>
+          ))}
           {erros.map((c) => (
             <div key={c.chave} className="rounded-lg p-3 text-xs" style={{ background: C.redSoft }}>
               <div className="font-semibold" style={{ color: C.red }}>{c.rotulo}</div>

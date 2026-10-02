@@ -644,6 +644,7 @@ model FinArquivo {
   saldoAnterior  Decimal? @db.Decimal(14, 2)
   itens          Json?    // documentos de detalhamento: itens lidos (fatura, cobrança, folha, iFood…)
   conciliacao    Json?    // resultado da conferência com o extrato
+  prova          Json?    // prova real da leitura: lido x totais declarados no próprio PDF
 
   tipo        FinDocTipo      @relation(fields: [tipoId], references: [id], onDelete: Cascade)
   lancamentos FinLancamento[]

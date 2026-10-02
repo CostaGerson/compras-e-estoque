@@ -18,6 +18,8 @@ export async function GET(req) {
     prisma.finArquivo.count({ where: { competencia, processado: false, tipo: { codigo: { in: [...Object.keys(LEITORES), ...Object.keys(LEITORES_DETALHE)] } } } }),
     prisma.finArquivo.findMany({ where: { competencia, processado: true, tipo: { codigo: { in: Object.keys(LEITORES_DETALHE) } } }, select: { conciliacao: true } }),
   ]);
+  const leituras = await prisma.finArquivo.findMany({ where: { competencia }, select: { id: true, nome: true, prova: true, tipo: { select: { banco: true, documento: true } } } });
+  const leitura = leituras.filter((a) => a.prova && a.prova.ok === false).map((a) => ({ id: a.id, nome: a.nome, banco: a.tipo.banco, documento: a.tipo.documento, msg: a.prova.msg }));
   // conferência: grupos de detalhamento (sem repetir) + consolidados do extrato que ficaram sem detalhamento
   const conf = {};
   detalhes.forEach((a) => (a.conciliacao || []).forEach((c) => { conf[c.chave] = c; }));
@@ -26,7 +28,7 @@ export async function GET(req) {
     .map(({ l, c }) => ({ id: l.id, doc: c.doc }));
   const saldos = {};
   arqs.forEach((a) => { const b = a.lancamentos[0]?.banco; if (b && a.saldoAnterior != null) saldos[b] = (saldos[b] || 0) + Number(a.saldoAnterior); });
-  return Response.json({ lancamentos: ls.map(lancOut), contas, saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados });
+  return Response.json({ lancamentos: ls.map(lancOut), contas, saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura });
 }
 
 // POST { usuarioId, competencia, banco, data, historico, documento?, identificacao?, valor, contaId? } → lançamento manual
