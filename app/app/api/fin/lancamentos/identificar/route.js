@@ -15,19 +15,25 @@ export async function POST(req) {
   if (b.identificacao !== undefined && b.identificacao !== null && String(b.identificacao).trim()) data.identificacao = String(b.identificacao).toUpperCase();
   await prisma.finLancamento.updateMany({ where: { id: { in: ids } }, data });
 
-  let porRegra = 0, regraCriada = null;
-  const termo = String(b.regra?.termo || "").split(";").map((t) => t.trim().toUpperCase()).filter(Boolean).join(";");
-  if (termo && normRegra(termo).length >= 2) {
-    const conta = await prisma.finConta.findUnique({ where: { id: contaId } });
+  // palavras-chave: uma (regra) ou várias (regras: [{ termo, banco?, dc? }]) — cada uma entra no topo da prioridade
+  let porRegra = 0;
+  const criadas = [];
+  const lista = Array.isArray(b.regras) ? b.regras : b.regra ? [b.regra] : [];
+  const conta = await prisma.finConta.findUnique({ where: { id: contaId } });
+  for (const rg of lista) {
+    const termo = String(rg?.termo || "").split(";").map((t) => t.trim().toUpperCase()).filter(Boolean).join(";");
+    if (!termo || normRegra(termo).length < 2) continue;
     const min = await prisma.finRegra.aggregate({ _min: { ordem: true } });
-    regraCriada = await prisma.finRegra.create({
+    criadas.push(await prisma.finRegra.create({
       data: {
-        termo, contaId, banco: b.regra.banco || null, dc: b.regra.dc === "D" || b.regra.dc === "C" ? b.regra.dc : null,
-        descricao: conta?.nome || null, ordem: (min._min.ordem ?? 10) - 10, origem: "MANUAL", criadoPorNome: quem, usos: ids.length,
+        termo, contaId, banco: rg.banco || null, dc: rg.dc === "D" || rg.dc === "C" ? rg.dc : null,
+        descricao: conta?.nome || null, ordem: (min._min.ordem ?? 10) - 10, origem: "MANUAL", criadoPorNome: quem, usos: rg.usos || 1,
       },
-    });
+    }));
+  }
+  if (criadas.length) {
     const um = await prisma.finLancamento.findUnique({ where: { id: ids[0] }, select: { competencia: true } });
     if (um) porRegra = await aplicarRegras(um.competencia);
   }
-  return Response.json({ ok: true, atualizados: ids.length, porRegra, regra: regraCriada });
+  return Response.json({ ok: true, atualizados: ids.length, porRegra, regras: criadas.length });
 }

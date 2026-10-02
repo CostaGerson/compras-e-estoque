@@ -1196,7 +1196,7 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
       {modal?.tipo === "identificar" && (
         <IdentificarModal user={user} itens={modal.itens} contas={dados.contas.filter((c) => c.ativo)}
           onClose={() => setModal(null)}
-          onSalvo={(d) => { setModal(null); setSel(new Set()); setAviso(`${d.atualizados} identificado(s)${d.porRegra ? ` · +${d.porRegra} pela nova palavra-chave` : ""}`); carregar(); }} />
+          onSalvo={(d) => { setModal(null); setSel(new Set()); setAviso(`${d.atualizados} identificado(s)${d.regras ? ` · ${d.regras} palavra(s)-chave salva(s)` : ""}${d.porRegra ? ` · +${d.porRegra} identificado(s) por elas` : ""}`); carregar(); }} />
       )}
       {(modal?.tipo === "editar" || modal?.tipo === "novo") && (
         <EditarLancModal user={user} comp={comp} lanc={modal.lanc} bancos={bancos} contas={dados?.contas || []}
@@ -1404,13 +1404,28 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
   const [contaId, setContaId] = useState(um?.contaId || null);
   const [ident, setIdent] = useState(um?.identificacao || "");
   const [criarRegra, setCriarRegra] = useState(true);
-  const [termo, setTermo] = useState(sugerirTermoC(itens[0].historico));
   const [soBanco, setSoBanco] = useState(false);
-  const sinal = itens.every((l) => l.valor < 0) ? "D" : itens.every((l) => l.valor > 0) ? "C" : null;
-  const [soSinal, setSoSinal] = useState(!!sinal);
+  const [soSinal, setSoSinal] = useState(true);
+  // uma linha de palavra-chave por histórico diferente (lançamentos iguais viram uma linha só)
+  const [linhas, setLinhas] = useState(() => {
+    const m = new Map();
+    for (const l of itens) {
+      const t = sugerirTermoC(l.historico) || normC(l.historico);
+      if (!m.has(t)) m.set(t, { termo: t, on: true, itens: [] });
+      m.get(t).itens.push(l);
+    }
+    return [...m.values()].map((g) => {
+      const bancos = [...new Set(g.itens.map((l) => l.banco))];
+      const sinal = g.itens.every((l) => l.valor < 0) ? "D" : g.itens.every((l) => l.valor > 0) ? "C" : null;
+      return { ...g, banco: bancos.length === 1 ? bancos[0] : null, sinal, soma: g.itens.reduce((a, l) => a + l.valor, 0) };
+    }).sort((a, b) => b.itens.length - a.itens.length || a.termo.localeCompare(b.termo));
+  });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const soma = itens.reduce((a, l) => a + l.valor, 0);
+  const setLinha = (i, patch) => setLinhas((ls) => ls.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  const marcadas = linhas.filter((x) => x.on && x.termo.trim());
+  const todasOn = linhas.every((x) => x.on);
 
   const salvar = async () => {
     if (!contaId) return setErro("Escolha a conta-caixa.");
@@ -1418,14 +1433,14 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
     try {
       const d = await api("/api/fin/lancamentos/identificar", "POST", {
         usuarioId: user.id, ids: itens.map((l) => l.id), contaId, identificacao: um ? ident : undefined,
-        regra: criarRegra && termo.trim() ? { termo, banco: soBanco ? itens[0].banco : null, dc: soSinal ? sinal : null } : null,
+        regras: criarRegra ? marcadas.map((x) => ({ termo: x.termo, banco: soBanco ? x.banco : null, dc: soSinal ? x.sinal : null, usos: x.itens.length })) : [],
       });
       onSalvo(d);
     } catch (e) { setErro(e.message); setSalvando(false); }
   };
 
   return (
-    <Modal titulo={um ? "Identificar lançamento" : `Identificar ${itens.length} lançamentos`} icone={Tag} onClose={onClose}>
+    <Modal titulo={um ? "Identificar lançamento" : `Identificar ${itens.length} lançamentos`} icone={Tag} onClose={onClose} largura={um ? 560 : 720}>
       <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: C.panel2 }}>
         {um ? (
           <>
@@ -1433,7 +1448,7 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
             <div style={{ color: C.sub }}>{um.banco} · {dBR(um.data)}{um.documento ? ` · doc ${um.documento}` : ""} · <b style={{ color: corValor(um.valor) }}>R$ {brl(um.valor)}</b></div>
           </>
         ) : (
-          <div>{itens.length} lançamentos · soma <b style={{ color: corValor(soma) }}>R$ {brl(soma)}</b></div>
+          <div>{itens.length} lançamentos · {linhas.length} histórico(s) diferente(s) · soma <b style={{ color: corValor(soma) }}>R$ {brl(soma)}</b></div>
         )}
       </div>
       <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Conta-caixa *</div>
@@ -1448,21 +1463,38 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
       <div className="rounded-lg p-3 mt-4" style={{ border: `1px dashed ${C.line}` }}>
         <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
           <input type="checkbox" checked={criarRegra} onChange={(e) => setCriarRegra(e.target.checked)} />
-          <Wand2 size={14} style={{ color: C.accent }} /> Salvar como palavra-chave (entra no topo da prioridade)
+          <Wand2 size={14} style={{ color: C.accent }} /> Salvar como palavra-chave {linhas.length > 1 ? `(${marcadas.length} de ${linhas.length})` : ""} — entra no topo da prioridade
         </label>
         {criarRegra && (
           <>
-            <div className="text-[11px] mt-2 mb-1" style={{ color: C.sub }}>Sempre que o histórico contiver este texto, usar esta conta. Deixe só a parte que identifica (ex.: o nome do fornecedor).</div>
-            <input value={termo} onChange={(e) => setTermo(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm uppercase font-mono" style={{ border: `1px solid ${C.line}` }} />
-            <div className="text-[11px] mt-1" style={{ color: C.sub }}>Várias palavras: separe com ponto e vírgula (ex.: JOSUE;HIGLEY).</div>
-            <label className="flex items-center gap-2 text-xs mt-2 cursor-pointer" style={{ color: C.sub }}>
-              <input type="checkbox" checked={soBanco} onChange={(e) => setSoBanco(e.target.checked)} /> Valer só para {itens[0].banco}
-            </label>
-            {sinal && (
-              <label className="flex items-center gap-2 text-xs mt-1 cursor-pointer" style={{ color: C.sub }}>
-                <input type="checkbox" checked={soSinal} onChange={(e) => setSoSinal(e.target.checked)} /> Valer só para {sinal === "D" ? "saídas (débito)" : "entradas (crédito)"}
+            <div className="text-[11px] mt-2 mb-2" style={{ color: C.sub }}>
+              Sempre que o histórico contiver o texto, usar esta conta. Deixe só a parte que identifica (ex.: o nome do cliente ou fornecedor). Várias palavras na mesma linha: separe com ponto e vírgula.
+            </div>
+            {linhas.length > 1 && (
+              <label className="flex items-center gap-2 text-[11px] mb-1 cursor-pointer" style={{ color: C.sub }}>
+                <input type="checkbox" checked={todasOn} onChange={(e) => setLinhas((ls) => ls.map((x) => ({ ...x, on: e.target.checked })))} /> Marcar / desmarcar todas
               </label>
             )}
+            <div className="flex flex-col gap-1.5 overflow-auto" style={{ maxHeight: 300 }}>
+              {linhas.map((x, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  {linhas.length > 1 && <input type="checkbox" checked={x.on} onChange={(e) => setLinha(i, { on: e.target.checked })} />}
+                  <input value={x.termo} onChange={(e) => setLinha(i, { termo: e.target.value.toUpperCase() })} disabled={!x.on}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-xs uppercase font-mono" style={{ border: `1px solid ${C.line}`, opacity: x.on ? 1 : 0.45 }} />
+                  {linhas.length > 1 && (
+                    <span className="text-[10px] text-right shrink-0" style={{ color: C.sub, width: 120 }} title={x.itens.map((l) => `${dBR(l.data)} ${l.historico} ${brl(l.valor)}`).join("\n")}>
+                      {x.itens.length} lanç. · <b style={{ color: corValor(x.soma) }}>{brl(x.soma)}</b>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-xs mt-3 cursor-pointer" style={{ color: C.sub }}>
+              <input type="checkbox" checked={soBanco} onChange={(e) => setSoBanco(e.target.checked)} /> Valer só para o banco de cada lançamento{um ? ` (${um.banco})` : ""}
+            </label>
+            <label className="flex items-center gap-2 text-xs mt-1 cursor-pointer" style={{ color: C.sub }}>
+              <input type="checkbox" checked={soSinal} onChange={(e) => setSoSinal(e.target.checked)} /> Valer só para o mesmo sentido (entrada ou saída) de cada lançamento
+            </label>
           </>
         )}
       </div>
@@ -1470,7 +1502,7 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
       <div className="flex justify-end gap-2 mt-5">
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
         <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.green, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-          {salvando ? "Salvando…" : "Identificar"}
+          {salvando ? "Salvando…" : criarRegra && marcadas.length ? `Identificar e salvar ${marcadas.length} palavra(s)-chave` : "Identificar"}
         </button>
       </div>
     </Modal>
