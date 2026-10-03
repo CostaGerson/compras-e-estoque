@@ -2734,7 +2734,10 @@ function Recebimentos({ user, comp, setComp }) {
     setOcupado("");
     if (!r.ok) { setAviso({ tipo: "erro", texto: j.error || "Erro ao gerar." }); return; }
     setD(j);
-    setAviso({ tipo: "ok", texto: `${j.criadas} linha(s) geradas do extrato e das cobranças${j.preservadas ? ` · ${j.preservadas} linha(s) suas preservadas` : ""}.` });
+    setAviso({ tipo: "ok", texto: `${j.criadas} linha(s) geradas do extrato e das cobranças`
+      + (j.preservadas ? ` · ${j.preservadas} linha(s) suas preservadas` : "")
+      + (j.ignoradas ? ` · ${j.ignoradas} crédito(s) da própria Meridian (R$ ${brl(j.ignoradasValor)}) ficaram de fora: é conciliação entre contas, não recebimento` : "")
+      + "." });
   };
 
   const novaLinha = async (bloco) => {

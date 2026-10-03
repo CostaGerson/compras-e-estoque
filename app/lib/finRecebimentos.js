@@ -4,12 +4,14 @@
 import { prisma } from "@/lib/prisma";
 import { formatarCnpj } from "@/lib/finNfSaida";
 
-// Origens que NÃO são recebimento de cliente (vão para o bloco "A confirmar").
+// Crédito da própria Meridian (conciliação entre contas): NÃO é recebimento — fica fora da planilha.
+export const ORIGENS_IGNORAR = [["MERIDIAN"]];
+
+// Origens que não são recebimento de cliente, mas o Igor confere (vão para o bloco "A confirmar").
 export const ORIGENS_PROPRIAS = [
   ["PEDRO", "TAVARES"],
   ["IGOR", "SANTOS", "COSTA"],
   ["NORT", "SPORTS"],
-  ["MERIDIAN"],
 ];
 // Antecipação / factoring: entra no bloco "A confirmar" (o recebimento do cliente é outro).
 export const ORIGENS_ANTECIPACAO = [["FIDC"], ["CREDX"], ["AZUL", "CAPITAL"], ["ANTECIPA"]];
@@ -82,10 +84,14 @@ export async function montar(competencia) {
   };
 
   const linhas = [];
+  const ignoradas = [];
   let ordem = 0;
 
   for (const l of lanc) {
     const h = `${l.historico || ""} ${l.identificacao || ""}`;
+
+    // crédito da própria Meridian (conciliação entre contas): não entra na planilha
+    if (casa(h, ORIGENS_IGNORAR)) { ignoradas.push({ data: l.data, historico: l.historico, valor: Number(l.valor) }); continue; }
 
     // boleto detalhado pela conciliação (substitui a LIQUIDACAO DE COBRANCA do extrato)
     const ehBoleto = String(l.grupo || "").startsWith("COB|") || /^BOLETO RECEBIDO/i.test(l.historico || "");
@@ -133,12 +139,12 @@ export async function montar(competencia) {
     });
   }
 
-  return linhas;
+  return { linhas, ignoradas };
 }
 
 // Gera/atualiza a planilha preservando as linhas editadas à mão e as manuais.
 export async function gerar(competencia) {
-  const novas = await montar(competencia);
+  const { linhas: novas, ignoradas } = await montar(competencia);
   const antigas = await prisma.finRecebimento.findMany({ where: { competencia } });
   const travadas = antigas.filter((r) => r.editado || r.origem === "MANUAL");
 
@@ -156,7 +162,11 @@ export async function gerar(competencia) {
     });
   }
   const total = await prisma.finRecebimento.count({ where: { competencia } });
-  return { criadas: criar.length, preservadas: travadas.length, total };
+  return {
+    criadas: criar.length, preservadas: travadas.length, total,
+    ignoradas: ignoradas.length,
+    ignoradasValor: ignoradas.reduce((s, i) => s + i.valor, 0),
+  };
 }
 
 export const BLOCOS = { CREDITO: "Créditos recebidos", BOLETO: "Boletos (cobrança)", CONFIRMAR: "A confirmar" };
