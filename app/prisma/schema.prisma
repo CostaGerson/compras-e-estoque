@@ -1000,3 +1000,74 @@ model KpiAno {
   semNotaFaturamento  Decimal? @db.Decimal(14, 2)
   updatedAt           DateTime @updatedAt
 }
+
+// ---------------- FINANCEIRO · ALAVANCAGEM E POSIÇÃO DE CRÉDITO ----------------
+// Contrato de dívida. PARCELADO/INVESTIMENTO = parcela fixa; MUTUO = juros no mês e capital no vencimento.
+// Os campos "...Informado" guardam o que veio da planilha; a tela compara com o cálculo e aponta a diferença.
+model FinContrato {
+  id                      Int       @id @default(autoincrement())
+  tipo                    String    // PARCELADO | MUTUO | INVESTIMENTO
+  grupo                   String    // GIRO_LP | MUTUO_GIRO | ARREMATE_W3 | INVESTIMENTO
+  nome                    String
+  credor                  String?
+  capital                 Decimal   @db.Decimal(14, 2)
+  entrada                 Decimal?  @db.Decimal(14, 2)
+  taxaMensal              Decimal?  @db.Decimal(8, 4)   // % ao mês (1.25 = 1,25%)
+  dataContrato            DateTime? @db.Date
+  inicioPagamento         DateTime? @db.Date            // 1ª parcela (parcelado/investimento)
+  prazoMeses              Int?
+  parcela                 Decimal?  @db.Decimal(14, 2)
+  vencimentoUnico         DateTime? @db.Date            // mútuo: data do pagamento do capital
+  prazoDias               Int?                          // mútuo: dias entre contratação e vencimento
+
+  debitoTotalInformado    Decimal?  @db.Decimal(14, 2)
+  parcelasPagasInformadas Int?
+  aVencerInformado        Decimal?  @db.Decimal(14, 2)
+  pagarAteInformado       DateTime? @db.Date
+  valorAPagarInformado    Decimal?  @db.Decimal(14, 2)
+  jurosTotaisInformado    Decimal?  @db.Decimal(14, 2)
+  jurosMesInformado       Decimal?  @db.Decimal(14, 2)
+
+  parcelasPagas           Int?      // ajuste à mão (antecipação/atraso); vazio = o sistema conta pela data
+  ativo                   Boolean   @default(true)
+  quitado                 Boolean   @default(false)
+  contaCaixa              String?   // código da conta-caixa usada na Matriz/contas a pagar
+  naMatriz                Boolean   @default(false)
+  observacao              String?
+  criadoPorNome           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([tipo])
+  @@index([grupo])
+}
+
+// Limites de crédito por banco/produto (posição de crédito).
+model FinLimiteCredito {
+  id         Int      @id @default(autoincrement())
+  banco      String
+  produto    String
+  limite     Decimal  @db.Decimal(14, 2)
+  taxaMensal Decimal? @db.Decimal(8, 4)
+  utilizado  Decimal? @db.Decimal(14, 2)   // vazio nos mútuos: o sistema soma os contratos do credor
+  ordem      Int      @default(0)
+  ativo      Boolean  @default(true)
+  observacao String?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([banco, produto])
+}
+
+// Passivo tributário (bloco de impostos da planilha de alavancagem).
+model FinTributo {
+  id            Int      @id @default(autoincrement())
+  grupo         String   // RFB | PGFN | ESTADUAL | OUTRO
+  descricao     String
+  valor         Decimal  @db.Decimal(14, 2)
+  exigivel      Boolean  @default(true)
+  parcelado     Boolean  @default(false)
+  parcelaMensal Decimal? @db.Decimal(14, 2)
+  competencia   String?  // AAAA-MM de referência
+  observacao    String?
+  updatedAt     DateTime @updatedAt
+}

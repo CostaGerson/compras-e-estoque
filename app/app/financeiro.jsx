@@ -5,11 +5,12 @@ import {
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
   LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
-  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2,
+  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
 import ContasPagarReceber from "./contas";
+import Alavancagem from "./alavancagem";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -53,6 +54,8 @@ export default function Financeiro({ user }) {
   if (tela.v === "matriz") migalhas.push({ t: "Matriz de custos" });
   if (tela.v === "pagrec") migalhas.push({ t: "Contas a pagar e receber" });
   if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
+  if (tela.v === "alavancagem") migalhas.push({ t: "Alavancagem" });
+  if (tela.v === "credito") migalhas.push({ t: "Posição de crédito" });
   return (
     <div>
       {migalhas.length > 1 && (
@@ -74,6 +77,8 @@ export default function Financeiro({ user }) {
       {tela.v === "senhas" && <Senhas user={user} />}
       {tela.v === "matriz" && <MatrizCustos user={user} />}
       {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
+      {tela.v === "alavancagem" && <Alavancagem user={user} master aba="dividas" />}
+      {tela.v === "credito" && <Alavancagem user={user} master aba="credito" />}
       {tela.v === "dfc" && <EmConstrucao titulo="DFC · Demonstrativo de fluxo de caixa futuro" Ico={LineChart} texto="Projeção de entradas e saídas por semana e por mês a partir das contas a pagar e a receber, com o saldo previsto de caixa." />}
     </div>
   );
@@ -147,10 +152,12 @@ function FinDashboard({ user, ir }) {
     <div>
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {[
-          ["meses", CalendarRange, "Análise financeira mensal", "DRE do mês, importação dos documentos e identificação"],
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
           ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
           ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por semana e por mês"],
+          ["meses", CalendarRange, "Análise financeira mensal", "DRE do mês, importação dos documentos e identificação"],
+          ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
+          ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
         ].map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
             <Ico size={26} style={{ color: C.accent }} />
