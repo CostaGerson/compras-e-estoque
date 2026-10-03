@@ -143,6 +143,7 @@ export async function relatorio(ano) {
     receita: n(cur.metaAno?.metaReceita),
     pecasFaturadas: n(cur.metaAno?.metaPecasFaturadas),
     pecasProduzidas: n(cur.metaAno?.metaPecasProduzidas),
+    margem: n(cur.metaAno?.metaMargem),
   };
   const gapMtg = (meta, realizado) => {
     if (!meta) return { gap: null, mtg: null };
@@ -196,6 +197,12 @@ export async function painel(ano, mes) {
       fonte: "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
+      chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
+      valor: l.faturamento.atual, meta: metaMes(l.faturamento.metaValor, r.metas.faturamento),
+      serie: serie((x) => x.faturamento.atual), metaSerie: serie((x) => metaMes(x.faturamento.metaValor, r.metas.faturamento)),
+      fonte: "Lançamento manual — virá das NFs de saída emitidas",
+    },
+    {
       chave: "pecasProduzidas", rotulo: "Peças produzidas", unidade: "peças",
       valor: l.producao.pecas, meta: metaMes(l.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas),
       serie: serie((x) => x.producao.pecas), metaSerie: serie((x) => metaMes(x.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas)),
@@ -203,12 +210,6 @@ export async function painel(ano, mes) {
       fonte: l.producao.proprio
         ? "Lançamento manual — virá do chão de fábrica"
         : "Mesmo número das peças faturadas (a planilha não separa) — virá do chão de fábrica",
-    },
-    {
-      chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
-      valor: l.faturamento.atual, meta: metaMes(l.faturamento.metaValor, r.metas.faturamento),
-      serie: serie((x) => x.faturamento.atual), metaSerie: serie((x) => metaMes(x.faturamento.metaValor, r.metas.faturamento)),
-      fonte: "Lançamento manual — virá das NFs de saída emitidas",
     },
     {
       chave: "receitaValor", rotulo: "Receita", unidade: "R$",

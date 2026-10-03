@@ -69,7 +69,14 @@ export async function PUT(req) {
   return Response.json({ ok: true, ...(await relatorio(Number(b.ano))) });
 }
 
-// POST { usuarioId, ano, metas:{vendas,faturamento,receita,pecasFaturadas,pecasProduzidas} } → metas do ano
+// percentual aceito como 18, 18%, 0,18 → guarda sempre a fração (0.18)
+const fracao = (v) => {
+  const x = dec(String(v ?? "").replace("%", ""));
+  if (x === null) return null;
+  return x > 1 ? x / 100 : x;
+};
+
+// POST { usuarioId, ano, metas:{...}, pecasProduzidasMes:{1..12} } → metas do ano e metas mensais de produção
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
@@ -81,7 +88,23 @@ export async function POST(req) {
     metaVendas: dec(m.vendas), metaFaturamento: dec(m.faturamento), metaReceita: dec(m.receita),
     metaPecasFaturadas: int(m.pecasFaturadas), metaPecasProduzidas: int(m.pecasProduzidas),
     semNotaVendas: dec(m.semNotaVendas), semNotaFaturamento: dec(m.semNotaFaturamento),
+    metaMargem: fracao(m.margem),
   };
   await prisma.kpiAno.upsert({ where: { ano: Number(b.ano) }, create: { ano: Number(b.ano), ...data }, update: data });
+
+  // meta de peças produzidas mês a mês
+  if (b.pecasProduzidasMes && typeof b.pecasProduzidasMes === "object") {
+    for (const [mesTxt, v] of Object.entries(b.pecasProduzidasMes)) {
+      const mes = Number(mesTxt);
+      if (!mesValido(mes)) continue;
+      const metaPecasProduzidas = int(v);
+      await prisma.kpiMes.upsert({
+        where: { ano_mes: { ano: Number(b.ano), mes } },
+        create: { ano: Number(b.ano), mes, metaPecasProduzidas },
+        update: { metaPecasProduzidas },
+      });
+    }
+  }
+
   return Response.json({ ok: true, ...(await relatorio(Number(b.ano))) });
 }

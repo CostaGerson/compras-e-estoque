@@ -993,6 +993,8 @@ model KpiAno {
   metaReceita         Decimal? @db.Decimal(14, 2)
   metaPecasFaturadas  Int?
   metaPecasProduzidas Int?
+  // margem de contribuição em fração (0.18 = 18%), mesma convenção da Matriz de custos
+  metaMargem          Decimal? @db.Decimal(6, 4)
   // linha "SEM NOTA" da planilha: entra no total do ano, mas não pertence a nenhum mês
   semNotaVendas       Decimal? @db.Decimal(14, 2)
   semNotaFaturamento  Decimal? @db.Decimal(14, 2)

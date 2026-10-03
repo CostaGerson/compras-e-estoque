@@ -109,6 +109,7 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
+  const [resetTick, setResetTick] = useState(0);   // clicar no título remonta o módulo na tela inicial dele
   const bumpBadges = () => setBadgeTick((x) => x + 1);
 
   useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
@@ -126,6 +127,8 @@ export default function Home() {
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
+  // clicar em qualquer parte do caminho volta para a tela inicial daquele módulo
+  const irInicio = (k) => { setView(k); setTab("lista"); setResetTick((t) => t + 1); };
   const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
@@ -163,9 +166,9 @@ export default function Home() {
               {caminho.length ? caminho.map((n, i) => (
                 <React.Fragment key={n.key}>
                   {i > 0 && <ChevronRight size={14} style={{ color: C.sub }} />}
-                  {i < caminho.length - 1
-                    ? <button onClick={() => ir(n.key)} className="font-normal hover:underline" style={{ color: C.sub }}>{n.label}</button>
-                    : <span>{n.label}</span>}
+                  <button onClick={() => irInicio(n.key)} title="Voltar ao início desta página"
+                    className={`hover:underline ${i < caminho.length - 1 ? "font-normal" : "font-semibold"}`}
+                    style={{ color: i < caminho.length - 1 ? C.sub : C.text }}>{n.label}</button>
                 </React.Fragment>
               )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : "")}
             </div>
@@ -184,6 +187,7 @@ export default function Home() {
         </header>
 
         <div className="flex-1 overflow-auto p-6">
+          <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "gestao" && <Gestao user={user} master={master} money={money} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
@@ -200,6 +204,7 @@ export default function Home() {
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
+          </div>
         </div>
       </main>
       {perfilAberto && (

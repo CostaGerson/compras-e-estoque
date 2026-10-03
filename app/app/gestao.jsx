@@ -73,6 +73,7 @@ function Painel({ user, master, money, abrirRelatorio }) {
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
+  const [metas, setMetas] = useState(false);
 
   const carregar = async () => {
     setErro("");
@@ -106,6 +107,13 @@ function Painel({ user, master, money, abrirRelatorio }) {
               ? "Ano fechado"
               : `${d.calendario.decorridos} ${d.calendario.decorridos === 1 ? "mês decorrido" : "meses decorridos"} · ${d.calendario.restantes} para fechar o ano`}
           </div>
+        )}
+        <div className="flex-1" />
+        {d?.podeEditar && (
+          <button onClick={() => setMetas(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{ border: `1px solid ${C.accent}`, color: C.accent }}>
+            <Target size={15} /> Metas de {ano}
+          </button>
         )}
       </div>
 
@@ -151,6 +159,9 @@ function Painel({ user, master, money, abrirRelatorio }) {
           </div>
         </>
       )}
+
+      {metas && <MetasModal user={user} ano={ano} onClose={() => setMetas(false)}
+        onSalvo={() => { setMetas(false); setD(null); carregar(); }} />}
     </div>
   );
 }
@@ -165,6 +176,32 @@ function corMeta(p) {
 }
 
 /* Card de KPI: número + medidor contra a meta + os 12 meses do ano */
+/* Medidor circular: trilho = passo claro da mesma cor; o texto do meio usa cor de texto, não a da série */
+function Rosca({ p, cor, trilho, tamanho = 96, espessura = 11 }) {
+  const r = (tamanho - espessura) / 2;
+  const circ = 2 * Math.PI * r;
+  const cheio = Math.max(0, Math.min(1, p || 0));
+  const c = tamanho / 2;
+  return (
+    <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} className="shrink-0"
+      role="img" aria-label={p === null ? "sem meta" : `${Math.round(p * 100)}% da meta`}>
+      <circle cx={c} cy={c} r={r} fill="none" stroke={trilho} strokeWidth={espessura} />
+      {cheio > 0 && (
+        <circle cx={c} cy={c} r={r} fill="none" stroke={cor} strokeWidth={espessura} strokeLinecap="round"
+          strokeDasharray={`${circ * cheio} ${circ}`} transform={`rotate(-90 ${c} ${c})`} />
+      )}
+      <text x={c} y={c} textAnchor="middle" dominantBaseline="central"
+        style={{ fill: C.text, fontSize: 19, fontWeight: 600 }}>
+        {p === null ? "—" : `${Math.round(p * 100)}%`}
+      </text>
+      <text x={c} y={c + 17} textAnchor="middle" dominantBaseline="central"
+        style={{ fill: C.sub, fontSize: 9.5 }}>
+        {p === null ? "sem meta" : "da meta"}
+      </text>
+    </svg>
+  );
+}
+
 function CardKpi({ k, mes, master, money }) {
   const [hover, setHover] = useState(null);
   const temValor = k.valor !== null && k.valor !== undefined;
@@ -187,18 +224,23 @@ function CardKpi({ k, mes, master, money }) {
         </span>
       </div>
 
-      <div className="mt-1 font-semibold" style={{ fontSize: 30, lineHeight: 1.1, color: temValor ? C.text : C.sub }}>
-        {!temValor ? "—" : esconder ? "•••••" : compacto(k.valor, k.unidade)}
-      </div>
-
-      {/* medidor contra a meta */}
-      <div className="mt-3">
-        <div className="h-2.5 rounded-full overflow-hidden" style={{ background: trilho }}>
-          <div style={{ width: `${Math.min(100, Math.max(0, (p || 0) * 100))}%`, height: "100%", background: cor, borderRadius: 999 }} />
-        </div>
-        <div className="flex justify-between text-[11px] mt-1" style={{ color: C.sub }}>
-          <span>{p === null ? "sem meta no mês" : `${pct(p)} da meta`}</span>
-          <span>{k.meta ? (esconder ? "•••••" : `meta ${compacto(k.meta, k.unidade)}`) : ""}</span>
+      {/* medidor circular + número do mês */}
+      <div className="mt-2 flex items-center gap-4">
+        <Rosca p={p} cor={cor} trilho={trilho} />
+        <div className="min-w-0">
+          <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: temValor ? C.text : C.sub }}>
+            {!temValor ? "—" : esconder ? "•••••" : compacto(k.valor, k.unidade)}
+          </div>
+          <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
+            {k.meta ? (esconder ? "meta •••••" : `meta ${compacto(k.meta, k.unidade)}`) : "sem meta no mês"}
+          </div>
+          {p !== null && k.meta && (
+            <div className="text-[11px]" style={{ color: p >= 1 ? C.green : C.sub }}>
+              {p >= 1
+                ? `${esconder ? "•••••" : compacto(k.valor - k.meta, k.unidade)} acima`
+                : `faltam ${esconder ? "•••••" : compacto(k.meta - k.valor, k.unidade)}`}
+            </div>
+          )}
         </div>
       </div>
 
@@ -397,7 +439,7 @@ function Relatorio({ user, master, money, anoInicial }) {
 
       {editar && <LancamentoModal user={user} d={d} mes={editar.mes} onClose={() => setEditar(null)}
         onSalvo={(novo) => { setD((x) => ({ ...novo, anos: x.anos, podeEditar: x.podeEditar, segmentosPadrao: x.segmentosPadrao })); setEditar(null); }} />}
-      {metas && <MetasModal user={user} d={d} onClose={() => setMetas(false)}
+      {metas && <MetasModal user={user} ano={d.ano} dados={d} onClose={() => setMetas(false)}
         onSalvo={(novo) => { setD((x) => ({ ...novo, anos: x.anos, podeEditar: x.podeEditar, segmentosPadrao: x.segmentosPadrao })); setMetas(false); }} />}
     </div>
   );
@@ -729,48 +771,112 @@ function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
   );
 }
 
-function MetasModal({ user, d, onClose, onSalvo }) {
-  const [f, setF] = useState({
-    vendas: d.metas.vendas ?? "", faturamento: d.metas.faturamento ?? "", receita: d.metas.receita ?? "",
-    pecasFaturadas: d.metas.pecasFaturadas ?? "", pecasProduzidas: d.metas.pecasProduzidas ?? "",
-    semNotaVendas: d.semNota?.vendas || "", semNotaFaturamento: d.semNota?.faturamento || "",
-  });
+/* Metas do ano — abre pelo painel e pelo relatório. Busca os próprios dados. */
+function MetasModal({ user, ano, dados, onClose, onSalvo }) {
+  const [d, setD] = useState(dados || null);
+  const [f, setF] = useState(null);
+  const [prod, setProd] = useState({});
+  const [aplicarTodos, setAplicarTodos] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+
+  const montar = (x) => {
+    setF({
+      vendas: x.metas.vendas ?? "", faturamento: x.metas.faturamento ?? "", receita: x.metas.receita ?? "",
+      pecasFaturadas: x.metas.pecasFaturadas ?? "",
+      margem: x.metas.margem == null ? "" : String(Math.round(x.metas.margem * 10000) / 100).replace(".", ","),
+      semNotaVendas: x.semNota?.vendas || "", semNotaFaturamento: x.semNota?.faturamento || "",
+    });
+    const pr = {};
+    x.linhas.forEach((l) => { pr[l.mes] = l.producao.meta == null ? "" : String(l.producao.meta); });
+    setProd(pr);
+  };
+  useEffect(() => {
+    if (d) { montar(d); return; }
+    (async () => {
+      try { const x = await api(`/api/kpi?u=${user.id}&ano=${ano}`); setD(x); montar(x); }
+      catch (e) { setErro(e.message); }
+    })();
+  }, []);
+
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  const espalhar = () => {
+    const v = aplicarTodos.trim();
+    if (!v) return;
+    setProd(Object.fromEntries(MESES.map((_, i) => [i + 1, v])));
+  };
+  const totalProd = Object.values(prod).reduce((s2, v) => s2 + (Number(String(v).replace(/\./g, "").replace(",", ".")) || 0), 0);
+
   const salvar = async () => {
     setSalvando(true); setErro("");
-    try { onSalvo(await api("/api/kpi", "POST", { usuarioId: user.id, ano: d.ano, metas: f })); }
-    catch (e) { setErro(e.message); setSalvando(false); }
+    try {
+      const novo = await api("/api/kpi", "POST", {
+        usuarioId: user.id, ano, metas: f,
+        pecasProduzidasMes: Object.fromEntries(Object.entries(prod).map(([m, v]) => [m, v === "" ? null : v])),
+      });
+      onSalvo(novo);
+    } catch (e) { setErro(e.message); setSalvando(false); }
   };
+
   return (
-    <Modal titulo={`Metas de ${d.ano}`} onClose={onClose} largura={560}>
-      <div className="text-xs mb-3" style={{ color: C.sub }}>
-        A meta do ano vale como meta mensal dividida por 12, a não ser que o mês tenha meta própria lançada.
-      </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <Campo rotulo="Meta de vendas (R$)" valor={f.vendas} onChange={set("vendas")} />
-        <Campo rotulo="Meta de faturamento (R$)" valor={f.faturamento} onChange={set("faturamento")} />
-        <Campo rotulo="Meta de receita (R$)" valor={f.receita} onChange={set("receita")} />
-        <Campo rotulo="Meta de peças faturadas" valor={f.pecasFaturadas} onChange={set("pecasFaturadas")} />
-        <Campo rotulo="Meta de peças produzidas" valor={f.pecasProduzidas} onChange={set("pecasProduzidas")} />
-      </div>
-      <div className="text-xs font-bold tracking-wider mt-5 mb-1" style={{ color: C.navy }}>SEM NOTA</div>
-      <div className="text-xs mb-2" style={{ color: C.sub }}>
-        Valor do ano que não cai em nenhum mês. Entra no total, como na planilha.
-      </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <Campo rotulo="Vendas sem nota (R$)" valor={f.semNotaVendas} onChange={set("semNotaVendas")} />
-        <Campo rotulo="Faturamento sem nota (R$)" valor={f.semNotaFaturamento} onChange={set("semNotaFaturamento")} />
-      </div>
-      {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-      <div className="flex justify-end gap-2 mt-5">
-        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-          <Save size={15} /> {salvando ? "Salvando…" : "Salvar"}
-        </button>
-      </div>
+    <Modal titulo={`Metas de ${ano}`} onClose={onClose} largura={720}>
+      {!f ? (
+        erro ? <div className="p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>
+             : <div style={{ color: C.sub }}>Carregando…</div>
+      ) : (
+        <>
+          <div className="text-xs font-bold tracking-wider mb-2" style={{ color: C.navy }}>METAS DO ANO</div>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>
+            Vale como meta mensal dividida por 12, a não ser que o mês tenha meta própria lançada.
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            <Campo rotulo="Meta de faturamento (R$)" valor={f.faturamento} onChange={set("faturamento")} />
+            <Campo rotulo="Meta de vendas (R$)" valor={f.vendas} onChange={set("vendas")} />
+            <Campo rotulo="Meta de receita (R$)" valor={f.receita} onChange={set("receita")} />
+            <Campo rotulo="Meta de peças faturadas" valor={f.pecasFaturadas} onChange={set("pecasFaturadas")} />
+            <Campo rotulo="Margem de contribuição (%)" valor={f.margem} onChange={set("margem")} dica="ex.: 18" />
+          </div>
+
+          <div className="text-xs font-bold tracking-wider mt-5 mb-1" style={{ color: C.navy }}>
+            META DE PEÇAS PRODUZIDAS, MÊS A MÊS
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div className="text-xs" style={{ color: C.sub }}>Total do ano: <b style={{ color: C.text }}>{inteiro(totalProd)} peças</b></div>
+            <div className="flex-1" />
+            <input value={aplicarTodos} onChange={(e) => setAplicarTodos(e.target.value)} inputMode="numeric" placeholder="mesmo valor"
+              className="rounded-lg px-2 py-1 text-xs text-right tabular-nums" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text, width: 110 }} />
+            <button onClick={espalhar} className="text-xs font-semibold" style={{ color: C.accent }}>aplicar nos 12 meses</button>
+          </div>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))" }}>
+            {MESES.map((m, i) => (
+              <label key={m} className="block">
+                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>{m}</div>
+                <input value={prod[i + 1] ?? ""} onChange={(e) => setProd((x) => ({ ...x, [i + 1]: e.target.value }))} inputMode="numeric"
+                  className="w-full rounded-lg px-2 py-1.5 text-sm text-right tabular-nums"
+                  style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} />
+              </label>
+            ))}
+          </div>
+
+          <div className="text-xs font-bold tracking-wider mt-5 mb-1" style={{ color: C.navy }}>SEM NOTA</div>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>
+            Valor do ano que não cai em nenhum mês. Entra no total, como na planilha.
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            <Campo rotulo="Vendas sem nota (R$)" valor={f.semNotaVendas} onChange={set("semNotaVendas")} />
+            <Campo rotulo="Faturamento sem nota (R$)" valor={f.semNotaFaturamento} onChange={set("semNotaFaturamento")} />
+          </div>
+
+          {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+          <div className="flex justify-end gap-2 mt-5">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+              <Save size={15} /> {salvando ? "Salvando…" : "Salvar"}
+            </button>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
