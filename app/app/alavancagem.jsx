@@ -169,6 +169,12 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sin
         </div>
       )}
 
+      {master && (
+        <div className="text-xs mb-2" style={{ color: C.sub }}>
+          Clique no nome do contrato para editar. A seta no fim da linha abre os detalhes.
+        </div>
+      )}
+
       {/* contratos por grupo */}
       {d.grupos.map((g, gi) => (
         <div key={g.grupo} className="mb-7">
@@ -190,7 +196,7 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sin
                 <th className="px-2 py-2 text-right font-semibold">No mês</th>
                 <th className="px-2 py-2 text-right font-semibold">A pagar</th>
                 <th className="px-2 py-2 text-left font-semibold">Até</th>
-                <th className="px-2 py-2"></th>
+                <th className="px-2 py-2 sticky right-0" style={{ background: C.panel2 }}></th>
               </tr></thead>
               <tbody>
                 {g.itens.map((c) => <LinhaContrato key={c.id} c={c} master={master} user={user} onMudou={onMudou} onEditar={abrirEditar} />)}
@@ -254,7 +260,14 @@ function LinhaContrato({ c, master, user, onMudou, onEditar }) {
     <>
       <tr style={{ borderTop: `1px solid ${C.line}` }}>
         <td className="px-2 py-1.5">
-          <div style={{ color: cor, fontWeight: 600 }}>{c.nome}</div>
+          {master ? (
+            <button onClick={() => onEditar(c)} title="Clique para editar este contrato"
+              className="flex items-center gap-1.5 text-left hover:underline" style={{ color: cor, fontWeight: 600 }}>
+              {c.nome} <Pencil size={11} style={{ color: C.accent }} />
+            </button>
+          ) : (
+            <div style={{ color: cor, fontWeight: 600 }}>{c.nome}</div>
+          )}
           <div className="text-[11px]" style={{ color: C.sub }}>
             {c.credor || "—"}
             {c.avisos.length > 0 && <span className="ml-1" style={{ color: C.yellow }}>· {c.avisos.length} divergência(s)</span>}
@@ -267,7 +280,7 @@ function LinhaContrato({ c, master, user, onMudou, onEditar }) {
         <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: cor }}>{master ? brl(c.mensal) : "•••••"}</td>
         <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: cor }}>{master ? brl(c.compromisso) : "•••••"}</td>
         <td className="px-2 py-1.5" style={{ color: C.sub }}>{dBR(c.tipo === "MUTUO" ? c.vencimento : c.pagarAte)}</td>
-        <td className="px-2 whitespace-nowrap">
+        <td className="px-2 whitespace-nowrap sticky right-0" style={{ background: C.panel, boxShadow: `-6px 0 6px -6px rgba(0,0,0,.15)` }}>
           {master && (
             <>
               <button onClick={() => onEditar(c)} title="Editar contrato" className="mr-1" style={{ color: C.sub }}><Pencil size={13} /></button>
