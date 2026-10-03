@@ -181,8 +181,9 @@ function CardKpi({ k, mes, master, money }) {
         <div className="text-xs font-semibold" style={{ color: C.sub }}>
           {k.rotulo} <span style={{ fontWeight: 400 }}>({k.unidade === "R$" ? "R$" : "peças"})</span>
         </div>
-        <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0" style={{ background: C.panel2, color: C.sub }} title={k.fonte}>
-          manual
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0"
+          style={{ background: k.derivado ? C.blueSoft : C.panel2, color: k.derivado ? C.blue : C.sub }} title={k.fonte}>
+          {k.derivado ? "= faturadas" : "manual"}
         </span>
       </div>
 
@@ -525,7 +526,10 @@ function TabelaFaturamento({ d, master, onEditar }) {
       <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 980 }}>
         <thead><tr style={{ background: C.panel2 }}>
           <Th>Mês</Th><Th dir>{d.anoAnterior}</Th><Th dir>{d.ano}</Th><Th dir>Meta R$</Th><Th dir>Meta peças</Th>
-          <Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Peças faturadas</Th><Th dir>Produzidas</Th><Th></Th>
+          <Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Peças faturadas</Th>
+          <th className="px-2 py-2 font-semibold text-right whitespace-nowrap" style={{ color: C.sub }}
+            title="Enquanto o chão de fábrica não existe, repete as peças faturadas; o mês com número próprio lançado manda.">Produzidas</th>
+          <Th></Th>
         </tr></thead>
         <tbody>
           {d.linhas.map((l, i) => {

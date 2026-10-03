@@ -84,7 +84,13 @@ export async function relatorio(ano) {
     return {
       mes, nome,
       vendas: { atual: vAtual, anterior: vAnt, pecas: n(c.vendasPecas), mom: div(vAtual, vAnt), acumulado: div(acVendas, acVendasAnt) },
-      producao: { pecas: n(c.pecasProduzidas), meta: n(c.metaPecasProduzidas) },
+      // Enquanto o chão de fábrica não existe, as peças produzidas são as mesmas da planilha
+      // ("Peças Faturadas"). Assim que o mês tiver número próprio, ele manda.
+      producao: {
+        pecas: n(c.pecasProduzidas) ?? n(c.pecasFaturadas),
+        proprio: n(c.pecasProduzidas) !== null,
+        meta: n(c.metaPecasProduzidas) ?? n(c.metaFaturamentoPecas),
+      },
       faturamento: {
         atual: fAtual, anterior: fAnt, pecas: n(c.pecasFaturadas), pecasAnterior: n(a.pecasFaturadas),
         metaValor: n(c.metaFaturamentoValor), metaPecas: n(c.metaFaturamentoPecas),
@@ -191,9 +197,12 @@ export async function painel(ano, mes) {
     },
     {
       chave: "pecasProduzidas", rotulo: "Peças produzidas", unidade: "peças",
-      valor: l.producao.pecas, meta: metaMes(l.producao.meta, r.metas.pecasProduzidas),
-      serie: serie((x) => x.producao.pecas), metaSerie: serie((x) => metaMes(x.producao.meta, r.metas.pecasProduzidas)),
-      fonte: "Lançamento manual — virá do chão de fábrica",
+      valor: l.producao.pecas, meta: metaMes(l.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas),
+      serie: serie((x) => x.producao.pecas), metaSerie: serie((x) => metaMes(x.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas)),
+      derivado: !l.producao.proprio && l.producao.pecas !== null,
+      fonte: l.producao.proprio
+        ? "Lançamento manual — virá do chão de fábrica"
+        : "Mesmo número das peças faturadas (a planilha não separa) — virá do chão de fábrica",
     },
     {
       chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
