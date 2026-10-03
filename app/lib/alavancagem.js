@@ -150,8 +150,8 @@ export async function panorama(hoje = new Date()) {
 
   // tributos
   const tribPorGrupo = Object.entries(GRUPOS_TRIBUTO).map(([k, label]) => {
-    const itens = tributos.filter((t) => t.grupo === k);
-    return { grupo: k, label, itens, total: r2(itens.reduce((s, t) => s + Number(t.valor), 0)) };
+    const itens = tributos.filter((t) => t.grupo === k).map((t) => ({ ...t, valor: n(t.valor), parcelaMensal: n(t.parcelaMensal), calculo: calcularTributo(t, hoje) }));
+    return { grupo: k, label, itens, total: r2(itens.reduce((s, t) => s + (t.valor || 0), 0)) };
   }).filter((g) => g.itens.length);
   const totalTributos = r2(tribPorGrupo.reduce((s, g) => s + g.total, 0));
   const mensalTributos = r2(tributos.reduce((s, t) => s + (t.parcelado ? Number(t.parcelaMensal || 0) : 0), 0));
@@ -226,4 +226,114 @@ export function parcelaPrice(capital, taxaPct, meses) {
   if (!i) return r2(capital / n0);
   const f = Math.pow(1 + i, n0);
   return r2((capital * i * f) / (f - 1));
+}
+
+// ---------------- parcelamentos de tributo que sempre existem (preenchidos depois) ----------------
+export const TRIBUTOS_EM_BRANCO = [
+  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 1", valor: 0, exigivel: true, parcelado: true },
+  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 2", valor: 0, exigivel: true, parcelado: true },
+  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 3", valor: 0, exigivel: true, parcelado: true },
+  { grupo: "ESTADUAL", descricao: "PARCELAMENTO ESTADUAL 1", valor: 0, exigivel: true, parcelado: true },
+];
+// Cria os que faltarem (por descrição). Roda em toda abertura — não duplica e não mexe nos existentes.
+export async function garantirTributosEmBranco() {
+  const existentes = (await prisma.finTributo.findMany({ select: { descricao: true } })).map((t) => t.descricao);
+  const faltam = TRIBUTOS_EM_BRANCO.filter((t) => !existentes.includes(t.descricao));
+  if (faltam.length) await prisma.finTributo.createMany({ data: faltam });
+  return faltam.length;
+}
+
+// Cálculo sugerido de um parcelamento de tributo.
+export function calcularTributo(t, hoje = new Date()) {
+  const valor = n(t.valor) || 0;
+  const parcelaInf = n(t.parcelaMensal);
+  const parcelasInf = t.parcelas != null ? Number(t.parcelas) : null;
+  // o que estiver faltando, o sistema sugere a partir do que existe
+  const parcelas = parcelasInf ?? (valor && parcelaInf ? Math.ceil(valor / parcelaInf) : null);
+  const parcela = parcelaInf ?? (valor && parcelasInf ? r2(valor / parcelasInf) : null);
+  const inicio = dia(t.inicio);
+  const pagasCalc = inicio && parcelas ? Math.max(0, Math.min(parcelas, mesesEntre(inicio, hoje) + 1)) : null;
+  const pagas = t.parcelasPagas != null ? Number(t.parcelasPagas) : pagasCalc;
+  const restantes = parcelas != null && pagas != null ? Math.max(0, parcelas - pagas) : null;
+  const saldo = restantes != null && parcela != null ? r2(parcela * restantes) : (valor || null);
+  const fim = inicio && parcelas ? somaMeses(inicio, parcelas - 1) : null;
+  return {
+    parcelas, parcela, parcelasPagas: pagas, parcelasPagasCalculadas: pagasCalc, parcelasRestantes: restantes,
+    saldo, fim,
+    sugeriuParcela: parcelaInf == null && parcela != null,
+    sugeriuParcelas: parcelasInf == null && parcelas != null,
+    emBranco: !valor && !parcelaInf,
+  };
+}
+
+// ---------------- amortização extraordinária ----------------
+// Saldo devedor pela Tabela Price: valor presente das parcelas que faltam.
+export function saldoPrice(parcela, meses, taxaPct) {
+  const i = Number(taxaPct || 0) / 100;
+  if (!parcela || !meses) return 0;
+  if (!i) return r2(parcela * meses);
+  return r2(parcela * (1 - Math.pow(1 + i, -meses)) / i);
+}
+
+// Simula um pagamento extra. Devolve os dois caminhos para o parcelado e o efeito único no mútuo.
+export function simularPagamentoExtra(contrato, valorExtra, hoje = new Date()) {
+  const c = calcular(contrato, hoje);
+  const extra = Number(valorExtra) || 0;
+  if (extra <= 0) return { erro: "Informe o valor do pagamento." };
+
+  if (contrato.tipo === "MUTUO") {
+    const capital = c.capital;
+    if (extra > capital) return { erro: `O pagamento (R$ ${extra.toFixed(2)}) é maior que o capital em aberto (R$ ${capital.toFixed(2)}).` };
+    const taxa = (c.taxaMensal || 0) / 100;
+    const diasRestantes = Math.max(0, c.diasRestantes ?? 0);
+    const capitalNovo = r2(capital - extra);
+    const jurosMesNovo = r2(capitalNovo * taxa);
+    const economia = r2(extra * taxa * (diasRestantes / 30));
+    return {
+      tipo: "MUTUO", extra, diasRestantes,
+      antes: { capital, jurosMes: c.jurosMes, totalNoVencimento: r2(capital + (c.jurosMes || 0) * (diasRestantes / 30)) },
+      depois: { capital: capitalNovo, jurosMes: jurosMesNovo, totalNoVencimento: r2(capitalNovo + jurosMesNovo * (diasRestantes / 30)) },
+      economia,
+      nota: "No mútuo o vencimento é único, então não há prazo a encurtar: o pagamento abate o capital e derruba os juros de todo mês até o vencimento.",
+    };
+  }
+
+  const parcela = c.parcela;
+  const n0 = c.parcelasRestantes;
+  if (!parcela || !n0) return { erro: "Este contrato não tem parcelas em aberto." };
+  const taxa = Number(c.taxaMensal || 0) / 100;
+  const saldo = saldoPrice(parcela, n0, c.taxaMensal);
+  if (extra >= saldo) {
+    return { tipo: "QUITA", extra, saldo, economia: r2(parcela * n0 - saldo),
+      nota: `Com R$ ${extra.toFixed(2)} o contrato é quitado — o saldo devedor de hoje é R$ ${saldo.toFixed(2)}.` };
+  }
+  const novoSaldo = r2(saldo - extra);
+  const totalAtual = r2(parcela * n0);
+
+  // A) mantém a parcela e encurta o prazo
+  let nPrazo;
+  if (!taxa) nPrazo = Math.ceil(novoSaldo / parcela);
+  else nPrazo = Math.ceil(-Math.log(1 - (novoSaldo * taxa) / parcela) / Math.log(1 + taxa));
+  nPrazo = Math.max(1, Math.min(n0, nPrazo));
+  const totalPrazo = r2(extra + parcela * nPrazo);
+
+  // B) mantém o prazo e reduz a parcela
+  const parcelaNova = !taxa ? r2(novoSaldo / n0)
+    : r2((novoSaldo * taxa * Math.pow(1 + taxa, n0)) / (Math.pow(1 + taxa, n0) - 1));
+  const totalParcela = r2(extra + parcelaNova * n0);
+
+  return {
+    tipo: "PARCELADO", extra, saldo, taxaMensal: c.taxaMensal,
+    atual: { parcela, parcelasRestantes: n0, total: totalAtual, pagarAte: c.pagarAte },
+    prazo: {
+      parcela, parcelasRestantes: nPrazo, mesesAMenos: n0 - nPrazo,
+      total: totalPrazo, economia: r2(totalAtual - totalPrazo),
+      pagarAte: c.inicio ? somaMeses(c.inicio, c.parcelasPagas + nPrazo - 1) : null,
+      prazoTotal: c.parcelasPagas + nPrazo,
+    },
+    parcelaMenor: {
+      parcela: parcelaNova, parcelasRestantes: n0, reducao: r2(parcela - parcelaNova),
+      total: totalParcela, economia: r2(totalAtual - totalParcela), pagarAte: c.pagarAte,
+    },
+  };
 }

@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { garantirContratos, panorama, calcular, parcelaPrice, TIPOS, GRUPOS, ORDEM_GRUPOS, GRUPOS_TRIBUTO, somaMeses } from "@/lib/alavancagem";
+import { garantirContratos, garantirTributosEmBranco, panorama, calcular, parcelaPrice, TIPOS, GRUPOS, ORDEM_GRUPOS, GRUPOS_TRIBUTO, somaMeses } from "@/lib/alavancagem";
 import { previaMatriz, contaSugerida, lancarCreditoContratado } from "@/lib/alavancagemMatriz";
 
 const dec = (v) => {
@@ -22,6 +22,7 @@ export async function GET(req) {
   const u = await usuarioMaster(new URL(req.url).searchParams.get("u"));
   if (!u) return negado();
   await garantirContratos();
+  await garantirTributosEmBranco();
   const [p, previa] = await Promise.all([panorama(), previaMatriz().catch(() => [])]);
   return Response.json({
     ...p, previaMatriz: previa,

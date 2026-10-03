@@ -1060,14 +1060,36 @@ model FinLimiteCredito {
 
 // Passivo tributário (bloco de impostos da planilha de alavancagem).
 model FinTributo {
-  id            Int      @id @default(autoincrement())
-  grupo         String   // RFB | PGFN | ESTADUAL | OUTRO
+  id            Int       @id @default(autoincrement())
+  grupo         String    // RFB | PGFN | ESTADUAL | OUTRO
   descricao     String
-  valor         Decimal  @db.Decimal(14, 2)
-  exigivel      Boolean  @default(true)
-  parcelado     Boolean  @default(false)
-  parcelaMensal Decimal? @db.Decimal(14, 2)
-  competencia   String?  // AAAA-MM de referência
+  valor         Decimal   @db.Decimal(14, 2)
+  exigivel      Boolean   @default(true)
+  parcelado     Boolean   @default(false)
+  parcelaMensal Decimal?  @db.Decimal(14, 2)
+  parcelas      Int?      // nº total de parcelas do parcelamento
+  parcelasPagas Int?      // ajuste à mão; vazio = conta pela data de início
+  inicio        DateTime? @db.Date
+  competencia   String?   // AAAA-MM de referência
   observacao    String?
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime  @updatedAt
+}
+
+// Pagamento extraordinário (amortização) feito num contrato: abate prazo ou reduz a parcela.
+model FinPagamentoExtra {
+  id            Int      @id @default(autoincrement())
+  contratoId    Int
+  data          DateTime @db.Date
+  valor         Decimal  @db.Decimal(14, 2)
+  modo          String   // PRAZO | PARCELA | MUTUO
+  parcelaAntes  Decimal? @db.Decimal(14, 2)
+  parcelaDepois Decimal? @db.Decimal(14, 2)
+  prazoAntes    Int?
+  prazoDepois   Int?
+  economia      Decimal? @db.Decimal(14, 2)
+  observacao    String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([contratoId])
 }

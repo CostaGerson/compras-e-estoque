@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   TrendingDown, CreditCard, Plus, Save, X, Trash2, AlertTriangle, CheckCircle2, Landmark,
-  Grid3x3, Loader2, ChevronRight, Pencil, Info,
+  Grid3x3, Loader2, ChevronRight, Pencil, Info, Banknote,
 } from "lucide-react";
 
 const C = {
@@ -40,6 +40,7 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
   const [aviso, setAviso] = useState(null);
   const [novo, setNovo] = useState(false);
   const [editar, setEditar] = useState(null);   // contrato aberto para edição
+  const [pagar, setPagar] = useState(null);     // contrato recebendo pagamento extra
   const [novoLimite, setNovoLimite] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
 
@@ -84,13 +85,15 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
       {aba === "credito"
         ? <Credito user={user} master={master} d={d} onMudou={carregar} abrirNovo={() => setNovoLimite(true)} />
         : <Dividas user={user} master={master} d={d} fatias={fatias} onMudou={carregar}
-            abrirNovo={() => setNovo(true)} abrirEditar={setEditar}
+            abrirNovo={() => setNovo(true)} abrirEditar={setEditar} abrirPagar={setPagar}
             sincronizar={sincronizar} sincronizando={sincronizando} />}
 
       {novo && <ContratoModal user={user} catalogos={d.catalogos} onClose={() => setNovo(false)}
         onSalvo={(r) => { setNovo(false); setAviso({ tipo: "ok", texto: `Contrato criado.${r.credito ? " O crédito do capital entrou em contas a receber." : ""} Clique em “Levar para a Matriz” para as parcelas chegarem ao contas a pagar.` }); carregar(); }} />}
       {editar && <ContratoModal user={user} catalogos={d.catalogos} contrato={editar} onClose={() => setEditar(null)}
         onSalvo={() => { setEditar(null); setAviso({ tipo: "ok", texto: "Contrato atualizado. Clique em “Levar para a Matriz” para o contas a pagar acompanhar." }); carregar(); }} />}
+      {pagar && <PagamentoExtraModal user={user} contrato={pagar} onClose={() => setPagar(null)}
+        onAplicado={(txt) => { setPagar(null); setAviso({ tipo: "ok", texto: txt }); carregar(); }} />}
       {novoLimite && <LimiteModal user={user} onClose={() => setNovoLimite(false)}
         onSalvo={() => { setNovoLimite(false); carregar(); }} />}
     </div>
@@ -98,8 +101,15 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
 }
 
 /* ---------------- DÍVIDAS ---------------- */
-function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sincronizar, sincronizando }) {
+function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, abrirPagar, sincronizar, sincronizando }) {
   const t = d.totais;
+  const novoTributo = async () => {
+    const descricao = prompt("Descrição do tributo (ex.: PARCELAMENTO FEDERAL 4)");
+    if (!descricao) return;
+    const grupo = (prompt("Órgão: RFB, PGFN, ESTADUAL ou OUTRO", "RFB") || "OUTRO").toUpperCase();
+    try { await api("/api/fin/alavancagem/tributos", "POST", { usuarioId: user.id, grupo, descricao, valor: "", parcelado: true }); onMudou(); }
+    catch (e) { alert(e.message); }
+  };
   const val = (v) => (master ? compacto(v) : "•••••");
   const pendentes = (d.previaMatriz || []).filter((p) => p.estado !== "IGUAL").length;
 
@@ -171,7 +181,7 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sin
 
       {master && (
         <div className="text-xs mb-2" style={{ color: C.sub }}>
-          Clique no nome do contrato para editar. A seta no fim da linha abre os detalhes.
+          Clique no nome do contrato para editar. No fim da linha: <b>cédula</b> lança um pagamento extra, <b>lápis</b> edita, <b>seta</b> abre os detalhes.
         </div>
       )}
 
@@ -199,7 +209,7 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sin
                 <th className="px-2 py-2 sticky right-0" style={{ background: C.panel2 }}></th>
               </tr></thead>
               <tbody>
-                {g.itens.map((c) => <LinhaContrato key={c.id} c={c} master={master} user={user} onMudou={onMudou} onEditar={abrirEditar} />)}
+                {g.itens.map((c) => <LinhaContrato key={c.id} c={c} master={master} user={user} onMudou={onMudou} onEditar={abrirEditar} onPagar={abrirPagar} />)}
               </tbody>
             </table>
           </div>
@@ -212,40 +222,44 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sin
         <div className="text-xs font-bold tracking-wider" style={{ color: C.navy }}>PASSIVO TRIBUTÁRIO</div>
         <span className="text-xs" style={{ color: C.sub }}>{val(t.tributos)} · {val(t.mensalTributos)}/mês em parcelamentos</span>
         <div className="flex-1 h-px" style={{ background: C.line }} />
+        {master && (
+          <button onClick={() => novoTributo()} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+            <Plus size={13} /> Novo tributo
+          </button>
+        )}
       </div>
       <div className="rounded-xl overflow-auto mb-6" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 640 }}>
+        <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 980 }}>
           <thead><tr style={{ background: C.panel2, color: C.sub }}>
             <th className="px-2 py-2 text-left font-semibold">Órgão</th>
             <th className="px-2 py-2 text-left font-semibold">Descrição</th>
             <th className="px-2 py-2 text-right font-semibold">Valor</th>
             <th className="px-2 py-2 text-right font-semibold">Parcela/mês</th>
-            <th className="px-2 py-2 text-left font-semibold">Situação</th>
+            <th className="px-2 py-2 text-right font-semibold">Parcelas</th>
+            <th className="px-2 py-2 text-left font-semibold">1ª parcela</th>
+            <th className="px-2 py-2 text-right font-semibold">Pagas</th>
+            <th className="px-2 py-2 text-right font-semibold">Saldo</th>
+            <th className="px-2 py-2 text-left font-semibold">Até</th>
+            <th className="px-2 py-2"></th>
           </tr></thead>
           <tbody>
             {d.tributos.map((gr) => gr.itens.map((x, i) => (
-              <tr key={x.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                <td className="px-2 py-1.5" style={{ color: i === 0 ? C.text : C.sub, fontWeight: i === 0 ? 600 : 400 }}>{i === 0 ? gr.label : ""}</td>
-                <td className="px-2 py-1.5" style={{ color: C.text }}>{x.descricao}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.text }}>{master ? brl(x.valor) : "•••••"}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.sub }}>{x.parcelado ? (master ? brl(x.parcelaMensal) : "•••••") : "—"}</td>
-                <td className="px-2 py-1.5">
-                  <span className="px-1.5 rounded text-[10px] font-semibold"
-                    style={{ background: x.exigivel ? C.redSoft : C.panel2, color: x.exigivel ? C.red : C.sub }}>
-                    {x.exigivel ? "EXIGÍVEL" : "NÃO EXIGÍVEL"}
-                  </span>
-                  {x.parcelado && <span className="ml-1 px-1.5 rounded text-[10px] font-semibold" style={{ background: C.blueSoft, color: C.blue }}>PARCELADO</span>}
-                </td>
-              </tr>
+              <LinhaTributo key={x.id} x={x} grupo={i === 0 ? gr.label : ""} master={master} user={user} onMudou={onMudou} />
             )))}
           </tbody>
         </table>
       </div>
+      {master && (
+        <div className="text-[11px] mb-6" style={{ color: C.sub }}>
+          Preencha dois entre valor, parcela e nº de parcelas — o sistema sugere o terceiro (em azul) e calcula saldo, pagas e data final.
+          Os quatro parcelamentos em branco já ficam criados para você completar quando os números chegarem.
+        </div>
+      )}
     </div>
   );
 }
 
-function LinhaContrato({ c, master, user, onMudou, onEditar }) {
+function LinhaContrato({ c, master, user, onMudou, onEditar, onPagar }) {
   const [abrindo, setAbrindo] = useState(false);
   const excluir = async () => {
     if (!confirm(`Excluir o contrato ${c.nome}?\nEle também sai da aba Dívidas da Matriz na próxima sincronização.`)) return;
@@ -283,6 +297,7 @@ function LinhaContrato({ c, master, user, onMudou, onEditar }) {
         <td className="px-2 whitespace-nowrap sticky right-0" style={{ background: C.panel, boxShadow: `-6px 0 6px -6px rgba(0,0,0,.15)` }}>
           {master && (
             <>
+              <button onClick={() => onPagar(c)} title="Lançar pagamento extra (amortizar)" className="mr-1" style={{ color: C.accent }}><Banknote size={14} /></button>
               <button onClick={() => onEditar(c)} title="Editar contrato" className="mr-1" style={{ color: C.sub }}><Pencil size={13} /></button>
               <button onClick={excluir} title="Excluir contrato" className="mr-1" style={{ color: C.sub }}><Trash2 size={13} /></button>
             </>
@@ -328,6 +343,72 @@ function LinhaContrato({ c, master, user, onMudou, onEditar }) {
     </>
   );
 }
+function LinhaTributo({ x, grupo, master, user, onMudou }) {
+  const c = x.calculo || {};
+  const editar = async (campo, valor) => {
+    try { await api("/api/fin/alavancagem/tributos", "PUT", { usuarioId: user.id, id: x.id, campo, valor }); onMudou(); }
+    catch (e) { alert(e.message); }
+  };
+  const excluir = async () => {
+    if (!confirm(`Excluir ${x.descricao}?`)) return;
+    await fetch(`/api/fin/alavancagem/tributos?u=${user.id}&id=${x.id}`, { method: "DELETE" });
+    onMudou();
+  };
+  const Cel = ({ valor, campo, tipo = "num", largura = 90, sugerido }) => (
+    master
+      ? <CelulaEdit valor={valor} tipo={tipo} largura={largura} sugerido={sugerido} onSalvar={(v) => editar(campo, v)} />
+      : <span>{valor === null || valor === undefined ? "—" : tipo === "num" ? brl(valor) : String(valor)}</span>
+  );
+  const vazio = c.emBranco;
+  return (
+    <tr style={{ borderTop: `1px solid ${C.line}`, opacity: vazio ? 0.75 : 1 }}>
+      <td className="px-2 py-1.5" style={{ color: grupo ? C.text : C.sub, fontWeight: grupo ? 600 : 400 }}>{grupo}</td>
+      <td className="px-2 py-1.5" style={{ color: C.text }}>
+        <Cel valor={x.descricao} campo="descricao" tipo="texto" largura={230} />
+        {vazio && <span className="ml-1 px-1.5 rounded text-[10px] font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>a preencher</span>}
+      </td>
+      <td className="px-2 py-1.5 text-right tabular-nums"><Cel valor={x.valor} campo="valor" /></td>
+      <td className="px-2 py-1.5 text-right tabular-nums">
+        <Cel valor={x.parcelaMensal ?? (c.sugeriuParcela ? c.parcela : null)} campo="parcelaMensal" sugerido={c.sugeriuParcela} />
+      </td>
+      <td className="px-2 py-1.5 text-right tabular-nums">
+        <Cel valor={x.parcelas ?? (c.sugeriuParcelas ? c.parcelas : null)} campo="parcelas" tipo="int" largura={60} sugerido={c.sugeriuParcelas} />
+      </td>
+      <td className="px-2 py-1.5"><Cel valor={x.inicio ? String(x.inicio).slice(0, 10) : ""} campo="inicio" tipo="data" largura={120} /></td>
+      <td className="px-2 py-1.5 text-right tabular-nums">
+        <Cel valor={x.parcelasPagas ?? c.parcelasPagas} campo="parcelasPagas" tipo="int" largura={60} sugerido={x.parcelasPagas == null && c.parcelasPagas != null} />
+      </td>
+      <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: C.text }}>{c.saldo == null ? "—" : (master ? brl(c.saldo) : "•••••")}</td>
+      <td className="px-2 py-1.5" style={{ color: C.sub }}>{dBR(c.fim)}</td>
+      <td className="px-2 whitespace-nowrap">
+        <button onClick={() => editar("exigivel", !x.exigivel)} disabled={!master} title="Exigível / não exigível"
+          className="px-1.5 rounded text-[10px] font-semibold mr-1"
+          style={{ background: x.exigivel ? C.redSoft : C.panel2, color: x.exigivel ? C.red : C.sub }}>
+          {x.exigivel ? "EXIGÍVEL" : "NÃO EXIG."}
+        </button>
+        {master && <button onClick={excluir} title="Excluir" style={{ color: C.sub }}><Trash2 size={13} /></button>}
+      </td>
+    </tr>
+  );
+}
+
+// célula que vira input ao clicar; o valor sugerido pelo sistema aparece em azul
+function CelulaEdit({ valor, tipo, largura, sugerido, onSalvar }) {
+  const fmt = (v) => (v === null || v === undefined || v === "" ? "" : tipo === "num" ? brl(v) : String(v));
+  const [v, setV] = useState(fmt(valor));
+  useEffect(() => { setV(fmt(valor)); }, [valor]);
+  const mudou = v !== fmt(valor);
+  return (
+    <input value={v} onChange={(e) => setV(e.target.value)} type={tipo === "data" ? "date" : "text"}
+      onBlur={() => mudou && onSalvar(v)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      placeholder="—"
+      className={`rounded px-1 py-0.5 text-xs ${tipo === "texto" || tipo === "data" ? "" : "text-right tabular-nums"}`}
+      style={{ width: largura, border: `1px solid ${mudou ? C.accent : "transparent"}`,
+        background: "transparent", color: sugerido ? C.blue : C.text, fontStyle: sugerido ? "italic" : "normal" }}
+      title={sugerido ? "Sugerido pelo sistema — digite para fixar" : undefined} />
+  );
+}
+
 const Det = ({ rot, v }) => (<div><div style={{ fontWeight: 600 }}>{rot}</div><div style={{ color: C.text }}>{v}</div></div>);
 
 function Kpi({ rotulo, valor, sub, cor, forte }) {
@@ -680,6 +761,137 @@ function LimiteModal({ user, onClose, onSalvo }) {
           style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
           <Save size={15} /> {salvando ? "Salvando…" : "Salvar"}
         </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- pagamento extra (amortização) ---------------- */
+function PagamentoExtraModal({ user, contrato, onClose, onAplicado }) {
+  const [valor, setValor] = useState("");
+  const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [sim, setSim] = useState(null);
+  const [calculando, setCalculando] = useState(false);
+  const [aplicando, setAplicando] = useState("");
+  const [erro, setErro] = useState("");
+
+  const simular = async () => {
+    setCalculando(true); setErro(""); setSim(null);
+    try {
+      const r = await api("/api/fin/alavancagem/pagamento", "POST", { usuarioId: user.id, contratoId: contrato.id, valor, simular: true });
+      setSim(r.simulacao);
+    } catch (e) { setErro(e.message); }
+    setCalculando(false);
+  };
+
+  const aplicar = async (modo) => {
+    const txt = modo === "PRAZO" ? "abater o prazo" : modo === "PARCELA" ? "reduzir a parcela" : "abater o capital";
+    if (!confirm(`Confirma o pagamento de R$ ${brl(valor)} em ${contrato.nome} para ${txt}?`)) return;
+    setAplicando(modo); setErro("");
+    try {
+      await api("/api/fin/alavancagem/pagamento", "POST", { usuarioId: user.id, contratoId: contrato.id, valor, data, modo });
+      onAplicado(`Pagamento de R$ ${brl(valor)} lançado em ${contrato.nome}. Clique em “Levar para a Matriz” para o contas a pagar acompanhar.`);
+    } catch (e) { setErro(e.message); setAplicando(""); }
+  };
+
+  const Opcao = ({ titulo, sub, linhas, economia, modo, destaque }) => (
+    <div className="rounded-xl p-4 flex flex-col" style={{ background: C.panel, border: `1px solid ${destaque ? C.accent : C.line}` }}>
+      <div className="font-semibold" style={{ color: C.text }}>{titulo}</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>{sub}</div>
+      <div className="flex flex-col gap-1 text-xs">
+        {linhas.map(([r, v], i) => (
+          <div key={i} className="flex justify-between gap-2">
+            <span style={{ color: C.sub }}>{r}</span>
+            <span className="tabular-nums font-medium" style={{ color: C.text }}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 rounded p-2 text-xs" style={{ background: C.greenSoft, color: C.green }}>
+        Economia de juros: <b>R$ {brl(economia)}</b>
+      </div>
+      {modo && (
+        <button onClick={() => aplicar(modo)} disabled={!!aplicando}
+          className="mt-3 w-full py-2 rounded-lg text-sm font-semibold"
+          style={{ background: destaque ? C.accent : C.panel2, color: destaque ? "#fff" : C.navy, opacity: aplicando ? 0.6 : 1 }}>
+          {aplicando === modo ? "Aplicando…" : "Escolher esta"}
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <Modal titulo={`Pagamento extra · ${contrato.nome}`} onClose={onClose} largura={820}>
+      <div className="text-xs mb-3 p-2 rounded" style={{ background: C.blueSoft, color: C.text }}>
+        Informe quanto você vai pagar além da parcela. O sistema calcula o saldo devedor de hoje e mostra os dois caminhos:
+        manter a parcela e <b>encurtar o prazo</b>, ou manter o prazo e <b>reduzir a parcela</b>.
+      </div>
+
+      <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+        <Campo rotulo="Valor do pagamento (R$)" valor={valor} onChange={setValor} tipo="tel" />
+        <Campo rotulo="Data do pagamento" valor={data} onChange={setData} tipo="date" />
+        <button onClick={simular} disabled={calculando || !valor}
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ border: `1px solid ${C.accent}`, color: C.accent, opacity: calculando || !valor ? 0.5 : 1 }}>
+          {calculando ? <Loader2 size={15} className="animate-spin" /> : <Banknote size={15} />} Calcular
+        </button>
+      </div>
+
+      {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+
+      {sim && sim.tipo === "PARCELADO" && (
+        <>
+          <div className="mt-4 text-xs" style={{ color: C.sub }}>
+            Saldo devedor hoje (valor presente das {sim.atual.parcelasRestantes} parcelas que faltam, a {brl(sim.taxaMensal)}% a.m.):
+            <b style={{ color: C.text }}> R$ {brl(sim.saldo)}</b> · continuando como está você pagaria <b style={{ color: C.text }}>R$ {brl(sim.atual.total)}</b>.
+          </div>
+          <div className="grid gap-3 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+            <Opcao destaque modo="PRAZO" titulo="Abater o prazo"
+              sub="mantém a parcela e antecipa o fim do contrato"
+              linhas={[["Parcela", `R$ ${brl(sim.prazo.parcela)} (igual)`],
+                       ["Parcelas restantes", `${sim.prazo.parcelasRestantes} (−${sim.prazo.mesesAMenos})`],
+                       ["Última parcela", dBR(sim.prazo.pagarAte)],
+                       ["Total até quitar", `R$ ${brl(sim.prazo.total)}`]]}
+              economia={sim.prazo.economia} />
+            <Opcao modo="PARCELA" titulo="Reduzir a parcela"
+              sub="mantém o prazo e alivia o mês"
+              linhas={[["Parcela", `R$ ${brl(sim.parcelaMenor.parcela)} (−R$ ${brl(sim.parcelaMenor.reducao)})`],
+                       ["Parcelas restantes", `${sim.parcelaMenor.parcelasRestantes} (igual)`],
+                       ["Última parcela", dBR(sim.parcelaMenor.pagarAte)],
+                       ["Total até quitar", `R$ ${brl(sim.parcelaMenor.total)}`]]}
+              economia={sim.parcelaMenor.economia} />
+          </div>
+        </>
+      )}
+
+      {sim && sim.tipo === "MUTUO" && (
+        <div className="mt-4">
+          <div className="text-xs mb-2" style={{ color: C.sub }}>{sim.nota}</div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+            <Opcao titulo="Como está hoje" sub={`${inteiro(sim.diasRestantes)} dias até o vencimento`}
+              linhas={[["Capital", `R$ ${brl(sim.antes.capital)}`], ["Juros por mês", `R$ ${brl(sim.antes.jurosMes)}`],
+                       ["A pagar no vencimento", `R$ ${brl(sim.antes.totalNoVencimento)}`]]}
+              economia={0} />
+            <Opcao destaque modo="MUTUO" titulo="Depois do pagamento" sub="o capital é abatido e os juros caem"
+              linhas={[["Capital", `R$ ${brl(sim.depois.capital)}`], ["Juros por mês", `R$ ${brl(sim.depois.jurosMes)}`],
+                       ["A pagar no vencimento", `R$ ${brl(sim.depois.totalNoVencimento)}`]]}
+              economia={sim.economia} />
+          </div>
+        </div>
+      )}
+
+      {sim && sim.tipo === "QUITA" && (
+        <div className="mt-4 rounded-xl p-4" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+          <div className="font-semibold" style={{ color: C.green }}>Esse valor quita o contrato</div>
+          <div className="text-xs mt-1" style={{ color: C.text }}>{sim.nota} Economia de juros: <b>R$ {brl(sim.economia)}</b>.</div>
+          <button onClick={() => aplicar("QUITA")} disabled={!!aplicando}
+            className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.green, color: "#fff", opacity: aplicando ? 0.6 : 1 }}>
+            {aplicando ? "Aplicando…" : "Marcar como quitado"}
+          </button>
+        </div>
+      )}
+
+      <div className="flex justify-end mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Fechar</button>
       </div>
     </Modal>
   );
