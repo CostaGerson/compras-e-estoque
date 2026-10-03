@@ -816,6 +816,8 @@ model FinTitulo {
   rateio           Json      // [{ contaId, pct }]
   observacao       String?
   forma            String    @default("MANUAL") // MANUAL | NF_XML | EXCEL | RECORRENCIA
+  formaPagamento   String?   // PIX | BOLETO | DEBITO_AUTOMATICO | TED | CARTAO | DINHEIRO | CHEQUE
+  lancamentoId     Int?      // lançamento do extrato que deu baixa nesta conta
   chaveImport      String?   @unique            // evita importar a mesma NF/parcela duas vezes
   arquivoXml       String?
   recorrenciaId    Int?
@@ -844,6 +846,7 @@ model FinRecorrencia {
   valor         Decimal  @db.Decimal(14, 2)
   diaVencimento Int
   diaUtil       Boolean  @default(false) // true: vence no N-ésimo dia útil do mês (N = diaVencimento)
+  formaPagamento String? // PIX | BOLETO | DEBITO_AUTOMATICO | TED | CARTAO | DINHEIRO | CHEQUE
   rateio        Json
   inicio        String   // AAAA-MM
   fim           String?  // AAAA-MM (vazio = sem fim)

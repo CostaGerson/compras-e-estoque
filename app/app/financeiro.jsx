@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
-import ContasPagarReceber from "./contas";
+import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -596,6 +596,8 @@ function SeletorMes({ comp, setComp }) {
 function Importacao({ user, comp, setComp }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
+  const [baixas, setBaixas] = useState(null);     // nº de baixas sugeridas pelo extrato do mês
+  const [verBaixas, setVerBaixas] = useState(false);
   const [pedirSenha, setPedirSenha] = useState(null); // { tipo, file, b64, errada }
 
   const carregar = async () => {
@@ -607,7 +609,15 @@ function Importacao({ user, comp, setComp }) {
       setDados(d);
     } catch { setErro("Falha de conexão."); }
   };
-  useEffect(() => { setDados(null); carregar(); }, [comp]);
+  const procurarBaixas = async () => {
+    try {
+      const r = await fetch(`/api/fin/baixas?u=${user.id}&competencia=${comp}`);
+      const j = await r.json();
+      setBaixas(r.ok ? (j.sugestoes || []).length : null);
+    } catch { setBaixas(null); }
+  };
+  useEffect(() => { setDados(null); setBaixas(null); setVerBaixas(false); carregar(); }, [comp]);
+  useEffect(() => { if (dados) procurarBaixas(); }, [dados]);
 
   const cards = useMemo(() => {
     if (!dados) return [];
@@ -775,6 +785,18 @@ function Importacao({ user, comp, setComp }) {
 
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!dados && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+
+      {!!baixas && (
+        <button onClick={() => setVerBaixas(true)} className="w-full flex items-center gap-2 px-4 py-3 mb-5 rounded-xl text-sm text-left"
+          style={{ background: C.greenSoft, border: `1px solid ${C.green}55`, color: C.text }}>
+          <Link2 size={18} style={{ color: C.green }} />
+          <span className="flex-1">
+            <b>{baixas} pagamento(s) do extrato</b> batem com contas previstas deste mês. Confira um a um e autorize a baixa.
+          </span>
+          <span className="font-semibold" style={{ color: C.green }}>Conferir →</span>
+        </button>
+      )}
+      {verBaixas && <BaixasModal user={user} competencia={comp} onClose={() => { setVerBaixas(false); procurarBaixas(); }} />}
 
       {bancos.map((g) => (
         <div key={g.banco} className="mb-7">

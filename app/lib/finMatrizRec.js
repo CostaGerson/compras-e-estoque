@@ -70,7 +70,7 @@ export function propostasDaMatriz(dados) {
   for (const p of calc.pessoas) {
     const c = p.c;
     const conta = CONTA_DEPTO[p.depto] || "2128200";
-    const adiant = p.adiantamento ? c.liquido * 0.2 : 0;
+    const adiant = p.adiantamento ? c.liquido * 0.4 : 0;
     if (adiant) quemAdi.push(p.nome || p.cargo);
     soma(adi, conta, adiant);
     soma(sal, conta, c.liquido + c.G + c.ass + c.saldoLivre - adiant);
@@ -85,7 +85,7 @@ export function propostasDaMatriz(dados) {
     obs: `Líquidos de ${calc.pessoas.length} pessoa(s) (inclui pró-labore e bolsa) menos os adiantamentos` });
   add({ chave: "MATRIZ|pessoal|ADIANTAMENTO", grupo: "Pessoal", titulo: "ADIANTAMENTO SALARIAL", parceiro: "FOLHA DE PAGAMENTO", valor: tot(adi), dia: 20,
     rateio: tot(adi) ? rateioDe(adi) : [{ codigo: "2128200", pct: 100 }],
-    obs: quemAdi.length ? `20% do líquido: ${quemAdi.join(", ")}` : "Ninguém marcado com adiantamento na matriz" });
+    obs: quemAdi.length ? `40% do líquido: ${quemAdi.join(", ")}` : "Ninguém marcado com adiantamento na matriz" });
   if (tot(inss)) add({ chave: "MATRIZ|pessoal|INSS", grupo: "Pessoal", titulo: "INSS (GPS) — PATRONAL + FUNCIONÁRIOS", parceiro: "RECEITA FEDERAL", valor: tot(inss), dia: 20, rateio: rateioDe(inss) });
   if (tot(fgts)) add({ chave: "MATRIZ|pessoal|FGTS", grupo: "Pessoal", titulo: "FGTS", parceiro: "CAIXA ECONÔMICA FEDERAL", valor: tot(fgts), dia: 20, rateio: rateioDe(fgts) });
   if (tot(vt)) add({ chave: "MATRIZ|pessoal|VT", grupo: "Pessoal", titulo: "VALE-TRANSPORTE", valor: tot(vt), dia: 1, rateio: rateioDe(vt) });

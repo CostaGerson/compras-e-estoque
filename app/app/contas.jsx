@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
+  Link2,
 } from "lucide-react";
 
 const C = {
@@ -198,7 +199,7 @@ export default function ContasPagarReceber({ user }) {
     <div>
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp]].map(([k, t, I]) => (
+        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["RECORRENTES", "Recorrentes", Repeat]].map(([k, t, I]) => (
           <button key={k} onClick={() => setTipo(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
             style={{ color: tipo === k ? C.accent : C.sub, borderBottom: tipo === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <I size={15} /> {t}
@@ -206,6 +207,8 @@ export default function ContasPagarReceber({ user }) {
         ))}
       </div>
 
+      {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
+      {tipo !== "RECORRENTES" && <>
       {/* NFs lançadas pelo Compras */}
       {P && d && d.nfsPendentes > 0 && (
         <button onClick={() => setModal({ t: "nfs" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left" style={{ background: C.blueSoft, border: `1px solid ${C.blue}55`, color: C.text }}>
@@ -221,6 +224,16 @@ export default function ContasPagarReceber({ user }) {
           <CalendarClock size={18} style={{ color: C.yellow }} />
           <span className="flex-1"><b>{d.criticas.length} conta(s) recorrente(s)</b> com o valor do mês para conferir. Altere se mudou ou confirme se continua igual.</span>
           <span className="font-semibold" style={{ color: C.yellow }}>Conferir →</span>
+        </button>
+      )}
+
+      {/* baixas sugeridas pelo extrato */}
+      {d && (
+        <button onClick={() => setModal({ t: "baixas" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
+          style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>
+          <Link2 size={18} style={{ color: C.accent }} />
+          <span className="flex-1">Conferir <b>baixas pelo extrato</b> — o sistema procura no extrato deste mês os pagamentos que batem com as contas previstas.</span>
+          <span className="font-semibold" style={{ color: C.accent }}>Procurar →</span>
         </button>
       )}
 
@@ -276,12 +289,15 @@ export default function ContasPagarReceber({ user }) {
         </>
       )}
 
+      </>}
+
       {modal?.t === "titulo" && <TituloModal user={user} tipo={tipo} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
+      {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
     </div>
   );
 }
@@ -356,7 +372,7 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
 function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const P = tipo === "PAGAR";
   const novo = !item;
-  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", recorrente: false, fim: "" });
+  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", recorrente: false, fim: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -388,7 +404,13 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         <Campo t="Nº do documento" dica="NF, boleto, parcela"><input value={f.numeroDoc || ""} onChange={(e) => s("numeroDoc", e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo>
         <div className="flex items-end pb-1.5"><Chave on={!!f.previsao} set={(v) => s("previsao", v)} t="Previsão (valor estimado)" cor={C.roxo} /></div>
         <div className="col-span-2"><Campo t="Rateio" dica="conta-caixa onde a conta entra na DRE"><Rateio contas={d?.contas || []} valor={f.valor} value={f.rateio} onChange={(v) => s("rateio", v)} /></Campo></div>
-        <div className="col-span-2"><Campo t="Observação"><input value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
+        <div className="col-span-2"><Campo t="Forma de pagamento" dica="ajuda a casar com o extrato">
+          <select value={f.formaPagamento || ""} onChange={(e) => s("formaPagamento", e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
+            <option value="">—</option>
+            {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Campo>
+        <Campo t="Observação"><input value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
       </div>
       {novo ? (
         <div className="mt-4 p-3 rounded-lg" style={{ background: f.recorrente ? C.roxoSoft : C.panel2 }}>
@@ -777,3 +799,320 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
     </Modal>
   );
 }
+
+/* ============================================================
+   ABA RECORRENTES — edição e crítica contra a Matriz de custos
+   ============================================================ */
+const FORMAS_PGTO = { PIX: "PIX", BOLETO: "Boleto", DEBITO_AUTOMATICO: "Débito automático", TED: "TED/DOC", CARTAO: "Cartão", DINHEIRO: "Dinheiro", CHEQUE: "Cheque" };
+
+function Recorrentes({ user, contasPorId }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState(null);
+  const [editar, setEditar] = useState(null);
+  const [soDivergentes, setSoDivergentes] = useState(false);
+  const [busca, setBusca] = useState("");
+
+  const carregar = () => api(`/api/fin/recorrentes?u=${user.id}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+  useEffect(() => { carregar(); }, []);
+
+  const resolver = async (r, acao) => {
+    const txt = acao === "usarMatriz"
+      ? `Trazer o valor da Matriz (${moeda(r.valorMatriz)}) para a conta "${r.titulo}"?`
+      : `Levar ${moeda(r.valor)} da conta "${r.titulo}" para a Matriz de custos?`;
+    if (!confirm(txt)) return;
+    try {
+      const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, id: r.id, acao });
+      setD(j);
+      setAviso({ tipo: "ok", texto: acao === "usarMatriz"
+        ? `"${r.titulo}" passou a valer ${moeda(r.valorMatriz)}${j.titulos ? ` · ${j.titulos} previsão(ões) deste mês em diante atualizadas` : ""}.`
+        : `Matriz atualizada: ${j.matriz?.item} de ${moeda(j.matriz?.antes)} para ${moeda(j.matriz?.depois)}.` });
+    } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
+  };
+
+  if (erro) return <div className="p-3 rounded" style={{ background: C.redSoft, color: C.red }}>{erro}</div>;
+  if (!d) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  const divergentes = d.recorrencias.filter((r) => r.divergente);
+  const n = busca.trim().toUpperCase();
+  const lista = d.recorrencias.filter((r) => (!soDivergentes || r.divergente) &&
+    (!n || [r.titulo, r.parceiro, r.observacao].some((x) => String(x || "").toUpperCase().includes(n))));
+  const totalMes = d.recorrencias.filter((r) => r.ativo && r.tipo === "PAGAR").reduce((s, r) => s + r.valor, 0);
+
+  return (
+    <div>
+      {aviso && (
+        <div className="p-3 rounded mb-3 flex items-start gap-2 text-sm"
+          style={{ background: aviso.tipo === "ok" ? C.greenSoft : C.redSoft, color: aviso.tipo === "ok" ? C.green : C.red }}>
+          <div className="flex-1">{aviso.texto}</div>
+          <button onClick={() => setAviso(null)}><X size={14} /></button>
+        </div>
+      )}
+
+      {divergentes.length > 0 && (
+        <div className="px-4 py-3 mb-4 rounded-xl text-sm" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}55`, color: C.text }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={18} style={{ color: C.yellow }} />
+            <span className="flex-1"><b>{divergentes.length} conta(s) recorrente(s) em desacordo com a Matriz de custos.</b> Em cada uma você escolhe qual valor vale.</span>
+            <button onClick={() => setSoDivergentes((x) => !x)} className="font-semibold" style={{ color: C.yellow }}>
+              {soDivergentes ? "ver todas" : "ver só essas →"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex items-center gap-1 rounded-lg px-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <Search size={14} style={{ color: C.sub }} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta ou fornecedor"
+            className="px-1 py-1.5 text-sm" style={{ background: "transparent", color: C.text, width: 230, outline: "none" }} />
+        </div>
+        <div className="text-xs" style={{ color: C.sub }}>
+          {lista.length} de {d.recorrencias.length} · <b style={{ color: C.text }}>{moeda(totalMes)}</b>/mês em contas a pagar ativas
+        </div>
+      </div>
+
+      <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 980 }}>
+          <thead><tr style={{ background: C.panel2, color: C.sub }}>
+            <th className="px-2 py-2 text-left font-semibold">Conta</th>
+            <th className="px-2 py-2 text-left font-semibold">Fornecedor</th>
+            <th className="px-2 py-2 text-right font-semibold">Valor</th>
+            <th className="px-2 py-2 text-left font-semibold">Vence</th>
+            <th className="px-2 py-2 text-left font-semibold">Pagamento</th>
+            <th className="px-2 py-2 text-left font-semibold">Origem</th>
+            <th className="px-2 py-2 text-left font-semibold">Matriz</th>
+            <th className="px-2 py-2"></th>
+          </tr></thead>
+          <tbody>
+            {lista.map((r) => (
+              <tr key={r.id} style={{ borderTop: `1px solid ${C.line}`, opacity: r.ativo ? 1 : 0.5 }}>
+                <td className="px-2 py-1.5">
+                  <button onClick={() => setEditar(r)} className="text-left hover:underline font-semibold" style={{ color: C.text }}>{r.titulo}</button>
+                  {!r.ativo && <span className="ml-1 px-1.5 rounded text-[10px] font-semibold" style={{ background: C.panel2, color: C.sub }}>INATIVA</span>}
+                  {r.observacao && <div className="text-[11px]" style={{ color: C.sub }}>{r.observacao}</div>}
+                </td>
+                <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.parceiro}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: r.divergente ? C.yellow : C.text }}>{moeda(r.valor)}</td>
+                <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}</td>
+                <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>
+                <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.daMatriz ? "Matriz de custos" : "Manual"}</td>
+                <td className="px-2 py-1.5">
+                  {!r.daMatriz ? <span style={{ color: C.sub }}>—</span>
+                    : r.divergente ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span style={{ color: C.yellow }}>{moeda(r.valorMatriz)}</span>
+                        <button onClick={() => resolver(r, "usarMatriz")} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>
+                          usar a Matriz
+                        </button>
+                        {r.podeAtualizarMatriz && (
+                          <button onClick={() => resolver(r, "levarParaMatriz")} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>
+                            atualizar a Matriz
+                          </button>
+                        )}
+                      </div>
+                    ) : <span className="flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={12} /> de acordo</span>}
+                </td>
+                <td className="px-2"><button onClick={() => setEditar(r)} title="Editar" style={{ color: C.sub }}><Pencil size={13} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {!lista.length && <div className="text-sm text-center py-8" style={{ color: C.sub }}>Nenhuma conta recorrente com esse filtro.</div>}
+
+      {editar && <RecorrenteModal user={user} r={editar} onClose={() => setEditar(null)}
+        onSalvo={(j, txt) => { setEditar(null); setD(j); setAviso({ tipo: "ok", texto: txt }); }} />}
+    </div>
+  );
+}
+
+function RecorrenteModal({ user, r, onClose, onSalvo }) {
+  const [f, setF] = useState({
+    titulo: r.titulo, parceiro: r.parceiro, valor: String(r.valor).replace(".", ","),
+    diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, formaPagamento: r.formaPagamento || "",
+    observacao: r.observacao || "", ativo: r.ativo, fim: r.fim || "",
+  });
+  const [atualizarMatriz, setAtualizarMatriz] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  const novoValor = Number(String(f.valor).replace(/\./g, "").replace(",", ".")) || 0;
+  const vaiDivergir = r.valorMatriz != null && Math.abs(novoValor - r.valorMatriz) > 0.009;
+
+  const salvar = async () => {
+    setSalvando(true); setErro("");
+    try {
+      const j = await api("/api/fin/recorrentes", "PUT", { usuarioId: user.id, id: r.id, campos: f, atualizarMatriz });
+      const extras = [];
+      if (j.titulos) extras.push(`${j.titulos} previsão(ões) atualizadas`);
+      if (j.matriz?.ok) extras.push(`Matriz: ${j.matriz.item} para ${moeda(j.matriz.depois)}`);
+      if (j.matriz && !j.matriz.ok) extras.push(`a Matriz não foi alterada — ${j.matriz.erro}`);
+      onSalvo(j, `"${f.titulo}" salva${extras.length ? ` · ${extras.join(" · ")}` : ""}.`);
+    } catch (e) { setErro(e.message); setSalvando(false); }
+  };
+
+  return (
+    <Modal titulo={`Conta recorrente · ${r.titulo}`} icone={Repeat} onClose={onClose} largura={640}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+        <Campo t="Conta"><input value={f.titulo} onChange={(e) => set("titulo")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Fornecedor"><input value={f.parceiro} onChange={(e) => set("parceiro")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Valor"><Valor value={f.valor} onChange={set("valor")} width="100%" /></Campo>
+        <Campo t="Dia do vencimento"><input value={f.diaVencimento} onChange={(e) => set("diaVencimento")(e.target.value)} inputMode="numeric" className="w-full rounded-lg px-2 py-1.5 text-sm text-right" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Forma de pagamento" dica="ajuda a casar com o extrato">
+          <select value={f.formaPagamento} onChange={(e) => set("formaPagamento")(e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
+            <option value="">—</option>
+            {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Campo>
+        <Campo t="Encerrar em (AAAA-MM)"><input value={f.fim} onChange={(e) => set("fim")(e.target.value)} placeholder="sem fim" className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+      </div>
+      <div className="flex flex-wrap gap-4 mt-3">
+        <Chave on={f.diaUtil} set={set("diaUtil")} t={`vence no ${f.diaVencimento}º dia útil`} />
+        <Chave on={f.ativo} set={set("ativo")} t="conta ativa" cor={C.green} />
+      </div>
+      <Campo t="Observação"><input value={f.observacao} onChange={(e) => set("observacao")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+
+      {r.daMatriz && (
+        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: vaiDivergir ? C.yellowSoft : C.panel2, color: C.text }}>
+          <div className="font-semibold mb-1" style={{ color: vaiDivergir ? C.yellow : C.sub }}>
+            Esta conta vem da Matriz de custos {r.valorMatriz != null ? `(hoje a Matriz diz ${moeda(r.valorMatriz)})` : ""}
+          </div>
+          {vaiDivergir ? (
+            r.podeAtualizarMatriz || origemSimples(r.chaveOrigem) ? (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={atualizarMatriz} onChange={(e) => setAtualizarMatriz(e.target.checked)} />
+                Atualizar também a Matriz de custos com {moeda(novoValor)}
+              </label>
+            ) : (
+              <div style={{ color: C.sub }}>
+                Este valor é calculado pela Matriz (folha, provisão ou cartão), então não dá para escrever de volta —
+                ajuste na própria Matriz de custos para os dois ficarem iguais.
+              </div>
+            )
+          ) : <div style={{ color: C.sub }}>Valor de acordo com a Matriz.</div>}
+        </div>
+      )}
+
+      {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      <div className="flex justify-end gap-2 mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+          {salvando ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+const origemSimples = (chave) => {
+  const p = String(chave || "").split("|");
+  return p[0] === "MATRIZ" && ["vidaVegetativa", "logistica", "administracao", "sistemas", "dividas"].includes(p[1]) && !!p[2];
+};
+
+/* ============================================================
+   BAIXAS PELO EXTRATO — uma sugestão por vez, você autoriza
+   ============================================================ */
+function BaixasModal({ user, competencia, arquivoId, onClose }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [i, setI] = useState(0);
+  const [feitos, setFeitos] = useState([]);
+  const [pulados, setPulados] = useState([]);
+  const [ocupado, setOcupado] = useState(false);
+
+  const url = arquivoId ? `/api/fin/baixas?u=${user.id}&arquivoId=${arquivoId}` : `/api/fin/baixas?u=${user.id}&competencia=${competencia}`;
+  useEffect(() => { api(url).then(setD).catch((e) => setErro(e.message)); }, []);
+
+  const atual = d?.sugestoes?.[i];
+  const autorizar = async () => {
+    setOcupado(true);
+    try {
+      await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: atual.titulo.id, lancamentoId: atual.lancamento.id });
+      setFeitos((f) => [...f, atual]);
+      setI((x) => x + 1);
+    } catch (e) { setErro(e.message); }
+    setOcupado(false);
+  };
+  const pular = () => { setPulados((p) => [...p, atual]); setI((x) => x + 1); };
+
+  const CONF = { ALTA: [C.green, C.greenSoft], MEDIA: [C.yellow, C.yellowSoft], BAIXA: [C.red, C.redSoft] };
+
+  return (
+    <Modal titulo="Baixas pelo extrato" icone={Link2} onClose={onClose} largura={720}>
+      {erro && <div className="mb-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div style={{ color: C.sub }}>Procurando no extrato…</div>}
+
+      {d && !d.sugestoes.length && (
+        <div className="text-sm text-center py-8" style={{ color: C.sub }}>
+          Nenhum lançamento do extrato bateu com as contas previstas.<br />
+          <span className="text-xs">Foram comparados {d.lancamentos} lançamento(s) com {d.titulos} conta(s) em aberto, aceitando até 12 dias de diferença na data.</span>
+        </div>
+      )}
+
+      {d && d.sugestoes.length > 0 && (
+        <>
+          <div className="flex items-center justify-between text-xs mb-3" style={{ color: C.sub }}>
+            <span>{Math.min(i + 1, d.sugestoes.length)} de {d.sugestoes.length} sugestões</span>
+            <span>{feitos.length} baixada(s) · {pulados.length} pulada(s)</span>
+          </div>
+          <div className="h-1.5 rounded-full mb-4 overflow-hidden" style={{ background: C.panel2 }}>
+            <div style={{ width: `${(i / d.sugestoes.length) * 100}%`, height: "100%", background: C.accent }} />
+          </div>
+
+          {atual ? (
+            <>
+              <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div className="rounded-xl p-3" style={{ background: C.panel2 }}>
+                  <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>NO EXTRATO · {atual.lancamento.banco}</div>
+                  <div className="font-semibold" style={{ color: C.text }}>{moeda(Math.abs(atual.lancamento.valor))}</div>
+                  <div className="text-xs mt-1" style={{ color: C.text }}>{atual.lancamento.historico}</div>
+                  {atual.lancamento.identificacao && <div className="text-[11px]" style={{ color: C.sub }}>{atual.lancamento.identificacao}</div>}
+                  <div className="text-[11px] mt-1" style={{ color: C.sub }}>{dBR(String(atual.lancamento.data).slice(0, 10))}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: C.accentSoft }}>
+                  <div className="text-[11px] font-semibold mb-1" style={{ color: C.accent }}>CONTA PREVISTA</div>
+                  <div className="font-semibold" style={{ color: C.text }}>{moeda(atual.titulo.valor)}</div>
+                  <div className="text-xs mt-1" style={{ color: C.text }}>{atual.titulo.titulo}</div>
+                  <div className="text-[11px]" style={{ color: C.sub }}>{atual.titulo.parceiro}</div>
+                  <div className="text-[11px] mt-1" style={{ color: C.sub }}>
+                    vence {dBR(String(atual.titulo.vencimento).slice(0, 10))}
+                    {atual.titulo.formaPagamento ? ` · ${FORMAS_PGTO[atual.titulo.formaPagamento]}` : ""}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                <span className="px-2 py-0.5 rounded font-bold" style={{ background: CONF[atual.confianca][1], color: CONF[atual.confianca][0] }}>{atual.confianca}</span>
+                <span style={{ color: C.sub }}>
+                  {atual.diferenca === 0 ? "valor idêntico" : `${atual.diferenca > 0 ? "pagou" : "pagou"} ${moeda(Math.abs(atual.diferenca))} ${atual.diferenca > 0 ? "a mais" : "a menos"}`}
+                  {" · "}
+                  {atual.dias === 0 ? "no dia do vencimento" : `${Math.abs(atual.dias)} dia(s) ${atual.dias > 0 ? "depois" : "antes"} do vencimento`}
+                  {atual.alternativas > 0 ? ` · ${atual.alternativas} outra(s) conta(s) também batem` : ""}
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-2 mt-5">
+                <button onClick={pular} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Pular</button>
+                <button onClick={autorizar} disabled={ocupado} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+                  style={{ background: C.green, color: "#fff", opacity: ocupado ? 0.6 : 1 }}>
+                  <CheckCircle2 size={15} /> Autorizar a baixa
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-6">
+              <CheckCircle2 size={36} style={{ color: C.green }} className="mx-auto" />
+              <div className="font-semibold mt-2" style={{ color: C.text }}>Fim das sugestões</div>
+              <div className="text-sm mt-1" style={{ color: C.sub }}>
+                {feitos.length} conta(s) baixada(s){pulados.length ? ` · ${pulados.length} pulada(s), continuam em aberto` : ""}.
+              </div>
+              <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Fechar</button>
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
+export { BaixasModal };

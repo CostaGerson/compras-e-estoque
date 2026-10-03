@@ -59,7 +59,7 @@ export async function gerarRecorrencias(tipo) {
       if (tem.has(`${r.id}|${c}`)) continue;
       data.push({
         tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento, r.diaUtil),
-        competencia: c, previsao: true, rateio: r.rateio, observacao: r.observacao, forma: "RECORRENCIA", recorrenciaId: r.id, criadoPorNome: r.criadoPorNome,
+        competencia: c, previsao: true, rateio: r.rateio, observacao: r.observacao, forma: "RECORRENCIA", formaPagamento: r.formaPagamento || null, recorrenciaId: r.id, criadoPorNome: r.criadoPorNome,
       });
     }
   }

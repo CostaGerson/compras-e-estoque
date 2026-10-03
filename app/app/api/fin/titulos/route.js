@@ -48,7 +48,7 @@ export async function POST(req) {
   if (!b.vencimento) return Response.json({ error: "Informe o vencimento." }, { status: 400 });
   const rt = validarRateio(b.rateio);
   if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 });
-  const base = { tipo, titulo, parceiro, documento: so(b.documento) || null, rateio: rt.rateio, observacao: b.observacao || null };
+  const base = { tipo, titulo, parceiro, documento: so(b.documento) || null, rateio: rt.rateio, observacao: b.observacao || null, formaPagamento: b.formaPagamento ? String(b.formaPagamento).toUpperCase() : null };
 
   if (b.recorrente) {
     const inicio = mesDe(b.vencimento);
