@@ -19,11 +19,17 @@ export async function GET(req) {
     }),
     prisma.finJustificativa.findMany({ where: { competencia } }),
   ]);
+  // OFX já enviado para a contabilidade (slot ao lado do PDF nos cards de extrato)
+  const ofx = await prisma.finContabDoc.findMany({
+    where: { competencia, categoria: "EXTRATO", formato: "OFX" },
+    select: { id: true, tipoId: true, nome: true, tamanho: true, createdAt: true },
+  }).catch(() => []);
   // arquivos lidos antes da prova real existir: confere agora (uma vez só)
   for (const a of arquivos) if (a.prova == null) a.prova = await provarArquivo(a.id);
   return Response.json({
     tipos,
     arquivos: arquivos.map(({ senhaPdf, ...a }) => ({ ...a, protegido: !!senhaPdf })),
     justificativas,
+    ofx,
   });
 }

@@ -5,6 +5,7 @@ import {
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
   LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
+  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
@@ -403,12 +404,13 @@ function ImportarHistorico({ user, fechar }) {
   );
 }
 
-/* ---------------- MÊS: DRE · IMPORTAÇÃO · IDENTIFICAÇÃO ---------------- */
+/* ---------------- MÊS: DRE · IMPORTAÇÃO · IDENTIFICAÇÃO · CONTABILIDADE · RECEBIMENTOS ---------------- */
 function MesFinanceiro({ user, tela, setTela }) {
   const comp = tela.comp;
   const setComp = (c) => setTela((t) => ({ ...t, comp: c }));
   const setAba = (aba, extra = {}) => setTela((t) => ({ ...t, aba, ...extra }));
-  const abas = [["dre", "DRE do mês", PieIco], ["importacao", "Importação", FileStack], ["identificacao", "Identificação", Tag]];
+  const abas = [["dre", "DRE do mês", PieIco], ["importacao", "Importação", FileStack], ["identificacao", "Identificação", Tag],
+    ["contabilidade", "Contabilidade", Building2], ["recebimentos", "Recebimentos", Table2]];
   return (
     <div>
       <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -422,6 +424,8 @@ function MesFinanceiro({ user, tela, setTela }) {
       {tela.aba === "dre" && <DreMes user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
       {tela.aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
       {tela.aba === "identificacao" && <Identificacao key={`${comp}-${tela.contaFiltro || ""}`} user={user} comp={comp} setComp={setComp} contaInicial={tela.contaFiltro} />}
+      {tela.aba === "contabilidade" && <Contabilidade user={user} comp={comp} setComp={setComp} irRecebimentos={() => setAba("recebimentos")} />}
+      {tela.aba === "recebimentos" && <Recebimentos user={user} comp={comp} setComp={setComp} />}
     </div>
   );
 }
@@ -603,7 +607,8 @@ function Importacao({ user, comp, setComp }) {
     return dados.tipos.map((t) => {
       const arqs = dados.arquivos.filter((a) => a.tipoId === t.id);
       const just = dados.justificativas.find((j) => j.tipoId === t.id) || null;
-      return { tipo: t, arqs, just, st: statusCard(arqs.length, t.qtdEsperada, just, arqs) };
+      const ofx = (dados.ofx || []).find((o) => o.tipoId === t.id) || null;
+      return { tipo: t, arqs, just, ofx, ehExtrato: /_EXTRATO$/.test(t.codigo || ""), st: statusCard(arqs.length, t.qtdEsperada, just, arqs) };
     });
   }, [dados]);
 
@@ -710,6 +715,27 @@ function Importacao({ user, comp, setComp }) {
     carregar();
   };
 
+  // OFX do extrato: não gera lançamento, vai direto para o pacote da contabilidade
+  const enviarOfx = async (tipo, files) => {
+    for (const f of Array.from(files || [])) {
+      if (!/\.ofx$/i.test(f.name)) { alert(`${f.name}: envie um arquivo .OFX.`); continue; }
+      const b64 = await readB64(f);
+      const r = await fetch("/api/fin/contab", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, categoria: "EXTRATO", tipoId: tipo.id, nome: f.name, conteudo: b64 }),
+      });
+      const d = await r.json().catch(() => ({}));
+      const e = d.resultados?.find((x) => !x.ok);
+      if (!r.ok || e) alert(`${f.name}: ${e?.erro || d.error || "erro ao enviar"}`);
+    }
+    carregar();
+  };
+  const excluirOfx = async (o) => {
+    if (!confirm(`Excluir ${o.nome} do pacote da contabilidade?`)) return;
+    await fetch(`/api/fin/contab/${o.id}?u=${user.id}`, { method: "DELETE" });
+    carregar();
+  };
+
   return (
     <div>
       {/* topo: competência + resumo */}
@@ -752,7 +778,8 @@ function Importacao({ user, comp, setComp }) {
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
             {g.cards.map((c) => (
               <CardDoc key={c.tipo.id} c={c} user={user} comp={comp}
-                onArquivos={(fs) => onArquivos(c.tipo, fs)} onExcluir={excluir} onMudou={carregar} />
+                onArquivos={(fs) => onArquivos(c.tipo, fs)} onExcluir={excluir} onMudou={carregar}
+                onOfx={(fs) => enviarOfx(c.tipo, fs)} onExcluirOfx={excluirOfx} />
             ))}
           </div>
         </div>
@@ -789,9 +816,10 @@ function Pilula({ cor, bg, txt, onClick }) {
   return <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ color: cor, background: bg }}>{txt}</span>;
 }
 
-function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou }) {
-  const { tipo, arqs, just, st } = c;
+function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExcluirOfx }) {
+  const { tipo, arqs, just, st, ofx, ehExtrato } = c;
   const inp = useRef(null);
+  const inpOfx = useRef(null);
   const [drag, setDrag] = useState(false);
   const [texto, setTexto] = useState(just?.texto || "");
   const [salvando, setSalvando] = useState(false);
@@ -865,6 +893,29 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou }) {
               <Upload size={15} /> {arqs.length ? "Enviar mais" : "Enviar PDF"}
             </button>
           </>
+        )}
+
+        {/* extrato: slot do OFX (vai direto para o pacote da contabilidade) */}
+        {ehExtrato && (
+          <div className="mt-2 rounded-lg px-2 py-1.5 flex items-center gap-2" style={{ background: ofx ? C.panel2 : "transparent", border: ofx ? "none" : `1px dashed ${C.line}` }}>
+            <FileCode2 size={15} className="shrink-0" style={{ color: ofx ? C.blue : C.sub }} />
+            {ofx ? (
+              <>
+                <a href={`/api/fin/contab/${ofx.id}?u=${user.id}`} className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate" style={{ color: C.text }} title={ofx.nome}>{ofx.nome}</div>
+                  <div className="text-[11px]" style={{ color: C.sub }}>OFX · {kb(ofx.tamanho)} · na contabilidade</div>
+                </a>
+                <button onClick={() => onExcluirOfx(ofx)} title="Excluir OFX" style={{ color: C.sub }}><Trash2 size={14} /></button>
+              </>
+            ) : (
+              <>
+                <input ref={inpOfx} type="file" accept=".ofx" className="hidden" onChange={(e) => { onOfx(e.target.files); e.target.value = ""; }} />
+                <button onClick={() => inpOfx.current?.click()} className="flex-1 text-left text-xs font-medium" style={{ color: C.sub }}>
+                  Enviar o <b>OFX</b> deste extrato (a contabilidade pede)
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         {falta && (
@@ -2302,6 +2353,636 @@ function RegraModal({ user, comp, regra, contas, onClose, onSalvo }) {
       <div className="flex justify-end gap-2 mt-5">
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel2 }}>Cancelar</button>
         <button onClick={salvar} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   CONTABILIDADE — pacote mensal de documentos
+   ============================================================ */
+const MESES_AB = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+const mesAnoCurto = (c) => { const [a, m] = String(c || "").split("-"); return `${MESES_AB[Number(m) - 1] || "?"} ${String(a).slice(2)}`; };
+
+function Contabilidade({ user, comp, setComp, irRecebimentos }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [email, setEmail] = useState("");
+  const [msg, setMsg] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState(null);
+
+  const carregar = async () => {
+    setErro("");
+    try {
+      const r = await fetch(`/api/fin/contab?u=${user.id}&competencia=${comp}`);
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Erro ao carregar."); setD(null); return; }
+      setD(j); setEmail(j.email || "");
+    } catch { setErro("Falha de conexão."); }
+  };
+  useEffect(() => { setD(null); setAviso(null); carregar(); }, [comp]);
+
+  const subir = async (categoria, tipoId, files) => {
+    const itens = Array.from(files || []);
+    if (!itens.length) return;
+    let ok = 0; const problemas = [];
+    for (const f of itens) {
+      const b64 = await readB64(f);
+      const r = await fetch("/api/fin/contab", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, categoria, tipoId, nome: f.name, conteudo: b64 }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok && j.error) { problemas.push(`${f.name}: ${j.error}`); continue; }
+      (j.resultados || []).forEach((x) => { if (x.ok) ok++; else problemas.push(`${x.nome}: ${x.erro}`); });
+    }
+    setAviso({ tipo: problemas.length ? "erro" : "ok", texto: `${ok} arquivo(s) guardado(s).${problemas.length ? " Problemas: " + problemas.join(" · ") : ""}` });
+    carregar();
+  };
+
+  const excluir = async (doc) => {
+    if (!confirm(`Excluir ${doc.nome} do pacote da contabilidade?`)) return;
+    await fetch(`/api/fin/contab/${doc.id}?u=${user.id}`, { method: "DELETE" });
+    carregar();
+  };
+
+  const gerarRecebimentos = async () => {
+    const r = await fetch(`/api/fin/recebimentos/xlsx?u=${user.id}&competencia=${comp}&salvar=1`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setAviso({ tipo: "erro", texto: j.error || "Gere a planilha na guia Recebimentos primeiro." }); return; }
+    setAviso({ tipo: "ok", texto: `Planilha de recebimentos guardada (${j.linhas} linha(s)).` });
+    carregar();
+  };
+
+  const salvarEmail = async () => {
+    await fetch("/api/fin/contab", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, email }) });
+    carregar();
+  };
+
+  const enviar = async () => {
+    if (!email) { setAviso({ tipo: "erro", texto: "Preencha o e-mail da contabilidade." }); return; }
+    if (!confirm(`Enviar ${docs.length} arquivo(s) de ${nomeComp(comp)} para ${email}?`)) return;
+    setEnviando(true);
+    const r = await fetch("/api/fin/contab/enviar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuarioId: user.id, competencia: comp, email, mensagem: msg }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setEnviando(false);
+    setAviso(r.ok ? { tipo: "ok", texto: `Enviado para ${email}: ${j.arquivos} arquivo(s), ${kb(j.tamanho)}.` } : { tipo: "erro", texto: j.error || "Erro no envio." });
+    carregar();
+  };
+
+  const docs = d?.docs || [];
+  const doExtrato = (tipoId, formato) => docs.find((x) => x.categoria === "EXTRATO" && x.tipoId === tipoId && x.formato === formato) || null;
+  const daCategoria = (k) => docs.filter((x) => x.categoria === k);
+
+  const faltaExtrato = (d?.bancos || []).filter((b) => !doExtrato(b.id, "PDF") || !doExtrato(b.id, "OFX")).length;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-4 mb-5">
+        <SeletorMes comp={comp} setComp={setComp} />
+        {d && (
+          <div className="flex flex-wrap gap-2">
+            <Pilula cor={C.green} bg={C.greenSoft} txt={`${docs.length} arquivo(s) no pacote`} />
+            {faltaExtrato > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${faltaExtrato} banco(s) sem PDF ou OFX`} />}
+            {d.notasSaida > 0 && <Pilula cor={C.blue} bg={C.blueSoft} txt={`${d.notasSaida} nota(s) de saída lida(s)`} />}
+          </div>
+        )}
+      </div>
+
+      {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {aviso && (
+        <div className="p-3 rounded mb-4 flex items-start gap-2 text-sm"
+          style={{ background: aviso.tipo === "ok" ? C.greenSoft : C.redSoft, color: aviso.tipo === "ok" ? C.green : C.red }}>
+          <div className="flex-1">{aviso.texto}</div>
+          <button onClick={() => setAviso(null)}><X size={14} /></button>
+        </div>
+      )}
+      {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+
+      {d && (
+        <>
+          <div className="rounded-xl p-3 mb-6 text-xs flex items-start gap-2" style={{ background: C.blueSoft, color: C.text }}>
+            <HelpCircle size={15} className="shrink-0 mt-0.5" style={{ color: C.blue }} />
+            <div>
+              O <b>PDF do extrato</b> chega sozinho quando você envia na guia <b>Importação</b> — aqui ele aparece já renomeado no padrão
+              (<b>EXTRATO BRADESCO {mesAnoCurto(comp)} PDF</b>). O <b>OFX</b> pode ser enviado aqui ou lá no mesmo card.
+              Os <b>XMLs das notas de saída</b> alimentam o cruzamento da guia Recebimentos.
+            </div>
+          </div>
+
+          {/* ---- extratos ---- */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-xs font-bold tracking-wider" style={{ color: C.navy }}>EXTRATOS · PDF + OFX POR BANCO</div>
+            <div className="flex-1 h-px" style={{ background: C.line }} />
+          </div>
+          <div className="grid gap-4 mb-8" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+            {d.bancos.map((b) => (
+              <CardContabExtrato key={b.id} banco={b} user={user} comp={comp}
+                pdf={doExtrato(b.id, "PDF")} ofx={doExtrato(b.id, "OFX")}
+                onSubir={(fs) => subir("EXTRATO", b.id, fs)} onExcluir={excluir} />
+            ))}
+          </div>
+
+          {/* ---- outros documentos ---- */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-xs font-bold tracking-wider" style={{ color: C.navy }}>DEMAIS DOCUMENTOS DO MÊS</div>
+            <div className="flex-1 h-px" style={{ background: C.line }} />
+          </div>
+          <div className="grid gap-4 mb-8" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+            {d.categorias.map((cat) => (
+              <CardContabCategoria key={cat.k} cat={cat} user={user} docs={daCategoria(cat.k)}
+                onSubir={(fs) => subir(cat.k, null, fs)} onExcluir={excluir}
+                acao={cat.k === "RECEBIMENTOS" ? { txt: "Gerar da guia Recebimentos", fn: gerarRecebimentos, ver: irRecebimentos } : null} />
+            ))}
+          </div>
+
+          {/* ---- envio ---- */}
+          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${C.accent}` }}>
+            <div className="font-semibold flex items-center gap-2 mb-1" style={{ color: C.text }}>
+              <Send size={16} style={{ color: C.accent }} /> Enviar o pacote para a contabilidade
+            </div>
+            <div className="text-xs mb-3" style={{ color: C.sub }}>
+              Um ZIP com tudo deste mês, organizado em pastas: <b>CONTABILIDADE MERIDIAN {mesAnoCurto(comp)}.zip</b>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end">
+              <div style={{ minWidth: 280 }}>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>E-mail da contabilidade</div>
+                <div className="flex gap-2">
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} onBlur={salvarEmail}
+                    placeholder="contabilidade@escritorio.com.br" type="email"
+                    className="flex-1 rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} />
+                </div>
+              </div>
+              <div className="flex-1" style={{ minWidth: 260 }}>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Recado no e-mail (opcional)</div>
+                <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="EX.: FALTOU O EXTRATO DO INTER, CONTA SEM MOVIMENTO"
+                  className="w-full rounded-lg px-3 py-2 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} />
+              </div>
+              <a href={`/api/fin/contab/zip?u=${user.id}&competencia=${comp}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ border: `1px solid ${C.accent}`, color: C.accent, opacity: docs.length ? 1 : 0.4, pointerEvents: docs.length ? "auto" : "none" }}>
+                <Download size={15} /> Baixar ZIP
+              </a>
+              <button onClick={enviar} disabled={enviando || !docs.length || !d.emailPronto}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: C.accent, color: "#fff", opacity: enviando || !docs.length || !d.emailPronto ? 0.5 : 1 }}>
+                {enviando ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />} {enviando ? "Enviando…" : "Enviar por e-mail"}
+              </button>
+            </div>
+
+            {!d.emailPronto && (
+              <div className="mt-3 p-2 rounded text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>
+                O envio por e-mail ainda não está ligado na VPS. Acrescente no <b>/opt/compras-e-estoque/.env</b>:
+                <span className="font-mono"> RESEND_API_KEY=re_… </span> e
+                <span className="font-mono"> RESEND_FROM=Meridian &lt;financeiro@seu-dominio.com.br&gt; </span>
+                e suba os containers de novo. Enquanto isso, use <b>Baixar ZIP</b>.
+              </div>
+            )}
+
+            {d.envios.length > 0 && (
+              <div className="mt-4">
+                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Envios deste mês</div>
+                <div className="flex flex-col gap-1">
+                  {d.envios.map((e) => (
+                    <div key={e.id} className="text-[11px] flex flex-wrap items-center gap-2 rounded px-2 py-1" style={{ background: C.panel2 }}>
+                      <span className="px-1.5 rounded font-semibold" style={{ background: e.status === "ENVIADO" ? C.greenSoft : C.redSoft, color: e.status === "ENVIADO" ? C.green : C.red }}>{e.status}</span>
+                      <span style={{ color: C.text }}>{e.email}</span>
+                      <span style={{ color: C.sub }}>{e.arquivos} arq · {kb(e.tamanho)} · {dataHora(e.createdAt)}{e.enviadoPorNome ? ` · ${e.enviadoPorNome}` : ""}</span>
+                      {e.erro && <span style={{ color: C.red }}>{e.erro}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SlotArquivo({ doc, formato, user, onExcluir, onPedir, dica }) {
+  const inp = useRef(null);
+  return (
+    <div className="rounded-lg px-2 py-1.5 flex items-center gap-2"
+      style={{ background: doc ? C.panel2 : "transparent", border: doc ? "none" : `1px dashed ${C.line}` }}>
+      {formato === "PDF" ? <FileText size={15} className="shrink-0" style={{ color: doc ? C.accent : C.sub }} />
+        : <FileCode2 size={15} className="shrink-0" style={{ color: doc ? C.blue : C.sub }} />}
+      {doc ? (
+        <>
+          <a href={`/api/fin/contab/${doc.id}?u=${user.id}`} target="_blank" rel="noopener" className="flex-1 min-w-0">
+            <div className="text-xs font-medium truncate" style={{ color: C.text }} title={doc.nome}>{doc.nome}</div>
+            <div className="text-[11px]" style={{ color: C.sub }}>
+              {kb(doc.tamanho)} · {doc.arquivoId ? "cópia da Importação" : dataHora(doc.createdAt)}
+            </div>
+          </a>
+          <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
+            title={doc.arquivoId ? "Este PDF vem da guia Importação — se excluir aqui, ele volta quando a guia recarregar. Para tirar de vez, exclua na Importação." : "Excluir"}>
+            <Trash2 size={14} />
+          </button>
+        </>
+      ) : (
+        <>
+          <input ref={inp} type="file" accept={formato === "PDF" ? ".pdf" : ".ofx"} className="hidden"
+            onChange={(e) => { onPedir(e.target.files); e.target.value = ""; }} />
+          <button onClick={() => inp.current?.click()} className="flex-1 text-left text-xs" style={{ color: C.sub }}>
+            Enviar <b>{formato}</b>{dica ? ` · ${dica}` : ""}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CardContabExtrato({ banco, user, comp, pdf, ofx, onSubir, onExcluir }) {
+  const n = (pdf ? 1 : 0) + (ofx ? 1 : 0);
+  const st = n === 2 ? ["Completo", C.green, C.greenSoft, CheckCircle2] : n === 1 ? ["Falta 1", C.yellow, C.yellowSoft, AlertTriangle] : ["Pendente", C.red, C.redSoft, Clock];
+  const Ico = st[3];
+  return (
+    <div className="rounded-xl flex flex-col" style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${st[1]}` }}>
+      <div className="p-4 pb-2 flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold" style={{ color: C.text }}>{banco.banco}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.sub }}>Extrato de conta corrente</div>
+        </div>
+        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0" style={{ color: st[1], background: st[2] }}>
+          <Ico size={12} /> {st[0]}
+        </span>
+      </div>
+      <div className="px-4 pb-4 flex flex-col gap-1.5">
+        <SlotArquivo doc={pdf} formato="PDF" user={user} onExcluir={onExcluir} onPedir={onSubir} dica="ou envie na Importação" />
+        <SlotArquivo doc={ofx} formato="OFX" user={user} onExcluir={onExcluir} onPedir={onSubir} />
+      </div>
+    </div>
+  );
+}
+
+function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
+  const inp = useRef(null);
+  const [drag, setDrag] = useState(false);
+  const ok = docs.length > 0;
+  const aceita = cat.formatos.map((f) => "." + f.toLowerCase()).join(",");
+  return (
+    <div className="rounded-xl flex flex-col"
+      style={{ background: C.panel, border: `1px solid ${drag ? C.accent : C.line}`, borderTop: `3px solid ${ok ? C.green : C.red}` }}
+      onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); onSubir(e.dataTransfer.files); }}>
+      <div className="p-4 pb-2 flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold" style={{ color: C.text }}>{cat.label}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.sub }}>{cat.descricao}</div>
+        </div>
+        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0"
+          style={{ color: ok ? C.green : C.red, background: ok ? C.greenSoft : C.redSoft }}>
+          {ok ? <><CheckCircle2 size={12} /> {docs.length}</> : <><Clock size={12} /> Pendente</>}
+        </span>
+      </div>
+
+      {docs.length > 0 && (
+        <div className="px-4 pb-2 flex flex-col gap-1" style={{ maxHeight: 220, overflowY: "auto" }}>
+          {docs.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: C.panel2 }}>
+              <Paperclip size={14} className="shrink-0" style={{ color: C.accent }} />
+              <a href={`/api/fin/contab/${doc.id}?u=${user.id}`} target="_blank" rel="noopener" className="flex-1 min-w-0">
+                <div className="text-xs font-medium truncate" style={{ color: C.text }} title={doc.nomeOriginal || doc.nome}>{doc.nome}</div>
+                <div className="text-[11px]" style={{ color: C.sub }}>{kb(doc.tamanho)} · {dataHora(doc.createdAt)}</div>
+              </a>
+              <button onClick={() => onExcluir(doc)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="px-4 pb-4 mt-auto flex flex-col gap-2">
+        <input ref={inp} type="file" accept={aceita} multiple={cat.multiplo} className="hidden"
+          onChange={(e) => { onSubir(e.target.files); e.target.value = ""; }} />
+        <button onClick={() => inp.current?.click()}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium"
+          style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: drag ? C.accentSoft : "transparent" }}>
+          <Upload size={15} /> {docs.length ? "Enviar mais" : `Enviar ${cat.formatos.join(" / ")}`}
+        </button>
+        {cat.multiplo && <div className="text-[11px] text-center" style={{ color: C.sub }}>aceita vários arquivos ou um ZIP</div>}
+        {acao && (
+          <div className="flex gap-2">
+            <button onClick={acao.fn} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold"
+              style={{ background: C.panel2, color: C.navy }}>
+              <FileSpreadsheet size={13} /> {acao.txt}
+            </button>
+            <button onClick={acao.ver} className="px-3 rounded-lg text-xs font-semibold" style={{ background: C.panel2, color: C.sub }} title="Abrir a guia Recebimentos">
+              <ChevR size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   RECEBIMENTOS — planilha editável (base dos impostos)
+   ============================================================ */
+const BLOCO_COR = { CREDITO: [C.blue, C.blueSoft], BOLETO: [C.green, C.greenSoft], CONFIRMAR: [C.yellow, C.yellowSoft] };
+
+function Cel({ valor, tipo = "texto", largura, onSalvar, placeholder }) {
+  const [v, setV] = useState(valor ?? "");
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => { setV(valor ?? ""); }, [valor]);
+  const mudou = String(v ?? "") !== String(valor ?? "");
+  const gravar = async () => {
+    if (!mudou) return;
+    setSalvando(true);
+    await onSalvar(v);
+    setSalvando(false);
+  };
+  return (
+    <input
+      value={v} onChange={(e) => setV(e.target.value)} onBlur={gravar}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setV(valor ?? ""); }}
+      type={tipo === "data" ? "date" : "text"} placeholder={placeholder}
+      className={`rounded px-1.5 py-1 text-xs w-full ${tipo === "valor" ? "text-right" : ""} ${tipo === "texto" ? "uppercase" : ""}`}
+      style={{ width: largura, border: `1px solid ${mudou ? C.accent : "transparent"}`, background: salvando ? C.accentSoft : "transparent", color: C.text }} />
+  );
+}
+
+function Recebimentos({ user, comp, setComp }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState(null);
+  const [ocupado, setOcupado] = useState("");
+  const [ia, setIa] = useState(null);
+
+  const carregar = async () => {
+    setErro("");
+    try {
+      const r = await fetch(`/api/fin/recebimentos?u=${user.id}&competencia=${comp}`);
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Erro ao carregar."); setD(null); return; }
+      setD(j);
+    } catch { setErro("Falha de conexão."); }
+  };
+  useEffect(() => { setD(null); setAviso(null); carregar(); }, [comp]);
+
+  const gerar = async () => {
+    setOcupado("gerar");
+    const r = await fetch("/api/fin/recebimentos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, competencia: comp }) });
+    const j = await r.json().catch(() => ({}));
+    setOcupado("");
+    if (!r.ok) { setAviso({ tipo: "erro", texto: j.error || "Erro ao gerar." }); return; }
+    setD(j);
+    setAviso({ tipo: "ok", texto: `${j.criadas} linha(s) geradas do extrato e das cobranças${j.preservadas ? ` · ${j.preservadas} linha(s) suas preservadas` : ""}.` });
+  };
+
+  const novaLinha = async (bloco) => {
+    const r = await fetch("/api/fin/recebimentos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, competencia: comp, bloco }) });
+    if (r.ok) carregar();
+  };
+
+  const editar = async (id, campo, valor) => {
+    const r = await fetch(`/api/fin/recebimentos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, campo, valor }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setAviso({ tipo: "erro", texto: j.error || "Erro ao salvar." }); return; }
+    setD((x) => x && { ...x, linhas: x.linhas.map((l) => (l.id === id ? { ...l, ...j.linha } : l)) });
+  };
+
+  const excluir = async (l) => {
+    if (!confirm(`Excluir a linha de ${brl(l.valor)}?`)) return;
+    await fetch(`/api/fin/recebimentos/${l.id}?u=${user.id}`, { method: "DELETE" });
+    carregar();
+  };
+
+  const cruzar = async () => {
+    setOcupado("ia");
+    const r = await fetch("/api/fin/recebimentos/ia", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, competencia: comp }) });
+    const j = await r.json().catch(() => ({}));
+    setOcupado("");
+    if (!r.ok) { setAviso({ tipo: "erro", texto: j.error || "Erro na análise." }); return; }
+    if (!j.sugestoes?.length) { setAviso({ tipo: "ok", texto: j.msg || "A IA não encontrou nada novo para cruzar." }); return; }
+    setIa(j);
+  };
+
+  const guardar = async () => {
+    setOcupado("guardar");
+    const r = await fetch(`/api/fin/recebimentos/xlsx?u=${user.id}&competencia=${comp}&salvar=1`);
+    const j = await r.json().catch(() => ({}));
+    setOcupado("");
+    setAviso(r.ok ? { tipo: "ok", texto: `Planilha guardada no pacote da contabilidade: ${j.doc?.nome || ""}` } : { tipo: "erro", texto: j.error || "Erro ao guardar." });
+  };
+
+  const porBloco = useMemo(() => {
+    const m = {};
+    (d?.linhas || []).forEach((l) => { (m[l.bloco] = m[l.bloco] || []).push(l); });
+    return m;
+  }, [d]);
+
+  const semNf = (d?.linhas || []).filter((l) => l.bloco !== "CONFIRMAR" && !l.nf).length;
+  const semCnpj = (d?.linhas || []).filter((l) => l.bloco !== "CONFIRMAR" && !l.cnpj).length;
+  const totalConc = (d?.linhas || []).filter((l) => l.bloco !== "CONFIRMAR").reduce((s, l) => s + Number(l.valor), 0);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SeletorMes comp={comp} setComp={setComp} />
+        <button onClick={gerar} disabled={!d || !!ocupado}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.accent, color: "#fff", opacity: !d || ocupado ? 0.5 : 1 }}>
+          {ocupado === "gerar" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Gerar do extrato e cobranças
+        </button>
+        <button onClick={cruzar} disabled={!d || !!ocupado || !d?.iaPronta || !d?.notasSaida}
+          title={!d?.notasSaida ? "Envie os XMLs das notas de saída na guia Contabilidade" : !d?.iaPronta ? "Sem ANTHROPIC_API_KEY na VPS" : "Cruza valor recebido x NF x nome x CNPJ"}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ border: `1px solid ${C.accent}`, color: C.accent, opacity: !d || ocupado || !d?.iaPronta || !d?.notasSaida ? 0.4 : 1 }}>
+          {ocupado === "ia" ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Cruzar com a IA
+        </button>
+        <a href={`/api/fin/recebimentos/xlsx?u=${user.id}&competencia=${comp}`}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.panel2, color: C.navy, opacity: d?.linhas?.length ? 1 : 0.4, pointerEvents: d?.linhas?.length ? "auto" : "none" }}>
+          <Download size={15} /> Baixar XLSX
+        </a>
+        <button onClick={guardar} disabled={!d?.linhas?.length || !!ocupado}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.panel2, color: C.navy, opacity: !d?.linhas?.length || ocupado ? 0.4 : 1 }}>
+          {ocupado === "guardar" ? <Loader2 size={15} className="animate-spin" /> : <Building2 size={15} />} Guardar na contabilidade
+        </button>
+      </div>
+
+      {d && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Pilula cor={C.navy} bg={C.panel2} txt={`${(d.linhas || []).length} linha(s) · R$ ${brl(totalConc)}`} />
+          {d.notasSaida > 0
+            ? <Pilula cor={C.blue} bg={C.blueSoft} txt={`${d.notasSaida} nota(s) de saída lida(s)`} />
+            : <Pilula cor={C.yellow} bg={C.yellowSoft} txt="Nenhum XML de saída enviado" />}
+          {semNf > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${semNf} sem NF`} />}
+          {semCnpj > 0 && <Pilula cor={C.yellow} bg={C.yellowSoft} txt={`${semCnpj} sem CNPJ`} />}
+        </div>
+      )}
+
+      {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {aviso && (
+        <div className="p-3 rounded mb-4 flex items-start gap-2 text-sm"
+          style={{ background: aviso.tipo === "ok" ? C.greenSoft : C.redSoft, color: aviso.tipo === "ok" ? C.green : C.red }}>
+          <div className="flex-1">{aviso.texto}</div>
+          <button onClick={() => setAviso(null)}><X size={14} /></button>
+        </div>
+      )}
+      {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+
+      {d && !d.linhas.length && (
+        <div className="rounded-xl p-6 text-center text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+          Nenhuma linha em {nomeComp(comp)}. Clique em <b>Gerar do extrato e cobranças</b> — o sistema monta a planilha com os créditos de
+          terceiros e os boletos recebidos. Depois envie os XMLs das saídas na guia <b>Contabilidade</b> e use <b>Cruzar com a IA</b>.
+        </div>
+      )}
+
+      {d && (d.blocos || []).map((b) => {
+        const ls = porBloco[b.k] || [];
+        if (!ls.length && b.k === "CONFIRMAR") return null;
+        const [cor, bg] = BLOCO_COR[b.k] || [C.sub, C.panel2];
+        const soma = ls.reduce((s, l) => s + Number(l.valor), 0);
+        return (
+          <div key={b.k} className="mb-7">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: cor, background: bg }}>{b.label}</span>
+              <span className="text-xs" style={{ color: C.sub }}>{ls.length} linha(s) · R$ {brl(soma)}</span>
+              <div className="flex-1 h-px" style={{ background: C.line }} />
+              <button onClick={() => novaLinha(b.k)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+                <Plus size={13} /> Nova linha
+              </button>
+            </div>
+            <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1020 }}>
+                <thead>
+                  <tr style={{ background: C.panel2, color: C.sub }}>
+                    {["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "OBS", ""].map((h, i) => (
+                      <th key={i} className={`px-2 py-2 text-left font-semibold ${h === "VALOR (R$)" ? "text-right" : ""}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ls.map((l) => (
+                    <tr key={l.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                      <td className="px-1 py-0.5" style={{ width: 120 }}>
+                        <Cel valor={l.data ? String(l.data).slice(0, 10) : ""} tipo="data" onSalvar={(v) => editar(l.id, "data", v)} />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 190 }}>
+                        <Cel valor={l.titulo} onSalvar={(v) => editar(l.id, "titulo", v)} placeholder="PIX" />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 110 }}>
+                        <Cel valor={brl(l.valor)} tipo="valor" onSalvar={(v) => editar(l.id, "valor", v)} />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 110 }}>
+                        <Cel valor={l.nf} onSalvar={(v) => editar(l.id, "nf", v)} placeholder="—" />
+                      </td>
+                      <td className="px-1 py-0.5">
+                        <Cel valor={l.nomePagador} onSalvar={(v) => editar(l.id, "nomePagador", v)} placeholder="—" />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 150 }}>
+                        <Cel valor={l.cnpj} onSalvar={(v) => editar(l.id, "cnpj", v)} placeholder="—" />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 200 }}>
+                        <Cel valor={l.obs} onSalvar={(v) => editar(l.id, "obs", v)} placeholder="—" />
+                      </td>
+                      <td className="px-2 py-0.5 whitespace-nowrap" style={{ width: 70 }}>
+                        {l.origem === "IA" && <Sparkles size={11} className="inline mr-1" style={{ color: ROXO }} title="Preenchido pela IA" />}
+                        {l.origem === "MANUAL" && <Pencil size={11} className="inline mr-1" style={{ color: C.sub }} title="Linha manual" />}
+                        {l.editado && l.origem === "AUTO" && <Pencil size={11} className="inline mr-1" style={{ color: C.accent }} title="Editado à mão — o gerar não sobrescreve" />}
+                        <button onClick={() => excluir(l)} title="Excluir linha" style={{ color: C.sub }}><Trash2 size={13} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: `2px solid ${C.line}`, background: C.panel2 }}>
+                    <td className="px-2 py-2 font-bold" style={{ color: C.navy }} colSpan={2}>TOTAL</td>
+                    <td className="px-2 py-2 text-right font-bold" style={{ color: C.navy }}>R$ {brl(soma)}</td>
+                    <td colSpan={5} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      {ia && <CruzarIAModal user={user} dados={ia} onClose={() => setIa(null)} onAplicado={(n) => { setIa(null); setAviso({ tipo: "ok", texto: `${n} linha(s) preenchida(s) pela IA.` }); carregar(); }} />}
+    </div>
+  );
+}
+
+function CruzarIAModal({ user, dados, onClose, onAplicado }) {
+  const [marcados, setMarcados] = useState(() => new Set(dados.sugestoes.filter((s) => s.confianca === "ALTA").map((s) => s.id)));
+  const [salvando, setSalvando] = useState(false);
+  const alternar = (id) => setMarcados((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const aplicar = async () => {
+    const lista = dados.sugestoes.filter((s) => marcados.has(s.id));
+    if (!lista.length) return;
+    setSalvando(true);
+    const r = await fetch("/api/fin/recebimentos/ia", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuarioId: user.id, aplicar: lista.map((s) => ({ id: s.id, nf: s.nf, nome: s.nome, cnpj: s.cnpj, obs: s.obs })) }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setSalvando(false);
+    if (r.ok) onAplicado(j.aplicadas || lista.length);
+  };
+
+  return (
+    <Modal titulo="Cruzamento com a IA · valor recebido x nota fiscal" icone={Sparkles} onClose={onClose} largura={1000}>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>
+        {dados.analisadas} linha(s) analisada(s) · {dados.sugestoes.length} sugestão(ões). As de confiança <b>ALTA</b> já vêm marcadas. Confira antes de aplicar.
+      </div>
+      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+        <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: C.panel2, color: C.sub }}>
+              <th className="px-2 py-2 w-8"></th>
+              <th className="px-2 py-2 text-left font-semibold">Recebimento</th>
+              <th className="px-2 py-2 text-left font-semibold">NF</th>
+              <th className="px-2 py-2 text-left font-semibold">Pagador · CNPJ</th>
+              <th className="px-2 py-2 text-left font-semibold">Por quê</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dados.sugestoes.map((s) => {
+              const [cor, bg] = CONF[s.confianca] || [C.sub, C.panel2];
+              return (
+                <tr key={s.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-2 py-2 align-top">
+                    <input type="checkbox" checked={marcados.has(s.id)} onChange={() => alternar(s.id)} />
+                  </td>
+                  <td className="px-2 py-2 align-top" style={{ color: C.text }}>
+                    <div className="font-semibold">R$ {brl(s.atual.valor)}</div>
+                    <div style={{ color: C.sub }}>{dBR(String(s.atual.data || "").slice(0, 10))} · {s.atual.titulo || "—"}</div>
+                    <div style={{ color: C.sub }}>{s.atual.nome || "—"}</div>
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    <div className="font-semibold" style={{ color: C.navy }}>{s.nf || "—"}</div>
+                    <span className="px-1.5 rounded text-[10px] font-bold" style={{ color: cor, background: bg }}>{s.confianca}</span>
+                  </td>
+                  <td className="px-2 py-2 align-top" style={{ color: C.text }}>
+                    <div>{s.nome || "—"}</div>
+                    <div style={{ color: C.sub }}>{s.cnpj || "—"}</div>
+                    {s.obs && <div style={{ color: C.yellow }}>{s.obs}</div>}
+                  </td>
+                  <td className="px-2 py-2 align-top" style={{ color: C.sub, maxWidth: 260 }}>{s.motivo || "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <button onClick={aplicar} disabled={salvando || !marcados.size}
+          className="px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: C.accent, color: "#fff", opacity: salvando || !marcados.size ? 0.5 : 1 }}>
+          {salvando ? "Aplicando…" : `Aplicar ${marcados.size} linha(s)`}
+        </button>
       </div>
     </Modal>
   );

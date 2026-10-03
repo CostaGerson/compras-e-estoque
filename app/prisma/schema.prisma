@@ -855,3 +855,91 @@ model FinRecorrencia {
   updatedAt     DateTime @updatedAt
   titulos       FinTitulo[]
 }
+
+// ---------------- FINANCEIRO · CONTABILIDADE ----------------
+// Arquivos do pacote mensal da contabilidade (extratos PDF/OFX, SPED, saídas, NFs de serviço…).
+// Os extratos em PDF chegam por cópia automática da Importação mensal.
+model FinContabDoc {
+  id             Int      @id @default(autoincrement())
+  competencia    String   // AAAA-MM
+  categoria      String   // EXTRATO | RECEBIMENTOS | SPED | SAIDA_XML | SAIDA_PDF | NFS_TOMADA | OUTRO
+  tipoId         Int?     // FinDocTipo do extrato (define o banco)
+  banco          String?
+  formato        String   // PDF | OFX | XML | XLSX | TXT | ZIP
+  nome           String   // nome final no padrão (EXTRATO BRADESCO SET 26 PDF.pdf)
+  nomeOriginal   String?
+  tamanho        Int      @default(0)
+  hash           String
+  conteudo       String   // base64
+  arquivoId      Int?     // FinArquivo de origem (cópia automática da Importação)
+  enviadoPorId   Int?
+  enviadoPorNome String?
+  createdAt      DateTime @default(now())
+
+  @@index([competencia])
+  @@index([competencia, categoria])
+}
+
+// E-mail da contabilidade e outros ajustes simples (chave/valor).
+model FinConfig {
+  chave     String   @id
+  valor     String
+  updatedAt DateTime @updatedAt
+}
+
+// Histórico de envios do pacote por e-mail.
+model FinContabEnvio {
+  id             Int      @id @default(autoincrement())
+  competencia    String
+  email          String
+  assunto        String?
+  arquivos       Int      @default(0)
+  tamanho        Int      @default(0)
+  status         String   @default("ENVIADO") // ENVIADO | ERRO
+  erro           String?
+  enviadoPorNome String?
+  createdAt      DateTime @default(now())
+
+  @@index([competencia])
+}
+
+// Notas de saída lidas dos XMLs enviados na Contabilidade (base do cruzamento NF x recebimento).
+model FinNfSaida {
+  id          Int      @id @default(autoincrement())
+  competencia String
+  chave       String   @unique
+  numero      String
+  serie       String?
+  emissao     DateTime @db.Date
+  valor       Decimal  @db.Decimal(14, 2)
+  destNome    String
+  destCnpj    String?
+  natureza    String?
+  docId       Int?     // FinContabDoc do XML
+  createdAt   DateTime @default(now())
+
+  @@index([competencia])
+  @@index([numero])
+}
+
+// Planilha de recebimentos do mês (editável). Gerada do extrato + cobranças e cruzada com as NFs de saída.
+model FinRecebimento {
+  id           Int       @id @default(autoincrement())
+  competencia  String
+  bloco        String    @default("CREDITO") // CREDITO | BOLETO | CONFIRMAR
+  ordem        Int       @default(0)
+  data         DateTime? @db.Date
+  titulo       String?   // PIX | TRANSFERÊNCIA ELETRÔNICA | LIQ COBRANÇA
+  valor        Decimal   @db.Decimal(14, 2)
+  nf           String?
+  nomePagador  String?
+  cnpj         String?
+  obs          String?
+  origem       String    @default("AUTO")   // AUTO | MANUAL | IA
+  lancamentoId Int?
+  editado      Boolean   @default(false)    // mexido à mão: o gerar não sobrescreve
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([competencia])
+}
