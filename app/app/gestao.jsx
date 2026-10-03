@@ -33,6 +33,8 @@ const compacto = (v, unidade) => {
 };
 const valorCheio = (v, unidade) => (unidade === "R$" ? `R$ ${brl(v)}` : `${inteiro(v)} peças`);
 
+const mesesTxt = (n) => `${n} ${n === 1 ? "mês lançado" : "meses lançados"}`;
+
 const api = async (url, method, body) => {
   const r = await fetch(url, method ? { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
   const d = await r.json().catch(() => ({}));
@@ -130,10 +132,10 @@ function Painel({ user, master, money, abrirRelatorio }) {
           <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
             <Indicador rotulo="Ticket médio" valor={master ? `R$ ${brl(d.anuais.ticketMedio)}` : "•••••"}
               detalhe={`faturamento ÷ peças faturadas`} delta={d.anuais.vsAnterior?.ticketMedio} anoRef={anoAnterior} Ico={Receipt} />
-            <Indicador rotulo="Média mensal de peças faturadas" valor={inteiro(d.anuais.mediaPecasFaturadas)}
-              detalhe={`${d.anuais.base} ${d.anuais.base === 1 ? "mês" : "meses"} de base`} delta={d.anuais.vsAnterior?.mediaPecasFaturadas} anoRef={anoAnterior} Ico={Factory} />
-            <Indicador rotulo="Média mensal de faturamento" valor={master ? compacto(d.anuais.mediaFaturamento, "R$") : "•••••"}
-              detalhe={`${d.anuais.base} ${d.anuais.base === 1 ? "mês" : "meses"} de base`} delta={d.anuais.vsAnterior?.mediaFaturamento} anoRef={anoAnterior} Ico={Wallet} />
+            <Indicador rotulo="Média mensal de peças faturadas" valor={d.anuais.mediaPecasFaturadas == null ? "—" : inteiro(d.anuais.mediaPecasFaturadas)}
+              detalhe={mesesTxt(d.anuais.bases?.pecasFaturadas || 0)} delta={d.anuais.vsAnterior?.mediaPecasFaturadas} anoRef={anoAnterior} Ico={Factory} />
+            <Indicador rotulo="Média mensal de faturamento" valor={d.anuais.mediaFaturamento == null ? "—" : master ? compacto(d.anuais.mediaFaturamento, "R$") : "•••••"}
+              detalhe={mesesTxt(d.anuais.bases?.faturamento || 0)} delta={d.anuais.vsAnterior?.mediaFaturamento} anoRef={anoAnterior} Ico={Wallet} />
           </div>
 
           {/* ---- acesso aos relatórios ---- */}
@@ -436,7 +438,7 @@ function ResumoAno({ d, master }) {
         <div className="text-xs font-semibold" style={{ color: C.sub }}>Ticket médio do ano</div>
         <div className="mt-1 font-semibold" style={{ fontSize: 24, color: C.text }}>{master ? `R$ ${brl(d.ticketMedio)}` : "•••••"}</div>
         <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-          {inteiro(d.totais.pecasFaturadas)} peças faturadas · média de {inteiro(d.mediaMensal.pecasFaturadas)}/mês em {d.mediaMensal.base} {d.mediaMensal.base === 1 ? "mês" : "meses"}
+          {inteiro(d.totais.pecasFaturadas)} peças faturadas · média de {d.mediaMensal.pecasFaturadas == null ? "—" : inteiro(d.mediaMensal.pecasFaturadas)}/mês em {mesesTxt(d.mediaMensal.bases?.pecasFaturadas || 0)}
         </div>
       </div>
     </div>
@@ -507,7 +509,8 @@ function TabelaVendas({ d, master, onEditar }) {
             <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{mon(d.totais.vendas, master)}</Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
           <tr>
-            <Td cor={C.sub}>MÉDIA MENSAL</Td><Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.vendas, master)}</Td>
+            <Td cor={C.sub}>MÉDIA MENSAL<span style={{ fontWeight: 400 }}> · {mesesTxt(d.mediaMensal.bases?.vendas || 0)}</span></Td>
+            <Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.vendas, master)}</Td>
             <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
         </tbody>
@@ -561,9 +564,11 @@ function TabelaFaturamento({ d, master, onEditar }) {
             <Td dir forte>{inteiro(d.totais.pecasFaturadas)}</Td><Td dir forte>{inteiro(d.totais.pecasProduzidas)}</Td><td />
           </tr>
           <tr>
-            <Td cor={C.sub}>MÉDIA MENSAL</Td><Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.faturamento, master)}</Td>
+            <Td cor={C.sub}>MÉDIA MENSAL<span style={{ fontWeight: 400 }}> · {mesesTxt(d.mediaMensal.bases?.faturamento || 0)}</span></Td>
+            <Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.faturamento, master)}</Td>
             <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
-            <Td dir cor={C.sub}>{inteiro(d.mediaMensal.pecasFaturadas)}</Td><Td dir cor={C.sub}>{inteiro(d.mediaMensal.pecasProduzidas)}</Td><td />
+            <Td dir cor={C.sub}>{d.mediaMensal.pecasFaturadas == null ? "—" : inteiro(d.mediaMensal.pecasFaturadas)}</Td>
+            <Td dir cor={C.sub}>{d.mediaMensal.pecasProduzidas == null ? "—" : inteiro(d.mediaMensal.pecasProduzidas)}</Td><td />
           </tr>
           <tr>
             <Td cor={C.sub}>TICKET MÉDIO</Td><Td dir></Td><Td dir forte>{master ? `R$ ${brl(d.ticketMedio)}` : "•••••"}</Td>

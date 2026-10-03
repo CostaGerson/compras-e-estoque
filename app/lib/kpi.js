@@ -120,7 +120,16 @@ export async function relatorio(ano) {
   const totPecas = soma(linhas.map((l) => l.faturamento.pecas));
   const totProd = soma(linhas.map((l) => l.producao.pecas));
   const totReceita = soma(linhas.map((l) => l.receita.total));
-  const base = cal.fechado ? 12 : Math.max(1, cal.decorridos);
+  // médias dividem pelos MESES COM NÚMERO LANÇADO, não pelos meses do calendário
+  const baseDe = (f) => linhas.filter((l) => f(l) !== null && f(l) !== undefined).length;
+  const bases = {
+    vendas: baseDe((l) => l.vendas.atual),
+    faturamento: baseDe((l) => l.faturamento.atual),
+    pecasFaturadas: baseDe((l) => l.faturamento.pecas),
+    pecasProduzidas: baseDe((l) => l.producao.pecas),
+    receita: baseDe((l) => l.receita.total),
+  };
+  const media = (total, b) => (b ? total / b : null);
 
   const metas = {
     vendas: n(cur.metaAno?.metaVendas),
@@ -140,9 +149,13 @@ export async function relatorio(ano) {
     linhas, trimestres: T,
     totais: { vendas: totVendas, faturamento: totFat, pecasFaturadas: totPecas, pecasProduzidas: totProd, receita: totReceita },
     mediaMensal: {
-      vendas: totVendas / base, faturamento: totFat / base,
-      pecasFaturadas: totPecas / base, pecasProduzidas: totProd / base, receita: totReceita / base,
-      base,
+      vendas: media(totVendas, bases.vendas),
+      faturamento: media(totFat, bases.faturamento),
+      pecasFaturadas: media(totPecas, bases.pecasFaturadas),
+      pecasProduzidas: media(totProd, bases.pecasProduzidas),
+      receita: media(totReceita, bases.receita),
+      bases,
+      base: bases.faturamento,   // compatibilidade
     },
     ticketMedio: div(totFat, totPecas),
     metas,
@@ -210,7 +223,7 @@ export async function painel(ano, mes) {
       ticketMedio: r.ticketMedio,
       mediaPecasFaturadas: r.mediaMensal.pecasFaturadas,
       mediaFaturamento: r.mediaMensal.faturamento,
-      base: r.mediaMensal.base,
+      bases: r.mediaMensal.bases,
       vsAnterior: ant ? {
         ticketMedio: variacao(r.ticketMedio, ant.ticketMedio),
         mediaPecasFaturadas: variacao(r.mediaMensal.pecasFaturadas, ant.mediaMensal.pecasFaturadas),
