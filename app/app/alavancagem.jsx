@@ -39,6 +39,7 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState(null);
   const [novo, setNovo] = useState(false);
+  const [editar, setEditar] = useState(null);   // contrato aberto para edição
   const [novoLimite, setNovoLimite] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
 
@@ -83,10 +84,13 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
       {aba === "credito"
         ? <Credito user={user} master={master} d={d} onMudou={carregar} abrirNovo={() => setNovoLimite(true)} />
         : <Dividas user={user} master={master} d={d} fatias={fatias} onMudou={carregar}
-            abrirNovo={() => setNovo(true)} sincronizar={sincronizar} sincronizando={sincronizando} />}
+            abrirNovo={() => setNovo(true)} abrirEditar={setEditar}
+            sincronizar={sincronizar} sincronizando={sincronizando} />}
 
       {novo && <ContratoModal user={user} catalogos={d.catalogos} onClose={() => setNovo(false)}
         onSalvo={(r) => { setNovo(false); setAviso({ tipo: "ok", texto: `Contrato criado.${r.credito ? " O crédito do capital entrou em contas a receber." : ""} Clique em “Levar para a Matriz” para as parcelas chegarem ao contas a pagar.` }); carregar(); }} />}
+      {editar && <ContratoModal user={user} catalogos={d.catalogos} contrato={editar} onClose={() => setEditar(null)}
+        onSalvo={() => { setEditar(null); setAviso({ tipo: "ok", texto: "Contrato atualizado. Clique em “Levar para a Matriz” para o contas a pagar acompanhar." }); carregar(); }} />}
       {novoLimite && <LimiteModal user={user} onClose={() => setNovoLimite(false)}
         onSalvo={() => { setNovoLimite(false); carregar(); }} />}
     </div>
@@ -94,7 +98,7 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
 }
 
 /* ---------------- DÍVIDAS ---------------- */
-function Dividas({ user, master, d, fatias, onMudou, abrirNovo, sincronizar, sincronizando }) {
+function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, sincronizar, sincronizando }) {
   const t = d.totais;
   const val = (v) => (master ? compacto(v) : "•••••");
   const pendentes = (d.previaMatriz || []).filter((p) => p.estado !== "IGUAL").length;
@@ -189,7 +193,7 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, sincronizar, sin
                 <th className="px-2 py-2"></th>
               </tr></thead>
               <tbody>
-                {g.itens.map((c) => <LinhaContrato key={c.id} c={c} master={master} user={user} onMudou={onMudou} />)}
+                {g.itens.map((c) => <LinhaContrato key={c.id} c={c} master={master} user={user} onMudou={onMudou} onEditar={abrirEditar} />)}
               </tbody>
             </table>
           </div>
@@ -235,8 +239,13 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, sincronizar, sin
   );
 }
 
-function LinhaContrato({ c, master, user, onMudou }) {
+function LinhaContrato({ c, master, user, onMudou, onEditar }) {
   const [abrindo, setAbrindo] = useState(false);
+  const excluir = async () => {
+    if (!confirm(`Excluir o contrato ${c.nome}?\nEle também sai da aba Dívidas da Matriz na próxima sincronização.`)) return;
+    await fetch(`/api/fin/alavancagem?u=${user.id}&id=${c.id}`, { method: "DELETE" });
+    onMudou();
+  };
   const cor = c.vencido ? C.red : c.quitado ? C.sub : C.text;
   const prazo = c.tipo === "MUTUO"
     ? `${inteiro(c.prazoDias)} dias`
@@ -258,7 +267,13 @@ function LinhaContrato({ c, master, user, onMudou }) {
         <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: cor }}>{master ? brl(c.mensal) : "•••••"}</td>
         <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: cor }}>{master ? brl(c.compromisso) : "•••••"}</td>
         <td className="px-2 py-1.5" style={{ color: C.sub }}>{dBR(c.tipo === "MUTUO" ? c.vencimento : c.pagarAte)}</td>
-        <td className="px-2">
+        <td className="px-2 whitespace-nowrap">
+          {master && (
+            <>
+              <button onClick={() => onEditar(c)} title="Editar contrato" className="mr-1" style={{ color: C.sub }}><Pencil size={13} /></button>
+              <button onClick={excluir} title="Excluir contrato" className="mr-1" style={{ color: C.sub }}><Trash2 size={13} /></button>
+            </>
+          )}
           <button onClick={() => setAbrindo((x) => !x)} title="Detalhes" style={{ color: C.sub }}>
             <ChevronRight size={14} style={{ transform: abrindo ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
           </button>
@@ -463,11 +478,23 @@ const Campo = ({ rotulo, valor, onChange, tipo = "text", dica, children }) => (
   </label>
 );
 
-function ContratoModal({ user, catalogos, onClose, onSalvo }) {
-  const [f, setF] = useState({
+function ContratoModal({ user, catalogos, contrato, onClose, onSalvo }) {
+  const b = contrato?.bruto || null;
+  const edicao = !!b;
+  const dt = (v) => (v ? String(v).slice(0, 10) : "");
+  const nm = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
+  const [f, setF] = useState(() => b ? {
+    tipo: b.tipo, grupo: b.grupo, nome: b.nome || "", credor: b.credor || "",
+    capital: nm(b.capital), taxaMensal: nm(b.taxaMensal), dataContrato: dt(b.dataContrato),
+    prazoDias: b.prazoDias ?? "", vencimentoUnico: dt(b.vencimentoUnico),
+    prazoMeses: b.prazoMeses ?? "", inicioPagamento: dt(b.inicioPagamento),
+    parcela: nm(b.parcela), entrada: nm(b.entrada), observacao: b.observacao || "",
+    parcelasPagas: b.parcelasPagas ?? "", quitado: !!b.quitado,
+  } : {
     tipo: "MUTUO", grupo: "MUTUO_GIRO", nome: "", credor: "", capital: "", taxaMensal: "3",
     dataContrato: new Date().toISOString().slice(0, 10), prazoDias: "", vencimentoUnico: "",
     prazoMeses: "", inicioPagamento: "", parcela: "", entrada: "", observacao: "",
+    parcelasPagas: "", quitado: false,
   });
   const [lancarCredito, setLancarCredito] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -493,23 +520,49 @@ function ContratoModal({ user, catalogos, onClose, onSalvo }) {
     return { parcela, total: parcela * n0, juros: parcela * n0 - base, meses: n0 };
   }, [f]);
 
-  const salvar = async () => {
+  const salvar = async (extra = {}) => {
     setSalvando(true); setErro("");
-    try { onSalvo(await api("/api/fin/alavancagem", "POST", { usuarioId: user.id, contrato: f, lancarCredito })); }
-    catch (e) { setErro(e.message); setSalvando(false); }
+    try {
+      if (edicao) {
+        await api("/api/fin/alavancagem", "PUT", { usuarioId: user.id, id: b.id, campos: { ...f, ...extra } });
+        onSalvo({ editado: true });
+      } else {
+        onSalvo(await api("/api/fin/alavancagem", "POST", { usuarioId: user.id, contrato: f, lancarCredito }));
+      }
+    } catch (e) { setErro(e.message); setSalvando(false); }
   };
+
+  // apaga os números que vieram da planilha: o contrato passa a valer só pelo cálculo
+  const usarCalculo = () => {
+    if (!confirm("Descartar os números que vieram da planilha e deixar o contrato valer pelo cálculo do sistema?")) return;
+    salvar({ debitoTotalInformado: "", aVencerInformado: "", pagarAteInformado: "",
+             valorAPagarInformado: "", jurosTotaisInformado: "", jurosMesInformado: "", parcelasPagasInformadas: "" });
+  };
+
+  const temInformado = edicao && [b.debitoTotalInformado, b.aVencerInformado, b.pagarAteInformado,
+    b.valorAPagarInformado, b.jurosTotaisInformado, b.jurosMesInformado, b.parcelasPagasInformadas].some((x) => x !== null && x !== undefined);
 
   const ehMutuo = f.tipo === "MUTUO";
   return (
-    <Modal titulo="Novo contrato de dívida" onClose={onClose} largura={760}>
+    <Modal titulo={edicao ? `Editar · ${b.nome}` : "Novo contrato de dívida"} onClose={onClose} largura={760}>
       <div className="text-xs mb-3 p-2 rounded" style={{ background: C.blueSoft, color: C.text }}>
         Informe capital, taxa e prazo — o sistema calcula parcela, juros, total e data final.
         Depois clique em <b>Levar para a Matriz</b> para a parcela entrar na Matriz oficial e seguir para o contas a pagar.
       </div>
 
+      {temInformado && (
+        <div className="text-xs mb-3 p-2 rounded flex flex-wrap items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}>
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="flex-1">Este contrato ainda carrega números digitados na planilha, que estão prevalecendo sobre o cálculo.</span>
+          <button onClick={usarCalculo} className="px-2 py-1 rounded font-semibold" style={{ background: C.panel, color: C.navy }}>
+            Usar o cálculo do sistema
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
         <Campo rotulo="Tipo">
-          <select value={f.tipo} onChange={(e) => {
+          <select value={f.tipo} disabled={edicao} onChange={(e) => {
               const t = e.target.value;
               setF((x) => ({ ...x, tipo: t, grupo: t === "MUTUO" ? "MUTUO_GIRO" : t === "INVESTIMENTO" ? "INVESTIMENTO" : "GIRO_LP" }));
             }}
@@ -559,19 +612,29 @@ function ContratoModal({ user, catalogos, onClose, onSalvo }) {
         </div>
       )}
 
-      <label className="flex items-center gap-2 mt-3 text-sm" style={{ color: C.text }}>
-        <input type="checkbox" checked={lancarCredito} onChange={(e) => setLancarCredito(e.target.checked)} />
-        Lançar o crédito recebido em <b>contas a receber</b> na data da contratação
-      </label>
+      {edicao ? (
+        <div className="grid gap-3 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+          {!ehMutuo && <Campo rotulo="Parcelas já pagas" valor={f.parcelasPagas} onChange={set("parcelasPagas")} tipo="tel" dica="vazio = conta pela data" />}
+          <label className="flex items-end gap-2 text-sm pb-1" style={{ color: C.text }}>
+            <input type="checkbox" checked={!!f.quitado} onChange={(e) => setF((x) => ({ ...x, quitado: e.target.checked }))} />
+            Contrato quitado
+          </label>
+        </div>
+      ) : (
+        <label className="flex items-center gap-2 mt-3 text-sm" style={{ color: C.text }}>
+          <input type="checkbox" checked={lancarCredito} onChange={(e) => setLancarCredito(e.target.checked)} />
+          Lançar o crédito recebido em <b>contas a receber</b> na data da contratação
+        </label>
+      )}
 
       <Campo rotulo="Observação" valor={f.observacao} onChange={set("observacao")} dica="OPCIONAL" />
 
       {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       <div className="flex justify-end gap-2 mt-5">
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+        <button onClick={() => salvar()} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-          <Save size={15} /> {salvando ? "Salvando…" : "Criar contrato"}
+          <Save size={15} /> {salvando ? "Salvando…" : edicao ? "Salvar alterações" : "Criar contrato"}
         </button>
       </div>
     </Modal>

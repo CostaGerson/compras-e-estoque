@@ -120,7 +120,22 @@ export async function panorama(hoje = new Date()) {
     prisma.finTributo.findMany({ orderBy: { id: "asc" } }),
   ]);
 
-  const calc = contratos.map((c) => ({ ...calcular(c, hoje), quitado: c.quitado, observacao: c.observacao, naMatriz: c.naMatriz, contaCaixa: c.contaCaixa, dataContrato: c.dataContrato }));
+  // "bruto" leva os campos do contrato como estão no banco, para a tela de edição
+  const calc = contratos.map((c) => ({
+    ...calcular(c, hoje),
+    quitado: c.quitado, observacao: c.observacao, naMatriz: c.naMatriz, contaCaixa: c.contaCaixa, dataContrato: c.dataContrato,
+    bruto: {
+      id: c.id, tipo: c.tipo, grupo: c.grupo, nome: c.nome, credor: c.credor,
+      capital: n(c.capital), entrada: n(c.entrada), taxaMensal: n(c.taxaMensal),
+      dataContrato: c.dataContrato, inicioPagamento: c.inicioPagamento, vencimentoUnico: c.vencimentoUnico,
+      prazoMeses: c.prazoMeses, prazoDias: c.prazoDias, parcela: n(c.parcela),
+      parcelasPagas: c.parcelasPagas, parcelasPagasInformadas: c.parcelasPagasInformadas,
+      debitoTotalInformado: n(c.debitoTotalInformado), aVencerInformado: n(c.aVencerInformado),
+      pagarAteInformado: c.pagarAteInformado, valorAPagarInformado: n(c.valorAPagarInformado),
+      jurosTotaisInformado: n(c.jurosTotaisInformado), jurosMesInformado: n(c.jurosMesInformado),
+      ativo: c.ativo, quitado: c.quitado, observacao: c.observacao, contaCaixa: c.contaCaixa,
+    },
+  }));
 
   const grupos = ORDEM_GRUPOS.map((g) => {
     const itens = calc.filter((x) => x.grupo === g);
