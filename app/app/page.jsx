@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Comercial from "./comercial";
 import Financeiro from "./financeiro";
+import Gestao from "./gestao";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -56,12 +57,7 @@ const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 const TODOS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 // Menu em árvore: grupos (com filhos) abrem uma tela de cards; folhas abrem o módulo.
 const MENU = [
-  { key: "gestao", label: "Gestão", icon: Compass, desc: "Visão geral, pedidos e chão de fábrica", filhos: [
-    { key: "inicio", label: "Painel geral", icon: LayoutDashboard, perfis: TODOS, desc: "Indicadores de pedidos, produção, compras e estoque" },
-    { key: "pedidos", label: "Pedidos", icon: ClipboardList, perfis: TODOS, desc: "Lista, kanban, dashboard e calendário dos pedidos" },
-    { key: "pp", label: "Lançar PP", icon: FileText, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido de produção a partir da solicitação do PCP" },
-    { key: "fabrica", label: "Chão de fábrica", icon: Workflow, perfis: ["FINANCEIRO", "PCP", "ESTOQUE"], desc: "Etapas: corte, personalização, costura e acabamento" },
-  ] },
+  { key: "gestao", label: "Gestão", icon: Compass, perfis: TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
@@ -107,7 +103,7 @@ function sessaoId() { return lerSessao()?.id || null; }
 export default function Home() {
   const [user, setUser] = useState(null);
   const [carregouSessao, setCarregouSessao] = useState(false);
-  const [view, setView] = useState("inicio");
+  const [view, setView] = useState("gestao");
   const [tab, setTab] = useState("lista");
   const [showVal, setShowVal] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -117,7 +113,7 @@ export default function Home() {
 
   useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
 
-  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView("inicio"); };
+  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView("gestao"); };
   const sair = () => { localStorage.removeItem("ce_user"); setUser(null); };
   const atualizarUser = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); };
 
@@ -137,7 +133,7 @@ export default function Home() {
       <div className="shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden" style={{ width: collapsed ? 0 : 240 }}>
       <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
-          <button onClick={() => setView("inicio")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
+          <button onClick={() => setView("gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
           </button>
           <button onClick={() => setCollapsed(true)} title="Recolher menu"
@@ -189,7 +185,7 @@ export default function Home() {
 
         <div className="flex-1 overflow-auto p-6">
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
-          {view === "inicio" && <Inicio money={money} master={master} />}
+          {view === "gestao" && <Gestao user={user} master={master} money={money} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
           {view === "financeiro" && master && <Financeiro user={user} />}

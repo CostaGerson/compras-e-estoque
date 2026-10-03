@@ -943,3 +943,58 @@ model FinRecebimento {
 
   @@index([competencia])
 }
+
+// ---------------- GESTÃO · KPIs ----------------
+// Um registro por mês. Hoje os números são lançados à mão (ou importados do Excel);
+// conforme os módulos de pedidos/NF de saída/chão de fábrica nascerem, cada campo passa a ser calculado.
+model KpiMes {
+  id                   Int      @id @default(autoincrement())
+  ano                  Int
+  mes                  Int      // 1-12
+  vendasValor          Decimal? @db.Decimal(14, 2)
+  vendasPecas          Int?
+  pecasProduzidas      Int?
+  faturamentoValor     Decimal? @db.Decimal(14, 2)
+  pecasFaturadas       Int?
+  metaVendasValor      Decimal? @db.Decimal(14, 2)
+  metaVendasPecas      Int?
+  metaPecasProduzidas  Int?
+  metaFaturamentoValor Decimal? @db.Decimal(14, 2)
+  metaFaturamentoPecas Int?
+  metaReceitaValor     Decimal? @db.Decimal(14, 2)
+  observacao           String?
+  atualizadoPorNome    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([ano, mes])
+  @@index([ano])
+}
+
+// Receita recebida por canal/segmento (B2B, LICITAÇÕES, AGENCIADA, DIGITAL, PATRIMONIO…)
+model KpiReceita {
+  id          Int      @id @default(autoincrement())
+  ano         Int
+  mes         Int
+  segmento    String
+  valor       Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ano, mes, segmento])
+  @@index([ano])
+}
+
+// Metas do ano (as mensais, quando existem, ficam no KpiMes)
+model KpiAno {
+  ano                 Int      @id
+  metaVendas          Decimal? @db.Decimal(14, 2)
+  metaFaturamento     Decimal? @db.Decimal(14, 2)
+  metaReceita         Decimal? @db.Decimal(14, 2)
+  metaPecasFaturadas  Int?
+  metaPecasProduzidas Int?
+  // linha "SEM NOTA" da planilha: entra no total do ano, mas não pertence a nenhum mês
+  semNotaVendas       Decimal? @db.Decimal(14, 2)
+  semNotaFaturamento  Decimal? @db.Decimal(14, 2)
+  updatedAt           DateTime @updatedAt
+}
