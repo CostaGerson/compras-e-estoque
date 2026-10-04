@@ -667,6 +667,16 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
   );
 }
 
+// as colunas da tabela de pedidos: o cabeçalho e a linha usam exatamente as mesmas larguras
+const COL = {
+  pedido: { width: 150, flex: "0 0 150px" },
+  item: { flex: "1 1 0", width: "auto", minWidth: 0 },
+  qtd: { width: 80, flex: "0 0 80px" },
+  unit: { width: 120, flex: "0 0 120px" },
+  total: { width: 110, flex: "0 0 110px" },
+  x: { width: 20, flex: "0 0 20px" },
+};
+
 /* uma linha da semana: freelancer (diária × dias) ou facção/serviço (pedidos) */
 function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPrestador, catalogo, catalogoCadastro, prestadores, onClose, onSalvo }) {
   const free = grupo === "FREELANCER";
@@ -775,24 +785,24 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
         <div className="mt-4">
           <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Pedidos · dá para lançar vários</div>
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
-            <span style={{ width: 150 }}>Nº do pedido</span>
-            <span className="flex-1">Item</span>
-            <span style={{ width: 80, textAlign: "right" }}>Qtd</span>
-            <span style={{ width: 120, textAlign: "right" }}>Unitário</span>
-            <span style={{ width: 110, textAlign: "right" }}>Total</span>
-            <span style={{ width: 20 }} />
+            <span style={COL.pedido}>Nº do pedido</span>
+            <span style={COL.item}>Item</span>
+            <span style={{ ...COL.qtd, textAlign: "right", paddingRight: 8 }}>Qtd</span>
+            <span style={{ ...COL.unit, textAlign: "right", paddingRight: 8 }}>Unitário</span>
+            <span style={{ ...COL.total, textAlign: "right" }}>Total</span>
+            <span style={COL.x} />
           </div>
           {f.linhas.map((l, i) => (
             <div key={i} className="flex items-center gap-2 mb-1.5">
-              <input value={l.pedido} onChange={(e) => altL(i, "pedido", e.target.value.toUpperCase())} placeholder="PEDIDO" className={inp} style={{ ...inpS, width: 150 }} />
-              <input value={l.item || ""} onChange={(e) => altL(i, "item", e.target.value.toUpperCase())} placeholder="camiseta, polo…" className={inp} style={inpS} />
-              <input value={l.qtd} onChange={(e) => altL(i, "qtd", e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={{ ...inpS, width: 80 }} />
-              <div style={{ width: 120 }}><Valor value={l.unitario} onChange={(v) => altL(i, "unitario", v)} width="100%" /></div>
-              <span className="text-xs font-semibold tabular-nums" style={{ width: 110, textAlign: "right" }}>
+              <input value={l.pedido} onChange={(e) => altL(i, "pedido", e.target.value.toUpperCase())} placeholder="PEDIDO" className={inp} style={{ ...inpS, ...COL.pedido }} />
+              <input value={l.item || ""} onChange={(e) => altL(i, "item", e.target.value.toUpperCase())} placeholder="camiseta, polo…" className={inp} style={{ ...inpS, ...COL.item }} />
+              <input value={l.qtd} onChange={(e) => altL(i, "qtd", e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={{ ...inpS, ...COL.qtd }} />
+              <div style={COL.unit}><Valor value={l.unitario} onChange={(v) => altL(i, "unitario", v)} width="100%" /></div>
+              <span className="text-xs font-semibold tabular-nums" style={{ ...COL.total, textAlign: "right" }}>
                 {moeda((Number(l.qtd) || 0) * (Number(l.unitario) || 0))}
               </span>
               <button type="button" onClick={() => setF((x) => ({ ...x, linhas: x.linhas.filter((_, j) => j !== i) }))}
-                style={{ color: C.sub, width: 20 }}><X size={14} /></button>
+                style={{ color: C.sub, ...COL.x }}><X size={14} /></button>
             </div>
           ))}
           <button type="button" onClick={() => setF((x) => ({ ...x, linhas: [...x.linhas, { pedido: "", item: "", qtd: 0, unitario: 0 }] }))}
