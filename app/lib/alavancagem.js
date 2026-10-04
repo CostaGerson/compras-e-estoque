@@ -2,6 +2,7 @@
 // O sistema calcula tudo a partir de capital, taxa, prazo e datas; os campos "...Informado" guardam
 // o que veio da planilha, e a tela aponta onde o lançado não bate com o cálculo.
 import { prisma } from "@/lib/prisma";
+import { cronograma, posicaoApos, baixasPorContrato } from "@/lib/alavancagemAmort";
 import { CONTRATOS_SEED, LIMITES_SEED, TRIBUTOS_SEED } from "@/lib/alavancagemSeed";
 
 export const TIPOS = {
@@ -113,16 +114,51 @@ export function calcular(c, hoje = new Date()) {
 }
 
 // ---------------- panorama ----------------
+// Juros x amortização do contrato: quanto já virou juros, quanto abateu capital e quanto falta.
+// As parcelas pagas vêm das BAIXAS do contas a pagar quando elas existem.
+function amortDe(c, baixa, hoje) {
+  const cron = cronograma(c);
+  if (cron.bullet) {
+    const meses = c.dataContrato ? Math.max(0, mesesEntre(c.dataContrato, hoje)) : 0;
+    return { amort: { bullet: true, principal: cron.principal, jurosMes: cron.parcela,
+      jurosPagos: r2(cron.parcela * meses), amortizado: 0, saldoDevedor: c.quitado ? 0 : cron.principal,
+      parcelasPagas: meses, fonte: "CALENDARIO" } };
+  }
+  if (!cron.linhas.length) return { amort: null };
+  const prazo = cron.prazo;
+  const inicio = c.inicioPagamento ? new Date(c.inicioPagamento) : null;
+  const porData = inicio ? Math.max(0, Math.min(prazo, mesesEntre(inicio, hoje) + 1)) : 0;
+  const temBaixa = !!(baixa && baixa.primeiroVencimento);
+  const pagas = c.parcelasPagas != null ? Number(c.parcelasPagas)
+    : temBaixa ? (() => {
+        const ini = new Date(baixa.primeiroVencimento + "T12:00:00");
+        const antes = inicio ? Math.max(0, Math.min(prazo, mesesEntre(inicio, new Date(ini.getTime() - 86400000)) + 1)) : 0;
+        return Math.min(prazo, antes + baixa.pagas.length);
+      })()
+    : porData;
+  const p = posicaoApos(cron, pagas);
+  return { amort: {
+    bullet: false, principal: cron.principal, jurosTotais: cron.jurosTotais,
+    diferencaCapital: cron.diferencaCapital,
+    ...p,
+    titulosPagos: baixa ? baixa.pagas.length : 0,
+    fonte: c.parcelasPagas != null ? "MANUAL" : temBaixa ? "BAIXAS" : "CALENDARIO",
+    porData,
+  } };
+}
+
 export async function panorama(hoje = new Date()) {
-  const [contratos, limites, tributos] = await Promise.all([
+  const [contratos, limites, tributos, baixas] = await Promise.all([
     prisma.finContrato.findMany({ where: { ativo: true }, orderBy: [{ grupo: "asc" }, { id: "asc" }] }),
     prisma.finLimiteCredito.findMany({ where: { ativo: true }, orderBy: [{ ordem: "asc" }, { banco: "asc" }, { produto: "asc" }] }),
     prisma.finTributo.findMany({ orderBy: { id: "asc" } }),
+    baixasPorContrato().catch(() => ({})),
   ]);
 
   // "bruto" leva os campos do contrato como estão no banco, para a tela de edição
   const calc = contratos.map((c) => ({
     ...calcular(c, hoje),
+    ...amortDe(c, baixas[c.id], hoje),
     quitado: c.quitado, observacao: c.observacao, naMatriz: c.naMatriz, contaCaixa: c.contaCaixa, dataContrato: c.dataContrato,
     bruto: {
       id: c.id, tipo: c.tipo, grupo: c.grupo, nome: c.nome, credor: c.credor,
@@ -179,6 +215,8 @@ export async function panorama(hoje = new Date()) {
 
   const dividaCapital = r2(grupos.reduce((s, g) => s + g.saldo, 0));
   const compromisso = r2(grupos.reduce((s, g) => s + g.compromisso, 0));
+  const somaAmort = (k) => r2(calc.reduce((s, x) => s + (x.quitado ? 0 : (x.amort?.[k] || 0)), 0));
+  const principal = somaAmort("saldoDevedor");
 
   return {
     hoje: hoje.toISOString().slice(0, 10),
@@ -186,6 +224,10 @@ export async function panorama(hoje = new Date()) {
     totais: {
       dividaCapital, compromisso, tributos: totalTributos,
       alavancagem: r2(dividaCapital + totalTributos),            // mesma base da planilha
+      principal,                                                  // dívida sem os juros que ainda vão correr
+      jurosAVencer: r2(dividaCapital - principal),
+      jurosPagos: somaAmort("jurosPagos"),
+      amortizado: somaAmort("amortizado"),
       alavancagemComJuros: r2(compromisso + totalTributos),
       mensal: r2(grupos.reduce((s, g) => s + g.mensal, 0) + mensalTributos),
       mensalTributos,

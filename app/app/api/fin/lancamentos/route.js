@@ -4,22 +4,36 @@ import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, desc
 import { LEITORES, LEITORES_DETALHE } from "@/lib/finParse";
 import { CONSOLIDADOS } from "@/lib/finConcilia";
 
-// GET ?u=&competencia= → lançamentos do mês + contas + saldos anteriores por banco
+// GET ?u=&competencia=  → lançamentos do mês
+// GET ?u=&ano=2026       → lançamentos do ano inteiro (identificação anual)
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioMaster(sp.get("u")))) return negado();
+  const ano = sp.get("ano");
   const competencia = sp.get("competencia");
-  if (!competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+  const anual = /^\d{4}$/.test(ano || "");
+  if (!anual && !competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
-  await descartarPagamentosFatura(competencia);
+
+  // filtro de competência: um mês ou o ano inteiro
+  const ondeComp = anual ? { startsWith: `${ano}-` } : competencia;
+  if (anual) {
+    const meses = await prisma.finLancamento.findMany({
+      where: { competencia: ondeComp }, distinct: ["competencia"], select: { competencia: true },
+    });
+    for (const m of meses) await descartarPagamentosFatura(m.competencia);
+  } else {
+    await descartarPagamentosFatura(competencia);
+  }
+
   const [ls, contas, arqs, pendentes, detalhes] = await Promise.all([
-    prisma.finLancamento.findMany({ where: { competencia }, orderBy: [{ data: "asc" }, { arquivoId: "asc" }, { ordem: "asc" }, { id: "asc" }] }),
+    prisma.finLancamento.findMany({ where: { competencia: ondeComp }, orderBy: [{ data: "asc" }, { arquivoId: "asc" }, { ordem: "asc" }, { id: "asc" }] }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
-    prisma.finArquivo.findMany({ where: { competencia, processado: true }, select: { saldoAnterior: true, lancamentos: { select: { banco: true }, take: 1 } } }),
-    prisma.finArquivo.count({ where: { competencia, processado: false, tipo: { codigo: { in: [...Object.keys(LEITORES), ...Object.keys(LEITORES_DETALHE)] } } } }),
-    prisma.finArquivo.findMany({ where: { competencia, processado: true, tipo: { codigo: { in: Object.keys(LEITORES_DETALHE) } } }, select: { conciliacao: true } }),
+    anual ? Promise.resolve([]) : prisma.finArquivo.findMany({ where: { competencia, processado: true }, select: { saldoAnterior: true, lancamentos: { select: { banco: true }, take: 1 } } }),
+    prisma.finArquivo.count({ where: { competencia: ondeComp, processado: false, tipo: { codigo: { in: [...Object.keys(LEITORES), ...Object.keys(LEITORES_DETALHE)] } } } }),
+    prisma.finArquivo.findMany({ where: { competencia: ondeComp, processado: true, tipo: { codigo: { in: Object.keys(LEITORES_DETALHE) } } }, select: { conciliacao: true } }),
   ]);
-  const leituras = await prisma.finArquivo.findMany({ where: { competencia }, select: { id: true, nome: true, prova: true, tipo: { select: { banco: true, documento: true } } } });
+  const leituras = await prisma.finArquivo.findMany({ where: { competencia: ondeComp }, select: { id: true, nome: true, prova: true, tipo: { select: { banco: true, documento: true } } } });
   const leitura = leituras.filter((a) => a.prova && a.prova.ok === false).map((a) => ({ id: a.id, nome: a.nome, banco: a.tipo.banco, documento: a.tipo.documento, msg: a.prova.msg }));
   // conferência: grupos de detalhamento (sem repetir) + consolidados do extrato que ficaram sem detalhamento
   const conf = {};
@@ -29,7 +43,15 @@ export async function GET(req) {
     .map(({ l, c }) => ({ id: l.id, doc: c.doc }));
   const saldos = {};
   arqs.forEach((a) => { const b = a.lancamentos[0]?.banco; if (b && a.saldoAnterior != null) saldos[b] = (saldos[b] || 0) + Number(a.saldoAnterior); });
-  return Response.json({ lancamentos: ls.map(lancOut), contas, saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura });
+  const { mapaDeContas } = await import("@/lib/finDre");
+  const comGrupo = await mapaDeContas().catch(() => null);
+  const grupoDe = comGrupo ? Object.fromEntries(comGrupo.map((c) => [c.id, c.grupo])) : {};
+  return Response.json({
+    lancamentos: ls.map(lancOut),
+    contas: contas.map((c) => ({ ...c, grupoDre: grupoDe[c.id] || null })),
+    saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura,
+    ...(anual ? { anual: true, ano: Number(ano) } : {}),
+  });
 }
 
 // POST { usuarioId, competencia, banco, data, historico, documento?, identificacao?, valor, contaId? } → lançamento manual

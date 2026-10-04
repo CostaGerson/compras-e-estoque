@@ -25,6 +25,19 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 const mesAnterior = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const nomeComp = (c) => { const [a, m] = c.split("-"); return `${MESES[Number(m) - 1]}/${a}`; };
 const somaMes = (c, n) => { const [a, m] = c.split("-").map(Number); const d = new Date(a, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const hojeISOf = () => new Date().toISOString().slice(0, 10);
+// período padrão da identificação: o mês inteiro, ou do dia 1º de janeiro até hoje no modo anual
+const periodoPadrao = (comp, ano) => {
+  if (ano) {
+    const h = hojeISOf();
+    const fim = `${ano}-12-31`;
+    return { de: `${ano}-01-01`, ate: h < fim ? h : fim };
+  }
+  const [a, m] = String(comp || "").split("-").map(Number);
+  if (!a || !m) return { de: "", ate: "" };
+  const ult = new Date(a, m, 0).getDate();
+  return { de: `${comp}-01`, ate: `${comp}-${String(ult).padStart(2, "0")}` };
+};
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 const dataHora = (v) => { const d = new Date(v); return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
 const u8ToB64 = (u8) => { let s = ""; const k = 0x8000; for (let i = 0; i < u8.length; i += k) s += String.fromCharCode.apply(null, u8.subarray(i, i + k)); return btoa(s); };
@@ -46,8 +59,9 @@ export default function Financeiro({ user }) {
   const [ano, setAno] = useState(new Date().getFullYear());
   const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
   const migalhas = [{ t: "Financeiro", go: () => ir({ v: "dash" }) }];
-  if (tela.v === "meses" || tela.v === "mes") migalhas.push({ t: `Análise mensal ${tela.v === "mes" ? tela.comp.slice(0, 4) : ano}`, go: () => ir({ v: "meses" }) });
+  if (["meses", "mes", "identAno"].includes(tela.v)) migalhas.push({ t: `Análise financeira ${tela.v === "mes" ? tela.comp.slice(0, 4) : tela.v === "identAno" ? tela.ano : ano}`, go: () => ir({ v: "meses" }) });
   if (tela.v === "mes") migalhas.push({ t: nomeComp(tela.comp) });
+  if (tela.v === "identAno") migalhas.push({ t: `Identificação ${tela.ano}${tela.nomeGrupoDre ? ` · ${tela.nomeGrupoDre}` : ""}` });
   if (tela.v === "contas") migalhas.push({ t: "Plano de contas" });
   if (tela.v === "regras") migalhas.push({ t: "Palavras-chave" });
   if (tela.v === "senhas") migalhas.push({ t: "Senhas de PDF" });
@@ -70,7 +84,15 @@ export default function Financeiro({ user }) {
         </div>
       )}
       {tela.v === "dash" && <FinDashboard user={user} ir={ir} />}
-      {tela.v === "meses" && <AnaliseMensal user={user} ano={ano} setAno={setAno} abrir={(comp) => ir({ v: "mes", comp, aba: "dre" })} />}
+      {tela.v === "meses" && (
+        <AnaliseMensal user={user} ano={ano} setAno={setAno}
+          abrir={(comp) => ir({ v: "mes", comp, aba: "dre" })}
+          abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })} />
+      )}
+      {tela.v === "identAno" && (
+        <Identificacao key={`ano-${tela.ano}-${tela.grupoDre || ""}`} user={user} comp={`${tela.ano}-01`}
+          ano={tela.ano} grupoDre={tela.grupoDre} nomeGrupoDre={tela.nomeGrupoDre} />
+      )}
       {tela.v === "mes" && <MesFinanceiro user={user} tela={tela} setTela={setTela} />}
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
@@ -155,7 +177,7 @@ function FinDashboard({ user, ir }) {
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
           ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
           ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por semana e por mês"],
-          ["meses", CalendarRange, "Análise financeira mensal", "DRE do mês, importação dos documentos e identificação"],
+          ["meses", CalendarRange, "Análise financeira", "Indicadores do ano, DRE do mês, importação e identificação"],
           ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
           ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
         ].map(([v, Ico, t, sub]) => (
@@ -260,60 +282,29 @@ function useAnual(user, ano) {
   return [d, erro];
 }
 
-function Ind({ rotulo, valor, pct, cor, forte, titulo }) {
+function Ind({ rotulo, valor, pct, cor, forte, titulo, onClick }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="rounded-lg px-3 py-2" title={titulo}
-      style={{ background: forte ? C.panel2 : C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor || C.line}` }}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide truncate" style={{ color: C.sub }}>{rotulo}</div>
+    <Tag onClick={onClick} title={onClick ? `${titulo || rotulo} · clique para ver os lançamentos` : titulo}
+      className={`rounded-lg px-3 py-2 text-left w-full${onClick ? " transition-shadow hover:shadow-md" : ""}`}
+      style={{ background: forte ? C.panel2 : C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor || C.line}`, cursor: onClick ? "pointer" : "default" }}>
+      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
+        <span className="truncate">{rotulo}</span>
+        {onClick && <Search size={10} className="shrink-0" style={{ color: C.accent }} />}
+      </div>
       <div className={forte ? "font-bold" : "font-semibold"} style={{ fontSize: forte ? 17 : 15, color: cor || C.text, lineHeight: 1.3 }}>
         {compactoBR(valor)}
       </div>
       {pct != null && <div className="text-[10px]" style={{ color: C.sub }}>{pctBR(pct)} da receita</div>}
-    </div>
+    </Tag>
   );
 }
 
-/* Dívida mês a mês: ano atual contra o anterior */
-function EvolucaoDivida({ evolucao, ano }) {
-  const [hover, setHover] = useState(null);
-  const alt = 64;
-  const max = Math.max(1, ...evolucao.flatMap((e) => [e.atual, e.anterior]));
-  const h = (v) => Math.max(v ? 2 : 0, ((v || 0) / max) * alt);
-  const e0 = hover == null ? null : evolucao[hover];
-  return (
-    <div>
-      <div className="flex items-end gap-[5px]" style={{ height: alt }} onMouseLeave={() => setHover(null)}>
-        {evolucao.map((e, i) => (
-          <div key={i} className="flex-1 flex items-end gap-[2px]" style={{ height: alt }} onMouseEnter={() => setHover(i)}>
-            <div style={{ width: "50%", height: h(e.anterior), background: hover === i ? C.sub : C.line, borderRadius: "3px 3px 0 0" }} />
-            <div style={{ width: "50%", height: h(e.atual), background: hover === i ? C.navy : C.accent, borderRadius: "3px 3px 0 0" }} />
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-[5px] mt-1">
-        {evolucao.map((e, i) => (
-          <div key={i} className="flex-1 text-center text-[9px]" style={{ color: hover === i ? C.text : C.sub }}>
-            {MESES[i].slice(0, 1)}
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-4 mt-2 text-[10px]" style={{ color: C.sub }}>
-        <span className="flex items-center gap-1"><span style={{ width: 9, height: 9, background: C.accent, borderRadius: 2 }} /> {ano}</span>
-        <span className="flex items-center gap-1"><span style={{ width: 9, height: 9, background: C.line, borderRadius: 2 }} /> {ano - 1}</span>
-        {e0 && (
-          <span className="ml-auto font-semibold" style={{ color: C.text }}>
-            {MESES[hover]} · {compactoBR(e0.atual)} <span style={{ color: C.sub, fontWeight: 400 }}>vs {compactoBR(e0.anterior)}</span>
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function IndicadoresAno({ d, ano }) {
+function IndicadoresAno({ d, ano, abrirGrupo }) {
   const t = d.totais;
   const a = d.alavancagem;
   const nenhum = !t.meses;
+  const ir = (grupo, nome) => abrirGrupo && abrirGrupo(grupo, nome);
   const sobe = (v) => (v > 0 ? C.red : v < 0 ? C.green : C.sub);   // dívida subindo é ruim
   const Seta = a.variacaoAno > 0 ? TrendingUp : TrendingDown;
   const SetaAA = a.variacaoAnoAnterior > 0 ? TrendingUp : TrendingDown;
@@ -335,24 +326,29 @@ function IndicadoresAno({ d, ano }) {
       ) : (
         <>
           <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-            <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução" />
-            <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção" />
+            <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução"
+              onClick={() => ir("RECEITA", "Receita")} />
+            <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção"
+              onClick={() => ir("CMV", "CMV")} />
             <Ind rotulo="Margem de contribuição" valor={t.margem} cor={t.margem >= 0 ? C.green : C.red} pct={t.margemPct} forte />
-            <Ind rotulo="Despesa adm e vegetativa" valor={t.adm} cor={C.red} pct={t.receita ? t.adm / t.receita : null} />
+            <Ind rotulo="Despesa adm e vegetativa" valor={t.adm} cor={C.red} pct={t.receita ? t.adm / t.receita : null}
+              onClick={() => ir("DESPESA_ADM", "Despesa adm e vegetativa")} />
             <Ind rotulo="EBITDA" valor={t.ebitda} cor={t.ebitda >= 0 ? C.green : C.red} pct={t.ebitdaPct} forte />
-            <Ind rotulo="Impostos e juros" valor={t.impostos} cor={C.red} pct={t.receita ? t.impostos / t.receita : null} />
+            <Ind rotulo="Impostos e juros" valor={t.impostos} cor={C.red} pct={t.receita ? t.impostos / t.receita : null}
+              onClick={() => ir("IMPOSTOS_JUROS", "Impostos e juros")} />
             <Ind rotulo="Lucro líquido" valor={t.lucro} cor={t.lucro >= 0 ? C.green : C.red} pct={t.lucroPct} forte />
-            <Ind rotulo="Investimento" valor={t.investimento} cor={C.yellow} pct={t.receita ? t.investimento / t.receita : null} />
+            <Ind rotulo="Investimento" valor={t.investimento} cor={C.yellow} pct={t.receita ? t.investimento / t.receita : null}
+              onClick={() => ir("INVESTIMENTO", "Investimento")} />
             <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} forte />
           </div>
           <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             <Ind rotulo="Saldo da operação" valor={t.saldoOperacao} cor={t.saldoOperacao >= 0 ? C.green : C.red} forte
               titulo="Saldo inicial do primeiro mês lançado + resultado acumulado" />
             <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
-              titulo="Empréstimo, factoring, capital social e mútuo — entrada menos pagamento" />
+              titulo="Empréstimo, factoring, capital social e mútuo — entrada menos pagamento"
+              onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS", "Recursos externos")} />
             <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} forte />
             <Ind rotulo="Média mensal de receita" valor={t.mediaReceita} cor={C.blue} />
-            <Ind rotulo="Média mensal de lucro" valor={t.mediaLucro} cor={t.mediaLucro >= 0 ? C.green : C.red} />
           </div>
         </>
       )}
@@ -365,6 +361,9 @@ function IndicadoresAno({ d, ano }) {
             <div className="font-bold" style={{ fontSize: 28, color: C.text, lineHeight: 1.1 }}>{moeda(a.atual.total)}</div>
             <div className="text-xs mt-1" style={{ color: C.sub }}>
               dívida {brl(a.atual.divida)} + tributos {brl(a.atual.tributos)}
+            </div>
+            <div className="text-xs" style={{ color: C.sub }}>
+              sendo {brl(a.atual.principal)} de capital e {brl(a.atual.jurosAVencer)} de juros a correr
             </div>
             <div className="text-xs" style={{ color: C.sub }}>compromisso mensal {brl(a.atual.mensal)}</div>
           </div>
@@ -391,9 +390,17 @@ function IndicadoresAno({ d, ano }) {
             </div>
           </div>
 
-          <div className="flex-1" style={{ minWidth: 300 }}>
-            <div className="text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>Evolução da dívida mês a mês</div>
-            <EvolucaoDivida evolucao={a.evolucao} ano={ano} />
+          <div className="flex gap-3 flex-wrap">
+            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 180 }}>
+              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Juros pagos no ano</div>
+              <div className="font-bold" style={{ fontSize: 17, color: C.red }}>{compactoBR(a.jurosAno)}</div>
+              <div className="text-[10px]" style={{ color: C.sub }}>o que não abateu nada</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 180 }}>
+              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Capital amortizado no ano</div>
+              <div className="font-bold" style={{ fontSize: 17, color: C.green }}>{compactoBR(a.amortizacaoAno)}</div>
+              <div className="text-[10px]" style={{ color: C.sub }}>abatido a cada baixa</div>
+            </div>
           </div>
         </div>
       </div>
@@ -402,7 +409,7 @@ function IndicadoresAno({ d, ano }) {
 }
 
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
-function AnaliseMensal({ user, ano, setAno, abrir }) {
+function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
   const [anual, erroAnual] = useAnual(user, ano);
@@ -425,7 +432,7 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
         </button>
       </div>
       {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
-      {anual && <IndicadoresAno d={anual} ano={ano} />}
+      {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} />}
       {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
@@ -1864,12 +1871,16 @@ const api = async (url, method, body) => {
   return d;
 };
 
-function Identificacao({ user, comp, setComp, contaInicial }) {
+function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeGrupoDre }) {
+  const anual = !!ano;
+  const gruposDre = useMemo(() => new Set(String(grupoDre || "").split(",").filter(Boolean)), [grupoDre]);
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
-  const [agrupar, setAgrupar] = useState("banco");
+  const [agrupar, setAgrupar] = useState(anual || grupoDre ? "conta" : "banco");
   const [fBanco, setFBanco] = useState("");
   const [fConta, setFConta] = useState(contaInicial ? String(contaInicial) : "");
+  const [periodo, setPeriodo] = useState(() => periodoPadrao(comp, ano));
+  const [soGrupo, setSoGrupo] = useState(false);
   const [fStatus, setFStatus] = useState("todos");
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(new Set());
@@ -1882,13 +1893,14 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
   const carregar = async () => {
     setErro("");
     try {
-      const r = await fetch(`/api/fin/lancamentos?u=${user.id}&competencia=${comp}`);
+      const q = anual ? `ano=${ano}` : `competencia=${comp}`;
+      const r = await fetch(`/api/fin/lancamentos?u=${user.id}&${q}`);
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Erro ao carregar.");
       setDados(d);
     } catch (e) { setErro(e.message); }
   };
-  useEffect(() => { setDados(null); setSel(new Set()); carregar(); }, [comp]);
+  useEffect(() => { setDados(null); setSel(new Set()); setPeriodo(periodoPadrao(comp, ano)); carregar(); }, [comp, ano]);
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(""), 5000); return () => clearTimeout(t); }, [aviso]);
 
   const contasById = useMemo(() => Object.fromEntries((dados?.contas || []).map((c) => [c.id, c])), [dados]);
@@ -1903,16 +1915,28 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
       if (fConta === "_sem" ? l.contaId : fConta && String(l.contaId) !== fConta) return false;
       if (fStatus === "pend" && l.contaId) return false;
       if (fStatus === "ok" && !l.contaId) return false;
+      if (periodo.de && l.data < periodo.de) return false;
+      if (periodo.ate && l.data > periodo.ate) return false;
+      if (soGrupo && gruposDre.size && !gruposDre.has(contasById[l.contaId]?.grupoDre)) return false;
       if (b && !normC(`${l.historico} ${l.identificacao || ""} ${l.documento || ""} ${brl(l.valor)} ${contasById[l.contaId]?.nome || ""}`).includes(b)) return false;
       return true;
     });
-  }, [dados, fBanco, fConta, fStatus, busca, contasById]);
+  }, [dados, fBanco, fConta, fStatus, busca, contasById, periodo, soGrupo, gruposDre]);
 
   const grupos = useMemo(() => {
     const m = new Map();
     const chave = (l) => agrupar === "banco" ? l.banco : (l.contaId ? contasById[l.contaId]?.codigo : "~");
     for (const l of visiveis) { const k = chave(l); if (!m.has(k)) m.set(k, []); m.get(k).push(l); }
-    const ks = [...m.keys()].sort((a, b) => (a === "~" ? -1 : b === "~" ? 1 : a.localeCompare(b)));
+    const doGrupo = (k) => {
+      if (!gruposDre.size || agrupar !== "conta" || k === "~") return false;
+      const c = (dados.contas || []).find((x) => x.codigo === k);
+      return !!c && gruposDre.has(c.grupoDre);
+    };
+    const ks = [...m.keys()].sort((a, b) => {
+      const ga = doGrupo(a), gb = doGrupo(b);
+      if (ga !== gb) return ga ? -1 : 1;                  // o que compõe o card clicado sobe
+      return a === "~" ? -1 : b === "~" ? 1 : a.localeCompare(b);
+    });
     return ks.map((k) => {
       const chaveOrd = (l) => ord.k === "banco" ? l.banco : ord.k === "historico" ? l.historico : ord.k === "descricao" ? (contasById[l.contaId]?.nome || "") : ord.k === "valor" ? l.valor : l.data;
       const base = (a, b) => a.data.localeCompare(b.data) || (a.arquivoId || 0) - (b.arquivoId || 0) || a.ordem - b.ordem || a.id - b.id;
@@ -1924,9 +1948,9 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
       const conta = agrupar === "conta" && k !== "~" ? (dados.contas.find((c) => c.codigo === k)) : null;
       const titulo = agrupar === "banco" ? k : k === "~" ? "A IDENTIFICAR" : `${conta.codigo} · ${conta.nome}`;
       const inicial = agrupar === "banco" && !fConta && fStatus === "todos" && !busca ? (dados.saldos[k] || 0) : 0;
-      return { k, titulo, conta, itens, inicial };
+      return { k, titulo, conta, itens, inicial, doGrupo: doGrupo(k) };
     });
-  }, [visiveis, agrupar, contasById, dados, fConta, fStatus, busca, ord]);
+  }, [visiveis, agrupar, contasById, dados, fConta, fStatus, busca, ord, gruposDre]);
 
   const tot = useMemo(() => {
     const ls = (dados?.lancamentos || []).filter((l) => !l.desmembrado && !l.substituido);
@@ -1991,7 +2015,9 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <SeletorMes comp={comp} setComp={setComp} />
+        {anual
+          ? <div className="px-3 py-2 rounded-lg font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel }}>Ano {ano}</div>
+          : <SeletorMes comp={comp} setComp={setComp} />}
         {dados?.arquivosPendentes > 0 && (
           <button onClick={lerPendentes} disabled={lendo} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>
             {lendo ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Ler {dados.arquivosPendentes} arquivo(s) pendente(s)
@@ -2029,13 +2055,37 @@ function Identificacao({ user, comp, setComp, contaInicial }) {
         )}
       </div>
 
-      {dados && <Conferencia user={user} comp={comp} dados={dados} onMudou={carregar} setAviso={setAviso} />}
+      {!anual && dados && <Conferencia user={user} comp={comp} dados={dados} onMudou={carregar} setAviso={setAviso} />}
+
+      {gruposDre.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg px-4 py-2.5 mb-3 text-sm" style={{ background: C.accentSoft, color: C.text }}>
+          <PieIco size={15} style={{ color: C.accent }} />
+          <span>
+            Veio de <b>{nomeGrupoDre || grupoDre}</b> da DRE — as contas-caixa desse grupo estão no topo da lista.
+          </span>
+          <button onClick={() => setSoGrupo((v) => !v)} className="ml-auto px-3 py-1 rounded text-xs font-semibold"
+            style={{ background: soGrupo ? C.accent : C.panel, color: soGrupo ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}>
+            {soGrupo ? "Mostrando só este grupo" : "Mostrar só este grupo"}
+          </button>
+        </div>
+      )}
 
       {/* filtros */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="flex items-center rounded-lg px-2" style={sel2}>
           <Search size={14} style={{ color: C.sub }} />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar histórico, valor…" className="px-2 py-1.5 text-sm" style={{ outline: "none", width: 220 }} />
+        </div>
+        <div className="flex items-center gap-1 rounded-lg px-2 py-1" style={sel2}>
+          <CalendarRange size={14} style={{ color: C.sub }} />
+          <input type="date" value={periodo.de} onChange={(e) => setPeriodo((x) => ({ ...x, de: e.target.value }))}
+            className="text-sm" style={{ outline: "none", border: "none", background: "transparent" }} />
+          <span style={{ color: C.sub }}>a</span>
+          <input type="date" value={periodo.ate} onChange={(e) => setPeriodo((x) => ({ ...x, ate: e.target.value }))}
+            className="text-sm" style={{ outline: "none", border: "none", background: "transparent" }} />
+          {(() => { const pd = periodoPadrao(comp, ano); return (periodo.de !== pd.de || periodo.ate !== pd.ate) ? (
+            <button onClick={() => setPeriodo(pd)} title="Voltar ao período inteiro" style={{ color: C.accent }}><Undo2 size={13} /></button>
+          ) : null; })()}
         </div>
         <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="px-2 py-1.5 rounded-lg text-sm" style={sel2}>
           <option value="todos">Todos</option><option value="pend">A identificar</option><option value="ok">Identificados</option>

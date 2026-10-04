@@ -331,6 +331,38 @@ function LinhaContrato({ c, master, user, onMudou, onEditar, onPagar }) {
               )}
               <Det rot="Na Matriz" v={c.naMatriz ? "sim" : "ainda não"} />
             </div>
+            {c.amort && !c.amort.bullet && (
+              <div className="mt-3 rounded p-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: C.navy }}>Juros × amortização</div>
+                <div className="grid gap-3 text-[11px]" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", color: C.sub }}>
+                  <Det rot="Capital pela parcela e prazo" v={master ? `R$ ${brl(c.amort.principal)}` : "•••••"} />
+                  <Det rot="Juros do contrato inteiro" v={master ? `R$ ${brl(c.amort.jurosTotais)}` : "•••••"} />
+                  <Det rot="Juros já pagos" v={master ? `R$ ${brl(c.amort.jurosPagos)}` : "•••••"} />
+                  <Det rot="Capital já amortizado" v={master ? `R$ ${brl(c.amort.amortizado)}` : "•••••"} />
+                  <Det rot="Saldo devedor (só capital)" v={master ? `R$ ${brl(c.amort.saldoDevedor)}` : "•••••"} />
+                  <Det rot="Juros que ainda vão correr" v={master ? `R$ ${brl(c.amort.jurosAVencer)}` : "•••••"} />
+                  {c.amort.proxima && (
+                    <Det rot={`Próxima parcela (${c.amort.proxima.n}ª)`}
+                      v={master ? `R$ ${brl(c.amort.proxima.juros)} de juros + R$ ${brl(c.amort.proxima.amortizacao)} de capital` : "•••••"} />
+                  )}
+                  <Det rot="Parcelas pagas contadas por" v={
+                    c.amort.fonte === "BAIXAS" ? `baixa no contas a pagar (${c.amort.titulosPagos} baixada(s))`
+                    : c.amort.fonte === "MANUAL" ? "ajuste à mão no contrato" : "datas do calendário"} />
+                </div>
+                {Math.abs(c.amort.diferencaCapital || 0) > 1 && (
+                  <div className="mt-2 text-[11px]" style={{ color: C.yellow }}>
+                    A parcela e o prazo implicam R$ {brl(c.amort.principal)} de capital, mas o contrato traz
+                    R$ {brl(c.capital)} — diferença de R$ {brl(c.amort.diferencaCapital)}. Confira a taxa.
+                  </div>
+                )}
+              </div>
+            )}
+            {c.amort && c.amort.bullet && (
+              <div className="mt-3 rounded p-2 text-[11px]" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+                <b style={{ color: C.navy }}>Juros × amortização:</b> no mútuo nada amortiza antes do vencimento —
+                são R$ {brl(c.amort.jurosMes)} de juros por mês e o capital de R$ {brl(c.amort.principal)} volta inteiro no fim.
+              </div>
+            )}
             {c.avisos.length > 0 && (
               <div className="mt-2 text-[11px] rounded p-2" style={{ background: C.yellowSoft, color: C.yellow }}>
                 {c.avisos.map((a, i) => <div key={i}>· {a}</div>)}
