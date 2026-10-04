@@ -294,7 +294,7 @@ export default function ContasPagarReceber({ user }) {
 
       {modal?.t === "titulo" && <TituloModal user={user} tipo={tipo} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
-      {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
+      {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
@@ -453,42 +453,86 @@ function BaixaModal({ t, P, onClose, onOk }) {
 }
 
 /* ---------------- conferir valores das recorrências ---------------- */
-function ConferirModal({ user, itens, contasPorId, onClose }) {
-  const [l, setL] = useState(itens.map((t) => ({ ...t, novo: t.valor, futuros: true, feito: false })));
+// A conferência do mês é a guia Recorrentes vista mês a mês: o valor que ela mostra é o
+// da recorrência, e o que você confirmar aqui volta para lá e desce para o contas a pagar.
+function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose }) {
+  const recPorId = useMemo(() => Object.fromEntries(recorrencias.map((r) => [r.id, r])), [recorrencias]);
+  const [l, setL] = useState(itens.map((t) => {
+    const rec = recPorId[t.recorrenciaId] || null;
+    const base = rec ? lerNum(rec.valor) : lerNum(t.valor);   // a recorrência manda
+    return { ...t, rec, base, novo: base, soEsteMes: false, feito: false };
+  }));
   const [erro, setErro] = useState("");
+
   const confirmar = async (t) => {
     try {
-      await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: "confirmar", valor: t.novo, aplicarFuturos: t.futuros && Math.abs(t.novo - t.valor) > 0.009 });
+      const mudou = Math.abs(t.novo - t.base) > 0.009;
+      await api(`/api/fin/titulos/${t.id}`, "PATCH", {
+        usuarioId: user.id, acao: "confirmar", valor: t.novo,
+        // mudou o valor? a recorrência é a base de dados: ela e os meses seguintes acompanham,
+        // a não ser que você diga que é exceção só deste mês
+        aplicarFuturos: mudou && !t.soEsteMes,
+      });
       setL((x) => x.map((y) => (y.id === t.id ? { ...y, feito: true } : y)));
     } catch (e) { setErro(e.message); }
   };
+
   const pend = l.filter((t) => !t.feito);
+  const desatualizados = l.filter((t) => !t.feito && t.rec && Math.abs(lerNum(t.valor) - t.base) > 0.009).length;
+
   return (
-    <Modal titulo="Conferir valores do mês" icone={CalendarClock} onClose={onClose} largura={900}
+    <Modal titulo="Conferir valores do mês" icone={CalendarClock} onClose={onClose} largura={960}
       rodape={<>
         <span className="mr-auto text-xs" style={{ color: C.sub }}>{pend.length} para conferir</span>
         {pend.length > 0 && <BtnS onClick={async () => { for (const t of pend) await confirmar(t); }}>Confirmar todos ({pend.length})</BtnS>}
         <BtnP onClick={onClose}>Fechar</BtnP>
       </>}>
-      <div className="text-xs mb-3" style={{ color: C.sub }}>Contas recorrentes são previsões. Confirme o valor deste mês ou digite o novo. "Também nos próximos" atualiza os meses seguintes ainda não conferidos.</div>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>
+        O valor que aparece aqui é o da guia <b>Recorrentes</b> — é ela que manda. Confirme se continua igual
+        ou digite o novo: a recorrência e os meses seguintes ainda não conferidos acompanham, e o contas a pagar
+        deste mês é atualizado. Marque <b>só este mês</b> quando for exceção.
+      </div>
+      {desatualizados > 0 && (
+        <div className="p-2 mb-3 rounded text-xs flex items-start gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          {desatualizados} conta(s) estavam lançadas no contas a pagar com valor diferente do que está em Recorrentes.
+          Confirmando, o contas a pagar passa a valer o da recorrência.
+        </div>
+      )}
       {erro && <div className="p-2 mb-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       <table className="w-full text-xs">
         <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
-          {["Vencimento", "Conta", "Valor previsto", "Valor do mês", "", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+          {["Vencimento", "Conta", "Em Recorrentes", "Valor do mês", "", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
         </tr></thead>
-        <tbody>{l.map((t) => (
-          <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.feito ? 0.5 : 1 }}>
-            <td className="px-2 py-2 whitespace-nowrap">{dBR(t.vencimento)}</td>
-            <td className="px-2 py-2"><div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div><div style={{ color: C.sub }}>{t.parceiro} · {(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome).join(", ")}</div></td>
-            <td className="px-2 py-2 whitespace-nowrap">{moeda(t.valor)}</td>
-            <td className="px-2 py-2">{t.feito ? <b>{moeda(t.novo)}</b> : <Valor value={t.novo} onChange={(v) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, novo: v } : y)))} />}</td>
-            <td className="px-2 py-2">{!t.feito && Math.abs(t.novo - t.valor) > 0.009 && (
-              <label className="flex items-center gap-1 whitespace-nowrap"><input type="checkbox" checked={t.futuros} onChange={(e) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, futuros: e.target.checked } : y)))} /> também nos próximos</label>
-            )}</td>
-            <td className="px-2 py-2 text-right">{t.feito ? <span style={{ color: C.green }} className="font-semibold">✓ conferido</span>
-              : <button onClick={() => confirmar(t)} className="px-3 py-1 rounded-lg font-semibold text-white" style={{ background: C.accent }}>{Math.abs(t.novo - t.valor) > 0.009 ? "Salvar valor" : "Confirmar"}</button>}</td>
-          </tr>
-        ))}</tbody>
+        <tbody>{l.map((t) => {
+          const lancado = lerNum(t.valor);
+          const difLancado = t.rec && Math.abs(lancado - t.base) > 0.009;
+          const mudou = Math.abs(t.novo - t.base) > 0.009;
+          return (
+            <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.feito ? 0.5 : 1 }}>
+              <td className="px-2 py-2 whitespace-nowrap">{dBR(t.vencimento)}</td>
+              <td className="px-2 py-2">
+                <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
+                <div style={{ color: C.sub }}>{t.parceiro} · {(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome).join(", ")}</div>
+                {t.rec && <div style={{ color: C.sub }}>{t.rec.diaUtil ? `${t.rec.diaVencimento}º dia útil` : `dia ${t.rec.diaVencimento}`}{t.rec.formaPagamento ? ` · ${FORMAS_PGTO[t.rec.formaPagamento] || t.rec.formaPagamento}` : ""}</div>}
+              </td>
+              <td className="px-2 py-2 whitespace-nowrap">
+                {!t.rec ? <span style={{ color: C.sub }}>conta avulsa</span> : <b>{moeda(t.base)}</b>}
+                {difLancado && <div style={{ color: C.yellow }}>lançado: {moeda(lancado)}</div>}
+              </td>
+              <td className="px-2 py-2">{t.feito ? <b>{moeda(t.novo)}</b> : <Valor value={t.novo} onChange={(v) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, novo: v } : y)))} />}</td>
+              <td className="px-2 py-2">{!t.feito && mudou && t.rec && (
+                <label className="flex items-center gap-1 whitespace-nowrap" title="Não muda a recorrência nem os meses seguintes">
+                  <input type="checkbox" checked={t.soEsteMes} onChange={(e) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, soEsteMes: e.target.checked } : y)))} /> só este mês
+                </label>
+              )}</td>
+              <td className="px-2 py-2 text-right">{t.feito ? <span style={{ color: C.green }} className="font-semibold">✓ conferido</span>
+                : <button onClick={() => confirmar(t)} className="px-3 py-1 rounded-lg font-semibold text-white whitespace-nowrap" style={{ background: C.accent }}>
+                    {mudou ? (t.soEsteMes ? "Só este mês" : "Salvar na recorrência") : "Confirmar"}
+                  </button>}</td>
+            </tr>
+          );
+        })}</tbody>
       </table>
     </Modal>
   );
