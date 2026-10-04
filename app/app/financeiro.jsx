@@ -723,9 +723,22 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
 
       {d && vista === "depara" && (
         <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="px-4 py-3 text-sm" style={{ borderBottom: `1px solid ${C.line}`, color: C.sub }}>
-            Cada conta-caixa alimenta um grupo da DRE. O sistema já sugere pelo código; mude aqui o que estiver fora de lugar
-            — vale para todos os meses.
+          <div className="px-4 py-3 flex flex-wrap items-center gap-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div className="text-sm flex-1" style={{ color: C.sub, minWidth: 280 }}>
+              O de–para já vem igual ao do sistema antigo, conta por conta. Mude aqui o que quiser — vale para todos os meses.
+            </div>
+            {(() => {
+              const conf = (d.contas || []).filter((c) => c.conferir);
+              return conf.length ? (
+                <span className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>
+                  <AlertTriangle size={13} /> {conf.length} conta(s) fora do de–para oficial — confira o grupo
+                </span>
+              ) : (
+                <span className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.greenSoft, color: C.green }}>
+                  <CheckCircle2 size={13} /> Todas as contas estão no de–para oficial
+                </span>
+              );
+            })()}
           </div>
           <div className="overflow-auto" style={{ maxHeight: 620 }}>
             <table className="w-full text-sm">
@@ -738,9 +751,14 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
               </thead>
               <tbody>
                 {(d.contas || []).map((c) => (
-                  <tr key={c.id} style={{ borderTop: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.55 }}>
+                  <tr key={c.id} style={{ borderTop: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.55, background: c.conferir ? C.yellowSoft : "transparent" }}>
                     <td className="px-4 py-1.5 font-mono text-xs" style={{ color: C.sub }}>{c.codigo}</td>
-                    <td className="px-2 py-1.5">{c.nome}{!c.ativo && <span className="text-[10px] ml-2" style={{ color: C.sub }}>inativa</span>}</td>
+                    <td className="px-2 py-1.5">
+                      {c.nome}
+                      {!c.ativo && <span className="text-[10px] ml-2" style={{ color: C.sub }}>inativa</span>}
+                      {c.conferir && <span className="text-[10px] ml-2 font-semibold" style={{ color: C.yellow }}>conta nova · confira o grupo</span>}
+                      {c.manual && <span className="text-[10px] ml-2" style={{ color: C.accent }}>ajustada à mão</span>}
+                    </td>
                     <td className="px-2 py-1.5">
                       <select value={c.grupo} onChange={(e) => mudarGrupo(c.id, e.target.value)}
                         className="w-full rounded px-2 py-1 text-sm outline-none"
@@ -808,7 +826,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
             <div className="px-4 py-3">
               <div className="text-sm font-bold" style={{ color: C.navy }}>Recursos externos</div>
               <div className="text-xs mt-0.5" style={{ color: C.sub }}>
-                Empréstimo e factoring não são resultado: entram no caixa e saem depois. Ficam fora da DRE e só afetam o saldo final.
+                Empréstimo, factoring, capital social e mútuo não são resultado: entram no caixa e saem depois. Ficam fora da DRE e só afetam o saldo final.
               </div>
             </div>
             <div className="flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase" style={{ background: C.panel2, color: C.sub }}>

@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
 import { dre, mapaDeContas, salvarMapa, salvarPainel, TODOS_GRUPOS, GRUPOS_OPERACAO, GRUPOS_EXTERNOS, GRUPO_FORA } from "@/lib/finDre";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
@@ -12,6 +12,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(q.get("u")))) return negado();
   const comp = q.get("competencia") || "";
   if (!/^\d{4}-\d{2}$/.test(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+  if (q.get("mapa")) await garantirContas();
   const [d, contas] = await Promise.all([dre(comp), q.get("mapa") ? mapaDeContas() : Promise.resolve(null)]);
   return Response.json({ ...d, grupos: CATALOGO, ...(contas ? { contas } : {}) });
 }

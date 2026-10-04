@@ -6,43 +6,78 @@ const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
 // ---- grupos da operação (na ordem da planilha) ----
 export const GRUPOS_OPERACAO = [
-  { k: "RECEITA", n: "01. Receita", sinal: 1, ajuda: "Tudo que entrou de venda no mês" },
-  { k: "CMV", n: "02. CMV", sinal: -1, ajuda: "Tecido, aviamento, freelancers, logística interna — o que varia com a produção" },
-  { k: "DESPESA_ADM", n: "04. Despesa adm e vegetativa", sinal: -1, ajuda: "Estrutura que roda independente de vender" },
-  { k: "IMPOSTOS_JUROS", n: "06. Impostos e juros", sinal: -1, ajuda: "Tributos, parcelamentos fiscais e juros de dívida" },
-  { k: "INVESTIMENTO", n: "08. Investimento", sinal: -1, ajuda: "Máquinas, obras e o que vira patrimônio" },
+  { k: "RECEITA", n: "01. Receita", sinal: 1, ajuda: "Vendas, serviço de facção, antecipação de duplicatas e venda de patrimônio — a devolução de venda abate aqui" },
+  { k: "CMV", n: "02. CMV", sinal: -1, ajuda: "Tecido, aviamento, insumos, pessoal e freelancers de produção, facção, frete — o que varia com a produção" },
+  { k: "DESPESA_ADM", n: "04. Despesa adm e vegetativa", sinal: -1, ajuda: "Estrutura que roda independente de vender: vida vegetativa, pessoal adm, pró-labore, manutenção, designer" },
+  { k: "IMPOSTOS_JUROS", n: "06. Impostos e juros", sinal: -1, ajuda: "Imposto, taxas, juros e despesa financeira — o principal da dívida não entra aqui" },
+  { k: "INVESTIMENTO", n: "08. Investimento", sinal: -1, ajuda: "Reforma, maquinário, patrimônio, planta e reserva de capital" },
 ];
 // ---- recursos externos (não são operação: entram e saem do caixa) ----
 export const GRUPOS_EXTERNOS = [
-  { k: "EXT_BANCARIO", n: "Empréstimos bancários" },
-  { k: "EXT_SOCIOS", n: "Empréstimos sócios" },
+  { k: "EXT_BANCARIO", n: "Empréstimo bancário" },
+  { k: "EXT_SOCIOS", n: "Empréstimo sócios" },
   { k: "EXT_FACTORING", n: "Factoring" },
-  { k: "EXT_RENDIMENTO", n: "Rendimento Nort" },
+  { k: "EXT_CAPITAL", n: "Capital social" },
+  { k: "EXT_MUTUO", n: "Mútuo" },
+  { k: "EXT_SEM_JUROS", n: "Investimento externo sem juros" },
 ];
 export const GRUPO_FORA = { k: "FORA", n: "Fora da DRE", ajuda: "Transferência entre contas e conciliação — não entra em lugar nenhum" };
 
 export const TODOS_GRUPOS = [...GRUPOS_OPERACAO, ...GRUPOS_EXTERNOS, GRUPO_FORA];
 export const nomeGrupo = (k) => (TODOS_GRUPOS.find((g) => g.k === k) || {}).n || k;
 
-// Padrão por código da conta (o usuário ajusta no de–para).
+// De–para oficial: é o mesmo que o sistema antigo da Meridian usa, conta por conta.
+// Quem não está aqui cai no palpite por código e aparece marcada para conferência no de–para.
+export const MAPA_OFICIAL = {
+  // 01. RECEITA
+  1111000: "RECEITA", 1112000: "RECEITA", 1113000: "RECEITA", 1114000: "RECEITA", 1115000: "RECEITA",
+  1116000: "RECEITA", 1118000: "RECEITA", 1121000: "RECEITA", 1122000: "RECEITA", 1150000: "RECEITA",
+  1210000: "RECEITA", 1220000: "RECEITA",
+  2141000: "RECEITA",            // devolução de venda abate a receita
+  // 02. CMV
+  2111100: "CMV", 2111210: "CMV", 2111220: "CMV", 2111310: "CMV", 2111320: "CMV", 2111330: "CMV",
+  2111340: "CMV", 2111400: "CMV", 2111500: "CMV",
+  2112100: "CMV", 2112200: "CMV", 2112300: "CMV", 2112400: "CMV", 2112500: "CMV", 2112600: "CMV", 2112700: "CMV",
+  2113100: "CMV", 2113200: "CMV", 2113310: "CMV", 2113320: "CMV", 2113330: "CMV", 2113400: "CMV",
+  2113500: "CMV", 2113600: "CMV", 2113700: "CMV",
+  2114100: "CMV", 2114200: "CMV", 2114300: "CMV", 2114400: "CMV", 2114600: "CMV", 2114700: "CMV",
+  2114800: "CMV", 2114910: "CMV", 2114920: "CMV",
+  2117100: "CMV", 2117200: "CMV", 2117300: "CMV", 2117400: "CMV", 2117510: "CMV", 2117520: "CMV",
+  2117530: "CMV", 2117600: "CMV", 2118000: "CMV", 2210000: "CMV",
+  // 04. DESPESA ADM E VEGETATIVA
+  2114500: "DESPESA_ADM",        // designer
+  2116100: "DESPESA_ADM", 2116200: "DESPESA_ADM", 2116300: "DESPESA_ADM",
+  2121000: "DESPESA_ADM", 2122000: "DESPESA_ADM", 2123200: "DESPESA_ADM", 2123300: "DESPESA_ADM",
+  2124000: "DESPESA_ADM", 2125000: "DESPESA_ADM", 2126000: "DESPESA_ADM", 2127000: "DESPESA_ADM",
+  2128100: "DESPESA_ADM", 2128200: "DESPESA_ADM", 2128300: "DESPESA_ADM",
+  2220000: "DESPESA_ADM", 2240000: "DESPESA_ADM",
+  // 06. IMPOSTOS E JUROS
+  2115100: "IMPOSTOS_JUROS", 2132000: "IMPOSTOS_JUROS", 2134000: "IMPOSTOS_JUROS",
+  2135000: "IMPOSTOS_JUROS", 2230000: "IMPOSTOS_JUROS",
+  // 08. INVESTIMENTO
+  2123100: "INVESTIMENTO",       // reforma
+  2133100: "INVESTIMENTO", 2133200: "INVESTIMENTO", 2133300: "INVESTIMENTO", 2133400: "INVESTIMENTO",
+  // RECURSOS EXTERNOS — entrada e pagamento do principal
+  1131000: "EXT_BANCARIO", 2131100: "EXT_BANCARIO",
+  1132000: "EXT_SOCIOS", 2131200: "EXT_SOCIOS",
+  1133000: "EXT_FACTORING", 2131300: "EXT_FACTORING",
+  1134000: "EXT_CAPITAL", 2131400: "EXT_CAPITAL",
+  1135000: "EXT_MUTUO", 2131500: "EXT_MUTUO",
+  1117000: "EXT_SEM_JUROS", 1140000: "EXT_SEM_JUROS",
+  // FORA DA DRE
+  3000000: "FORA",
+  2111200: "FORA", 2111300: "FORA", 2113000: "FORA", 2123000: "FORA",   // contas antigas, inativas
+};
+
+// Grupo de uma conta: o de–para oficial manda; sem ele, um palpite pelo começo do código.
 export function grupoPadrao(codigo, nome = "") {
-  const c = String(codigo || "");
-  const t = String(nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
-  if (/FACTORING|ANTECIPA/.test(t)) return "EXT_FACTORING";
-  if (/SOCIO|MUTUO/.test(t)) return "EXT_SOCIOS";
-  if (/EMPRESTIMO|FINANCIAMENTO/.test(t)) return "EXT_BANCARIO";
-  if (/RENDIMENTO|APLICACAO|CDB/.test(t)) return "EXT_RENDIMENTO";
+  const c = String(codigo || "").trim();
+  if (MAPA_OFICIAL[c]) return MAPA_OFICIAL[c];
   if (c.startsWith("1")) return "RECEITA";
-  if (c.startsWith("3")) return "FORA";
-  if (c.startsWith("2")) {
-    if (/^211[346]/.test(c)) return "CMV";          // produção, matéria-prima e logística interna
-    if (c.startsWith("2115")) return "IMPOSTOS_JUROS";
-    if (c.startsWith("2131")) return "IMPOSTOS_JUROS";   // juros de dívida
-    if (c.startsWith("2133")) return "INVESTIMENTO";     // máquinas e equipamentos
-    return "DESPESA_ADM";
-  }
+  if (c.startsWith("2")) return "DESPESA_ADM";
   return "FORA";
 }
+export const temMapaOficial = (codigo) => !!MAPA_OFICIAL[String(codigo || "").trim()];
 
 export async function mapaDeContas() {
   const [contas, mapa] = await Promise.all([
@@ -54,6 +89,8 @@ export async function mapaDeContas() {
     ...c,
     grupo: porId[c.id] || grupoPadrao(c.codigo, c.nome),
     manual: !!porId[c.id],
+    // conta que não está no de–para oficial nem foi ajustada à mão: pede conferência
+    conferir: !porId[c.id] && !temMapaOficial(c.codigo),
   }));
 }
 
