@@ -2057,6 +2057,32 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
 
       {!anual && dados && <Conferencia user={user} comp={comp} dados={dados} onMudou={carregar} setAviso={setAviso} />}
 
+      {dados?.ajusteCartaoBB && (
+        <div className="rounded-lg px-4 py-3 mb-3 text-sm" style={{ background: C.blueSoft, color: C.blue }}>
+          <div className="flex items-start gap-2">
+            <CreditCard size={15} className="shrink-0 mt-0.5" />
+            <div>
+              <b>Cartão de crédito BB saiu de "pgto dívidas bancárias".</b>{" "}
+              {dados.ajusteCartaoBB.descartados} lançamento(s) desconsiderado(s)
+              {dados.ajusteCartaoBB.valorDescartado ? ` · R$ ${brl(dados.ajusteCartaoBB.valorDescartado)}` : ""}.
+              {dados.ajusteCartaoBB.estornosAbertos > 0 && (
+                <> {dados.ajusteCartaoBB.estornosAbertos} estorno(s) voltaram para "a identificar".</>
+              )}
+              {dados.ajusteCartaoBB.regrasDesligadas?.length > 0 && (
+                <> Palavra(s)-chave desligada(s): {dados.ajusteCartaoBB.regrasDesligadas.join(" · ")}.</>
+              )}
+              {dados.ajusteCartaoBB.outrosLancamentos > 0 && (
+                <div className="mt-1" style={{ color: C.yellow }}>
+                  Há {dados.ajusteCartaoBB.outrosLancamentos} lançamento(s) de cartão em dívidas bancárias de
+                  outro(s) banco(s) ({dados.ajusteCartaoBB.outrosBancos.join(", ")}), somando
+                  R$ {brl(dados.ajusteCartaoBB.valorOutros)}. Não mexi neles — me avise se quiser o mesmo tratamento.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {gruposDre.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg px-4 py-2.5 mb-3 text-sm" style={{ background: C.accentSoft, color: C.text }}>
           <PieIco size={15} style={{ color: C.accent }} />

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, descartarPagamentosFatura } from "@/lib/fin";
 import { LEITORES, LEITORES_DETALHE } from "@/lib/finParse";
 import { CONSOLIDADOS } from "@/lib/finConcilia";
+import { limparCartaoBBdeDividas } from "@/lib/finAjustes";
 
 // GET ?u=&competencia=  → lançamentos do mês
 // GET ?u=&ano=2026       → lançamentos do ano inteiro (identificação anual)
@@ -14,6 +15,7 @@ export async function GET(req) {
   const anual = /^\d{4}$/.test(ano || "");
   if (!anual && !competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
+  const cartaoBB = await limparCartaoBBdeDividas().catch(() => null);   // cartão BB fora de dívidas (uma vez)
 
   // filtro de competência: um mês ou o ano inteiro
   const ondeComp = anual ? { startsWith: `${ano}-` } : competencia;
@@ -51,6 +53,7 @@ export async function GET(req) {
     contas: contas.map((c) => ({ ...c, grupoDre: grupoDe[c.id] || null })),
     saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura,
     ...(anual ? { anual: true, ano: Number(ano) } : {}),
+    ...(cartaoBB && !cartaoBB.jaFeito && cartaoBB.ok ? { ajusteCartaoBB: cartaoBB } : {}),
   });
 }
 

@@ -44,3 +44,100 @@ export async function ajustarAdiantamento() {
   });
   return { ok: true, marcados, naoAchados };
 }
+
+// ---------------------------------------------------------------------------
+// Cartão de crédito BB caindo em "PGTO DIVIDAS BANCARIAS" (conta 2131100).
+// Duas palavras-chave da base antiga mandavam para lá o pagamento da fatura e os estornos.
+// Aqui: desligamos essas palavras-chave e desconsideramos os lançamentos que já entraram,
+// do mesmo jeito que o sistema já faz com o pagamento de fatura que bate com o cartão.
+// ---------------------------------------------------------------------------
+const CHAVE_CARTAO_BB = "AJUSTE_CARTAO_BB_DIVIDAS";
+const CONTA_DIVIDAS = "2131100";
+const CONTA_CONCILIACAO = "3000000";
+const BANCOS_BB = ["BB PJ", "CARTÃO BB PJ"];
+// A base antiga guarda os termos sem os acentos e sem as letras acentuadas:
+// "CARTÃO" virou "CARTO" e "CRÉDITO" virou "CRDITO". O (?![A-Z]) evita pegar CARTONAGEM.
+const RE_CARTAO = /CART[AÃ]?O(?![A-Z])|OUROCARD/;
+const RE_ESTORNO = /ESTORNO/;
+
+// O que um lançamento de 2131100 realmente é:
+// CARTAO  = pagamento ou crédito de cartão → desconsiderado (igual ao pagamento de fatura)
+// ESTORNO = estorno que não é de cartão → volta a ser "a identificar", o Igor decide
+export function ehCartaoEmDividas(l) {
+  const h = semAcento(`${l.historico} ${l.identificacao || ""}`);
+  if (RE_CARTAO.test(h)) return "CARTAO";
+  if (RE_ESTORNO.test(h)) return "ESTORNO";
+  return null;
+}
+
+export async function limparCartaoBBdeDividas({ forcar = false } = {}) {
+  if (!forcar) {
+    const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_CARTAO_BB } }).catch(() => null);
+    if (ja) return { ok: true, jaFeito: true };
+  }
+
+  const [dividas, conciliacao] = await Promise.all([
+    prisma.finConta.findUnique({ where: { codigo: CONTA_DIVIDAS } }),
+    prisma.finConta.findUnique({ where: { codigo: CONTA_CONCILIACAO } }),
+  ]);
+  if (!dividas) return { ok: false, erro: "Conta 2131100 não encontrada." };
+
+  // 1. desliga as palavras-chave que mandavam cartão e estorno para dívidas bancárias
+  const regras = await prisma.finRegra.findMany({ where: { contaId: dividas.id, ativo: true } });
+  const desligar = regras.filter((r) => RE_CARTAO.test(semAcento(r.termo)) || RE_ESTORNO.test(semAcento(r.termo)));
+  if (desligar.length) {
+    await prisma.finRegra.updateMany({ where: { id: { in: desligar.map((r) => r.id) } }, data: { ativo: false } });
+  }
+  // o pagamento da fatura passa a ser conciliação (entra e sai: não é despesa nem dívida)
+  if (conciliacao) {
+    const paraConciliar = desligar.filter((r) => RE_CARTAO.test(semAcento(r.termo)));
+    for (const r of paraConciliar) {
+      const igual = await prisma.finRegra.findFirst({ where: { contaId: conciliacao.id, termo: r.termo } });
+      if (!igual) await prisma.finRegra.create({ data: { ...semId(r), contaId: conciliacao.id, ativo: true, usos: 0, descricao: r.descricao || "CARTÃO" } });
+    }
+  }
+
+  // 2. desconsidera o que já foi lançado em 2131100 e é cartão
+  const lancs = await prisma.finLancamento.findMany({
+    where: { contaId: dividas.id, substituido: false, desmembrado: false },
+    select: { id: true, banco: true, historico: true, identificacao: true, valor: true, competencia: true },
+  });
+  const alvo = lancs.map((l) => ({ l, k: ehCartaoEmDividas(l) })).filter((x) => x.k);
+  const doBB = (x) => BANCOS_BB.includes(x.l.banco);
+  const cartao = alvo.filter((x) => x.k === "CARTAO" && doBB(x));
+  const estornos = alvo.filter((x) => x.k === "ESTORNO" && doBB(x));
+  const outros = alvo.filter((x) => x.k === "CARTAO" && !doBB(x));
+
+  // cartão: desconsiderado, do mesmo jeito que o pagamento de fatura que bate
+  for (const { l } of cartao) {
+    await prisma.finLancamento.update({
+      where: { id: l.id },
+      data: { substituido: true, substGrupo: "CARTAOBB|CARTAO", contaId: null },
+    });
+  }
+  // estorno que não é de cartão: só sai da conta e volta a pedir identificação
+  for (const { l } of estornos) {
+    await prisma.finLancamento.update({ where: { id: l.id }, data: { contaId: null } });
+  }
+
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_CARTAO_BB },
+    create: { chave: CHAVE_CARTAO_BB, valor: new Date().toISOString() },
+    update: { valor: new Date().toISOString() },
+  });
+
+  const soma = (l) => Math.round(l.reduce((s, x) => s + Number(x.l.valor), 0) * 100) / 100;
+  return {
+    ok: true,
+    regrasDesligadas: desligar.map((r) => r.termo),
+    descartados: cartao.length,
+    valorDescartado: soma(cartao),
+    estornosAbertos: estornos.length,
+    valorEstornos: soma(estornos),
+    // mesmo defeito em outros bancos: não mexo sem o Igor mandar, só aviso
+    outrosBancos: [...new Set(outros.map((x) => x.l.banco))],
+    outrosLancamentos: outros.length,
+    valorOutros: soma(outros),
+  };
+}
+const semId = (r) => ({ ordem: r.ordem, descricao: r.descricao, comparar: r.comparar, termo: r.termo, campo: r.campo, banco: r.banco, dc: r.dc, origem: r.origem });
