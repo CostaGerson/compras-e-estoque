@@ -36,6 +36,8 @@ function contaItem(area, nome) {
 }
 const CONTA_DEPTO = { DIR: "2126000", ADM: "2128200", COR: "2113100", SIL: "2113310", BOR: "2113320", COS: "2113500", EXP: "2113200", LOG: "2113600" };
 const ADM = (d) => d === "DIR" || d === "ADM";
+// Adiantamento salarial: 40% do salário base, pago no dia 20 e abatido do salário do dia 5.
+export const PCT_ADIANTAMENTO = 0.4;
 
 // soma por conta → rateio em % (fecha 100 no último)
 function rateioDe(mapa) {
@@ -63,14 +65,14 @@ export function propostasDaMatriz(dados) {
   }
 
   // pessoal: SALÁRIO (5º dia útil) = líquidos + bônus + assiduidade + saldo livre − adiantamentos
-  //          ADIANTAMENTO SALARIAL (dia 20) = 20% do líquido de quem tem a caixa marcada na matriz
+  //          ADIANTAMENTO SALARIAL (dia 20) = 40% do salário base de quem tem a caixa marcada na matriz
   const sal = {}, adi = {}, inss = {}, fgts = {}, vt = {}, vr = {}, ps = {};
   const soma = (m, k, v) => { if (v) m[k] = (m[k] || 0) + v; };
   const quemAdi = [];
   for (const p of calc.pessoas) {
     const c = p.c;
     const conta = CONTA_DEPTO[p.depto] || "2128200";
-    const adiant = p.adiantamento ? c.liquido * 0.4 : 0;
+    const adiant = p.adiantamento ? r2(c.F * PCT_ADIANTAMENTO) : 0;   // 40% do salário base
     if (adiant) quemAdi.push(p.nome || p.cargo);
     soma(adi, conta, adiant);
     soma(sal, conta, c.liquido + c.G + c.ass + c.saldoLivre - adiant);
@@ -82,10 +84,10 @@ export function propostasDaMatriz(dados) {
   }
   const tot = (m) => Object.values(m).reduce((s, v) => s + v, 0);
   add({ chave: "MATRIZ|pessoal|SALARIO", grupo: "Pessoal", titulo: "SALÁRIO", parceiro: "FOLHA DE PAGAMENTO", valor: tot(sal), dia: 5, util: true, rateio: rateioDe(sal),
-    obs: `Líquidos de ${calc.pessoas.length} pessoa(s) (inclui pró-labore e bolsa) menos os adiantamentos` });
+    obs: `Líquidos de ${calc.pessoas.length} pessoa(s) (inclui pró-labore e bolsa) menos os adiantamentos do dia 20` });
   add({ chave: "MATRIZ|pessoal|ADIANTAMENTO", grupo: "Pessoal", titulo: "ADIANTAMENTO SALARIAL", parceiro: "FOLHA DE PAGAMENTO", valor: tot(adi), dia: 20,
     rateio: tot(adi) ? rateioDe(adi) : [{ codigo: "2128200", pct: 100 }],
-    obs: quemAdi.length ? `40% do líquido: ${quemAdi.join(", ")}` : "Ninguém marcado com adiantamento na matriz" });
+    obs: quemAdi.length ? `40% do salário base: ${quemAdi.join(", ")}` : "Ninguém marcado com adiantamento na matriz" });
   if (tot(inss)) add({ chave: "MATRIZ|pessoal|INSS", grupo: "Pessoal", titulo: "INSS (GPS) — PATRONAL + FUNCIONÁRIOS", parceiro: "RECEITA FEDERAL", valor: tot(inss), dia: 20, rateio: rateioDe(inss) });
   if (tot(fgts)) add({ chave: "MATRIZ|pessoal|FGTS", grupo: "Pessoal", titulo: "FGTS", parceiro: "CAIXA ECONÔMICA FEDERAL", valor: tot(fgts), dia: 20, rateio: rateioDe(fgts) });
   if (tot(vt)) add({ chave: "MATRIZ|pessoal|VT", grupo: "Pessoal", titulo: "VALE-TRANSPORTE", valor: tot(vt), dia: 1, rateio: rateioDe(vt) });
