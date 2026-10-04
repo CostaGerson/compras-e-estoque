@@ -9,6 +9,7 @@ import {
 import Comercial from "./comercial";
 import Financeiro from "./financeiro";
 import Gestao from "./gestao";
+import Prestadores from "./prestadores";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -71,10 +72,12 @@ const MENU = [
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
     ] },
   ] },
-  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores e artigos", filhos: [
+  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers e terceirizados", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
+    { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP"], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
+    { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP"], desc: "Facções e serviços: PIX, endereço e capacidade" },
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
@@ -201,6 +204,8 @@ export default function Home() {
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME user={user} perfil={perfil} />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
+          {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
+          {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}

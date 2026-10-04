@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
 import { garantirRecorrenciasMatriz } from "@/lib/finMatrizRecDb";
 import { separarMutuos } from "@/lib/finAjustes";
+import { garantirSemanas } from "@/lib/finSemana";
 import { gerarRecorrencias, tituloOut, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
 
 const TIPOS = ["PAGAR", "RECEBER"];
@@ -16,6 +17,8 @@ export async function GET(req) {
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   await gerarRecorrencias(tipo);
+  const de0 = sp.get("de") || mesAtual();
+  if (tipo === "PAGAR") await garantirSemanas(de0).catch(() => null);   // as duas contas de cada sexta
   const de = sp.get("de") || mesAtual(), ate = sp.get("ate") || de;
   const hoje = mesAtual();
   const [titulos, atrasados, criticas, contas, parceiros, recs] = await Promise.all([

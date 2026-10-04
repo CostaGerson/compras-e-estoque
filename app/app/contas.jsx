@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { PrestadorModal } from "./prestadores";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
@@ -31,7 +32,8 @@ const api = async (url, method = "GET", body) => {
 };
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
-const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação Excel", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat] };
+const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
+const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação Excel", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 
 function situacao(t) {
   if (t.status === "CANCELADO") return { k: "CANC", t: "Cancelado", c: C.sub, bg: C.panel2 };
@@ -342,10 +344,10 @@ export default function ContasPagarReceber({ user }) {
 
           {d.atrasados.length > 0 && (
             <Tabela titulo={`Vencidos de meses anteriores · ${moeda(tot.atrasados)}`} cor={C.red} itens={d.atrasados} contasPorId={contasPorId} P={P}
-              onEditar={(t) => setModal({ t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
+              onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
           <Tabela titulo={`${nomeMes(mes)} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
-            onEditar={(t) => setModal({ t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
+            onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} neste mês.`} />
         </>
       )}
@@ -354,6 +356,7 @@ export default function ContasPagarReceber({ user }) {
 
       {modal?.t === "titulo" && <TituloModal user={user} tipo={tipo} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
+      {modal?.t === "semana" && <SemanaModal user={user} tituloId={modal.item.id} onClose={() => { setModal(null); carregar(); }} onMudou={carregar} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
@@ -511,6 +514,268 @@ function BaixaModal({ t, P, onClose, onOk }) {
     </Modal>
   );
 }
+
+
+/* ---------------- conta da semana: freelancers e terceirizados ---------------- */
+const GRUPO_ROT = { FREELANCER: "Freelancer", FACCAO: "Facção", SERVICO: "Serviço terceirizado" };
+// o cadastro do prestador usa a lista completa: setores (freelancer) ou facção + serviços (terceirizado)
+const catCadastro = (d) => d.tipo === "FREELANCER"
+  ? (d.catalogos.FREELANCER || [])
+  : [...(d.catalogos.FACCAO || []).map((c) => ({ ...c, grupo: "FACCAO", n: `Facção · ${c.n}` })),
+     ...(d.catalogos.SERVICO || []).map((c) => ({ ...c, grupo: "SERVICO", n: `Serviço · ${c.n}` }))];
+
+function SemanaModal({ user, tituloId, onClose, onMudou }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [edit, setEdit] = useState(null);   // { item? , grupo }
+  const carregar = () => api(`/api/fin/semana?u=${user.id}&titulo=${tituloId}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+  useEffect(() => { carregar(); }, [tituloId]);
+
+  const apagar = async (it) => {
+    if (!confirm(`Apagar o lançamento de ${it.nome}?`)) return;
+    try { setD(await api("/api/fin/semana", "DELETE", { usuarioId: user.id, id: it.id, tituloId })); onMudou && onMudou(); }
+    catch (e) { setErro(e.message); }
+  };
+
+  if (!d && !erro) return <Modal titulo="Conta da semana" icone={CalendarClock} onClose={onClose} largura={980}><div style={{ color: C.sub }}>Carregando…</div></Modal>;
+  if (erro && !d) return <Modal titulo="Conta da semana" icone={CalendarClock} onClose={onClose} largura={980}><div className="p-3 rounded" style={{ background: C.redSoft, color: C.red }}>{erro}</div></Modal>;
+
+  const sexta = dBR(String(d.titulo.vencimento).slice(0, 10));
+  return (
+    <Modal titulo={`${d.titulo.nome} · sexta ${sexta}`} icone={CalendarClock} onClose={onClose} largura={1040}
+      rodape={<>
+        <span className="mr-auto font-bold" style={{ color: C.navy }}>Total da semana {moeda(d.total)}</span>
+        <BtnP onClick={onClose}>Fechar</BtnP>
+      </>}>
+      {erro && <div className="p-2 mb-3 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {d.grupos.map((g) => (
+          <button key={g} onClick={() => setEdit({ grupo: g })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>
+            <Plus size={14} /> {GRUPO_ROT[g]}
+          </button>
+        ))}
+        <div className="flex-1" />
+        {d.grupos.map((g) => d.porGrupo[g] ? (
+          <span key={g} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: C.panel2, color: C.sub }}>
+            {GRUPO_ROT[g]} {moeda(d.porGrupo[g])}
+          </span>
+        ) : null)}
+      </div>
+
+      {!d.itens.length && <div className="text-sm text-center py-8" style={{ color: C.sub }}>
+        Nada lançado nesta semana ainda. Use os botões acima.
+      </div>}
+
+      {!!d.itens.length && (
+        <div className="rounded-xl overflow-auto" style={{ border: `1px solid ${C.line}` }}>
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 900 }}>
+            <thead><tr style={{ background: C.panel2, color: C.sub }}>
+              <th className="px-2 py-2 text-left font-semibold">Prestador</th>
+              <th className="px-2 py-2 text-left font-semibold">Setor / peça</th>
+              <th className="px-2 py-2 text-left font-semibold">Detalhe</th>
+              <th className="px-2 py-2 text-right font-semibold">Valor</th>
+              <th className="px-2 py-2"></th>
+            </tr></thead>
+            <tbody>
+              {d.itens.map((it) => (
+                <tr key={it.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-2 py-1.5">
+                    <div className="font-semibold">{it.nome}</div>
+                    <div style={{ color: C.sub }}>{GRUPO_ROT[it.grupo]} · PIX {it.chavePix}</div>
+                  </td>
+                  <td className="px-2 py-1.5">{it.setorNome}</td>
+                  <td className="px-2 py-1.5" style={{ color: C.sub }}>
+                    {it.grupo === "FREELANCER"
+                      ? `${it.dias} dia(s) × ${moeda(it.diaria)}`
+                      : (it.linhas || []).map((l, i) => (
+                          <div key={i}>{l.qtd} {l.item || "pç"} × {moeda(l.unitario)} · pedido {l.pedido} = <b style={{ color: C.text }}>{moeda(l.total)}</b></div>
+                        ))}
+                    {it.observacao && <div>{it.observacao}</div>}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{moeda(it.valor)}</td>
+                  <td className="px-2 whitespace-nowrap">
+                    <button onClick={() => setEdit({ item: it, grupo: it.grupo })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
+                    <button onClick={() => apagar(it)} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {edit && (
+        <ItemSemanaModal user={user} tituloId={tituloId} grupo={edit.grupo} item={edit.item}
+          tipoPrestador={d.tipo === "FREELANCER" ? "FREELANCER" : "TERCEIRIZADO"}
+          catalogo={d.catalogos[edit.grupo] || []} catalogoCadastro={catCadastro(d)} prestadores={d.prestadores}
+          onClose={() => setEdit(null)}
+          onSalvo={(j) => { setEdit(null); setD(j); onMudou && onMudou(); }} />
+      )}
+    </Modal>
+  );
+}
+
+/* uma linha da semana: freelancer (diária × dias) ou facção/serviço (pedidos) */
+function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo, catalogoCadastro, prestadores, onClose, onSalvo }) {
+  const free = grupo === "FREELANCER";
+  const [f, setF] = useState(() => ({
+    prestadorId: item?.prestadorId || null,
+    nome: item?.nome || "",
+    chavePix: item?.chavePix || "",
+    setor: item?.setor || "",
+    diaria: item?.diaria ?? 0,
+    dias: item?.dias ?? 1,
+    linhas: item?.linhas?.length ? item.linhas : [{ pedido: "", item: "", qtd: 0, unitario: 0 }],
+    observacao: item?.observacao || "",
+  }));
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [novoPrestador, setNovoPrestador] = useState(null);   // nome digitado que não existe
+  const [lista, setLista] = useState(prestadores);
+  const s = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+
+  const escolher = (p) => setF((x) => ({
+    ...x, prestadorId: p.id, nome: p.nome, chavePix: p.chavePix || x.chavePix,
+    setor: x.setor || primeiroSetor(p, grupo, catalogo),
+  }));
+
+  const altL = (i, k, v) => setF((x) => ({ ...x, linhas: x.linhas.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
+  const total = free
+    ? (Number(f.diaria) || 0) * (Number(f.dias) || 0)
+    : f.linhas.reduce((s2, l) => s2 + (Number(l.qtd) || 0) * (Number(l.unitario) || 0), 0);
+
+  const salvar = async () => {
+    setSalvando(true); setErro("");
+    try {
+      const j = await api("/api/fin/semana", "POST", { usuarioId: user.id, tituloId, id: item?.id, item: { ...f, grupo } });
+      onSalvo(j);
+    } catch (e) { setErro(e.message); setSalvando(false); }
+  };
+
+  return (
+    <Modal titulo={`${item ? "Editar" : "Lançar"} ${GRUPO_ROT[grupo].toLowerCase()}`} icone={Plus} onClose={onClose} largura={820}
+      rodape={<>
+        <span className="mr-auto font-bold" style={{ color: C.navy }}>Total {moeda(total)}</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP>
+      </>}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+        <Campo t="Prestador" dica="escolha ou cadastre">
+          <PrestadorPicker lista={lista} valor={f.nome} onEscolher={escolher}
+            onNovo={(nome) => setNovoPrestador(nome)} />
+        </Campo>
+        <Campo t="Chave PIX"><input value={f.chavePix} onChange={(e) => s("chavePix")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.chavePix ? C.line : C.yellow }} /></Campo>
+        <Campo t={free ? "Setor" : "Tipo de peça / serviço"}>
+          <select value={f.setor} onChange={(e) => s("setor")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.setor ? C.line : C.yellow }}>
+            <option value="">—</option>
+            {catalogo.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+          </select>
+        </Campo>
+        {free && <Campo t="Valor da diária"><Valor value={f.diaria} onChange={s("diaria")} width="100%" /></Campo>}
+        {free && <Campo t="Dias trabalhados"><input value={f.dias} onChange={(e) => s("dias")(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={inpS} /></Campo>}
+      </div>
+
+      {!free && (
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Pedidos · dá para lançar vários</div>
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
+            <span style={{ width: 150 }}>Nº do pedido</span>
+            <span className="flex-1">Item</span>
+            <span style={{ width: 80, textAlign: "right" }}>Qtd</span>
+            <span style={{ width: 120, textAlign: "right" }}>Unitário</span>
+            <span style={{ width: 110, textAlign: "right" }}>Total</span>
+            <span style={{ width: 20 }} />
+          </div>
+          {f.linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2 mb-1.5">
+              <input value={l.pedido} onChange={(e) => altL(i, "pedido", e.target.value.toUpperCase())} placeholder="PEDIDO" className={inp} style={{ ...inpS, width: 150 }} />
+              <input value={l.item || ""} onChange={(e) => altL(i, "item", e.target.value.toUpperCase())} placeholder="camiseta, polo…" className={inp} style={inpS} />
+              <input value={l.qtd} onChange={(e) => altL(i, "qtd", e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={{ ...inpS, width: 80 }} />
+              <div style={{ width: 120 }}><Valor value={l.unitario} onChange={(v) => altL(i, "unitario", v)} width="100%" /></div>
+              <span className="text-xs font-semibold tabular-nums" style={{ width: 110, textAlign: "right" }}>
+                {moeda((Number(l.qtd) || 0) * (Number(l.unitario) || 0))}
+              </span>
+              <button type="button" onClick={() => setF((x) => ({ ...x, linhas: x.linhas.filter((_, j) => j !== i) }))}
+                style={{ color: C.sub, width: 20 }}><X size={14} /></button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setF((x) => ({ ...x, linhas: [...x.linhas, { pedido: "", item: "", qtd: 0, unitario: 0 }] }))}
+            className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Outro pedido</button>
+        </div>
+      )}
+
+      <div className="mt-3"><Campo t="Observação"><input value={f.observacao} onChange={(e) => s("observacao")(e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo></div>
+      {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+
+      {novoPrestador !== null && (
+        <PrestadorModal user={user} tipo={tipoPrestador} nomeSugerido={novoPrestador}
+          catalogo={catalogoCadastro}
+          onClose={() => setNovoPrestador(null)}
+          onSalvo={(j) => {
+            setLista(j.prestadores);
+            const p = j.prestador;
+            setF((x) => ({ ...x, prestadorId: p.id, nome: p.nome, chavePix: p.chavePix || x.chavePix, setor: x.setor || primeiroSetor(p, grupo, catalogo) }));
+            setNovoPrestador(null);
+          }} />
+      )}
+    </Modal>
+  );
+}
+
+// o setor do prestador que serve para este grupo (freelancer: "COSTURA" · terceirizado: "FACCAO:POLO")
+function primeiroSetor(p, grupo, catalogo) {
+  for (const s of p.servicos || []) {
+    const k = grupo === "FREELANCER" ? s : (String(s).startsWith(`${grupo}:`) ? String(s).slice(grupo.length + 1) : null);
+    if (k && catalogo.some((c) => c.k === k)) return k;
+  }
+  return "";
+}
+
+// campo de prestador: lista os cadastrados e abre o cadastro quando o nome é novo
+function PrestadorPicker({ lista, valor, onEscolher, onNovo }) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const caixa = useRef(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e) => { if (caixa.current && !caixa.current.contains(e.target)) { setAberto(false); setBusca(""); } };
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, [aberto]);
+  const filtradas = useMemo(() => {
+    const b = semAcC(busca).trim();
+    return (lista || []).filter((p) => !b || semAcC(p.nome).includes(b));
+  }, [lista, busca]);
+  return (
+    <div ref={caixa} className="relative">
+      <input value={aberto ? busca : valor} onFocus={() => { setAberto(true); setBusca(""); }} onClick={() => setAberto(true)}
+        onChange={(e) => { setBusca(e.target.value.toUpperCase()); setAberto(true); }}
+        placeholder="Clique e escolha, ou digite um nome novo" className={inp} style={{ ...inpS, borderColor: valor ? C.line : C.yellow }} />
+      {aberto && (
+        <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg overflow-auto"
+          style={{ background: C.panel, border: `1px solid ${C.line}`, maxHeight: 240, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+          {filtradas.map((p) => (
+            <button key={p.id} type="button" onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onEscolher(p); setAberto(false); setBusca(""); }}
+              className="w-full text-left px-3 py-1.5 text-sm">
+              <div className="font-semibold">{p.nome}</div>
+              <div className="text-[11px]" style={{ color: C.sub }}>{p.chavePix}{p.capacidade ? ` · ${p.capacidade} pç/semana` : ""}</div>
+            </button>
+          ))}
+          <button type="button" onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { onNovo(busca.trim()); setAberto(false); setBusca(""); }}
+            className="w-full text-left px-3 py-2 text-sm font-semibold flex items-center gap-1.5"
+            style={{ color: C.accent, borderTop: `1px solid ${C.line}` }}>
+            <Plus size={13} /> Cadastrar {busca.trim() ? `"${busca.trim()}"` : "um novo"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+const semAcC = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 
 /* ---------------- conferir valores das recorrências ---------------- */
 // A conferência do mês é a guia Recorrentes vista mês a mês: o valor que ela mostra é o

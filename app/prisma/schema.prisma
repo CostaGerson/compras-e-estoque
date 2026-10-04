@@ -834,6 +834,7 @@ model FinTitulo {
   @@unique([recorrenciaId, competencia])
   @@index([tipo, competencia])
   @@index([tipo, status])
+  semanaItens FinSemanaItem[]
 }
 
 // Conta recorrente: gera um título (previsão) por mês
@@ -1113,4 +1114,53 @@ model FinMesPainel {
   dados             Json           // campos manuais do painel (bancos, pedidos, cenários, info)
   atualizadoPorNome String?
   updatedAt         DateTime @updatedAt
+}
+
+// ---------------- PRESTADORES · FREELANCERS E TERCEIRIZADOS ----------------
+// Cadastro usado nas contas da semana. O terceirizado precisa de endereço; o freelancer não.
+model Prestador {
+  id            Int      @id @default(autoincrement())
+  tipo          String   // FREELANCER | TERCEIRIZADO
+  nome          String
+  telefone      String?
+  chavePix      String
+  servicos      Json     // freelancer: ["COSTURA"] · terceirizado: ["FACCAO:POLO","SERVICO:SILK"]
+  capacidade    Int?     // peças por semana
+  endereco      String?  // obrigatório no terceirizado
+  documento     String?  // CPF/CNPJ (opcional)
+  observacao    String?
+  ativo         Boolean  @default(true)
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itens FinSemanaItem[]
+
+  @@unique([tipo, nome])
+}
+
+// Uma linha dentro da conta da semana (freelancer, facção ou serviço terceirizado).
+model FinSemanaItem {
+  id            Int      @id @default(autoincrement())
+  tituloId      Int
+  grupo         String   // FREELANCER | FACCAO | SERVICO
+  prestadorId   Int?
+  nome          String   // nome no momento do lançamento
+  chavePix      String
+  setor         String   // COSTURA, CAMISETA, SILK…
+  contaId       Int      // conta-caixa do setor (sempre CMV)
+  diaria        Decimal? @db.Decimal(14, 2)   // freelancer
+  dias          Int?                          // freelancer
+  linhas        Json     @default("[]")       // facção/serviço: [{pedido,item,qtd,unitario,total}]
+  valor         Decimal  @db.Decimal(14, 2)
+  observacao    String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  titulo    FinTitulo  @relation(fields: [tituloId], references: [id], onDelete: Cascade)
+  prestador Prestador? @relation(fields: [prestadorId], references: [id])
+
+  @@index([tituloId])
+  @@index([prestadorId])
 }
