@@ -831,6 +831,25 @@ function Recorrentes({ user, contasPorId }) {
     } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
   };
 
+  const excluir = async (r) => {
+    const aviso = [
+      `Excluir a conta recorrente "${r.titulo}"?`,
+      "",
+      "As previsões em aberto deste mês em diante também são apagadas.",
+      "Contas já pagas ou com valor conferido à mão ficam no histórico.",
+      r.daMatriz ? "\nEsta conta vem da Matriz de custos — ela volta a aparecer quando você usar \"Gerar a partir da Matriz\"." : "",
+    ].join("\n");
+    if (!confirm(aviso)) return;
+    try {
+      const j = await api("/api/fin/recorrentes", "DELETE", { usuarioId: user.id, id: r.id });
+      setD(j);
+      setAviso({ tipo: "ok", texto: `"${j.titulo}" excluída`
+        + (j.previsoesApagadas ? ` · ${j.previsoesApagadas} previsão(ões) apagada(s) (${moeda(j.valorApagado)})` : " · não havia previsão em aberto")
+        + (j.titulosMantidos ? ` · ${j.titulosMantidos} conta(s) já lançada(s) ficaram no histórico` : "")
+        + (j.daMatriz ? " · volta se você gerar de novo a partir da Matriz" : "") });
+    } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
+  };
+
   if (erro) return <div className="p-3 rounded" style={{ background: C.redSoft, color: C.red }}>{erro}</div>;
   if (!d) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -914,7 +933,10 @@ function Recorrentes({ user, contasPorId }) {
                       </div>
                     ) : <span className="flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={12} /> de acordo</span>}
                 </td>
-                <td className="px-2"><button onClick={() => setEditar(r)} title="Editar" style={{ color: C.sub }}><Pencil size={13} /></button></td>
+                <td className="px-2 whitespace-nowrap">
+                  <button onClick={() => setEditar(r)} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
+                  <button onClick={() => excluir(r)} title="Excluir a recorrência e as previsões futuras" style={{ color: C.sub }}><Trash2 size={13} /></button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -923,13 +945,13 @@ function Recorrentes({ user, contasPorId }) {
 
       {!lista.length && <div className="text-sm text-center py-8" style={{ color: C.sub }}>Nenhuma conta recorrente com esse filtro.</div>}
 
-      {editar && <RecorrenteModal user={user} r={editar} onClose={() => setEditar(null)}
+      {editar && <RecorrenteModal user={user} r={editar} onClose={() => setEditar(null)} onExcluir={excluir}
         onSalvo={(j, txt) => { setEditar(null); setD(j); setAviso({ tipo: "ok", texto: txt }); }} />}
     </div>
   );
 }
 
-function RecorrenteModal({ user, r, onClose, onSalvo }) {
+function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
   const [f, setF] = useState({
     titulo: r.titulo, parceiro: r.parceiro, valor: lerNum(r.valor),
     diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, formaPagamento: r.formaPagamento || "",
@@ -997,7 +1019,14 @@ function RecorrenteModal({ user, r, onClose, onSalvo }) {
       )}
 
       {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-      <div className="flex justify-end gap-2 mt-5">
+      <div className="flex items-center gap-2 mt-5">
+        {onExcluir && (
+          <button onClick={() => { onClose(); onExcluir(r); }} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{ color: C.red, border: `1px solid ${C.red}44` }}>
+            <Trash2 size={14} /> Excluir
+          </button>
+        )}
+        <div className="flex-1" />
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
         <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
           {salvando ? "Salvando…" : "Salvar"}

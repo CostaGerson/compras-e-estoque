@@ -129,3 +129,32 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
 
   return { ok: true, titulos, matriz };
 }
+
+// Exclui a recorrência e as previsões futuras que ela gerou.
+// Conta já paga ou com valor conferido à mão fica — ela é histórico, não previsão.
+export async function excluir(id, { quem } = {}) {
+  const r = await prisma.finRecorrencia.findUnique({ where: { id: Number(id) } });
+  if (!r) return { ok: false, erro: "Recorrência não encontrada." };
+
+  const titulos = await prisma.finTitulo.findMany({
+    where: { recorrenciaId: r.id },
+    select: { id: true, status: true, valorConfirmado: true, competencia: true, valor: true },
+  });
+  const comp = mesAtual();
+  const apagar = titulos.filter((t) => t.status === "ABERTO" && !t.valorConfirmado && t.competencia >= comp);
+  const ficam = titulos.length - apagar.length;
+
+  if (apagar.length) await prisma.finTitulo.deleteMany({ where: { id: { in: apagar.map((t) => t.id) } } });
+  // o que sobrou perde o vínculo, senão a exclusão da recorrência é barrada
+  if (ficam) await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id }, data: { recorrenciaId: null } });
+  await prisma.finRecorrencia.delete({ where: { id: r.id } });
+
+  return {
+    ok: true,
+    titulo: r.titulo,
+    daMatriz: String(r.chaveOrigem || "").startsWith("MATRIZ|"),
+    previsoesApagadas: apagar.length,
+    valorApagado: r2(apagar.reduce((s, t) => s + Number(t.valor), 0)),
+    titulosMantidos: ficam,
+  };
+}
