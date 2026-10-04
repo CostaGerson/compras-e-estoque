@@ -238,11 +238,179 @@ function PagarReceber() {
   );
 }
 
+
+/* ---------------- INDICADORES DO ANO (DRE + alavancagem) ---------------- */
+const compactoBR = (v) => {
+  const n = Number(v) || 0, a = Math.abs(n), s = n < 0 ? "-" : "";
+  if (a >= 1e6) return `${s}R$ ${(a / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mi`;
+  if (a >= 1e3) return `${s}R$ ${(a / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
+  return `${s}R$ ${a.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+};
+const pctBR = (v) => (v == null ? "—" : `${(v * 100).toFixed(1).replace(".", ",")}%`);
+
+function useAnual(user, ano) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    setD(null); setErro("");
+    fetch(`/api/fin/anual?u=${user.id}&ano=${ano}`)
+      .then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro"))))
+      .catch(() => setErro("Falha de conexão."));
+  }, [ano]);
+  return [d, erro];
+}
+
+function Ind({ rotulo, valor, pct, cor, forte, titulo }) {
+  return (
+    <div className="rounded-lg px-3 py-2" title={titulo}
+      style={{ background: forte ? C.panel2 : C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor || C.line}` }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wide truncate" style={{ color: C.sub }}>{rotulo}</div>
+      <div className={forte ? "font-bold" : "font-semibold"} style={{ fontSize: forte ? 17 : 15, color: cor || C.text, lineHeight: 1.3 }}>
+        {compactoBR(valor)}
+      </div>
+      {pct != null && <div className="text-[10px]" style={{ color: C.sub }}>{pctBR(pct)} da receita</div>}
+    </div>
+  );
+}
+
+/* Dívida mês a mês: ano atual contra o anterior */
+function EvolucaoDivida({ evolucao, ano }) {
+  const [hover, setHover] = useState(null);
+  const alt = 64;
+  const max = Math.max(1, ...evolucao.flatMap((e) => [e.atual, e.anterior]));
+  const h = (v) => Math.max(v ? 2 : 0, ((v || 0) / max) * alt);
+  const e0 = hover == null ? null : evolucao[hover];
+  return (
+    <div>
+      <div className="flex items-end gap-[5px]" style={{ height: alt }} onMouseLeave={() => setHover(null)}>
+        {evolucao.map((e, i) => (
+          <div key={i} className="flex-1 flex items-end gap-[2px]" style={{ height: alt }} onMouseEnter={() => setHover(i)}>
+            <div style={{ width: "50%", height: h(e.anterior), background: hover === i ? C.sub : C.line, borderRadius: "3px 3px 0 0" }} />
+            <div style={{ width: "50%", height: h(e.atual), background: hover === i ? C.navy : C.accent, borderRadius: "3px 3px 0 0" }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-[5px] mt-1">
+        {evolucao.map((e, i) => (
+          <div key={i} className="flex-1 text-center text-[9px]" style={{ color: hover === i ? C.text : C.sub }}>
+            {MESES[i].slice(0, 1)}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 mt-2 text-[10px]" style={{ color: C.sub }}>
+        <span className="flex items-center gap-1"><span style={{ width: 9, height: 9, background: C.accent, borderRadius: 2 }} /> {ano}</span>
+        <span className="flex items-center gap-1"><span style={{ width: 9, height: 9, background: C.line, borderRadius: 2 }} /> {ano - 1}</span>
+        {e0 && (
+          <span className="ml-auto font-semibold" style={{ color: C.text }}>
+            {MESES[hover]} · {compactoBR(e0.atual)} <span style={{ color: C.sub, fontWeight: 400 }}>vs {compactoBR(e0.anterior)}</span>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IndicadoresAno({ d, ano }) {
+  const t = d.totais;
+  const a = d.alavancagem;
+  const nenhum = !t.meses;
+  const sobe = (v) => (v > 0 ? C.red : v < 0 ? C.green : C.sub);   // dívida subindo é ruim
+  const Seta = a.variacaoAno > 0 ? TrendingUp : TrendingDown;
+  const SetaAA = a.variacaoAnoAnterior > 0 ? TrendingUp : TrendingDown;
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-baseline gap-2 mb-2">
+        <div className="text-sm font-bold" style={{ color: C.navy }}>DRE de {ano} até o momento</div>
+        <div className="text-xs" style={{ color: C.sub }}>
+          {nenhum ? "nenhum mês lançado ainda"
+            : `${t.meses} ${t.meses === 1 ? "mês lançado" : "meses lançados"} · ${nomeComp(t.primeiro)} a ${nomeComp(t.ultimo)}`}
+        </div>
+      </div>
+
+      {nenhum ? (
+        <div className="rounded-xl px-4 py-3 text-sm mb-4" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+          Assim que você importar e identificar o primeiro mês, os indicadores do ano aparecem aqui.
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução" />
+            <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção" />
+            <Ind rotulo="Margem de contribuição" valor={t.margem} cor={t.margem >= 0 ? C.green : C.red} pct={t.margemPct} forte />
+            <Ind rotulo="Despesa adm e vegetativa" valor={t.adm} cor={C.red} pct={t.receita ? t.adm / t.receita : null} />
+            <Ind rotulo="EBITDA" valor={t.ebitda} cor={t.ebitda >= 0 ? C.green : C.red} pct={t.ebitdaPct} forte />
+            <Ind rotulo="Impostos e juros" valor={t.impostos} cor={C.red} pct={t.receita ? t.impostos / t.receita : null} />
+            <Ind rotulo="Lucro líquido" valor={t.lucro} cor={t.lucro >= 0 ? C.green : C.red} pct={t.lucroPct} forte />
+            <Ind rotulo="Investimento" valor={t.investimento} cor={C.yellow} pct={t.receita ? t.investimento / t.receita : null} />
+            <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} forte />
+          </div>
+          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            <Ind rotulo="Saldo da operação" valor={t.saldoOperacao} cor={t.saldoOperacao >= 0 ? C.green : C.red} forte
+              titulo="Saldo inicial do primeiro mês lançado + resultado acumulado" />
+            <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
+              titulo="Empréstimo, factoring, capital social e mútuo — entrada menos pagamento" />
+            <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} forte />
+            <Ind rotulo="Média mensal de receita" valor={t.mediaReceita} cor={C.blue} />
+            <Ind rotulo="Média mensal de lucro" valor={t.mediaLucro} cor={t.mediaLucro >= 0 ? C.green : C.red} />
+          </div>
+        </>
+      )}
+
+      {/* ---- alavancagem ---- */}
+      <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex flex-wrap items-start gap-5">
+          <div style={{ minWidth: 230 }}>
+            <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Alavancagem total</div>
+            <div className="font-bold" style={{ fontSize: 28, color: C.text, lineHeight: 1.1 }}>{moeda(a.atual.total)}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>
+              dívida {brl(a.atual.divida)} + tributos {brl(a.atual.tributos)}
+            </div>
+            <div className="text-xs" style={{ color: C.sub }}>compromisso mensal {brl(a.atual.mensal)}</div>
+          </div>
+
+          <div className="flex gap-3 flex-wrap">
+            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 190 }}>
+              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>No ano</div>
+              <div className="flex items-center gap-1 font-bold" style={{ fontSize: 17, color: sobe(a.variacaoAno) }}>
+                <Seta size={15} /> {compactoBR(a.variacaoAno)}
+              </div>
+              <div className="text-[10px]" style={{ color: C.sub }}>
+                abriu em {compactoBR(a.abertura.total)}{a.variacaoAnoPct != null ? ` · ${pctBR(a.variacaoAnoPct)}` : ""}
+              </div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 210 }}>
+              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Contra {ano - 1}</div>
+              <div className="flex items-center gap-1 font-bold" style={{ fontSize: 17, color: sobe(a.variacaoAnoAnterior) }}>
+                <SetaAA size={15} /> {compactoBR(a.variacaoAnoAnterior)}
+              </div>
+              <div className="text-[10px]" style={{ color: C.sub }}>
+                {MESES[a.mesReferencia - 1]}/{ano - 1} estava em {compactoBR(a.anoAnterior.total)}
+                {a.variacaoAnoAnteriorPct != null ? ` · ${pctBR(a.variacaoAnoAnteriorPct)}` : ""}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1" style={{ minWidth: 300 }}>
+            <div className="text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>Evolução da dívida mês a mês</div>
+            <EvolucaoDivida evolucao={a.evolucao} ano={ano} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
 function AnaliseMensal({ user, ano, setAno, abrir }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
+  const [anual, erroAnual] = useAnual(user, ano);
   const [hist, setHist] = useState(false);
+  const alavMes = useMemo(
+    () => Object.fromEntries((anual?.meses || []).map((m) => [m.competencia, m.alavancagem])),
+    [anual]
+  );
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
@@ -257,6 +425,8 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
         </button>
       </div>
       {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
+      {anual && <IndicadoresAno d={anual} ano={ano} />}
+      {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {d && (
@@ -295,6 +465,27 @@ function AnaliseMensal({ user, ano, setAno, abrir }) {
                     )}
                   </>
                 ) : !futuro && <div className="text-xs mt-3" style={{ color: C.sub }}>Nenhum documento enviado.</div>}
+                {!futuro && alavMes[k] && (
+                  <div className="mt-3 pt-2" style={{ borderTop: `1px dashed ${C.line}` }}>
+                    <div className="flex items-baseline justify-between text-[10px]" style={{ color: C.sub }}>
+                      <span>Alavancagem no fim do mês</span>
+                      {(() => {
+                        const ant = alavMes[somaMes(k, -1)];
+                        if (!ant || !ant.total) return null;
+                        const dif = alavMes[k].total - ant.total;
+                        return (
+                          <span className="font-semibold" style={{ color: dif > 0 ? C.red : dif < 0 ? C.green : C.sub }}>
+                            {dif > 0 ? "▲" : dif < 0 ? "▼" : "="} {compactoBR(Math.abs(dif))}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="font-bold text-sm" style={{ color: C.text }}>{compactoBR(alavMes[k].total)}</div>
+                    <div className="text-[10px]" style={{ color: C.sub }}>
+                      dívida {compactoBR(alavMes[k].divida)} · tributos {compactoBR(alavMes[k].tributos)} · mensal {compactoBR(alavMes[k].mensal)}
+                    </div>
+                  </div>
+                )}
               </button>
             );
           })}
