@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
-  Link2,
+  Link2, ChevronDown,
 } from "lucide-react";
 
 const C = {
@@ -97,19 +97,21 @@ const BtnS = ({ onClick, children, cor }) => (
 /* ---------- rateio (contas-caixa) ---------- */
 function Rateio({ contas, valor, value, onChange }) {
   const lista = value && value.length ? value : [{ contaId: null, pct: 100 }];
-  const ativas = contas.filter((c) => c.ativo);
-  const rot = (c) => `${c.codigo} · ${c.nome}`;
-  const porRot = useMemo(() => Object.fromEntries(contas.map((c) => [rot(c), c.id])), [contas]);
+  const ativas = useMemo(() => contas.filter((c) => c.ativo), [contas]);
   const porId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas]);
   const alt = (i, k, v) => onChange(lista.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const tot = lista.reduce((s, r) => s + (Number(r.pct) || 0), 0);
-  const idL = useMemo(() => "contas-" + Math.random().toString(36).slice(2), []);
+  // divide o que falta igualmente entre as linhas sem percentual
+  const dividirIgual = () => {
+    const n = lista.length || 1;
+    const base = Math.floor((100 / n) * 100) / 100;
+    onChange(lista.map((r, i) => ({ ...r, pct: i === n - 1 ? r2pct(100 - base * (n - 1)) : base })));
+  };
   return (
     <div>
-      <datalist id={idL}>{ativas.map((c) => <option key={c.id} value={rot(c)} />)}</datalist>
       {lista.map((r, i) => (
         <div key={i} className="flex items-center gap-2 mb-1.5">
-          <ContaInput listId={idL} conta={porId[r.contaId]} porRot={porRot} contas={ativas} onPick={(id) => alt(i, "contaId", id)} />
+          <ContaSelect conta={porId[r.contaId]} contas={ativas} onPick={(id) => alt(i, "contaId", id)} />
           {lista.length > 1 && (
             <>
               <div className="relative" style={{ width: 80 }}>
@@ -117,34 +119,90 @@ function Rateio({ contas, valor, value, onChange }) {
                 <span className="absolute right-2 top-2 text-[10px]" style={{ color: C.sub }}>%</span>
               </div>
               <span className="text-xs text-right" style={{ color: C.sub, width: 90 }}>{brl((valor * (Number(r.pct) || 0)) / 100)}</span>
-              <button onClick={() => onChange(lista.filter((_, j) => j !== i))} style={{ color: C.sub }}><X size={14} /></button>
+              <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} style={{ color: C.sub }}><X size={14} /></button>
             </>
           )}
         </div>
       ))}
       <div className="flex items-center gap-3 text-xs">
-        <button onClick={() => {
+        <button type="button" onClick={() => {
           const resto = Math.max(0, Math.round((100 - tot) * 100) / 100);
           onChange([...lista, { contaId: null, pct: resto || 0 }]);
         }} className="flex items-center gap-1 font-semibold" style={{ color: C.accent }}><Plus size={13} /> Ratear em mais contas</button>
-        {lista.length > 1 && <span style={{ color: Math.abs(tot - 100) > 0.01 ? C.red : C.green }}>Total {brl(tot)}%</span>}
+        {lista.length > 1 && (
+          <>
+            <button type="button" onClick={dividirIgual} className="font-semibold" style={{ color: C.accent }}>dividir igualmente</button>
+            <span style={{ color: Math.abs(tot - 100) > 0.01 ? C.red : C.green }}>Total {brl(tot)}%</span>
+          </>
+        )}
       </div>
     </div>
   );
 }
-function ContaInput({ listId, conta, porRot, contas, onPick }) {
-  const [txt, setTxt] = useState(conta ? `${conta.codigo} · ${conta.nome}` : "");
-  useEffect(() => { setTxt(conta ? `${conta.codigo} · ${conta.nome}` : ""); }, [conta?.id]);
-  const escolher = (v) => {
-    setTxt(v);
-    if (porRot[v]) return onPick(porRot[v]);
-    const cod = v.trim().split(/\s/)[0];
-    const c = contas.find((x) => x.codigo === cod);
-    if (c && v.trim() === cod) onPick(c.id);
+const r2pct = (n) => Math.round(Number(n || 0) * 100) / 100;
+const semAc = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+// Campo de conta-caixa: abre a lista inteira ao clicar e vai filtrando conforme você digita.
+function ContaSelect({ conta, contas, onPick }) {
+  const rotulo = conta ? `${conta.codigo} · ${conta.nome}` : "";
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [i, setI] = useState(0);
+  const caixa = useRef(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e) => { if (caixa.current && !caixa.current.contains(e.target)) { setAberto(false); setBusca(""); } };
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, [aberto]);
+
+  const filtradas = useMemo(() => {
+    const b = semAc(busca).trim();
+    if (!b) return contas;
+    const termos = b.split(/\s+/);
+    return contas.filter((c) => { const alvo = semAc(`${c.codigo} ${c.nome}`); return termos.every((t) => alvo.includes(t)); });
+  }, [contas, busca]);
+  useEffect(() => { setI(0); }, [busca]);
+
+  const escolher = (c) => { onPick(c.id); setAberto(false); setBusca(""); };
+  const tecla = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setI((x) => Math.min(filtradas.length - 1, x + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setI((x) => Math.max(0, x - 1)); }
+    else if (e.key === "Enter") { e.preventDefault(); if (filtradas[i]) escolher(filtradas[i]); }
+    else if (e.key === "Escape") { setAberto(false); setBusca(""); }
   };
+
   return (
-    <input list={listId} value={txt} onChange={(e) => escolher(e.target.value)} onBlur={() => { if (!porRot[txt] && conta) setTxt(`${conta.codigo} · ${conta.nome}`); }}
-      placeholder="Conta-caixa (código ou nome)" className={inp} style={{ ...inpS, borderColor: conta ? C.line : C.yellow }} />
+    <div ref={caixa} className="relative flex-1" style={{ minWidth: 220 }}>
+      <input
+        value={aberto ? busca : rotulo}
+        onFocus={() => { setAberto(true); setBusca(""); }}
+        onClick={() => setAberto(true)}
+        onChange={(e) => { setBusca(e.target.value); setAberto(true); }}
+        onKeyDown={tecla}
+        placeholder={conta ? rotulo : "Clique e escolha a conta-caixa"}
+        className={inp} style={{ ...inpS, borderColor: conta ? C.line : C.yellow }} />
+      <ChevronDown size={14} className="absolute right-2 top-2.5 pointer-events-none" style={{ color: C.sub }} />
+      {aberto && (
+        <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg overflow-auto"
+          style={{ background: C.panel, border: `1px solid ${C.line}`, maxHeight: 260, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+          {!filtradas.length && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhuma conta com "{busca}".</div>}
+          {filtradas.map((c, k) => (
+            <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => escolher(c)} onMouseEnter={() => setI(k)}
+              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2"
+              style={{ background: k === i ? C.accentSoft : "transparent", color: C.text }}>
+              <span className="font-mono text-xs" style={{ color: C.sub, width: 62 }}>{c.codigo}</span>
+              <span className="flex-1 truncate">{c.nome}</span>
+              {conta && c.id === conta.id && <CheckCircle2 size={13} style={{ color: C.green }} />}
+            </button>
+          ))}
+          <div className="px-3 py-1.5 text-[10px]" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
+            {filtradas.length} de {contas.length} contas · digite para filtrar por código ou nome
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
