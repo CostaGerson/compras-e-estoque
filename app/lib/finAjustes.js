@@ -162,3 +162,67 @@ export async function renomearContas() {
   }
   return { ok: true, renomeadas: feitos };
 }
+
+// ---------------------------------------------------------------------------
+// Mútuos: a Matriz tinha uma linha única "MUTUOS" de R$ 21.680. Vira quatro, uma por sócio,
+// com o dia certo — e o do Emanuel é trimestral (R$ 8.100 a cada 3 meses, peso mensal 2.700).
+// ---------------------------------------------------------------------------
+const CHAVE_MUTUOS = "AJUSTE_MUTUOS_POR_SOCIO";
+export const MUTUOS_POR_SOCIO = [
+  { id: "i67a", natureza: "MUTUO LAEL", parceiro: "LAEL", valor: 3000, dia: 10, obs: "todo dia 10" },
+  { id: "i67b", natureza: "MUTUO ISABEL", parceiro: "ISABEL", valor: 3500, dia: 5, obs: "todo dia 05" },
+  { id: "i67c", natureza: "MUTUO GABRIEL", parceiro: "GABRIEL", valor: 3300, dia: 27, obs: "todo dia 27" },
+  { id: "i67d", natureza: "MUTUO EMANUEL", parceiro: "EMANUEL", valor: 2700, valorParcela: 8100,
+    periodicidade: 3, inicio: "2026-11", dia: 10,
+    obs: "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700" },
+];
+const ehMutuoAntigo = (it) => semAcento(it?.natureza) === "MUTUOS";
+
+export async function separarMutuos() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_MUTUOS } }).catch(() => null);
+  if (ja) return { ok: true, jaFeito: true };
+
+  const matrizes = await prisma.finMatriz.findMany();
+  let trocadas = 0, antigos = [];
+  for (const m of matrizes) {
+    const dados = { ...(m.dados || {}) };
+    if (!Array.isArray(dados.dividas)) continue;
+    const velho = dados.dividas.find(ehMutuoAntigo);
+    if (!velho) continue;
+    antigos.push({ id: velho.id, valor: Number(velho.valor) });
+    // tira o item único e põe os quatro no lugar, sem mexer no resto da lista
+    const i = dados.dividas.findIndex(ehMutuoAntigo);
+    dados.dividas = [
+      ...dados.dividas.slice(0, i),
+      ...MUTUOS_POR_SOCIO.map((x) => ({ ...x, cdb: false })),
+      ...dados.dividas.slice(i + 1).filter((x) => !ehMutuoAntigo(x)),
+    ];
+    await prisma.finMatriz.update({ where: { id: m.id }, data: { dados } });
+    trocadas++;
+  }
+
+  // a recorrência do item antigo some junto com as previsões em aberto deste mês em diante
+  let recorrenciasApagadas = 0, previsoesApagadas = 0;
+  for (const a of antigos) {
+    const r = await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: `MATRIZ|dividas|${a.id}` } }).catch(() => null);
+    if (!r) continue;
+    const comp = new Date().toISOString().slice(0, 7);
+    const apagar = await prisma.finTitulo.findMany({
+      where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: comp } },
+      select: { id: true },
+    });
+    if (apagar.length) await prisma.finTitulo.deleteMany({ where: { id: { in: apagar.map((t) => t.id) } } });
+    await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id }, data: { recorrenciaId: null } });
+    await prisma.finRecorrencia.delete({ where: { id: r.id } }).catch(() => {});
+    previsoesApagadas += apagar.length;
+    recorrenciasApagadas++;
+  }
+
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_MUTUOS },
+    create: { chave: CHAVE_MUTUOS, valor: new Date().toISOString() },
+    update: {},
+  });
+  const mensal = MUTUOS_POR_SOCIO.reduce((s, x) => s + x.valor, 0);
+  return { ok: true, matrizesTrocadas: trocadas, antigos, recorrenciasApagadas, previsoesApagadas, mensal, criados: MUTUOS_POR_SOCIO.length };
+}

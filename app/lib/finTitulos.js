@@ -55,7 +55,8 @@ export async function gerarRecorrencias(tipo) {
   const data = [];
   for (const r of recs) {
     const fim = r.fim && r.fim < ate ? r.fim : ate;
-    for (let c = r.inicio; c <= fim; c = somaMes(c, 1)) {
+    const passo = Math.max(1, Number(r.periodicidade) || 1);   // 1 mensal, 3 trimestral…
+    for (let c = r.inicio; c <= fim; c = somaMes(c, passo)) {
       if (tem.has(`${r.id}|${c}`)) continue;
       data.push({
         tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento, r.diaUtil),

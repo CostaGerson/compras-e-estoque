@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado } from "@/lib/fin";
 import { MATRIZ_SEED } from "@/lib/matrizSeed";
-import { ajustarAdiantamento } from "@/lib/finAjustes";
+import { ajustarAdiantamento, separarMutuos } from "@/lib/finAjustes";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -18,6 +18,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
   await garantirMatriz();
   await ajustarAdiantamento().catch(() => null);   // marca os optantes pelo adiantamento (uma vez)
+  await separarMutuos().catch(() => null);         // uma linha de mútuo por sócio (uma vez)
   const l = await prisma.finMatriz.findMany({ orderBy: [{ oficial: "desc" }, { createdAt: "asc" }], select: { id: true, nome: true, oficial: true, updatedAt: true, atualizadoPor: true } });
   return Response.json(l);
 }

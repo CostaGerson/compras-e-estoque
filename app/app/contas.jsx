@@ -29,6 +29,8 @@ const api = async (url, method = "GET", body) => {
   if (!r.ok) throw new Error(d.error || "Erro");
   return d;
 };
+const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
+const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
 const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação Excel", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat] };
 
 function situacao(t) {
@@ -572,7 +574,7 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
               <td className="px-2 py-2">
                 <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
                 <div style={{ color: C.sub }}>{t.parceiro} · {(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome).join(", ")}</div>
-                {t.rec && <div style={{ color: C.sub }}>{t.rec.diaUtil ? `${t.rec.diaVencimento}º dia útil` : `dia ${t.rec.diaVencimento}`}{t.rec.formaPagamento ? ` · ${FORMAS_PGTO[t.rec.formaPagamento] || t.rec.formaPagamento}` : ""}</div>}
+                {t.rec && <div style={{ color: C.sub }}>{t.rec.diaUtil ? `${t.rec.diaVencimento}º dia útil` : `dia ${t.rec.diaVencimento}`}{(t.rec.periodicidade || 1) > 1 ? ` · ${rotPeriodo(t.rec.periodicidade)}` : ""}{t.rec.formaPagamento ? ` · ${FORMAS_PGTO[t.rec.formaPagamento] || t.rec.formaPagamento}` : ""}</div>}
               </td>
               <td className="px-2 py-2 whitespace-nowrap">
                 {!t.rec ? <span style={{ color: C.sub }}>conta avulsa</span> : <b>{moeda(t.base)}</b>}
@@ -1016,7 +1018,10 @@ function Recorrentes({ user, contasPorId }) {
                 </td>
                 <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.parceiro}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: r.divergente ? C.yellow : C.text }}>{moeda(r.valor)}</td>
-                <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}</td>
+                <td className="px-2 py-1.5" style={{ color: C.sub }}>
+                  {r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}
+                  {(r.periodicidade || 1) > 1 && <div style={{ color: C.accent }}>{rotPeriodo(r.periodicidade)}</div>}
+                </td>
                 <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>
                 <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.daMatriz ? "Matriz de custos" : "Manual"}</td>
                 <td className="px-2 py-1.5">
@@ -1058,6 +1063,7 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
     titulo: r.titulo, parceiro: r.parceiro, valor: lerNum(r.valor),
     diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, formaPagamento: r.formaPagamento || "",
     observacao: r.observacao || "", ativo: r.ativo, fim: r.fim || "",
+    periodicidade: Number(r.periodicidade) || 1,
   });
   const [atualizarMatriz, setAtualizarMatriz] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -1089,6 +1095,11 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
           <select value={f.formaPagamento} onChange={(e) => set("formaPagamento")(e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
             <option value="">—</option>
             {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Campo>
+        <Campo t="Repete a cada" dica="mensal, trimestral…">
+          <select value={f.periodicidade} onChange={(e) => set("periodicidade")(Number(e.target.value))} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
+            {Object.entries(PERIODOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Campo>
         <Campo t="Encerrar em (AAAA-MM)"><input value={f.fim} onChange={(e) => set("fim")(e.target.value)} placeholder="sem fim" className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>

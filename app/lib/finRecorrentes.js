@@ -63,7 +63,7 @@ export async function listar() {
       const divergente = valorMatriz != null && Math.abs(valorMatriz - valor) > 0.009;
       return {
         id: r.id, tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, valor,
-        diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, formaPagamento: r.formaPagamento,
+        diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, periodicidade: r.periodicidade || 1, formaPagamento: r.formaPagamento,
         inicio: r.inicio, fim: r.fim, ativo: r.ativo, observacao: r.observacao,
         chaveOrigem: r.chaveOrigem, daMatriz,
         valorMatriz, divergente, diferenca: divergente ? r2(valor - valorMatriz) : null,
@@ -104,6 +104,7 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
   if ("valor" in campos) d.valor = r2(numBR(campos.valor));
   if ("diaVencimento" in campos) d.diaVencimento = Math.min(31, Math.max(1, Number(campos.diaVencimento) || 1));
   if ("diaUtil" in campos) d.diaUtil = !!campos.diaUtil;
+  if ("periodicidade" in campos) d.periodicidade = Math.max(1, Math.min(12, Number(campos.periodicidade) || 1));
   if ("formaPagamento" in campos) d.formaPagamento = campos.formaPagamento ? String(campos.formaPagamento).toUpperCase() : null;
   if ("observacao" in campos) d.observacao = campos.observacao ? String(campos.observacao).toUpperCase() : null;
   if ("ativo" in campos) d.ativo = !!campos.ativo;

@@ -60,7 +60,17 @@ export function propostasDaMatriz(dados) {
   for (const [area, grupo] of [["vidaVegetativa", "Vida vegetativa"], ["logistica", "Logística/Manutenção"], ["administracao", "Administração"], ["sistemas", "Sistemas"], ["dividas", "Dívidas"]]) {
     for (const it of dados[area] || []) {
       if (it.ativo === false || it.cdb) continue; // CDB entra na provisão geral
-      add({ chave: `MATRIZ|${area}|${it.id}`, grupo, titulo: it.natureza, valor: it.valor, rateio: [{ codigo: contaItem(area, it.natureza), pct: 100 }] });
+      // o item pode definir dia próprio e periodicidade; num item periódico o `valor` da Matriz
+      // é o peso MENSAL e `valorParcela` é o que sai do caixa de fato naquele mês
+      const per = Math.max(1, Number(it.periodicidade) || 1);
+      add({
+        chave: `MATRIZ|${area}|${it.id}`, grupo, titulo: it.natureza,
+        valor: per > 1 ? (it.valorParcela ?? r2(Number(it.valor) * per)) : it.valor,
+        pesoMensal: r2(it.valor), periodicidade: per, inicio: it.inicio || null,
+        ...(it.dia ? { dia: Number(it.dia) } : {}),
+        ...(it.parceiro ? { parceiro: String(it.parceiro).toUpperCase() } : {}),
+        rateio: [{ codigo: contaItem(area, it.natureza), pct: 100 }],
+      });
     }
   }
 

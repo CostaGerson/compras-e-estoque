@@ -692,11 +692,43 @@ export const MATRIZ_SEED = {
     "obs": "considerando negociação das guias em aberto"
    },
    {
-    "id": "i67",
-    "natureza": "MUTUOS",
-    "valor": 21680.0,
+    "id": "i67a",
+    "natureza": "MUTUO LAEL",
+    "valor": 3000.0,
+    "dia": 10,
+    "parceiro": "LAEL",
     "cdb": false,
-    "obs": ""
+    "obs": "todo dia 10"
+   },
+   {
+    "id": "i67b",
+    "natureza": "MUTUO ISABEL",
+    "valor": 3500.0,
+    "dia": 5,
+    "parceiro": "ISABEL",
+    "cdb": false,
+    "obs": "todo dia 05"
+   },
+   {
+    "id": "i67c",
+    "natureza": "MUTUO GABRIEL",
+    "valor": 3300.0,
+    "dia": 27,
+    "parceiro": "GABRIEL",
+    "cdb": false,
+    "obs": "todo dia 27"
+   },
+   {
+    "id": "i67d",
+    "natureza": "MUTUO EMANUEL",
+    "valor": 2700.0,
+    "valorParcela": 8100.0,
+    "periodicidade": 3,
+    "inicio": "2026-11",
+    "dia": 10,
+    "parceiro": "EMANUEL",
+    "cdb": false,
+    "obs": "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700"
    }
   ],
   "producao": {
@@ -1479,11 +1511,43 @@ export const MATRIZ_SEED = {
     "obs": "considerando negociação das guias em aberto"
    },
    {
-    "id": "i67",
-    "natureza": "MUTUOS",
-    "valor": 21680.0,
+    "id": "i67a",
+    "natureza": "MUTUO LAEL",
+    "valor": 3000.0,
+    "dia": 10,
+    "parceiro": "LAEL",
     "cdb": false,
-    "obs": ""
+    "obs": "todo dia 10"
+   },
+   {
+    "id": "i67b",
+    "natureza": "MUTUO ISABEL",
+    "valor": 3500.0,
+    "dia": 5,
+    "parceiro": "ISABEL",
+    "cdb": false,
+    "obs": "todo dia 05"
+   },
+   {
+    "id": "i67c",
+    "natureza": "MUTUO GABRIEL",
+    "valor": 3300.0,
+    "dia": 27,
+    "parceiro": "GABRIEL",
+    "cdb": false,
+    "obs": "todo dia 27"
+   },
+   {
+    "id": "i67d",
+    "natureza": "MUTUO EMANUEL",
+    "valor": 2700.0,
+    "valorParcela": 8100.0,
+    "periodicidade": 3,
+    "inicio": "2026-11",
+    "dia": 10,
+    "parceiro": "EMANUEL",
+    "cdb": false,
+    "obs": "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700"
    }
   ],
   "producao": {

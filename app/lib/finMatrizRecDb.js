@@ -29,7 +29,9 @@ export async function montarMatrizRec() {
   const lista = propostas.map((p) => {
     const rateio = p.rateio.map((r) => ({ contaId: id[r.codigo] || null, pct: r.pct }));
     const e = porChave[p.chave];
-    const difValor = e && Math.abs(Number(e.valor) - r2(p.valor)) > 0.009;
+    const difValor = e && (Math.abs(Number(e.valor) - r2(p.valor)) > 0.009
+      || e.diaVencimento !== p.dia || !!e.diaUtil !== !!p.util
+      || (e.periodicidade || 1) !== Math.max(1, Number(p.periodicidade) || 1));
     const difRateio = e && p.chave.startsWith("MATRIZ|pessoal|") && !mesmoRateio(e.rateio, rateio);
     return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio) };
   });
@@ -54,12 +56,15 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
         await prisma.finRecorrencia.create({
           data: {
             tipo: "PAGAR", titulo: p.titulo.toUpperCase(), parceiro: p.parceiro.toUpperCase(), valor: r2(p.valor), diaVencimento: p.dia, diaUtil: !!p.util,
-            rateio: rt.rateio || [], inicio: ini, observacao: p.obs || "GERADA DA MATRIZ DE CUSTOS", chaveOrigem: p.chave, criadoPorNome: quem,
+            periodicidade: Math.max(1, Number(p.periodicidade) || 1),
+            rateio: rt.rateio || [], inicio: /^\d{4}-\d{2}$/.test(p.inicio || "") ? p.inicio : ini,
+            observacao: p.obs || "GERADA DA MATRIZ DE CUSTOS", chaveOrigem: p.chave, criadoPorNome: quem,
           },
         });
         criadas++;
       } else if (p.jaExiste && p.mudou && atual.has(p.chave)) {
-        const up = { valor: r2(p.valor), ...(p.obs ? { observacao: p.obs } : {}) };
+        const up = { valor: r2(p.valor), diaVencimento: p.dia, diaUtil: !!p.util,
+                     periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}) };
         if (p.chave.startsWith("MATRIZ|pessoal|") && rt.rateio) up.rateio = rt.rateio;
         await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
         await prisma.finTitulo.updateMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", valorConfirmado: false }, data: { valor: up.valor, ...(up.rateio ? { rateio: up.rateio } : {}) } });
