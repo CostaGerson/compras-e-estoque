@@ -43,10 +43,11 @@ function situacao(t) {
 function Valor({ value, onChange, width = 130, autoFocus }) {
   const [foco, setFoco] = useState(false);
   const [txt, setTxt] = useState("");
+  const num = lerNum(value);   // aceita número ou texto em pt-BR ("1.234,56")
   return (
     <div className="relative inline-flex items-center" style={{ width }}>
       <span className="absolute left-2 text-[10px]" style={{ color: C.sub }}>R$</span>
-      <input autoFocus={autoFocus} value={foco ? txt : brl(value)} onFocus={(e) => { setFoco(true); setTxt(brl(value)); setTimeout(() => e.target.select(), 0); }}
+      <input autoFocus={autoFocus} value={foco ? txt : brl(num)} onFocus={(e) => { setFoco(true); setTxt(brl(num)); setTimeout(() => e.target.select(), 0); }}
         onChange={(e) => setTxt(e.target.value)} onBlur={() => { setFoco(false); onChange(lerNum(txt)); }} onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
         className="w-full text-right rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, paddingLeft: 24, color: C.text }} />
     </div>
@@ -930,7 +931,7 @@ function Recorrentes({ user, contasPorId }) {
 
 function RecorrenteModal({ user, r, onClose, onSalvo }) {
   const [f, setF] = useState({
-    titulo: r.titulo, parceiro: r.parceiro, valor: String(r.valor).replace(".", ","),
+    titulo: r.titulo, parceiro: r.parceiro, valor: lerNum(r.valor),
     diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, formaPagamento: r.formaPagamento || "",
     observacao: r.observacao || "", ativo: r.ativo, fim: r.fim || "",
   });
@@ -938,7 +939,7 @@ function RecorrenteModal({ user, r, onClose, onSalvo }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
-  const novoValor = Number(String(f.valor).replace(/\./g, "").replace(",", ".")) || 0;
+  const novoValor = lerNum(f.valor);
   const vaiDivergir = r.valorMatriz != null && Math.abs(novoValor - r.valorMatriz) > 0.009;
 
   const salvar = async () => {

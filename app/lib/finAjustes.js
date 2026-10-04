@@ -141,3 +141,24 @@ export async function limparCartaoBBdeDividas({ forcar = false } = {}) {
   };
 }
 const semId = (r) => ({ ordem: r.ordem, descricao: r.descricao, comparar: r.comparar, termo: r.termo, campo: r.campo, banco: r.banco, dc: r.dc, origem: r.origem });
+
+// ---------------------------------------------------------------------------
+// Renomes de conta-caixa combinados com o Igor. garantirContas() só cria o que falta,
+// nunca renomeia, então o banco que já existe precisa deste ajuste.
+// ---------------------------------------------------------------------------
+const RENOMES = [
+  ["2128100", "BENEFÍCIOS TRABALHISTAS", "BENEFÍCIOS PESSOAL DE ADMINISTRAÇÃO"],
+];
+
+export async function renomearContas() {
+  const feitos = [];
+  for (const [codigo, de, para] of RENOMES) {
+    const c = await prisma.finConta.findUnique({ where: { codigo } }).catch(() => null);
+    if (!c || c.nome === para) continue;
+    // só renomeia se ainda estiver com o nome antigo (não atropela um nome que o Igor tenha mudado)
+    if (semAcento(c.nome) !== semAcento(de)) continue;
+    await prisma.finConta.update({ where: { id: c.id }, data: { nome: para } });
+    feitos.push({ codigo, de: c.nome, para });
+  }
+  return { ok: true, renomeadas: feitos };
+}

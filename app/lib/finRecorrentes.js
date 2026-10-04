@@ -3,6 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { propostasDaMatriz } from "@/lib/finMatrizRec";
 import { r2, mesAtual } from "@/lib/finTitulos";
 
+// aceita 1234.56, "1234,56" ou "1.234,56" — a tela manda número, mas não custa garantir
+const numBR = (v) => {
+  if (typeof v === "number") return v;
+  const t = String(v ?? "").trim().replace(/\s|R\$/g, "");
+  if (!t) return 0;
+  const x = t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+};
+
 export const FORMAS_PAGAMENTO = {
   PIX: "PIX",
   BOLETO: "Boleto",
@@ -91,7 +101,7 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
   const d = {};
   if ("titulo" in campos) d.titulo = String(campos.titulo || "").toUpperCase();
   if ("parceiro" in campos) d.parceiro = String(campos.parceiro || "").toUpperCase();
-  if ("valor" in campos) d.valor = r2(campos.valor);
+  if ("valor" in campos) d.valor = r2(numBR(campos.valor));
   if ("diaVencimento" in campos) d.diaVencimento = Math.min(31, Math.max(1, Number(campos.diaVencimento) || 1));
   if ("diaUtil" in campos) d.diaUtil = !!campos.diaUtil;
   if ("formaPagamento" in campos) d.formaPagamento = campos.formaPagamento ? String(campos.formaPagamento).toUpperCase() : null;

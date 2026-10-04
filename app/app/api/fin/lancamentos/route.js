@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, descartarPagamentosFatura } from "@/lib/fin";
 import { LEITORES, LEITORES_DETALHE } from "@/lib/finParse";
 import { CONSOLIDADOS } from "@/lib/finConcilia";
-import { limparCartaoBBdeDividas } from "@/lib/finAjustes";
+import { limparCartaoBBdeDividas, renomearContas } from "@/lib/finAjustes";
 
 // GET ?u=&competencia=  → lançamentos do mês
 // GET ?u=&ano=2026       → lançamentos do ano inteiro (identificação anual)
@@ -15,6 +15,7 @@ export async function GET(req) {
   const anual = /^\d{4}$/.test(ano || "");
   if (!anual && !competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
+  await renomearContas().catch(() => null);                             // nomes de conta combinados com o Igor
   const cartaoBB = await limparCartaoBBdeDividas().catch(() => null);   // cartão BB fora de dívidas (uma vez)
 
   // filtro de competência: um mês ou o ano inteiro

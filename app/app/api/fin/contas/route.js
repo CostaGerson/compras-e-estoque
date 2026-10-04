@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
+import { renomearContas } from "@/lib/finAjustes";
 
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   await garantirContas();
+  await renomearContas().catch(() => null);
   return Response.json(await prisma.finConta.findMany({ orderBy: { codigo: "asc" } }));
 }
 
