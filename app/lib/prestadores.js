@@ -28,26 +28,39 @@ export const TIPOS_FACCAO = [
   { k: "CALCA_SOCIAL", n: "Calça social", conta: "2114690" },
 ];
 
-// ---- serviço terceirizado: aproveita as contas que já existiam ----
+// ---- serviço terceirizado: cada um é um grupo próprio, com uma conta só ----
+// (aparecem como botões na primeira tela da semana, ao lado de Facção)
 export const SERVICOS_TERCEIRIZADOS = [
   { k: "CORTE", n: "Corte", conta: "2114700" },
-  { k: "SILK", n: "Silk", conta: "2114200" },
   { k: "BORDADO", n: "Bordado", conta: "2114100" },
+  { k: "SILK", n: "Silk", conta: "2114200" },
   { k: "SUBLIMACAO", n: "Sublimação", conta: "2114300" },
   { k: "DTF", n: "DTF", conta: "2114930" },
+  { k: "OUTRO", n: "Outro serviço", conta: "2114990" },
 ];
+export const GRUPO_DESCREVE = "OUTRO";   // exige descrever o que foi feito
 
 // contas-caixa que este módulo precisa que existam (todas CMV)
 export const CONTAS_PRESTADORES = [
   ...TIPOS_FACCAO.map((t) => [t.conta, `FACÇÃO ${t.n.toUpperCase()}`]),
   ["2114930", "DTF"],
+  ["2114990", "OUTROS SERVIÇOS DE PRODUÇÃO"],
 ];
 
+// Cada serviço simples vira um grupo com um único setor (ele mesmo).
+const grupoSimples = (s) => [s.k, { n: s.n, catalogo: [{ k: s.k, n: s.n, conta: s.conta }] }];
 export const GRUPOS_ITEM = {
   FREELANCER: { n: "Freelancer", catalogo: SETORES_FREELANCER },
   FACCAO: { n: "Facção", catalogo: TIPOS_FACCAO },
-  SERVICO: { n: "Serviço terceirizado", catalogo: SERVICOS_TERCEIRIZADOS },
+  ...Object.fromEntries(SERVICOS_TERCEIRIZADOS.map(grupoSimples)),
 };
+// os botões da primeira tela de cada semana
+export const GRUPOS_POR_TIPO = {
+  FREELANCER: ["FREELANCER"],
+  TERCEIRIZADO: ["FACCAO", ...SERVICOS_TERCEIRIZADOS.map((s) => s.k)],
+};
+export const GRUPOS_SERVICO = SERVICOS_TERCEIRIZADOS.map((s) => s.k);
+export const ehServico = (grupo) => GRUPOS_SERVICO.includes(grupo);
 
 // catálogo de um grupo, ou todos juntos
 export const catalogoDe = (grupo) => (GRUPOS_ITEM[grupo] || {}).catalogo || [];
@@ -59,11 +72,16 @@ export function nomeSetor(grupo, setor) {
   const c = catalogoDe(grupo).find((x) => x.k === setor);
   return c ? c.n : setor;
 }
-// o que um terceirizado pode prestar: facção por tipo de peça + serviços
+// o que um terceirizado pode prestar: facção por tipo de peça + cada serviço
 export const SERVICOS_DE_TERCEIRIZADO = [
   ...TIPOS_FACCAO.map((t) => ({ ...t, grupo: "FACCAO", n: `Facção · ${t.n}` })),
-  ...SERVICOS_TERCEIRIZADOS.map((t) => ({ ...t, grupo: "SERVICO", n: `Serviço · ${t.n}` })),
+  ...SERVICOS_TERCEIRIZADOS.map((t) => ({ ...t, grupo: t.k, n: `Serviço · ${t.n}` })),
 ];
+// cadastro antigo guardava "SERVICO:SILK"; hoje é "SILK:SILK"
+export const normalizarServico = (s) => {
+  const t = String(s || "");
+  return t.startsWith("SERVICO:") ? `${t.slice(8)}:${t.slice(8)}` : t;
+};
 
 // ---------------- cadastro ----------------
 const TIPOS = ["FREELANCER", "TERCEIRIZADO"];
@@ -77,13 +95,13 @@ export function validar(tipo, c) {
     return tipo === "FREELANCER" ? "Escolha o setor em que ele trabalha." : "Escolha pelo menos um serviço prestado.";
   }
   const validos = tipo === "FREELANCER" ? SETORES_FREELANCER.map((s) => s.k) : SERVICOS_DE_TERCEIRIZADO.map((s) => `${s.grupo}:${s.k}`);
-  const fora = c.servicos.filter((s) => !validos.includes(s));
+  const fora = c.servicos.map(normalizarServico).filter((s) => !validos.includes(s));
   if (fora.length) return `Serviço desconhecido: ${fora.join(", ")}.`;
   if (tipo === "TERCEIRIZADO" && !String(c.endereco || "").trim()) return "O endereço do terceirizado é obrigatório.";
   return null;
 }
 
-const saida = (p) => ({ ...p, capacidade: p.capacidade == null ? null : Number(p.capacidade) });
+const saida = (p) => ({ ...p, capacidade: p.capacidade == null ? null : Number(p.capacidade), servicos: (p.servicos || []).map(normalizarServico) });
 
 export async function listar(tipo) {
   const where = TIPOS.includes(tipo) ? { tipo } : {};
@@ -99,7 +117,7 @@ export async function salvar(tipo, campos, { id, quem } = {}) {
     nome: String(campos.nome).trim().toUpperCase(),
     telefone: campos.telefone ? String(campos.telefone).trim() : null,
     chavePix: limpaPix(campos.chavePix),
-    servicos: campos.servicos,
+    servicos: campos.servicos.map(normalizarServico),
     capacidade: campos.capacidade == null || campos.capacidade === "" ? null : Math.max(0, Number(campos.capacidade) || 0),
     endereco: campos.endereco ? String(campos.endereco).trim().toUpperCase() : null,
     documento: campos.documento ? String(campos.documento).replace(/\D/g, "") || null : null,

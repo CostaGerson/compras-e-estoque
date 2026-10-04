@@ -1151,6 +1151,14 @@ model FinSemanaItem {
   contaId       Int      // conta-caixa do setor (sempre CMV)
   diaria        Decimal? @db.Decimal(14, 2)   // freelancer
   dias          Int?                          // freelancer
+  transporte    Decimal? @db.Decimal(14, 2)   // freelancer: transporte por dia, entra no valor do dia
+  custoExtra    Decimal? @db.Decimal(14, 2)   // freelancer: extra do período (exige justificativa)
+  justificativa String?                       // obrigatória com custo extra ou pagamento excepcional
+  descricao     String?                       // serviço "OUTRO": o que foi feito
+  dataRecebimento DateTime? @db.Date          // serviço: quando o serviço chegou
+  prazoDias     Int?                          // serviço: prazo negociado, em dias corridos
+  vencimentoNegociado DateTime? @db.Date      // recebimento + prazo
+  excepcional   Boolean  @default(false)      // pagamento fora da sexta programada
   linhas        Json     @default("[]")       // facção/serviço: [{pedido,item,qtd,unitario,total}]
   valor         Decimal  @db.Decimal(14, 2)
   observacao    String?

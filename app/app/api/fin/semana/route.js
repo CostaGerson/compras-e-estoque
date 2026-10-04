@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { abrirSemana, salvarItem, excluirItem, garantirSemanas } from "@/lib/finSemana";
+import { abrirSemana, salvarItem, excluirItem, garantirSemanas, programacao, tituloDaData, sextaDaSemana, sextaAPartirDe, tipoDoGrupo } from "@/lib/finSemana";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -15,6 +15,18 @@ export async function GET(req) {
     if (!/^\d{4}-\d{2}$/.test(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
     return Response.json(await garantirSemanas(comp));
   }
+  // prévia da programação: recebimento + prazo → sexta de pagamento
+  if (q.get("recebimento")) {
+    const prog = programacao(q.get("recebimento"), q.get("prazo"));
+    return prog ? Response.json(prog) : Response.json({ error: "Informe a data de recebimento e o prazo." }, { status: 400 });
+  }
+  // conta avulsa de freelancer/terceirizado: cai na próxima sexta
+  if (q.get("proximaSexta")) {
+    const grupo = q.get("grupo") || "FREELANCER";
+    const sexta = sextaAPartirDe(new Date());
+    const t = await tituloDaData(tipoDoGrupo(grupo), sexta, false);
+    return Response.json({ sexta, tituloId: t.id, ...(await abrirSemana(t.id)) });
+  }
   const r = await abrirSemana(q.get("titulo"));
   if (!r.ok) return Response.json({ error: r.erro }, { status: 404 });
   return Response.json(r);
@@ -26,9 +38,9 @@ export async function POST(req) {
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
-  const r = await salvarItem(b.tituloId, b.item || {}, { id: b.id, quem: quemE(u) });
+  const r = await salvarItem(b.tituloId, b.item || {}, { id: b.id, quem: quemE(u), usuarioId: u.id });
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
-  return Response.json({ ...r, ...(await abrirSemana(b.tituloId)) });
+  return Response.json({ ...r, ...(await abrirSemana(r.tituloId || b.tituloId)) });
 }
 
 // DELETE { usuarioId, id } → apaga uma linha

@@ -441,6 +441,22 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const [erro, setErro] = useState("");
   const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const [fT] = FORMA[item?.forma] || ["Manual"];
+  // natureza do lançamento: conta comum ou prestador (vai para a conta da próxima sexta)
+  const [nat, setNat] = useState("");
+  const [avulso, setAvulso] = useState(null);   // { tituloId, sexta }
+  const [abrindo, setAbrindo] = useState(false);
+  const mudou = useRef(false);
+  const escolherNat = async (v) => {
+    setNat(v); setErro("");
+    if (!v) { setAvulso(null); return; }
+    setAbrindo(true);
+    try {
+      const g = v === "FREELANCER" ? "FREELANCER" : "FACCAO";
+      const j = await api(`/api/fin/semana?u=${user.id}&proximaSexta=1&grupo=${g}`);
+      setAvulso({ tituloId: j.tituloId, sexta: j.sexta });
+    } catch (e) { setErro(e.message); setNat(""); }
+    setAbrindo(false);
+  };
   // fornecedor conhecido: preenche CNPJ e o último rateio
   const escolherParceiro = (v) => {
     s("parceiro", v.toUpperCase());
@@ -455,10 +471,33 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
       onSalvo(novo ? (f.recorrente ? "Conta recorrente criada — previsões lançadas nos próximos meses." : "Conta lançada.") : "Conta atualizada.");
     } catch (e) { setErro(e.message); setSalvando(false); }
   };
+  // freelancer/terceirizado: as mesmas regras do lançamento semanal, na conta da próxima sexta
+  if (avulso) return (
+    <SemanaModal user={user} tituloId={avulso.tituloId}
+      onClose={() => (mudou.current ? onSalvo("Lançamento registrado na conta da semana.") : onClose())}
+      onMudou={() => { mudou.current = true; }} />
+  );
+
   return (
     <Modal titulo={novo ? `Nova conta ${P ? "a pagar" : "a receber"}` : "Editar conta"} icone={P ? TrendingDown : TrendingUp} onClose={onClose} largura={680}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP></>}>
       <datalist id="parceiros-lst">{(d?.parceiros || []).map((p) => <option key={p.parceiro} value={p.parceiro} />)}</datalist>
+      {novo && P && (
+        <div className="mb-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
+          <Campo t="Natureza do lançamento" dica="freelancer e terceirizado vão para a conta da próxima sexta">
+            <div className="flex flex-wrap gap-2">
+              {[["", "Conta comum"], ["FREELANCER", "Freelancer"], ["TERCEIRIZADO", "Terceirizado"]].map(([k, n]) => (
+                <button key={k || "COMUM"} onClick={() => escolherNat(k)} disabled={abrindo}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+                  style={nat === k ? { background: C.accent, color: "#fff", border: `1px solid ${C.accent}` } : { border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>
+                  {n}
+                </button>
+              ))}
+              {abrindo && <span className="self-center text-xs flex items-center gap-1" style={{ color: C.sub }}><Loader2 size={13} className="animate-spin" /> abrindo a semana…</span>}
+            </div>
+          </Campo>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Campo t="Título"><input value={f.titulo} onChange={(e) => s("titulo", e.target.value.toUpperCase())} className={inp} style={inpS} placeholder="EX.: ALUGUEL GALPÃO" autoFocus /></Campo></div>
         <Campo t={P ? "Fornecedor" : "Cliente"}><input list="parceiros-lst" value={f.parceiro} onChange={(e) => escolherParceiro(e.target.value)} className={inp} style={inpS} /></Campo>
@@ -517,12 +556,14 @@ function BaixaModal({ t, P, onClose, onOk }) {
 
 
 /* ---------------- conta da semana: freelancers e terceirizados ---------------- */
-const GRUPO_ROT = { FREELANCER: "Freelancer", FACCAO: "Facção", SERVICO: "Serviço terceirizado" };
+const GRUPO_ROT_FIXO = { FREELANCER: "Freelancer", FACCAO: "Facção", CORTE: "Corte", BORDADO: "Bordado", SILK: "Silk", SUBLIMACAO: "Sublimação", DTF: "DTF", OUTRO: "Outro serviço" };
+const rotGrupo = (d, g) => (d?.nomesGrupo || {})[g] || GRUPO_ROT_FIXO[g] || g;
 // o cadastro do prestador usa a lista completa: setores (freelancer) ou facção + serviços (terceirizado)
 const catCadastro = (d) => d.tipo === "FREELANCER"
   ? (d.catalogos.FREELANCER || [])
-  : [...(d.catalogos.FACCAO || []).map((c) => ({ ...c, grupo: "FACCAO", n: `Facção · ${c.n}` })),
-     ...(d.catalogos.SERVICO || []).map((c) => ({ ...c, grupo: "SERVICO", n: `Serviço · ${c.n}` }))];
+  : (d.grupos || []).flatMap((g) => (d.catalogos[g] || []).map((c) => ({
+      ...c, grupo: g, n: g === "FACCAO" ? `Facção · ${c.n}` : `Serviço · ${c.n}`,
+    })));
 
 function SemanaModal({ user, tituloId, onClose, onMudou }) {
   const [d, setD] = useState(null);
@@ -553,13 +594,13 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
         {d.grupos.map((g) => (
           <button key={g} onClick={() => setEdit({ grupo: g })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold"
             style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>
-            <Plus size={14} /> {GRUPO_ROT[g]}
+            <Plus size={14} /> {rotGrupo(d, g)}
           </button>
         ))}
         <div className="flex-1" />
         {d.grupos.map((g) => d.porGrupo[g] ? (
           <span key={g} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: C.panel2, color: C.sub }}>
-            {GRUPO_ROT[g]} {moeda(d.porGrupo[g])}
+            {rotGrupo(d, g)} {moeda(d.porGrupo[g])}
           </span>
         ) : null)}
       </div>
@@ -583,15 +624,23 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                 <tr key={it.id} style={{ borderTop: `1px solid ${C.line}` }}>
                   <td className="px-2 py-1.5">
                     <div className="font-semibold">{it.nome}</div>
-                    <div style={{ color: C.sub }}>{GRUPO_ROT[it.grupo]} · PIX {it.chavePix}</div>
+                    <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX {it.chavePix}</div>
                   </td>
                   <td className="px-2 py-1.5">{it.setorNome}</td>
                   <td className="px-2 py-1.5" style={{ color: C.sub }}>
                     {it.grupo === "FREELANCER"
-                      ? `${it.dias} dia(s) × ${moeda(it.diaria)}`
+                      ? <>
+                          <div>{it.dias} dia(s) × {moeda((it.diaria || 0) + (it.transporte || 0))}{it.transporte ? ` (diária ${moeda(it.diaria)} + transporte ${moeda(it.transporte)})` : ""}</div>
+                          {!!it.custoExtra && <div style={{ color: C.yellow }}>custo extra {moeda(it.custoExtra)} · {it.justificativa || "sem justificativa"}</div>}
+                        </>
                       : (it.linhas || []).map((l, i) => (
                           <div key={i}>{l.qtd} {l.item || "pç"} × {moeda(l.unitario)} · pedido {l.pedido} = <b style={{ color: C.text }}>{moeda(l.total)}</b></div>
                         ))}
+                    {it.descricao && <div>{it.descricao}</div>}
+                    {it.vencimentoNegociado && (
+                      <div>recebido {dBR(String(it.dataRecebimento).slice(0, 10))} · {it.prazoDias} dia(s) · vence {dBR(String(it.vencimentoNegociado).slice(0, 10))}</div>
+                    )}
+                    {it.excepcional && <div style={{ color: C.red }}>pagamento excepcional · {it.justificativa || "sem justificativa"}</div>}
                     {it.observacao && <div>{it.observacao}</div>}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{moeda(it.valor)}</td>
@@ -609,6 +658,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
       {edit && (
         <ItemSemanaModal user={user} tituloId={tituloId} grupo={edit.grupo} item={edit.item}
           tipoPrestador={d.tipo === "FREELANCER" ? "FREELANCER" : "TERCEIRIZADO"}
+          rotulo={rotGrupo(d, edit.grupo)} descreve={edit.grupo === d.grupoDescreve}
           catalogo={d.catalogos[edit.grupo] || []} catalogoCadastro={catCadastro(d)} prestadores={d.prestadores}
           onClose={() => setEdit(null)}
           onSalvo={(j) => { setEdit(null); setD(j); onMudou && onMudou(); }} />
@@ -618,7 +668,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
 }
 
 /* uma linha da semana: freelancer (diária × dias) ou facção/serviço (pedidos) */
-function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo, catalogoCadastro, prestadores, onClose, onSalvo }) {
+function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPrestador, catalogo, catalogoCadastro, prestadores, onClose, onSalvo }) {
   const free = grupo === "FREELANCER";
   const [f, setF] = useState(() => ({
     prestadorId: item?.prestadorId || null,
@@ -627,9 +677,19 @@ function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo,
     setor: item?.setor || "",
     diaria: item?.diaria ?? 0,
     dias: item?.dias ?? 1,
+    transporte: item?.transporte ?? 0,
+    custoExtra: item?.custoExtra ?? 0,
+    justificativa: item?.justificativa || "",
+    descricao: item?.descricao || "",
+    dataRecebimento: item?.dataRecebimento ? String(item.dataRecebimento).slice(0, 10) : "",
+    prazoDias: item?.prazoDias ?? "",
+    excepcional: !!item?.excepcional,
+    dataPagamento: "",
     linhas: item?.linhas?.length ? item.linhas : [{ pedido: "", item: "", qtd: 0, unitario: 0 }],
     observacao: item?.observacao || "",
   }));
+  const [prog, setProg] = useState(null);     // { sexta, vencimento, aviso }
+  const [ciente, setCiente] = useState(!!item);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [novoPrestador, setNovoPrestador] = useState(null);   // nome digitado que não existe
@@ -643,8 +703,18 @@ function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo,
 
   const altL = (i, k, v) => setF((x) => ({ ...x, linhas: x.linhas.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
   const total = free
-    ? (Number(f.diaria) || 0) * (Number(f.dias) || 0)
+    ? ((Number(f.diaria) || 0) + (Number(f.transporte) || 0)) * (Number(f.dias) || 0) + (Number(f.custoExtra) || 0)
     : f.linhas.reduce((s2, l) => s2 + (Number(l.qtd) || 0) * (Number(l.unitario) || 0), 0);
+
+  // serviço: recebimento + prazo → a sexta em que o sistema programa o pagamento
+  useEffect(() => {
+    if (free || !f.dataRecebimento || f.prazoDias === "") { setProg(null); return; }
+    let vivo = true;
+    fetch(`/api/fin/semana?u=${user.id}&recebimento=${f.dataRecebimento}&prazo=${Number(f.prazoDias) || 0}`)
+      .then((r) => r.json()).then((j) => { if (vivo && j.sexta) { setProg(j); setCiente(false); } })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [f.dataRecebimento, f.prazoDias, free]);
 
   const salvar = async () => {
     setSalvando(true); setErro("");
@@ -655,11 +725,14 @@ function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo,
   };
 
   return (
-    <Modal titulo={`${item ? "Editar" : "Lançar"} ${GRUPO_ROT[grupo].toLowerCase()}`} icone={Plus} onClose={onClose} largura={820}
+    <Modal titulo={`${item ? "Editar" : "Lançar"} ${String(rotulo || grupo).toLowerCase()}`} icone={Plus} onClose={onClose} largura={820}
       rodape={<>
-        <span className="mr-auto font-bold" style={{ color: C.navy }}>Total {moeda(total)}</span>
+        <span className="mr-auto font-bold" style={{ color: C.navy }}>
+          Total {moeda(total)}
+          {prog && !ciente && <span className="ml-2 font-normal text-xs" style={{ color: C.yellow }}>confirme a data do pagamento acima</span>}
+        </span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP>
+        <BtnP onClick={salvar} disabled={salvando || (!!prog && !ciente)}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP>
       </>}>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
         <Campo t="Prestador" dica="escolha ou cadastre">
@@ -674,8 +747,29 @@ function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo,
           </select>
         </Campo>
         {free && <Campo t="Valor da diária"><Valor value={f.diaria} onChange={s("diaria")} width="100%" /></Campo>}
+        {free && <Campo t="Transporte por dia" dica="entra no valor do dia"><Valor value={f.transporte} onChange={s("transporte")} width="100%" /></Campo>}
         {free && <Campo t="Dias trabalhados"><input value={f.dias} onChange={(e) => s("dias")(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={inpS} /></Campo>}
+        {free && <Campo t="Custo extra" dica="exige justificativa"><Valor value={f.custoExtra} onChange={s("custoExtra")} width="100%" /></Campo>}
       </div>
+      {free && (
+        <div className="mt-2 text-xs" style={{ color: C.sub }}>
+          {f.dias || 0} dia(s) × {moeda((Number(f.diaria) || 0) + (Number(f.transporte) || 0))}
+          {Number(f.transporte) > 0 ? ` (diária ${moeda(f.diaria)} + transporte ${moeda(f.transporte)})` : ""}
+          {Number(f.custoExtra) > 0 ? ` + extra ${moeda(f.custoExtra)}` : ""}
+        </div>
+      )}
+      {free && Number(f.custoExtra) > 0 && (
+        <div className="mt-3"><Campo t="Justificativa do custo extra" dica="obrigatória">
+          <input value={f.justificativa} onChange={(e) => s("justificativa")(e.target.value.toUpperCase())} className={inp}
+            style={{ ...inpS, borderColor: f.justificativa ? C.line : C.yellow }} placeholder="POR QUE HOUVE ESSE EXTRA?" />
+        </Campo></div>
+      )}
+      {descreve && (
+        <div className="mt-3"><Campo t="Descreva o serviço" dica="obrigatório">
+          <input value={f.descricao} onChange={(e) => s("descricao")(e.target.value.toUpperCase())} className={inp}
+            style={{ ...inpS, borderColor: f.descricao ? C.line : C.yellow }} placeholder="O QUE FOI FEITO" />
+        </Campo></div>
+      )}
 
       {!free && (
         <div className="mt-4">
@@ -703,6 +797,40 @@ function ItemSemanaModal({ user, tituloId, grupo, item, tipoPrestador, catalogo,
           ))}
           <button type="button" onClick={() => setF((x) => ({ ...x, linhas: [...x.linhas, { pedido: "", item: "", qtd: 0, unitario: 0 }] }))}
             className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Outro pedido</button>
+        </div>
+      )}
+
+      {!free && (
+        <div className="mt-4">
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+            <Campo t="Serviço recebido em"><input type="date" value={f.dataRecebimento} onChange={(e) => s("dataRecebimento")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.dataRecebimento ? C.line : C.yellow }} /></Campo>
+            <Campo t="Prazo negociado" dica="dias corridos"><input value={f.prazoDias} onChange={(e) => s("prazoDias")(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={{ ...inpS, borderColor: f.prazoDias !== "" ? C.line : C.yellow }} /></Campo>
+          </div>
+
+          {prog && (
+            <div className="mt-3 rounded-lg p-3" style={{ background: f.excepcional ? C.redSoft : C.yellowSoft, border: `1px solid ${(f.excepcional ? C.red : C.yellow)}55` }}>
+              <div className="text-sm" style={{ color: C.text }}>{prog.aviso}</div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button type="button" onClick={() => { setCiente(true); setF((x) => ({ ...x, excepcional: false, dataPagamento: "" })); }}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+                  style={{ background: ciente && !f.excepcional ? C.green : C.panel, color: ciente && !f.excepcional ? "#fff" : C.green, border: `1px solid ${C.green}` }}>
+                  Sim, pagar em {dBR(prog.sexta)}
+                </button>
+                <button type="button" onClick={() => { setCiente(true); setF((x) => ({ ...x, excepcional: true, dataPagamento: x.dataPagamento || prog.vencimento })); }}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+                  style={{ background: f.excepcional ? C.red : C.panel, color: f.excepcional ? "#fff" : C.red, border: `1px solid ${C.red}` }}>
+                  Pagamento excepcional
+                </button>
+              </div>
+              {f.excepcional && (
+                <div className="grid gap-3 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+                  <Campo t="Data do pagamento" dica="livre"><input type="date" value={f.dataPagamento} onChange={(e) => s("dataPagamento")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.dataPagamento ? C.line : C.yellow }} /></Campo>
+                  <Campo t="Justificativa" dica="obrigatória"><input value={f.justificativa} onChange={(e) => s("justificativa")(e.target.value.toUpperCase())} className={inp} style={{ ...inpS, borderColor: f.justificativa ? C.line : C.yellow }} /></Campo>
+                  <div className="text-[11px] self-end pb-2" style={{ color: C.red }}>O financeiro é avisado na caixa de entrada.</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
