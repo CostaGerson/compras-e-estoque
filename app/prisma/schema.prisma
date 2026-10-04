@@ -1096,3 +1096,20 @@ model FinPagamentoExtra {
 
   @@index([contratoId])
 }
+
+// ---------------- FINANCEIRO · DRE GERENCIAL E PAINEL DE PREVISÃO ----------------
+// Conta-caixa → grupo da DRE gerencial (01.RECEITA, 02.CMV, …). Sem registro, vale o padrão por código.
+model FinDreMapa {
+  contaId   Int      @id
+  grupo     String
+  updatedAt DateTime @updatedAt
+}
+
+// Painel de previsão do mês: o que não vem das contas é digitado e fica guardado por competência.
+model FinMesPainel {
+  competencia       String   @id   // AAAA-MM
+  saldoInicial      Decimal? @db.Decimal(14, 2)
+  dados             Json           // campos manuais do painel (bancos, pedidos, cenários, info)
+  atualizadoPorNome String?
+  updatedAt         DateTime @updatedAt
+}

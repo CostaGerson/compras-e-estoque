@@ -5,7 +5,7 @@ import {
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
   LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
-  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard,
+  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard, Gauge,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
@@ -416,8 +416,8 @@ function MesFinanceiro({ user, tela, setTela }) {
   const comp = tela.comp;
   const setComp = (c) => setTela((t) => ({ ...t, comp: c }));
   const setAba = (aba, extra = {}) => setTela((t) => ({ ...t, aba, ...extra }));
-  const abas = [["dre", "DRE do mês", PieIco], ["importacao", "Importação", FileStack], ["identificacao", "Identificação", Tag],
-    ["contabilidade", "Contabilidade", Building2], ["recebimentos", "Recebimentos", Table2]];
+  const abas = [["dre", "DRE do mês", PieIco], ["painel", "Painel de previsão", Gauge], ["importacao", "Importação", FileStack],
+    ["identificacao", "Identificação", Tag], ["contabilidade", "Contabilidade", Building2], ["recebimentos", "Recebimentos", Table2]];
   return (
     <div>
       <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -428,7 +428,8 @@ function MesFinanceiro({ user, tela, setTela }) {
           </button>
         ))}
       </div>
-      {tela.aba === "dre" && <DreMes user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
+      {tela.aba === "dre" && <DreGerencial user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
+      {tela.aba === "painel" && <PainelPrevisao user={user} comp={comp} setComp={setComp} />}
       {tela.aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
       {tela.aba === "identificacao" && <Identificacao key={`${comp}-${tela.contaFiltro || ""}`} user={user} comp={comp} setComp={setComp} contaInicial={tela.contaFiltro} />}
       {tela.aba === "contabilidade" && <Contabilidade user={user} comp={comp} setComp={setComp} irRecebimentos={() => setAba("recebimentos")} />}
@@ -472,7 +473,7 @@ function Pizza({ fatias, sel, onSel, tamanho = 260 }) {
   );
 }
 
-function DreMes({ user, comp, setComp, abrirConta }) {
+function DreMes({ user, comp, setComp, abrirConta, semSeletor }) {
   const [dados, setDados] = useState(null);
   const [lado, setLado] = useState("D"); // D despesas · C receitas
   const [sel, setSel] = useState(null);
@@ -506,12 +507,11 @@ function DreMes({ user, comp, setComp, abrirConta }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <SeletorMes comp={comp} setComp={setComp} />
-        <div className="text-xs px-3 py-1.5 rounded-lg" style={{ background: C.yellowSoft, color: C.yellow }}>
-          DRE por conta-caixa · a estrutura de grupos (receita bruta, CMV, despesas…) entra quando definirmos juntos.
+      {!semSeletor && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <SeletorMes comp={comp} setComp={setComp} />
         </div>
-      </div>
+      )}
       {!dados && <div style={{ color: C.sub }}>Carregando…</div>}
       {dados && (
         <>
@@ -589,6 +589,482 @@ function SeletorMes({ comp, setComp }) {
       <button onClick={() => setComp(somaMes(comp, -1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>‹</button>
       <div className="px-3 py-2 font-semibold" style={{ minWidth: 150, textAlign: "center" }}>{nomeComp(comp)}</div>
       <button onClick={() => setComp(somaMes(comp, 1))} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
+    </div>
+  );
+}
+
+/* ---------------- DRE GERENCIAL ---------------- */
+const lerNumBR = (t) => {
+  const s = String(t || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+function ValorIn({ value, onChange, width = 132, placeholder = "—", negativo = false }) {
+  const [foco, setFoco] = useState(false);
+  const [txt, setTxt] = useState("");
+  const vazio = value === null || value === undefined || value === "";
+  return (
+    <div className="relative inline-flex items-center" style={{ width }}>
+      <span className="absolute left-2 text-[10px]" style={{ color: C.sub }}>R$</span>
+      <input value={foco ? txt : (vazio ? "" : brl(value))} placeholder={placeholder}
+        onFocus={(e) => { setFoco(true); setTxt(vazio ? "" : brl(value)); setTimeout(() => e.target.select(), 0); }}
+        onChange={(e) => setTxt(e.target.value)}
+        onBlur={() => { setFoco(false); onChange(txt.trim() === "" ? null : lerNumBR(txt)); }}
+        onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+        className="w-full text-right rounded px-2 py-1.5 text-sm outline-none"
+        style={{ border: `1px solid ${C.line}`, paddingLeft: 24, color: negativo && Number(value) < 0 ? C.red : C.text, background: "#fff" }} />
+    </div>
+  );
+}
+
+function LinhaDre({ rotulo, valor, pct, grupo, detalhe, aberto, onToggle, abrirConta, forte, tom }) {
+  const cor = forte ? (valor >= 0 ? C.green : C.red) : (grupo === "RECEITA" ? C.blue : C.text);
+  const clicavel = !!detalhe?.length;
+  return (
+    <>
+      <div onClick={clicavel ? onToggle : undefined}
+        className="flex items-center gap-3 px-4 py-2.5"
+        style={{
+          borderTop: `1px solid ${C.line}`, cursor: clicavel ? "pointer" : "default",
+          background: tom === "resultado" ? C.panel2 : tom === "final" ? C.navy : C.panel,
+          color: tom === "final" ? "#fff" : C.text,
+        }}>
+        <span style={{ width: 16, color: tom === "final" ? "rgba(255,255,255,.6)" : C.sub }}>
+          {clicavel ? (aberto ? <ChevronDown size={14} /> : <ChevR size={14} />) : null}
+        </span>
+        <span className={forte ? "font-bold text-sm flex-1" : "text-sm flex-1"}>{rotulo}</span>
+        {detalhe && <span className="text-[11px]" style={{ color: tom === "final" ? "rgba(255,255,255,.6)" : C.sub }}>{detalhe.length} conta(s)</span>}
+        <span style={{ width: 64, textAlign: "right", fontSize: 11, color: tom === "final" ? "rgba(255,255,255,.7)" : C.sub }}>
+          {pct == null ? "" : `${(pct * 100).toFixed(1)}%`}
+        </span>
+        <span className="font-bold" style={{ width: 140, textAlign: "right", color: tom === "final" ? "#fff" : cor, fontSize: forte ? 15 : 14 }}>
+          {brl(valor)}
+        </span>
+      </div>
+      {aberto && clicavel && (
+        <div style={{ background: "#FAFBFC", borderTop: `1px solid ${C.line}` }}>
+          {detalhe.map((d) => (
+            <button key={d.contaId} onClick={() => abrirConta(d.contaId)}
+              className="w-full flex items-center gap-3 px-4 py-1.5 text-xs text-left hover:underline">
+              <span style={{ width: 16 }} />
+              <span className="flex-1 truncate" style={{ color: C.text }}>{d.nome}</span>
+              <span style={{ width: 64, textAlign: "right", color: C.sub }}>
+                {valor ? `${((d.valor / valor) * 100).toFixed(1)}%` : ""}
+              </span>
+              <span className="font-semibold" style={{ width: 140, textAlign: "right", color: corValor(d.valor) }}>{brl(d.valor)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function DreGerencial({ user, comp, setComp, abrirConta }) {
+  const [vista, setVista] = useState("dre"); // dre | concentracao | depara
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [aberto, setAberto] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+  const carregar = () => {
+    setD(null); setErro("");
+    fetch(`/api/fin/dre?u=${user.id}&competencia=${comp}&mapa=1`)
+      .then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro"))))
+      .catch(() => setErro("Falha de conexão."));
+  };
+  useEffect(() => { carregar(); setAberto(null); }, [comp]);
+
+  const salvarSaldo = async (v) => {
+    setSalvando(true);
+    try {
+      const r = await fetch("/api/fin/dre", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, saldoInicial: v }),
+      });
+      const j = await r.json();
+      if (r.ok) setD(j); else setErro(j.error || "Erro ao salvar.");
+    } catch { setErro("Falha de conexão."); }
+    setSalvando(false);
+  };
+
+  const mudarGrupo = async (contaId, grupo) => {
+    setSalvando(true);
+    try {
+      const r = await fetch("/api/fin/dre", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, mapa: [{ contaId, grupo }] }),
+      });
+      const j = await r.json();
+      if (r.ok) setD(j); else setErro(j.error || "Erro ao salvar.");
+    } catch { setErro("Falha de conexão."); }
+    setSalvando(false);
+  };
+
+  const o = d?.operacao;
+  const tg = (k) => (aberto === k ? null : k);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SeletorMes comp={comp} setComp={setComp} />
+        <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+          {[["dre", "DRE gerencial"], ["concentracao", "Concentração"], ["depara", "De–para das contas"]].map(([k, t]) => (
+            <button key={k} onClick={() => setVista(k)} className="px-3 py-1.5 text-sm"
+              style={{ background: vista === k ? C.navy : C.panel, color: vista === k ? "#fff" : C.sub }}>{t}</button>
+          ))}
+        </div>
+        {salvando && <Loader2 size={15} className="animate-spin" style={{ color: C.accent }} />}
+      </div>
+
+      {erro && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+
+      {d && vista === "concentracao" && <DreMes user={user} comp={comp} setComp={setComp} abrirConta={abrirConta} semSeletor />}
+
+      {d && vista === "depara" && (
+        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="px-4 py-3 text-sm" style={{ borderBottom: `1px solid ${C.line}`, color: C.sub }}>
+            Cada conta-caixa alimenta um grupo da DRE. O sistema já sugere pelo código; mude aqui o que estiver fora de lugar
+            — vale para todos os meses.
+          </div>
+          <div className="overflow-auto" style={{ maxHeight: 620 }}>
+            <table className="w-full text-sm">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}>
+                <tr style={{ color: C.sub }}>
+                  <th className="text-left px-4 py-2 font-semibold" style={{ width: 110 }}>Código</th>
+                  <th className="text-left px-2 py-2 font-semibold">Conta-caixa</th>
+                  <th className="text-left px-2 py-2 font-semibold" style={{ width: 280 }}>Grupo da DRE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(d.contas || []).map((c) => (
+                  <tr key={c.id} style={{ borderTop: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.55 }}>
+                    <td className="px-4 py-1.5 font-mono text-xs" style={{ color: C.sub }}>{c.codigo}</td>
+                    <td className="px-2 py-1.5">{c.nome}{!c.ativo && <span className="text-[10px] ml-2" style={{ color: C.sub }}>inativa</span>}</td>
+                    <td className="px-2 py-1.5">
+                      <select value={c.grupo} onChange={(e) => mudarGrupo(c.id, e.target.value)}
+                        className="w-full rounded px-2 py-1 text-sm outline-none"
+                        style={{ border: `1px solid ${c.manual ? C.accent : C.line}`, background: "#fff", color: C.text }}>
+                        {(d.grupos?.todos || []).map((g) => <option key={g.k} value={g.k}>{g.n}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {d && vista === "dre" && o && (
+        <>
+          {!!d.semConta && (
+            <div className="rounded-lg px-4 py-3 mb-4 text-sm flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}>
+              <AlertTriangle size={15} />
+              Ainda há {brl(d.semConta)} em lançamentos sem conta-caixa — eles ficam fora da DRE até serem identificados.
+            </div>
+          )}
+          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            <Kpi rotulo="Receita" valor={moeda(o.receita)} cor={C.blue} Ico={TrendingUp} sub={`${d.lancamentos} lançamentos no mês`} />
+            <Kpi rotulo="Margem de contribuição" valor={moeda(o.margem)} cor={o.margem >= 0 ? C.green : C.red}
+              sub={o.margemPct == null ? "" : `${(o.margemPct * 100).toFixed(1)}% da receita`} />
+            <Kpi rotulo="EBITDA" valor={moeda(o.ebitda)} cor={o.ebitda >= 0 ? C.green : C.red}
+              sub={o.ebitdaPct == null ? "" : `${(o.ebitdaPct * 100).toFixed(1)}% da receita`} />
+            <Kpi rotulo="Lucro líquido" valor={moeda(o.lucro)} cor={o.lucro >= 0 ? C.green : C.red}
+              sub={o.lucroPct == null ? "" : `${(o.lucroPct * 100).toFixed(1)}% da receita`} />
+            <Kpi rotulo="Saldo final do mês" valor={moeda(d.saldoFinal)} cor={d.saldoFinal >= 0 ? C.green : C.red}
+              sub="depois dos recursos externos" />
+          </div>
+
+          <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Resultado da operação · {nomeComp(comp)}</div>
+              <div className="flex items-center gap-2 text-xs" style={{ color: C.sub }}>
+                Saldo inicial do mês
+                <ValorIn value={d.saldoInicial} onChange={salvarSaldo} negativo />
+              </div>
+            </div>
+            {(d.grupos?.operacao || []).map((g, i) => {
+              const vals = { RECEITA: o.receita, CMV: o.cmv, DESPESA_ADM: o.adm, IMPOSTOS_JUROS: o.impostos, INVESTIMENTO: o.investimento };
+              const linhas = [
+                <LinhaDre key={g.k} rotulo={g.n} valor={vals[g.k]} pct={o.receita ? vals[g.k] / o.receita : null} grupo={g.k}
+                  detalhe={d.detalhes?.[g.k]} aberto={aberto === g.k} onToggle={() => setAberto(tg(g.k))} abrirConta={abrirConta} />,
+              ];
+              if (g.k === "CMV") linhas.push(
+                <LinhaDre key="m" rotulo="03. Margem de contribuição" valor={o.margem} pct={o.receita ? o.margem / o.receita : null} forte tom="resultado" />);
+              if (g.k === "DESPESA_ADM") linhas.push(
+                <LinhaDre key="e" rotulo="05. EBITDA" valor={o.ebitda} pct={o.receita ? o.ebitda / o.receita : null} forte tom="resultado" />);
+              if (g.k === "IMPOSTOS_JUROS") linhas.push(
+                <LinhaDre key="l" rotulo="07. Lucro líquido" valor={o.lucro} pct={o.receita ? o.lucro / o.receita : null} forte tom="resultado" />);
+              if (g.k === "INVESTIMENTO") linhas.push(
+                <LinhaDre key="r" rotulo="09. Resultado da operação" valor={o.resultado} pct={o.receita ? o.resultado / o.receita : null} forte tom="resultado" />,
+                <LinhaDre key="si" rotulo="10. Saldo inicial do mês" valor={d.saldoInicial} pct={null} />,
+                <LinhaDre key="so" rotulo="11. Saldo da operação" valor={o.saldoOperacao} pct={null} forte tom="resultado" />);
+              return linhas;
+            })}
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="px-4 py-3">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Recursos externos</div>
+              <div className="text-xs mt-0.5" style={{ color: C.sub }}>
+                Empréstimo e factoring não são resultado: entram no caixa e saem depois. Ficam fora da DRE e só afetam o saldo final.
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase" style={{ background: C.panel2, color: C.sub }}>
+              <span className="flex-1">Fonte</span>
+              <span style={{ width: 140, textAlign: "right" }}>Entrada</span>
+              <span style={{ width: 140, textAlign: "right" }}>Pagamento</span>
+              <span style={{ width: 140, textAlign: "right" }}>Líquido</span>
+            </div>
+            {(d.externos || []).map((e) => (
+              <div key={e.k} className="flex items-center gap-3 px-4 py-2 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                <span className="flex-1">{e.n}</span>
+                <span style={{ width: 140, textAlign: "right", color: e.entrada ? C.blue : C.sub }}>{brl(e.entrada)}</span>
+                <span style={{ width: 140, textAlign: "right", color: e.pagamento ? C.red : C.sub }}>{brl(e.pagamento)}</span>
+                <span className="font-semibold" style={{ width: 140, textAlign: "right", color: corValor(e.entrada - e.pagamento) }}>{brl(e.entrada - e.pagamento)}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+              <span className="flex-1">Resultado dos recursos externos</span>
+              <span style={{ width: 140, textAlign: "right" }}>{brl(d.entradaExterna)}</span>
+              <span style={{ width: 140, textAlign: "right" }}>{brl(d.pagamentoExterno)}</span>
+              <span style={{ width: 140, textAlign: "right", color: corValor(d.resultadoExterno) }}>{brl(d.resultadoExterno)}</span>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.navy, color: "#fff" }}>
+              <span className="flex-1 font-bold text-sm">Saldo final do mês</span>
+              <span className="font-bold" style={{ fontSize: 16 }}>{moeda(d.saldoFinal)}</span>
+            </div>
+          </div>
+
+          {!!d.fora && (
+            <div className="text-xs mt-3" style={{ color: C.sub }}>
+              Fora da DRE (transferências e conciliação): {brl(d.fora)} — por definição fecha em zero quando tudo está conciliado.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- PAINEL DE PREVISÃO ---------------- */
+const CAMPOS_PAINEL_UI = [
+  { bloco: "Contas atrasadas", ajuda: "O total vem do contas a pagar; aqui você abre por natureza.", campos: [
+    ["atrasadoImpostos", "Impostos"], ["atrasadoMateriaPrima", "Matéria-prima"],
+    ["atrasadoPrestadores", "Prestadores"], ["atrasadoOutros", "Outros"], ["prioridadeMes", "Prioridade do mês"]] },
+  { bloco: "Contas a receber", ajuda: "Posição geral, mês vigente e atrasadas vêm do contas a receber.", campos: [
+    ["receberPrevisao", "Previsão (ainda sem título)"], ["receberLitigio", "Em litígio"],
+    ["receberQuitacaoProvavel", "Quitação provável"], ["receberForaMes", "Fora do mês"], ["atrasoProvavel", "Atraso provável"]] },
+  { bloco: "Carteira e caixa", campos: [
+    ["pedidosEntregar", "Pedidos a entregar"], ["pedidosAndamento", "Pedidos em andamento"],
+    ["recebimentoMes", "Recebimento no mês"], ["antecipacaoDisp", "Antecipação disponível"]] },
+  { bloco: "Cenários", ajuda: "O sistema sugere; o valor que você digitar manda.", campos: [
+    ["cenarioGeral", "Cenário geral"], ["cenarioMes", "Cenário do mês"],
+    ["cobrindoCheque", "Cobrindo o cheque"], ["semCobrir", "Sem cobrir"],
+    ["antecipandoCobrindo", "Antecipando e cobrindo"], ["antecipandoSemCobrir", "Antecipando sem cobrir"]] },
+];
+
+function Auto({ rotulo, valor, cor, sub }) {
+  return (
+    <div className="rounded-lg px-3 py-2.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
+        <Link2 size={11} /> {rotulo}
+      </div>
+      <div className="font-bold text-base mt-0.5" style={{ color: cor || C.text }}>{moeda(valor)}</div>
+      {sub && <div className="text-[10px]" style={{ color: C.sub }}>{sub}</div>}
+    </div>
+  );
+}
+
+function PainelPrevisao({ user, comp, setComp }) {
+  const [p, setP] = useState(null);
+  const [erro, setErro] = useState("");
+  const [rasc, setRasc] = useState({});
+  const [salvando, setSalvando] = useState(false);
+  const [ok, setOk] = useState("");
+
+  useEffect(() => {
+    setP(null); setErro(""); setRasc({}); setOk("");
+    fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}`)
+      .then((r) => r.json().then((j) => (r.ok ? setP(j) : setErro(j.error || "Erro"))))
+      .catch(() => setErro("Falha de conexão."));
+  }, [comp]);
+
+  const val = (k) => (k in rasc ? rasc[k] : p?.manual?.[k] ?? null);
+  const set = (k) => (v) => { setRasc((r) => ({ ...r, [k]: v })); setOk(""); };
+  const sujo = Object.keys(rasc).length > 0;
+
+  const bancos = useMemo(() => (rasc.bancos !== undefined ? rasc.bancos : p?.bancos || []), [rasc.bancos, p]);
+  const setBanco = (i, k, v) => setRasc((r) => {
+    const l = (r.bancos !== undefined ? r.bancos : p?.bancos || []).map((b, j) => (j === i ? { ...b, [k]: v } : b));
+    return { ...r, bancos: l };
+  });
+  const addBanco = () => setRasc((r) => ({ ...r, bancos: [...(r.bancos !== undefined ? r.bancos : p?.bancos || []), { nome: "", saldo: 0, limite: 0, tomado: 0 }] }));
+  const delBanco = (i) => setRasc((r) => ({ ...r, bancos: (r.bancos !== undefined ? r.bancos : p?.bancos || []).filter((_, j) => j !== i) }));
+
+  const salvar = async () => {
+    setSalvando(true); setErro("");
+    try {
+      const r = await fetch("/api/fin/painel", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, dados: rasc }),
+      });
+      const j = await r.json();
+      if (r.ok) { setP(j); setRasc({}); setOk("Painel salvo."); }
+      else setErro(j.error || "Erro ao salvar.");
+    } catch { setErro("Falha de conexão."); }
+    setSalvando(false);
+  };
+
+  // os bancos digitados recalculam o caixa na tela antes de salvar
+  const caixa = useMemo(() => {
+    const l = bancos.map((b) => {
+      const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
+      const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
+      return { saldo, limite, tomado, disponivel: Math.max(0, saldo) + Math.max(0, limite - tomado) };
+    });
+    const s = (f) => l.reduce((a, b) => a + b[f], 0);
+    return { saldoGeral: s("saldo"), limiteTotal: s("limite"), limiteTomado: s("tomado"), disponivelTotal: s("disponivel") };
+  }, [bancos]);
+
+  const a = p?.auto;
+  const somaAtraso = ["atrasadoImpostos", "atrasadoMateriaPrima", "atrasadoPrestadores", "atrasadoOutros"]
+    .reduce((s, k) => s + (Number(val(k)) || 0), 0);
+  const sugestao = p ? {
+    cenarioGeral: a.receberPosicaoGeral - a.contasPagarTotal + caixa.saldoGeral,
+    cenarioMes: a.receberMesVigente + caixa.disponivelTotal - a.contasPagarMes,
+  } : {};
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SeletorMes comp={comp} setComp={setComp} />
+        <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.blueSoft, color: C.blue }}>
+          <Link2 size={13} /> Os campos com corrente vêm das guias de contas. Os demais você preenche e o sistema guarda.
+        </div>
+        <div className="flex-1" />
+        {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
+        <button disabled={!sujo || salvando} onClick={salvar}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+          style={{ background: C.accent, opacity: !sujo || salvando ? 0.45 : 1 }}>
+          {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar painel
+        </button>
+      </div>
+
+      {erro && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!p && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+
+      {p && (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))" }}>
+          {/* --- o que vem das contas --- */}
+          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática</div>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+              <Auto rotulo="Contas atrasadas" valor={a.contasAtrasadas} cor={a.contasAtrasadas ? C.red : C.green} />
+              <Auto rotulo="A pagar no mês" valor={a.contasPagarMes} cor={C.text} />
+              <Auto rotulo="A pagar (total aberto)" valor={a.contasPagarTotal} cor={C.sub} />
+              <Auto rotulo="A receber · posição geral" valor={a.receberPosicaoGeral} cor={C.blue} />
+              <Auto rotulo="A receber no mês" valor={a.receberMesVigente} cor={C.blue} />
+              <Auto rotulo="A receber atrasado" valor={a.receberAtrasadas} cor={a.receberAtrasadas ? C.yellow : C.green} />
+            </div>
+            {somaAtraso > 0 && Math.abs(somaAtraso - a.contasAtrasadas) > 1 && (
+              <div className="mt-3 text-xs rounded-lg px-3 py-2 flex items-start gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                A abertura dos atrasados soma {brl(somaAtraso)}, mas o contas a pagar aponta {brl(a.contasAtrasadas)} —
+                diferença de {brl(somaAtraso - a.contasAtrasadas)}.
+              </div>
+            )}
+            <div className="mt-4 rounded-lg p-3" style={{ background: C.navy, color: "#fff" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>Projeção do mês</div>
+              <div className="font-bold text-xl mt-0.5">
+                {moeda(caixa.disponivelTotal + (Number(val("recebimentoMes")) || a.receberMesVigente) - a.contasPagarMes)}
+              </div>
+              <div className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,.7)" }}>
+                disponível {brl(caixa.disponivelTotal)} + entra {brl(Number(val("recebimentoMes")) || a.receberMesVigente)} − sai {brl(a.contasPagarMes)}
+              </div>
+            </div>
+          </div>
+
+          {/* --- bancos --- */}
+          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Bancos</div>
+              <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+                <Plus size={13} /> Banco
+              </button>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
+              <span className="flex-1">Banco</span>
+              <span style={{ width: 110, textAlign: "right" }}>Saldo</span>
+              <span style={{ width: 110, textAlign: "right" }}>Limite</span>
+              <span style={{ width: 110, textAlign: "right" }}>Tomado</span>
+              <span style={{ width: 100, textAlign: "right" }}>Disponível</span>
+              <span style={{ width: 20 }} />
+            </div>
+            {bancos.map((b, i) => {
+              const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
+              const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
+              const disp = Math.max(0, saldo) + Math.max(0, limite - tomado);
+              return (
+                <div key={i} className="flex items-center gap-2 py-1">
+                  <input value={b.nome || ""} onChange={(e) => setBanco(i, "nome", e.target.value.toUpperCase())} placeholder="BANCO"
+                    className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
+                  <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={110} negativo />
+                  <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={110} />
+                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v ?? 0)} width={110} />
+                  <span className="text-sm font-semibold" style={{ width: 100, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
+                  <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
+                </div>
+              );
+            })}
+            {!bancos.length && <div className="text-sm py-3" style={{ color: C.sub }}>Nenhum banco lançado.</div>}
+            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+              <Kpi rotulo="Saldo geral" valor={moeda(caixa.saldoGeral)} cor={caixa.saldoGeral >= 0 ? C.green : C.red} />
+              <Kpi rotulo="Limite total" valor={moeda(caixa.limiteTotal)} cor={C.sub} />
+              <Kpi rotulo="Limite tomado" valor={moeda(caixa.limiteTomado)} cor={caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi rotulo="Valor disponível" valor={moeda(caixa.disponivelTotal)} cor={C.blue} />
+            </div>
+          </div>
+
+          {/* --- blocos manuais --- */}
+          {CAMPOS_PAINEL_UI.map((b) => (
+            <div key={b.bloco} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="text-sm font-bold" style={{ color: C.navy }}>{b.bloco}</div>
+              {b.ajuda && <div className="text-xs mb-3 mt-0.5" style={{ color: C.sub }}>{b.ajuda}</div>}
+              <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+                {b.campos.map(([k, t]) => (
+                  <label key={k} className="flex items-center gap-2 justify-between">
+                    <span className="text-xs" style={{ color: C.sub }}>{t}</span>
+                    <div className="text-right">
+                      <ValorIn value={val(k)} onChange={set(k)} width={132} negativo />
+                      {sugestao[k] != null && val(k) == null && (
+                        <button onClick={() => set(k)(Math.round(sugestao[k] * 100) / 100)}
+                          className="block text-[10px] mt-0.5 w-full text-right" style={{ color: C.accent }}>
+                          usar {brl(sugestao[k])}
+                        </button>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* --- info relevante --- */}
+          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Informações relevantes</div>
+            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={7}
+              placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff", resize: "vertical" }} />
+            {p.atualizadoPorNome && (
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>
+                Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
