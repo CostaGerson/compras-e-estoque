@@ -64,9 +64,14 @@ export function propostasDaMatriz(dados) {
     }
   }
 
-  // pessoal: SALÁRIO (5º dia útil) = líquidos + bônus + assiduidade + saldo livre − adiantamentos
-  //          ADIANTAMENTO SALARIAL (dia 20) = 40% do salário base de quem tem a caixa marcada na matriz
-  const sal = {}, adi = {}, inss = {}, fgts = {}, vt = {}, vr = {}, ps = {};
+  // Pessoal, um pagamento por data:
+  //   SALÁRIO (5º dia útil)  = salário líquido − adiantamento + bônus + assiduidade
+  //                            (o desconto de 6% do VT não sai daqui: sai do iFood)
+  //   ADIANTAMENTO (dia 20)  = 40% do salário base de quem tem a caixa marcada na matriz
+  //   IFOOD (dia 29)         = VT já líquido dos 6% + VA + saldo livre
+  //   INSS e FGTS (dia 20)   · PLANO DE SAÚDE (dia 10) · provisões → PROVISÃO GERAL (CDB)
+  // A soma das linhas dá exatamente o custo de pessoal da Matriz.
+  const sal = {}, adi = {}, inss = {}, fgts = {}, ifood = {}, ps = {};
   const soma = (m, k, v) => { if (v) m[k] = (m[k] || 0) + v; };
   const quemAdi = [];
   for (const p of calc.pessoas) {
@@ -75,23 +80,26 @@ export function propostasDaMatriz(dados) {
     const adiant = p.adiantamento ? r2(c.F * PCT_ADIANTAMENTO) : 0;   // 40% do salário base
     if (adiant) quemAdi.push(p.nome || p.cargo);
     soma(adi, conta, adiant);
-    soma(sal, conta, c.liquido + c.G + c.ass + c.saldoLivre - adiant);
+    // c.liquido já traz o desconto do VT (c.vtDesc, negativo); aqui ele volta, porque
+    // quem fica com esse desconto é o iFood, não a folha do dia 5
+    soma(sal, conta, c.liquido - c.vtDesc + c.G + c.ass - adiant);
     soma(inss, conta, c.inssPatronal + c.inssFunc);
     soma(fgts, conta, c.fgts);
-    soma(vt, ADM(p.depto) ? "2128300" : "2113400", c.vt);
-    soma(vr, ADM(p.depto) ? "2128100" : "2113700", c.vr);
+    soma(ifood, ADM(p.depto) ? "2128300" : "2113400", c.vt + c.vtDesc);   // VT líquido dos 6%
+    soma(ifood, ADM(p.depto) ? "2128100" : "2113700", c.vr + c.saldoLivre);
     soma(ps, ADM(p.depto) ? "2128100" : "2113700", c.ps);
   }
   const tot = (m) => Object.values(m).reduce((s, v) => s + v, 0);
   add({ chave: "MATRIZ|pessoal|SALARIO", grupo: "Pessoal", titulo: "SALÁRIO", parceiro: "FOLHA DE PAGAMENTO", valor: tot(sal), dia: 5, util: true, rateio: rateioDe(sal),
-    obs: `Líquidos de ${calc.pessoas.length} pessoa(s) (inclui pró-labore e bolsa) menos os adiantamentos do dia 20` });
+    obs: `Líquido de ${calc.pessoas.length} pessoa(s) + bônus + assiduidade − adiantamento do dia 20`
+      + ` · VT, VA e saldo livre vão no iFood (dia 29); encargos, plano de saúde e provisões têm linha própria` });
   add({ chave: "MATRIZ|pessoal|ADIANTAMENTO", grupo: "Pessoal", titulo: "ADIANTAMENTO SALARIAL", parceiro: "FOLHA DE PAGAMENTO", valor: tot(adi), dia: 20,
     rateio: tot(adi) ? rateioDe(adi) : [{ codigo: "2128200", pct: 100 }],
     obs: quemAdi.length ? `40% do salário base: ${quemAdi.join(", ")}` : "Ninguém marcado com adiantamento na matriz" });
   if (tot(inss)) add({ chave: "MATRIZ|pessoal|INSS", grupo: "Pessoal", titulo: "INSS (GPS) — PATRONAL + FUNCIONÁRIOS", parceiro: "RECEITA FEDERAL", valor: tot(inss), dia: 20, rateio: rateioDe(inss) });
   if (tot(fgts)) add({ chave: "MATRIZ|pessoal|FGTS", grupo: "Pessoal", titulo: "FGTS", parceiro: "CAIXA ECONÔMICA FEDERAL", valor: tot(fgts), dia: 20, rateio: rateioDe(fgts) });
-  if (tot(vt)) add({ chave: "MATRIZ|pessoal|VT", grupo: "Pessoal", titulo: "VALE-TRANSPORTE", valor: tot(vt), dia: 1, rateio: rateioDe(vt) });
-  if (tot(vr)) add({ chave: "MATRIZ|pessoal|VR", grupo: "Pessoal", titulo: "VALE-REFEIÇÃO", valor: tot(vr), dia: 1, rateio: rateioDe(vr) });
+  if (tot(ifood)) add({ chave: "MATRIZ|pessoal|IFOOD", grupo: "Pessoal", titulo: "IFOOD", parceiro: "IFOOD BENEFÍCIOS", valor: tot(ifood), dia: 29, rateio: rateioDe(ifood),
+    obs: "Vale-transporte já líquido do desconto de 6%, vale-alimentação e saldo livre" });
   if (tot(ps)) add({ chave: "MATRIZ|pessoal|PS", grupo: "Pessoal", titulo: "PLANO DE SAÚDE", valor: tot(ps), dia: 10, rateio: rateioDe(ps) });
 
   // provisão geral (CDB)

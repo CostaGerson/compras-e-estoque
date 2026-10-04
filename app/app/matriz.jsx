@@ -588,7 +588,7 @@ function Pessoal({ dados, calc, muda, cenario }) {
                       <td className="px-3 py-1.5 sticky left-0" style={{ background: C.panel, minWidth: 200 }}>
                         <button onClick={() => setEdit(p)} className="text-left">
                           <div className="font-semibold" style={{ color: C.navy }}>{p.nome || <i style={{ color: C.yellow }}>VAGA</i>}{off && " (desligado)"}</div>
-                          <div style={{ color: C.sub }}>{p.cargo}{p.adiantamento && <span className="ml-1 px-1 rounded text-[9px] font-semibold" style={{ background: C.blueSoft, color: C.blue }} title="Recebe adiantamento salarial (40% do salário base) no dia 20, abatido do salário do dia 5">ADIANT.</span>}</div>
+                          <div style={{ color: C.sub }}>{p.cargo}{p.adiantamento && <span className="ml-1 px-1 rounded text-[9px] font-semibold" style={{ background: C.blueSoft, color: C.blue }} title="Recebe adiantamento salarial (40% do salário base) no dia 20, abatido da folha do dia 5">ADIANT.</span>}</div>
                         </button>
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: C.sub }}>{REGIMES[p.regime] || p.regime}</td>
@@ -686,12 +686,31 @@ function EditarFuncionario({ p: inicial, par, onClose, onSalvar, onExcluir }) {
           <div className="flex justify-between py-0.5" style={{ color: C.sub }}><span>Provisões (CDB)</span><span>{brl(c.provisoes)}</span></div>
           {est && <div className="mt-2 text-[10px]" style={{ color: C.sub }}>Estágio: sem INSS, FGTS, férias, aviso e multa.</div>}
           {p.regime === "DIRETOR" && <div className="mt-2 text-[10px]" style={{ color: C.sub }}>Diretor: 13º sobre pró-labore + bônus; sem aviso e multa.</div>}
-          {p.adiantamento && (
-            <>
-              <div className="flex justify-between pt-2 mt-2" style={{ borderTop: `1px solid ${C.line}`, color: C.blue }}><span>Adiantamento (dia 20)</span><span>{brl(c.F * 0.4)}</span></div>
-              <div className="flex justify-between" style={{ color: C.sub }}><span>Salário no dia 5 (já sem o adiantamento)</span><span>{brl(c.liquido + c.G + c.ass + c.saldoLivre - c.F * 0.4)}</span></div>
-            </>
-          )}
+          {(() => {
+            const adiant = p.adiantamento ? c.F * 0.4 : 0;
+            const linhas = [
+              ["Dia 5 · folha", c.liquido - c.vtDesc + c.G + c.ass - adiant],
+              ...(adiant ? [["Dia 20 · adiantamento", adiant]] : []),
+              ["Dia 20 · INSS e FGTS", c.inssPatronal + c.inssFunc + c.fgts],
+              ["Dia 29 · iFood", c.vt + c.vtDesc + c.vr + c.saldoLivre],
+              ["Dia 10 · plano de saúde", c.ps],
+              ["Dia 30 · provisões (CDB)", c.provisoes],
+            ].filter(([, v]) => Math.abs(v) > 0.004);
+            return (
+              <div className="pt-2 mt-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="font-bold mb-1" style={{ color: C.navy }}>Quando sai do caixa</div>
+                {linhas.map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-0.5"><span style={{ color: C.sub }}>{k}</span><span>{brl(v)}</span></div>
+                ))}
+                <div className="flex justify-between pt-1 mt-1 font-semibold" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <span style={{ color: C.sub }}>soma</span><span>{brl(linhas.reduce((a, [, v]) => a + v, 0))}</span>
+                </div>
+                <div className="text-[10px] mt-1" style={{ color: C.sub }}>
+                  O desconto de 6% do VT sai do iFood, não da folha do dia 5.
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </Modal>
