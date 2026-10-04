@@ -721,14 +721,14 @@ export const MATRIZ_SEED = {
    {
     "id": "i67d",
     "natureza": "MUTUO EMANUEL",
-    "valor": 2700.0,
-    "valorParcela": 8100.0,
+    "valor": 9000.0,
+    "valorParcela": 27000.0,
     "periodicidade": 3,
     "inicio": "2026-11",
     "dia": 10,
     "parceiro": "EMANUEL",
     "cdb": false,
-    "obs": "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700"
+    "obs": "juros de 3% sobre 300.000 (OP 03, 04, 06 e arremate W3) = 9.000/mês, pagos de 3 em 3 meses"
    }
   ],
   "producao": {
@@ -1540,14 +1540,14 @@ export const MATRIZ_SEED = {
    {
     "id": "i67d",
     "natureza": "MUTUO EMANUEL",
-    "valor": 2700.0,
-    "valorParcela": 8100.0,
+    "valor": 9000.0,
+    "valorParcela": 27000.0,
     "periodicidade": 3,
     "inicio": "2026-11",
     "dia": 10,
     "parceiro": "EMANUEL",
     "cdb": false,
-    "obs": "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700"
+    "obs": "juros de 3% sobre 300.000 (OP 03, 04, 06 e arremate W3) = 9.000/mês, pagos de 3 em 3 meses"
    }
   ],
   "producao": {

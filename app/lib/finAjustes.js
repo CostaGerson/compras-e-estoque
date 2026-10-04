@@ -167,16 +167,17 @@ export async function renomearContas() {
 // Mútuos: a Matriz tinha uma linha única "MUTUOS" de R$ 21.680. Vira quatro, uma por sócio,
 // com o dia certo — e o do Emanuel é trimestral (R$ 8.100 a cada 3 meses, peso mensal 2.700).
 // ---------------------------------------------------------------------------
-const CHAVE_MUTUOS = "AJUSTE_MUTUOS_POR_SOCIO";
+const CHAVE_MUTUOS = "AJUSTE_MUTUOS_POR_SOCIO_V2";
 export const MUTUOS_POR_SOCIO = [
   { id: "i67a", natureza: "MUTUO LAEL", parceiro: "LAEL", valor: 3000, dia: 10, obs: "todo dia 10" },
   { id: "i67b", natureza: "MUTUO ISABEL", parceiro: "ISABEL", valor: 3500, dia: 5, obs: "todo dia 05" },
   { id: "i67c", natureza: "MUTUO GABRIEL", parceiro: "GABRIEL", valor: 3300, dia: 27, obs: "todo dia 27" },
-  { id: "i67d", natureza: "MUTUO EMANUEL", parceiro: "EMANUEL", valor: 2700, valorParcela: 8100,
+  { id: "i67d", natureza: "MUTUO EMANUEL", parceiro: "EMANUEL", valor: 9000, valorParcela: 27000,
     periodicidade: 3, inicio: "2026-11", dia: 10,
-    obs: "R$ 8.100 a cada 3 meses, dia 10 — na Matriz entra o peso mensal de 2.700" },
+    obs: "juros de 3% sobre 300.000 (OP 03, 04, 06 e arremate W3) = 9.000/mês, pagos de 3 em 3 meses" },
 ];
-const ehMutuoAntigo = (it) => semAcento(it?.natureza) === "MUTUOS";
+// pega tanto a linha única antiga ("MUTUOS") quanto as quatro de uma tentativa anterior
+const ehMutuo = (it) => /^MUTUOS?( |$)/.test(semAcento(it?.natureza));
 
 export async function separarMutuos() {
   const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_MUTUOS } }).catch(() => null);
@@ -187,15 +188,21 @@ export async function separarMutuos() {
   for (const m of matrizes) {
     const dados = { ...(m.dados || {}) };
     if (!Array.isArray(dados.dividas)) continue;
-    const velho = dados.dividas.find(ehMutuoAntigo);
-    if (!velho) continue;
-    antigos.push({ id: velho.id, valor: Number(velho.valor) });
-    // tira o item único e põe os quatro no lugar, sem mexer no resto da lista
-    const i = dados.dividas.findIndex(ehMutuoAntigo);
+    const i = dados.dividas.findIndex(ehMutuo);
+    if (i < 0) continue;
+    // guarda o que estava lá para apagar as recorrências que não valem mais
+    for (const v of dados.dividas.filter(ehMutuo)) {
+      const certo = MUTUOS_POR_SOCIO.find((x) => x.id === v.id);
+      const jaCerto = certo && Number(v.valor) === certo.valor
+        && (v.valorParcela ?? null) === (certo.valorParcela ?? null)
+        && (Number(v.periodicidade) || 1) === (certo.periodicidade || 1);
+      if (!jaCerto) antigos.push({ id: v.id, valor: Number(v.valor) });
+    }
+    // os quatro entram no lugar do primeiro item de mútuo; o resto da lista fica igual
     dados.dividas = [
-      ...dados.dividas.slice(0, i),
+      ...dados.dividas.slice(0, i).filter((x) => !ehMutuo(x)),
       ...MUTUOS_POR_SOCIO.map((x) => ({ ...x, cdb: false })),
-      ...dados.dividas.slice(i + 1).filter((x) => !ehMutuoAntigo(x)),
+      ...dados.dividas.slice(i + 1).filter((x) => !ehMutuo(x)),
     ];
     await prisma.finMatriz.update({ where: { id: m.id }, data: { dados } });
     trocadas++;
@@ -203,7 +210,7 @@ export async function separarMutuos() {
 
   // a recorrência do item antigo some junto com as previsões em aberto deste mês em diante
   let recorrenciasApagadas = 0, previsoesApagadas = 0;
-  for (const a of antigos) {
+  for (const a of [...new Map(antigos.map((x) => [x.id, x])).values()]) {
     const r = await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: `MATRIZ|dividas|${a.id}` } }).catch(() => null);
     if (!r) continue;
     const comp = new Date().toISOString().slice(0, 7);
@@ -224,5 +231,6 @@ export async function separarMutuos() {
     update: {},
   });
   const mensal = MUTUOS_POR_SOCIO.reduce((s, x) => s + x.valor, 0);
-  return { ok: true, matrizesTrocadas: trocadas, antigos, recorrenciasApagadas, previsoesApagadas, mensal, criados: MUTUOS_POR_SOCIO.length };
+  const anual = MUTUOS_POR_SOCIO.reduce((s, x) => s + (x.valorParcela ?? x.valor) * (12 / (x.periodicidade || 1)), 0);
+  return { ok: true, matrizesTrocadas: trocadas, antigos, recorrenciasApagadas, previsoesApagadas, mensal, anual, criados: MUTUOS_POR_SOCIO.length };
 }
