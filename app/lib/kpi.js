@@ -3,6 +3,7 @@
 // conforme o módulo dono dele nascer (pedidos → vendas; NF de saída → faturamento; cobranças → receita).
 import { prisma } from "@/lib/prisma";
 import { KPI_MESES, KPI_RECEITAS, KPI_ANOS, SEGMENTOS_PADRAO } from "@/lib/kpiSeed";
+import { VENDAS_CLIENTES_2026 } from "@/lib/kpiClientes2026";
 
 export const MESES_NOME = ["JAN", "FEV", "MAR", "ABR", "MAIO", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 export { SEGMENTOS_PADRAO };
@@ -28,12 +29,48 @@ const soma = (l) => l.reduce((s, v) => s + (v || 0), 0);
 const div = (a, b) => (b ? a / b : null);
 
 // Carrega os números das planilhas na primeira vez (não sobrescreve nada depois).
+// Peças vendidas 2026 (histórico): relatório "Posição Geral de Vendas" 01/01–30/09/2026,
+// só vendedores IGOR, GERSON e PEDRO, por mês de EMISSÃO do pedido. Mexe só em vendasPecas.
+// Fora: JS TÊXTIL e FONTESLOG — remessas, não vendas. Ranking por cliente em lib/kpiClientes2026.js.
+export const PECAS_VENDIDAS_2026 = { 1: 4596, 2: 2198, 3: 14854, 4: 5915, 5: 6895, 6: 10520, 7: 16776, 8: 12316, 9: 12853 };
+const CHAVE_PECAS_2026 = "AJUSTE|kpi-pecas-vendidas-2026-v100";
+export async function importarPecasVendidas2026() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_PECAS_2026 } }).catch(() => null);
+  if (ja) return false;
+  for (const [mes, pecas] of Object.entries(PECAS_VENDIDAS_2026)) {
+    await prisma.kpiMes.upsert({
+      where: { ano_mes: { ano: 2026, mes: Number(mes) } },
+      create: { ano: 2026, mes: Number(mes), vendasPecas: pecas, atualizadoPorNome: "RELATÓRIO DE VENDAS 2026" },
+      update: { vendasPecas: pecas },
+    });
+  }
+  await prisma.kpiVendaCliente.deleteMany({ where: { ano: 2026, origem: "HISTORICO" } });
+  await prisma.kpiVendaCliente.createMany({
+    data: VENDAS_CLIENTES_2026.map(([mes, cliente, pecas]) => ({ ano: 2026, mes, cliente, pecas, origem: "HISTORICO" })),
+    skipDuplicates: true,
+  });
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_PECAS_2026 },
+    create: { chave: CHAVE_PECAS_2026, valor: new Date().toISOString() },
+    update: { valor: new Date().toISOString() },
+  });
+  return true;
+}
+
+// Os 10 clientes que mais compraram peças no mês
+export async function rankingClientes(ano, mes, limite = 10) {
+  const l = await prisma.kpiVendaCliente.findMany({ where: { ano, mes }, orderBy: [{ pecas: "desc" }, { cliente: "asc" }] });
+  const total = l.reduce((s, x) => s + x.pecas, 0);
+  return { ano, mes, total, clientes: l.length, top: l.slice(0, limite).map((x) => ({ cliente: x.cliente, pecas: x.pecas })) };
+}
+
 export async function garantirKpis() {
   const ja = await prisma.kpiMes.count();
-  if (ja > 0) return false;
+  if (ja > 0) { await importarPecasVendidas2026().catch(() => null); return false; }
   await prisma.kpiMes.createMany({ data: KPI_MESES, skipDuplicates: true });
   await prisma.kpiReceita.createMany({ data: KPI_RECEITAS, skipDuplicates: true });
   for (const a of KPI_ANOS) await prisma.kpiAno.upsert({ where: { ano: a.ano }, create: a, update: {} });
+  await importarPecasVendidas2026().catch(() => null);
   return true;
 }
 

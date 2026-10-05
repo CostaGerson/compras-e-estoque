@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Target, Factory, Receipt, Wallet, BarChart3, History, ArrowLeft, Pencil, Save, X,
-  Upload, Loader2, ChevronLeft, ChevronRight,
+  Upload, Loader2, ChevronLeft, ChevronRight, ChevronDown,
 } from "lucide-react";
 
 /* Paleta Meridian */
@@ -125,7 +125,7 @@ function Painel({ user, master, money, abrirRelatorio }) {
           {/* ---- os 5 KPIs do mês ---- */}
           <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
             {d.kpis.map((k) => (
-              <CardKpi key={k.chave} k={k} mes={mes} master={master} money={money} />
+              <CardKpi key={k.chave} k={k} mes={mes} ano={ano} user={user} master={master} money={money} />
             ))}
             <CardReceitaCanais canais={d.canais} total={d.receitaMes} master={master} money={money} />
           </div>
@@ -202,8 +202,10 @@ function Rosca({ p, cor, trilho, tamanho = 96, espessura = 11 }) {
   );
 }
 
-function CardKpi({ k, mes, master, money }) {
+function CardKpi({ k, mes, ano, user, master, money }) {
   const [hover, setHover] = useState(null);
+  const [ranking, setRanking] = useState(null);   // mês aberto no ranking de clientes (só peças vendidas)
+  const comRanking = k.chave === "vendasPecas" && !!user;
   const temValor = k.valor !== null && k.valor !== undefined;
   const p = temValor && k.meta ? k.valor / k.meta : null;
   const [cor, trilho] = corMeta(p);
@@ -213,7 +215,7 @@ function CardKpi({ k, mes, master, money }) {
   const vSerie = k.serie[i], mSerie = k.metaSerie[i];
 
   return (
-    <div className="rounded-xl p-4 flex flex-col" style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${cor}` }}>
+    <div className="rounded-xl p-4 flex flex-col relative" style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${cor}` }}>
       <div className="flex items-start justify-between gap-2">
         <div className="text-xs font-semibold" style={{ color: C.sub }}>
           {k.rotulo} <span style={{ fontWeight: 400 }}>({k.unidade === "R$" ? "R$" : "peças"})</span>
@@ -228,9 +230,17 @@ function CardKpi({ k, mes, master, money }) {
       <div className="mt-2 flex items-center gap-4">
         <Rosca p={p} cor={cor} trilho={trilho} />
         <div className="min-w-0">
+          {comRanking && temValor ? (
+            <button onClick={() => setRanking(ranking ? null : mes)} title="Ver os 10 clientes que mais compraram no mês"
+              className="font-semibold flex items-center gap-1" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>
+              {compacto(k.valor, k.unidade)}
+              <ChevronDown size={18} style={{ color: C.accent, transform: ranking ? "rotate(180deg)" : "none" }} />
+            </button>
+          ) : (
           <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: temValor ? C.text : C.sub }}>
             {!temValor ? "—" : esconder ? "•••••" : compacto(k.valor, k.unidade)}
           </div>
+          )}
           <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
             {k.meta ? (esconder ? "meta •••••" : `meta ${compacto(k.meta, k.unidade)}`) : "sem meta no mês"}
           </div>
@@ -246,19 +256,71 @@ function CardKpi({ k, mes, master, money }) {
 
       {/* os 12 meses do ano: cinza = outros meses, laranja = o mês aberto, traço = meta */}
       <div className="mt-3">
-        <MiniColunas serie={k.serie} metaSerie={k.metaSerie} destaque={mes - 1} hover={hover} setHover={setHover} cor={cor} />
+        <MiniColunas serie={k.serie} metaSerie={k.metaSerie} destaque={mes - 1} hover={hover} setHover={setHover} cor={cor}
+          onClique={comRanking ? (i) => k.serie[i] != null && setRanking(i + 1) : null} />
         <div className="text-[11px] mt-1" style={{ color: C.sub, minHeight: 16 }}>
           {hover === null
             ? k.fonte
-            : `${MESES[i]}: ${vSerie == null ? "sem lançamento" : esconder ? "•••••" : valorCheio(vSerie, k.unidade)}${mSerie ? ` · meta ${esconder ? "•••••" : valorCheio(mSerie, k.unidade)}` : ""}`}
+            : `${MESES[i]}: ${vSerie == null ? "sem lançamento" : esconder ? "•••••" : valorCheio(vSerie, k.unidade)}${mSerie ? ` · meta ${esconder ? "•••••" : valorCheio(mSerie, k.unidade)}` : ""}${comRanking && vSerie != null ? " · clique para ver os clientes" : ""}`}
         </div>
       </div>
+      {ranking && <RankingClientes user={user} ano={ano} mes={ranking} onClose={() => setRanking(null)} />}
+    </div>
+  );
+}
+
+/* Menu suspenso: os 10 clientes que mais compraram peças no mês */
+function RankingClientes({ user, ano, mes, onClose }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    setD(null); setErro("");
+    api(`/api/kpi/clientes?u=${user.id}&ano=${ano}&mes=${mes}`).then(setD).catch((e) => setErro(e.message || "Erro"));
+  }, [ano, mes]);
+  useEffect(() => {
+    const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const esc = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", fora); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
+  }, []);
+  const max = Math.max(1, ...(d?.top || []).map((x) => x.pecas));
+  return (
+    <div ref={ref} className="absolute left-3 right-3 z-30 rounded-xl p-3 shadow-xl" style={{ top: 96, background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-bold" style={{ color: C.navy }}>Top 10 clientes · {MESES_LONGO[mes - 1]}/{ano}</div>
+        <button onClick={onClose} style={{ color: C.sub }}><X size={14} /></button>
+      </div>
+      {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
+      {!d && !erro && <div className="text-xs" style={{ color: C.sub }}>Carregando…</div>}
+      {d && !d.top.length && <div className="text-xs" style={{ color: C.sub }}>Nenhuma venda por cliente registrada neste mês.</div>}
+      {d && d.top.length > 0 && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            {d.top.map((c, i) => (
+              <div key={c.cliente} className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold tabular-nums" style={{ color: i < 3 ? C.accent : C.sub, width: 18 }}>{i + 1}º</span>
+                  <span className="flex-1 truncate" title={c.cliente} style={{ color: C.text }}>{c.cliente}</span>
+                  <span className="font-semibold tabular-nums" style={{ color: C.text }}>{inteiro(c.pecas)}</span>
+                </div>
+                <div className="h-1 rounded-full mt-0.5" style={{ marginLeft: 26, background: C.trilho }}>
+                  <div className="h-1 rounded-full" style={{ width: `${(c.pecas / max) * 100}%`, background: i < 3 ? C.accent : C.marca }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-[11px] mt-2 pt-2" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
+            {inteiro(d.top.reduce((s, x) => s + x.pecas, 0))} de {inteiro(d.total)} peças · {d.clientes} {d.clientes === 1 ? "cliente" : "clientes"} no mês
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 /* 12 colunas finas + marca da meta; hover devolve o índice do mês */
-function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor }) {
+function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor, onClique }) {
   const alt = 52;
   const max = Math.max(1, ...serie.map((v) => v || 0), ...metaSerie.map((v) => v || 0));
   return (
@@ -269,8 +331,8 @@ function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor }) {
         const atual = i === destaque;
         const ativo = hover === i;
         return (
-          <div key={i} className="relative flex-1 flex items-end" style={{ height: alt, cursor: "default" }}
-            onMouseEnter={() => setHover(i)}>
+          <div key={i} className="relative flex-1 flex items-end" style={{ height: alt, cursor: onClique && v != null ? "pointer" : "default" }}
+            onMouseEnter={() => setHover(i)} onClick={onClique ? () => onClique(i) : undefined}>
             {/* marca da meta */}
             {hm > 0 && <div className="absolute left-0 right-0" style={{ bottom: Math.min(alt - 2, hm), height: 2, background: C.marca, borderRadius: 2 }} />}
             <div style={{

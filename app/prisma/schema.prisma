@@ -976,6 +976,20 @@ model KpiMes {
   @@index([ano])
 }
 
+// Peças vendidas por cliente no mês (histórico importado; depois virá dos pedidos lançados)
+model KpiVendaCliente {
+  id        Int      @id @default(autoincrement())
+  ano       Int
+  mes       Int
+  cliente   String
+  pecas     Int
+  origem    String   @default("HISTORICO")
+  createdAt DateTime @default(now())
+
+  @@unique([ano, mes, cliente])
+  @@index([ano, mes])
+}
+
 // Receita recebida por canal/segmento (B2B, LICITAÇÕES, AGENCIADA, DIGITAL, PATRIMONIO…)
 model KpiReceita {
   id          Int      @id @default(autoincrement())
