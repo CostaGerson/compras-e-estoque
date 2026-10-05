@@ -355,6 +355,7 @@ export default function ContasPagarReceber({ user }) {
         <div className="flex-1" />
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
+        {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
@@ -450,6 +451,7 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
+      {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
     </div>
@@ -563,6 +565,136 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
+const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft] };
+function DocumentoModal({ user, contas, onClose, onSalvo }) {
+  const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
+  const [r, setR] = useState(null);           // { itens, naoReconhecidos }
+  const [esc, setEsc] = useState({});         // escolha por item: { destino: id | "CRIAR" | "IGNORAR", criar: {...} }
+  const [abertos, setAbertos] = useState({});
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const contasPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas]);
+  const ler = async (files) => {
+    const pdfs = [...files].filter((f) => /\.pdf$/i.test(f.name));
+    if (!pdfs.length) return setErro("Escolha arquivos PDF.");
+    setErro(""); setSt("Lendo os documentos…");
+    try {
+      const lista = [];
+      for (const f of pdfs) lista.push({ nome: f.name, conteudo: await readB64(f) });
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
+      setArqs(lista); setR(j);
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : it.tipo === "RECIBO" ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null } }])));
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const muda = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
+  const mudaCriar = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], criar: { ...x[k].criar, ...patch } } }));
+  const usados = r ? r.itens.filter((it) => esc[it.chave]?.destino !== "IGNORAR") : [];
+  const faltaConta = usados.some((it) => esc[it.chave]?.destino === "CRIAR" && !esc[it.chave]?.criar?.contaId);
+  const aplicar = async () => {
+    setSt("Aplicando…"); setErro("");
+    try {
+      const itens = usados.map((it) => {
+        const e = esc[it.chave];
+        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
+          ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
+      });
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: arqs });
+      onSalvo(`Documentos aplicados: ${j.atualizadas} conta(s) atualizada(s)${j.criadas ? `, ${j.criadas} criada(s)` : ""}, ${j.anexos} anexo(s). ${j.linhas.join(" · ")}`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Importar documento" icone={FileText} onClose={onClose} largura={900}
+      rodape={r && r.itens.length ? <>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={aplicar} disabled={!!st || !usados.length || faltaConta}>{st && <Loader2 size={14} className="animate-spin" />} Aplicar</BtnP>
+      </> : null}>
+      {!r && (
+        <div className="text-center py-10">
+          <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>…</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>O sistema reconhece cada documento, acha a conta certa, atualiza o valor e anexa o arquivo. Nada é gravado antes de você confirmar.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDFs"}</BtnP>
+          <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+        </div>
+      )}
+      {r && (
+        <div className="flex flex-col gap-3">
+          {r.naoReconhecidos?.length > 0 && (
+            <div className="text-xs p-2.5 rounded-lg" style={{ background: C.yellowSoft, color: C.text }}>
+              {r.naoReconhecidos.map((x) => <div key={x.nome}><b>{x.nome}</b>: {x.erro}</div>)}
+            </div>
+          )}
+          {!r.itens.length && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
+          {r.itens.map((it) => {
+            const e = esc[it.chave] || {};
+            const [tt, tc, tb] = TIPO_DOC[it.tipo] || [it.tipo, C.sub, C.panel2];
+            const alvo = it.opcoes.find((o) => String(o.id) === String(e.destino));
+            return (
+              <div key={it.chave} className="rounded-xl p-3" style={{ border: `1px solid ${C.line}`, opacity: e.destino === "IGNORAR" ? 0.6 : 1 }}>
+                <div className="flex items-start gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: tc, background: tb }}>{tt}</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold" style={{ color: C.navy }}>{it.descricao}</div>
+                    <div className="text-[11px]" style={{ color: C.sub }}>{it.arquivos.join(" · ")}</div>
+                  </div>
+                  <div className="text-lg font-bold" style={{ color: C.navy }}>{moeda(it.valor)}</div>
+                </div>
+                {it.tipo === "FOLHA" && (
+                  <div className="text-xs mb-2">
+                    <button onClick={() => setAbertos((x) => ({ ...x, [it.chave]: !x[it.chave] }))} className="underline" style={{ color: C.blue }}>
+                      {abertos[it.chave] ? "esconder" : "ver"} líquido por funcionário ({it.funcionarios.length})
+                    </button>
+                    {abertos[it.chave] && (
+                      <div className="mt-1 rounded-lg overflow-auto" style={{ maxHeight: 200, border: `1px solid ${C.line}` }}>
+                        {it.funcionarios.map((f) => (
+                          <div key={f.codigo} className="flex justify-between px-3 py-1" style={{ borderBottom: `1px solid ${C.line}` }}><span>{f.nome}</span><b>{brl(f.liquido)}</b></div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-1" style={{ color: C.sub }}>{it.nota}</div>
+                  </div>
+                )}
+                {it.tipo === "RECIBO" && it.itens?.length > 0 && (
+                  <div className="text-xs mb-2" style={{ color: C.sub }}>{it.itens.map((x) => `${x.desc}: ${brl(x.valor)}`).join(" · ")}</div>
+                )}
+                {it.avisos.length > 0 && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.yellowSoft, color: C.text }}>{it.avisos.map((a, i) => <div key={i}>⚠ {a}</div>)}</div>}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span style={{ color: C.sub }}>Conta de {it.comp ? nomeMes(it.comp) : "?"}:</span>
+                  <select value={e.destino ?? "IGNORAR"} onChange={(ev) => muda(it.chave, { destino: ev.target.value })} className="rounded px-2 py-1.5 text-xs outline-none flex-1" style={{ ...inpS, minWidth: 280 }}>
+                    {it.opcoes.map((o) => <option key={o.id} value={o.id}>{o.titulo} · {o.parceiro} · vence {dBR(o.vencimento)} · R$ {brl(o.valor)}{o.status === "PAGO" ? " · baixada" : ""}</option>)}
+                    <option value="CRIAR">— criar nova conta —</option>
+                    <option value="IGNORAR">— não aplicar —</option>
+                  </select>
+                </div>
+                {alvo && (
+                  <div className="text-xs mt-1.5" style={{ color: C.sub }}>
+                    {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.valor)}</b> · fica confirmado e o PDF vai anexado</>}
+                  </div>
+                )}
+                {e.destino === "CRIAR" && (
+                  <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "2fr 1.5fr 1fr" }}>
+                    <input value={e.criar?.titulo || ""} onChange={(ev) => mudaCriar(it.chave, { titulo: ev.target.value.toUpperCase() })} placeholder="Título" className={inp} style={inpS} />
+                    <input value={e.criar?.parceiro || ""} onChange={(ev) => mudaCriar(it.chave, { parceiro: ev.target.value.toUpperCase() })} placeholder="Fornecedor / pessoa" className={inp} style={inpS} />
+                    <input type="date" value={e.criar?.vencimento || ""} onChange={(ev) => mudaCriar(it.chave, { vencimento: ev.target.value })} className={inp} style={inpS} />
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <ContaSelect conta={contasPorId[e.criar?.contaId]} contas={contas} onPick={(id) => mudaCriar(it.chave, { contaId: id })} />
+                      {!e.criar?.contaId && <div className="text-[11px] mt-0.5" style={{ color: C.red }}>Escolha a conta-caixa (obrigatória).</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
   );
 }
 
