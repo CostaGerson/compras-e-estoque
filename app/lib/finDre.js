@@ -73,7 +73,7 @@ export const MAPA_OFICIAL = {
   1135000: "EXT_MUTUO", 2131500: "EXT_MUTUO",
   1140000: "EXT_SEM_JUROS",
   // NORT — futura loja: receita (caixa NORT, antigo caixa 4mil) e custos ficam num grupo próprio
-  1117000: "NORT", 2151000: "NORT", 2152000: "NORT", 2153000: "NORT", 2154000: "NORT", 2155000: "NORT", 2156000: "NORT",
+  1117000: "NORT", 2151000: "NORT", 2152000: "NORT", 2153000: "NORT", 2154000: "NORT", 2155000: "NORT", 2156000: "NORT", 2157000: "NORT",
   // FORA DA DRE
   3000000: "FORA",
   2111200: "FORA", 2111300: "FORA", 2113000: "FORA", 2123000: "FORA",   // contas antigas, inativas

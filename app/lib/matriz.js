@@ -9,8 +9,9 @@
 export const DEPTOS = [
   ["DIR", "1. Diretoria"], ["ADM", "2. Administrativo"], ["COR", "3. Corte"], ["SIL", "4. Silk"],
   ["BOR", "5. Bordado"], ["COS", "6. Costura"], ["EXP", "7. Expedição"], ["LOG", "8. Logística"],
+  ["NORT", "9. NORT (loja)"],   // folha da NORT, bancada pela Meridian — contas NORT próprias
 ];
-export const DEPTOS_FORA_OPERACAO = ["DIR", "ADM"];
+export const DEPTOS_FORA_OPERACAO = ["DIR", "ADM", "NORT"];
 export const REGIMES = {
   CLT: "CLT",
   DIRETOR: "Diretor (pró-labore)",

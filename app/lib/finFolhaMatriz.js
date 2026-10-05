@@ -17,6 +17,7 @@ export function deptoDaFuncao(f) {
   if (/SILK|SERIGRAF/.test(n)) return "SIL";
   if (/EXPEDI|CONFERENT|ARREMAT|EMBAL/.test(n)) return "EXP";
   if (/ADMINISTR|PCP|ANALISTA|SERVICOS GERAIS|LIMPEZA|ESTAGI/.test(n)) return "ADM";
+  if (/VENDED|LOJA|CAIXA|ATENDENT/.test(n)) return "NORT";
   return "COS";
 }
 
@@ -32,10 +33,12 @@ export async function matrizOficial() {
   return prisma.finMatriz.findFirst({ where: { oficial: true } });
 }
 
-export async function conferirFolhaMatriz(funcionarios) {
+// empresa: MERIDIAN confere com todo o pessoal menos o setor NORT; NORT confere só com o setor NORT
+export async function conferirFolhaMatriz(funcionarios, empresa = "MERIDIAN") {
   const m = await matrizOficial();
   if (!m) return { semMatriz: true, ok: [], faltam: [], foraDaFolha: [] };
-  const pessoas = (m.dados?.pessoal || []).filter((p) => p.ativo !== false);
+  const nort = empresa === "NORT";
+  const pessoas = (m.dados?.pessoal || []).filter((p) => p.ativo !== false && (p.depto === "NORT") === nort);
   const usadas = new Set(), ok = [], faltam = [];
   // 1º nome a nome
   const resto = [];
@@ -47,7 +50,7 @@ export async function conferirFolhaMatriz(funcionarios) {
   const resto2 = [];
   for (const f of resto) {
     const ini = tk(f.nome)[0]?.slice(0, 3);
-    const p = ini && pessoas.find((x) => !usadas.has(x.id) && x.nome && tk(x.nome)[0]?.startsWith(ini) && x.depto === deptoDaFuncao(f.funcao || x.cargo));
+    const p = ini && pessoas.find((x) => !usadas.has(x.id) && x.nome && tk(x.nome)[0]?.startsWith(ini) && (nort || x.depto === deptoDaFuncao(f.funcao || x.cargo)));
     if (p) { usadas.add(p.id); ok.push({ folha: f.nome, matriz: p.nome, depto: p.depto, apelido: true }); } else resto2.push(f);
   }
   // 3º vaga sem nome na Matriz que bate com a função
@@ -58,7 +61,7 @@ export async function conferirFolhaMatriz(funcionarios) {
       usadas.add(vaga.id);
       faltam.push({ ...f, acao: "NOMEAR", matrizId: vaga.id, cargoMatriz: vaga.cargo, depto: vaga.depto });
     } else {
-      faltam.push({ ...f, acao: "INCLUIR", depto: deptoDaFuncao(f.funcao || "") });
+      faltam.push({ ...f, acao: "INCLUIR", depto: nort ? "NORT" : deptoDaFuncao(f.funcao || ""), empresa });
     }
   }
   // na Matriz (CLT) e fora da folha — só informação (sócios e estagiários não entram na folha)
@@ -85,7 +88,7 @@ export async function corrigirMatriz(pessoas, { quem, ref } = {}) {
       if (p) { p.nome = nome; p.obs = [p.obs, `NOME DA FOLHA ${ref || ""}`.trim()].filter(Boolean).join(" · "); nomeadas++; nomes.add(normRegra(nome)); continue; }
     }
     dados.pessoal.push({
-      id: `p${prox++}`, nome, cargo: String(f.funcao || "").toUpperCase().slice(0, 60) || "FUNCIONÁRIO", depto: f.depto || deptoDaFuncao(f.funcao || ""),
+      id: `p${prox++}`, nome, cargo: String(f.funcao || "").toUpperCase().slice(0, 60) || (f.empresa === "NORT" ? "FUNCIONÁRIO NORT" : "FUNCIONÁRIO"), depto: f.depto || deptoDaFuncao(f.funcao || ""),
       regime: "CLT", salario: Number(f.salario) || 0, bonus: 0, vt: 287.5, descontaVt: true, vr: 100, ps: 54.9, assPct: 0.05,
       saldoLivre: 0, rFerias: 0, adiantamento: !!f.adiantamento, ativo: true, obs: `INCLUÍDO PELA FOLHA ${ref || ""}`.trim(),
     });

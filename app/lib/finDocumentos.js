@@ -143,7 +143,7 @@ export async function analisarDocumentos(docs) {
     const opcoes = comp ? await contasDoMes(comp) : [];
     // todos da folha (com líquido) precisam estar na Matriz de custos — só a da Meridian
     const base = (folha || liq).funcionarios.map((f) => ({ ...f, ...(folha?.funcionarios.find((x) => x.codigo === f.codigo) || {}) }));
-    const matriz = empresa === "MERIDIAN" ? await conferirFolhaMatriz(base) : null;
+    const matriz = await conferirFolhaMatriz(base, empresa);
     // rateio do salário pelo setor de cada funcionário (Matriz; quem não está nela, pela função) — peso = líquido
     const contas = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
     const idConta = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));

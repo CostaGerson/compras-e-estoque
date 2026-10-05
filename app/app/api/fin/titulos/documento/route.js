@@ -30,7 +30,7 @@ export async function POST(req) {
       let contas = null;
       if (r.incluidas || r.nomeadas) {
         const m = await montarMatrizRec();
-        const pes = (m.propostas || []).filter((p) => p.chave.startsWith("MATRIZ|pessoal|"));
+        const pes = (m.propostas || []).filter((p) => p.chave.startsWith("MATRIZ|pessoal|") || /^NORT\|(FOLHA5|ADIANTAMENTO|BENEFICIOS|ENCARGOS)$/.test(p.chave));
         contas = await aplicarMatrizRec({ quem: nomeU(u), chaves: pes.filter((p) => !p.jaExiste).map((p) => p.chave), atualizar: pes.filter((p) => p.mudou).map((p) => p.chave) });
       }
       return Response.json({ ...r, contas });

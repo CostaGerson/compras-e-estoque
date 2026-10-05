@@ -40,6 +40,7 @@ export const CONTAS_BASE = [
   // v110: NORT — futura loja da Meridian, ainda bancada por ela (grupo próprio na DRE)
   ["2151000","NORT ALUGUEL DA LOJA"],["2152000","NORT CEMIG"],["2153000","NORT COPASA"],
   ["2154000","NORT FOLHA 5º DIA ÚTIL"],["2155000","NORT FOLHA ADIANTAMENTO"],["2156000","NORT VT / VA / BENEFÍCIOS"],
+  ["2157000","NORT INSS / FGTS"],
   ["2210000","DESPESA DE PRODUÇÃO"],["2220000","DESPESA ADMINISTRATIVA"],["2230000","DESPESA FINANCEIRA"],
   ["2240000","DESPESA COMERCIAL"],["3000000","CONCILIAÇÃO"],
   // contas usadas por regras antigas, mas fora do plano atual → inativas

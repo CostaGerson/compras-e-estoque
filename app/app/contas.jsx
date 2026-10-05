@@ -595,12 +595,12 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
   const muda = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
   // conferência com a Matriz de custos: corrigir na hora
   const [mtz, setMtz] = useState({});   // por item: { deptos: {codigo: depto}, st, msg }
-  const DEPTOS_M = [["ADM", "Administrativo"], ["COR", "Corte"], ["SIL", "Silk"], ["BOR", "Bordado"], ["COS", "Costura"], ["EXP", "Expedição"], ["LOG", "Logística"], ["DIR", "Diretoria"]];
+  const DEPTOS_M = [["ADM", "Administrativo"], ["COR", "Corte"], ["SIL", "Silk"], ["BOR", "Bordado"], ["COS", "Costura"], ["EXP", "Expedição"], ["LOG", "Logística"], ["NORT", "NORT (loja)"], ["DIR", "Diretoria"]];
   const corrigirMatriz = async (it) => {
     const m = mtz[it.chave] || {};
     setMtz((x) => ({ ...x, [it.chave]: { ...m, st: "Corrigindo…", msg: "" } }));
     try {
-      const pessoas = it.matriz.faltam.map((f) => ({ ...f, depto: m.deptos?.[f.codigo] || f.depto }));
+      const pessoas = it.matriz.faltam.map((f) => ({ ...f, depto: m.deptos?.[f.codigo] || f.depto, salario: m.salarios?.[f.codigo] ?? f.salario }));
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "corrigirMatriz", pessoas, ref: it.refTexto });
       setR((x) => ({ ...x, itens: x.itens.map((y) => (y.chave === it.chave ? { ...y, matriz: { ...y.matriz, ok: [...y.matriz.ok, ...y.matriz.faltam.map((f) => ({ folha: f.nome, matriz: f.nome.split(" ")[0] }))], faltam: [] } } : y)) }));
       setMtz((x) => ({ ...x, [it.chave]: { st: "", msg: `Matriz corrigida: ${j.incluidas} incluída(s), ${j.nomeadas} vaga(s) nomeada(s)${j.contas ? ` · contas de pessoal atualizadas (${j.contas.atualizadas} recorrência(s))` : ""}.` } }));
@@ -699,7 +699,12 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                       <div className="font-bold mb-1.5" style={{ color: C.red }}>⚠ {it.matriz.faltam.length} funcionário(s) da folha não estão na Matriz de custos</div>
                       {it.matriz.faltam.map((f) => (
                         <div key={f.codigo} className="flex flex-wrap items-center gap-2 py-1" style={{ borderTop: `1px solid ${C.red}22` }}>
-                          <span className="font-semibold flex-1" style={{ color: C.text, minWidth: 200 }}>{f.nome}<span className="font-normal" style={{ color: C.sub }}> · {f.funcao || "—"} · salário {brl(f.salario || 0)}{f.adiantamento ? " · adiantamento" : ""}</span></span>
+                          <span className="font-semibold flex-1" style={{ color: C.text, minWidth: 200 }}>{f.nome}<span className="font-normal" style={{ color: C.sub }}> · {f.funcao || "—"}{f.salario > 0 ? ` · salário ${brl(f.salario)}` : ""}{f.adiantamento ? " · adiantamento" : ""}</span></span>
+                          {f.acao === "INCLUIR" && !(f.salario > 0) && (
+                            <span className="flex items-center gap-1" style={{ color: C.sub }}>salário
+                              <Valor value={m.salarios?.[f.codigo] || 0} width={90} onChange={(v) => setMtz((x) => ({ ...x, [it.chave]: { ...m, salarios: { ...(m.salarios || {}), [f.codigo]: v } } }))} />
+                            </span>
+                          )}
                           <span style={{ color: C.sub }}>{f.acao === "NOMEAR" ? `dar nome à vaga "${f.cargoMatriz}"` : "incluir no setor"}</span>
                           {f.acao === "INCLUIR" && (
                             <select value={m.deptos?.[f.codigo] || f.depto} onChange={(e) => setMtz((x) => ({ ...x, [it.chave]: { ...m, deptos: { ...(m.deptos || {}), [f.codigo]: e.target.value } } }))}

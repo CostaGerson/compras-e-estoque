@@ -34,7 +34,7 @@ function contaItem(area, nome) {
   }
   return "2220000";
 }
-export const CONTA_DEPTO = { DIR: "2126000", ADM: "2128200", COR: "2113100", SIL: "2113310", BOR: "2113320", COS: "2113500", EXP: "2113200", LOG: "2113600" };
+export const CONTA_DEPTO = { NORT: "2154000", DIR: "2126000", ADM: "2128200", COR: "2113100", SIL: "2113310", BOR: "2113320", COS: "2113500", EXP: "2113200", LOG: "2113600" };
 const ADM = (d) => d === "DIR" || d === "ADM";
 // Adiantamento salarial: 40% do salário base, pago no dia 20 e abatido do salário do dia 5.
 export const PCT_ADIANTAMENTO = 0.4;
@@ -88,8 +88,18 @@ export function propostasDaMatriz(dados) {
   const quemAdi = [];
   const socios = [];   // pró-labore: conta própria por sócio, mesmo vencimento do salário (5º dia útil com sábado)
   const estagios = []; // estagiário: recibo próprio (bolsa + passagem), mesmo vencimento do salário
+  // NORT: o pessoal do setor NORT vai para as contas da loja (folha 5º dia útil, adiantamento, benefícios, INSS/FGTS)
+  const nort = { folha: 0, adi: 0, benef: 0, enc: 0, n: 0 };
   for (const p of calc.pessoas) {
     const c = p.c;
+    if (p.depto === "NORT") {
+      const adiant = p.adiantamento ? r2(c.F * PCT_ADIANTAMENTO) : 0;
+      nort.n++; nort.adi += adiant;
+      nort.folha += c.liquido - c.vtDesc + c.G + c.ass - adiant;
+      nort.benef += c.vt + c.vtDesc + c.vr + c.saldoLivre + c.ps;
+      nort.enc += c.inssPatronal + c.inssFunc + c.fgts;
+      continue;
+    }
     if (p.regime === "DIRETOR" || p.depto === "DIR") socios.push(p);
     if (p.regime === "ESTAGIO") {   // fora da folha: bolsa + passagem no recibo, conta do setor dele
       estagios.push({ p, valor: r2(c.liquido - c.vtDesc + c.G + c.ass + c.vt + c.vtDesc), conta: CONTA_DEPTO[p.depto] || "2128200" });
@@ -113,6 +123,13 @@ export function propostasDaMatriz(dados) {
     soma(ps, ADM(p.depto) ? "2128100" : "2113700", c.ps);
   }
   const tot = (m) => Object.values(m).reduce((s, v) => s + v, 0);
+  if (nort.n) {
+    const obs = `NORT — ${nort.n} funcionário(s) da Matriz (setor NORT)`;
+    add({ chave: "NORT|FOLHA5", grupo: "Pessoal", titulo: "NORT — FOLHA 5º DIA ÚTIL", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort.folha, dia: 5, util: true, rateio: [{ codigo: "2154000", pct: 100 }], obs });
+    add({ chave: "NORT|ADIANTAMENTO", grupo: "Pessoal", titulo: "NORT — FOLHA ADIANTAMENTO", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort.adi, dia: 20, rateio: [{ codigo: "2155000", pct: 100 }], obs });
+    add({ chave: "NORT|BENEFICIOS", grupo: "Pessoal", titulo: "NORT — VT / VA / BENEFÍCIOS", parceiro: "BENEFÍCIOS NORT", valor: nort.benef, dia: 29, rateio: [{ codigo: "2156000", pct: 100 }], obs });
+    if (nort.enc) add({ chave: "NORT|ENCARGOS", grupo: "Pessoal", titulo: "NORT — INSS / FGTS", parceiro: "RECEITA FEDERAL", valor: nort.enc, dia: 20, rateio: [{ codigo: "2157000", pct: 100 }], obs });
+  }
   for (const { p, valor, conta } of estagios) {
     add({ chave: `MATRIZ|pessoal|ESTAGIO|${p.id}`, grupo: "Pessoal", titulo: `ESTÁGIO ${p.nome || p.cargo}`, parceiro: p.nome || p.cargo,
       valor, dia: 5, util: true, rateio: [{ codigo: conta, pct: 100 }],
@@ -124,7 +141,7 @@ export function propostasDaMatriz(dados) {
       obs: "Pró-labore fixo do sócio — vence junto com o salário (5º dia útil, sábado conta)" });
   }
   add({ chave: "MATRIZ|pessoal|SALARIO", grupo: "Pessoal", titulo: "SALÁRIO", parceiro: "FOLHA DE PAGAMENTO", valor: tot(sal), dia: 5, util: true, rateio: rateioDe(sal),
-    obs: `Líquido de ${calc.pessoas.length - socios.length - estagios.length} funcionário(s) + bônus + assiduidade − adiantamento do dia 20 · sócios no pró-labore`
+    obs: `Líquido de ${calc.pessoas.length - socios.length - estagios.length - nort.n} funcionário(s) + bônus + assiduidade − adiantamento do dia 20 · sócios no pró-labore`
       + ` · VT, VA e saldo livre vão no iFood (dia 29); encargos, plano de saúde e provisões têm linha própria` });
   add({ chave: "MATRIZ|pessoal|ADIANTAMENTO", grupo: "Pessoal", titulo: "ADIANTAMENTO SALARIAL", parceiro: "FOLHA DE PAGAMENTO", valor: tot(adi), dia: 20,
     rateio: tot(adi) ? rateioDe(adi) : [{ codigo: "2128200", pct: 100 }],
