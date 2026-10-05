@@ -7,7 +7,7 @@ import {
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
 import Comercial from "./comercial";
-import Financeiro from "./financeiro";
+import Financeiro, { DadosFinanceiros } from "./financeiro";
 import Gestao from "./gestao";
 import Prestadores from "./prestadores";
 
@@ -72,18 +72,19 @@ const MENU = [
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
     ] },
   ] },
-  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers e terceirizados", filhos: [
+  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados e dados financeiros", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP"], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP"], desc: "Facções e serviços: PIX, endereço e capacidade" },
+    { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
-  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -206,6 +207,7 @@ export default function Home() {
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
+          {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}

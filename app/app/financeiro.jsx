@@ -5,7 +5,7 @@ import {
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
   LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
-  Building2, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard, Gauge,
+  Building2, Database, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard, Gauge,
 } from "lucide-react";
 import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
@@ -62,6 +62,7 @@ export default function Financeiro({ user }) {
   if (["meses", "mes", "identAno"].includes(tela.v)) migalhas.push({ t: `Análise financeira ${tela.v === "mes" ? tela.comp.slice(0, 4) : tela.v === "identAno" ? tela.ano : ano}`, go: () => ir({ v: "meses" }) });
   if (tela.v === "mes") migalhas.push({ t: nomeComp(tela.comp) });
   if (tela.v === "identAno") migalhas.push({ t: `Identificação ${tela.ano}${tela.nomeGrupoDre ? ` · ${tela.nomeGrupoDre}` : ""}` });
+  if (["dados", "contas", "regras", "senhas"].includes(tela.v)) migalhas.push({ t: "Dados financeiros", go: () => ir({ v: "dados" }) });
   if (tela.v === "contas") migalhas.push({ t: "Plano de contas" });
   if (tela.v === "regras") migalhas.push({ t: "Palavras-chave" });
   if (tela.v === "senhas") migalhas.push({ t: "Senhas de PDF" });
@@ -84,10 +85,12 @@ export default function Financeiro({ user }) {
         </div>
       )}
       {tela.v === "dash" && <FinDashboard user={user} ir={ir} />}
+      {tela.v === "dados" && <DadosFinanceiros user={user} ir={ir} />}
       {tela.v === "meses" && (
         <AnaliseMensal user={user} ano={ano} setAno={setAno}
           abrir={(comp) => ir({ v: "mes", comp, aba: "dre" })}
-          abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })} />
+          abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })}
+          abrirAlav={() => ir({ v: "alavancagem" })} />
       )}
       {tela.v === "identAno" && (
         <Identificacao key={`ano-${tela.ano}-${tela.grupoDre || ""}`} user={user} comp={`${tela.ano}-01`}
@@ -169,9 +172,17 @@ function BarrasAno({ meses, onClick }) {
 function FinDashboard({ user, ir }) {
   const anoAtual = new Date().getFullYear();
   const [d, erro] = useResumo(user, anoAtual);
+  const [anual, erroAnual] = useAnual(user, anoAtual);
   const hoje = new Date();
   return (
     <div>
+      <div className="flex justify-end mb-3">
+        <button onClick={() => ir({ v: "dados" })} title="Plano de contas, palavras-chave e senhas de PDF"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-shadow hover:shadow-md"
+          style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+          <Database size={14} style={{ color: C.accent }} /> Dados
+        </button>
+      </div>
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {[
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
@@ -188,17 +199,10 @@ function FinDashboard({ user, ir }) {
           </button>
         ))}
       </div>
-      <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        {[["contas", BookOpen, "Plano de contas", "Contas-caixa da DRE"], ["regras", Wand2, "Palavras-chave", "Identificação automática"], ["senhas", KeyRound, "Senhas de PDF", "Abertura automática"]].map(([v, Ico, t, sub]) => (
-          <button key={v} onClick={() => ir({ v })} className="flex items-center gap-3 text-left rounded-xl px-4 py-3 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <Ico size={20} style={{ color: C.accent }} />
-            <div>
-              <div className="font-bold text-sm">{t}</div>
-              <div className="text-xs" style={{ color: C.sub }}>{sub}</div>
-            </div>
-          </button>
-        ))}
-      </div>
+      {anual && <IndicadoresAno d={anual} ano={anoAtual}
+        abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano: anoAtual, grupoDre, nomeGrupoDre })}
+        abrirAlav={() => ir({ v: "alavancagem" })} />}
+      {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
 
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
@@ -224,6 +228,49 @@ function FinDashboard({ user, ir }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------------- DADOS FINANCEIROS ----------------
+   Plano de contas, palavras-chave e senhas de PDF. Usado dentro do Financeiro (botão Dados)
+   e na guia Dados › Dados financeiros. As duas telas leem e gravam a mesma base,
+   então alterar numa altera na outra. */
+const DADOS_FIN = [
+  ["contas", BookOpen, "Plano de contas", "Contas-caixa da DRE"],
+  ["regras", Wand2, "Palavras-chave", "Identificação automática"],
+  ["senhas", KeyRound, "Senhas de PDF", "Abertura automática"],
+];
+export function DadosFinanceiros({ user, ir }) {
+  const [sub, setSub] = useState(null);   // usado só quando aberto pela guia Dados (sem ir)
+  if (!ir && sub) {
+    const nome = DADOS_FIN.find((x) => x[0] === sub)?.[2];
+    return (
+      <div>
+        <div className="flex items-center gap-1 text-sm mb-4">
+          <button onClick={() => setSub(null)} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          <button onClick={() => setSub(null)} style={{ color: C.sub }}>Dados financeiros</button>
+          <ChevR size={13} style={{ color: C.sub }} />
+          <span className="font-semibold">{nome}</span>
+        </div>
+        {sub === "contas" && <PlanoContas user={user} />}
+        {sub === "regras" && <Regras user={user} comp={mesAnterior()} />}
+        {sub === "senhas" && <Senhas user={user} />}
+      </div>
+    );
+  }
+  const abrir = (v) => (ir ? ir({ v }) : setSub(v));
+  return (
+    <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+      {DADOS_FIN.map(([v, Ico, t, s]) => (
+        <button key={v} onClick={() => abrir(v)} className="flex items-center gap-3 text-left rounded-xl px-4 py-3 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <Ico size={20} style={{ color: C.accent }} />
+          <div>
+            <div className="font-bold text-sm">{t}</div>
+            <div className="text-xs" style={{ color: C.sub }}>{s}</div>
+          </div>
+        </button>
+      ))}
     </div>
   );
 }
@@ -300,14 +347,11 @@ function Ind({ rotulo, valor, pct, cor, forte, titulo, onClick }) {
   );
 }
 
-function IndicadoresAno({ d, ano, abrirGrupo }) {
+function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
   const t = d.totais;
   const a = d.alavancagem;
   const nenhum = !t.meses;
   const ir = (grupo, nome) => abrirGrupo && abrirGrupo(grupo, nome);
-  const sobe = (v) => (v > 0 ? C.red : v < 0 ? C.green : C.sub);   // dívida subindo é ruim
-  const Seta = a.variacaoAno > 0 ? TrendingUp : TrendingDown;
-  const SetaAA = a.variacaoAnoAnterior > 0 ? TrendingUp : TrendingDown;
 
   return (
     <div className="mb-5">
@@ -349,67 +393,18 @@ function IndicadoresAno({ d, ano, abrirGrupo }) {
               onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS", "Recursos externos")} />
             <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} forte />
             <Ind rotulo="Média mensal de receita" valor={t.mediaReceita} cor={C.blue} />
+            <Ind rotulo="Alavancagem total" valor={a?.atual?.total} cor={C.red} forte
+              titulo="Dívidas + tributos em aberto" onClick={abrirAlav} />
           </div>
         </>
       )}
 
-      {/* ---- alavancagem ---- */}
-      <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="flex flex-wrap items-start gap-5">
-          <div style={{ minWidth: 230 }}>
-            <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Alavancagem total</div>
-            <div className="font-bold" style={{ fontSize: 28, color: C.text, lineHeight: 1.1 }}>{moeda(a.atual.total)}</div>
-            <div className="text-xs mt-1" style={{ color: C.sub }}>
-              dívida {brl(a.atual.divida)} + tributos {brl(a.atual.tributos)}
-            </div>
-            <div className="text-xs" style={{ color: C.sub }}>
-              sendo {brl(a.atual.principal)} de capital e {brl(a.atual.jurosAVencer)} de juros a correr
-            </div>
-            <div className="text-xs" style={{ color: C.sub }}>compromisso mensal {brl(a.atual.mensal)}</div>
-          </div>
-
-          <div className="flex gap-3 flex-wrap">
-            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 190 }}>
-              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>No ano</div>
-              <div className="flex items-center gap-1 font-bold" style={{ fontSize: 17, color: sobe(a.variacaoAno) }}>
-                <Seta size={15} /> {compactoBR(a.variacaoAno)}
-              </div>
-              <div className="text-[10px]" style={{ color: C.sub }}>
-                abriu em {compactoBR(a.abertura.total)}{a.variacaoAnoPct != null ? ` · ${pctBR(a.variacaoAnoPct)}` : ""}
-              </div>
-            </div>
-            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 210 }}>
-              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Contra {ano - 1}</div>
-              <div className="flex items-center gap-1 font-bold" style={{ fontSize: 17, color: sobe(a.variacaoAnoAnterior) }}>
-                <SetaAA size={15} /> {compactoBR(a.variacaoAnoAnterior)}
-              </div>
-              <div className="text-[10px]" style={{ color: C.sub }}>
-                {MESES[a.mesReferencia - 1]}/{ano - 1} estava em {compactoBR(a.anoAnterior.total)}
-                {a.variacaoAnoAnteriorPct != null ? ` · ${pctBR(a.variacaoAnoAnteriorPct)}` : ""}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 flex-wrap">
-            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 180 }}>
-              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Juros pagos no ano</div>
-              <div className="font-bold" style={{ fontSize: 17, color: C.red }}>{compactoBR(a.jurosAno)}</div>
-              <div className="text-[10px]" style={{ color: C.sub }}>o que não abateu nada</div>
-            </div>
-            <div className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}`, minWidth: 180 }}>
-              <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Capital amortizado no ano</div>
-              <div className="font-bold" style={{ fontSize: 17, color: C.green }}>{compactoBR(a.amortizacaoAno)}</div>
-              <div className="text-[10px]" style={{ color: C.sub }}>abatido a cada baixa</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
 
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
-function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo }) {
+function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
   const [anual, erroAnual] = useAnual(user, ano);
@@ -432,7 +427,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo }) {
         </button>
       </div>
       {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
-      {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} />}
+      {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}
       {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
