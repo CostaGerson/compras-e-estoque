@@ -4,7 +4,7 @@ import { PrestadorModal } from "./prestadores";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
-  Link2, ChevronDown,
+  Link2, ChevronDown, Paperclip, FileText, Download, CheckSquare,
 } from "lucide-react";
 
 const C = {
@@ -32,6 +32,10 @@ const api = async (url, method = "GET", body) => {
   if (!r.ok) throw new Error(d.error || "Erro");
   return d;
 };
+const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(file); });
+const fimDoMes = (c) => { const [a, m] = c.split("-").map(Number); return `${c}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`; };
+const somaDias = (iso, n) => { const [a, m, d] = iso.split("-").map(Number); const x = new Date(a, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
 const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
@@ -222,12 +226,23 @@ export default function ContasPagarReceber({ user }) {
   const [fSit, setFSit] = useState("TODOS");
   const [modal, setModal] = useState(null);
   const [aviso, setAviso] = useState("");
+  // lista por período (de / até, pelo vencimento) — abre no dia de hoje
+  const [dIni, setDIni] = useState(hojeISO());
+  const [dFim, setDFim] = useState(hojeISO());
+  const [sel, setSel] = useState(() => new Set());   // contas marcadas para ação em lote
+  const [lote, setLote] = useState(null);             // "baixar" | "excluir"
 
-  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipo}&de=${mes}&ate=${mes}`).then((j) => {
+  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipo}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
     if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
   }).catch((e) => setErro(e.message));
   useEffect(() => { setD(null); carregar(); }, [tipo, mes]);
+  useEffect(() => { if (d) carregar(); }, [dIni, dFim]);
+  useEffect(() => { setSel(new Set()); }, [tipo]);
+  // trocar o mês dos cards leva a lista para o mês inteiro; "hoje" volta para o dia
+  const irMes = (m) => { setMes(m); setDIni(`${m}-01`); setDFim(fimDoMes(m)); };
+  const irHoje = () => { setMes(mesAtual()); setDIni(hojeISO()); setDFim(hojeISO()); };
+  const verVencidos = () => { setDIni("2020-01-01"); setDFim(somaDias(hojeISO(), -1)); setFSit("VENC"); };
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 3000); carregar(); };
 
   const contasPorId = useMemo(() => Object.fromEntries((d?.contas || []).map((c) => [c.id, c])), [d]);
@@ -235,7 +250,7 @@ export default function ContasPagarReceber({ user }) {
   const lista = useMemo(() => {
     if (!d) return [];
     const n = busca.trim().toUpperCase();
-    return d.titulos.filter((t) => {
+    return (d.periodo || d.titulos).filter((t) => {
       const s = situacao(t).k;
       if (fSit !== "TODOS" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
       if (!n) return true;
@@ -249,8 +264,23 @@ export default function ContasPagarReceber({ user }) {
       total: s(() => true), pago: ls.filter((t) => t.status === "PAGO").reduce((a, t) => a + (t.valorPago ?? t.valor), 0),
       aberto: s((t) => t.status === "ABERTO"), vencido: s((t) => t.status === "ABERTO" && t.vencimento < hojeISO()), previsao: s((t) => t.status === "ABERTO" && t.previsao),
       atrasados: (d?.atrasados || []).reduce((a, t) => a + t.valor, 0),
+      vencidoTotal: d?.vencidoTotal || 0, vencidoTotalQtd: d?.vencidoTotalQtd || 0,
     };
   }, [d]);
+  // seleção: só contas em aberto; o resumo usa tudo que está na tela (período + vencidos anteriores)
+  const porId = useMemo(() => Object.fromEntries([...(d?.periodo || []), ...(d?.titulos || []), ...(d?.atrasados || [])].map((t) => [t.id, t])), [d]);
+  const marcados = [...sel].map((id) => porId[id]).filter((t) => t && t.status === "ABERTO");
+  const marcar = (ids, on) => setSel((x) => { const n = new Set(x); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
+  const fazerLote = async (acao, dataPagamento) => {
+    try {
+      const r = await api("/api/fin/titulos/lote", "POST", { usuarioId: user.id, acao, ids: marcados.map((t) => t.id), dataPagamento });
+      setLote(null); setSel(new Set());
+      const ex = acao === "baixar"
+        ? `${r.feitos} conta(s) ${P ? "baixada(s)" : "recebida(s)"}.`
+        : `${r.excluidos} excluída(s)${r.cancelados ? `, ${r.cancelados} cancelada(s) (recorrência / semana)` : ""}.`;
+      ok(ex + (r.pulados ? ` ${r.pulados} pulada(s)${r.semValor ? " (sem valor)" : ""}.` : ""));
+    } catch (e) { setErro(e.message); setLote(null); }
+  };
 
   const acao = async (t, a, extra = {}) => {
     try { await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { setErro(e.message); }
@@ -305,19 +335,11 @@ export default function ContasPagarReceber({ user }) {
       {/* período + ações */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex items-center rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <button onClick={() => setMes(somaMes(mes, -1))} className="px-2 py-2" style={{ color: C.sub }}><ChevronLeft size={16} /></button>
+          <button onClick={() => irMes(somaMes(mes, -1))} className="px-2 py-2" style={{ color: C.sub }}><ChevronLeft size={16} /></button>
           <div className="px-2 text-sm font-bold text-center" style={{ color: C.navy, minWidth: 130 }}>{nomeMes(mes)}</div>
-          <button onClick={() => setMes(somaMes(mes, 1))} className="px-2 py-2" style={{ color: C.sub }}><ChevronRight size={16} /></button>
+          <button onClick={() => irMes(somaMes(mes, 1))} className="px-2 py-2" style={{ color: C.sub }}><ChevronRight size={16} /></button>
         </div>
-        {mes !== mesAtual() && <button onClick={() => setMes(mesAtual())} className="text-xs underline" style={{ color: C.blue }}>mês atual</button>}
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, conta…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 240 }} />
-        </div>
-        <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
-          <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
-          <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
-        </select>
+        {(mes !== mesAtual() || dIni !== hojeISO() || dFim !== hojeISO()) && <button onClick={irHoje} className="text-xs underline" style={{ color: C.blue }}>hoje</button>}
         <div className="flex-1" />
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
@@ -328,29 +350,72 @@ export default function ContasPagarReceber({ user }) {
 
       {!d ? <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <>
-          {/* totais */}
-          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          {/* totais do mês */}
+          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             {[
-              [`Total ${P ? "a pagar" : "a receber"} no mês`, tot.total, C.navy],
-              [P ? "Pago" : "Recebido", tot.pago, C.green],
-              ["Em aberto", tot.aberto, C.blue],
-              ["Vencido (no mês)", tot.vencido, C.red],
-              ["Previsões em aberto", tot.previsao, C.roxo],
-            ].map(([t, v, c]) => (
-              <div key={t} className="rounded-xl px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="text-xs" style={{ color: C.sub }}>{t}</div>
-                <div className="text-lg font-bold" style={{ color: c }}>{moeda(v)}</div>
-              </div>
-            ))}
+              [`Contas ${P ? "a pagar" : "a receber"} no mês`, tot.total, C.navy, null],
+              ["Em aberto", tot.aberto, C.blue, null],
+              ["Vencido no mês", tot.vencido, C.red, null],
+              ["Vencido total", tot.vencidoTotal, C.red, verVencidos, `${tot.vencidoTotalQtd} conta(s) em aberto vencidas até ontem — clique para listar`],
+            ].map(([t, v, c, click, dica]) => {
+              const Tag = click ? "button" : "div";
+              return (
+                <Tag key={t} onClick={click || undefined} title={dica} className="rounded-xl px-4 py-3 text-left transition-shadow hover:shadow-sm"
+                  style={{ background: C.panel, border: `1px solid ${t === "Vencido total" && v > 0 ? C.red + "55" : C.line}` }}>
+                  <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}>{t}{click && <Search size={11} style={{ color: C.accent }} />}</div>
+                  <div className="text-lg font-bold" style={{ color: c }}>{moeda(v)}</div>
+                </Tag>
+              );
+            })}
           </div>
+
+          {/* filtro do período da lista */}
+          <div className="flex flex-wrap items-end gap-2 mb-3">
+            <label className="text-xs" style={{ color: C.sub }}>De
+              <input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
+            </label>
+            <label className="text-xs" style={{ color: C.sub }}>Até
+              <input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
+            </label>
+            <div className="flex gap-1 pb-0.5">
+              {[["Hoje", hojeISO(), hojeISO()], ["7 dias", hojeISO(), somaDias(hojeISO(), 6)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
+                <button key={t} onClick={() => { setDIni(a); setDFim(b); }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                  style={dIni === a && dFim === b ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
+              ))}
+            </div>
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, conta…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
+            </div>
+            <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
+              <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
+              <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
+            </select>
+          </div>
+
+          {/* ações em lote */}
+          {marcados.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-3 px-4 py-2.5 rounded-xl text-sm sticky top-0 z-10" style={{ background: C.navy, color: "#fff" }}>
+              <CheckSquare size={16} style={{ color: C.accent }} />
+              <b>{marcados.length} selecionada(s)</b>
+              <span style={{ opacity: 0.8 }}>· {moeda(marcados.reduce((a, t) => a + t.valor, 0))}</span>
+              <div className="flex-1" />
+              <button onClick={() => setLote("baixar")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={14} /> {P ? "Baixar" : "Receber"}</button>
+              <button onClick={() => setLote("excluir")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}><Trash2 size={14} /> Excluir</button>
+              <button onClick={() => setSel(new Set())} className="px-2 py-1.5 text-xs underline" style={{ color: "#fff" }}>limpar</button>
+            </div>
+          )}
+
+          <Tabela titulo={`${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
+            sel={sel} marcar={marcar}
+            onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
+            vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
           {d.atrasados.length > 0 && (
             <Tabela titulo={`Vencidos de meses anteriores · ${moeda(tot.atrasados)}`} cor={C.red} itens={d.atrasados} contasPorId={contasPorId} P={P}
+              sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
-          <Tabela titulo={`${nomeMes(mes)} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
-            onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
-            vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} neste mês.`} />
         </>
       )}
 
@@ -364,13 +429,16 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
+      {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
     </div>
   );
 }
 
 /* ---------------- tabela ---------------- */
-function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao, onExcluir, vazio }) {
+function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
   const total = itens.filter((t) => t.status !== "CANCELADO").reduce((s, t) => s + t.valor, 0);
+  const abertos = itens.filter((t) => t.status === "ABERTO").map((t) => t.id);
+  const todos = !!sel && abertos.length > 0 && abertos.every((id) => sel.has(id));
   return (
     <div className="rounded-xl mb-4 overflow-hidden" style={{ background: C.panel, border: `1px solid ${cor ? cor + "55" : C.line}` }}>
       <div className="flex items-center justify-between px-4 py-2.5" style={{ background: cor ? C.redSoft : C.panel2 }}>
@@ -381,6 +449,7 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+              {sel && <th className="pl-3 py-2 w-6"><input type="checkbox" checked={todos} disabled={!abertos.length} onChange={(e) => marcar(abertos, e.target.checked)} title="Selecionar todas em aberto" /></th>}
               {["Vencimento", "Título", P ? "Fornecedor" : "Cliente", "Rateio (conta-caixa)", "Valor", "Situação", "Origem", ""].map((h, i) => (
                 <th key={i} className={`px-3 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>
               ))}
@@ -390,12 +459,14 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
               const [fT, FI] = FORMA[t.forma] || [t.forma, Hand];
               const conferir = t.recorrenciaId && !t.valorConfirmado && t.status === "ABERTO" && t.competencia <= mesAtual();
               return (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1 }} className="hover:bg-gray-50">
+                <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : undefined }} className="hover:bg-gray-50">
+                  {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
                   <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 260 }}>
                     <button onClick={() => onEditar(t)} className="text-left">
                       <div className="font-semibold flex items-center gap-1" style={{ color: C.navy }}>
                         {t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}{t.titulo}
+                        {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                       </div>
                       {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
                     </button>
@@ -434,6 +505,104 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
   );
 }
 
+/* ---------------- ações em lote ---------------- */
+function LoteModal({ acao, P, itens, onClose, onOk }) {
+  const [dt, setDt] = useState(hojeISO());
+  const [s, setS] = useState(false);
+  const baixar = acao === "baixar";
+  const total = itens.reduce((a, t) => a + t.valor, 0);
+  const zerados = itens.filter((t) => !(t.valor > 0)).length;
+  const viramCancel = itens.filter((t) => t.recorrenciaId || (ehSemana(t) && t.vencimento >= "2026-10-09")).length;
+  return (
+    <Modal titulo={baixar ? `${P ? "Baixar" : "Receber"} ${itens.length} conta(s)` : `Excluir ${itens.length} conta(s)`} icone={baixar ? CheckCircle2 : Trash2} onClose={onClose} largura={520}
+      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP disabled={s} onClick={async () => { setS(true); await onOk(acao, baixar ? dt : undefined); setS(false); }}>{s && <Loader2 size={14} className="animate-spin" />} Confirmar</BtnP></>}>
+      <div className="text-sm mb-3" style={{ color: C.text }}>Total selecionado: <b>{moeda(total)}</b></div>
+      <div className="rounded-lg mb-3 overflow-y-auto" style={{ maxHeight: 220, border: `1px solid ${C.line}` }}>
+        {itens.map((t) => (
+          <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <span className="tabular-nums" style={{ color: C.sub, width: 70 }}>{dBR(t.vencimento)}</span>
+            <span className="flex-1 truncate">{t.titulo}</span>
+            <span className="font-semibold tabular-nums">{brl(t.valor)}</span>
+          </div>
+        ))}
+      </div>
+      {baixar ? (
+        <>
+          <Campo t={P ? "Data do pagamento" : "Data do recebimento"} dica="cada conta é baixada pelo próprio valor">
+            <input type="date" value={dt} onChange={(e) => setDt(e.target.value)} className={inp} style={{ ...inpS, maxWidth: 200 }} />
+          </Campo>
+          {zerados > 0 && <div className="mt-2 text-xs" style={{ color: C.yellow }}>{zerados} conta(s) sem valor serão puladas.</div>}
+        </>
+      ) : (
+        <div className="text-xs p-2.5 rounded-lg" style={{ background: C.redSoft, color: C.red }}>
+          As contas e seus anexos serão apagados.{viramCancel > 0 && ` ${viramCancel} de recorrência ou da semana viram CANCELADAS (para o sistema não recriar).`}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/* ---------------- anexos da conta ---------------- */
+function Anexos({ user, tituloId, pendentes, setPendentes }) {
+  const [l, setL] = useState(null);
+  const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => { if (tituloId) api(`/api/fin/titulos/${tituloId}/anexos?u=${user.id}`).then((j) => setL(j.anexos)).catch((e) => setErro(e.message)); }, [tituloId]);
+  const escolher = async (files) => {
+    setErro("");
+    const arr = [...files].filter((f) => f.size > 0);
+    const grande = arr.find((f) => f.size > 15 * 1024 * 1024);
+    if (grande) { setErro(`${grande.name}: maior que 15 MB.`); return; }
+    if (!tituloId) { setPendentes((x) => [...x, ...arr]); return; }   // conta nova: sobe depois de salvar
+    setEnviando(true);
+    try {
+      for (const f of arr) {
+        const a = await api(`/api/fin/titulos/${tituloId}/anexos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) });
+        setL((x) => [...(x || []), a]);
+      }
+    } catch (e) { setErro(e.message); }
+    setEnviando(false);
+  };
+  const apagar = async (a) => {
+    if (!confirm(`Remover o anexo "${a.nome}"?`)) return;
+    try { await api(`/api/fin/titulos/${tituloId}/anexos`, "DELETE", { usuarioId: user.id, anexoId: a.id }); setL((x) => x.filter((y) => y.id !== a.id)); } catch (e) { setErro(e.message); }
+  };
+  const url = (a, baixar) => `/api/fin/titulos/${tituloId}/anexos?u=${user.id}&anexo=${a.id}${baixar ? "&baixar=1" : ""}`;
+  return (
+    <div className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold flex items-center gap-1" style={{ color: C.navy }}><Paperclip size={13} /> Anexos</div>
+        <button onClick={() => ref.current?.click()} disabled={enviando} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}>
+          {enviando ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Anexar arquivo
+        </button>
+        <input ref={ref} type="file" multiple className="hidden" onChange={(e) => { escolher(e.target.files); e.target.value = ""; }} />
+      </div>
+      {(l || []).map((a) => (
+        <div key={a.id} className="flex items-center gap-2 text-xs py-1">
+          <FileText size={13} style={{ color: C.sub }} />
+          <a href={url(a)} target="_blank" rel="noreferrer" className="flex-1 truncate underline" style={{ color: C.blue }}>{a.nome}</a>
+          <span style={{ color: C.sub }}>{kb(a.tamanho)}</span>
+          <a href={url(a, true)} title="Baixar" style={{ color: C.sub }}><Download size={13} /></a>
+          <button onClick={() => apagar(a)} title="Remover" style={{ color: C.sub }}><Trash2 size={13} /></button>
+        </div>
+      ))}
+      {pendentes.map((f, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs py-1">
+          <FileText size={13} style={{ color: C.sub }} />
+          <span className="flex-1 truncate">{f.name}</span>
+          <span style={{ color: C.sub }}>{kb(f.size)} · sobe ao salvar</span>
+          <button onClick={() => setPendentes((x) => x.filter((_, j) => j !== i))} title="Tirar" style={{ color: C.sub }}><X size={13} /></button>
+        </div>
+      ))}
+      {tituloId && l && !l.length && !pendentes.length && <div className="text-xs" style={{ color: C.sub }}>Nenhum arquivo anexado.</div>}
+      {!tituloId && !pendentes.length && <div className="text-xs" style={{ color: C.sub }}>Boleto, NF, comprovante… (até 15 MB cada)</div>}
+      {erro && <div className="mt-1 text-xs" style={{ color: C.red }}>{erro}</div>}
+    </div>
+  );
+}
+
 /* ---------------- novo / editar ---------------- */
 function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const P = tipo === "PAGAR";
@@ -441,6 +610,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", recorrente: false, fim: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [pendentes, setPendentes] = useState([]);   // anexos escolhidos antes de a conta existir
   const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const [fT] = FORMA[item?.forma] || ["Manual"];
   // natureza do lançamento: conta comum ou prestador (vai para a conta da próxima sexta)
@@ -468,7 +638,12 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const salvar = async () => {
     setSalvando(true); setErro("");
     try {
-      if (novo) await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f });
+      if (novo) {
+        const r = await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f });
+        if (r.id && pendentes.length) {
+          for (const arq of pendentes) await api(`/api/fin/titulos/${r.id}/anexos`, "POST", { usuarioId: user.id, nome: arq.name, mime: arq.type, conteudo: await readB64(arq) });
+        }
+      }
       else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao });
       onSalvo(novo ? (f.recorrente ? "Conta recorrente criada — previsões lançadas nos próximos meses." : "Conta lançada.") : "Conta atualizada.");
     } catch (e) { setErro(e.message); setSalvando(false); }
@@ -534,6 +709,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, use <b>Recorrências</b>.</div>}
         </div>
       )}
+      <Anexos user={user} tituloId={novo ? null : item.id} pendentes={pendentes} setPendentes={setPendentes} />
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
     </Modal>
   );

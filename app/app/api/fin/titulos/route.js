@@ -3,12 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
 import { garantirRecorrenciasMatriz } from "@/lib/finMatrizRecDb";
 import { separarMutuos, ajustarSalarioSabado } from "@/lib/finAjustes";
-import { garantirSemanas } from "@/lib/finSemana";
-import { gerarRecorrencias, tituloOut, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
+import { garantirSemanas, limparSemanasAntigas } from "@/lib/finSemana";
+import { gerarRecorrencias, tituloOut, COM_ANEXOS, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
 
 const TIPOS = ["PAGAR", "RECEBER"];
 
-// GET ?u=&tipo=PAGAR&de=AAAA-MM&ate=AAAA-MM  → títulos do período + críticas + contas + sugestões
+// GET ?u=&tipo=PAGAR&de=AAAA-MM&ate=AAAA-MM[&dIni=AAAA-MM-DD&dFim=AAAA-MM-DD]
+//   → títulos do mês (cards) + lista do período de datas + vencido total + críticas + contas + sugestões
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioMaster(sp.get("u")))) return negado();
@@ -19,22 +20,36 @@ export async function GET(req) {
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   await gerarRecorrencias(tipo);
   const de0 = sp.get("de") || mesAtual();
+  if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);   // implantação: semanas antes de 09/10/2026 saem (uma vez)
   if (tipo === "PAGAR") await garantirSemanas(de0).catch(() => null);   // as duas contas de cada sexta
   const de = sp.get("de") || mesAtual(), ate = sp.get("ate") || de;
   const hoje = mesAtual();
-  const [titulos, atrasados, criticas, contas, parceiros, recs] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }] }),
+  const okD = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
+  const dIni = okD(sp.get("dIni")) ? sp.get("dIni") : null, dFim = okD(sp.get("dFim")) ? sp.get("dFim") : dIni;
+  const hojeD = new Date(); const hojeUTC = new Date(Date.UTC(hojeD.getFullYear(), hojeD.getMonth(), hojeD.getDate()));
+  if (dIni && dFim && tipo === "PAGAR") {   // garante as sextas do período (até 24 meses)
+    let n = 0;
+    for (let c = mesDe(dIni); c <= mesDe(dFim) && n < 24; c = somaMes(c, 1), n++) await garantirSemanas(c).catch(() => null);
+  }
+  const [titulos, atrasados, criticas, contas, parceiros, recs, periodo, vencTot] = await Promise.all([
+    prisma.finTitulo.findMany({ where: { tipo, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
     // em aberto de meses anteriores (vencidos) — aparecem sempre
-    prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO", competencia: { lt: de } }, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO", competencia: { lt: de } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }),
     // recorrências do mês atual (e anteriores em aberto) com valor ainda não conferido
     prisma.finTitulo.findMany({ where: { tipo, recorrenciaId: { not: null }, valorConfirmado: false, status: "ABERTO", competencia: { lte: hoje } }, orderBy: { vencimento: "asc" } }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" }, select: { id: true, codigo: true, nome: true, ativo: true } }),
     prisma.finTitulo.findMany({ where: { tipo }, distinct: ["parceiro"], select: { parceiro: true, documento: true }, orderBy: { parceiro: "asc" }, take: 2000 }),
     prisma.finRecorrencia.findMany({ where: { tipo }, orderBy: { titulo: "asc" } }),
+    // lista do período escolhido (de / até, por vencimento)
+    dIni ? prisma.finTitulo.findMany({ where: { tipo, vencimento: { gte: dataUTC(dIni), lte: dataUTC(dFim) } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }) : null,
+    // vencido total: tudo em aberto com vencimento antes de hoje, de qualquer mês
+    prisma.finTitulo.aggregate({ where: { tipo, status: "ABERTO", vencimento: { lt: hojeUTC } }, _sum: { valor: true }, _count: true }),
   ]);
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
-    tipo, de, ate, autoMatriz,
+    tipo, de, ate, autoMatriz, dIni, dFim,
+    periodo: periodo ? periodo.map(tituloOut) : null,
+    vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
   });
@@ -65,7 +80,8 @@ export async function POST(req) {
     const n = await gerarRecorrencias(tipo);
     // o 1º mês é o que foi lançado agora: já nasce conferido e respeita a chave de previsão
     await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, competencia: inicio }, data: { valorConfirmado: true, previsao: !!b.previsao, numeroDoc: b.numeroDoc || null, criadoPorId: u.id } });
-    return Response.json({ ok: true, recorrenciaId: r.id, gerados: n });
+    const primeiro = await prisma.finTitulo.findFirst({ where: { recorrenciaId: r.id }, orderBy: { competencia: "asc" }, select: { id: true } });
+    return Response.json({ ok: true, recorrenciaId: r.id, gerados: n, id: primeiro?.id || null });
   }
   const t = await prisma.finTitulo.create({
     data: { ...base, numeroDoc: b.numeroDoc || null, valor, vencimento: dataUTC(b.vencimento), competencia: mesDe(b.vencimento), previsao: !!b.previsao, forma: "MANUAL", criadoPorId: u.id, criadoPorNome: nomeU(u) },

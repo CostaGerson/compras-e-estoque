@@ -45,7 +45,9 @@ export const tituloOut = (t) => ({
   ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null,
   vencimento: t.vencimento.toISOString().slice(0, 10), dataPagamento: t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10) : null,
   arquivoXml: undefined, temXml: !!t.arquivoXml,
+  _count: undefined, nAnexos: t._count?.anexos || 0,
 });
+export const COM_ANEXOS = { _count: { select: { anexos: true } } };
 
 // Gera as previsões das recorrências que faltam (do início até 12 meses à frente)
 export async function gerarRecorrencias(tipo) {

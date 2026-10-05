@@ -835,6 +835,22 @@ model FinTitulo {
   @@index([tipo, competencia])
   @@index([tipo, status])
   semanaItens FinSemanaItem[]
+  anexos      FinTituloAnexo[]
+}
+
+// Arquivos anexados a uma conta a pagar/receber (boleto, NF, comprovante...) — base64 no Postgres
+model FinTituloAnexo {
+  id            Int       @id @default(autoincrement())
+  tituloId      Int
+  titulo        FinTitulo @relation(fields: [tituloId], references: [id], onDelete: Cascade)
+  nome          String
+  mime          String?
+  tamanho       Int       @default(0)
+  conteudo      String    // base64
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tituloId])
 }
 
 // Conta recorrente: gera um título (previsão) por mês

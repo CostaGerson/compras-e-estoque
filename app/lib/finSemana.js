@@ -70,9 +70,12 @@ export function programacao(dataRecebimento, prazoDias) {
   };
 }
 
-// Cria as duas contas de cada sexta do mês (se ainda não existirem).
+// Implantação: as contas da semana valem a partir da sexta 09/10/2026.
+export const INICIO_SEMANAS = "2026-10-09";
+
+// Cria as duas contas de cada sexta do mês (se ainda não existirem), a partir do início da implantação.
 export async function garantirSemanas(competencia) {
-  const sextas = sextasDoMes(competencia);
+  const sextas = sextasDoMes(competencia).filter((s) => s >= INICIO_SEMANAS);
   if (!sextas.length) return { criados: 0, sextas: [] };
   const chaves = [];
   for (const s of sextas) for (const t of Object.keys(TIPOS_SEMANA)) chaves.push(chaveSemana(t, s));
@@ -103,6 +106,7 @@ const cascaDaSemana = (tipo, cfg, data, excepcional) => ({
 export async function tituloDaData(tipo, data, excepcional = false) {
   const cfg = TIPOS_SEMANA[tipo];
   if (!cfg) return null;
+  if (!excepcional && String(data).slice(0, 10) < INICIO_SEMANAS) data = INICIO_SEMANAS;   // nada antes da implantação
   const chave = chaveSemana(tipo, String(data).slice(0, 10), excepcional);
   const existe = await prisma.finTitulo.findFirst({ where: { chaveImport: chave } });
   if (existe) return existe;
@@ -327,3 +331,23 @@ export async function abrirSemana(tituloId) {
 }
 
 export { SETORES_FREELANCER, TIPOS_FACCAO, SERVICOS_TERCEIRIZADOS };
+
+// Implantação (v103): exclui as contas da semana em aberto anteriores a 09/10/2026 — uma vez.
+const CHAVE_LIMPEZA = "AJUSTE|semanas-antes-implantacao-v103";
+export async function limparSemanasAntigas() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_LIMPEZA } }).catch(() => null);
+  if (ja) return { ok: true, jaFeito: true };
+  const r = await prisma.finTitulo.deleteMany({
+    where: { chaveImport: { startsWith: "SEMANA|" }, status: "ABERTO", vencimento: { lt: dataUTC(INICIO_SEMANAS) } },
+  });
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_LIMPEZA },
+    create: { chave: CHAVE_LIMPEZA, valor: `${new Date().toISOString()} · ${r.count} excluídas` },
+    update: { valor: `${new Date().toISOString()} · ${r.count} excluídas` },
+  });
+  return { ok: true, excluidas: r.count };
+}
+
+// Excluir conta da semana: a partir da implantação vira CANCELADA (senão o sistema recriaria a sexta);
+// antes dela, sai de vez.
+export const ehCascaSemana = (t) => String(t?.chaveImport || "").startsWith("SEMANA|");

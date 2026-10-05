@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado } from "@/lib/fin";
 import { tituloOut, validarRateio, nomeU, r2, so, dataUTC, mesDe } from "@/lib/finTitulos";
+import { excluirTitulo } from "@/lib/finLote";
 
 // PATCH { usuarioId, acao, ... }
 //  acao "editar"    → campos do título (valor de recorrência editado = conferido)
@@ -73,7 +74,6 @@ export async function DELETE(req, { params }) {
   if (!u) return negado();
   const t = await prisma.finTitulo.findUnique({ where: { id: Number(params.id) } });
   if (!t) return Response.json({ ok: true });
-  if (t.recorrenciaId) await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "CANCELADO", atualizadoPorNome: nomeU(u) } });
-  else await prisma.finTitulo.delete({ where: { id: t.id } });
+  await excluirTitulo(t, nomeU(u));
   return Response.json({ ok: true });
 }
