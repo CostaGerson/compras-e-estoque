@@ -127,7 +127,22 @@ export async function salvarPessoa({ acao, pessoa, nomeCompleto }, u) {
 const iso = (d) => d.toISOString().slice(0, 10);
 export async function calendario(comp = mesAtual()) {
   const envios = await prisma.rhEnvio.findMany({ where: { competencia: comp } });
-  const tem = (emp, cats) => cats.every((c) => envios.some((e) => e.empresa === emp && e.categoria === c));
+  // documento que já entrou por outro caminho (contas a pagar, importação antiga…): a conta do mês tem anexo
+  const CHAVES = {
+    MERIDIAN: { FOLHA: "MATRIZ|pessoal|SALARIO", ADIANTAMENTO: "MATRIZ|pessoal|ADIANTAMENTO", INSS: "MATRIZ|pessoal|INSS", FGTS: "MATRIZ|pessoal|FGTS", IFOOD: "MATRIZ|pessoal|IFOOD" },
+    NORT: { FOLHA: "NORT|FOLHA5", ADIANTAMENTO: "NORT|ADIANTAMENTO", INSS: "NORT|INSS", FGTS: "NORT|FGTS", IFOOD: "NORT|BENEFICIOS" },
+  };
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: Object.values(CHAVES).flatMap((x) => Object.values(x)) } }, select: { id: true, chaveOrigem: true } });
+  const recId = Object.fromEntries(recs.map((r) => [r.chaveOrigem, r.id]));
+  const titulos = await prisma.finTitulo.findMany({
+    where: { tipo: "PAGAR", competencia: comp, status: { not: "CANCELADO" } },
+    select: { id: true, titulo: true, recorrenciaId: true, _count: { select: { anexos: true } } },
+  });
+  const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /IFOOD|BENEF/ };
+  const anexado = (emp, cat) => titulos.some((t) => t._count.anexos > 0 && (t.recorrenciaId === recId[CHAVES[emp][cat]]
+    || (PISTA[cat].test(t.titulo.toUpperCase()) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase()))));
+  const enviado = (emp, c) => envios.some((e) => e.empresa === emp && e.categoria === c) || anexado(emp, c);
+  const tem = (emp, cats) => cats.every((c) => enviado(emp, c));
   const [a, mm] = comp.split("-").map(Number);
   const dia17 = `${comp}-17`;
   const terceiro = iso(nDiaUtil(comp, 3));
@@ -143,11 +158,11 @@ export async function calendario(comp = mesAtual()) {
       ["IFOOD", `${comp}-25`, ["IFOOD"], `Recargas do iFood de ${nomeMes(comp)} + boleto/PIX`],
     ]) {
       const feito = tem(emp, cats);
-      const parcial = !feito && cats.length > 1 && cats.some((c) => envios.some((e) => e.empresa === emp && e.categoria === c));
+      const parcial = !feito && cats.length > 1 && cats.some((c) => enviado(emp, c));
       const dias = Math.round((new Date(`${prazo}T12:00:00Z`) - new Date(`${hoje}T12:00:00Z`)) / 86400000);
       out.push({
         empresa: emp, obrigacao: ob, descricao: desc, prazo, dias, feito, parcial,
-        faltam: cats.filter((c) => !envios.some((e) => e.empresa === emp && e.categoria === c)),
+        faltam: cats.filter((c) => !enviado(emp, c)),
         status: feito ? "OK" : dias < 0 ? "ATRASADO" : dias <= 2 ? "VENCENDO" : "PENDENTE",
         enviados: envios.filter((e) => e.empresa === emp && cats.includes(e.categoria)).map((e) => ({ arquivo: e.arquivo, em: e.createdAt, por: e.criadoPorNome })),
       });

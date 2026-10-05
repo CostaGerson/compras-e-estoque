@@ -9,7 +9,7 @@ import {
   Users2, Contact as IdCard, FileText, CalendarClock, ArrowLeft, Plus, Loader2, Search, UserPlus, UserMinus, Undo2,
   Trash2, Download, Upload, Camera, CheckCircle2, AlertTriangle, Clock, Pencil, Receipt, UtensilsCrossed,
 } from "lucide-react";
-import { DocumentoModal, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
+import { DocumentoModal, Soltar, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { DEPTOS, REGIMES } from "@/lib/matriz";
 
 const api = async (url, method = "GET", body) => {
@@ -41,6 +41,7 @@ export default function Rh({ user }) {
   const [erro, setErro] = useState("");
   const [tela, setTela] = useState("inicio");
   const [aviso, setAviso] = useState("");
+  const [doc, setDoc] = useState(null);   // { iniciais?: FileList } — enviar documentos (calendário, botão, arrastar)
   const carregar = () => api(`/api/rh?u=${user.id}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, []);
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 6000); carregar(); };
@@ -61,7 +62,7 @@ export default function Rh({ user }) {
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d ? <div className="flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <>
-          {tela === "inicio" && <Calendario cal={d.calendario} />}
+          {tela === "inicio" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
           {tela === "inicio" && (
             <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {[
@@ -80,16 +81,17 @@ export default function Rh({ user }) {
           )}
           {tela === "matriz" && <MatrizPessoal user={user} d={d} onSalvo={ok} />}
           {tela === "carometro" && <Carometro user={user} d={d} onMudou={carregar} />}
-          {tela === "financeiro" && <FinanceiroRH user={user} d={d} onSalvo={ok} />}
+          {tela === "financeiro" && <FinanceiroRH user={user} d={d} onSalvo={ok} onAnexar={(iniciais) => setDoc({ iniciais })} />}
         </>
       )}
+      {doc && <DocumentoModal user={user} contas={d?.contas || []} iniciais={doc.iniciais} onClose={() => setDoc(null)} onSalvo={(m) => { setDoc(null); ok(m); }} />}
     </div>
   );
 }
 
 /* ---------------- calendário de obrigações ---------------- */
 const COR_ST = { OK: [C.green, C.greenSoft, "Enviado"], ATRASADO: [C.red, C.redSoft, "Atrasado"], VENCENDO: [C.yellow, C.yellowSoft, "Vence já"], PENDENTE: [C.blue, C.blueSoft, "Pendente"] };
-function Calendario({ cal }) {
+function Calendario({ cal, onAnexar }) {
   if (!cal) return null;
   const pend = cal.itens.filter((i) => i.status !== "OK");
   return (
@@ -97,13 +99,14 @@ function Calendario({ cal }) {
       <div className="flex items-center gap-2 mb-3">
         <CalendarClock size={18} style={{ color: C.accent }} />
         <div className="font-bold text-sm" style={{ color: C.navy }}>Calendário de obrigações · {["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][cal.mes - 1]}/{cal.ano}</div>
-        <div className="text-xs ml-auto" style={{ color: C.sub }}>Folha até o 3º dia útil · adiantamento e impostos até o dia 17</div>
+        <div className="text-xs ml-auto" style={{ color: C.sub }}>Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · iFood até o dia 25 · clique ou arraste o documento no card</div>
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))" }}>
         {cal.itens.map((i) => {
           const [c, bg, t] = COR_ST[i.status];
           return (
-            <div key={`${i.empresa}-${i.obrigacao}`} className="rounded-lg p-3" style={{ background: bg }}>
+            <Soltar key={`${i.empresa}-${i.obrigacao}`} onArquivos={(fs) => onAnexar?.(fs)} dica="Solte para enviar">
+            <button onClick={() => onAnexar?.(null)} title="Clique para enviar o documento" className="w-full h-full text-left rounded-lg p-3 transition-shadow hover:shadow-md" style={{ background: bg }}>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold" style={{ color: C.sub }}>{i.empresa}</span>
                 <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: c }}>
@@ -115,7 +118,9 @@ function Calendario({ cal }) {
                 até {dBR(i.prazo)}{i.status !== "OK" && (i.dias >= 0 ? ` · faltam ${i.dias} dia(s)` : ` · ${-i.dias} dia(s) de atraso`)}
                 {i.parcial && ` · falta ${i.faltam.join(" e ")}`}
               </div>
-            </div>
+              <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: c }}><Upload size={11} /> {i.status === "OK" ? "enviar outro" : "enviar documento"}</div>
+            </button>
+            </Soltar>
           );
         })}
       </div>
@@ -367,7 +372,7 @@ function FichaModal({ user, pessoa, onClose }) {
       </>}>
       {!f ? <Loader2 size={16} className="animate-spin" /> : (
         <div className="flex gap-5">
-          <div className="shrink-0 text-center" style={{ width: 140 }}>
+          <Soltar onArquivos={(fs) => foto(fs[0])} className="shrink-0 text-center" style={{ width: 140 }} dica="Foto">
             {f.foto ? <img src={f.foto} alt="" className="rounded-xl object-cover mx-auto" style={{ width: 130, height: 130 }} />
               : <div className="rounded-xl flex items-center justify-center text-3xl font-bold mx-auto" style={{ width: 130, height: 130, background: C.accentSoft, color: C.accent }}>{iniciais(nomeCompleto || pessoa.nome)}</div>}
             <button onClick={() => refFoto.current?.click()} className="mt-2 text-xs flex items-center gap-1 mx-auto" style={{ color: C.blue }}><Camera size={13} /> trocar foto</button>
@@ -378,7 +383,7 @@ function FichaModal({ user, pessoa, onClose }) {
               <div>Admissão: {dBR(pessoa.admissao)}</div>
               {situacao === "DESLIGADO" && <div style={{ color: C.red }}>Desligado{pessoa.demissao ? ` em ${dBR(pessoa.demissao)}` : ""}</div>}
             </div>
-          </div>
+          </Soltar>
           <div className="flex-1">
             {deslig && (
               <div className="mb-3 p-3 rounded-lg" style={{ background: C.redSoft }}>
@@ -402,9 +407,9 @@ function FichaModal({ user, pessoa, onClose }) {
                 </label>
               ))}
             </div>
-            <div className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
+            <Soltar onArquivos={subir} className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }} dica={`Solte para anexar como ${tipo}`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="text-xs font-bold flex-1" style={{ color: C.navy }}>Documentos ({f.documentos.length})</div>
+                <div className="text-xs font-bold flex-1" style={{ color: C.navy }}>Documentos ({f.documentos.length}) <span className="font-normal" style={{ color: C.sub }}>· arraste arquivos para cá</span></div>
                 <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="rounded px-2 py-1 text-xs outline-none" style={inpS}>{TIPOS_DOC.map((t) => <option key={t}>{t}</option>)}</select>
                 <button onClick={() => refDoc.current?.click()} disabled={!!st} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}>
                   {st === "Enviando…" ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Anexar
@@ -420,8 +425,8 @@ function FichaModal({ user, pessoa, onClose }) {
                   <button onClick={() => apagar(doc)} title="Remover" style={{ color: C.sub }}><Trash2 size={13} /></button>
                 </div>
               ))}
-              {!f.documentos.length && <div className="text-xs" style={{ color: C.sub }}>Nenhum documento. Escolha o tipo e anexe (RG, CPF, CTPS, contrato, exames, rescisão…).</div>}
-            </div>
+              {!f.documentos.length && <div className="text-xs" style={{ color: C.sub }}>Nenhum documento. Escolha o tipo e anexe ou arraste (RG, CPF, CTPS, contrato, exames, rescisão…).</div>}
+            </Soltar>
           </div>
         </div>
       )}
@@ -432,8 +437,8 @@ function FichaModal({ user, pessoa, onClose }) {
 
 /* ---------------- financeiro do RH ---------------- */
 const CAT = { FOLHA: "Folha", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
-function FinanceiroRH({ user, d, onSalvo }) {
-  const [imp, setImp] = useState(false);
+function FinanceiroRH({ user, d, onSalvo, onAnexar }) {
+  const setImp = () => onAnexar(null);
   const [ifood, setIfood] = useState(false);
   const [conta, setConta] = useState(false);
   const envios = d.envios || [];
@@ -441,13 +446,15 @@ function FinanceiroRH({ user, d, onSalvo }) {
     <div>
       {/* ações no topo */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button onClick={() => setImp(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Enviar documentos</button>
+        <Soltar onArquivos={(fs) => onAnexar(fs)} dica="Solte">
+          <button onClick={() => setImp(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Enviar documentos</button>
+        </Soltar>
         <button onClick={() => setConta(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Receipt size={15} /> Lançar conta a pagar</button>
         <div className="text-xs ml-2 flex-1" style={{ color: C.sub, minWidth: 260 }}>
           Folhas (fopag + líquidos), guias de INSS e FGTS, relatório de recarga do iFood (com o boleto em PDF ou o PIX), recibos, rescisões e outros: o sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.
         </div>
       </div>
-      <Calendario cal={d.calendario} />
+      <Calendario cal={d.calendario} onAnexar={onAnexar} />
       <div className="mt-4" />
       <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="px-4 py-2.5 text-sm font-bold" style={{ background: C.panel2, color: C.navy }}>Documentos enviados · este mês e o anterior</div>
@@ -467,7 +474,6 @@ function FinanceiroRH({ user, d, onSalvo }) {
         </table>
         {!envios.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum documento enviado ainda.</div>}
       </div>
-      {imp && <DocumentoModal user={user} contas={d.contas || []} onClose={() => setImp(false)} onSalvo={(m) => { setImp(false); onSalvo(m); }} />}
       {ifood && <IfoodModal user={user} onClose={() => setIfood(false)} onSalvo={(m) => { setIfood(false); onSalvo(m); }} />}
       {conta && <ContaRHModal user={user} onClose={() => setConta(false)} onSalvo={(m) => { setConta(false); onSalvo(m); }} />}
     </div>
@@ -479,13 +485,13 @@ const arquivo = async (f) => (f ? { nome: f.name, mime: f.type || "application/p
 function Arquivo({ rotulo, valor, onPick, accept = ".pdf" }) {
   const ref = useRef(null);
   return (
-    <div className="text-xs" style={{ color: C.sub }}>{rotulo}
+    <Soltar onArquivos={async (fs) => onPick(await arquivo(fs[0]))} className="text-xs" style={{ color: C.sub }} dica="Solte">{rotulo}
       <div className="flex items-center gap-2 mt-0.5">
         <button onClick={() => ref.current?.click()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}><Upload size={13} /> {valor ? "trocar" : "escolher"}</button>
         <span className="truncate" style={{ color: valor ? C.text : C.sub }}>{valor?.nome || "nenhum arquivo"}</span>
       </div>
       <input ref={ref} type="file" accept={accept} className="hidden" onChange={async (e) => { onPick(await arquivo(e.target.files[0])); e.target.value = ""; }} />
-    </div>
+    </Soltar>
   );
 }
 
@@ -560,14 +566,15 @@ function ContaRHModal({ user, onClose, onSalvo }) {
           <label className="text-xs" style={{ color: C.sub }}>Vencimento *<input type="date" value={f.vencimento} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={inpS} /></label>
         </div>
         <label className="text-xs" style={{ color: C.sub, gridColumn: "span 2" }}>Observação (PIX, código de barras…)<input value={f.observacao} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></label>
-        <div style={{ gridColumn: "span 2" }}>
+        <Soltar onArquivos={async (fs) => { const l = []; for (const x of [...fs]) l.push(await arquivo(x)); setArqs((a) => [...a, ...l]); }} style={{ gridColumn: "span 2" }} dica="Solte para anexar">
           <button onClick={() => ref.current?.click()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}><Upload size={13} /> Anexar boleto / NF / comprovante</button>
           <input ref={ref} type="file" multiple className="hidden" onChange={async (e) => { const l = []; for (const x of [...e.target.files]) l.push(await arquivo(x)); setArqs((a) => [...a, ...l]); e.target.value = ""; }} />
           {arqs.map((a, i) => (
             <div key={i} className="flex items-center gap-2 text-xs mt-1"><FileText size={13} style={{ color: C.sub }} /><span className="flex-1 truncate">{a.nome}</span>
               <button onClick={() => setArqs((x) => x.filter((_, j) => j !== i))} style={{ color: C.sub }}><Trash2 size={13} /></button></div>
           ))}
-        </div>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>ou arraste os arquivos para cá</div>
+        </Soltar>
       </div>
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
     </Modal>

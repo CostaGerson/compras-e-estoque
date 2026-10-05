@@ -52,6 +52,27 @@ function situacao(t) {
   return { k: "ABER", t: "Em aberto", c: C.blue, bg: C.blueSoft };
 }
 
+/* ---------- arrastar e soltar arquivos ---------- */
+// Envolve qualquer card/botão de anexo: soltar o arquivo em cima chama onArquivos(FileList)
+export function Soltar({ onArquivos, children, className = "", style = {}, desligado, dica = "Solte os arquivos aqui" }) {
+  const [sobre, setSobre] = useState(0);
+  const ev = (f) => (e) => { if (desligado) return; e.preventDefault(); e.stopPropagation(); f(e); };
+  return (
+    <div className={`relative ${className}`} style={style}
+      onDragEnter={ev(() => setSobre((n) => n + 1))} onDragOver={ev(() => {})}
+      onDragLeave={ev(() => setSobre((n) => Math.max(0, n - 1)))}
+      onDrop={ev((e) => { setSobre(0); if (e.dataTransfer?.files?.length) onArquivos(e.dataTransfer.files); })}>
+      {children}
+      {sobre > 0 && (
+        <div className="absolute inset-0 rounded-xl flex items-center justify-center text-sm font-semibold pointer-events-none z-20"
+          style={{ background: "rgba(255,107,26,.12)", border: `2px dashed ${C.accent}`, color: C.accent }}>
+          <Upload size={16} className="mr-1.5" /> {dica}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- campos ---------- */
 function Valor({ value, onChange, width = 130, autoFocus }) {
   const [foco, setFoco] = useState(false);
@@ -570,7 +591,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
 const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2], IFOOD: ["iFood · recarga", C.red, C.redSoft] };
-export function DocumentoModal({ user, contas, onClose, onSalvo }) {
+export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
   const [esc, setEsc] = useState({});         // escolha por item: { destino: id | "CRIAR" | "IGNORAR", criar: {...} }
@@ -594,6 +615,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
     setSt("");
   };
   const muda = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
   // conferência com a Matriz de custos: corrigir na hora
   const [mtz, setMtz] = useState({});   // por item: { deptos: {codigo: depto}, st, msg }
   const DEPTOS_M = [["ADM", "Administrativo"], ["COR", "Corte"], ["SIL", "Silk"], ["BOR", "Bordado"], ["COS", "Costura"], ["EXP", "Expedição"], ["LOG", "Logística"], ["NORT", "NORT (loja)"], ["DIR", "Diretoria"]];
@@ -646,13 +668,14 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
         <BtnP onClick={aplicar} disabled={!!st || !usados.length || faltaConta}>{st && <Loader2 size={14} className="animate-spin" />} Aplicar</BtnP>
       </> : null}>
       {!r && (
-        <div className="text-center py-10">
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
           <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>…</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>O sistema reconhece cada documento, acha a conta certa, atualiza o valor e anexa o arquivo. Nada é gravado antes de você confirmar.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDFs"}</BtnP>
           <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
-        </div>
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste os PDFs para cá</div>
+        </Soltar>
       )}
       {r && (
         <div className="flex flex-col gap-3">
@@ -864,13 +887,14 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
         <BtnP onClick={importar} disabled={!!st || semConta > 0 || !(n("IMPORTAR").length + n("SUBSTITUIR").length)}>{st && <Loader2 size={14} className="animate-spin" />} Importar</BtnP>
       </> : null}>
       {!a && (
-        <div className="text-center py-10">
+        <Soltar onArquivos={(fs) => ler(fs[0])} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileSpreadsheet size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
           <div className="text-sm mb-1" style={{ color: C.text }}>Envie a <b>Posição de Títulos (Analítico)</b> exportada do sistema antigo (.xls ou .xlsx).</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>Antes de gravar, o sistema confere cada linha contra as contas já lançadas, as NFs e as previsões das recorrências.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher planilha"}</BtnP>
           <input ref={ref} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { ler(e.target.files[0]); e.target.value = ""; }} />
-        </div>
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste a planilha para cá</div>
+        </Soltar>
       )}
       {a && (
         <>
@@ -995,9 +1019,9 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
   };
   const url = (a, baixar) => `/api/fin/titulos/${tituloId}/anexos?u=${user.id}&anexo=${a.id}${baixar ? "&baixar=1" : ""}`;
   return (
-    <div className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
+    <Soltar onArquivos={escolher} className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }} dica="Solte para anexar">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-semibold flex items-center gap-1" style={{ color: C.navy }}><Paperclip size={13} /> Anexos</div>
+        <div className="text-xs font-semibold flex items-center gap-1" style={{ color: C.navy }}><Paperclip size={13} /> Anexos <span className="font-normal" style={{ color: C.sub }}>· arraste arquivos para cá</span></div>
         <button onClick={() => ref.current?.click()} disabled={enviando} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}>
           {enviando ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Anexar arquivo
         </button>
@@ -1023,7 +1047,7 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
       {tituloId && l && !l.length && !pendentes.length && <div className="text-xs" style={{ color: C.sub }}>Nenhum arquivo anexado.</div>}
       {!tituloId && !pendentes.length && <div className="text-xs" style={{ color: C.sub }}>Boleto, NF, comprovante… (até 15 MB cada)</div>}
       {erro && <div className="mt-1 text-xs" style={{ color: C.red }}>{erro}</div>}
-    </div>
+    </Soltar>
   );
 }
 
@@ -1684,11 +1708,13 @@ function XmlModal({ user, tipo, contas, onClose, onSalvo, lidosIniciais }) {
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
         <BtnP onClick={gravar} disabled={!itens.length || !!st}>{st && <Loader2 size={14} className="animate-spin" />} Lançar {itens.length} conta(s)</BtnP></>}>
       {!notas && (
+        <Soltar onArquivos={ler}>
         <label className="flex items-center gap-3 p-6 rounded-xl cursor-pointer" style={{ border: `2px dashed ${C.line}` }}>
           <Upload size={22} style={{ color: C.accent }} />
-          <div className="text-sm"><div className="font-semibold">Escolher XML (pode selecionar vários)</div><div className="text-xs" style={{ color: C.sub }}>NF-e de compra (com as duplicatas/parcelas) ou NFS-e de serviço.</div></div>
+          <div className="text-sm"><div className="font-semibold">Escolher ou arrastar XML (pode ser vários)</div><div className="text-xs" style={{ color: C.sub }}>NF-e de compra (com as duplicatas/parcelas) ou NFS-e de serviço.</div></div>
           <input type="file" accept=".xml" multiple className="hidden" onChange={(e) => ler(e.target.files)} />
         </label>
+        </Soltar>
       )}
       {st && !notas && <div className="flex items-center gap-2 mt-3 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> {st}</div>}
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
