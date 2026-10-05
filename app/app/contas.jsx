@@ -569,8 +569,8 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
 }
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
-const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft] };
-function DocumentoModal({ user, contas, onClose, onSalvo }) {
+const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2] };
+export function DocumentoModal({ user, contas, onClose, onSalvo }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
   const [esc, setEsc] = useState({});         // escolha por item: { destino: id | "CRIAR" | "IGNORAR", criar: {...} }
@@ -588,7 +588,8 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
       for (const f of pdfs) lista.push({ nome: f.name, conteudo: await readB64(f) });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
       setArqs(lista); setR(j);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null } }])));
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+        valor: it.valor, atualizarValor: !!it.atualizarValor }])));
     } catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -608,13 +609,14 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
   };
   const mudaCriar = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], criar: { ...x[k].criar, ...patch } } }));
   const usados = r ? r.itens.filter((it) => esc[it.chave]?.destino !== "IGNORAR") : [];
-  const faltaConta = usados.some((it) => esc[it.chave]?.destino === "CRIAR" && !esc[it.chave]?.criar?.contaId);
+  const faltaConta = usados.some((it) => esc[it.chave]?.destino === "CRIAR" && (!esc[it.chave]?.criar?.contaId || (it.tipo === "OUTRO" && !(Number(esc[it.chave]?.valor) > 0))));
   const aplicar = async () => {
     setSt("Aplicando…"); setErro("");
     try {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
-        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos, rateio: it.rateio || null, vencimento: it.vencimento || null,
+        return { tipo: it.tipo, valor: it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
+          rateio: it.rateio || null, vencimento: it.vencimento || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor,
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
@@ -747,9 +749,18 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                     <option value="IGNORAR">— não aplicar —</option>
                   </select>
                 </div>
-                {alvo && (
+                {it.tipo === "OUTRO" && e.destino !== "IGNORAR" && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs mt-2">
+                    <span style={{ color: C.sub }}>Valor do documento</span>
+                    <Valor value={e.valor || 0} width={120} onChange={(v) => muda(it.chave, { valor: v })} />
+                    {e.destino !== "CRIAR" && (
+                      <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!e.atualizarValor} onChange={(ev) => muda(it.chave, { atualizarValor: ev.target.checked })} /> atualizar o valor da conta</label>
+                    )}
+                  </div>
+                )}
+                {alvo && !(it.tipo === "OUTRO" && !e.atualizarValor) && (
                   <div className="text-xs mt-1.5" style={{ color: C.sub }}>
-                    {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.valor)}</b>{it.vencimento && it.vencimento !== alvo.vencimento ? <> · vencimento {dBR(alvo.vencimento)} → <b>{dBR(it.vencimento)}</b></> : null} · fica confirmado e o PDF vai anexado</>}
+                    {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor)}</b>{it.vencimento && it.vencimento !== alvo.vencimento ? <> · vencimento {dBR(alvo.vencimento)} → <b>{dBR(it.vencimento)}</b></> : null} · fica confirmado e o PDF vai anexado</>}
                   </div>
                 )}
                 {alvo && alvo.status !== "PAGO" && it.rateio?.length > 0 && (
@@ -2268,3 +2279,6 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
   );
 }
 export { BaixasModal };
+
+// usados também pela tela do RH
+export { Modal as ModalContas, Valor as ValorContas, C as CoresContas };

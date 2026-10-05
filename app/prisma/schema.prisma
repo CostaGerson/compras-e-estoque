@@ -21,6 +21,7 @@ enum Setor {
   CORTE
   EXPEDICAO
   ADMINISTRATIVO
+  RH
 }
 
 enum TipoTecido {
@@ -1204,4 +1205,48 @@ model FinSemanaItem {
 
   @@index([tituloId])
   @@index([prestadorId])
+}
+
+// ===== RH =====
+// Ficha do funcionário (carômetro): uma por pessoa da Matriz de custos (pessoaId = id da pessoa na Matriz, ex.: p23)
+model RhFuncionario {
+  id           Int           @id @default(autoincrement())
+  pessoaId     String        @unique
+  nomeCompleto String?
+  dados        Json          @default("{}")
+  foto         String?       // base64 (data URL)
+  atualizadoPorNome String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  documentos   RhDocumento[]
+}
+
+model RhDocumento {
+  id            Int           @id @default(autoincrement())
+  funcionarioId Int
+  funcionario   RhFuncionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  tipo          String        // RG, CPF, CTPS, CONTRATO, EXAME, RESCISÃO, OUTRO…
+  nome          String
+  mime          String?
+  tamanho       Int           @default(0)
+  conteudo      String        // base64
+  criadoPorNome String?
+  createdAt     DateTime      @default(now())
+
+  @@index([funcionarioId])
+}
+
+// Documento mensal enviado (folha, guias, iFood, rescisão…) — base do calendário de obrigações do RH
+model RhEnvio {
+  id            Int      @id @default(autoincrement())
+  competencia   String   // AAAA-MM da conta a pagar que recebeu o documento
+  empresa       String   // MERIDIAN | NORT
+  categoria     String   // FOLHA | ADIANTAMENTO | INSS | FGTS | IFOOD | RESCISAO | ESTAGIO | OUTRO
+  arquivo       String
+  tituloId      Int?
+  valor         Decimal? @db.Decimal(14, 2)
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([competencia])
 }

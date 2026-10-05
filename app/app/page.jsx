@@ -10,6 +10,8 @@ import Comercial from "./comercial";
 import Financeiro, { DadosFinanceiros } from "./financeiro";
 import Gestao from "./gestao";
 import Prestadores from "./prestadores";
+import Rh from "./rh";
+import { Contact as IcoRH } from "lucide-react";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -61,6 +63,7 @@ const MENU = [
   { key: "gestao", label: "Gestão", icon: Compass, perfis: TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
+  { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário, ordens de compra e NF de entrada", filhos: [
       { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido interno de compras consolidado do dia" },
@@ -84,7 +87,7 @@ const MENU = [
 ];
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
-  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -118,7 +121,7 @@ export default function Home() {
 
   useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
 
-  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView("gestao"); };
+  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView(u.setor === "RH" && !u.isMaster ? "rh" : "gestao"); };
   const sair = () => { localStorage.removeItem("ce_user"); setUser(null); };
   const atualizarUser = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); };
 
@@ -128,6 +131,8 @@ export default function Home() {
   const master = !!(user.isMaster || user.setor === "FINANCEIRO");
   const perfil = master ? "FINANCEIRO" : user.setor;
   const menu = menuDoPerfil(perfil);
+  // RH só enxerga a guia RH (e mensagens/notificações)
+  if (perfil === "RH" && !["rh", "mensagens", "notificacoes"].includes(view)) setTimeout(() => setView("rh"), 0);
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
@@ -140,7 +145,7 @@ export default function Home() {
       <div className="shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden" style={{ width: collapsed ? 0 : 240 }}>
       <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
-          <button onClick={() => setView("gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
+          <button onClick={() => setView(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
           </button>
           <button onClick={() => setCollapsed(true)} title="Recolher menu"
@@ -193,7 +198,8 @@ export default function Home() {
         <div className="flex-1 overflow-auto p-6">
           <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
-          {view === "gestao" && <Gestao user={user} master={master} money={money} />}
+          {view === "gestao" && perfil !== "RH" && <Gestao user={user} master={master} money={money} />}
+          {view === "rh" && ["FINANCEIRO", "RH"].includes(perfil) && <Rh user={user} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
           {view === "financeiro" && master && <Financeiro user={user} />}
@@ -3631,7 +3637,7 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
 }
 
 /* ===== Usuários (ligado ao banco · só master) ===== */
-const SETORES = ["FINANCEIRO", "PCP", "ESTOQUE", "ADMINISTRATIVO"];
+const SETORES = ["FINANCEIRO", "PCP", "ESTOQUE", "ADMINISTRATIVO", "RH"];
 const PERMISSOES = [
   ["permLancaPedidos", "Lança e edita pedidos"],
   ["permLancaContas", "Lança e edita contas"],

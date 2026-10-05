@@ -148,7 +148,7 @@ DETECTORES.push(
 export async function lerDocumento(nome, buf) {
   const L = await textoDoc(buf);
   const d = DETECTORES.find((x) => x.casa(L));
-  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS)." };
+  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", texto: L.slice(0, 120), erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS)." };
   return { ...d.ler(L), arquivo: nome, tipo: d.tipo };
 }
 
@@ -252,6 +252,29 @@ export async function analisarDocumentos(docs) {
         contaId: Array.isArray(ant?.rateio) && ant.rateio.length ? ant.rateio[0].contaId : null },
     });
   }
+  // outros documentos (iFood, rescisão, adiantamento…): sugere a conta pelo assunto e anexa
+  for (const d of docs.filter((x) => x.tipo === "DESCONHECIDO")) {
+    const txt = normRegra(`${d.arquivo} ${(d.texto || []).join(" ")}`);
+    const assunto = /IFOOD/.test(txt) ? "IFOOD" : /RESCIS/.test(txt) ? "RESCIS" : /ADIANTAMENTO/.test(txt) ? "ADIANT" : /FERIAS/.test(txt) ? "FERIAS" : null;
+    const nort = /\bNORT\b/.test(txt) || txt.replace(/ /g, "").includes("55116246");
+    const hoje = new Date().toISOString().slice(0, 7);
+    const opcoes = [...(await contasDoMes(hoje)), ...(await contasDoMes(somaMes(hoje, 1)))];
+    const pistas = { IFOOD: /IFOOD|BENEF/, RESCIS: /RESCIS/, ADIANT: /ADIANT/, FERIAS: /FERIAS/ };
+    const alvo = assunto ? opcoes.find((t) => pistas[assunto].test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && t.status === "ABERTO") || null : null;
+    // valor do documento, se der para achar (total)
+    const L = d.texto || [];
+    let valor = 0;
+    for (const re of [/Total L[ií]quido[^\d]*([\d.]+,\d{2})/i, /Total por Empresa\s*=>\s*([\d.]+,\d{2})/i, /Valor (?:Total|a pagar|do documento)[^\d]*([\d.]+,\d{2})/i, /TOTAL[^\d]*([\d.]+,\d{2})/i]) {
+      const m = L.join("\n").match(re); if (m) { valor = num(m[1]); break; }
+    }
+    itens.push({
+      chave: `OUTRO|${d.arquivo}`, tipo: "OUTRO", empresa: nort ? "NORT" : "MERIDIAN", comp: alvo ? mesDe(alvo.vencimento) : hoje, refTexto: "",
+      descricao: `${assunto ? { IFOOD: "iFood", RESCIS: "Rescisão", ADIANT: "Adiantamento", FERIAS: "Férias" }[assunto] + " — " : ""}${d.arquivo}`,
+      valor: r2(valor), arquivos: [d.arquivo], avisos: [assunto ? "Documento sem leitura automática: confira a conta e o valor." : "Não reconheci o documento: escolha a conta para anexar (o valor só muda se você marcar)."],
+      atualizarValor: !!(alvo && valor > 0), alvo: saida(alvo), opcoes: opcoes.map(saida),
+      novo: { titulo: d.arquivo.replace(/\.pdf$/i, "").toUpperCase().slice(0, 120), parceiro: "", vencimento: null, contaId: null },
+    });
+  }
   // guias de INSS (DARF previdenciário) e FGTS (GFD)
   const recsG = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: ["MATRIZ|pessoal|INSS", "MATRIZ|pessoal|FGTS", "NORT|INSS", "NORT|FGTS", "NORT|ENCARGOS"] } }, select: { id: true, chaveOrigem: true } });
   const recG = Object.fromEntries(recsG.map((r) => [r.chaveOrigem, r.id]));
@@ -322,7 +345,9 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
     if (id) {
       const t = await prisma.finTitulo.findUnique({ where: { id } });
       if (!t) throw new Error(`Conta ${id} não encontrada.`);
-      if (t.status === "ABERTO") {
+      if (it.tipo === "OUTRO" && !(it.atualizarValor && valor > 0)) {
+        r.linhas.push(`${t.titulo}: documento anexado`);
+      } else if (t.status === "ABERTO") {
         const antes = Number(t.valor);
         await prisma.finTitulo.update({
           where: { id },
@@ -355,6 +380,15 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       r.linhas.push(`${t.titulo}: criada com R$ ${valor.toFixed(2)}`);
     } else { r.ids.push(null); continue; }
     r.ids.push(id);
+    // registro para o calendário de obrigações do RH
+    try {
+      const { categoriaEnvio } = await import("@/lib/rh");
+      const t = await prisma.finTitulo.findUnique({ where: { id }, select: { titulo: true, competencia: true } });
+      const emp = it.empresa || (/NORT/.test(String(t?.titulo).toUpperCase()) ? "NORT" : "MERIDIAN");
+      for (const n of it.arquivos || []) {
+        await prisma.rhEnvio.create({ data: { competencia: t?.competencia || it.comp || "", empresa: emp, categoria: categoriaEnvio(it, t), arquivo: n, tituloId: id, valor, criadoPorNome: quem || null } });
+      }
+    } catch { /* o registro não pode travar o lançamento */ }
     for (const n of it.arquivos || []) {
       const a = porNome[n];
       if (!a?.conteudo) continue;

@@ -18,6 +18,12 @@ try {
   } else {
     console.log("Seed: master já existe, nada a fazer.");
   }
+  // RH: lorraine / rh123 (só cria se não existir)
+  const rh = await prisma.usuario.findUnique({ where: { login: "lorraine" } });
+  if (!rh) {
+    await prisma.usuario.create({ data: { nome: "LORRAINE", sobrenome: "(RH)", email: "", login: "lorraine", senha: "rh123", setor: "RH", ativo: true } });
+    console.log("Seed: usuária 'lorraine' (RH) criada.");
+  }
 } catch (e) {
   console.log("Seed: ignorado (" + (e?.message || e) + ")");
 } finally {

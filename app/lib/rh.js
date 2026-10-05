@@ -1,0 +1,159 @@
+// RH (Lorraine): Matriz de pessoal (a mesma da Matriz de custos do financeiro), carômetro,
+// documentos mensais ligados ao contas a pagar e calendário de obrigações — Meridian e NORT.
+import { prisma } from "@/lib/prisma";
+import { nDiaUtil, mesAtual, somaMes } from "@/lib/finTitulos";
+
+export const nomeUsuario = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
+
+// financeiro (master) e RH
+export async function usuarioRH(id) {
+  const uid = Number(id);
+  if (!uid) return null;
+  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true } });
+  if (!u || !u.ativo) return null;
+  return u.isMaster || u.setor === "FINANCEIRO" || u.setor === "RH" ? u : null;
+}
+export const negadoRH = () => Response.json({ error: "Acesso restrito ao RH e ao financeiro." }, { status: 403 });
+
+export const empresaDaPessoa = (p) => (p?.depto === "NORT" ? "NORT" : "MERIDIAN");
+
+// Qualquer mudança no quadro: mensagem para o financeiro e para a operação (PCP e administrativo)
+export async function notificarQuadro(texto, deId) {
+  const destinos = await prisma.usuario.findMany({
+    where: { ativo: true, OR: [{ isMaster: true }, { setor: { in: ["FINANCEIRO", "PCP", "ADMINISTRATIVO"] } }] }, select: { id: true },
+  });
+  const para = destinos.filter((u) => u.id !== deId);
+  if (!para.length) return 0;
+  await prisma.mensagem.createMany({ data: para.map((u) => ({ deId: deId || para[0].id, paraId: u.id, texto: String(texto).slice(0, 2000) })) });
+  return para.length;
+}
+
+// ---------- pessoal (Matriz oficial) ----------
+export const CAMPOS_PESSOA = ["nome", "cargo", "depto", "regime", "salario", "bonus", "vt", "descontaVt", "vr", "ps", "assPct",
+  "saldoLivre", "rFerias", "adiantamento", "ativo", "obs", "admissao", "demissao"];
+const ROTULO = { nome: "nome", cargo: "cargo", depto: "setor", regime: "regime", salario: "salário", bonus: "bônus", vt: "VT", descontaVt: "desconta VT",
+  vr: "VA/VR", ps: "plano de saúde", assPct: "assiduidade", saldoLivre: "saldo livre", rFerias: "reflexo férias", adiantamento: "adiantamento",
+  ativo: "ativo", obs: "observação", admissao: "admissão", demissao: "desligamento" };
+
+export async function lerPessoal() {
+  const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
+  const pessoas = m?.dados?.pessoal || [];
+  const fichas = await prisma.rhFuncionario.findMany({ select: { pessoaId: true, nomeCompleto: true, foto: true, _count: { select: { documentos: true } } } });
+  const porId = Object.fromEntries(fichas.map((f) => [f.pessoaId, f]));
+  return {
+    matrizId: m?.id || null, atualizadaEm: m?.updatedAt || null, atualizadaPor: m?.atualizadoPor || null,
+    pessoas: pessoas.map((p) => ({
+      ...p, empresa: empresaDaPessoa(p), nomeCompleto: porId[p.id]?.nomeCompleto || null,
+      foto: porId[p.id]?.foto || null, nDocs: porId[p.id]?._count?.documentos || 0,
+    })),
+  };
+}
+
+const limpa = (p) => {
+  const o = {};
+  for (const k of CAMPOS_PESSOA) if (p[k] !== undefined) o[k] = p[k];
+  for (const k of ["salario", "bonus", "vt", "vr", "ps", "assPct", "saldoLivre", "rFerias"]) if (o[k] !== undefined) o[k] = Number(o[k]) || 0;
+  for (const k of ["nome", "cargo", "obs"]) if (o[k] !== undefined) o[k] = String(o[k] || "").toUpperCase().trim();
+  return o;
+};
+
+// acao: EDITAR | ADMITIR | DESLIGAR | REATIVAR
+export async function salvarPessoa({ acao, pessoa, nomeCompleto }, u) {
+  const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
+  if (!m) return { error: "Matriz oficial não encontrada." };
+  const dados = JSON.parse(JSON.stringify(m.dados));
+  dados.pessoal = dados.pessoal || [];
+  const quem = nomeUsuario(u);
+  let p, antes = null, resumo;
+  if (acao === "ADMITIR") {
+    const novo = limpa(pessoa || {});
+    if (!novo.nome) return { error: "Informe o nome." };
+    if (!novo.depto) return { error: "Informe o setor." };
+    const ids = dados.pessoal.map((x) => Number(String(x.id).replace(/\D/g, "")) || 0);
+    p = {
+      id: `p${Math.max(0, ...ids) + 1}`, cargo: "", regime: "CLT", salario: 0, bonus: 0, vt: 287.5, descontaVt: true, vr: 100, ps: 54.9,
+      assPct: 0.05, saldoLivre: 0, rFerias: 0, adiantamento: false, obs: "", ...novo, ativo: true,
+    };
+    dados.pessoal.push(p);
+    resumo = `ADMISSÃO de ${p.nome} (${p.cargo || "—"}, setor ${p.depto}, ${empresaDaPessoa(p)})${p.admissao ? ` em ${p.admissao.split("-").reverse().join("/")}` : ""} · salário R$ ${Number(p.salario).toFixed(2).replace(".", ",")}`;
+  } else {
+    p = dados.pessoal.find((x) => x.id === pessoa?.id);
+    if (!p) return { error: "Funcionário não encontrado na Matriz." };
+    antes = { ...p };
+    if (acao === "DESLIGAR") {
+      p.ativo = false;
+      p.demissao = pessoa.demissao || new Date().toISOString().slice(0, 10);
+      if (pessoa.obs !== undefined) p.obs = String(pessoa.obs || "").toUpperCase();
+      resumo = `DESLIGAMENTO de ${p.nome} (${p.cargo || "—"}, ${empresaDaPessoa(p)}) em ${p.demissao.split("-").reverse().join("/")}`;
+    } else if (acao === "REATIVAR") {
+      p.ativo = true; p.demissao = null;
+      resumo = `REATIVAÇÃO de ${p.nome} (${empresaDaPessoa(p)})`;
+    } else {
+      Object.assign(p, limpa(pessoa));
+      const mud = CAMPOS_PESSOA.filter((k) => JSON.stringify(antes[k] ?? null) !== JSON.stringify(p[k] ?? null))
+        .map((k) => `${ROTULO[k]}: ${antes[k] ?? "—"} → ${p[k] ?? "—"}`);
+      if (!mud.length && nomeCompleto === undefined) return { ok: true, semMudanca: true };
+      resumo = mud.length ? `ALTERAÇÃO de ${p.nome} (${empresaDaPessoa(p)}): ${mud.join(" · ")}` : null;
+    }
+  }
+  if (nomeCompleto !== undefined) {
+    await prisma.rhFuncionario.upsert({ where: { pessoaId: p.id }, create: { pessoaId: p.id, nomeCompleto: String(nomeCompleto || "").toUpperCase() || null, atualizadoPorNome: quem },
+      update: { nomeCompleto: String(nomeCompleto || "").toUpperCase() || null, atualizadoPorNome: quem } });
+  }
+  if (!resumo) return { ok: true, pessoa: p };
+  await prisma.finMatrizVersao.create({ data: { matrizId: m.id, dados: m.dados, usuarioNome: m.atualizadoPor, resumo: `antes de: RH · ${resumo}`.slice(0, 300) } });
+  await prisma.finMatriz.update({ where: { id: m.id }, data: { dados, atualizadoPor: `${quem} (RH)` } });
+  // as contas de pessoal do financeiro acompanham a Matriz na hora
+  const { sincronizarPessoal } = await import("@/lib/finMatrizRecDb");
+  const contas = await sincronizarPessoal(`${quem} (RH)`).catch((e) => ({ error: e.message }));
+  const avisados = await notificarQuadro(`RH · ${resumo}. Matriz de custos e contas de pessoal atualizadas. Por ${quem}.`, u.id);
+  return { ok: true, pessoa: p, resumo, contas, avisados };
+}
+
+// ---------- calendário de obrigações ----------
+// · folha (fopag + resumo de líquidos) do mês anterior: até o 3º dia útil
+// · adiantamento do mês: até o dia 17
+// · impostos (INSS e FGTS) do mês anterior: até o dia 17
+const iso = (d) => d.toISOString().slice(0, 10);
+export async function calendario(comp = mesAtual()) {
+  const envios = await prisma.rhEnvio.findMany({ where: { competencia: comp } });
+  const tem = (emp, cats) => cats.every((c) => envios.some((e) => e.empresa === emp && e.categoria === c));
+  const [a, mm] = comp.split("-").map(Number);
+  const dia17 = `${comp}-17`;
+  const terceiro = iso(nDiaUtil(comp, 3));
+  const hoje = new Date().toISOString().slice(0, 10);
+  const nomeMes = (c) => ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][Number(c.split("-")[1]) - 1];
+  const ant = somaMes(comp, -1);
+  const out = [];
+  for (const emp of ["MERIDIAN", "NORT"]) {
+    for (const [ob, prazo, cats, desc] of [
+      ["FOLHA", terceiro, ["FOLHA"], `Folha de ${nomeMes(ant)} (fopag + líquidos)`],
+      ["ADIANTAMENTO", dia17, ["ADIANTAMENTO"], `Adiantamento de ${nomeMes(comp)}`],
+      ["IMPOSTOS", dia17, ["INSS", "FGTS"], `Guias de INSS e FGTS de ${nomeMes(ant)}`],
+    ]) {
+      const feito = tem(emp, cats);
+      const parcial = !feito && cats.length > 1 && cats.some((c) => envios.some((e) => e.empresa === emp && e.categoria === c));
+      const dias = Math.round((new Date(`${prazo}T12:00:00Z`) - new Date(`${hoje}T12:00:00Z`)) / 86400000);
+      out.push({
+        empresa: emp, obrigacao: ob, descricao: desc, prazo, dias, feito, parcial,
+        faltam: cats.filter((c) => !envios.some((e) => e.empresa === emp && e.categoria === c)),
+        status: feito ? "OK" : dias < 0 ? "ATRASADO" : dias <= 2 ? "VENCENDO" : "PENDENTE",
+        enviados: envios.filter((e) => e.empresa === emp && cats.includes(e.categoria)).map((e) => ({ arquivo: e.arquivo, em: e.createdAt, por: e.criadoPorNome })),
+      });
+    }
+  }
+  return { competencia: comp, ano: a, mes: mm, itens: out };
+}
+
+// categoria do documento pela conta que recebeu (para o calendário)
+export function categoriaEnvio(it, titulo) {
+  if (it.tipo === "FOLHA") return "FOLHA";
+  if (it.tipo === "GUIA" && ["INSS", "FGTS"].includes(it.guia)) return it.guia === "FGTS" && /RESCIS/.test(String(it.descricao)) ? "RESCISAO" : it.guia;
+  const t = String(`${titulo?.titulo || ""} ${it.descricao || ""}`).toUpperCase();
+  if (/ADIANT/.test(t)) return "ADIANTAMENTO";
+  if (/IFOOD|BENEF/.test(t)) return "IFOOD";
+  if (/RESCIS/.test(t)) return "RESCISAO";
+  if (/ESTAGI/.test(t)) return "ESTAGIO";
+  if (/SAL[AÁ]RIO|FOLHA/.test(t)) return "FOLHA";
+  return "OUTRO";
+}

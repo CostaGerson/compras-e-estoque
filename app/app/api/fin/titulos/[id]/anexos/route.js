@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { negado } from "@/lib/fin";
+import { usuarioRH as usuarioMaster } from "@/lib/rh";   // financeiro e RH
 import { nomeU } from "@/lib/finTitulos";
 
 const LIMITE = 15 * 1024 * 1024;   // 15 MB por arquivo

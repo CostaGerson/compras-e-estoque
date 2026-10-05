@@ -184,3 +184,16 @@ export async function encargosSociosAdm() {
   const mudar = m.propostas.filter((p) => ["MATRIZ|pessoal|INSS", "MATRIZ|pessoal|FGTS"].includes(p.chave) && p.mudou).map((p) => p.chave);
   return mudar.length ? aplicarMatrizRec({ quem: "AUTOMÁTICO (ENCARGOS DOS SÓCIOS)", chaves: [], atualizar: mudar }) : null;
 }
+
+// Depois de mexer no pessoal da Matriz (RH ou importação da folha): cria as contas novas de pessoal,
+// atualiza as que mudaram e encerra as que não existem mais (ex.: estágio/pró-labore de quem saiu).
+const ehPessoal = (k) => k.startsWith("MATRIZ|pessoal|") || /^NORT\|(FOLHA5|ADIANTAMENTO|BENEFICIOS|INSS|FGTS)$/.test(k);
+export async function sincronizarPessoal(quem) {
+  const m = await montarMatrizRec();
+  if (m.error) return m;
+  const pes = (m.propostas || []).filter((p) => ehPessoal(p.chave));
+  return aplicarMatrizRec({
+    quem, chaves: pes.filter((p) => !p.jaExiste).map((p) => p.chave), atualizar: pes.filter((p) => p.mudou).map((p) => p.chave),
+    encerrar: (m.obsoletas || []).filter((o) => o.chave.startsWith("MATRIZ|pessoal|")).map((o) => o.id),
+  });
+}
