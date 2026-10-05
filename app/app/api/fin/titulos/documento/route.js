@@ -6,6 +6,7 @@ import { corrigirMatriz } from "@/lib/finFolhaMatriz";
 import { hashB64, jaImportados } from "@/lib/finHash";
 import { sincronizarPessoal } from "@/lib/finMatrizRecDb";
 import { usuarioRH, notificarQuadro } from "@/lib/rh";
+import { lerComprovantes, analisarComprovantes, baixarComprovantes } from "@/lib/finComprovantes";
 
 // POST { usuarioId, acao: "analisar", arquivos: [{ nome, conteudo (base64) }] } → lançamentos encontrados e a conta de cada um
 // POST { usuarioId, acao: "aplicar", itens: [...], arquivos: [{ nome, conteudo }] } → atualiza/cria as contas e anexa os arquivos
@@ -17,16 +18,19 @@ export async function POST(req) {
     if (b.acao === "analisar") {
       if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });
       await gerarRecorrencias("PAGAR");   // a conta do salário do mês precisa existir
-      const docs = [], hashDe = {}, vistos = new Set(), repetidos = [];
+      const docs = [], hashDe = {}, vistos = new Set(), repetidos = [], comps = [];
       for (const a of b.arquivos) {
         const h = hashB64(a.conteudo);
         if (vistos.has(h)) { repetidos.push(a.nome); continue; }   // o mesmo arquivo duas vezes no envio
         vistos.add(h); hashDe[a.nome] = h;
+        // relatório de comprovantes do banco (um por página) → baixa das contas
+        try { const cs = await lerComprovantes(a.nome, Buffer.from(String(a.conteudo || ""), "base64")); if (cs.length) { comps.push(...cs); continue; } } catch { /* segue como documento */ }
         try { docs.push(await lerDocumento(a.nome, Buffer.from(String(a.conteudo || ""), "base64"))); }
         catch (e) { docs.push({ arquivo: a.nome, tipo: "DESCONHECIDO", erro: e.message || "Não consegui ler o PDF." }); }
       }
       // não reconhecidos viram "outro documento": escolhe-se a conta para anexar
-      const itens = await analisarDocumentos(docs);
+      const itens = docs.length ? await analisarDocumentos(docs) : [];
+      const comprovantes = await analisarComprovantes(comps);
       // documento já importado (o mesmo arquivo anexado numa conta ativa) não entra de novo
       const ja = await jaImportados(Object.values(hashDe));
       for (const it of itens) {
@@ -37,7 +41,7 @@ export async function POST(req) {
           it.avisos = [`Este documento já foi importado em ${new Date(dup.em).toLocaleDateString("pt-BR")} na conta "${dup.titulo}" — não será aplicado de novo.`];
         }
       }
-      return Response.json({ itens, naoReconhecidos: repetidos.map((n) => ({ nome: n, erro: "arquivo repetido neste envio — ignorado" })) });
+      return Response.json({ itens, comprovantes, naoReconhecidos: repetidos.map((n) => ({ nome: n, erro: "arquivo repetido neste envio — ignorado" })) });
     }
     // POST { usuarioId, acao: "corrigirMatriz", pessoas: [...], ref } → inclui/nomeia na Matriz oficial e atualiza as contas de pessoal
     if (b.acao === "corrigirMatriz") {
@@ -49,6 +53,10 @@ export async function POST(req) {
         await notificarQuadro(`RH · Matriz de pessoal atualizada pela folha ${b.ref || ""}: ${r.resumo || ""}. Por ${nomeU(u)}.`, u.id);
       }
       return Response.json({ ...r, contas });
+    }
+    // POST { usuarioId, acao: "baixarComprovantes", itens: [...], arquivos } → baixa as contas confirmadas e anexa o comprovante
+    if (b.acao === "baixarComprovantes") {
+      return Response.json(await baixarComprovantes(b.itens || [], b.arquivos || [], { quem: nomeU(u) }));
     }
     if (b.acao === "aplicar") {
       return Response.json(await aplicarDocumentos(b.itens || [], b.arquivos || [], { quem: nomeU(u), usuarioId: u.id }));

@@ -375,6 +375,7 @@ export default function ContasPagarReceber({ user }) {
         </div>
         {(mes !== mesAtual() || dIni !== hojeISO() || dFim !== hojeISO()) && <button onClick={irHoje} className="text-xs underline" style={{ color: C.blue }}>hoje</button>}
         <div className="flex-1" />
+        <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
@@ -475,6 +476,8 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "ia" && <AnaliseTitulosModal user={user} tipo={tipo} dIni={dIni} dFim={dFim < dIni ? dIni : dFim} contas={d?.contas || []} contasPorId={contasPorId}
+        onEditar={(t) => setModal({ t: "titulo", item: t })} onClose={() => { setModal(null); carregar(); }} />}
       {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
     </div>
   );
@@ -673,7 +676,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       {!r && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
-          <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>…</div>
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>, guias, <b>comprovantes do banco</b> (baixa das contas)…</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>O sistema reconhece cada documento, acha a conta certa, atualiza o valor e anexa o arquivo. Nada é gravado antes de você confirmar.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDFs"}</BtnP>
           <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
@@ -687,7 +690,10 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
               {r.naoReconhecidos.map((x) => <div key={x.nome}><b>{x.nome}</b>: {x.erro}</div>)}
             </div>
           )}
-          {!r.itens.length && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
+          {r.comprovantes?.length > 0 && <ComprovantesBaixa user={user} lista={r.comprovantes} arqs={arqs}
+            onFeito={(msg) => (r.itens.length ? setR((x) => ({ ...x, comprovantes: [], msgComp: msg })) : onSalvo(msg))} />}
+          {r.msgComp && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.greenSoft, color: C.green }}>{r.msgComp}</div>}
+          {!r.itens.length && !r.comprovantes?.length && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
           {r.itens.map((it) => {
             const e = esc[it.chave] || {};
             const [tt, tc, tb] = TIPO_DOC[it.jaImportado ? "JA" : it.tipo] || [it.tipo, C.sub, C.panel2];
@@ -2337,3 +2343,197 @@ export { BaixasModal };
 
 // usados também pela tela do RH
 export { Modal as ModalContas, Valor as ValorContas, C as CoresContas };
+
+/* ============================================================
+   ANALISAR COM IA — duplicidades e conta-caixa (v124)
+   ============================================================ */
+export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorId, onClose }) {
+  const [ini, setIni] = useState(dIni), [fim, setFim] = useState(dFim);
+  const [r, setR] = useState(null), [rodando, setRodando] = useState(false), [erro, setErro] = useState("");
+  const [feito, setFeito] = useState({});        // k → texto do que foi feito
+  const [escolha, setEscolha] = useState({});    // k → contaId escolhida
+  const [regra, setRegra] = useState({});        // k → aplicar nas demais do fornecedor
+  const P = tipo === "PAGAR";
+  const nomeC = (id) => (contasPorId[id] ? `${contasPorId[id].codigo} ${contasPorId[id].nome}` : "—");
+  const rodar = async () => {
+    setRodando(true); setErro(""); setR(null); setFeito({});
+    try { const j = await api("/api/fin/titulos/ia", "POST", { usuarioId: user.id, tipo, dIni: ini, dFim: fim }); setR(j); setEscolha(Object.fromEntries(j.contas.map((c) => [c.k, c.contaSugeridaId]))); }
+    catch (e) { setErro(e.message); }
+    setRodando(false);
+  };
+  const excluir = async (g, t) => {
+    try {
+      await api(`/api/fin/titulos/${t.id}`, "DELETE", { usuarioId: user.id });
+      setFeito((f) => ({ ...f, [`${g.k}|${t.id}`]: t.recorrenciaId ? "cancelada" : "excluída" }));
+    } catch (e) { setErro(e.message); }
+  };
+  const aplicar = async (c) => {
+    const contaId = Number(escolha[c.k]);
+    if (!contaId) return setErro("Escolha a conta-caixa.");
+    try {
+      const j = await api("/api/fin/titulos/ia", "POST", { usuarioId: user.id, acao: "conta", id: c.titulo.id, contaId });
+      let txt = j.recorrencia ? `aplicada na recorrência (${j.qtd} mês(es) em aberto)` : "aplicada";
+      if (regra[c.k] && c.termo) {
+        const x = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: c.termo, contaId, exceto: c.titulo.id, salvarRegra: true });
+        txt += ` · +${x.qtd} conta(s) de ${c.termo}`;
+      }
+      setFeito((f) => ({ ...f, [c.k]: txt }));
+    } catch (e) { setErro(e.message); }
+  };
+  const fonteTag = (f) => <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={f === "IA" ? { background: C.roxoSoft, color: C.roxo } : { background: C.panel2, color: C.sub }}>{f}</span>;
+  return (
+    <Modal titulo={`Analisar com IA — contas ${P ? "a pagar" : "a receber"}`} icone={Wand2} onClose={onClose} largura={980}>
+      <div className="flex flex-wrap items-end gap-2 mb-4">
+        <label className="text-xs" style={{ color: C.sub }}>De<input type="date" value={ini} onChange={(e) => e.target.value && setIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
+        <label className="text-xs" style={{ color: C.sub }}>Até<input type="date" value={fim} min={ini} onChange={(e) => e.target.value && setFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
+        <BtnP onClick={rodar} disabled={rodando}>{rodando ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />} {rodando ? "Analisando…" : r ? "Analisar de novo" : "Analisar"}</BtnP>
+        <div className="text-xs flex-1" style={{ color: C.sub, minWidth: 260 }}>Procura contas lançadas em dobro e conta-caixa diferente do histórico (outras contas do fornecedor e a identificação do extrato).</div>
+      </div>
+      {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {r && (
+        <>
+          <div className="mb-3 text-xs" style={{ color: C.sub }}>
+            {r.analisadas} conta(s) analisadas · {r.duplicidades.length} possível(is) duplicidade(s) · {r.contas.length} conta(s)-caixa para revisar{r.descartadas ? ` · ${r.descartadas} alerta(s) descartado(s) pela IA` : ""}
+            {r.aviso && <div className="mt-1 font-semibold" style={{ color: C.yellow }}>{r.aviso}</div>}
+          </div>
+
+          <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Duplicidades</div>
+          {!r.duplicidades.length && <div className="mb-4 text-xs" style={{ color: C.sub }}>Nenhuma duplicidade encontrada.</div>}
+          {r.duplicidades.map((g) => (
+            <div key={g.k} className="mb-3 rounded-lg" style={{ border: `1px solid ${C.line}` }}>
+              <div className="px-3 py-2 text-xs flex items-center gap-2" style={{ background: C.panel2 }}>{fonteTag(g.fonte)}<span>{g.motivo}</span></div>
+              {g.titulos.map((t) => {
+                const fz = feito[`${g.k}|${t.id}`];
+                const manter = t.id === g.manterId;
+                return (
+                  <div key={t.id} className="px-3 py-2 text-xs flex items-center gap-3" style={{ borderTop: `1px solid ${C.line}`, opacity: fz ? 0.5 : 1 }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold truncate" style={{ color: C.navy }}>{t.titulo} <span className="font-normal" style={{ color: C.sub }}>· {t.parceiro}{t.numeroDoc ? ` · ${t.numeroDoc}` : ""}</span></div>
+                      <div style={{ color: C.sub }}>venc. {dBR(t.vencimento)} · {t.status === "PAGO" ? "PAGO" : t.previsao ? "PREVISÃO" : "EM ABERTO"}{t.recorrenciaId ? " · recorrência" : ""}{t.anexos ? ` · ${t.anexos} anexo(s)` : ""} · {nomeC(t.contaId)}</div>
+                    </div>
+                    <div className="font-bold whitespace-nowrap">{moeda(t.valor)}</div>
+                    {manter ? <span className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>MANTER</span>
+                      : fz ? <span className="text-[10px] font-bold" style={{ color: C.sub }}>{fz.toUpperCase()}</span>
+                      : t.status === "ABERTO" ? <button onClick={() => excluir(g, t)} className="px-2 py-1 rounded text-[11px] font-semibold" style={{ border: `1px solid ${C.red}55`, color: C.red }}>{t.recorrenciaId ? "Cancelar" : "Excluir"}</button>
+                      : <span className="text-[10px]" style={{ color: C.sub }}>já paga</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          <div className="font-bold text-sm mt-5 mb-2" style={{ color: C.navy }}>Conta-caixa</div>
+          {!r.contas.length && <div className="text-xs" style={{ color: C.sub }}>Nenhuma conta-caixa fora do padrão.</div>}
+          {r.contas.map((c) => (
+            <div key={c.k} className="mb-2 rounded-lg px-3 py-2 text-xs" style={{ border: `1px solid ${C.line}`, opacity: feito[c.k] ? 0.6 : 1 }}>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate" style={{ color: C.navy }}>{c.titulo.titulo} <span className="font-normal" style={{ color: C.sub }}>· {c.titulo.parceiro} · venc. {dBR(c.titulo.vencimento)}{c.titulo.recorrenciaId ? " · recorrência" : ""}</span></div>
+                  <div className="flex items-center gap-1.5 mt-0.5">{fonteTag(c.fonte)}<span style={{ color: C.sub }}>{c.motivo}</span></div>
+                </div>
+                <div className="font-bold whitespace-nowrap">{moeda(c.titulo.valor)}</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span style={{ color: C.red }}>atual: {c.contaAtualId ? nomeC(c.contaAtualId) : "SEM CONTA-CAIXA"}</span>
+                <span style={{ color: C.sub }}>→</span>
+                {feito[c.k] ? <span className="font-semibold" style={{ color: C.green }}>{nomeC(escolha[c.k])} · {feito[c.k]}</span> : (
+                  <>
+                    <div style={{ minWidth: 280, flex: 1 }}><ContaSelect conta={contasPorId[escolha[c.k]]} contas={contas.filter((x) => x.ativo !== false)} onPick={(id) => setEscolha((e) => ({ ...e, [c.k]: id }))} /></div>
+                    {c.termo && !c.titulo.recorrenciaId && (
+                      <label className="flex items-center gap-1" style={{ color: C.sub }} title={`Leva a conta para as demais contas em aberto com "${c.termo}" e grava a palavra-chave`}>
+                        <input type="checkbox" checked={!!regra[c.k]} onChange={(e) => setRegra((x) => ({ ...x, [c.k]: e.target.checked }))} /> usar como regra ({c.termo})
+                      </label>
+                    )}
+                    <button onClick={() => aplicar(c)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>Aplicar</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/* ---------- comprovantes do banco → baixa das contas (v124) ---------- */
+const CONF_COR = { ALTA: [C.green, C.greenSoft], MEDIA: [C.yellow, C.yellowSoft], BAIXA: [C.red, C.redSoft] };
+export function ComprovantesBaixa({ user, lista, arqs, onFeito }) {
+  const ini = () => Object.fromEntries(lista.map((c) => [c.k, { tituloId: c.alvo && !c.jaBaixado && !c.propria ? String(c.alvo.id) : "", ok: !!(c.alvo && !c.jaBaixado && !c.propria && c.alvo.confianca !== "BAIXA") }]));
+  const [esc, setEsc] = useState(ini);
+  const [st, setSt] = useState(""), [erro, setErro] = useState("");
+  const muda = (k, p) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...p } }));
+  const marcados = lista.filter((c) => esc[c.k]?.ok && esc[c.k]?.tituloId);
+  const usados = {};
+  marcados.forEach((c) => { usados[esc[c.k].tituloId] = (usados[esc[c.k].tituloId] || 0) + 1; });
+  const repetida = Object.values(usados).some((n) => n > 1);
+  const baixar = async () => {
+    setSt("Baixando…"); setErro("");
+    try {
+      const itens = marcados.map((c) => ({ k: c.k, tituloId: Number(esc[c.k].tituloId), arquivo: c.arquivo, pagina: c.pagina, data: c.data, valor: c.valor, tipo: c.tipo, favorecido: c.final || c.favorecido, chave: c.chave }));
+      const nomes = new Set(itens.map((i) => i.arquivo));
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "baixarComprovantes", itens, arquivos: arqs.filter((a) => nomes.has(a.nome)) });
+      if (j.erros?.length) setErro(j.erros.join(" · "));
+      onFeito(`${j.baixadas} conta(s) baixada(s) pelos comprovantes, com o comprovante anexado.${j.erros?.length ? ` ${j.erros.length} com erro.` : ""}`);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const total = marcados.reduce((a, c) => a + c.valor, 0);
+  return (
+    <div className="rounded-xl" style={{ border: `1px solid ${C.blue}55` }}>
+      <div className="px-3 py-2.5 flex items-center gap-2 text-sm" style={{ background: C.blueSoft, borderRadius: "12px 12px 0 0" }}>
+        <CheckSquare size={16} style={{ color: C.blue }} />
+        <b style={{ color: C.navy }}>Comprovantes do banco — confirme as baixas</b>
+        <span className="text-xs" style={{ color: C.sub }}>{lista.length} comprovante(s) · {lista.filter((c) => c.alvo).length} com conta encontrada</span>
+      </div>
+      <table className="w-full text-xs">
+        <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+          <th className="pl-3 py-2 w-6"></th><th className="px-2 py-2 text-left">Pago em</th><th className="px-2 py-2 text-left">Favorecido</th>
+          <th className="px-2 py-2 text-right">Valor</th><th className="px-2 py-2 text-left">Conta a baixar</th>
+        </tr></thead>
+        <tbody>{lista.map((c) => {
+          const e = esc[c.k] || {};
+          const op = c.opcoes.find((o) => String(o.id) === String(e.tituloId)) || (c.alvo && String(c.alvo.id) === String(e.tituloId) ? c.alvo : null);
+          const conf = op?.confianca && CONF_COR[op.confianca];
+          const bloq = !!c.jaBaixado || c.propria;
+          return (
+            <tr key={c.k} style={{ borderBottom: `1px solid ${C.line}`, opacity: bloq || !e.ok ? 0.6 : 1, background: usados[e.tituloId] > 1 && e.ok ? C.redSoft : undefined }}>
+              <td className="pl-3 py-2 align-top"><input type="checkbox" disabled={bloq || !e.tituloId} checked={!!e.ok && !!e.tituloId} onChange={(x) => muda(c.k, { ok: x.target.checked })} /></td>
+              <td className="px-2 py-2 align-top whitespace-nowrap">{dBR(c.data)}<div className="text-[10px] font-bold" style={{ color: C.blue }}>{c.tipo}</div></td>
+              <td className="px-2 py-2 align-top" style={{ maxWidth: 260 }}>
+                <div className="font-semibold" style={{ color: C.navy }}>{c.final || c.favorecido}</div>
+                {c.final && <div style={{ color: C.sub }}>via {c.favorecido}</div>}
+                {c.descricao && c.descricao !== c.favorecido && <div style={{ color: C.sub }}>{c.descricao}</div>}
+                {c.jaBaixado && <div className="font-semibold" style={{ color: C.red }}>Já usado na baixa de "{c.jaBaixado.titulo}"</div>}
+                {c.aviso && !c.jaBaixado && <div style={{ color: C.yellow }}>{c.aviso}</div>}
+              </td>
+              <td className="px-2 py-2 align-top text-right font-bold whitespace-nowrap">{moeda(c.valor)}</td>
+              <td className="px-2 py-2 align-top" style={{ minWidth: 300 }}>
+                {bloq ? <span style={{ color: C.sub }}>—</span> : (
+                  <>
+                    <select value={e.tituloId || ""} onChange={(x) => muda(c.k, { tituloId: x.target.value, ok: !!x.target.value })} className="w-full rounded-lg px-2 py-1.5 text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+                      <option value="">— não baixar —</option>
+                      {c.opcoes.map((o) => <option key={o.id} value={o.id}>{dBR(o.vencimento)} · {o.titulo} · {o.parceiro} · {moeda(o.valor)} ({o.confianca})</option>)}
+                    </select>
+                    {op && (
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        {conf && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ color: conf[0], background: conf[1] }}>{op.confianca}</span>}
+                        {c.alvo && String(c.alvo.id) === String(e.tituloId) && <span style={{ color: C.sub }}>{c.alvo.motivo}</span>}
+                        {Math.abs(op.diferenca) > 0.02 && <span className="font-semibold" style={{ color: C.yellow }}>pago {moeda(c.valor)} × conta {moeda(op.valor)}</span>}
+                      </div>
+                    )}
+                  </>
+                )}
+              </td>
+            </tr>
+          );
+        })}</tbody>
+      </table>
+      {erro && <div className="mx-3 my-2 text-xs p-2 rounded" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: C.panel2, borderRadius: "0 0 12px 12px" }}>
+        <span className="text-xs flex-1" style={{ color: repetida ? C.red : C.sub }}>{repetida ? "A mesma conta foi escolhida para dois comprovantes." : `${marcados.length} baixa(s) · ${moeda(total)} · cada conta baixada leva a página do comprovante como anexo.`}</span>
+        <BtnP onClick={baixar} disabled={!!st || !marcados.length || repetida}>{st ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {st || `Baixar ${marcados.length} conta(s)`}</BtnP>
+      </div>
+    </div>
+  );
+}
