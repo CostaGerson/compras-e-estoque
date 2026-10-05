@@ -127,7 +127,8 @@ export function lerXmlTitulo(xml, nomeArq = "") {
 export async function previaNota(tipo, x, extra = {}) {
   const ant = x.documento ? await prisma.finTitulo.findFirst({ where: { tipo, documento: x.documento }, orderBy: { createdAt: "desc" } }) : null;
   const chaves = x.parcelas.map((p) => `${x.chaveBase}|${p.parcela}`);
-  const ja = await prisma.finTitulo.findMany({ where: { chaveImport: { in: chaves } }, select: { chaveImport: true } });
+  // só marca como já lançada se a conta ainda está ativa (cancelada não bloqueia)
+  const ja = await prisma.finTitulo.findMany({ where: { chaveImport: { in: chaves }, status: { not: "CANCELADO" } }, select: { chaveImport: true } });
   const jaSet = new Set(ja.map((j) => j.chaveImport));
   return {
     ...x, ...extra, parceiro: ant?.parceiro || x.parceiro, rateioSugerido: ant?.rateio || null,

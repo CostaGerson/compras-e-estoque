@@ -29,6 +29,10 @@ export async function POST(req) {
     const rt = validarRateio(it.rateio);
     if (rt.erro) return Response.json({ error: `${it.titulo || it.parceiro}: ${rt.erro}` }, { status: 400 });
     if (!it.vencimento || !(r2(it.valor) > 0)) return Response.json({ error: `${it.titulo || it.parceiro}: confira valor e vencimento.` }, { status: 400 });
+    if (it.chaveImport) {   // conta antiga cancelada com a mesma chave: libera a chave
+      const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: it.chaveImport }, select: { id: true, status: true } });
+      if (velha?.status === "CANCELADO") await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${it.chaveImport}|CANCELADA|${velha.id}`.slice(0, 190) } });
+    }
     try {
       await prisma.finTitulo.create({
         data: {

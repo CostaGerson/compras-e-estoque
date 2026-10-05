@@ -91,11 +91,13 @@ export async function analisarPosicao(linhas) {
       where: { tipo: { in: tipos }, status: { not: "CANCELADO" }, vencimento: { gte: de, lte: ate } },
       select: { id: true, tipo: true, titulo: true, parceiro: true, documento: true, numeroDoc: true, valor: true, vencimento: true, competencia: true, status: true, recorrenciaId: true, rateio: true, chaveImport: true, previsao: true },
     }),
-    prisma.finTitulo.findMany({ where: { chaveImport: { in: linhas.map(chavePosicao) } }, select: { chaveImport: true, id: true } }),
+    // só bloqueia se a conta importada antes AINDA ESTÁ ATIVA (em aberto ou baixada); cancelada/excluída não conta
+    prisma.finTitulo.findMany({ where: { chaveImport: { in: linhas.map(chavePosicao) }, status: { not: "CANCELADO" } },
+      select: { chaveImport: true, id: true, titulo: true, status: true, vencimento: true, valor: true } }),
     regrasOrdenadas(),
     prisma.finConta.findMany({ select: { id: true, codigo: true, nome: true } }),
   ]);
-  const jaChave = new Map(comChave.map((x) => [x.chaveImport, x.id]));
+  const jaChave = new Map(comChave.map((x) => [x.chaveImport, x]));
   // último rateio usado por parceiro (para sugerir a conta-caixa)
   const ultimos = await prisma.finTitulo.findMany({
     where: { tipo: { in: tipos }, parceiro: { in: [...new Set(linhas.map((l) => l.parceiro))] } },
@@ -121,7 +123,9 @@ export async function analisarPosicao(linhas) {
     const mesmoParc = (t) => (l.documento && t.documento && l.documento === t.documento) || t.parcN === norm(l.parceiro)
       || [...tokens(l.parceiro)].filter((w) => t.tkParc.has(w)).length >= 2;
     if (jaChave.has(chave)) {
-      Object.assign(x, { situacao: "JA_IMPORTADO", decisao: "IGNORAR", motivo: "Esta linha já foi importada antes.", alvo: { id: jaChave.get(chave) } });
+      const t = jaChave.get(chave);
+      Object.assign(x, { situacao: "JA_IMPORTADO", decisao: "IGNORAR", alvo: { id: t.id },
+        motivo: `Já importada e ainda ativa (${t.status === "PAGO" ? "baixada" : "em aberto"}): conta nº ${t.id}, vence ${dBR(iso(t.vencimento))}, R$ ${Number(t.valor).toFixed(2).replace(".", ",")}.` });
     } else if (vistos.has(rep)) {
       Object.assign(x, { situacao: "REPETIDO", decisao: "IGNORAR", motivo: `Igual à linha ${vistos.get(rep)} da planilha (mesmo parceiro, valor, vencimento e descrição).` });
     } else {
@@ -210,7 +214,10 @@ export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
   for (const l of linhas) {
     const chave = chavePosicao(l);
     if (l.decisao === "IGNORAR" || !["IMPORTAR", "SUBSTITUIR"].includes(l.decisao)) { r.ignoradas++; continue; }
-    if (await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } })) { r.jaExistiam++; continue; }
+    const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true, status: true } });
+    if (velha && velha.status !== "CANCELADO") { r.jaExistiam++; continue; }
+    // a conta antiga foi cancelada: libera a chave para a nova (a cancelada fica com a chave marcada)
+    if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANCELADA|${velha.id}`.slice(0, 190) } });
     const valor = r2(l.valor);
     const rateio = Number(l.contaId) ? [{ contaId: Number(l.contaId), pct: 100 }] : [];
     const obs = `IMPORTADO DA POSIÇÃO DE TÍTULOS${l.emissao ? ` · EMISSÃO ${dBR(l.emissao)}` : ""}${l.tituloOrig ? ` · ${l.tituloOrig}` : ""}`;
