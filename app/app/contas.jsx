@@ -569,7 +569,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
 }
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
-const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2] };
+const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2], IFOOD: ["iFood · recarga", C.red, C.redSoft] };
 export function DocumentoModal({ user, contas, onClose, onSalvo }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
@@ -589,7 +589,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
       setArqs(lista); setR(j);
       setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
-        valor: it.valor, atualizarValor: !!it.atualizarValor }])));
+        valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
     } catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -609,14 +609,16 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
   };
   const mudaCriar = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], criar: { ...x[k].criar, ...patch } } }));
   const usados = r ? r.itens.filter((it) => esc[it.chave]?.destino !== "IGNORAR") : [];
-  const faltaConta = usados.some((it) => esc[it.chave]?.destino === "CRIAR" && (!esc[it.chave]?.criar?.contaId || (it.tipo === "OUTRO" && !(Number(esc[it.chave]?.valor) > 0))));
+  // iFood: relatório sempre com boleto (PDF no mesmo envio) ou PIX, e o vencimento
+  const faltaIfood = usados.some((it) => it.tipo === "IFOOD" && (!esc[it.chave]?.vencimento || (!it.boleto && !String(esc[it.chave]?.pix || "").trim())));
+  const faltaConta = faltaIfood || usados.some((it) => esc[it.chave]?.destino === "CRIAR" && (!esc[it.chave]?.criar?.contaId || (it.tipo === "OUTRO" && !(Number(esc[it.chave]?.valor) > 0))));
   const aplicar = async () => {
     setSt("Aplicando…"); setErro("");
     try {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
         return { tipo: it.tipo, valor: it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
-          rateio: it.rateio || null, vencimento: it.vencimento || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
+          rateio: it.rateio || null, vencimento: (it.tipo === "IFOOD" ? e.vencimento : it.vencimento) || null, pix: e.pix || "", boleto: it.boleto || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
@@ -687,6 +689,30 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
                       </div>
                     )}
                     <div className="mt-1" style={{ color: C.sub }}>{it.nota}</div>
+                  </div>
+                )}
+                {it.tipo === "IFOOD" && (
+                  <div className="text-xs mb-2 p-2.5 rounded-lg" style={{ background: C.panel2 }}>
+                    <div className="mb-1.5" style={{ color: C.sub }}>
+                      <button onClick={() => setAbertos((x) => ({ ...x, [it.chave]: !x[it.chave] }))} className="underline" style={{ color: C.blue }}>
+                        {abertos[it.chave] ? "esconder" : "ver"} colaboradores ({it.colaboradores?.length || 0})
+                      </button>
+                      {it.boleto ? <> · boleto <b style={{ color: C.text }}>{it.boleto.arquivo}</b>{it.boleto.vencimento ? ` · vence ${dBR(it.boleto.vencimento)}` : ""}</> : " · sem boleto neste envio: cole o PIX copia e cola"}
+                    </div>
+                    {abertos[it.chave] && (
+                      <div className="mb-2 rounded-lg overflow-auto" style={{ maxHeight: 180, border: `1px solid ${C.line}`, background: C.panel }}>
+                        {(it.colaboradores || []).map((f) => <div key={f.codigo} className="flex justify-between px-3 py-1" style={{ borderBottom: `1px solid ${C.line}` }}><span>{f.nome}</span><b>{brl(f.liquido)}</b></div>)}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-end gap-3">
+                      <label style={{ color: C.sub }}>Vencimento *<input type="date" value={e.vencimento || ""} onChange={(ev) => muda(it.chave, { vencimento: ev.target.value })} className={inp} style={{ ...inpS, width: 150 }} /></label>
+                      {!it.boleto && (
+                        <label className="flex-1" style={{ color: C.sub, minWidth: 260 }}>PIX copia e cola *
+                          <input value={e.pix || ""} onChange={(ev) => muda(it.chave, { pix: ev.target.value.trim() })} className={inp + " font-mono"} style={inpS} placeholder="00020101021226…" />
+                        </label>
+                      )}
+                    </div>
+                    {(!e.vencimento || (!it.boleto && !e.pix)) && <div className="mt-1" style={{ color: C.red }}>Informe o vencimento{!it.boleto ? " e o PIX (ou envie o boleto em PDF junto com o relatório)" : ""}.</div>}
                   </div>
                 )}
                 {it.tipo === "GUIA" && (

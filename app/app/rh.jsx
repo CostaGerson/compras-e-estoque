@@ -61,7 +61,7 @@ export default function Rh({ user }) {
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d ? <div className="flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <>
-          {(tela === "inicio" || tela === "financeiro") && <Calendario cal={d.calendario} />}
+          {tela === "inicio" && <Calendario cal={d.calendario} />}
           {tela === "inicio" && (
             <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {[
@@ -438,15 +438,17 @@ function FinanceiroRH({ user, d, onSalvo }) {
   const [conta, setConta] = useState(false);
   const envios = d.envios || [];
   return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-sm" style={{ color: C.sub }}>Suba as folhas (fopag + líquidos), as guias de INSS e FGTS, relatórios e boletos do iFood, termos de rescisão e outros. O sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.</div>
-        <div className="ml-auto shrink-0 flex flex-col gap-1.5">
-          <button onClick={() => setImp(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar documentos</button>
-          <button onClick={() => setIfood(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}66` }}><UtensilsCrossed size={15} /> Enviar recargas do iFood</button>
-          <button onClick={() => setConta(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Receipt size={15} /> Lançar conta a pagar</button>
+    <div>
+      {/* ações no topo */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <button onClick={() => setImp(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Enviar documentos</button>
+        <button onClick={() => setConta(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Receipt size={15} /> Lançar conta a pagar</button>
+        <div className="text-xs ml-2 flex-1" style={{ color: C.sub, minWidth: 260 }}>
+          Folhas (fopag + líquidos), guias de INSS e FGTS, relatório de recarga do iFood (com o boleto em PDF ou o PIX), recibos, rescisões e outros: o sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.
         </div>
       </div>
+      <Calendario cal={d.calendario} />
+      <div className="mt-4" />
       <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="px-4 py-2.5 text-sm font-bold" style={{ background: C.panel2, color: C.navy }}>Documentos enviados · este mês e o anterior</div>
         <table className="w-full text-xs">

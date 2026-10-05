@@ -145,6 +145,47 @@ DETECTORES.push(
   },
 );
 
+// ---- iFood: relatório de recarga (+ boleto, se vier junto) ----
+DETECTORES.push(
+  {
+    tipo: "IFOOD",
+    casa: (L) => L.some((l) => /^Relat[oó]rio de recarga/i.test(l)) && L.some((l) => /iFood Benef[ií]cios/i.test(l)),
+    ler(L) {
+      const t = L.join("\n");
+      const tot = t.match(/Valor total da recarga[^\n]*\n\s*R\$\s*([\d.,]+)/i);
+      const cab = t.match(/#(\d+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/);
+      const colaboradores = [];
+      const ROW = /^(.+?)\s+(\d{3}\.\d{3}\.\d{3}-\d{2})((?:\s+R\$[\d.,]+){9})$/;
+      for (let i = 0; i < L.length; i++) {
+        const m = L[i].match(ROW);
+        if (!m) continue;
+        const v = m[3].trim().split(/\s+/).map((x) => num(x.replace("R$", "")));
+        let nome = m[1];
+        for (let j = i + 1; j < L.length && /^[A-ZÀ-Ú][A-ZÀ-Ú ]*$/.test(L[j]) && !ROW.test(L[j]) && L[j].length < 40 && !/IFOOD|AVENIDA|CNPJ/.test(L[j]); j++) nome += ` ${L[j]}`;
+        colaboradores.push({ nome: nome.toUpperCase(), cpf: m[2], alimentacao: v[0], comer: v[1], mobilidade: v[2], outros: v[3] + v[4] + v[5] + v[6] + v[7], livre: v[8],
+          total: r2(v.reduce((a, x) => a + x, 0)) });
+      }
+      return {
+        empresa: empresaCnpj(cab?.[3] || t), recarga: cab?.[1] || null, data: cab ? dataBR(cab[2]) : null,
+        valor: tot ? num(tot[1].replace(/\.(?=\d{3},)/g, "")) : r2(colaboradores.reduce((a, c) => a + c.total, 0)), colaboradores,
+      };
+    },
+  },
+  {
+    tipo: "BOLETO",
+    casa: (L) => L.some((l) => /linha digit[aá]vel|benefici[aá]rio/i.test(l)) && L.some((l) => /vencimento/i.test(l)),
+    ler(L) {
+      const t = L.join("\n");
+      const venc = t.match(/vencimento[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})/i);
+      const valor = t.match(/valor (?:do documento|cobrado|a pagar|total)[^\d]{0,40}([\d.]+,\d{2})/i);
+      const linha = t.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+      const benef = (L.find((l) => /benefici[aá]rio/i.test(l)) || "") + " " + (L[L.findIndex((l) => /benefici[aá]rio/i.test(l)) + 1] || "");
+      return { vencimento: venc ? dataBR(venc[1]) : null, valor: valor ? num(valor[1]) : 0, linha: linha?.[0] || null,
+        beneficiario: benef.toUpperCase(), ifood: /IFOOD/.test(normRegra(t)), empresa: empresaCnpj(t) };
+    },
+  },
+);
+
 export async function lerDocumento(nome, buf) {
   const L = await textoDoc(buf);
   const d = DETECTORES.find((x) => x.casa(L));
@@ -252,6 +293,62 @@ export async function analisarDocumentos(docs) {
         contaId: Array.isArray(ant?.rateio) && ant.rateio.length ? ant.rateio[0].contaId : null },
     });
   }
+  // iFood: relatório de recarga → conta do iFood do mês (Meridian: IFOOD da Matriz; NORT: NORT - VT / VA / BENEFÍCIOS)
+  const boletos = docs.filter((x) => x.tipo === "BOLETO");
+  const boletoUsado = new Set();
+  for (const d of docs.filter((x) => x.tipo === "IFOOD")) {
+    const nort = d.empresa === "NORT";
+    const comp = d.data ? mesDe(d.data) : new Date().toISOString().slice(0, 7);
+    const opcoes = [...(await contasDoMes(comp)), ...(await contasDoMes(somaMes(comp, 1)))];
+    const rec = await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: nort ? "NORT|BENEFICIOS" : "MATRIZ|pessoal|IFOOD" }, select: { id: true } });
+    const doMes = (c) => opcoes.find((t) => rec && t.recorrenciaId === rec.id && mesDe(t.vencimento) === c && t.status === "ABERTO")
+      || opcoes.find((t) => /IFOOD|BENEF/.test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && mesDe(t.vencimento) === c && t.status === "ABERTO");
+    const alvo = doMes(comp) || doMes(somaMes(comp, 1)) || null;
+    // boleto do mesmo envio: do iFood ou com o mesmo valor
+    const bol = boletos.find((b) => !boletoUsado.has(b.arquivo) && (b.ifood || Math.abs(b.valor - d.valor) <= 0.01));
+    if (bol) boletoUsado.add(bol.arquivo);
+    const avisos = [];
+    const soma = r2(d.colaboradores.reduce((a, c) => a + c.total, 0));
+    if (d.colaboradores.length && Math.abs(soma - d.valor) > 0.01) avisos.push(`A soma dos colaboradores (${soma.toFixed(2)}) difere do total (${d.valor.toFixed(2)}).`);
+    if (bol && bol.valor && Math.abs(bol.valor - d.valor) > 0.01) avisos.push(`Boleto de ${bol.valor.toFixed(2)} diferente do relatório (${d.valor.toFixed(2)}).`);
+    // rateio pelo setor de cada colaborador: mobilidade → VT, o resto → benefícios (adm ou produção)
+    const contasI = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
+    const idI = Object.fromEntries(contasI.map((c) => [c.codigo, c.id]));
+    let rateio = null, matriz = null;
+    if (nort) rateio = idI["2156000"] ? [{ contaId: idI["2156000"], pct: 100 }] : null;
+    else if (d.valor > 0) {
+      matriz = await conferirFolhaMatriz(d.colaboradores.map((c) => ({ nome: c.nome, codigo: c.cpf })), "MERIDIAN");
+      const setor = {};
+      for (const o of matriz.ok) setor[o.folha] = o.depto;
+      for (const f of matriz.faltam) setor[f.nome] = f.depto;
+      const m = {};
+      for (const c of d.colaboradores) {
+        const adm = ["ADM", "DIR"].includes(setor[c.nome] || "ADM");
+        const vt = adm ? "2128300" : "2113400", ben = adm ? "2128100" : "2113700";
+        m[vt] = (m[vt] || 0) + c.mobilidade;
+        m[ben] = (m[ben] || 0) + c.total - c.mobilidade;
+      }
+      const tot = Object.values(m).reduce((a, v) => a + v, 0) || 1;
+      const l = Object.entries(m).filter(([c, v]) => idI[c] && v > 0).map(([c, v]) => ({ contaId: idI[c], pct: r2((v / tot) * 100) })).sort((a, b) => b.pct - a.pct);
+      if (l.length) { const dif = r2(100 - l.reduce((a, x) => a + x.pct, 0)); l[0].pct = r2(l[0].pct + dif); }
+      rateio = l.length ? l : null;
+      if (matriz.faltam.length) avisos.push(`Não estão na Matriz: ${matriz.faltam.map((f) => f.nome).join(", ")} (rateio pelo setor sugerido).`);
+    }
+    itens.push({
+      chave: `IFOOD|${d.recarga || d.arquivo}`, tipo: "IFOOD", empresa: d.empresa, comp, refTexto: nomeMes(comp),
+      descricao: `iFood — recarga #${d.recarga || "?"} de ${d.data ? dBR(d.data) : "?"} — ${d.empresa} · ${d.colaboradores.length} colaborador(es)`,
+      valor: r2(d.valor), arquivos: [d.arquivo, ...(bol ? [bol.arquivo] : [])], avisos, rateio,
+      vencimento: bol?.vencimento || null, boleto: bol ? { arquivo: bol.arquivo, linha: bol.linha, vencimento: bol.vencimento, valor: bol.valor } : null,
+      colaboradores: d.colaboradores.map((c) => ({ codigo: c.cpf, nome: c.nome, liquido: c.total })),
+      alvo: saida(alvo), opcoes: opcoes.map(saida),
+      novo: { titulo: nort ? "NORT - IFOOD RECARGAS" : "IFOOD — RECARGAS", parceiro: "IFOOD BENEFÍCIOS", vencimento: bol?.vencimento || null, contaId: rateio?.[0]?.contaId || null },
+    });
+  }
+  // boletos soltos (sem relatório no envio) viram "outro documento" com valor e vencimento
+  for (const b of boletos.filter((x) => !boletoUsado.has(x.arquivo))) {
+    docs.push({ arquivo: b.arquivo, tipo: "DESCONHECIDO", texto: [b.beneficiario, b.ifood ? "IFOOD" : ""], boleto: b });
+  }
+
   // outros documentos (iFood, rescisão, adiantamento…): sugere a conta pelo assunto e anexa
   for (const d of docs.filter((x) => x.tipo === "DESCONHECIDO")) {
     const txt = normRegra(`${d.arquivo} ${(d.texto || []).join(" ")}`);
@@ -267,8 +364,9 @@ export async function analisarDocumentos(docs) {
     for (const re of [/Total L[ií]quido[^\d]*([\d.]+,\d{2})/i, /Total por Empresa\s*=>\s*([\d.]+,\d{2})/i, /Valor (?:Total|a pagar|do documento)[^\d]*([\d.]+,\d{2})/i, /TOTAL[^\d]*([\d.]+,\d{2})/i]) {
       const m = L.join("\n").match(re); if (m) { valor = num(m[1]); break; }
     }
+    if (d.boleto?.valor) valor = d.boleto.valor;
     itens.push({
-      chave: `OUTRO|${d.arquivo}`, tipo: "OUTRO", empresa: nort ? "NORT" : "MERIDIAN", comp: alvo ? mesDe(alvo.vencimento) : hoje, refTexto: "",
+      chave: `OUTRO|${d.arquivo}`, tipo: "OUTRO", vencimento: d.boleto?.vencimento || null, empresa: nort ? "NORT" : "MERIDIAN", comp: alvo ? mesDe(alvo.vencimento) : hoje, refTexto: "",
       descricao: `${assunto ? { IFOOD: "iFood", RESCIS: "Rescisão", ADIANT: "Adiantamento", FERIAS: "Férias" }[assunto] + " — " : ""}${d.arquivo}`,
       valor: r2(valor), arquivos: [d.arquivo], avisos: [assunto ? "Documento sem leitura automática: confira a conta e o valor." : "Não reconheci o documento: escolha a conta para anexar (o valor só muda se você marcar)."],
       atualizarValor: !!(alvo && valor > 0), alvo: saida(alvo), opcoes: opcoes.map(saida),
@@ -349,6 +447,10 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       continue;
     }
     const valor = r2(it.valor);
+    if (it.tipo === "IFOOD") {   // relatório do iFood sempre com boleto (PDF) ou PIX e o vencimento
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(it.vencimento || "")) throw new Error(`${it.descricao}: informe o vencimento do boleto.`);
+      if (!it.boleto && !String(it.pix || "").trim()) throw new Error(`${it.descricao}: o relatório precisa do boleto em PDF ou do PIX copia e cola.`);
+    }
     let id = Number(it.alvoId) || null;
     if (id) {
       const t = await prisma.finTitulo.findUnique({ where: { id } });
@@ -363,6 +465,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
             valor, previsao: false, valorConfirmado: true, atualizadoPorNome: quem || null,
             ...(Array.isArray(it.rateio) && it.rateio.length ? { rateio: it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) } : {}),
             ...(it.vencimento ? { vencimento: dataUTC(it.vencimento) } : {}),
+            ...(it.tipo === "IFOOD" && it.pix ? { observacao: [t.observacao, `IFOOD · PIX COPIA E COLA: ${String(it.pix).trim()}`].filter(Boolean).join(" · ").slice(0, 1000) } : {}),
             observacao: [t.observacao, `${it.descricao} · R$ ${valor.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 500),
           },
         });
@@ -388,6 +491,22 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       r.linhas.push(`${t.titulo}: criada com R$ ${valor.toFixed(2)}`);
     } else { r.ids.push(null); continue; }
     r.ids.push(id);
+    // iFood: PIX vira anexo .txt e o financeiro é avisado
+    if (it.tipo === "IFOOD") {
+      try {
+        const { hashB64 } = await import("@/lib/finHash");
+        const pix = String(it.pix || "").trim();
+        if (pix) {
+          const conteudo = Buffer.from(pix, "utf8").toString("base64"), hash = hashB64(conteudo);
+          if (!(await prisma.finTituloAnexo.findFirst({ where: { tituloId: id, hash }, select: { id: true } })))
+            await prisma.finTituloAnexo.create({ data: { tituloId: id, nome: "PIX_COPIA_E_COLA.txt", mime: "text/plain", tamanho: pix.length, conteudo, hash, criadoPorNome: quem || null } });
+        }
+        const { notificarFinanceiro } = await import("@/lib/rh");
+        const t = await prisma.finTitulo.findUnique({ where: { id }, select: { titulo: true } });
+        await notificarFinanceiro(`iFood ${it.empresa || ""}: recarga de R$ ${valor.toFixed(2).replace(".", ",")}, vencimento ${dBR(it.vencimento)}. `
+          + `${pix ? `PIX copia e cola: ${pix}` : "Boleto em PDF anexado"} · conta "${t?.titulo}". Por ${quem || "—"}.`, usuarioId);
+      } catch { /* aviso não trava */ }
+    }
     // registro para o calendário de obrigações do RH
     try {
       const { categoriaEnvio } = await import("@/lib/rh");
@@ -396,7 +515,8 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       for (const [i, n] of (it.arquivos || []).entries()) {
         const h = it.hashes?.[i] || null;
         if (h && await prisma.rhEnvio.findFirst({ where: { hash: h }, select: { id: true } })) continue;
-        await prisma.rhEnvio.create({ data: { competencia: t?.competencia || it.comp || "", empresa: emp, categoria: categoriaEnvio(it, t), arquivo: n, tituloId: id, valor, hash: h, criadoPorNome: quem || null } });
+        const { mesAtual: mesHoje } = await import("@/lib/finTitulos");
+        await prisma.rhEnvio.create({ data: { competencia: it.tipo === "IFOOD" ? mesHoje() : t?.competencia || it.comp || "", empresa: emp, categoria: categoriaEnvio(it, t), arquivo: n, tituloId: id, valor, hash: h, criadoPorNome: quem || null } });
       }
     } catch { /* o registro não pode travar o lançamento */ }
     for (const n of it.arquivos || []) {

@@ -159,6 +159,7 @@ export async function calendario(comp = mesAtual()) {
 // categoria do documento pela conta que recebeu (para o calendário)
 export function categoriaEnvio(it, titulo) {
   if (it.tipo === "FOLHA") return "FOLHA";
+  if (it.tipo === "IFOOD") return "IFOOD";
   if (it.tipo === "GUIA" && ["INSS", "FGTS"].includes(it.guia)) return it.guia === "FGTS" && /RESCIS/.test(String(it.descricao)) ? "RESCISAO" : it.guia;
   const t = String(`${titulo?.titulo || ""} ${it.descricao || ""}`).toUpperCase();
   if (/ADIANT/.test(t)) return "ADIANTAMENTO";
