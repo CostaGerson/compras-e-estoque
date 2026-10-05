@@ -342,6 +342,7 @@ export default function ContasPagarReceber({ user }) {
         {(mes !== mesAtual() || dIni !== hojeISO() || dFim !== hojeISO()) && <button onClick={irHoje} className="text-xs underline" style={{ color: C.blue }}>hoje</button>}
         <div className="flex-1" />
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
+        <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
@@ -429,6 +430,7 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
+      {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
     </div>
   );
@@ -502,6 +504,117 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------------- importação da posição de títulos (sistema antigo) ---------------- */
+const SIT_POS = {
+  NOVO: ["Novo", C.green, C.greenSoft],
+  RECORRENCIA: ["Previsão de recorrência", C.roxo, C.roxoSoft],
+  DUPLICADO: ["Já existe", C.red, C.redSoft],
+  REPETIDO: ["Repetido na planilha", C.yellow, C.yellowSoft],
+  JA_IMPORTADO: ["Já importado", C.sub, C.panel2],
+};
+const DEC_POS = { IMPORTAR: "Importar", SUBSTITUIR: "Substituir a previsão", IGNORAR: "Ignorar" };
+function PosicaoModal({ user, contas, onClose, onSalvo }) {
+  const [a, setA] = useState(null);          // resultado da análise
+  const [l, setL] = useState([]);
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const [filtro, setFiltro] = useState("TODOS");
+  const ref = useRef(null);
+  const contasPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas]);
+  const ler = async (f) => {
+    if (!f) return;
+    setErro(""); setSt("Lendo e conferindo duplicidades…");
+    try {
+      const r = await api("/api/fin/titulos/posicao", "POST", { usuarioId: user.id, acao: "analisar", conteudo: await readB64(f) });
+      setA({ ...r, arquivo: f.name }); setL(r.linhas);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const alt = (i, k, v) => setL((x) => x.map((y) => (y.linha === i ? { ...y, [k]: v } : y)));
+  const vis = l.filter((x) => filtro === "TODOS" || x.situacao === filtro || (filtro === "SEM_CONTA" && !x.contaId && x.decisao !== "IGNORAR"));
+  const n = (dec) => l.filter((x) => x.decisao === dec);
+  const soma = (arr) => arr.reduce((s, x) => s + x.valor, 0);
+  const semConta = l.filter((x) => !x.contaId && x.decisao !== "IGNORAR").length;
+  const importar = async () => {
+    setSt("Importando…"); setErro("");
+    try {
+      const r = await api("/api/fin/titulos/posicao", "POST", { usuarioId: user.id, acao: "importar", linhas: l });
+      onSalvo(`Posição importada: ${r.criadas} conta(s) nova(s) (${moeda(r.valorCriado)})${r.substituidas ? `, ${r.substituidas} previsão(ões) de recorrência atualizada(s) (${moeda(r.valorSubstituido)})` : ""}${r.ignoradas ? `, ${r.ignoradas} ignorada(s)` : ""}${r.jaExistiam ? `, ${r.jaExistiam} já existiam` : ""}.`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Importar posição de títulos (sistema antigo)" icone={FileSpreadsheet} onClose={onClose} largura={1180}
+      rodape={a ? <>
+        <span className="text-xs mr-auto" style={{ color: C.sub }}>{n("IMPORTAR").length} nova(s) · {moeda(soma(n("IMPORTAR")))} — {n("SUBSTITUIR").length} substituição(ões) · {moeda(soma(n("SUBSTITUIR")))} — {n("IGNORAR").length} ignorada(s)</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={importar} disabled={!!st || !(n("IMPORTAR").length + n("SUBSTITUIR").length)}>{st && <Loader2 size={14} className="animate-spin" />} Importar</BtnP>
+      </> : null}>
+      {!a && (
+        <div className="text-center py-10">
+          <FileSpreadsheet size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie a <b>Posição de Títulos (Analítico)</b> exportada do sistema antigo (.xls ou .xlsx).</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Antes de gravar, o sistema confere cada linha contra as contas já lançadas, as NFs e as previsões das recorrências.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher planilha"}</BtnP>
+          <input ref={ref} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { ler(e.target.files[0]); e.target.value = ""; }} />
+        </div>
+      )}
+      {a && (
+        <>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>
+            <b style={{ color: C.navy }}>{a.arquivo}</b> · {l.length} título(s) em aberto · {moeda(a.total)} · contas a <b>{(a.tipos || []).join(" e ").toLowerCase()}</b>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {[["TODOS", "Todos", l.length], ...Object.keys(SIT_POS).filter((k) => a.resumo[k]).map((k) => [k, SIT_POS[k][0], a.resumo[k].qtd]), ...(semConta ? [["SEM_CONTA", "Sem conta-caixa", semConta]] : [])].map(([k, t, q]) => (
+              <button key={k} onClick={() => setFiltro(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={filtro === k ? { background: C.navy, color: "#fff" } : { background: (SIT_POS[k] || [])[2] || C.panel2, color: (SIT_POS[k] || [])[1] || C.text }}>{t} · {q}</button>
+            ))}
+          </div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "58vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["Linha", "Vencimento", "Título / descrição", "Parceiro", "Valor", "Situação", "Decisão", "Conta-caixa"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>{vis.map((x) => {
+                const [st0, c0, bg0] = SIT_POS[x.situacao] || [x.situacao, C.sub, C.panel2];
+                const opcoes = x.situacao === "JA_IMPORTADO" ? ["IGNORAR"] : x.situacao === "RECORRENCIA" && x.alvo?.status !== "PAGO" ? ["SUBSTITUIR", "IMPORTAR", "IGNORAR"] : ["IMPORTAR", "IGNORAR"];
+                return (
+                  <tr key={x.linha} style={{ borderBottom: `1px solid ${C.line}`, opacity: x.decisao === "IGNORAR" ? 0.55 : 1 }}>
+                    <td className="px-2 py-1.5" style={{ color: C.sub }}>{x.linha}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap font-semibold" style={{ color: x.vencimento < hojeISO() ? C.red : C.text }}>{dBR(x.vencimento)}</td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 280 }}>
+                      <div className="font-semibold truncate" style={{ color: C.navy }} title={x.titulo}>{x.titulo}</div>
+                      <div style={{ color: C.sub }}>{x.tituloOrig}</div>
+                      {x.motivo && <div className="mt-0.5" style={{ color: c0 }}>{x.motivo}</div>}
+                    </td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 180 }}><div className="truncate" title={x.parceiro}>{x.parceiro}</div></td>
+                    <td className="px-2 py-1.5 text-right font-bold whitespace-nowrap">{brl(x.valor)}</td>
+                    <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: c0, background: bg0 }}>{st0}</span></td>
+                    <td className="px-2 py-1.5">
+                      <select value={x.decisao} onChange={(e) => alt(x.linha, "decisao", e.target.value)} className="rounded px-1.5 py-1 text-xs outline-none" style={inpS} disabled={opcoes.length === 1}>
+                        {opcoes.map((o) => <option key={o} value={o}>{DEC_POS[o]}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5" style={{ minWidth: 220 }}>
+                      {x.decisao === "IGNORAR" ? <span style={{ color: C.sub }}>—</span> : (
+                        <>
+                          <ContaSelect conta={contasPorId[x.contaId]} contas={contas} onPick={(id) => { alt(x.linha, "contaId", id); alt(x.linha, "origemConta", "ESCOLHIDA"); }} />
+                          {x.origemConta && x.origemConta !== "ESCOLHIDA" && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>sugestão: {x.origemConta.toLowerCase()}</div>}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+          {semConta > 0 && <div className="mt-2 text-xs" style={{ color: C.yellow }}>{semConta} conta(s) vão entrar sem conta-caixa — dá para escolher agora ou depois, editando a conta.</div>}
+        </>
+      )}
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
   );
 }
 
