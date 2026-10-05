@@ -35,6 +35,7 @@ const api = async (url, method = "GET", body) => {
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(file); });
 const fimDoMes = (c) => { const [a, m] = c.split("-").map(Number); return `${c}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`; };
 const somaDias = (iso, n) => { const [a, m, d] = iso.split("-").map(Number); const x = new Date(a, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+const segundaDaSemana = (iso) => { const [a, m, d] = iso.split("-").map(Number); const w = new Date(a, m - 1, d).getDay(); return somaDias(iso, w === 0 ? -6 : 1 - w); };
 const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
@@ -412,6 +413,10 @@ export default function ContasPagarReceber({ user }) {
             </div>
           ) : (
           <div className="flex flex-wrap items-end gap-2 mb-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, conta…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
+            </div>
             <label className="text-xs" style={{ color: C.sub }}>De
               <input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
@@ -419,14 +424,10 @@ export default function ContasPagarReceber({ user }) {
               <input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
             <div className="flex gap-1 pb-0.5">
-              {[["Hoje", hojeISO(), hojeISO()], ["7 dias", hojeISO(), somaDias(hojeISO(), 6)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
+              {[["Hoje", hojeISO(), hojeISO()], ["Semana", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["7 dias", hojeISO(), somaDias(hojeISO(), 6)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
                 <button key={t} onClick={() => { setDIni(a); setDFim(b); }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                   style={dIni === a && dFim === b ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
               ))}
-            </div>
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, conta…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
             </div>
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
               <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
@@ -488,6 +489,7 @@ const chaveOrdem = (t, col, contasPorId) => {
     case "parceiro": return String(t.parceiro || "").toUpperCase();
     case "rateio": { const c = contasPorId[(t.rateio || [])[0]?.contaId]; return c ? `${c.codigo} ${c.nome}` : "￿"; }
     case "valor": return Number(t.valor || 0);
+    case "fpgto": return FORMAS_PGTO[t.formaPagamento] || "￿";
     case "situacao": return situacao(t).t;
     case "origem": return `${ehImportacao(t) ? "IMPORTAÇÃO" : (FORMA[t.forma] || [t.forma || ""])[0].toUpperCase()} ${t.createdAt || ""}`;
     default: return "";
@@ -518,7 +520,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
           <table className="w-full text-xs">
             <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
               {sel && <th className="pl-3 py-2 w-6"><input type="checkbox" checked={todos} disabled={!abertos.length} onChange={(e) => marcar(abertos, e.target.checked)} title="Selecionar todas em aberto" /></th>}
-              {[["venc", "Vencimento"], ["titulo", "Título"], ["parceiro", P ? "Fornecedor" : "Cliente"], ["rateio", "Rateio (conta-caixa)"], ["valor", "Valor"], ["situacao", "Situação"], ["origem", "Origem"], [null, ""]].map(([col, h], i) => (
+              {[["venc", "Vencimento"], ["titulo", "Título"], ["parceiro", P ? "Fornecedor" : "Cliente"], ["rateio", "Rateio (conta-caixa)"], ["valor", "Valor"], ["fpgto", "Forma pgto"], ["situacao", "Situação"], ["origem", "Origem"], [null, ""]].map(([col, h], i) => (
                 <th key={i} className={`px-3 py-2 font-semibold ${col === "valor" ? "text-right" : "text-left"}`}>
                   {col ? (
                     <button onClick={() => clicarCol(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 ${col === "valor" ? "flex-row-reverse" : ""}`} style={{ color: ordem?.col === col ? C.accent : C.sub }}>
@@ -558,6 +560,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
                     {t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
                     {conferir && <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>}
                   </td>
+                  <td className="px-3 py-2 whitespace-nowrap" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
                   <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
                   <td className="px-3 py-2" title={`${fT} · ${t.criadoPorNome || "—"} · ${new Date(t.createdAt).toLocaleString("pt-BR")}${t.atualizadoPorNome ? ` · alterado por ${t.atualizadoPorNome}` : ""}`}>
                     {ehImportacao(t) ? (

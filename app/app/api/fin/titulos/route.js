@@ -4,7 +4,7 @@ import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
 import { garantirRecorrenciasMatriz } from "@/lib/finMatrizRecDb";
 import { separarMutuos, ajustarSalarioSabado } from "@/lib/finAjustes";
 import { garantirSemanas, limparSemanasAntigas } from "@/lib/finSemana";
-import { gerarRecorrencias, tituloOut, COM_ANEXOS, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
+import { gerarRecorrencias, ajustarFinsDeSemana, tituloOut, COM_ANEXOS, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
 
 const TIPOS = ["PAGAR", "RECEBER"];
 
@@ -19,6 +19,7 @@ export async function GET(req) {
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   await gerarRecorrencias(tipo);
+  await ajustarFinsDeSemana().catch(() => null);   // sáb/dom → segunda; folha e adiantamento → sexta
   const de0 = sp.get("de") || mesAtual();
   if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);
   { const { padronizarNort } = await import("@/lib/finNort"); await padronizarNort().catch(() => null); }   // "NORT - NOME DA CONTA"

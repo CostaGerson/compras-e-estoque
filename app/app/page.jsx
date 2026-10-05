@@ -145,7 +145,7 @@ export default function Home() {
       <div className="shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden" style={{ width: collapsed ? 0 : 240 }}>
       <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
-          <button onClick={() => setView(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
+          <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
           </button>
           <button onClick={() => setCollapsed(true)} title="Recolher menu"
@@ -154,7 +154,7 @@ export default function Home() {
           </button>
         </div>
         <nav className="flex-1 py-2 overflow-y-auto">
-          <MenuArvore itens={menu} view={view} caminho={caminho} ir={ir} />
+          <MenuArvore itens={menu} view={view} caminho={caminho} ir={irInicio} />
         </nav>
         <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
           Sistema de Gestão · v1

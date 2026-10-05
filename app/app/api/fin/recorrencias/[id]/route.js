@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { validarRateio, r2, so, mesAtual, vencNoMes, contaSabado, gerarRecorrencias } from "@/lib/finTitulos";
+import { validarRateio, r2, so, mesAtual, vencNoMes, contaSabado, ajustaFds, ehFolha, gerarRecorrencias } from "@/lib/finTitulos";
 
 // PATCH { usuarioId, titulo, parceiro, documento, valor, diaVencimento, rateio, fim, observacao }
 // Alterações valem para os meses FUTUROS ainda não conferidos/pagos. Fim → apaga previsões depois dele.
@@ -33,7 +33,7 @@ export async function PATCH(req, { params }) {
   for (const t of fut) {
     const up = {};
     for (const k of ["titulo", "parceiro", "documento", "observacao", "rateio", "valor"]) if (d[k] !== undefined) up[k] = d[k];
-    if (d.diaVencimento || d.diaUtil !== undefined) up.vencimento = vencNoMes(t.competencia, d.diaVencimento ?? r.diaVencimento, d.diaUtil ?? r.diaUtil, contaSabado({ ...r, ...d }));
+    if (d.diaVencimento || d.diaUtil !== undefined) up.vencimento = ajustaFds(vencNoMes(t.competencia, d.diaVencimento ?? r.diaVencimento, d.diaUtil ?? r.diaUtil, contaSabado({ ...r, ...d })), ehFolha({ ...r, ...d }));
     if (Object.keys(up).length) await prisma.finTitulo.update({ where: { id: t.id }, data: up });
   }
   await gerarRecorrencias(r.tipo);

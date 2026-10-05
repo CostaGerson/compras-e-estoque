@@ -24,6 +24,19 @@ export function nDiaUtil(comp, n, sabado = false) {
   }
   return new Date(Date.UTC(a, m, 0));
 }
+// Fim de semana (v122): conta que vence sábado/domingo passa para a segunda seguinte;
+// folha (salário, folha NORT, pró-labore, estágio) e adiantamento do dia 20 são antecipados para a sexta.
+const RX_FOLHA = /(^|[^A-Z])(SAL[AÁ]RIO|FOLHA|PR[OÓ][ -]?LABORE|EST[AÁ]GIO|ADIANTAMENTO SALARIAL)([^A-Z]|$)/;
+export const ehFolha = (r) => contaSabado(r)
+  || ["MATRIZ|pessoal|ADIANTAMENTO", "NORT|ADIANTAMENTO"].includes(r?.chaveOrigem)
+  || RX_FOLHA.test(String(r?.titulo || "").toUpperCase());
+export function ajustaFds(d, folha = false) {
+  if (!d) return d;
+  const x = d instanceof Date ? d : dataUTC(d), dow = x.getUTCDay();
+  if (dow !== 0 && dow !== 6) return x;
+  const n = folha ? (dow === 6 ? -1 : -2) : (dow === 6 ? 2 : 1);
+  return new Date(x.getTime() + n * 86400000);
+}
 // vencimento no dia X do mês (ajusta para o último dia em meses curtos) — ou no X-ésimo dia útil
 export const vencNoMes = (comp, dia, util = false, sabado = false) => {
   if (util) return nDiaUtil(comp, dia, sabado);
@@ -63,7 +76,7 @@ export async function gerarRecorrencias(tipo) {
     for (let c = r.inicio; c <= fim; c = somaMes(c, passo)) {
       if (tem.has(`${r.id}|${c}`)) continue;
       data.push({
-        tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: vencNoMes(c, r.diaVencimento, r.diaUtil, contaSabado(r)),
+        tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, documento: r.documento, valor: r.valor, vencimento: ajustaFds(vencNoMes(c, r.diaVencimento, r.diaUtil, contaSabado(r)), ehFolha(r)),
         competencia: c, previsao: true, rateio: r.rateio, observacao: r.observacao, forma: "RECORRENCIA", formaPagamento: r.formaPagamento || null, recorrenciaId: r.id, criadoPorNome: r.criadoPorNome,
       });
     }
@@ -154,4 +167,20 @@ export function notaParaLeitura(nf) {
     parcelas: [{ parcela: "1", vencimento: emissao, valor: total, semVencimento: true }],
     chaveBase: nf.chave ? `NFE|${nf.chave}` : `NF|${nf.id}`, semXml: true,
   };
+}
+
+// Contas em aberto que vencem no fim de semana → aplica a regra acima (roda a cada abertura da tela; idempotente)
+export async function ajustarFinsDeSemana() {
+  const abertas = await prisma.finTitulo.findMany({ where: { status: "ABERTO" }, select: { id: true, titulo: true, vencimento: true, chaveImport: true, recorrenciaId: true } });
+  const fds = abertas.filter((t) => [0, 6].includes(t.vencimento.getUTCDay()) && !String(t.chaveImport || "").startsWith("SEMANA|"));
+  if (!fds.length) return 0;
+  const recIds = [...new Set(fds.map((t) => t.recorrenciaId).filter(Boolean))];
+  const recs = recIds.length ? await prisma.finRecorrencia.findMany({ where: { id: { in: recIds } }, select: { id: true, titulo: true, chaveOrigem: true } }) : [];
+  const porId = Object.fromEntries(recs.map((r) => [r.id, r]));
+  for (const t of fds) {
+    const r = porId[t.recorrenciaId];
+    const novo = ajustaFds(t.vencimento, ehFolha(t) || (r && ehFolha(r)));
+    await prisma.finTitulo.update({ where: { id: t.id }, data: { vencimento: novo } });
+  }
+  return fds.length;
 }
