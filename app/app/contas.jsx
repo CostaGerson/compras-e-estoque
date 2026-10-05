@@ -383,6 +383,12 @@ export default function ContasPagarReceber({ user }) {
           </div>
 
           {/* filtro do período da lista */}
+          {fSit === "SEMCONTA" ? (
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+              <span className="px-3 py-1.5 rounded-lg font-semibold" style={{ background: C.redSoft, color: C.red }}>Todas as contas em aberto sem conta-caixa · qualquer vencimento</span>
+              <button onClick={() => setFSit("TODOS")} className="text-xs underline" style={{ color: C.blue }}>voltar à lista do período</button>
+            </div>
+          ) : (
           <div className="flex flex-wrap items-end gap-2 mb-3">
             <label className="text-xs" style={{ color: C.sub }}>De
               <input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
@@ -406,6 +412,7 @@ export default function ContasPagarReceber({ user }) {
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
           </div>
+          )}
 
           {/* ações em lote */}
           {marcados.length > 0 && (
@@ -425,7 +432,7 @@ export default function ContasPagarReceber({ user }) {
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
-          {d.atrasados.length > 0 && (
+          {d.atrasados.length > 0 && fSit !== "SEMCONTA" && (
             <Tabela titulo={`Vencidos de meses anteriores · ${moeda(tot.atrasados)}`} cor={C.red} itens={d.atrasados} contasPorId={contasPorId} P={P}
               sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
