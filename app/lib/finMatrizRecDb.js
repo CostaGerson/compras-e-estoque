@@ -170,3 +170,17 @@ export async function separarGuiasNort() {
   const novas = m.propostas.filter((p) => ["NORT|INSS", "NORT|FGTS"].includes(p.chave) && !p.jaExiste).map((p) => p.chave);
   return novas.length ? aplicarMatrizRec({ quem: "AUTOMÁTICO (NORT INSS/FGTS)", chaves: novas }) : null;
 }
+
+// v116: INSS/FGTS dos sócios saem do PRO LABORE e vão para IMPOSTOS SOBRE PESSOAL ADM — atualiza o rateio (uma vez)
+const CHAVE_ENC_SOCIOS = "AJUSTE|encargos-socios-v116";
+export async function encargosSociosAdm() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_ENC_SOCIOS } }).catch(() => null);
+  if (ja) return null;
+  if (!(await prisma.finRecorrencia.count({ where: { chaveOrigem: { startsWith: "MATRIZ|" } } }))) return null;
+  await prisma.finConfig.create({ data: { chave: CHAVE_ENC_SOCIOS, valor: new Date().toISOString() } });
+  await garantirContas();
+  const m = await montarMatrizRec();
+  if (m.error) return null;
+  const mudar = m.propostas.filter((p) => ["MATRIZ|pessoal|INSS", "MATRIZ|pessoal|FGTS"].includes(p.chave) && p.mudou).map((p) => p.chave);
+  return mudar.length ? aplicarMatrizRec({ quem: "AUTOMÁTICO (ENCARGOS DOS SÓCIOS)", chaves: [], atualizar: mudar }) : null;
+}

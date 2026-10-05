@@ -275,7 +275,7 @@ export async function analisarDocumentos(docs) {
     }
     if (tipoG === "DARF") avisos.push("DARF sem códigos previdenciários — escolha a conta de destino.");
     // rateio: NORT → INSS/FGTS da loja; Meridian → mesmo rateio do SALÁRIO do mês (setores da folha),
-    // e no INSS a parte dos sócios (contribuinte individual: 1099 e 1138-04) vai para PRO LABORE
+    // e no INSS a parte dos sócios (contribuinte individual: 1099 e 1138-04) vai para IMPOSTOS SOBRE PESSOAL ADM
     let rateio = null;
     if (nort) rateio = idG["2157000"] ? [{ contaId: idG["2157000"], pct: 100 }] : null;
     else {
@@ -286,13 +286,14 @@ export async function analisarDocumentos(docs) {
         const fatorFolha = (d.valor - socios) / d.valor;
         const m = {};
         for (const x of base) m[x.contaId] = (m[x.contaId] || 0) + Number(x.pct) * fatorFolha;
-        if (socios > 0 && idG["2126000"]) m[idG["2126000"]] = (m[idG["2126000"]] || 0) + (socios / d.valor) * 100;
+        const cSoc = idG["2115121"] || idG["2115120"];
+        if (socios > 0 && cSoc) m[cSoc] = (m[cSoc] || 0) + (socios / d.valor) * 100;
         const l = Object.entries(m).map(([contaId, pct]) => ({ contaId: Number(contaId), pct: r2(pct) })).filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct);
         if (l.length) { const dif = r2(100 - l.reduce((a, x) => a + x.pct, 0)); l[0].pct = r2(l[0].pct + dif); }
         rateio = l.length ? l : null;
       }
       if (!base && tipoG !== "DARF") avisos.push("O SALÁRIO do mês ainda não tem rateio da folha — importe a folha antes para o rateio sair por setor (senão fica o rateio atual da conta).");
-      if (socios > 0) avisos.push(`Inclui R$ ${socios.toFixed(2)} dos sócios (contribuinte individual) — vai para PRO LABORE no rateio.`);
+      if (socios > 0) avisos.push(`Inclui R$ ${socios.toFixed(2)} dos sócios (contribuinte individual) — vai para IMPOSTOS SOBRE PESSOAL ADM no rateio.`);
     }
     const irrf = (d.itens || []).find((x) => x.codigo === "0561");
     const nomeG = tipoG === "FGTS" ? (rescisoria ? "FGTS RESCISÓRIO" : "FGTS") : tipoG === "INSS" ? "INSS (DARF previdenciário)" : "DARF";

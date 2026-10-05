@@ -116,8 +116,10 @@ export function propostasDaMatriz(dados) {
     // c.liquido já traz o desconto do VT (c.vtDesc, negativo); aqui ele volta, porque
     // quem fica com esse desconto é o iFood, não a folha do dia 5
     if (!(p.regime === "DIRETOR" || p.depto === "DIR")) soma(sal, conta, c.liquido - c.vtDesc + c.G + c.ass - adiant);
-    soma(inss, conta, c.inssPatronal + c.inssFunc);
-    soma(fgts, conta, c.fgts);
+    // encargos dos sócios: IMPOSTOS SOBRE PESSOAL ADM (não no pró-labore)
+    const contaEnc = p.regime === "DIRETOR" || p.depto === "DIR" ? "2115121" : conta;
+    soma(inss, contaEnc, c.inssPatronal + c.inssFunc);
+    soma(fgts, contaEnc, c.fgts);
     soma(ifood, ADM(p.depto) ? "2128300" : "2113400", c.vt + c.vtDesc);   // VT líquido dos 6%
     soma(ifood, ADM(p.depto) ? "2128100" : "2113700", c.vr + c.saldoLivre);
     soma(ps, ADM(p.depto) ? "2128100" : "2113700", c.ps);
