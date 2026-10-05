@@ -45,10 +45,15 @@ export async function GET(req) {
     // vencido total: tudo em aberto com vencimento antes de hoje, de qualquer mês
     prisma.finTitulo.aggregate({ where: { tipo, status: "ABERTO", vencimento: { lt: hojeUTC } }, _sum: { valor: true }, _count: true }),
   ]);
+  // crítica: contas em aberto sem conta-caixa (as contas da semana se rateiam pelos itens e ficam fora)
+  const abertas = await prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO" }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
+  const semConta = abertas.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|")
+    && !(Array.isArray(t.rateio) && t.rateio.some((r) => Number(r.contaId) && Number(r.pct) > 0)));
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim,
     periodo: periodo ? periodo.map(tituloOut) : null,
+    semConta: semConta.map(tituloOut),
     vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),

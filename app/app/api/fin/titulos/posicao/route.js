@@ -20,7 +20,9 @@ export async function POST(req) {
     }
     if (b.acao === "importar") {
       if (!Array.isArray(b.linhas) || !b.linhas.length) return Response.json({ error: "Nada para importar." }, { status: 400 });
-      return Response.json(await importarPosicao(b.linhas, { quem: nomeU(u), usuarioId: u.id }));
+      const r = await importarPosicao(b.linhas, { quem: nomeU(u), usuarioId: u.id });
+      if (r.error) return Response.json(r, { status: 400 });
+      return Response.json(r);
     }
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (e) {

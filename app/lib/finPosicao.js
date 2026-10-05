@@ -196,6 +196,16 @@ export async function analisarPosicao(linhas) {
 
 // ---------------- 3) importar ----------------
 export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
+  // conta-caixa obrigatória em toda conta nova (e na previsão que não tiver rateio)
+  const faltam = [];
+  for (const l of linhas) {
+    if (l.decisao === "IMPORTAR" && !Number(l.contaId)) faltam.push(l.linha);
+    if (l.decisao === "SUBSTITUIR" && !Number(l.contaId) && l.alvo?.id) {
+      const t = await prisma.finTitulo.findUnique({ where: { id: Number(l.alvo.id) }, select: { rateio: true } });
+      if (!(Array.isArray(t?.rateio) && t.rateio.length)) faltam.push(l.linha);
+    }
+  }
+  if (faltam.length) return { error: `Informe a conta-caixa das linhas ${faltam.slice(0, 15).join(", ")}${faltam.length > 15 ? "…" : ""} — é obrigatória.` };
   const r = { criadas: 0, substituidas: 0, ignoradas: 0, jaExistiam: 0, valorCriado: 0, valorSubstituido: 0 };
   for (const l of linhas) {
     const chave = chavePosicao(l);
@@ -227,7 +237,7 @@ export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
       data: {
         tipo: l.tipo, titulo: tituloDe(l), parceiro: l.parceiro || "SEM PARCEIRO", documento: l.documento || null,
         numeroDoc: l.tituloOrig || null, valor, vencimento: dataUTC(l.vencimento), competencia: mesDe(l.vencimento),
-        previsao: false, rateio, observacao: obs.slice(0, 500), forma: "EXCEL", chaveImport: chave,
+        previsao: false, rateio, observacao: obs.slice(0, 500), forma: "IMPORTACAO", chaveImport: chave,
         criadoPorId: usuarioId || null, criadoPorNome: quem || null,
       },
     });

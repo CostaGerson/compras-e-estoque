@@ -39,7 +39,10 @@ const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")}
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
 const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
-const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação Excel", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
+const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
+// toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
+const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) || String(t.chaveImport || "").startsWith("POSICAO|");
+const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
 
 function situacao(t) {
   if (t.status === "CANCELADO") return { k: "CANC", t: "Cancelado", c: C.sub, bg: C.panel2 };
@@ -250,9 +253,9 @@ export default function ContasPagarReceber({ user }) {
   const lista = useMemo(() => {
     if (!d) return [];
     const n = busca.trim().toUpperCase();
-    return (d.periodo || d.titulos).filter((t) => {
+    return (fSit === "SEMCONTA" ? d.semConta || [] : d.periodo || d.titulos).filter((t) => {
       const s = situacao(t).k;
-      if (fSit !== "TODOS" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
+      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
       if (!n) return true;
       return [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
@@ -310,6 +313,15 @@ export default function ContasPagarReceber({ user }) {
           <Inbox size={18} style={{ color: C.blue }} />
           <span className="flex-1"><b>{d.nfsPendentes} nota(s) fiscal(is)</b> lançada(s) pelo Compras aguardando virar conta a pagar.</span>
           <span className="font-semibold" style={{ color: C.blue }}>Ver notas →</span>
+        </button>
+      )}
+
+      {/* crítica: contas sem conta-caixa */}
+      {d && (d.semConta || []).length > 0 && (
+        <button onClick={() => setFSit(fSit === "SEMCONTA" ? "TODOS" : "SEMCONTA")} className="w-full flex items-center gap-2 px-4 py-3 mb-4 rounded-xl text-sm text-left" style={{ background: C.redSoft, border: `1px solid ${C.red}55`, color: C.text }}>
+          <AlertTriangle size={18} style={{ color: C.red }} />
+          <span className="flex-1"><b>{d.semConta.length} conta(s) em aberto sem conta-caixa</b> ({moeda(d.semConta.reduce((a, t) => a + t.valor, 0))}). O rateio é obrigatório — edite cada uma e informe a conta.</span>
+          <span className="font-semibold" style={{ color: C.red }}>{fSit === "SEMCONTA" ? "Voltar à lista" : "Ver contas →"}</span>
         </button>
       )}
 
@@ -391,6 +403,7 @@ export default function ContasPagarReceber({ user }) {
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
               <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
               <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
+              <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
           </div>
 
@@ -407,7 +420,7 @@ export default function ContasPagarReceber({ user }) {
             </div>
           )}
 
-          <Tabela titulo={`${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
+          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
             sel={sel} marcar={marcar}
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
@@ -437,7 +450,30 @@ export default function ContasPagarReceber({ user }) {
 }
 
 /* ---------------- tabela ---------------- */
-function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
+// valor usado para ordenar cada coluna
+const chaveOrdem = (t, col, contasPorId) => {
+  switch (col) {
+    case "venc": return t.vencimento || "";
+    case "titulo": return String(t.titulo || "").toUpperCase();
+    case "parceiro": return String(t.parceiro || "").toUpperCase();
+    case "rateio": { const c = contasPorId[(t.rateio || [])[0]?.contaId]; return c ? `${c.codigo} ${c.nome}` : "￿"; }
+    case "valor": return Number(t.valor || 0);
+    case "situacao": return situacao(t).t;
+    case "origem": return `${ehImportacao(t) ? "IMPORTAÇÃO" : (FORMA[t.forma] || [t.forma || ""])[0].toUpperCase()} ${t.createdAt || ""}`;
+    default: return "";
+  }
+};
+function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
+  const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
+  const itens = useMemo(() => {
+    if (!ordem) return itens0;
+    return [...itens0].sort((a, b) => {
+      const x = chaveOrdem(a, ordem.col, contasPorId), y = chaveOrdem(b, ordem.col, contasPorId);
+      const r = typeof x === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR", { numeric: true });
+      return r * ordem.dir || (a.vencimento || "").localeCompare(b.vencimento || "");
+    });
+  }, [itens0, ordem, contasPorId]);
+  const clicarCol = (col) => setOrdem((o) => (!o || o.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
   const total = itens.filter((t) => t.status !== "CANCELADO").reduce((s, t) => s + t.valor, 0);
   const abertos = itens.filter((t) => t.status === "ABERTO").map((t) => t.id);
   const todos = !!sel && abertos.length > 0 && abertos.every((id) => sel.has(id));
@@ -452,8 +488,14 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
           <table className="w-full text-xs">
             <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
               {sel && <th className="pl-3 py-2 w-6"><input type="checkbox" checked={todos} disabled={!abertos.length} onChange={(e) => marcar(abertos, e.target.checked)} title="Selecionar todas em aberto" /></th>}
-              {["Vencimento", "Título", P ? "Fornecedor" : "Cliente", "Rateio (conta-caixa)", "Valor", "Situação", "Origem", ""].map((h, i) => (
-                <th key={i} className={`px-3 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>
+              {[["venc", "Vencimento"], ["titulo", "Título"], ["parceiro", P ? "Fornecedor" : "Cliente"], ["rateio", "Rateio (conta-caixa)"], ["valor", "Valor"], ["situacao", "Situação"], ["origem", "Origem"], [null, ""]].map(([col, h], i) => (
+                <th key={i} className={`px-3 py-2 font-semibold ${col === "valor" ? "text-right" : "text-left"}`}>
+                  {col ? (
+                    <button onClick={() => clicarCol(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 ${col === "valor" ? "flex-row-reverse" : ""}`} style={{ color: ordem?.col === col ? C.accent : C.sub }}>
+                      {h}<span className="text-[10px]">{ordem?.col === col ? (ordem.dir === 1 ? "▲" : "▼") : "↕"}</span>
+                    </button>
+                  ) : h}
+                </th>
               ))}
             </tr></thead>
             <tbody>{itens.map((t) => {
@@ -475,6 +517,7 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
                   </td>
                   <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}{t.documento && <div style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 220 }}>
+                    {t.status === "ABERTO" && semRateio(t) && <button onClick={() => onEditar(t)} className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }} title="Rateio obrigatório — clique para informar a conta-caixa">SEM CONTA-CAIXA</button>}
                     {(t.rateio || []).map((r, i) => {
                       const c = contasPorId[r.contaId];
                       return <div key={i} className="truncate">{c ? `${c.codigo} ${c.nome}` : "?"}{t.rateio.length > 1 && <span style={{ color: C.sub }}> · {brl(r.pct)}%</span>}</div>;
@@ -487,8 +530,17 @@ function Tabela({ titulo, cor, itens, contasPorId, P, onEditar, onBaixar, onAcao
                   </td>
                   <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
                   <td className="px-3 py-2" title={`${fT} · ${t.criadoPorNome || "—"} · ${new Date(t.createdAt).toLocaleString("pt-BR")}${t.atualizadoPorNome ? ` · alterado por ${t.atualizadoPorNome}` : ""}`}>
-                    <div className="flex items-center gap-1" style={{ color: C.sub }}><FI size={13} /> <span className="truncate" style={{ maxWidth: 90 }}>{(t.criadoPorNome || "").split(" ")[0]}</span></div>
-                    <div className="text-[10px]" style={{ color: C.sub }}>{new Date(t.createdAt).toLocaleDateString("pt-BR")}</div>
+                    {ehImportacao(t) ? (
+                      <>
+                        <div className="flex items-center gap-1 font-semibold" style={{ color: C.blue }}><FI size={13} /> IMPORTAÇÃO</div>
+                        <div className="text-[10px]" style={{ color: C.sub }}>{new Date(t.createdAt).toLocaleDateString("pt-BR")}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1" style={{ color: C.sub }}><FI size={13} /> <span className="truncate" style={{ maxWidth: 90 }}>{(t.criadoPorNome || "").split(" ")[0]}</span></div>
+                        <div className="text-[10px]" style={{ color: C.sub }}>{new Date(t.createdAt).toLocaleDateString("pt-BR")}</div>
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {t.status === "ABERTO" && <button onClick={() => onBaixar(t)} title={P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
@@ -534,10 +586,12 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
     setSt("");
   };
   const alt = (i, k, v) => setL((x) => x.map((y) => (y.linha === i ? { ...y, [k]: v } : y)));
-  const vis = l.filter((x) => filtro === "TODOS" || x.situacao === filtro || (filtro === "SEM_CONTA" && !x.contaId && x.decisao !== "IGNORAR"));
+  const vis = l.filter((x) => filtro === "TODOS" || x.situacao === filtro || (filtro === "SEM_CONTA" && !x.contaId && (x.decisao === "IMPORTAR" || x.decisao === "SUBSTITUIR")));
   const n = (dec) => l.filter((x) => x.decisao === dec);
   const soma = (arr) => arr.reduce((s, x) => s + x.valor, 0);
-  const semConta = l.filter((x) => !x.contaId && x.decisao !== "IGNORAR").length;
+  // conta-caixa obrigatória: nova conta, ou previsão de recorrência que ainda não tem rateio
+  const precisaConta = (x) => !x.contaId && (x.decisao === "IMPORTAR" || x.decisao === "SUBSTITUIR");
+  const semConta = l.filter(precisaConta).length;
   const importar = async () => {
     setSt("Importando…"); setErro("");
     try {
@@ -550,7 +604,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
       rodape={a ? <>
         <span className="text-xs mr-auto" style={{ color: C.sub }}>{n("IMPORTAR").length} nova(s) · {moeda(soma(n("IMPORTAR")))} — {n("SUBSTITUIR").length} substituição(ões) · {moeda(soma(n("SUBSTITUIR")))} — {n("IGNORAR").length} ignorada(s)</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <BtnP onClick={importar} disabled={!!st || !(n("IMPORTAR").length + n("SUBSTITUIR").length)}>{st && <Loader2 size={14} className="animate-spin" />} Importar</BtnP>
+        <BtnP onClick={importar} disabled={!!st || semConta > 0 || !(n("IMPORTAR").length + n("SUBSTITUIR").length)}>{st && <Loader2 size={14} className="animate-spin" />} Importar</BtnP>
       </> : null}>
       {!a && (
         <div className="text-center py-10">
@@ -610,7 +664,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
               })}</tbody>
             </table>
           </div>
-          {semConta > 0 && <div className="mt-2 text-xs" style={{ color: C.yellow }}>{semConta} conta(s) vão entrar sem conta-caixa — dá para escolher agora ou depois, editando a conta.</div>}
+          {semConta > 0 && <div className="mt-2 text-xs font-semibold" style={{ color: C.red }}>{semConta} linha(s) sem conta-caixa — o rateio é obrigatório. Escolha a conta (filtro "Sem conta-caixa") ou marque Ignorar para liberar a importação.</div>}
         </>
       )}
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -817,7 +871,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         </div>
       ) : (
         <div className="mt-4 text-[11px] p-2.5 rounded-lg" style={{ background: C.panel2, color: C.sub }}>
-          Origem: <b>{fT}</b> · lançado por {item.criadoPorNome || "—"} em {new Date(item.createdAt).toLocaleString("pt-BR")}
+          Origem: <b>{ehImportacao(item) ? `IMPORTAÇÃO ${new Date(item.createdAt).toLocaleDateString("pt-BR")} · ${fT}` : fT}</b> · lançado por {item.criadoPorNome || "—"} em {new Date(item.createdAt).toLocaleString("pt-BR")}
           {item.atualizadoPorNome && <> · última alteração: {item.atualizadoPorNome} em {new Date(item.updatedAt).toLocaleString("pt-BR")}</>}
           {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, use <b>Recorrências</b>.</div>}
         </div>
