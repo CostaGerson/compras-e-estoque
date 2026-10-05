@@ -314,12 +314,12 @@ export async function dividirImposto() {
 //    aluguel, CEMIG, COPASA, folha 5º dia útil (com sábado), adiantamento (dia 20) e VT/VA/benefícios.
 const CHAVE_NORT = "AJUSTE|nort-v110";
 export const RECORRENCIAS_NORT = [
-  { chave: "NORT|ALUGUEL", conta: "2151000", titulo: "NORT — ALUGUEL DA LOJA", parceiro: "LOCADOR DA LOJA NORT", dia: 10 },
-  { chave: "NORT|CEMIG", conta: "2152000", titulo: "NORT — CEMIG", parceiro: "CEMIG", dia: 10 },
-  { chave: "NORT|COPASA", conta: "2153000", titulo: "NORT — COPASA", parceiro: "COPASA", dia: 10 },
-  { chave: "NORT|FOLHA5", conta: "2154000", titulo: "NORT — FOLHA 5º DIA ÚTIL", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 5, util: true },
-  { chave: "NORT|ADIANTAMENTO", conta: "2155000", titulo: "NORT — FOLHA ADIANTAMENTO", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 20 },
-  { chave: "NORT|BENEFICIOS", conta: "2156000", titulo: "NORT — VT / VA / BENEFÍCIOS", parceiro: "BENEFÍCIOS NORT", dia: 29 },
+  { chave: "NORT|ALUGUEL", conta: "2151000", titulo: "NORT - ALUGUEL DA LOJA", parceiro: "LOCADOR DA LOJA NORT", dia: 10 },
+  { chave: "NORT|CEMIG", conta: "2152000", titulo: "NORT - CEMIG", parceiro: "CEMIG", dia: 10 },
+  { chave: "NORT|COPASA", conta: "2153000", titulo: "NORT - COPASA", parceiro: "COPASA", dia: 10 },
+  { chave: "NORT|FOLHA5", conta: "2154000", titulo: "NORT - FOLHA 5º DIA ÚTIL", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 5, util: true },
+  { chave: "NORT|ADIANTAMENTO", conta: "2155000", titulo: "NORT - FOLHA ADIANTAMENTO", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 20 },
+  { chave: "NORT|BENEFICIOS", conta: "2156000", titulo: "NORT - VT / VA / BENEFÍCIOS", parceiro: "BENEFÍCIOS NORT", dia: 29 },
 ];
 export async function criarNort() {
   const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_NORT } }).catch(() => null);

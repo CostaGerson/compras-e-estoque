@@ -21,6 +21,7 @@ export async function GET(req) {
   await gerarRecorrencias(tipo);
   const de0 = sp.get("de") || mesAtual();
   if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);
+  { const { padronizarNort } = await import("@/lib/finNort"); await padronizarNort().catch(() => null); }   // "NORT - NOME DA CONTA"
   if (tipo === "PAGAR") { const { separarProLabore } = await import("@/lib/finMatrizRecDb"); await separarProLabore().catch(() => null); }
   if (tipo === "PAGAR") { const { separarEstagio } = await import("@/lib/finMatrizRecDb"); await separarEstagio().catch(() => null); }
   if (tipo === "PAGAR") { const { separarGuiasNort } = await import("@/lib/finMatrizRecDb"); await separarGuiasNort().catch(() => null); }

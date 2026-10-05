@@ -327,7 +327,7 @@ export async function analisarDocumentos(docs) {
       composicao: tipoG === "FGTS" ? (d.partes ? Object.entries(d.partes).filter(([, v]) => v > 0).map(([k, v]) => ({ desc: { mensal: "FGTS mensal", rescisorio: "FGTS rescisório", indenizacao: "Indenização compensatória (multa)", encargos: "Encargos" }[k], valor: v })) : [])
         : (d.itens || []).map((x) => ({ desc: `${x.codigo} ${x.sub || x.desc}`, valor: x.valor })),
       alvo: saida(alvo), opcoes: opcoes.map(saida),
-      novo: { titulo: `${nomeG}${nort ? " NORT" : ""} ${d.comp ? d.comp.split("-").reverse().join("/") : ""}`.trim(), parceiro: tipoG === "FGTS" ? "CAIXA ECONÔMICA FEDERAL" : "RECEITA FEDERAL",
+      novo: { titulo: `${nort ? "NORT - " : ""}${nomeG} ${d.comp ? d.comp.split("-").reverse().join("/") : ""}`.trim(), parceiro: tipoG === "FGTS" ? "CAIXA ECONÔMICA FEDERAL" : "RECEITA FEDERAL",
         vencimento: d.vencimento, contaId: rateio?.[0]?.contaId || null },
     });
   }
