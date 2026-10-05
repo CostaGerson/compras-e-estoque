@@ -28,7 +28,7 @@ function contaItem(area, nome) {
   }
   if (area === "dividas") {
     if (/MAYCON|MUTUO|SOCIO/.test(n)) return "2131200";
-    if (/TRIBUT/.test(n)) return "2115100";
+    if (/TRIBUT/.test(n)) return "2115110";   // parcelamento de tributos = impostos sobre vendas
     if (/MAQ|WELLTEC/.test(n)) return "2133300";
     return "2131100";
   }

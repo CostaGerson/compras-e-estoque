@@ -122,6 +122,8 @@ export async function garantirContas() {
   if (faltam.length) {
     await prisma.finConta.createMany({ data: faltam.map(([codigo, nome, ativo]) => ({ codigo, nome, ativo: ativo !== false })), skipDuplicates: true });
   }
+  const { dividirImposto } = await import("@/lib/finAjustes");
+  await dividirImposto().catch(() => null);
 }
 
 // Importa as palavras-chave do sistema anterior UMA vez (marca origem = BASE).

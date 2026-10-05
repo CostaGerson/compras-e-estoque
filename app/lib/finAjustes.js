@@ -257,3 +257,53 @@ export async function ajustarSalarioSabado() {
   });
   return { ok: true, alterados: n };
 }
+
+// v109: IMPOSTO (2115100) dividido em vendas / pessoal / IOF + conta MULTA CONTRATUAL. Roda uma vez:
+//  - 2115100 vira inativa (o histórico continua nela e na mesma linha da DRE);
+//  - palavras-chave do IMPOSTO: FGTS/CAIXA/INSS → pessoal; IOF → IOF; o resto → vendas; a de IOF que ia para JUROS → IOF;
+//  - contas em aberto e recorrências que usavam o 2115100 passam para a conta detalhada pelo mesmo critério.
+const CHAVE_IMPOSTO = "AJUSTE|dividir-imposto-v109";
+const destinoImposto = (txt) => {
+  const t = String(txt || "").toUpperCase();
+  if (/\bIOF\b/.test(t)) return "2115130";
+  if (/FGTS|INSS|CAIXA ECON|GPS|FOLHA|SINDICA/.test(t)) return "2115120";
+  return "2115110";
+};
+export async function dividirImposto() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_IMPOSTO } }).catch(() => null);
+  if (ja) return { ok: true, jaFeito: true };
+  const contas = await prisma.finConta.findMany({ where: { codigo: { in: ["2115100", "2115110", "2115120", "2115130", "2135000"] } } });
+  const id = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));
+  if (!id["2115110"] || !id["2115120"] || !id["2115130"]) return { ok: false, erro: "contas novas ainda não criadas" };
+  const r = { regras: 0, titulos: 0, recorrencias: 0 };
+  if (id["2115100"]) {
+    await prisma.finConta.update({ where: { id: id["2115100"] }, data: { ativo: false, nome: "IMPOSTO (ANTIGO — USE VENDAS, PESSOAL OU IOF)" } });
+    for (const g of await prisma.finRegra.findMany({ where: { contaId: id["2115100"] } })) {
+      await prisma.finRegra.update({ where: { id: g.id }, data: { contaId: id[destinoImposto(`${g.termo} ${g.descricao || ""}`)] } });
+      r.regras++;
+    }
+    const troca = (rateio, txt) => (Array.isArray(rateio) ? rateio : []).map((x) => (Number(x.contaId) === id["2115100"] ? { ...x, contaId: id[destinoImposto(txt)] } : x));
+    const usa = (rateio) => Array.isArray(rateio) && rateio.some((x) => Number(x.contaId) === id["2115100"]);
+    for (const t of await prisma.finTitulo.findMany({ where: { status: "ABERTO" }, select: { id: true, rateio: true, titulo: true, parceiro: true } })) {
+      if (!usa(t.rateio)) continue;
+      await prisma.finTitulo.update({ where: { id: t.id }, data: { rateio: troca(t.rateio, `${t.titulo} ${t.parceiro}`) } });
+      r.titulos++;
+    }
+    for (const x of await prisma.finRecorrencia.findMany({ select: { id: true, rateio: true, titulo: true, parceiro: true } })) {
+      if (!usa(x.rateio)) continue;
+      await prisma.finRecorrencia.update({ where: { id: x.id }, data: { rateio: troca(x.rateio, `${x.titulo} ${x.parceiro}`) } });
+      r.recorrencias++;
+    }
+  }
+  // IOF que caía em JUROS passa para a conta própria
+  if (id["2135000"]) {
+    const iof = await prisma.finRegra.updateMany({ where: { contaId: id["2135000"], termo: "IOF" }, data: { contaId: id["2115130"] } });
+    r.regras += iof.count;
+  }
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_IMPOSTO },
+    create: { chave: CHAVE_IMPOSTO, valor: JSON.stringify({ em: new Date().toISOString(), ...r }) },
+    update: { valor: JSON.stringify({ em: new Date().toISOString(), ...r }) },
+  });
+  return { ok: true, ...r };
+}

@@ -34,6 +34,7 @@ export const MAPA_OFICIAL = {
   1116000: "RECEITA", 1118000: "RECEITA", 1121000: "RECEITA", 1122000: "RECEITA", 1150000: "RECEITA",
   1210000: "RECEITA", 1220000: "RECEITA",
   2141000: "RECEITA",            // devolução de venda abate a receita
+  2142000: "RECEITA",            // multa contratual (atraso/descumprimento com cliente) também abate a receita
   // 02. CMV
   2111100: "CMV", 2111210: "CMV", 2111220: "CMV", 2111310: "CMV", 2111320: "CMV", 2111330: "CMV",
   2111340: "CMV", 2111400: "CMV", 2111500: "CMV",
@@ -47,6 +48,7 @@ export const MAPA_OFICIAL = {
   2114800: "CMV", 2114910: "CMV", 2114920: "CMV",
   2117100: "CMV", 2117200: "CMV", 2117300: "CMV", 2117400: "CMV", 2117510: "CMV", 2117520: "CMV",
   2117530: "CMV", 2117600: "CMV", 2118000: "CMV", 2210000: "CMV",
+  2115120: "CMV",                // impostos sobre pessoal (INSS, FGTS) — encargo da folha, junto do pessoal
   // 04. DESPESA ADM E VEGETATIVA
   2114500: "DESPESA_ADM",        // designer
   2116100: "DESPESA_ADM", 2116200: "DESPESA_ADM", 2116300: "DESPESA_ADM",
@@ -56,6 +58,8 @@ export const MAPA_OFICIAL = {
   2220000: "DESPESA_ADM", 2240000: "DESPESA_ADM",
   // 06. IMPOSTOS E JUROS
   2115100: "IMPOSTOS_JUROS", 2132000: "IMPOSTOS_JUROS", 2134000: "IMPOSTOS_JUROS",
+  2115110: "IMPOSTOS_JUROS",     // impostos sobre vendas (DAS, ICMS, PIS/COFINS, IRPJ, parcelamentos)
+  2115130: "IMPOSTOS_JUROS",     // IOF
   2135000: "IMPOSTOS_JUROS", 2230000: "IMPOSTOS_JUROS",
   // 08. INVESTIMENTO
   2123100: "INVESTIMENTO",       // reforma
