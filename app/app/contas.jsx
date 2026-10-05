@@ -614,11 +614,25 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
     try {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
-        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
+        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos, rateio: it.rateio || null,
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
-      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: arqs });
-      onSalvo(`Documentos aplicados: ${j.atualizadas} conta(s) atualizada(s)${j.criadas ? `, ${j.criadas} criada(s)` : ""}, ${j.anexos} anexo(s). ${j.linhas.join(" · ")}`);
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
+      // anexa cada PDF na conta que recebeu o lançamento (um envio por arquivo; o que já estiver anexado é pulado)
+      let anexos = 0;
+      for (let i = 0; i < itens.length; i++) {
+        const id = j.ids?.[i];
+        if (!id) continue;
+        setSt(`Anexando documentos… (${i + 1}/${itens.length})`);
+        const ja = await api(`/api/fin/titulos/${id}/anexos?u=${user.id}`).then((x) => new Set((x.anexos || []).map((a) => a.nome))).catch(() => new Set());
+        for (const n of itens[i].arquivos) {
+          const a = arqs.find((x) => x.nome === n);
+          if (!a || ja.has(n)) continue;
+          await api(`/api/fin/titulos/${id}/anexos`, "POST", { usuarioId: user.id, nome: a.nome, mime: "application/pdf", conteudo: a.conteudo });
+          anexos++;
+        }
+      }
+      onSalvo(`Documentos aplicados: ${j.atualizadas} conta(s) atualizada(s)${j.criadas ? `, ${j.criadas} criada(s)` : ""}, ${anexos} documento(s) anexado(s). ${j.linhas.join(" · ")}`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   return (
@@ -725,6 +739,11 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                 {alvo && (
                   <div className="text-xs mt-1.5" style={{ color: C.sub }}>
                     {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.valor)}</b> · fica confirmado e o PDF vai anexado</>}
+                  </div>
+                )}
+                {alvo && alvo.status !== "PAGO" && it.rateio?.length > 0 && (
+                  <div className="text-[11px] mt-1" style={{ color: C.sub }}>
+                    Novo rateio (pelo líquido de cada setor): {it.rateio.map((x) => `${contasPorId[x.contaId] ? `${contasPorId[x.contaId].codigo} ${contasPorId[x.contaId].nome}` : x.contaId} ${brl(x.pct)}%`).join(" · ")}
                   </div>
                 )}
                 {e.destino === "CRIAR" && (

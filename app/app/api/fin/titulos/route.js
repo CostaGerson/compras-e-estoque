@@ -21,7 +21,8 @@ export async function GET(req) {
   await gerarRecorrencias(tipo);
   const de0 = sp.get("de") || mesAtual();
   if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);
-  if (tipo === "PAGAR") { const { separarProLabore } = await import("@/lib/finMatrizRecDb"); await separarProLabore().catch(() => null); }   // implantação: semanas antes de 09/10/2026 saem (uma vez)
+  if (tipo === "PAGAR") { const { separarProLabore } = await import("@/lib/finMatrizRecDb"); await separarProLabore().catch(() => null); }
+  if (tipo === "PAGAR") { const { separarEstagio } = await import("@/lib/finMatrizRecDb"); await separarEstagio().catch(() => null); }   // implantação: semanas antes de 09/10/2026 saem (uma vez)
   if (tipo === "PAGAR") await garantirSemanas(de0).catch(() => null);   // as duas contas de cada sexta
   const de = sp.get("de") || mesAtual(), ate = sp.get("ate") || de;
   const hoje = mesAtual();

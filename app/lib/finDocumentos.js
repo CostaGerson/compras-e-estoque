@@ -11,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { linhasPdf } from "@/lib/finParse";
 import { normRegra } from "@/lib/fin";
 import { dataUTC, mesDe, r2 } from "@/lib/finTitulos";
-import { conferirFolhaMatriz } from "@/lib/finFolhaMatriz";
+import { conferirFolhaMatriz, deptoDaFuncao } from "@/lib/finFolhaMatriz";
+import { CONTA_DEPTO } from "@/lib/finMatrizRec";
 
 const MESES = ["JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
 const num = (s) => { const x = Number(String(s || "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
@@ -143,6 +144,26 @@ export async function analisarDocumentos(docs) {
     // todos da folha (com líquido) precisam estar na Matriz de custos — só a da Meridian
     const base = (folha || liq).funcionarios.map((f) => ({ ...f, ...(folha?.funcionarios.find((x) => x.codigo === f.codigo) || {}) }));
     const matriz = empresa === "MERIDIAN" ? await conferirFolhaMatriz(base) : null;
+    // rateio do salário pelo setor de cada funcionário (Matriz; quem não está nela, pela função) — peso = líquido
+    const contas = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
+    const idConta = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));
+    let rateio;
+    if (empresa === "NORT") rateio = idConta["2154000"] ? [{ contaId: idConta["2154000"], pct: 100 }] : null;
+    else {
+      const setor = {};
+      for (const o of matriz?.ok || []) setor[o.folha] = o.depto;
+      for (const f of matriz?.faltam || []) setor[f.nome] = f.depto;
+      const porConta = {};
+      for (const f of base) {
+        const cod = CONTA_DEPTO[setor[f.nome] || deptoDaFuncao(f.funcao || "")] || "2128200";
+        porConta[cod] = (porConta[cod] || 0) + f.liquido;
+      }
+      const tot = Object.values(porConta).reduce((a, v) => a + v, 0);
+      const linhas = Object.entries(porConta).filter(([c]) => idConta[c]).sort((a, b) => b[1] - a[1])
+        .map(([c, v]) => ({ contaId: idConta[c], codigo: c, pct: r2((v / tot) * 100) }));
+      if (linhas.length) { const dif = r2(100 - linhas.reduce((a, l) => a + l.pct, 0)); linhas[0].pct = r2(linhas[0].pct + dif); }
+      rateio = linhas.length ? linhas.map(({ contaId, pct }) => ({ contaId, pct })) : null;
+    }
     const chave = empresa === "NORT" ? "NORT|FOLHA5" : "MATRIZ|pessoal|SALARIO";
     let alvo = opcoes.find((t) => recDe[chave] && t.recorrenciaId === recDe[chave]);
     if (!alvo) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
@@ -153,7 +174,7 @@ export async function analisarDocumentos(docs) {
       valor, arquivos: ds.map((x) => x.arquivo), docs: ds.map((x) => x.tipo),
       funcionarios: (liq || folha).funcionarios, bruto: folha?.bruto ?? null, avisos,
       nota: "Sócios (IGOR, PEDRO, MAYCON) não entram na folha — o pró-labore fixo de R$ 6.000 fica nas contas próprias.",
-      matriz, ref: compRef,
+      matriz, ref: compRef, rateio,
       alvo: saida(alvo), opcoes: opcoes.map(saida),
     });
   }
@@ -161,9 +182,13 @@ export async function analisarDocumentos(docs) {
   for (const d of docs.filter((x) => x.tipo === "RECIBO")) {
     const comp = d.comp || (d.data ? mesDe(d.data) : null);
     const opcoes = comp ? await contasDoMes(comp) : [];
-    const pal = normRegra(d.nome).split(" ").filter((w) => w.length >= 4);
-    const alvo = opcoes.find((t) => pal.length && normRegra(`${t.titulo} ${t.parceiro}`).includes(pal[0]))
-      || opcoes.find((t) => /ESTAGI/.test(normRegra(`${t.titulo} ${t.parceiro}`)));
+    const pal = normRegra(d.nome).split(" ").filter((w) => w.length >= 3);
+    const palavra = (t, w) => new RegExp(`(^| )${w}( |$)`).test(normRegra(`${t.titulo} ${t.parceiro}`));
+    const recsEst = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|pessoal|ESTAGIO|" } }, select: { id: true } });
+    const idsEst = new Set(recsEst.map((x) => x.id));
+    const alvo = opcoes.find((t) => idsEst.has(t.recorrenciaId) && pal.length && palavra(t, pal[0]))
+      || opcoes.find((t) => pal.length && palavra(t, pal[0]) && (pal[1] ? palavra(t, pal[1]) || /ESTAGI|RECIBO/.test(normRegra(t.titulo)) : true))
+      || opcoes.find((t) => idsEst.has(t.recorrenciaId));
     // sugestão de conta-caixa para criar: última conta usada pelo mesmo nome
     const ant = await prisma.finTitulo.findFirst({ where: { tipo: "PAGAR", parceiro: d.nome }, orderBy: { createdAt: "desc" }, select: { rateio: true } });
     itens.push({
@@ -183,7 +208,7 @@ export async function analisarDocumentos(docs) {
 // item: { tipo, valor, comp, descricao, arquivos:[nomes], alvoId? , criar?: { titulo, parceiro, vencimento, contaId } }
 export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {}) {
   const porNome = Object.fromEntries((arquivos || []).map((a) => [a.nome, a]));
-  const r = { atualizadas: 0, criadas: 0, anexos: 0, linhas: [] };
+  const r = { atualizadas: 0, criadas: 0, anexos: 0, linhas: [], ids: [] };
   for (const it of itens) {
     const valor = r2(it.valor);
     let id = Number(it.alvoId) || null;
@@ -196,6 +221,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
           where: { id },
           data: {
             valor, previsao: false, valorConfirmado: true, atualizadoPorNome: quem || null,
+            ...(Array.isArray(it.rateio) && it.rateio.length ? { rateio: it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) } : {}),
             observacao: [t.observacao, `${it.descricao} · R$ ${valor.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 500),
           },
         });
@@ -218,7 +244,8 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       });
       id = t.id; r.criadas++;
       r.linhas.push(`${t.titulo}: criada com R$ ${valor.toFixed(2)}`);
-    } else continue;
+    } else { r.ids.push(null); continue; }
+    r.ids.push(id);
     for (const n of it.arquivos || []) {
       const a = porNome[n];
       if (!a?.conteudo) continue;

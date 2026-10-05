@@ -13,7 +13,7 @@ export const dataUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
 // feriados nacionais fixos (dia útil = seg a sex fora deles; no salário o sábado também conta)
 const FERIADOS = ["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"];
 // só o SALÁRIO conta sábado como dia útil (5º dia útil da CLT)
-export const contaSabado = (r) => ["MATRIZ|pessoal|SALARIO", "NORT|FOLHA5"].includes(r?.chaveOrigem) || String(r?.chaveOrigem || "").startsWith("MATRIZ|pessoal|PROLABORE|") || /^SAL[AÁ]RIO( |$)/.test(String(r?.titulo || "").toUpperCase());
+export const contaSabado = (r) => ["MATRIZ|pessoal|SALARIO", "NORT|FOLHA5"].includes(r?.chaveOrigem) || /^MATRIZ\|pessoal\|(PROLABORE|ESTAGIO)\|/.test(String(r?.chaveOrigem || "")) || /^SAL[AÁ]RIO( |$)/.test(String(r?.titulo || "").toUpperCase());
 export function nDiaUtil(comp, n, sabado = false) {
   const [a, m] = comp.split("-").map(Number);
   let d = new Date(Date.UTC(a, m - 1, 1)), cont = 0;

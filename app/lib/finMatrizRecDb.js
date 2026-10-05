@@ -88,15 +88,23 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
 const APELIDOS = { PEDRO: ["PEDRO", "TAVARES"] };
 const nrm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 export async function vincularProLaboreAvulso() {
-  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } } });
+  const recs = await prisma.finRecorrencia.findMany({ where: { OR: [
+    { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } }, { chaveOrigem: { startsWith: "MATRIZ|pessoal|ESTAGIO|" } }] } });
   let n = 0;
   for (const r of recs) {
+    const estagio = r.chaveOrigem.includes("|ESTAGIO|");
     const nomes = APELIDOS[nrm(r.parceiro)] || [nrm(r.parceiro)];
+    const temNome = (x) => nomes.some((w) => w && new RegExp(`(^| )${w}( |$)`).test(x));
     const gerados = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
     for (const g of gerados) {
       const avulsos = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", recorrenciaId: null, competencia: g.competencia, status: { not: "CANCELADO" } } });
-      const a = avulsos.find((t) => { const x = nrm(`${t.titulo} ${t.parceiro}`); return /PRO ?LABORE/.test(x) && nomes.some((w) => x.includes(w)); });
+      const a = avulsos.find((t) => {
+        const x = nrm(`${t.titulo} ${t.parceiro}`);
+        return temNome(x) && (estagio ? /ESTAGI|RECIBO|BOLSA/.test(x) || temNome(nrm(t.parceiro)) : /PRO ?LABORE/.test(x));
+      });
       if (!a) continue;
+      // anexos da prevista (se houver) passam para a avulsa
+      await prisma.finTituloAnexo.updateMany({ where: { tituloId: g.id }, data: { tituloId: a.id } }).catch(() => null);
       await prisma.finTitulo.delete({ where: { id: g.id } });
       await prisma.finTitulo.update({ where: { id: a.id }, data: {
         recorrenciaId: r.id, ...(Array.isArray(a.rateio) && a.rateio.length ? {} : { rateio: r.rateio }),
@@ -127,4 +135,18 @@ export async function garantirRecorrenciasMatriz() {
   if (ja) return null;
   const r = await aplicarMatrizRec({ quem: "AUTOMÁTICO (MATRIZ DE CUSTOS)", chaves: "TODAS" });
   return r.error ? null : r;
+}
+
+// v113: estagiário fora do SALÁRIO, com conta própria (recibo) — uma vez
+const CHAVE_ESTAGIO = "AJUSTE|estagio-separado-v113";
+export async function separarEstagio() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_ESTAGIO } }).catch(() => null);
+  if (ja) return null;
+  if (!(await prisma.finRecorrencia.count({ where: { chaveOrigem: { startsWith: "MATRIZ|" } } }))) return null;
+  await prisma.finConfig.create({ data: { chave: CHAVE_ESTAGIO, valor: new Date().toISOString() } });
+  const m = await montarMatrizRec();
+  if (m.error) return null;
+  const novas = m.propostas.filter((p) => /^MATRIZ\|pessoal\|(ESTAGIO|PROLABORE)\|/.test(p.chave) && !p.jaExiste).map((p) => p.chave);
+  const mudar = m.propostas.filter((p) => ["MATRIZ|pessoal|SALARIO", "MATRIZ|pessoal|IFOOD"].includes(p.chave) && p.mudou).map((p) => p.chave);
+  return aplicarMatrizRec({ quem: "AUTOMÁTICO (ESTÁGIO SEPARADO)", chaves: novas, atualizar: mudar });
 }
