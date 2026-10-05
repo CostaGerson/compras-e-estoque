@@ -38,6 +38,8 @@ const CONTA_DEPTO = { DIR: "2126000", ADM: "2128200", COR: "2113100", SIL: "2113
 const ADM = (d) => d === "DIR" || d === "ADM";
 // Adiantamento salarial: 40% do salário base, pago no dia 20 e abatido do salário do dia 5.
 export const PCT_ADIANTAMENTO = 0.4;
+// Pró-labore dos sócios (IGOR, PEDRO, MAYCON): fixo por mês
+export const PRO_LABORE_FIXO = 6000;
 
 // soma por conta → rateio em % (fecha 100 no último)
 function rateioDe(mapa) {
@@ -84,15 +86,17 @@ export function propostasDaMatriz(dados) {
   const sal = {}, adi = {}, inss = {}, fgts = {}, ifood = {}, ps = {};
   const soma = (m, k, v) => { if (v) m[k] = (m[k] || 0) + v; };
   const quemAdi = [];
+  const socios = [];   // pró-labore: conta própria por sócio, mesmo vencimento do salário (5º dia útil com sábado)
   for (const p of calc.pessoas) {
     const c = p.c;
+    if (p.regime === "DIRETOR" || p.depto === "DIR") socios.push(p);
     const conta = CONTA_DEPTO[p.depto] || "2128200";
     const adiant = p.adiantamento ? r2(c.F * PCT_ADIANTAMENTO) : 0;   // 40% do salário base
     if (adiant) quemAdi.push(p.nome || p.cargo);
     soma(adi, conta, adiant);
     // c.liquido já traz o desconto do VT (c.vtDesc, negativo); aqui ele volta, porque
     // quem fica com esse desconto é o iFood, não a folha do dia 5
-    soma(sal, conta, c.liquido - c.vtDesc + c.G + c.ass - adiant);
+    if (!(p.regime === "DIRETOR" || p.depto === "DIR")) soma(sal, conta, c.liquido - c.vtDesc + c.G + c.ass - adiant);
     soma(inss, conta, c.inssPatronal + c.inssFunc);
     soma(fgts, conta, c.fgts);
     soma(ifood, ADM(p.depto) ? "2128300" : "2113400", c.vt + c.vtDesc);   // VT líquido dos 6%
@@ -100,8 +104,13 @@ export function propostasDaMatriz(dados) {
     soma(ps, ADM(p.depto) ? "2128100" : "2113700", c.ps);
   }
   const tot = (m) => Object.values(m).reduce((s, v) => s + v, 0);
+  for (const p of socios) {
+    add({ chave: `MATRIZ|pessoal|PROLABORE|${p.id}`, grupo: "Pessoal", titulo: `PRÓ-LABORE ${p.nome || p.cargo}`, parceiro: p.nome || p.cargo,
+      valor: PRO_LABORE_FIXO, dia: 5, util: true, rateio: [{ codigo: "2126000", pct: 100 }],
+      obs: "Pró-labore fixo do sócio — vence junto com o salário (5º dia útil, sábado conta)" });
+  }
   add({ chave: "MATRIZ|pessoal|SALARIO", grupo: "Pessoal", titulo: "SALÁRIO", parceiro: "FOLHA DE PAGAMENTO", valor: tot(sal), dia: 5, util: true, rateio: rateioDe(sal),
-    obs: `Líquido de ${calc.pessoas.length} pessoa(s) + bônus + assiduidade − adiantamento do dia 20`
+    obs: `Líquido de ${calc.pessoas.length - socios.length} funcionário(s) + bônus + assiduidade − adiantamento do dia 20 · sócios no pró-labore`
       + ` · VT, VA e saldo livre vão no iFood (dia 29); encargos, plano de saúde e provisões têm linha própria` });
   add({ chave: "MATRIZ|pessoal|ADIANTAMENTO", grupo: "Pessoal", titulo: "ADIANTAMENTO SALARIAL", parceiro: "FOLHA DE PAGAMENTO", valor: tot(adi), dia: 20,
     rateio: tot(adi) ? rateioDe(adi) : [{ codigo: "2128200", pct: 100 }],

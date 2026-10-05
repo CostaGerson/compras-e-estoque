@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { linhasPdf } from "@/lib/finParse";
 import { normRegra } from "@/lib/fin";
 import { dataUTC, mesDe, r2 } from "@/lib/finTitulos";
+import { conferirFolhaMatriz } from "@/lib/finFolhaMatriz";
 
 const MESES = ["JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
 const num = (s) => { const x = Number(String(s || "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
@@ -52,8 +53,9 @@ const DETECTORES = [
       const funcionarios = [];
       let atual = null;
       for (const l of L) {
-        const h = l.match(/^(\d{6})\s+(.+?)\s+[\d.]+,\d{2}\s+Fun[cç][aã]o/i);
-        if (h) { atual = { codigo: h[1], nome: h[2].toUpperCase(), liquido: null }; funcionarios.push(atual); continue; }
+        const h = l.match(/^(\d{6})\s+(.+?)\s+([\d.]+,\d{2})\s+Fun[cç][aã]o\s*:?\s*(.*?)(?:\s+Livro.*)?$/i);
+        if (h) { atual = { codigo: h[1], nome: h[2].toUpperCase(), salario: num(h[3]), funcao: h[4].toUpperCase().trim(), adiantamento: false, liquido: null }; funcionarios.push(atual); continue; }
+        if (atual && /^606\s+Adiantamento/i.test(l)) atual.adiantamento = true;
         const tot = l.match(/^([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\*+\s+([\d.]+,\d{2})$/);
         if (tot && atual && atual.liquido == null) atual.liquido = num(tot[3]);
       }
@@ -138,6 +140,9 @@ export async function analisarDocumentos(docs) {
     const somaFunc = r2((liq || folha).funcionarios.reduce((s, f) => s + f.liquido, 0));
     if (Math.abs(somaFunc - valor) > 0.01) avisos.push(`A soma dos líquidos (${somaFunc.toFixed(2)}) difere do total (${valor.toFixed(2)}).`);
     const opcoes = comp ? await contasDoMes(comp) : [];
+    // todos da folha (com líquido) precisam estar na Matriz de custos — só a da Meridian
+    const base = (folha || liq).funcionarios.map((f) => ({ ...f, ...(folha?.funcionarios.find((x) => x.codigo === f.codigo) || {}) }));
+    const matriz = empresa === "MERIDIAN" ? await conferirFolhaMatriz(base) : null;
     const chave = empresa === "NORT" ? "NORT|FOLHA5" : "MATRIZ|pessoal|SALARIO";
     let alvo = opcoes.find((t) => recDe[chave] && t.recorrenciaId === recDe[chave]);
     if (!alvo) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
@@ -148,6 +153,7 @@ export async function analisarDocumentos(docs) {
       valor, arquivos: ds.map((x) => x.arquivo), docs: ds.map((x) => x.tipo),
       funcionarios: (liq || folha).funcionarios, bruto: folha?.bruto ?? null, avisos,
       nota: "Sócios (IGOR, PEDRO, MAYCON) não entram na folha — o pró-labore fixo de R$ 6.000 fica nas contas próprias.",
+      matriz, ref: compRef,
       alvo: saida(alvo), opcoes: opcoes.map(saida),
     });
   }

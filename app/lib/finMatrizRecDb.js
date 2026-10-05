@@ -79,7 +79,46 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
     encerradas++;
   }
   const geradas = await gerarRecorrencias("PAGAR");
-  return { ok: true, criadas, atualizadas, encerradas, geradas, erros };
+  const vinculadas = await vincularProLaboreAvulso().catch(() => 0);
+  return { ok: true, criadas, atualizadas, encerradas, geradas, vinculadas, erros };
+}
+
+// Pró-labore lançado à mão / importado (sem recorrência) no mesmo mês da previsão do sócio:
+// a conta avulsa assume o lugar da previsão (não fica em dobro).
+const APELIDOS = { PEDRO: ["PEDRO", "TAVARES"] };
+const nrm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+export async function vincularProLaboreAvulso() {
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } } });
+  let n = 0;
+  for (const r of recs) {
+    const nomes = APELIDOS[nrm(r.parceiro)] || [nrm(r.parceiro)];
+    const gerados = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
+    for (const g of gerados) {
+      const avulsos = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", recorrenciaId: null, competencia: g.competencia, status: { not: "CANCELADO" } } });
+      const a = avulsos.find((t) => { const x = nrm(`${t.titulo} ${t.parceiro}`); return /PRO ?LABORE/.test(x) && nomes.some((w) => x.includes(w)); });
+      if (!a) continue;
+      await prisma.finTitulo.delete({ where: { id: g.id } });
+      await prisma.finTitulo.update({ where: { id: a.id }, data: {
+        recorrenciaId: r.id, ...(Array.isArray(a.rateio) && a.rateio.length ? {} : { rateio: r.rateio }),
+      } });
+      n++;
+    }
+  }
+  return n;
+}
+
+// v112: separa o pró-labore dos sócios do SALÁRIO (uma vez) — cria as contas próprias e tira os sócios do salário
+const CHAVE_PROLABORE = "AJUSTE|prolabore-separado-v112";
+export async function separarProLabore() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_PROLABORE } }).catch(() => null);
+  if (ja) return null;
+  if (!(await prisma.finRecorrencia.count({ where: { chaveOrigem: { startsWith: "MATRIZ|" } } }))) return null;   // a Matriz ainda não gerou contas
+  await prisma.finConfig.create({ data: { chave: CHAVE_PROLABORE, valor: new Date().toISOString() } });
+  const m = await montarMatrizRec();
+  if (m.error) return null;
+  const pro = m.propostas.filter((p) => p.chave.startsWith("MATRIZ|pessoal|PROLABORE|") && !p.jaExiste).map((p) => p.chave);
+  const sal = m.propostas.filter((p) => p.chave === "MATRIZ|pessoal|SALARIO" && p.mudou).map((p) => p.chave);
+  return aplicarMatrizRec({ quem: "AUTOMÁTICO (PRÓ-LABORE SEPARADO)", chaves: pro, atualizar: sal });
 }
 
 // Primeira vez: se nenhuma recorrência da matriz existe, lança todas automaticamente

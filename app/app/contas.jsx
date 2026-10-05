@@ -593,6 +593,19 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
     setSt("");
   };
   const muda = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
+  // conferência com a Matriz de custos: corrigir na hora
+  const [mtz, setMtz] = useState({});   // por item: { deptos: {codigo: depto}, st, msg }
+  const DEPTOS_M = [["ADM", "Administrativo"], ["COR", "Corte"], ["SIL", "Silk"], ["BOR", "Bordado"], ["COS", "Costura"], ["EXP", "Expedição"], ["LOG", "Logística"], ["DIR", "Diretoria"]];
+  const corrigirMatriz = async (it) => {
+    const m = mtz[it.chave] || {};
+    setMtz((x) => ({ ...x, [it.chave]: { ...m, st: "Corrigindo…", msg: "" } }));
+    try {
+      const pessoas = it.matriz.faltam.map((f) => ({ ...f, depto: m.deptos?.[f.codigo] || f.depto }));
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "corrigirMatriz", pessoas, ref: it.refTexto });
+      setR((x) => ({ ...x, itens: x.itens.map((y) => (y.chave === it.chave ? { ...y, matriz: { ...y.matriz, ok: [...y.matriz.ok, ...y.matriz.faltam.map((f) => ({ folha: f.nome, matriz: f.nome.split(" ")[0] }))], faltam: [] } } : y)) }));
+      setMtz((x) => ({ ...x, [it.chave]: { st: "", msg: `Matriz corrigida: ${j.incluidas} incluída(s), ${j.nomeadas} vaga(s) nomeada(s)${j.contas ? ` · contas de pessoal atualizadas (${j.contas.atualizadas} recorrência(s))` : ""}.` } }));
+    } catch (e) { setMtz((x) => ({ ...x, [it.chave]: { ...m, st: "", msg: "", erro: e.message } })); }
+  };
   const mudaCriar = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], criar: { ...x[k].criar, ...patch } } }));
   const usados = r ? r.itens.filter((it) => esc[it.chave]?.destino !== "IGNORAR") : [];
   const faltaConta = usados.some((it) => esc[it.chave]?.destino === "CRIAR" && !esc[it.chave]?.criar?.contaId);
@@ -664,6 +677,43 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                   <div className="text-xs mb-2" style={{ color: C.sub }}>{it.itens.map((x) => `${x.desc}: ${brl(x.valor)}`).join(" · ")}</div>
                 )}
                 {it.avisos.length > 0 && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.yellowSoft, color: C.text }}>{it.avisos.map((a, i) => <div key={i}>⚠ {a}</div>)}</div>}
+                {it.tipo === "FOLHA" && it.matriz && !it.matriz.semMatriz && (() => {
+                  const m = mtz[it.chave] || {};
+                  const apelidos = it.matriz.ok.filter((x) => x.apelido);
+                  return it.matriz.faltam.length ? (
+                    <div className="text-xs mb-2 p-2.5 rounded-lg" style={{ background: C.redSoft, border: `1px solid ${C.red}44` }}>
+                      <div className="font-bold mb-1.5" style={{ color: C.red }}>⚠ {it.matriz.faltam.length} funcionário(s) da folha não estão na Matriz de custos</div>
+                      {it.matriz.faltam.map((f) => (
+                        <div key={f.codigo} className="flex flex-wrap items-center gap-2 py-1" style={{ borderTop: `1px solid ${C.red}22` }}>
+                          <span className="font-semibold flex-1" style={{ color: C.text, minWidth: 200 }}>{f.nome}<span className="font-normal" style={{ color: C.sub }}> · {f.funcao || "—"} · salário {brl(f.salario || 0)}{f.adiantamento ? " · adiantamento" : ""}</span></span>
+                          <span style={{ color: C.sub }}>{f.acao === "NOMEAR" ? `dar nome à vaga "${f.cargoMatriz}"` : "incluir no setor"}</span>
+                          {f.acao === "INCLUIR" && (
+                            <select value={m.deptos?.[f.codigo] || f.depto} onChange={(e) => setMtz((x) => ({ ...x, [it.chave]: { ...m, deptos: { ...(m.deptos || {}), [f.codigo]: e.target.value } } }))}
+                              className="rounded px-1.5 py-0.5 text-xs outline-none" style={inpS}>
+                              {DEPTOS_M.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => corrigirMatriz(it)} disabled={!!m.st} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}>
+                          {m.st ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} {m.st || "Corrigir a Matriz agora"}
+                        </button>
+                        <span className="text-[11px]" style={{ color: C.sub }}>Entra na Matriz oficial (com histórico de versão) com o salário e a função da folha; as contas de pessoal são recalculadas.</span>
+                      </div>
+                      {m.erro && <div className="mt-1" style={{ color: C.red }}>{m.erro}</div>}
+                    </div>
+                  ) : (
+                    <div className="text-xs mb-2 p-2 rounded" style={{ background: C.greenSoft, color: C.text }}>
+                      ✓ Todos os {it.matriz.ok.length} funcionários da folha estão na Matriz de custos.
+                      {apelidos.length > 0 && <span style={{ color: C.sub }}> Casados pelo apelido: {apelidos.map((x) => `${x.folha.split(" ")[0]} = ${x.matriz}`).join(", ")}.</span>}
+                      {m.msg && <div className="font-semibold mt-0.5" style={{ color: C.green }}>{m.msg}</div>}
+                    </div>
+                  );
+                })()}
+                {it.tipo === "FOLHA" && it.matriz?.foraDaFolha?.length > 0 && (
+                  <div className="text-[11px] mb-2" style={{ color: C.sub }}>Na Matriz (CLT) e fora desta folha: {it.matriz.foraDaFolha.join(", ")} — confira se saiu da empresa.</div>
+                )}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span style={{ color: C.sub }}>Conta de {it.comp ? nomeMes(it.comp) : "?"}:</span>
                   <select value={e.destino ?? "IGNORAR"} onChange={(ev) => muda(it.chave, { destino: ev.target.value })} className="rounded px-2 py-1.5 text-xs outline-none flex-1" style={{ ...inpS, minWidth: 280 }}>
