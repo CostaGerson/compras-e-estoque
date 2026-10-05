@@ -4,7 +4,7 @@ import { PrestadorModal } from "./prestadores";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
-  Link2, ChevronDown, Paperclip, FileText, Download, CheckSquare,
+  Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare,
 } from "lucide-react";
 
 const C = {
@@ -786,6 +786,21 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const [erro, setErro] = useState("");
   const [pendentes, setPendentes] = useState([]);   // anexos escolhidos antes de a conta existir
   const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  // "usar como regra": quando a conta-caixa muda, oferece levar a mesma conta para as demais contas do fornecedor
+  const contaNova = (() => { const r = (f.rateio || []).filter((x) => x.contaId && Number(x.pct) > 0); return r.length === 1 ? r[0].contaId : null; })();
+  const contaAntes = (item?.rateio || []).length === 1 ? item.rateio[0].contaId : null;
+  const ofereceRegra = !!contaNova && contaNova !== contaAntes && !ehSemana(item || {}) && !!String(f.parceiro || f.titulo || "").trim();
+  const [regra, setRegra] = useState({ usar: true, salvar: true, termo: "" });
+  const termoRegra = regra.termo || String(f.parceiro || "").toUpperCase();
+  const [previa, setPrevia] = useState(null);
+  useEffect(() => {
+    if (!ofereceRegra || !termoRegra.trim()) { setPrevia(null); return; }
+    const h = setTimeout(() => {
+      api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, dryRun: true })
+        .then(setPrevia).catch(() => setPrevia(null));
+    }, 400);
+    return () => clearTimeout(h);
+  }, [ofereceRegra, termoRegra, contaNova]);
   const [fT] = FORMA[item?.forma] || ["Manual"];
   // natureza do lançamento: conta comum ou prestador (vai para a conta da próxima sexta)
   const [nat, setNat] = useState("");
@@ -819,7 +834,12 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         }
       }
       else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao });
-      onSalvo(novo ? (f.recorrente ? "Conta recorrente criada — previsões lançadas nos próximos meses." : "Conta lançada.") : "Conta atualizada.");
+      let extra = "";
+      if (ofereceRegra && (regra.usar || regra.salvar) && termoRegra.trim()) {
+        const r = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, salvarRegra: regra.salvar, dryRun: !regra.usar });
+        extra = `${regra.usar && r.qtd ? ` ${r.qtd} outra(s) conta(s) passaram para a mesma conta-caixa.` : ""}${regra.salvar ? " Palavra-chave salva." : ""}`;
+      }
+      onSalvo((novo ? (f.recorrente ? "Conta recorrente criada — previsões lançadas nos próximos meses." : "Conta lançada.") : "Conta atualizada.") + extra);
     } catch (e) { setErro(e.message); setSalvando(false); }
   };
   // freelancer/terceirizado: as mesmas regras do lançamento semanal, na conta da próxima sexta
@@ -881,6 +901,27 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           Origem: <b>{ehImportacao(item) ? `IMPORTAÇÃO ${new Date(item.createdAt).toLocaleDateString("pt-BR")} · ${fT}` : fT}</b> · lançado por {item.criadoPorNome || "—"} em {new Date(item.createdAt).toLocaleString("pt-BR")}
           {item.atualizadoPorNome && <> · última alteração: {item.atualizadoPorNome} em {new Date(item.updatedAt).toLocaleString("pt-BR")}</>}
           {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, use <b>Recorrências</b>.</div>}
+        </div>
+      )}
+      {ofereceRegra && (
+        <div className="mt-4 p-3 rounded-lg" style={{ border: `1px dashed ${C.accent}88`, background: C.accentSoft }}>
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+            <input type="checkbox" checked={regra.usar} onChange={(e) => setRegra((x) => ({ ...x, usar: e.target.checked }))} />
+            <Wand2 size={14} style={{ color: C.accent }} /> Usar como regra para as demais contas em aberto
+          </label>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs shrink-0" style={{ color: C.sub }}>Contas que contêm</span>
+            <input value={termoRegra} onChange={(e) => setRegra((x) => ({ ...x, termo: e.target.value.toUpperCase() }))}
+              className="flex-1 px-2 py-1.5 rounded-lg text-xs uppercase font-mono" style={inpS} placeholder="NOME DO FORNECEDOR" />
+          </div>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>
+            Procura no fornecedor e no título; várias palavras: separe com ponto e vírgula. Recorrências e contas da semana ficam fora.
+            {previa && <> {" "}<b style={{ color: C.navy }}>{previa.qtd} conta(s)</b> mudariam ({moeda(previa.valor)}){previa.semConta ? `, ${previa.semConta} delas sem conta-caixa` : ""}.</>}
+          </div>
+          <label className="flex items-center gap-2 text-xs mt-2 cursor-pointer" style={{ color: C.text }}>
+            <input type="checkbox" checked={regra.salvar} onChange={(e) => setRegra((x) => ({ ...x, salvar: e.target.checked }))} />
+            Salvar também como palavra-chave (identificação do extrato e próximas importações)
+          </label>
         </div>
       )}
       <Anexos user={user} tituloId={novo ? null : item.id} pendentes={pendentes} setPendentes={setPendentes} />
