@@ -14,6 +14,8 @@ const C = {
   yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
   navy: "#001E41", roxo: "#7A5AF8", roxoSoft: "#F1EDFF",
 };
+// salário: o sábado conta como dia útil
+const sabTxt = (r) => (r?.chaveOrigem === "MATRIZ|pessoal|SALARIO" || /^SAL[AÁ]RIO( |$)/.test(String(r?.titulo || "").toUpperCase()) ? " (com sábado)" : "");
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -977,7 +979,7 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
               <td className="px-2 py-2">
                 <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
                 <div style={{ color: C.sub }}>{t.parceiro} · {(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome).join(", ")}</div>
-                {t.rec && <div style={{ color: C.sub }}>{t.rec.diaUtil ? `${t.rec.diaVencimento}º dia útil` : `dia ${t.rec.diaVencimento}`}{(t.rec.periodicidade || 1) > 1 ? ` · ${rotPeriodo(t.rec.periodicidade)}` : ""}{t.rec.formaPagamento ? ` · ${FORMAS_PGTO[t.rec.formaPagamento] || t.rec.formaPagamento}` : ""}</div>}
+                {t.rec && <div style={{ color: C.sub }}>{t.rec.diaUtil ? `${t.rec.diaVencimento}º dia útil${sabTxt({ ...t.rec, titulo: t.rec.titulo || t.titulo })}` : `dia ${t.rec.diaVencimento}`}{(t.rec.periodicidade || 1) > 1 ? ` · ${rotPeriodo(t.rec.periodicidade)}` : ""}{t.rec.formaPagamento ? ` · ${FORMAS_PGTO[t.rec.formaPagamento] || t.rec.formaPagamento}` : ""}</div>}
               </td>
               <td className="px-2 py-2 whitespace-nowrap">
                 {!t.rec ? <span style={{ color: C.sub }}>conta avulsa</span> : <b>{moeda(t.base)}</b>}
@@ -1163,7 +1165,7 @@ function MatrizRecModal({ user, contasPorId, onClose, onVoltar }) {
                       <td className="px-2 py-1.5"><b>{p.titulo}</b>{p.obs && <div style={{ color: C.sub }}>{p.obs}</div>}</td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>{p.parceiro}</td>
                       <td className="px-2 py-1.5" style={{ maxWidth: 260 }}>{p.rateio.map((r, i) => <div key={i} className="truncate">{contasPorId[r.contaId] ? `${contasPorId[r.contaId].codigo} ${contasPorId[r.contaId].nome}` : "?"}{p.rateio.length > 1 && ` · ${brl(r.pct)}%`}</div>)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap">{p.util ? `${p.dia}º dia útil` : `dia ${p.dia}`}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{p.util ? `${p.dia}º dia útil${sabTxt({ chaveOrigem: p.chave, titulo: p.titulo })}` : `dia ${p.dia}`}</td>
                       <td className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{brl(p.valor)}{p.jaExiste && p.mudou && <div className="font-normal" style={{ color: C.sub }}>hoje {brl(p.valorAtual)}</div>}</td>
                       <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">
                         {p.jaExiste && p.mudou ? <label className="flex items-center gap-1" style={{ color: C.yellow }}><input type="checkbox" checked={atu.has(p.chave)} onChange={() => togS(setAtu, p.chave)} /> atualizar pela matriz</label>
@@ -1290,7 +1292,7 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
                 <td className="px-2 py-1.5 whitespace-nowrap">{e ? <>
                   <input type="number" min={1} max={31} value={r.diaVencimento} onChange={(ev) => alt(r.id, "diaVencimento", Number(ev.target.value))} className="rounded px-2 py-1 w-14" style={inpS} />
                   <label className="flex items-center gap-1 mt-1"><input type="checkbox" checked={!!r.diaUtil} onChange={(ev) => alt(r.id, "diaUtil", ev.target.checked)} /> dia útil</label>
-                </> : r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}</td>
+                </> : r.diaUtil ? `${r.diaVencimento}º dia útil${sabTxt(r)}` : `dia ${r.diaVencimento}`}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{nomeMes(r.inicio)}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{e ? <input type="month" value={r.fim} onChange={(ev) => alt(r.id, "fim", ev.target.value)} className="rounded px-2 py-1" style={inpS} /> : r.fim ? nomeMes(r.fim) : "sem fim"}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap text-right">
@@ -1422,7 +1424,7 @@ function Recorrentes({ user, contasPorId }) {
                 <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.parceiro}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums font-semibold" style={{ color: r.divergente ? C.yellow : C.text }}>{moeda(r.valor)}</td>
                 <td className="px-2 py-1.5" style={{ color: C.sub }}>
-                  {r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}
+                  {r.diaUtil ? `${r.diaVencimento}º dia útil${sabTxt(r)}` : `dia ${r.diaVencimento}`}
                   {(r.periodicidade || 1) > 1 && <div style={{ color: C.accent }}>{rotPeriodo(r.periodicidade)}</div>}
                 </td>
                 <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>

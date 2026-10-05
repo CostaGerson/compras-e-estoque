@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
 import { garantirRecorrenciasMatriz } from "@/lib/finMatrizRecDb";
-import { separarMutuos } from "@/lib/finAjustes";
+import { separarMutuos, ajustarSalarioSabado } from "@/lib/finAjustes";
 import { garantirSemanas } from "@/lib/finSemana";
 import { gerarRecorrencias, tituloOut, validarRateio, nomeU, r2, so, mesAtual, dataUTC, mesDe, somaMes } from "@/lib/finTitulos";
 
@@ -15,6 +15,7 @@ export async function GET(req) {
   const tipo = TIPOS.includes(sp.get("tipo")) ? sp.get("tipo") : "PAGAR";
   await garantirContas();
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
+  if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   await gerarRecorrencias(tipo);
   const de0 = sp.get("de") || mesAtual();

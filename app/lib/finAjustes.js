@@ -234,3 +234,26 @@ export async function separarMutuos() {
   const anual = MUTUOS_POR_SOCIO.reduce((s, x) => s + (x.valorParcela ?? x.valor) * (12 / (x.periodicidade || 1)), 0);
   return { ok: true, matrizesTrocadas: trocadas, antigos, recorrenciasApagadas, previsoesApagadas, mensal, anual, criados: MUTUOS_POR_SOCIO.length };
 }
+
+// v97: salário no 5º dia útil contando sábado — recalcula os títulos em aberto (uma vez)
+const CHAVE_SALARIO_SAB = "AJUSTE|salario-sabado-v97";
+export async function ajustarSalarioSabado() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_SALARIO_SAB } }).catch(() => null);
+  if (ja) return { ok: true, jaFeito: true };
+  const { vencNoMes, contaSabado, mesAtual } = await import("@/lib/finTitulos");
+  const recs = (await prisma.finRecorrencia.findMany({ where: { diaUtil: true } })).filter(contaSabado);
+  let n = 0;
+  for (const r of recs) {
+    const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, status: "ABERTO", competencia: { gte: mesAtual() } } });
+    for (const t of tits) {
+      const v = vencNoMes(t.competencia, r.diaVencimento, true, true);
+      if (t.vencimento.getTime() !== v.getTime()) { await prisma.finTitulo.update({ where: { id: t.id }, data: { vencimento: v } }); n++; }
+    }
+  }
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_SALARIO_SAB },
+    create: { chave: CHAVE_SALARIO_SAB, valor: new Date().toISOString() },
+    update: { valor: new Date().toISOString() },
+  });
+  return { ok: true, alterados: n };
+}
