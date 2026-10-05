@@ -33,7 +33,7 @@ const div = (a, b) => (b ? a / b : null);
 // só vendedores IGOR, GERSON e PEDRO, por mês de EMISSÃO do pedido. Mexe só em vendasPecas.
 // Fora: JS TÊXTIL e FONTESLOG — remessas, não vendas. Ranking por cliente em lib/kpiClientes2026.js.
 export const PECAS_VENDIDAS_2026 = { 1: 4596, 2: 2198, 3: 14854, 4: 5915, 5: 6895, 6: 10520, 7: 16776, 8: 12316, 9: 12853 };
-const CHAVE_PECAS_2026 = "AJUSTE|kpi-pecas-vendidas-2026-v100";
+const CHAVE_PECAS_2026 = "AJUSTE|kpi-pecas-vendidas-2026-v102";
 export async function importarPecasVendidas2026() {
   const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_PECAS_2026 } }).catch(() => null);
   if (ja) return false;
@@ -44,11 +44,12 @@ export async function importarPecasVendidas2026() {
       update: { vendasPecas: pecas },
     });
   }
-  await prisma.kpiVendaCliente.deleteMany({ where: { ano: 2026, origem: "HISTORICO" } });
-  await prisma.kpiVendaCliente.createMany({
-    data: VENDAS_CLIENTES_2026.map(([mes, cliente, pecas]) => ({ ano: 2026, mes, cliente, pecas, origem: "HISTORICO" })),
-    skipDuplicates: true,
-  });
+  await prisma.kpiVendaCliente.deleteMany({ where: { ano: 2026, origem: "HISTORICO" } });   // inclui o "entregues" da v101, que saiu
+  const data = [
+    ...VENDAS_CLIENTES_2026.map(([mes, cliente, pecas]) => ({ ano: 2026, mes, kpi: "vendasPecas", cliente, pecas })),
+    ...VENDAS_CLIENTES_2026.map(([mes, cliente, pecas, valor]) => ({ ano: 2026, mes, kpi: "vendasValor", cliente, pecas, valor })),
+  ].map((x) => ({ ...x, origem: "HISTORICO" }));
+  await prisma.kpiVendaCliente.createMany({ data, skipDuplicates: true });
   await prisma.finConfig.upsert({
     where: { chave: CHAVE_PECAS_2026 },
     create: { chave: CHAVE_PECAS_2026, valor: new Date().toISOString() },
@@ -57,11 +58,39 @@ export async function importarPecasVendidas2026() {
   return true;
 }
 
-// Os 10 clientes que mais compraram peças no mês
-export async function rankingClientes(ano, mes, limite = 10) {
-  const l = await prisma.kpiVendaCliente.findMany({ where: { ano, mes }, orderBy: [{ pecas: "desc" }, { cliente: "asc" }] });
-  const total = l.reduce((s, x) => s + x.pecas, 0);
-  return { ano, mes, total, clientes: l.length, top: l.slice(0, limite).map((x) => ({ cliente: x.cliente, pecas: x.pecas })) };
+// Top 10 por cliente de cada KPI no mês.
+// vendas (peças e R$): tabela KpiVendaCliente (histórico do relatório de vendas);
+// receita: planilha de recebimentos; faturamento: NFs de saída do mês (sem remessa, devolução e retorno) —
+// ainda sem NFs classificadas, o menu avisa. Peças produzidas não tem ranking até existir o chão de fábrica.
+export const KPIS_RANKING = {
+  vendasPecas: { unidade: "peças", fonte: "Pedidos emitidos no mês (relatório de vendas)" },
+  vendasValor: { unidade: "R$", fonte: "Pedidos emitidos no mês (relatório de vendas)" },
+  faturamentoValor: { unidade: "R$", fonte: "NFs de saída emitidas no mês", vazio: "Ainda não há NFs de saída classificadas neste mês." },
+  receitaValor: { unidade: "R$", fonte: "Recebimentos do mês (análise financeira)" },
+};
+const NAO_VENDA = /REMESSA|DEVOLU|RETORNO/;
+export async function rankingClientes(ano, mes, kpi = "vendasPecas", limite = 10) {
+  const cfg = KPIS_RANKING[kpi];
+  if (!cfg) return { error: "KPI inválido." };
+  const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+  let mapa = new Map();
+  const somar = (nome, v) => { const k = String(nome || "NÃO IDENTIFICADO").trim().toUpperCase() || "NÃO IDENTIFICADO"; mapa.set(k, (mapa.get(k) || 0) + Number(v || 0)); };
+  if (kpi === "faturamentoValor") {
+    const de = new Date(Date.UTC(ano, mes - 1, 1)), ate = new Date(Date.UTC(ano, mes, 1));
+    const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: de, lt: ate } }, select: { destNome: true, valor: true, natureza: true } });
+    for (const n of nfs) if (!NAO_VENDA.test(n.natureza || "")) somar(n.destNome, n.valor);
+  } else if (kpi === "receitaValor") {
+    const comp = `${ano}-${String(mes).padStart(2, "0")}`;
+    const rec = await prisma.finRecebimento.findMany({ where: { competencia: comp, bloco: { in: ["CREDITO", "BOLETO"] } }, select: { nomePagador: true, valor: true } });
+    for (const x of rec) somar(x.nomePagador, x.valor);
+  } else {
+    const l = await prisma.kpiVendaCliente.findMany({ where: { ano, mes, kpi } });
+    for (const x of l) somar(x.cliente, cfg.unidade === "R$" ? x.valor : x.pecas);
+  }
+  const lista = [...mapa.entries()].map(([cliente, v]) => ({ cliente, valor: cfg.unidade === "R$" ? r2(v) : Math.round(v) }))
+    .filter((x) => x.valor > 0).sort((a, b) => b.valor - a.valor || a.cliente.localeCompare(b.cliente));
+  const total = r2(lista.reduce((s, x) => s + x.valor, 0));
+  return { ano, mes, kpi, unidade: cfg.unidade, fonte: cfg.fonte, vazio: cfg.vazio || null, total, clientes: lista.length, top: lista.slice(0, limite) };
 }
 
 export async function garantirKpis() {

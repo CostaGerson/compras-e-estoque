@@ -977,17 +977,20 @@ model KpiMes {
 }
 
 // Peças vendidas por cliente no mês (histórico importado; depois virá dos pedidos lançados)
+// kpi: vendasPecas | vendasValor | pecasProduzidas (faturamento e receita saem direto das NFs e recebimentos)
 model KpiVendaCliente {
   id        Int      @id @default(autoincrement())
   ano       Int
   mes       Int
+  kpi       String   @default("vendasPecas")
   cliente   String
-  pecas     Int
+  pecas     Int      @default(0)
+  valor     Decimal? @db.Decimal(14, 2)
   origem    String   @default("HISTORICO")
   createdAt DateTime @default(now())
 
-  @@unique([ano, mes, cliente])
-  @@index([ano, mes])
+  @@unique([ano, mes, kpi, cliente])
+  @@index([ano, mes, kpi])
 }
 
 // Receita recebida por canal/segmento (B2B, LICITAÇÕES, AGENCIADA, DIGITAL, PATRIMONIO…)

@@ -204,13 +204,13 @@ function Rosca({ p, cor, trilho, tamanho = 96, espessura = 11 }) {
 
 function CardKpi({ k, mes, ano, user, master, money }) {
   const [hover, setHover] = useState(null);
-  const [ranking, setRanking] = useState(null);   // mês aberto no ranking de clientes (só peças vendidas)
-  const comRanking = k.chave === "vendasPecas" && !!user;
+  const [ranking, setRanking] = useState(null);   // mês aberto no ranking de clientes
+  const esconder = k.unidade === "R$" && !master;
+  const comRanking = !!user && ["vendasPecas", "vendasValor", "faturamentoValor", "receitaValor"].includes(k.chave) && !esconder;
   const temValor = k.valor !== null && k.valor !== undefined;
   const p = temValor && k.meta ? k.valor / k.meta : null;
   const [cor, trilho] = corMeta(p);
-  const esconder = k.unidade === "R$" && !master;
-
+  
   const i = hover === null ? mes - 1 : hover;
   const vSerie = k.serie[i], mSerie = k.metaSerie[i];
 
@@ -231,7 +231,7 @@ function CardKpi({ k, mes, ano, user, master, money }) {
         <Rosca p={p} cor={cor} trilho={trilho} />
         <div className="min-w-0">
           {comRanking && temValor ? (
-            <button onClick={() => setRanking(ranking ? null : mes)} title="Ver os 10 clientes que mais compraram no mês"
+            <button onClick={() => setRanking(ranking ? null : mes)} title="Ver os 10 maiores clientes do mês"
               className="font-semibold flex items-center gap-1" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>
               {compacto(k.valor, k.unidade)}
               <ChevronDown size={18} style={{ color: C.accent, transform: ranking ? "rotate(180deg)" : "none" }} />
@@ -264,36 +264,37 @@ function CardKpi({ k, mes, ano, user, master, money }) {
             : `${MESES[i]}: ${vSerie == null ? "sem lançamento" : esconder ? "•••••" : valorCheio(vSerie, k.unidade)}${mSerie ? ` · meta ${esconder ? "•••••" : valorCheio(mSerie, k.unidade)}` : ""}${comRanking && vSerie != null ? " · clique para ver os clientes" : ""}`}
         </div>
       </div>
-      {ranking && <RankingClientes user={user} ano={ano} mes={ranking} onClose={() => setRanking(null)} />}
+      {ranking && <RankingClientes user={user} ano={ano} mes={ranking} kpi={k.chave} rotulo={`${k.rotulo}${k.unidade === "R$" ? "" : " (peças)"}`} onClose={() => setRanking(null)} />}
     </div>
   );
 }
 
 /* Menu suspenso: os 10 clientes que mais compraram peças no mês */
-function RankingClientes({ user, ano, mes, onClose }) {
+function RankingClientes({ user, ano, mes, kpi, rotulo, onClose }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const ref = useRef(null);
   useEffect(() => {
     setD(null); setErro("");
-    api(`/api/kpi/clientes?u=${user.id}&ano=${ano}&mes=${mes}`).then(setD).catch((e) => setErro(e.message || "Erro"));
-  }, [ano, mes]);
+    api(`/api/kpi/clientes?u=${user.id}&ano=${ano}&mes=${mes}&kpi=${kpi}`).then(setD).catch((e) => setErro(e.message || "Erro"));
+  }, [ano, mes, kpi]);
   useEffect(() => {
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     const esc = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("mousedown", fora); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
   }, []);
-  const max = Math.max(1, ...(d?.top || []).map((x) => x.pecas));
+  const max = Math.max(1, ...(d?.top || []).map((x) => x.valor));
+  const fmt = (v) => (d?.unidade === "R$" ? `R$ ${brl(v)}` : inteiro(v));
   return (
     <div ref={ref} className="absolute left-3 right-3 z-30 rounded-xl p-3 shadow-xl" style={{ top: 96, background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold" style={{ color: C.navy }}>Top 10 clientes · {MESES_LONGO[mes - 1]}/{ano}</div>
+        <div className="text-xs font-bold" style={{ color: C.navy }}>Top 10 clientes · {rotulo} · {MESES_LONGO[mes - 1]}/{ano}</div>
         <button onClick={onClose} style={{ color: C.sub }}><X size={14} /></button>
       </div>
       {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
       {!d && !erro && <div className="text-xs" style={{ color: C.sub }}>Carregando…</div>}
-      {d && !d.top.length && <div className="text-xs" style={{ color: C.sub }}>Nenhuma venda por cliente registrada neste mês.</div>}
+      {d && !d.top.length && <div className="text-xs" style={{ color: C.sub }}>{d.vazio || `Nada por cliente registrado neste mês. Fonte: ${d.fonte.toLowerCase()}.`}</div>}
       {d && d.top.length > 0 && (
         <>
           <div className="flex flex-col gap-1.5">
@@ -302,16 +303,17 @@ function RankingClientes({ user, ano, mes, onClose }) {
                 <div className="flex items-center gap-2">
                   <span className="font-bold tabular-nums" style={{ color: i < 3 ? C.accent : C.sub, width: 18 }}>{i + 1}º</span>
                   <span className="flex-1 truncate" title={c.cliente} style={{ color: C.text }}>{c.cliente}</span>
-                  <span className="font-semibold tabular-nums" style={{ color: C.text }}>{inteiro(c.pecas)}</span>
+                  <span className="font-semibold tabular-nums" style={{ color: C.text }}>{fmt(c.valor)}</span>
                 </div>
                 <div className="h-1 rounded-full mt-0.5" style={{ marginLeft: 26, background: C.trilho }}>
-                  <div className="h-1 rounded-full" style={{ width: `${(c.pecas / max) * 100}%`, background: i < 3 ? C.accent : C.marca }} />
+                  <div className="h-1 rounded-full" style={{ width: `${(c.valor / max) * 100}%`, background: i < 3 ? C.accent : C.marca }} />
                 </div>
               </div>
             ))}
           </div>
           <div className="text-[11px] mt-2 pt-2" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
-            {inteiro(d.top.reduce((s, x) => s + x.pecas, 0))} de {inteiro(d.total)} peças · {d.clientes} {d.clientes === 1 ? "cliente" : "clientes"} no mês
+            {fmt(d.top.reduce((s, x) => s + x.valor, 0))} de {fmt(d.total)}{d.unidade === "R$" ? "" : " peças"} · {d.clientes} {d.clientes === 1 ? "cliente" : "clientes"} no mês
+            <div>Fonte: {d.fonte.toLowerCase()}</div>
           </div>
         </>
       )}
