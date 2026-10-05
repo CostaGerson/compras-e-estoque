@@ -18,6 +18,7 @@ export async function GET(req) {
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
+  if (tipo === "PAGAR") { const { garantirGuiasRecorrentes } = await import("@/lib/finGuias"); await garantirGuiasRecorrentes().catch(() => null); }   // INSS/FGTS mensais = última guia
   await gerarRecorrencias(tipo);
   await ajustarFinsDeSemana().catch(() => null);   // sáb/dom → segunda; folha e adiantamento → sexta
   const de0 = sp.get("de") || mesAtual();

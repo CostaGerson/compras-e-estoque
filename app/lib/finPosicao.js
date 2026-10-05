@@ -235,6 +235,7 @@ export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
             atualizadoPorNome: quem || null,
           },
         });
+        { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(t.id, quem).catch(() => null); }
         r.substituidas++; r.valorSubstituido = r2(r.valorSubstituido + valor);
         continue;
       }

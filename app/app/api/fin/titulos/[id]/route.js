@@ -64,6 +64,8 @@ export async function PATCH(req, { params }) {
     }
   }
   const n = await prisma.finTitulo.update({ where: { id }, data: { ...data, ...quem } });
+  // INSS/FGTS: o último valor lançado vira o valor da recorrência (e dos meses seguintes)
+  if (data.valor !== undefined || b.acao === "baixar") { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(id, quem.atualizadoPorNome).catch(() => null); }
   return Response.json(tituloOut(n));
 }
 

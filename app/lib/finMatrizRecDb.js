@@ -4,6 +4,7 @@ import { garantirContas } from "@/lib/fin";
 import { MATRIZ_SEED } from "@/lib/matrizSeed";
 import { propostasDaMatriz } from "@/lib/finMatrizRec";
 import { validarRateio, gerarRecorrencias, r2, mesAtual } from "@/lib/finTitulos";
+import { ehGuia, guiasComValor } from "@/lib/finGuias";
 
 const mesmoRateio = (a, b) => JSON.stringify((a || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort()) === JSON.stringify((b || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort());
 
@@ -26,16 +27,18 @@ export async function montarMatrizRec() {
   const existentes = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { not: null } } });
   const porChave = Object.fromEntries(existentes.map((e) => [e.chaveOrigem, e]));
   const chavesProp = new Set(propostas.map((p) => p.chave));
+  const pelaGuia = await guiasComValor();   // INSS/FGTS: o valor é o da última guia lançada, não o da Matriz
   const lista = propostas.map((p) => {
     const rateio = p.rateio.map((r) => ({ contaId: id[r.codigo] || null, pct: r.pct }));
     const e = porChave[p.chave];
-    const difValor = e && (Math.abs(Number(e.valor) - r2(p.valor)) > 0.009
+    const valorGuia = !!(e && ehGuia(p.chave) && pelaGuia[p.chave]);
+    const difValor = e && ((!valorGuia && Math.abs(Number(e.valor) - r2(p.valor)) > 0.009)
       || e.diaVencimento !== p.dia || !!e.diaUtil !== !!p.util
       || (e.periodicidade || 1) !== Math.max(1, Number(p.periodicidade) || 1));
     const difRateio = e && p.chave.startsWith("MATRIZ|pessoal|") && !mesmoRateio(e.rateio, rateio);
-    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio) };
+    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio), valorGuia };
   });
-  const obsoletas = existentes.filter((e) => e.chaveOrigem.startsWith("MATRIZ|") && !chavesProp.has(e.chaveOrigem))
+  const obsoletas = existentes.filter((e) => e.chaveOrigem.startsWith("MATRIZ|") && !ehGuia(e.chaveOrigem) && !chavesProp.has(e.chaveOrigem))
     .map((e) => ({ id: e.id, chave: e.chaveOrigem, titulo: e.titulo, valor: Number(e.valor) }));
   return { totalMatriz, propostas: lista, obsoletas };
 }
@@ -63,11 +66,12 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
         });
         criadas++;
       } else if (p.jaExiste && p.mudou && atual.has(p.chave)) {
-        const up = { valor: r2(p.valor), diaVencimento: p.dia, diaUtil: !!p.util,
+        const up = { ...(p.valorGuia ? {} : { valor: r2(p.valor) }), diaVencimento: p.dia, diaUtil: !!p.util,
                      periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}) };
         if (p.chave.startsWith("MATRIZ|pessoal|") && rt.rateio) up.rateio = rt.rateio;
         await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
-        await prisma.finTitulo.updateMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", valorConfirmado: false }, data: { valor: up.valor, ...(up.rateio ? { rateio: up.rateio } : {}) } });
+        const upT = { ...(up.valor !== undefined ? { valor: up.valor } : {}), ...(up.rateio ? { rateio: up.rateio } : {}) };
+        if (Object.keys(upT).length) await prisma.finTitulo.updateMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", valorConfirmado: false }, data: upT });
         atualizadas++;
       }
     } catch (e) { erros.push(`${p.titulo}: ${e.message}`); }
@@ -90,11 +94,12 @@ const nrm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, 
 export async function vincularProLaboreAvulso() {
   const recs = await prisma.finRecorrencia.findMany({ where: { OR: [
     { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } }, { chaveOrigem: { startsWith: "MATRIZ|pessoal|ESTAGIO|" } },
-    { chaveOrigem: { in: ["NORT|INSS", "NORT|FGTS"] } }] } });
+    { chaveOrigem: { in: ["NORT|INSS", "NORT|FGTS", "MATRIZ|pessoal|INSS", "MATRIZ|pessoal|FGTS"] } }] } });
   let n = 0;
   for (const r of recs) {
     const estagio = r.chaveOrigem.includes("|ESTAGIO|");
     const guiaNort = r.chaveOrigem.startsWith("NORT|") ? r.chaveOrigem.split("|")[1] : null;   // INSS NORT / FGTS NORT avulsos
+    const guiaMer = /^MATRIZ\|pessoal\|(INSS|FGTS)$/.test(r.chaveOrigem) ? r.chaveOrigem.split("|")[2] : null;   // INSS / FGTS Meridian avulsos
     const nomes = APELIDOS[nrm(r.parceiro)] || [nrm(r.parceiro)];
     const temNome = (x) => nomes.some((w) => w && new RegExp(`(^| )${w}( |$)`).test(x));
     const gerados = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
@@ -103,6 +108,7 @@ export async function vincularProLaboreAvulso() {
       const a = avulsos.find((t) => {
         const x = nrm(`${t.titulo} ${t.parceiro}`);
         if (guiaNort) return / NORT( |$)|^NORT /.test(` ${x} `) && new RegExp(`(^| )${guiaNort}( |$)`).test(x);
+        if (guiaMer) return !/(^| )NORT( |$)/.test(x) && !/RESCIS/.test(x) && new RegExp(`(^| )${guiaMer}( |$)`).test(x);
         return temNome(x) && (estagio ? /ESTAGI|RECIBO|BOLSA/.test(x) || temNome(nrm(t.parceiro)) : /PRO ?LABORE/.test(x));
       });
       if (!a) continue;

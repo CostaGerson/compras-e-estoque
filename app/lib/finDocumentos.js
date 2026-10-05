@@ -530,5 +530,12 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       r.anexos++;
     }
   }
+  // guias de INSS/FGTS: a conta criada avulsa assume a previsão do mês e o valor vira o da recorrência
+  if (itens.some((it) => it.tipo === "GUIA")) {
+    const { vincularProLaboreAvulso } = await import("@/lib/finMatrizRecDb");
+    await vincularProLaboreAvulso().catch(() => 0);
+    const { registrarValorGuia } = await import("@/lib/finGuias");
+    for (const [i, it] of itens.entries()) if (it.tipo === "GUIA" && r.ids[i]) await registrarValorGuia(r.ids[i], quem).catch(() => null);
+  }
   return r;
 }
