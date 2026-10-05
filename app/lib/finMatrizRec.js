@@ -89,7 +89,7 @@ export function propostasDaMatriz(dados) {
   const socios = [];   // pró-labore: conta própria por sócio, mesmo vencimento do salário (5º dia útil com sábado)
   const estagios = []; // estagiário: recibo próprio (bolsa + passagem), mesmo vencimento do salário
   // NORT: o pessoal do setor NORT vai para as contas da loja (folha 5º dia útil, adiantamento, benefícios, INSS/FGTS)
-  const nort = { folha: 0, adi: 0, benef: 0, enc: 0, n: 0 };
+  const nort = { folha: 0, adi: 0, benef: 0, inss: 0, fgts: 0, n: 0 };
   for (const p of calc.pessoas) {
     const c = p.c;
     if (p.depto === "NORT") {
@@ -97,7 +97,7 @@ export function propostasDaMatriz(dados) {
       nort.n++; nort.adi += adiant;
       nort.folha += c.liquido - c.vtDesc + c.G + c.ass - adiant;
       nort.benef += c.vt + c.vtDesc + c.vr + c.saldoLivre + c.ps;
-      nort.enc += c.inssPatronal + c.inssFunc + c.fgts;
+      nort.inss += c.inssPatronal + c.inssFunc; nort.fgts += c.fgts;
       continue;
     }
     if (p.regime === "DIRETOR" || p.depto === "DIR") socios.push(p);
@@ -128,7 +128,9 @@ export function propostasDaMatriz(dados) {
     add({ chave: "NORT|FOLHA5", grupo: "Pessoal", titulo: "NORT — FOLHA 5º DIA ÚTIL", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort.folha, dia: 5, util: true, rateio: [{ codigo: "2154000", pct: 100 }], obs });
     add({ chave: "NORT|ADIANTAMENTO", grupo: "Pessoal", titulo: "NORT — FOLHA ADIANTAMENTO", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort.adi, dia: 20, rateio: [{ codigo: "2155000", pct: 100 }], obs });
     add({ chave: "NORT|BENEFICIOS", grupo: "Pessoal", titulo: "NORT — VT / VA / BENEFÍCIOS", parceiro: "BENEFÍCIOS NORT", valor: nort.benef, dia: 29, rateio: [{ codigo: "2156000", pct: 100 }], obs });
-    if (nort.enc) add({ chave: "NORT|ENCARGOS", grupo: "Pessoal", titulo: "NORT — INSS / FGTS", parceiro: "RECEITA FEDERAL", valor: nort.enc, dia: 20, rateio: [{ codigo: "2157000", pct: 100 }], obs });
+    // uma guia de cada: DARF (INSS) e GFD (FGTS) — dia 20
+    if (nort.inss) add({ chave: "NORT|INSS", grupo: "Pessoal", titulo: "NORT — INSS", parceiro: "RECEITA FEDERAL", valor: nort.inss, dia: 20, rateio: [{ codigo: "2157000", pct: 100 }], obs });
+    if (nort.fgts) add({ chave: "NORT|FGTS", grupo: "Pessoal", titulo: "NORT — FGTS", parceiro: "CAIXA ECONÔMICA FEDERAL", valor: nort.fgts, dia: 20, rateio: [{ codigo: "2157000", pct: 100 }], obs });
   }
   for (const { p, valor, conta } of estagios) {
     add({ chave: `MATRIZ|pessoal|ESTAGIO|${p.id}`, grupo: "Pessoal", titulo: `ESTÁGIO ${p.nome || p.cargo}`, parceiro: p.nome || p.cargo,

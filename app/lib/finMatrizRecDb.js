@@ -89,10 +89,12 @@ const APELIDOS = { PEDRO: ["PEDRO", "TAVARES"] };
 const nrm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 export async function vincularProLaboreAvulso() {
   const recs = await prisma.finRecorrencia.findMany({ where: { OR: [
-    { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } }, { chaveOrigem: { startsWith: "MATRIZ|pessoal|ESTAGIO|" } }] } });
+    { chaveOrigem: { startsWith: "MATRIZ|pessoal|PROLABORE|" } }, { chaveOrigem: { startsWith: "MATRIZ|pessoal|ESTAGIO|" } },
+    { chaveOrigem: { in: ["NORT|INSS", "NORT|FGTS"] } }] } });
   let n = 0;
   for (const r of recs) {
     const estagio = r.chaveOrigem.includes("|ESTAGIO|");
+    const guiaNort = r.chaveOrigem.startsWith("NORT|") ? r.chaveOrigem.split("|")[1] : null;   // INSS NORT / FGTS NORT avulsos
     const nomes = APELIDOS[nrm(r.parceiro)] || [nrm(r.parceiro)];
     const temNome = (x) => nomes.some((w) => w && new RegExp(`(^| )${w}( |$)`).test(x));
     const gerados = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
@@ -100,6 +102,7 @@ export async function vincularProLaboreAvulso() {
       const avulsos = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", recorrenciaId: null, competencia: g.competencia, status: { not: "CANCELADO" } } });
       const a = avulsos.find((t) => {
         const x = nrm(`${t.titulo} ${t.parceiro}`);
+        if (guiaNort) return / NORT( |$)|^NORT /.test(` ${x} `) && new RegExp(`(^| )${guiaNort}( |$)`).test(x);
         return temNome(x) && (estagio ? /ESTAGI|RECIBO|BOLSA/.test(x) || temNome(nrm(t.parceiro)) : /PRO ?LABORE/.test(x));
       });
       if (!a) continue;
@@ -149,4 +152,21 @@ export async function separarEstagio() {
   const novas = m.propostas.filter((p) => /^MATRIZ\|pessoal\|(ESTAGIO|PROLABORE)\|/.test(p.chave) && !p.jaExiste).map((p) => p.chave);
   const mudar = m.propostas.filter((p) => ["MATRIZ|pessoal|SALARIO", "MATRIZ|pessoal|IFOOD"].includes(p.chave) && p.mudou).map((p) => p.chave);
   return aplicarMatrizRec({ quem: "AUTOMÁTICO (ESTÁGIO SEPARADO)", chaves: novas, atualizar: mudar });
+}
+
+// v115: NORT — INSS e FGTS em contas separadas (uma guia cada); a antiga NORT|ENCARGOS sai
+const CHAVE_NORT_GUIAS = "AJUSTE|nort-inss-fgts-v115";
+export async function separarGuiasNort() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_NORT_GUIAS } }).catch(() => null);
+  if (ja) return null;
+  await prisma.finConfig.create({ data: { chave: CHAVE_NORT_GUIAS, valor: new Date().toISOString() } });
+  const velha = await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: "NORT|ENCARGOS" } });
+  if (!velha) return null;
+  await prisma.finTitulo.deleteMany({ where: { recorrenciaId: velha.id, status: "ABERTO", valorConfirmado: false } });
+  await prisma.finTitulo.updateMany({ where: { recorrenciaId: velha.id }, data: { recorrenciaId: null } });
+  await prisma.finRecorrencia.delete({ where: { id: velha.id } });
+  const m = await montarMatrizRec();
+  if (m.error) return null;
+  const novas = m.propostas.filter((p) => ["NORT|INSS", "NORT|FGTS"].includes(p.chave) && !p.jaExiste).map((p) => p.chave);
+  return novas.length ? aplicarMatrizRec({ quem: "AUTOMÁTICO (NORT INSS/FGTS)", chaves: novas }) : null;
 }

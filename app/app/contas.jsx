@@ -569,7 +569,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
 }
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
-const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft] };
+const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft] };
 function DocumentoModal({ user, contas, onClose, onSalvo }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
@@ -588,7 +588,7 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
       for (const f of pdfs) lista.push({ nome: f.name, conteudo: await readB64(f) });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
       setArqs(lista); setR(j);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : it.tipo === "RECIBO" ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null } }])));
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null } }])));
     } catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -614,7 +614,7 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
     try {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
-        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos, rateio: it.rateio || null,
+        return { tipo: it.tipo, valor: it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos, rateio: it.rateio || null, vencimento: it.vencimento || null,
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
@@ -687,6 +687,12 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                     <div className="mt-1" style={{ color: C.sub }}>{it.nota}</div>
                   </div>
                 )}
+                {it.tipo === "GUIA" && (
+                  <div className="text-xs mb-2" style={{ color: C.sub }}>
+                    Vence <b style={{ color: C.text }}>{dBR(it.vencimento)}</b>
+                    {it.composicao?.length > 0 && <> · {it.composicao.map((x) => `${x.desc}: ${brl(x.valor)}`).join(" · ")}</>}
+                  </div>
+                )}
                 {it.tipo === "RECIBO" && it.itens?.length > 0 && (
                   <div className="text-xs mb-2" style={{ color: C.sub }}>{it.itens.map((x) => `${x.desc}: ${brl(x.valor)}`).join(" · ")}</div>
                 )}
@@ -743,7 +749,7 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                 </div>
                 {alvo && (
                   <div className="text-xs mt-1.5" style={{ color: C.sub }}>
-                    {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.valor)}</b> · fica confirmado e o PDF vai anexado</>}
+                    {alvo.status === "PAGO" ? "Já baixada — só o documento será anexado." : <>Valor: <s>{moeda(alvo.valor)}</s> → <b style={{ color: C.green }}>{moeda(it.valor)}</b>{it.vencimento && it.vencimento !== alvo.vencimento ? <> · vencimento {dBR(alvo.vencimento)} → <b>{dBR(it.vencimento)}</b></> : null} · fica confirmado e o PDF vai anexado</>}
                   </div>
                 )}
                 {alvo && alvo.status !== "PAGO" && it.rateio?.length > 0 && (
@@ -757,7 +763,8 @@ function DocumentoModal({ user, contas, onClose, onSalvo }) {
                     <input value={e.criar?.parceiro || ""} onChange={(ev) => mudaCriar(it.chave, { parceiro: ev.target.value.toUpperCase() })} placeholder="Fornecedor / pessoa" className={inp} style={inpS} />
                     <input type="date" value={e.criar?.vencimento || ""} onChange={(ev) => mudaCriar(it.chave, { vencimento: ev.target.value })} className={inp} style={inpS} />
                     <div style={{ gridColumn: "1 / -1" }}>
-                      <ContaSelect conta={contasPorId[e.criar?.contaId]} contas={contas} onPick={(id) => mudaCriar(it.chave, { contaId: id })} />
+                      <ContaSelect conta={contasPorId[e.criar?.contaId]} contas={contas} onPick={(id) => mudaCriar(it.chave, { contaId: id, trocouConta: true })} />
+                      {it.rateio?.length > 1 && !e.criar?.trocouConta && <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>Rateio sugerido: {it.rateio.map((x) => `${contasPorId[x.contaId]?.codigo || x.contaId} ${brl(x.pct)}%`).join(" · ")} (escolher outra conta troca por 100% nela)</div>}
                       {!e.criar?.contaId && <div className="text-[11px] mt-0.5" style={{ color: C.red }}>Escolha a conta-caixa (obrigatória).</div>}
                     </div>
                   </div>

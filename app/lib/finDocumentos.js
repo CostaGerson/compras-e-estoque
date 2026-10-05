@@ -94,10 +94,61 @@ const DETECTORES = [
   },
 ];
 
+// ---- guias: DARF (INSS/DCTFWeb) e GFD (FGTS Digital) ----
+const dataBR = (s) => { const m = String(s || "").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+const CNPJS = { "48011287": "MERIDIAN", "55116246": "NORT" };
+const empresaCnpj = (txt) => { const m = String(txt || "").replace(/\D/g, " ").match(/\b(48011287|55116246)/); return m ? CNPJS[m[1]] : empresaDe(txt); };
+DETECTORES.push(
+  {
+    tipo: "DARF",
+    casa: (L) => L.some((l) => /Documento de Arrecada[cç][aã]o/i.test(l)) && L.some((l) => /de Receitas Federais/i.test(l)),
+    ler(L) {
+      const t = L.join("\n");
+      const cnpjL = L.find((l) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\s+/.test(l)) || "";
+      const pa = t.match(/([A-Za-zçÇ]+)\/(\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+([\d.]+-\d)/);
+      const mesPA = pa ? MESES.indexOf(normRegra(pa[1])) : -1;
+      const valor = t.match(/Valor Total do Documento\s*\n?\s*([\d.]+,\d{2})/i) || t.match(/Valor:\s*([\d.]+,\d{2})/i);
+      const itens = [];
+      for (let i = 0; i < L.length; i++) {
+        const h = L[i].match(/^(\d{4})\s+(.+)$/);
+        const v = (L[i + 1] || "").match(/^([\d.]+,\d{2})(?:\s+([\d.]+,\d{2}))?$/);
+        if (h && v) itens.push({ codigo: h[1], desc: h[2].trim(), sub: (L[i + 2] || "").trim(), valor: num(v[2] || v[1]) });
+      }
+      const prev = itens.some((x) => ["1082", "1138", "1099", "1646", "1170", "1200"].includes(x.codigo));
+      return {
+        empresa: empresaCnpj(cnpjL || t), cnpj: cnpjL.split(" ")[0] || null,
+        comp: mesPA >= 0 ? `${pa[2]}-${String(mesPA + 1).padStart(2, "0")}` : null,
+        vencimento: pa ? dataBR(pa[3]) : dataBR(t.match(/Pagar at[eé]:?\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1]),
+        numero: pa?.[4] || null, valor: valor ? num(valor[1]) : r2(itens.reduce((a, x) => a + x.valor, 0)), itens,
+        guia: prev ? "INSS" : "DARF",
+      };
+    },
+  },
+  {
+    tipo: "GFD",
+    casa: (L) => L.some((l) => /GFD\s*-\s*Guia do FGTS Digital/i.test(l)),
+    ler(L) {
+      const t = L.join("\n");
+      const tag = t.match(/\b\d{8}\s+(\d{2})\/(\d{4})\s+([A-ZÁÉÍÓÚÇ]+)/);
+      const linha = t.match(/(\d{2})\/(\d{4})\s+(\d+)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})/);
+      const tot = t.match(/Total da Guia:\s*([\d.]+,\d{2})/i);
+      const empL = L.find((l) => /^\d{2}\.\d{3}\.\d{3}\s+\S/.test(l)) || "";
+      return {
+        empresa: empresaCnpj(empL || t), comp: tag ? `${tag[2]}-${tag[1]}` : null,
+        vencimento: dataBR(L.find((l) => /^\d{2}\/\d{2}\/\d{4}$/.test(l))),
+        natureza: tag ? normRegra(tag[3]) : "MENSAL", valor: tot ? num(tot[1]) : 0,
+        trabalhadores: linha ? Number(linha[3]) : null,
+        partes: linha ? { mensal: num(linha[4]), rescisorio: num(linha[5]), indenizacao: num(linha[6]), encargos: num(linha[7]) } : null,
+        guia: "FGTS",
+      };
+    },
+  },
+);
+
 export async function lerDocumento(nome, buf) {
   const L = await textoDoc(buf);
   const d = DETECTORES.find((x) => x.casa(L));
-  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", erro: "Não reconheci este documento (folha, resumo de líquidos ou recibo)." };
+  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS)." };
   return { ...d.ler(L), arquivo: nome, tipo: d.tipo };
 }
 
@@ -201,6 +252,61 @@ export async function analisarDocumentos(docs) {
         contaId: Array.isArray(ant?.rateio) && ant.rateio.length ? ant.rateio[0].contaId : null },
     });
   }
+  // guias de INSS (DARF previdenciário) e FGTS (GFD)
+  const recsG = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: ["MATRIZ|pessoal|INSS", "MATRIZ|pessoal|FGTS", "NORT|INSS", "NORT|FGTS", "NORT|ENCARGOS"] } }, select: { id: true, chaveOrigem: true } });
+  const recG = Object.fromEntries(recsG.map((r) => [r.chaveOrigem, r.id]));
+  const contasG = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
+  const idG = Object.fromEntries(contasG.map((c) => [c.codigo, c.id]));
+  for (const d of docs.filter((x) => x.tipo === "DARF" || x.tipo === "GFD")) {
+    const nort = d.empresa === "NORT";
+    const tipoG = d.guia;   // INSS | FGTS | DARF
+    const comp = d.vencimento ? mesDe(d.vencimento) : null;
+    const opcoes = comp ? await contasDoMes(comp) : [];
+    const rescisoria = tipoG === "FGTS" && d.natureza && d.natureza !== "MENSAL";
+    const refTxt = d.comp ? nomeMes(d.comp) : "?";
+    const avisos = [];
+    let alvo = null;
+    if (!rescisoria && tipoG !== "DARF") {
+      const chaves = nort ? [`NORT|${tipoG}`, "NORT|ENCARGOS"] : [`MATRIZ|pessoal|${tipoG}`];
+      for (const k of chaves) if (!alvo && recG[k]) alvo = opcoes.find((t) => t.recorrenciaId === recG[k] && t.status !== "PAGO") || null;
+      if (!alvo) alvo = opcoes.find((t) => new RegExp(`(^| )${tipoG}( |$)`).test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(`${t.titulo} ${t.parceiro}`)) && t.status !== "PAGO") || null;
+      if (alvo && Number(alvo.valor) > 0 && Math.abs(Number(alvo.valor) - d.valor) / Number(alvo.valor) > 0.15)
+        avisos.push(`A guia (${d.valor.toFixed(2)}) está ${d.valor > alvo.valor ? "acima" : "abaixo"} da previsão (${Number(alvo.valor).toFixed(2)}) em mais de 15%.`);
+    }
+    if (tipoG === "DARF") avisos.push("DARF sem códigos previdenciários — escolha a conta de destino.");
+    // rateio: NORT → INSS/FGTS da loja; Meridian → mesmo rateio do SALÁRIO do mês (setores da folha),
+    // e no INSS a parte dos sócios (contribuinte individual: 1099 e 1138-04) vai para PRO LABORE
+    let rateio = null;
+    if (nort) rateio = idG["2157000"] ? [{ contaId: idG["2157000"], pct: 100 }] : null;
+    else {
+      const sal = opcoes.find((t) => recDe["MATRIZ|pessoal|SALARIO"] && t.recorrenciaId === recDe["MATRIZ|pessoal|SALARIO"]);
+      const base = Array.isArray(sal?.rateio) && sal.rateio.length ? sal.rateio : null;
+      const socios = tipoG === "INSS" ? r2((d.itens || []).filter((x) => x.codigo === "1099" || (x.codigo === "1138" && /INDIVIDUA/.test(normRegra(x.sub)))).reduce((a, x) => a + x.valor, 0)) : 0;
+      if (base && d.valor > 0) {
+        const fatorFolha = (d.valor - socios) / d.valor;
+        const m = {};
+        for (const x of base) m[x.contaId] = (m[x.contaId] || 0) + Number(x.pct) * fatorFolha;
+        if (socios > 0 && idG["2126000"]) m[idG["2126000"]] = (m[idG["2126000"]] || 0) + (socios / d.valor) * 100;
+        const l = Object.entries(m).map(([contaId, pct]) => ({ contaId: Number(contaId), pct: r2(pct) })).filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct);
+        if (l.length) { const dif = r2(100 - l.reduce((a, x) => a + x.pct, 0)); l[0].pct = r2(l[0].pct + dif); }
+        rateio = l.length ? l : null;
+      }
+      if (!base && tipoG !== "DARF") avisos.push("O SALÁRIO do mês ainda não tem rateio da folha — importe a folha antes para o rateio sair por setor (senão fica o rateio atual da conta).");
+      if (socios > 0) avisos.push(`Inclui R$ ${socios.toFixed(2)} dos sócios (contribuinte individual) — vai para PRO LABORE no rateio.`);
+    }
+    const irrf = (d.itens || []).find((x) => x.codigo === "0561");
+    const nomeG = tipoG === "FGTS" ? (rescisoria ? "FGTS RESCISÓRIO" : "FGTS") : tipoG === "INSS" ? "INSS (DARF previdenciário)" : "DARF";
+    itens.push({
+      chave: `GUIA|${tipoG}|${d.empresa}|${d.comp}|${d.natureza || ""}|${d.valor}`, tipo: "GUIA", guia: tipoG, empresa: d.empresa, comp, refTexto: refTxt,
+      descricao: `${nomeG} de ${refTxt} — ${d.empresa}${irrf ? ` (inclui IRRF ${irrf.valor.toFixed(2)})` : ""}`,
+      valor: r2(d.valor), vencimento: d.vencimento, arquivos: [d.arquivo], avisos, rateio,
+      composicao: tipoG === "FGTS" ? (d.partes ? Object.entries(d.partes).filter(([, v]) => v > 0).map(([k, v]) => ({ desc: { mensal: "FGTS mensal", rescisorio: "FGTS rescisório", indenizacao: "Indenização compensatória (multa)", encargos: "Encargos" }[k], valor: v })) : [])
+        : (d.itens || []).map((x) => ({ desc: `${x.codigo} ${x.sub || x.desc}`, valor: x.valor })),
+      alvo: saida(alvo), opcoes: opcoes.map(saida),
+      novo: { titulo: `${nomeG}${nort ? " NORT" : ""} ${d.comp ? d.comp.split("-").reverse().join("/") : ""}`.trim(), parceiro: tipoG === "FGTS" ? "CAIXA ECONÔMICA FEDERAL" : "RECEITA FEDERAL",
+        vencimento: d.vencimento, contaId: rateio?.[0]?.contaId || null },
+    });
+  }
   return itens;
 }
 
@@ -222,6 +328,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
           data: {
             valor, previsao: false, valorConfirmado: true, atualizadoPorNome: quem || null,
             ...(Array.isArray(it.rateio) && it.rateio.length ? { rateio: it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) } : {}),
+            ...(it.vencimento ? { vencimento: dataUTC(it.vencimento) } : {}),
             observacao: [t.observacao, `${it.descricao} · R$ ${valor.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 500),
           },
         });
@@ -238,7 +345,8 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
         data: {
           tipo: "PAGAR", titulo: String(c.titulo || it.descricao).toUpperCase().slice(0, 120), parceiro: String(c.parceiro || "").toUpperCase() || "SEM PARCEIRO",
           valor, vencimento: dataUTC(c.vencimento), competencia: mesDe(c.vencimento), previsao: false, valorConfirmado: true,
-          rateio: [{ contaId: Number(c.contaId), pct: 100 }], observacao: it.descricao.slice(0, 500), forma: "MANUAL",
+          rateio: Array.isArray(it.rateio) && it.rateio.length && !c.trocouConta ? it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) : [{ contaId: Number(c.contaId), pct: 100 }],
+          observacao: it.descricao.slice(0, 500), forma: "MANUAL",
           criadoPorId: usuarioId || null, criadoPorNome: quem || null,
         },
       });
