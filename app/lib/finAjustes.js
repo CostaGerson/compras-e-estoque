@@ -307,3 +307,49 @@ export async function dividirImposto() {
   });
   return { ok: true, ...r };
 }
+
+// v110: NORT — futura loja da Meridian, ainda bancada por ela. Uma vez:
+//  - CAIXA 4MIL (1117000) vira CAIXA NORT e vai para o grupo NORT da DRE (sai do de–para manual, se houver);
+//  - recorrências a pagar da loja, com VALOR E VENCIMENTO A DEFINIR (valor 0, aparecem para conferir):
+//    aluguel, CEMIG, COPASA, folha 5º dia útil (com sábado), adiantamento (dia 20) e VT/VA/benefícios.
+const CHAVE_NORT = "AJUSTE|nort-v110";
+export const RECORRENCIAS_NORT = [
+  { chave: "NORT|ALUGUEL", conta: "2151000", titulo: "NORT — ALUGUEL DA LOJA", parceiro: "LOCADOR DA LOJA NORT", dia: 10 },
+  { chave: "NORT|CEMIG", conta: "2152000", titulo: "NORT — CEMIG", parceiro: "CEMIG", dia: 10 },
+  { chave: "NORT|COPASA", conta: "2153000", titulo: "NORT — COPASA", parceiro: "COPASA", dia: 10 },
+  { chave: "NORT|FOLHA5", conta: "2154000", titulo: "NORT — FOLHA 5º DIA ÚTIL", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 5, util: true },
+  { chave: "NORT|ADIANTAMENTO", conta: "2155000", titulo: "NORT — FOLHA ADIANTAMENTO", parceiro: "FOLHA DE PAGAMENTO NORT", dia: 20 },
+  { chave: "NORT|BENEFICIOS", conta: "2156000", titulo: "NORT — VT / VA / BENEFÍCIOS", parceiro: "BENEFÍCIOS NORT", dia: 29 },
+];
+export async function criarNort() {
+  const ja = await prisma.finConfig.findUnique({ where: { chave: CHAVE_NORT } }).catch(() => null);
+  if (ja) return { ok: true, jaFeito: true };
+  const codigos = ["1117000", ...RECORRENCIAS_NORT.map((x) => x.conta)];
+  const contas = await prisma.finConta.findMany({ where: { codigo: { in: codigos } } });
+  const id = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));
+  if (RECORRENCIAS_NORT.some((x) => !id[x.conta])) return { ok: false, erro: "contas da NORT ainda não criadas" };
+  const r = { recorrencias: 0 };
+  if (id["1117000"]) {
+    await prisma.finConta.update({ where: { id: id["1117000"] }, data: { nome: "CAIXA NORT", ativo: true } });
+    await prisma.finDreMapa.deleteMany({ where: { contaId: id["1117000"] } });   // passa a seguir o de–para oficial (NORT)
+  }
+  const d = new Date();
+  const inicio = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  for (const x of RECORRENCIAS_NORT) {
+    if (await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: x.chave } })) continue;
+    await prisma.finRecorrencia.create({
+      data: {
+        tipo: "PAGAR", titulo: x.titulo, parceiro: x.parceiro, valor: 0, diaVencimento: x.dia, diaUtil: !!x.util,
+        rateio: [{ contaId: id[x.conta], pct: 100 }], inicio, ativo: true, chaveOrigem: x.chave,
+        observacao: "NORT · VALOR E VENCIMENTO A DEFINIR", criadoPorNome: "SISTEMA (NORT)",
+      },
+    });
+    r.recorrencias++;
+  }
+  await prisma.finConfig.upsert({
+    where: { chave: CHAVE_NORT },
+    create: { chave: CHAVE_NORT, valor: JSON.stringify({ em: new Date().toISOString(), ...r }) },
+    update: { valor: JSON.stringify({ em: new Date().toISOString(), ...r }) },
+  });
+  return { ok: true, ...r };
+}

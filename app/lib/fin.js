@@ -124,6 +124,8 @@ export async function garantirContas() {
   }
   const { dividirImposto } = await import("@/lib/finAjustes");
   await dividirImposto().catch(() => null);
+  const { criarNort } = await import("@/lib/finAjustes");
+  await criarNort().catch(() => null);
 }
 
 // Importa as palavras-chave do sistema anterior UMA vez (marca origem = BASE).

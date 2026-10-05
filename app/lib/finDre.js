@@ -11,6 +11,7 @@ export const GRUPOS_OPERACAO = [
   { k: "DESPESA_ADM", n: "04. Despesa adm e vegetativa", sinal: -1, ajuda: "Estrutura que roda independente de vender: vida vegetativa, pessoal adm, pró-labore, manutenção, designer" },
   { k: "IMPOSTOS_JUROS", n: "06. Impostos e juros", sinal: -1, ajuda: "Imposto, taxas, juros e despesa financeira — o principal da dívida não entra aqui" },
   { k: "INVESTIMENTO", n: "08. Investimento", sinal: -1, ajuda: "Reforma, maquinário, patrimônio, planta e reserva de capital" },
+  { k: "NORT", n: "08.1 NORT (loja bancada pela Meridian)", sinal: -1, ajuda: "Receitas da NORT (caixa NORT) menos aluguel, CEMIG, COPASA, folha e benefícios da loja — o que a Meridian banca" },
 ];
 // ---- recursos externos (não são operação: entram e saem do caixa) ----
 export const GRUPOS_EXTERNOS = [
@@ -70,7 +71,9 @@ export const MAPA_OFICIAL = {
   1133000: "EXT_FACTORING", 2131300: "EXT_FACTORING",
   1134000: "EXT_CAPITAL", 2131400: "EXT_CAPITAL",
   1135000: "EXT_MUTUO", 2131500: "EXT_MUTUO",
-  1117000: "EXT_SEM_JUROS", 1140000: "EXT_SEM_JUROS",
+  1140000: "EXT_SEM_JUROS",
+  // NORT — futura loja: receita (caixa NORT, antigo caixa 4mil) e custos ficam num grupo próprio
+  1117000: "NORT", 2151000: "NORT", 2152000: "NORT", 2153000: "NORT", 2154000: "NORT", 2155000: "NORT", 2156000: "NORT",
   // FORA DA DRE
   3000000: "FORA",
   2111200: "FORA", 2111300: "FORA", 2113000: "FORA", 2123000: "FORA",   // contas antigas, inativas
@@ -136,7 +139,8 @@ export async function dre(competencia) {
   const impostos = r2(porGrupo.IMPOSTOS_JUROS || 0);
   const lucro = r2(ebitda + impostos);
   const investimento = r2(porGrupo.INVESTIMENTO || 0);
-  const resultado = r2(lucro + investimento);
+  const nort = r2(porGrupo.NORT || 0);
+  const resultado = r2(lucro + investimento + nort);
   const saldoInicial = painel?.saldoInicial != null ? Number(painel.saldoInicial) : 0;
   const saldoOperacao = r2(saldoInicial + resultado);
 
@@ -154,7 +158,7 @@ export async function dre(competencia) {
   return {
     competencia, saldoInicial,
     operacao: {
-      receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, resultado, saldoOperacao,
+      receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, nort, resultado, saldoOperacao,
       margemPct: receita ? margem / receita : null,
       ebitdaPct: receita ? ebitda / receita : null,
       lucroPct: receita ? lucro / receita : null,

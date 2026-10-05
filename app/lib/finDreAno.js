@@ -131,12 +131,13 @@ export async function dreAno(ano, hoje = new Date()) {
     const impostos = r2(g.IMPOSTOS_JUROS || 0);
     const lucro = r2(ebitda + impostos);
     const investimento = r2(g.INVESTIMENTO || 0);
-    const resultado = r2(lucro + investimento);
+    const nort = r2(g.NORT || 0);
+    const resultado = r2(lucro + investimento + nort);
     const externo = r2(CHAVES_EXT.reduce((s, k) => s + (g[k] || 0), 0));
     const saldoInicial = saldoDe[comp] ?? null;
     meses.push({
       competencia: comp, mes: i, lancado: true, lancamentos: m.n,
-      receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, resultado,
+      receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, nort, resultado,
       externo, saldoInicial,
       saldoOperacao: r2((saldoInicial || 0) + resultado),
       saldoFinal: r2((saldoInicial || 0) + resultado + externo),
@@ -153,7 +154,7 @@ export async function dreAno(ano, hoje = new Date()) {
     primeiro: feitos[0]?.competencia || null,
     ultimo: feitos[feitos.length - 1]?.competencia || null,
     receita, cmv: soma("cmv"), margem: soma("margem"), adm: soma("adm"), ebitda: soma("ebitda"),
-    impostos: soma("impostos"), lucro: soma("lucro"), investimento: soma("investimento"),
+    impostos: soma("impostos"), lucro: soma("lucro"), investimento: soma("investimento"), nort: soma("nort"),
     resultado: soma("resultado"), externo: soma("externo"),
     saldoInicial: feitos[0]?.saldoInicial ?? null,
   };

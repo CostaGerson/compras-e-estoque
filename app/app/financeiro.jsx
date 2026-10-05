@@ -383,6 +383,9 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="Lucro líquido" valor={t.lucro} cor={t.lucro >= 0 ? C.green : C.red} pct={t.lucroPct} forte />
             <Ind rotulo="Investimento" valor={t.investimento} cor={C.yellow} pct={t.receita ? t.investimento / t.receita : null}
               onClick={() => ir("INVESTIMENTO", "Investimento")} />
+            <Ind rotulo="NORT (loja)" valor={t.nort || 0} cor={(t.nort || 0) >= 0 ? C.green : C.red} pct={t.receita ? (t.nort || 0) / t.receita : null}
+              titulo="Receitas da NORT (caixa NORT) menos os custos da loja que a Meridian banca"
+              onClick={() => ir("NORT", "NORT (loja)")} />
             <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} forte />
           </div>
           <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
@@ -996,7 +999,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
               </div>
             </div>
             {(d.grupos?.operacao || []).map((g, i) => {
-              const vals = { RECEITA: o.receita, CMV: o.cmv, DESPESA_ADM: o.adm, IMPOSTOS_JUROS: o.impostos, INVESTIMENTO: o.investimento };
+              const vals = { RECEITA: o.receita, CMV: o.cmv, DESPESA_ADM: o.adm, IMPOSTOS_JUROS: o.impostos, INVESTIMENTO: o.investimento, NORT: o.nort || 0 };
               const linhas = [
                 <LinhaDre key={g.k} rotulo={g.n} valor={vals[g.k]} pct={o.receita ? vals[g.k] / o.receita : null} grupo={g.k}
                   detalhe={d.detalhes?.[g.k]} aberto={aberto === g.k} onToggle={() => setAberto(tg(g.k))} abrirConta={abrirConta} />,
@@ -1007,7 +1010,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
                 <LinhaDre key="e" rotulo="05. EBITDA" valor={o.ebitda} pct={o.receita ? o.ebitda / o.receita : null} forte tom="resultado" />);
               if (g.k === "IMPOSTOS_JUROS") linhas.push(
                 <LinhaDre key="l" rotulo="07. Lucro líquido" valor={o.lucro} pct={o.receita ? o.lucro / o.receita : null} forte tom="resultado" />);
-              if (g.k === "INVESTIMENTO") linhas.push(
+              if (g.k === "NORT") linhas.push(
                 <LinhaDre key="r" rotulo="09. Resultado da operação" valor={o.resultado} pct={o.receita ? o.resultado / o.receita : null} forte tom="resultado" />,
                 <LinhaDre key="si" rotulo="10. Saldo inicial do mês" valor={d.saldoInicial} pct={null} />,
                 <LinhaDre key="so" rotulo="11. Saldo da operação" valor={o.saldoOperacao} pct={null} forte tom="resultado" />);
