@@ -18,7 +18,9 @@ export async function GET(req) {
   ]);
   return Response.json({
     ...pessoal, calendario: cal, competencia: comp,
-    envios: envios.map((e) => ({ ...e, valor: e.valor != null ? Number(e.valor) : null })),
+    // um registro por documento (o mesmo arquivo enviado de novo não aparece duas vezes)
+    envios: envios.filter((e, i, l) => l.findIndex((x) => (e.hash ? x.hash === e.hash : x.arquivo === e.arquivo && x.tituloId === e.tituloId)) === i)
+      .map((e) => ({ ...e, valor: e.valor != null ? Number(e.valor) : null })),
     contas,
   });
 }

@@ -848,10 +848,12 @@ model FinTituloAnexo {
   mime          String?
   tamanho       Int       @default(0)
   conteudo      String    // base64
+  hash          String?   // sha-256 do arquivo — evita importar o mesmo documento duas vezes
   criadoPorNome String?
   createdAt     DateTime  @default(now())
 
   @@index([tituloId])
+  @@index([hash])
 }
 
 // Conta recorrente: gera um título (previsão) por mês
@@ -1245,6 +1247,7 @@ model RhEnvio {
   arquivo       String
   tituloId      Int?
   valor         Decimal? @db.Decimal(14, 2)
+  hash          String?
   criadoPorNome String?
   createdAt     DateTime @default(now())
 

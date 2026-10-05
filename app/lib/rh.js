@@ -28,6 +28,15 @@ export async function notificarQuadro(texto, deId) {
   return para.length;
 }
 
+// Avisos só para o financeiro (master + setor FINANCEIRO)
+export async function notificarFinanceiro(texto, deId) {
+  const destinos = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO" }] }, select: { id: true } });
+  const para = destinos.filter((u) => u.id !== deId);
+  if (!para.length) return 0;
+  await prisma.mensagem.createMany({ data: para.map((u) => ({ deId: deId || para[0].id, paraId: u.id, texto: String(texto).slice(0, 2000) })) });
+  return para.length;
+}
+
 // ---------- pessoal (Matriz oficial) ----------
 export const CAMPOS_PESSOA = ["nome", "cargo", "depto", "regime", "salario", "bonus", "vt", "descontaVt", "vr", "ps", "assPct",
   "saldoLivre", "rFerias", "adiantamento", "ativo", "obs", "admissao", "demissao"];
@@ -114,6 +123,7 @@ export async function salvarPessoa({ acao, pessoa, nomeCompleto }, u) {
 // · folha (fopag + resumo de líquidos) do mês anterior: até o 3º dia útil
 // · adiantamento do mês: até o dia 17
 // · impostos (INSS e FGTS) do mês anterior: até o dia 17
+// · relatório de recargas do iFood + boleto (PDF ou PIX copia e cola): até o dia 25
 const iso = (d) => d.toISOString().slice(0, 10);
 export async function calendario(comp = mesAtual()) {
   const envios = await prisma.rhEnvio.findMany({ where: { competencia: comp } });
@@ -130,6 +140,7 @@ export async function calendario(comp = mesAtual()) {
       ["FOLHA", terceiro, ["FOLHA"], `Folha de ${nomeMes(ant)} (fopag + líquidos)`],
       ["ADIANTAMENTO", dia17, ["ADIANTAMENTO"], `Adiantamento de ${nomeMes(comp)}`],
       ["IMPOSTOS", dia17, ["INSS", "FGTS"], `Guias de INSS e FGTS de ${nomeMes(ant)}`],
+      ["IFOOD", `${comp}-25`, ["IFOOD"], `Recargas do iFood de ${nomeMes(comp)} + boleto/PIX`],
     ]) {
       const feito = tem(emp, cats);
       const parcial = !feito && cats.length > 1 && cats.some((c) => envios.some((e) => e.empresa === emp && e.categoria === c));

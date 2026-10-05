@@ -338,8 +338,16 @@ export async function analisarDocumentos(docs) {
 // item: { tipo, valor, comp, descricao, arquivos:[nomes], alvoId? , criar?: { titulo, parceiro, vencimento, contaId } }
 export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {}) {
   const porNome = Object.fromEntries((arquivos || []).map((a) => [a.nome, a]));
-  const r = { atualizadas: 0, criadas: 0, anexos: 0, linhas: [], ids: [] };
+  const r = { atualizadas: 0, criadas: 0, anexos: 0, linhas: [], ids: [], repetidos: 0 };
+  const { jaImportados } = await import("@/lib/finHash");
+  const ja = await jaImportados(itens.flatMap((it) => it.hashes || []));
   for (const it of itens) {
+    // trava no servidor: arquivo já anexado numa conta ativa não atualiza nada de novo
+    if ((it.hashes || []).length && it.hashes.every((h) => h && ja[h])) {
+      r.ids.push(null); r.repetidos++;
+      r.linhas.push(`${it.descricao}: já importado antes — ignorado`);
+      continue;
+    }
     const valor = r2(it.valor);
     let id = Number(it.alvoId) || null;
     if (id) {
@@ -385,8 +393,10 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       const { categoriaEnvio } = await import("@/lib/rh");
       const t = await prisma.finTitulo.findUnique({ where: { id }, select: { titulo: true, competencia: true } });
       const emp = it.empresa || (/NORT/.test(String(t?.titulo).toUpperCase()) ? "NORT" : "MERIDIAN");
-      for (const n of it.arquivos || []) {
-        await prisma.rhEnvio.create({ data: { competencia: t?.competencia || it.comp || "", empresa: emp, categoria: categoriaEnvio(it, t), arquivo: n, tituloId: id, valor, criadoPorNome: quem || null } });
+      for (const [i, n] of (it.arquivos || []).entries()) {
+        const h = it.hashes?.[i] || null;
+        if (h && await prisma.rhEnvio.findFirst({ where: { hash: h }, select: { id: true } })) continue;
+        await prisma.rhEnvio.create({ data: { competencia: t?.competencia || it.comp || "", empresa: emp, categoria: categoriaEnvio(it, t), arquivo: n, tituloId: id, valor, hash: h, criadoPorNome: quem || null } });
       }
     } catch { /* o registro não pode travar o lançamento */ }
     for (const n of it.arquivos || []) {

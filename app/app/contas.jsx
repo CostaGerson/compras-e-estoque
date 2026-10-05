@@ -39,7 +39,7 @@ const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")}
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
 const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
-const FORMA = { MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
+const FORMA = { RH: ["Lançada pelo RH", Hand], MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 // toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
 const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) || String(t.chaveImport || "").startsWith("POSICAO|");
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
@@ -569,7 +569,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
 }
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
-const TIPO_DOC = { FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2] };
+const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2] };
 export function DocumentoModal({ user, contas, onClose, onSalvo }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
@@ -588,7 +588,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
       for (const f of pdfs) lista.push({ nome: f.name, conteudo: await readB64(f) });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
       setArqs(lista); setR(j);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
         valor: it.valor, atualizarValor: !!it.atualizarValor }])));
     } catch (e) { setErro(e.message); }
     setSt("");
@@ -616,7 +616,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
         return { tipo: it.tipo, valor: it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
-          rateio: it.rateio || null, vencimento: it.vencimento || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor,
+          rateio: it.rateio || null, vencimento: it.vencimento || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
@@ -662,7 +662,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
           {!r.itens.length && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
           {r.itens.map((it) => {
             const e = esc[it.chave] || {};
-            const [tt, tc, tb] = TIPO_DOC[it.tipo] || [it.tipo, C.sub, C.panel2];
+            const [tt, tc, tb] = TIPO_DOC[it.jaImportado ? "JA" : it.tipo] || [it.tipo, C.sub, C.panel2];
             const alvo = it.opcoes.find((o) => String(o.id) === String(e.destino));
             return (
               <div key={it.chave} className="rounded-xl p-3" style={{ border: `1px solid ${C.line}`, opacity: e.destino === "IGNORAR" ? 0.6 : 1 }}>
@@ -743,7 +743,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo }) {
                 )}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span style={{ color: C.sub }}>Conta de {it.comp ? nomeMes(it.comp) : "?"}:</span>
-                  <select value={e.destino ?? "IGNORAR"} onChange={(ev) => muda(it.chave, { destino: ev.target.value })} className="rounded px-2 py-1.5 text-xs outline-none flex-1" style={{ ...inpS, minWidth: 280 }}>
+                  <select value={e.destino ?? "IGNORAR"} disabled={!!it.jaImportado} onChange={(ev) => muda(it.chave, { destino: ev.target.value })} className="rounded px-2 py-1.5 text-xs outline-none flex-1" style={{ ...inpS, minWidth: 280 }}>
                     {it.opcoes.map((o) => <option key={o.id} value={o.id}>{o.titulo} · {o.parceiro} · vence {dBR(o.vencimento)} · R$ {brl(o.valor)}{o.status === "PAGO" ? " · baixada" : ""}</option>)}
                     <option value="CRIAR">— criar nova conta —</option>
                     <option value="IGNORAR">— não aplicar —</option>

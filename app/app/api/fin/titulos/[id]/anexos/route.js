@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { negado } from "@/lib/fin";
 import { usuarioRH as usuarioMaster } from "@/lib/rh";   // financeiro e RH
 import { nomeU } from "@/lib/finTitulos";
+import { hashB64 } from "@/lib/finHash";
 
 const LIMITE = 15 * 1024 * 1024;   // 15 MB por arquivo
 
@@ -37,7 +38,10 @@ export async function POST(req, { params }) {
   const tamanho = Math.floor(conteudo.length * 3 / 4);
   if (!conteudo || !b.nome) return Response.json({ error: "Arquivo vazio." }, { status: 400 });
   if (tamanho > LIMITE) return Response.json({ error: `${b.nome}: arquivo maior que 15 MB.` }, { status: 400 });
-  const a = await prisma.finTituloAnexo.create({ data: { tituloId, nome: String(b.nome).slice(0, 200), mime: b.mime || null, tamanho, conteudo, criadoPorNome: nomeU(u) },
+  const hash = hashB64(conteudo);
+  const igual = await prisma.finTituloAnexo.findFirst({ where: { tituloId, hash }, select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true } });
+  if (igual) return Response.json({ ...igual, repetido: true });   // o mesmo arquivo já está nesta conta
+  const a = await prisma.finTituloAnexo.create({ data: { tituloId, nome: String(b.nome).slice(0, 200), mime: b.mime || null, tamanho, conteudo, hash, criadoPorNome: nomeU(u) },
     select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true } });
   return Response.json(a);
 }

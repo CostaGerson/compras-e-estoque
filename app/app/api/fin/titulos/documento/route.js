@@ -3,6 +3,7 @@ import { usuarioMaster, negado } from "@/lib/fin";
 import { nomeU, gerarRecorrencias } from "@/lib/finTitulos";
 import { lerDocumento, analisarDocumentos, aplicarDocumentos } from "@/lib/finDocumentos";
 import { corrigirMatriz } from "@/lib/finFolhaMatriz";
+import { hashB64, jaImportados } from "@/lib/finHash";
 import { sincronizarPessoal } from "@/lib/finMatrizRecDb";
 import { usuarioRH, notificarQuadro } from "@/lib/rh";
 
@@ -16,14 +17,27 @@ export async function POST(req) {
     if (b.acao === "analisar") {
       if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });
       await gerarRecorrencias("PAGAR");   // a conta do salário do mês precisa existir
-      const docs = [];
+      const docs = [], hashDe = {}, vistos = new Set(), repetidos = [];
       for (const a of b.arquivos) {
+        const h = hashB64(a.conteudo);
+        if (vistos.has(h)) { repetidos.push(a.nome); continue; }   // o mesmo arquivo duas vezes no envio
+        vistos.add(h); hashDe[a.nome] = h;
         try { docs.push(await lerDocumento(a.nome, Buffer.from(String(a.conteudo || ""), "base64"))); }
         catch (e) { docs.push({ arquivo: a.nome, tipo: "DESCONHECIDO", erro: e.message || "Não consegui ler o PDF." }); }
       }
       // não reconhecidos viram "outro documento": escolhe-se a conta para anexar
       const itens = await analisarDocumentos(docs);
-      return Response.json({ itens, naoReconhecidos: [] });
+      // documento já importado (o mesmo arquivo anexado numa conta ativa) não entra de novo
+      const ja = await jaImportados(Object.values(hashDe));
+      for (const it of itens) {
+        it.hashes = it.arquivos.map((n) => hashDe[n] || null);
+        const dup = it.hashes.map((h) => ja[h]).find(Boolean);
+        if (dup && it.hashes.every((h) => ja[h])) {
+          it.jaImportado = dup;
+          it.avisos = [`Este documento já foi importado em ${new Date(dup.em).toLocaleDateString("pt-BR")} na conta "${dup.titulo}" — não será aplicado de novo.`];
+        }
+      }
+      return Response.json({ itens, naoReconhecidos: repetidos.map((n) => ({ nome: n, erro: "arquivo repetido neste envio — ignorado" })) });
     }
     // POST { usuarioId, acao: "corrigirMatriz", pessoas: [...], ref } → inclui/nomeia na Matriz oficial e atualiza as contas de pessoal
     if (b.acao === "corrigirMatriz") {

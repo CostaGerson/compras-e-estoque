@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Users2, Contact as IdCard, FileText, CalendarClock, ArrowLeft, Plus, Loader2, Search, UserPlus, UserMinus, Undo2,
-  Trash2, Download, Upload, Camera, CheckCircle2, AlertTriangle, Clock, Pencil,
+  Trash2, Download, Upload, Camera, CheckCircle2, AlertTriangle, Clock, Pencil, Receipt, UtensilsCrossed,
 } from "lucide-react";
 import { DocumentoModal, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { DEPTOS, REGIMES } from "@/lib/matriz";
@@ -309,6 +309,17 @@ function Carometro({ user, d, onMudou }) {
 }
 
 function FichaModal({ user, pessoa, onClose }) {
+  const [deslig, setDeslig] = useState(null);   // { demissao, obs }
+  const [situacao, setSituacao] = useState(pessoa.ativo === false ? "DESLIGADO" : "ATIVO");
+  const desligar = async (acao) => {
+    setSt("Salvando…"); setErro("");
+    try {
+      const r = await api("/api/rh/pessoal", "POST", { usuarioId: user.id, acao, pessoa: acao === "DESLIGAR" ? { id: pessoa.id, ...deslig } : { id: pessoa.id } });
+      setSituacao(acao === "DESLIGAR" ? "DESLIGADO" : "ATIVO"); setDeslig(null);
+      setMsg(`${r.resumo}. Matriz atualizada${r.avisados ? ` · aviso a ${r.avisados} pessoa(s)` : ""}.`);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
   const [f, setF] = useState(null);
   const [dados, setDados] = useState({});
   const [nomeCompleto, setNomeCompleto] = useState("");
@@ -348,7 +359,9 @@ function FichaModal({ user, pessoa, onClose }) {
   return (
     <Modal titulo={`${pessoa.nome || "Funcionário"} · ${pessoa.empresa} · ${nomeDepto(pessoa.depto)}`} icone={IdCard} onClose={onClose} largura={880}
       rodape={<>
-        {msg && <span className="text-xs mr-auto" style={{ color: C.green }}>{msg}</span>}
+        {situacao === "ATIVO" && !deslig && <button onClick={() => setDeslig({ demissao: new Date().toISOString().slice(0, 10), obs: "" })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.red }}><UserMinus size={15} /> Desligar</button>}
+        {situacao === "DESLIGADO" && <button onClick={() => desligar("REATIVAR")} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.blue }}><Undo2 size={15} /> Reativar</button>}
+        <span className="text-xs mr-auto" style={{ color: C.green }}>{msg}</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
         <button onClick={salvar} disabled={!!st || !f} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{st && <Loader2 size={14} className="animate-spin" />} Salvar dados</button>
       </>}>
@@ -363,10 +376,24 @@ function FichaModal({ user, pessoa, onClose }) {
               <div>{pessoa.cargo}</div>
               <div>{REGIMES[pessoa.regime] || pessoa.regime}</div>
               <div>Admissão: {dBR(pessoa.admissao)}</div>
-              {pessoa.ativo === false && <div style={{ color: C.red }}>Desligado em {dBR(pessoa.demissao)}</div>}
+              {situacao === "DESLIGADO" && <div style={{ color: C.red }}>Desligado{pessoa.demissao ? ` em ${dBR(pessoa.demissao)}` : ""}</div>}
             </div>
           </div>
           <div className="flex-1">
+            {deslig && (
+              <div className="mb-3 p-3 rounded-lg" style={{ background: C.redSoft }}>
+                <div className="text-sm font-bold mb-2" style={{ color: C.red }}>Desligar {pessoa.nome}</div>
+                <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 3fr" }}>
+                  <label className="text-xs" style={{ color: C.sub }}>Data<input type="date" value={deslig.demissao} onChange={(e) => setDeslig((x) => ({ ...x, demissao: e.target.value }))} className={inp} style={inpS} /></label>
+                  <label className="text-xs" style={{ color: C.sub }}>Motivo / observação<input value={deslig.obs} onChange={(e) => setDeslig((x) => ({ ...x, obs: e.target.value.toUpperCase() }))} className={inp} style={inpS} /></label>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => desligar("DESLIGAR")} disabled={!!st} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}>Confirmar desligamento</button>
+                  <button onClick={() => setDeslig(null)} className="px-3 py-1.5 text-xs" style={{ color: C.sub }}>Cancelar</button>
+                </div>
+                <div className="text-[11px] mt-1" style={{ color: C.sub }}>A Matriz e as contas de pessoal são atualizadas e o financeiro e a operação recebem o aviso. Anexe o termo de rescisão aqui na ficha.</div>
+              </div>
+            )}
             <label className="text-xs block mb-2" style={{ color: C.sub }}>Nome completo<input value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value.toUpperCase())} className={inp} style={inpS} /></label>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               {CAMPOS_FICHA.map(([k, t, tp]) => (
@@ -407,12 +434,18 @@ function FichaModal({ user, pessoa, onClose }) {
 const CAT = { FOLHA: "Folha", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
 function FinanceiroRH({ user, d, onSalvo }) {
   const [imp, setImp] = useState(false);
+  const [ifood, setIfood] = useState(false);
+  const [conta, setConta] = useState(false);
   const envios = d.envios || [];
   return (
     <div className="mt-4">
       <div className="flex items-center gap-2 mb-3">
         <div className="text-sm" style={{ color: C.sub }}>Suba as folhas (fopag + líquidos), as guias de INSS e FGTS, relatórios e boletos do iFood, termos de rescisão e outros. O sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.</div>
-        <button onClick={() => setImp(true)} className="ml-auto shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar documentos</button>
+        <div className="ml-auto shrink-0 flex flex-col gap-1.5">
+          <button onClick={() => setImp(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar documentos</button>
+          <button onClick={() => setIfood(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}66` }}><UtensilsCrossed size={15} /> Enviar recargas do iFood</button>
+          <button onClick={() => setConta(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Receipt size={15} /> Lançar conta a pagar</button>
+        </div>
       </div>
       <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="px-4 py-2.5 text-sm font-bold" style={{ background: C.panel2, color: C.navy }}>Documentos enviados · este mês e o anterior</div>
@@ -433,6 +466,108 @@ function FinanceiroRH({ user, d, onSalvo }) {
         {!envios.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum documento enviado ainda.</div>}
       </div>
       {imp && <DocumentoModal user={user} contas={d.contas || []} onClose={() => setImp(false)} onSalvo={(m) => { setImp(false); onSalvo(m); }} />}
+      {ifood && <IfoodModal user={user} onClose={() => setIfood(false)} onSalvo={(m) => { setIfood(false); onSalvo(m); }} />}
+      {conta && <ContaRHModal user={user} onClose={() => setConta(false)} onSalvo={(m) => { setConta(false); onSalvo(m); }} />}
     </div>
+  );
+}
+
+// arquivo escolhido → { nome, mime, conteudo }
+const arquivo = async (f) => (f ? { nome: f.name, mime: f.type || "application/pdf", conteudo: await readB64(f) } : null);
+function Arquivo({ rotulo, valor, onPick, accept = ".pdf" }) {
+  const ref = useRef(null);
+  return (
+    <div className="text-xs" style={{ color: C.sub }}>{rotulo}
+      <div className="flex items-center gap-2 mt-0.5">
+        <button onClick={() => ref.current?.click()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}><Upload size={13} /> {valor ? "trocar" : "escolher"}</button>
+        <span className="truncate" style={{ color: valor ? C.text : C.sub }}>{valor?.nome || "nenhum arquivo"}</span>
+      </div>
+      <input ref={ref} type="file" accept={accept} className="hidden" onChange={async (e) => { onPick(await arquivo(e.target.files[0])); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+function IfoodModal({ user, onClose, onSalvo }) {
+  const [f, setF] = useState({ empresa: "MERIDIAN", valor: 0, vencimento: "", pix: "", relatorio: null, boleto: null });
+  const [st, setSt] = useState(""); const [erro, setErro] = useState("");
+  const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const falta = !f.relatorio ? "Anexe o relatório de recargas." : !f.boleto && !f.pix.trim() ? "Anexe o boleto em PDF ou cole o PIX copia e cola." : !f.vencimento ? "Informe o vencimento." : !(f.valor > 0) ? "Informe o valor." : "";
+  const enviar = async () => {
+    setSt("Enviando…"); setErro("");
+    try {
+      const r = await api("/api/rh/ifood", "POST", { usuarioId: user.id, ...f });
+      onSalvo(`iFood enviado: conta "${r.titulo}" atualizada com ${r.anexos} anexo(s). O financeiro foi avisado.`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Recargas do iFood" icone={UtensilsCrossed} onClose={onClose} largura={620}
+      rodape={<>
+        {falta && <span className="text-xs mr-auto" style={{ color: C.sub }}>{falta}</span>}
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <button onClick={enviar} disabled={!!st || !!falta} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: falta ? 0.5 : 1 }}>{st && <Loader2 size={14} className="animate-spin" />} Enviar</button>
+      </>}>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>Até o dia 25 de cada mês: o relatório de recargas sempre acompanhado do boleto (PDF) ou do PIX copia e cola, com a data de vencimento. A conta do iFood do mês é atualizada e o financeiro recebe uma mensagem.</div>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+        <label className="text-xs" style={{ color: C.sub }}>Empresa
+          <select value={f.empresa} onChange={(e) => s("empresa", e.target.value)} className={inp} style={inpS}><option value="MERIDIAN">Meridian</option><option value="NORT">NORT</option></select>
+        </label>
+        <label className="text-xs" style={{ color: C.sub }}>Valor<Valor value={f.valor} width="100%" onChange={(v) => s("valor", v)} /></label>
+        <label className="text-xs" style={{ color: C.sub }}>Vencimento<input type="date" value={f.vencimento} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={inpS} /></label>
+        <div style={{ gridColumn: "1 / -1" }}><Arquivo rotulo="Relatório de recargas *" valor={f.relatorio} onPick={(v) => s("relatorio", v)} accept=".pdf,.xlsx,.xls,.csv" /></div>
+        <div style={{ gridColumn: "1 / -1" }}><Arquivo rotulo="Boleto (PDF)" valor={f.boleto} onPick={(v) => s("boleto", v)} /></div>
+        <label className="text-xs" style={{ color: C.sub, gridColumn: "1 / -1" }}>ou PIX copia e cola
+          <textarea value={f.pix} onChange={(e) => s("pix", e.target.value.trim())} rows={3} className={inp + " font-mono"} style={inpS} placeholder="00020101021226…" />
+        </label>
+      </div>
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
+function ContaRHModal({ user, onClose, onSalvo }) {
+  const [f, setF] = useState({ empresa: "MERIDIAN", titulo: "", parceiro: "", documento: "", valor: 0, vencimento: "", observacao: "" });
+  const [arqs, setArqs] = useState([]);
+  const [st, setSt] = useState(""); const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const falta = !f.titulo.trim() ? "Informe o título." : !(f.valor > 0) ? "Informe o valor." : !f.vencimento ? "Informe o vencimento." : "";
+  const enviar = async () => {
+    setSt("Lançando…"); setErro("");
+    try {
+      const r = await api("/api/rh/conta", "POST", { usuarioId: user.id, ...f, arquivos: arqs });
+      onSalvo(`Conta "${r.titulo}" lançada no contas a pagar. O financeiro foi avisado para preencher a conta-caixa.`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Lançar conta a pagar" icone={Receipt} onClose={onClose} largura={640}
+      rodape={<>
+        {falta && <span className="text-xs mr-auto" style={{ color: C.sub }}>{falta}</span>}
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <button onClick={enviar} disabled={!!st || !!falta} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: falta ? 0.5 : 1 }}>{st && <Loader2 size={14} className="animate-spin" />} Lançar</button>
+      </>}>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>A conta entra no contas a pagar sem conta-caixa — o financeiro preenche o rateio e recebe uma mensagem a cada conta lançada.</div>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 2fr" }}>
+        <label className="text-xs" style={{ color: C.sub }}>Empresa
+          <select value={f.empresa} onChange={(e) => s("empresa", e.target.value)} className={inp} style={inpS}><option value="MERIDIAN">Meridian</option><option value="NORT">NORT</option></select>
+        </label>
+        <label className="text-xs" style={{ color: C.sub }}>Título *<input value={f.titulo} onChange={(e) => s("titulo", e.target.value.toUpperCase())} className={inp} style={inpS} placeholder="EX.: EXAME ADMISSIONAL MARIA" /></label>
+        <label className="text-xs" style={{ color: C.sub, gridColumn: "span 2" }}>Fornecedor / favorecido<input value={f.parceiro} onChange={(e) => s("parceiro", e.target.value.toUpperCase())} className={inp} style={inpS} /></label>
+        <label className="text-xs" style={{ color: C.sub }}>CNPJ / CPF<input value={f.documento} onChange={(e) => s("documento", e.target.value)} className={inp} style={inpS} /></label>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <label className="text-xs" style={{ color: C.sub }}>Valor *<Valor value={f.valor} width="100%" onChange={(v) => s("valor", v)} /></label>
+          <label className="text-xs" style={{ color: C.sub }}>Vencimento *<input type="date" value={f.vencimento} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={inpS} /></label>
+        </div>
+        <label className="text-xs" style={{ color: C.sub, gridColumn: "span 2" }}>Observação (PIX, código de barras…)<input value={f.observacao} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></label>
+        <div style={{ gridColumn: "span 2" }}>
+          <button onClick={() => ref.current?.click()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.accent }}><Upload size={13} /> Anexar boleto / NF / comprovante</button>
+          <input ref={ref} type="file" multiple className="hidden" onChange={async (e) => { const l = []; for (const x of [...e.target.files]) l.push(await arquivo(x)); setArqs((a) => [...a, ...l]); e.target.value = ""; }} />
+          {arqs.map((a, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs mt-1"><FileText size={13} style={{ color: C.sub }} /><span className="flex-1 truncate">{a.nome}</span>
+              <button onClick={() => setArqs((x) => x.filter((_, j) => j !== i))} style={{ color: C.sub }}><Trash2 size={13} /></button></div>
+          ))}
+        </div>
+      </div>
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
   );
 }
