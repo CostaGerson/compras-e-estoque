@@ -147,16 +147,17 @@ async function abrirCredito(a, quem) {
 
 export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
   const r = await analisarAntecipacao(nome, b64);
-  if (r.jaImportado) throw new Error(`O contrato ${r.contrato} já foi importado em ${new Date(r.jaImportado.em).toLocaleDateString("pt-BR")}.`);
   const buf = Buffer.from(String(b64), "base64");
-  const a = await prisma.finAntecipacao.create({
+  // contrato já importado: REPROCESSA (cada passo é idempotente) — completa o que faltou numa importação anterior
+  const existente = await prisma.finAntecipacao.findUnique({ where: { contrato: r.contrato } });
+  const a = existente || await prisma.finAntecipacao.create({
     data: {
       contrato: r.contrato, data: dUTC(r.data), valorOperacao: r.valorOperacao, juros: r.juros, iof: r.iof, tac: r.tac, tarifa: r.tarifa,
       valorLiquido: r.valorLiquido, taxa: r.taxa, itens: r.itens.map(({ conta, ...i }) => ({ ...i, contaId: conta?.id || null })),
       nome: String(nome || "contrato.pdf"), hash: createHash("sha256").update(buf).digest("hex"), conteudo: String(b64), criadoPorNome: quem || null,
     },
   });
-  const out = { contrato: r.contrato, baixadas: 0, valorBaixado: 0, jaBaixadas: 0, semConta: 0, criadas: 0, valorCriado: 0, encargos: 0, valorEncargos: 0, dre: false };
+  const out = { reprocessado: !!existente, contrato: r.contrato, baixadas: 0, valorBaixado: 0, jaBaixadas: 0, semConta: 0, criadas: 0, valorCriado: 0, encargos: 0, valorEncargos: 0, dre: false };
   const anexo = { nome: `CONTRATO DESCONTO ${r.contrato}.pdf`, mime: "application/pdf", tamanho: buf.length, conteudo: String(b64), hash: a.hash, criadoPorNome: quem || null };
   // 1) baixa os boletos pelo valor cheio
   for (const it of r.itens) {

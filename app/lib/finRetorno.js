@@ -17,8 +17,8 @@ const dBR = (s) => (s ? s.split("-").reverse().join("/") : "");
 export const hashTexto = (b64) => createHash("sha256").update(Buffer.from(String(b64 || ""), "base64")).digest("hex");
 
 export const OCORRENCIAS = {
-  "02": "ENTRADA CONFIRMADA", "03": "ENTRADA REJEITADA", "06": "LIQUIDAÇÃO NORMAL", "09": "BAIXADO AUTOMATICAMENTE",
-  "10": "BAIXADO PELO BANCO", "11": "EM SER", "12": "ABATIMENTO CONCEDIDO", "13": "ABATIMENTO CANCELADO",
+  "02": "ENTRADA CONFIRMADA", "03": "ENTRADA REJEITADA", "06": "LIQUIDAÇÃO NORMAL", "09": "BAIXADO AUTOMATICAMENTE VIA ARQUIVO",
+  "10": "BAIXADO CONFORME INSTRUÇÕES DA AGÊNCIA", "11": "EM SER", "12": "ABATIMENTO CONCEDIDO", "13": "ABATIMENTO CANCELADO",
   "14": "VENCIMENTO ALTERADO", "15": "LIQUIDAÇÃO EM CARTÓRIO", "16": "PAGO EM CHEQUE VINCULADO", "17": "LIQUIDAÇÃO APÓS BAIXA",
   "18": "ACERTO DE DEPOSITÁRIA", "19": "INSTRUÇÃO DE PROTESTO CONFIRMADA", "20": "SUSTAÇÃO DE PROTESTO", "22": "PAGAMENTO CANCELADO",
   "23": "ENTRADA EM CARTÓRIO", "24": "ENTRADA REJEITADA (CEP)", "27": "BAIXA REJEITADA", "28": "DÉBITO DE TARIFAS/CUSTAS",
@@ -67,17 +67,38 @@ const normDoc = (s) => String(s || "").toUpperCase().replace(/\s+/g, "");
 const normNosso = (s) => String(s || "").replace(/\D/g, "").replace(/^0+/, "");
 const nossoObs = (o) => (String(o || "").match(/NOSSO N[ºO°.]*\s*:?\s*([\d.\-\/ ]{4,})/i) || [])[1] || null;
 
+// motivos das ocorrências (manual do arquivo-retorno CNAB 400 do Bradesco, posições 319–328)
+const MOTIVOS_BAIXA = {   // ocorrências 09 e 10
+  "00": "ocorrência aceita", "10": "baixa comandada pelo cliente (beneficiário)", "14": "título protestado", "15": "título excluído",
+  "16": "título baixado pelo banco por decurso de prazo", "17": "título baixado e transferido de carteira", "20": "título baixado e transferido para desconto",
+};
+const MOTIVOS_LIQ = { "00": "crédito disponível", "15": "crédito indisponível", "18": "pagamento parcial", "42": "rateio não efetuado" };
+const MOTIVOS_REJEICAO = {   // ocorrências 03, 24, 27, 30, 32 — entrada / instrução rejeitada
+  "02": "código do registro detalhe inválido", "03": "código da ocorrência inválida", "04": "código de ocorrência não permitida para a carteira",
+  "05": "código de ocorrência não numérico", "07": "agência/conta/dígito inválido", "08": "nosso número inválido", "09": "nosso número duplicado",
+  "10": "carteira inválida", "13": "identificação da emissão do boleto inválida", "16": "data de vencimento inválida", "18": "vencimento fora do prazo de operação",
+  "20": "valor do título inválido", "21": "espécie do título inválida", "22": "espécie não permitida para a carteira", "24": "data de emissão inválida",
+  "28": "código do desconto inválido", "38": "prazo para protesto inválido", "44": "agência beneficiário não prevista", "45": "nome do pagador não informado",
+  "46": "tipo/número de inscrição do pagador inválidos", "47": "endereço do pagador não informado", "48": "CEP inválido", "50": "CEP irregular — banco correspondente",
+  "63": "entrada para título já cadastrado", "65": "limite excedido", "66": "número autorização inexistente", "68": "débito não agendado — erro nos dados da remessa",
+  "69": "débito não agendado — pagador não consta do cadastro de autorizante", "70": "débito não agendado — beneficiário não autorizado pelo pagador",
+  "71": "débito não agendado — beneficiário não participa do débito automático", "74": "débito não agendado — conforme seu pedido, título não registrado",
+};
+function textoMotivos(r) {
+  const tabela = ["09", "10"].includes(r.ocorrencia) ? MOTIVOS_BAIXA : LIQ.includes(r.ocorrencia) ? MOTIVOS_LIQ : MOTIVOS_REJEICAO;
+  return r.motivos.map((m) => `motivo ${m}${tabela[m] ? `: ${tabela[m]}` : ""}`).join("; ");
+}
+
+// SÓ pagamento baixa a conta (06, 15, 16, 17). Entrada confirmada registra; tarifa vira conta a pagar.
+// Toda outra ocorrência (baixa pelo banco ou pelo beneficiário, transferência para desconto, protesto, rejeição,
+// pagamento cancelado, estorno…) NÃO baixa: vira CRÍTICA na conta, para conferir.
 function acaoDe(r) {
   if (r.ocorrencia === "02") return { acao: "REGISTRAR" };
   if (LIQ.includes(r.ocorrencia)) return { acao: "LIQUIDAR" };
-  if (["09", "10"].includes(r.ocorrencia)) {
-    if (r.motivos.includes("20")) return { acao: "DESCONTAR" };
-    return { acao: "AVISO", aviso: `Título baixado pelo banco${r.motivos.length ? ` (motivo ${r.motivos.join(", ")})` : ""} — confira.` };
-  }
-  if (r.ocorrencia === "22") return { acao: "AVISO", aviso: "Pagamento cancelado pelo banco — confira a conta." };
-  if (r.ocorrencia === "40") return { acao: "AVISO", aviso: "Estorno de pagamento — confira a conta." };
   if (r.ocorrencia === "28") return { acao: "TARIFA" };
-  return { acao: "INFO" };
+  const nome = OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`;
+  const mot = textoMotivos(r);
+  return { acao: "CRITICA", aviso: `${nome} (ocorrência ${r.ocorrencia})${mot ? ` — ${mot}` : ""}. A conta NÃO foi baixada — confira.` };
 }
 
 export async function analisarRetornos(arquivos) {
@@ -105,16 +126,17 @@ export async function analisarRetornos(arquivos) {
       const t = prefere(porDoc.get(normDoc(r.numeroDoc))) || prefere(porDoc.get(normDoc(r.controle)))
         || prefere(porNosso.get(n)) || (n.length > 1 ? prefere(porNosso.get(n.slice(0, -1))) : null);
       let situacao = "OK", msg = aviso || null;
-      if (["REGISTRAR", "LIQUIDAR", "DESCONTAR"].includes(acao)) {
+      if (["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) {
         if (!t) { situacao = "SEM_CONTA"; msg = "Nenhuma conta a receber com esse nº de título / nosso número."; }
-        else if (acao !== "REGISTRAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
+        else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
+        else if (acao === "CRITICA" && !["ABERTO", "EXECUCAO"].includes(t.status)) { situacao = "JA_BAIXADA"; msg = `${aviso} (conta já ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} no sistema — sem crítica)`; }
         else if (acao === "REGISTRAR" && t.cobranca) { situacao = "JA_REGISTRADA"; }
       }
       return {
         k: `${f.arquivo}#${r.seq}`, arquivo: f.arquivo, ...r, acao, nomeOcorrencia: OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`,
         situacao, aviso: msg,
         alvo: t ? { id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status } : null,
-        aplicar: !!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "DESCONTAR"].includes(acao),
+        aplicar: !!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao),
       };
     }),
   }));
@@ -157,7 +179,18 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
         }
         continue;
       }
-      if (acao !== "LIQUIDAR" && acao !== "DESCONTAR") continue;
+      if (acao === "CRITICA") {
+        if (!["ABERTO", "EXECUCAO"].includes(t.status)) continue;
+        const dtc = reg.dataOcorrencia ? dBR(reg.dataOcorrencia) : dBR(f.dataArquivo);
+        const txt = `Retorno ${f.sequencia || f.arquivo} (${dtc}): ${acaoDe(reg).aviso}`.slice(0, 500);
+        await prisma.finTitulo.update({ where: { id }, data: { critica: txt, nossoNumero: nosso, atualizadoPorNome: quem || null,
+          observacao: [t.observacao, `RETORNO ${f.sequencia || f.arquivo}: ${OCORRENCIAS[reg.ocorrencia] || reg.ocorrencia}${reg.motivos.length ? ` (MOTIVO ${reg.motivos.join(",")})` : ""}`].filter(Boolean).join(" · ").slice(0, 1000) } });
+        await anexar(id, f.a, f.hash, quem);
+        r.criticas = (r.criticas || 0) + 1;
+        r.linhas.push(`${t.titulo}: crítica registrada (não baixada)`);
+        continue;
+      }
+      if (acao !== "LIQUIDAR") continue;
       if (usados.has(id)) continue;
       if (t.status !== "ABERTO") { r.linhas.push(`${t.titulo}: já baixada — ignorada`); continue; }
       const liq = acao === "LIQUIDAR";

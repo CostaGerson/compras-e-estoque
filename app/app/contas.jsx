@@ -303,10 +303,10 @@ export default function ContasPagarReceber({ user }) {
   const lista = useMemo(() => {
     if (!d) return [];
     const n = busca.trim().toUpperCase();
-    return (fSit === "SEMCONTA" ? d.semConta || [] : d.periodo || d.titulos).filter((t) => {
+    return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
       const s = situacao(t).k;
-      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
+      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
       if (!n) return true;
       return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
@@ -445,9 +445,11 @@ export default function ContasPagarReceber({ user }) {
           </div>
 
           {/* filtro do período da lista */}
-          {fSit === "SEMCONTA" ? (
+          {fSit === "SEMCONTA" || fSit === "CRITICA" ? (
             <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-              <span className="px-3 py-1.5 rounded-lg font-semibold" style={{ background: C.redSoft, color: C.red }}>Todas as contas em aberto sem conta-caixa · qualquer vencimento</span>
+              <span className="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5" style={{ background: C.redSoft, color: C.red }}>
+                {fSit === "CRITICA" ? <><AlertTriangle size={14} /> Contas com crítica a conferir · qualquer vencimento</> : "Todas as contas em aberto sem conta-caixa · qualquer vencimento"}
+              </span>
               <button onClick={() => setFSit("TODOS")} className="text-xs underline" style={{ color: C.blue }}>voltar à lista do período</button>
             </div>
           ) : (
@@ -473,6 +475,11 @@ export default function ContasPagarReceber({ user }) {
               <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
+            <button onClick={() => setFSit("CRITICA")} title="Contas com crítica a conferir (qualquer data)"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+              style={(d?.comCritica || []).length ? { background: C.redSoft, color: C.red, border: `1px solid ${C.red}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>
+              <AlertTriangle size={14} /> Críticas · {(d?.comCritica || []).length}
+            </button>
             {P && (
               <button onClick={() => setSoCompra((v) => !v)} title="Só as contas a pagar que vieram de importação de NF de compra (XML)"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
@@ -496,7 +503,7 @@ export default function ContasPagarReceber({ user }) {
             </div>
           )}
 
-          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
+          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
             sel={sel} marcar={marcar}
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
@@ -1112,7 +1119,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
     setSt("Aplicando…"); setErro("");
     try {
       const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "aplicar", arquivo: arq });
-      onSalvo(`Contrato ${r.contrato}: ${r.baixadas} boleto(s) baixado(s) como descontado(s) (${moeda(r.valorBaixado)})${r.jaBaixadas ? `, ${r.jaBaixadas} já estavam baixados` : ""}${r.criadas ? `, ${r.criadas} criada(s) com crítica (não estavam no sistema: ${moeda(r.valorCriado)})` : ""} · ${r.encargos} encargo(s) lançado(s) no contas a pagar (${moeda(r.valorEncargos)}) · DRE: ${r.dre ? "crédito do extrato aberto em receita cheia − encargos" : "fica pendente até o extrato do dia entrar"}.`);
+      onSalvo(`${r.reprocessado ? "Reprocessado — " : ""}Contrato ${r.contrato}: ${r.baixadas} boleto(s) baixado(s) como descontado(s) (${moeda(r.valorBaixado)})${r.jaBaixadas ? `, ${r.jaBaixadas} já estavam baixados` : ""}${r.criadas ? `, ${r.criadas} criada(s) com crítica (não estavam no sistema: ${moeda(r.valorCriado)})` : ""} · ${r.encargos} encargo(s) lançado(s) no contas a pagar (${moeda(r.valorEncargos)}) · DRE: ${r.dre ? "crédito do extrato aberto em receita cheia − encargos" : "fica pendente até o extrato do dia entrar"}.`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   const ok = (x) => (x?.ok ? C.green : C.red);
@@ -1120,7 +1127,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
     <Modal titulo="Importar antecipação (desconto de duplicatas)" icone={FileText} onClose={onClose} largura={1100}
       rodape={a ? <>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <BtnP onClick={aplicar} disabled={!!st || !!a.jaImportado}>{st && <Loader2 size={14} className="animate-spin" />} Confirmar</BtnP>
+        <BtnP onClick={aplicar} disabled={!!st}>{st && <Loader2 size={14} className="animate-spin" />} {a.jaImportado ? "Reprocessar" : "Confirmar"}</BtnP>
       </> : null}>
       {!a && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
@@ -1133,7 +1140,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
       )}
       {a && (
         <div className="flex flex-col gap-3">
-          {a.jaImportado && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.redSoft, color: C.red }}>Este contrato já foi importado em {new Date(a.jaImportado.em).toLocaleDateString("pt-BR")}.</div>}
+          {a.jaImportado && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>Este contrato já foi importado em {new Date(a.jaImportado.em).toLocaleDateString("pt-BR")}. Reprocessar completa o que faltou (cria as contas que não estavam no sistema, baixa as que ainda estão em aberto) sem duplicar nada.</div>}
           <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
             {[["Contrato", a.contrato, `${dBR(a.data)} · ${a.itens.length} boleto(s)`], ["Valor da operação", moeda(a.valorOperacao), "receita cheia"], ["Juros", moeda(a.juros), a.taxa || ""],
               ["IOF", moeda(a.iof), ""], ["TAC + tarifa", moeda(a.tac + a.tarifa), ""], ["Valor líquido", moeda(a.valorLiquido), "o que caiu na conta"]].map(([t, v, sub]) => (
@@ -1181,7 +1188,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
 
 /* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
 const ACAO_RET = {
-  REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], DESCONTAR: ["Descontado", C.yellow, C.yellowSoft],
+  REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],
   AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
 };
 function RetornoModal({ user, onClose, onSalvo }) {
@@ -1214,7 +1221,7 @@ function RetornoModal({ user, onClose, onSalvo }) {
     setSt("Aplicando…"); setErro("");
     try {
       const r = await api("/api/fin/retorno", "POST", { usuarioId: user.id, acao: "aplicar", arquivos: arqs, itens: escolhidos });
-      onSalvo(`Retorno aplicado: ${r.liquidadas} liquidada(s) (${moeda(r.valorLiquidado)}), ${r.descontadas} descontada(s) (${moeda(r.valorDescontado)}), ${r.registradas} registrada(s)${r.tarifas ? `, tarifa ${moeda(r.valorTarifas)} lançada` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+      onSalvo(`Retorno aplicado: ${r.liquidadas} liquidada(s) (${moeda(r.valorLiquidado)}), ${r.criticas ? `${r.criticas} com crítica (não baixadas — veja o filtro Críticas), ` : ""}${r.registradas} registrada(s)${r.tarifas ? `, tarifa ${moeda(r.valorTarifas)} lançada` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   return (
@@ -1228,7 +1235,7 @@ function RetornoModal({ user, onClose, onSalvo }) {
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
           <div className="text-sm mb-1" style={{ color: C.text }}>Envie o(s) arquivo(s) de <b>retorno de cobrança CNAB 400</b> do Bradesco (.RET).</div>
-          <div className="text-xs mb-4" style={{ color: C.sub }}>Liquidações baixam a conta, transferidos para desconto viram DESCONTADO, entradas confirmadas marcam REGISTRADO e as tarifas viram conta a pagar já paga. O arquivo fica anexado.</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Só pagamento (liquidação) baixa a conta. Baixa pelo banco ou por você, transferência para desconto, protesto, rejeição, cancelamento etc. viram CRÍTICA na conta, com o motivo, sem baixar. Entradas confirmadas marcam REGISTRADO e as tarifas viram conta a pagar já paga. O arquivo fica anexado.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher arquivos"}</BtnP>
           <input ref={ref} type="file" multiple accept=".ret,.RET,.txt" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste os arquivos para cá</div>
@@ -1256,7 +1263,7 @@ function RetornoModal({ user, onClose, onSalvo }) {
               </tr></thead>
               <tbody>{vis.map((x) => {
                 const [t0, c0, bg0] = ACAO_RET[x.acao] || [x.acao, C.sub, C.panel2];
-                const pode = !!x.alvo && ["REGISTRAR", "LIQUIDAR", "DESCONTAR"].includes(x.acao) && x.situacao !== "JA_BAIXADA";
+                const pode = !!x.alvo && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(x.acao) && x.situacao !== "JA_BAIXADA";
                 const dt = x.acao === "LIQUIDAR" ? (x.dataCredito || x.dataOcorrencia) : x.dataOcorrencia;
                 return (
                   <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}`, opacity: pode && !marc[x.k] ? 0.55 : 1 }}>

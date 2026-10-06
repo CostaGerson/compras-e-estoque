@@ -60,11 +60,13 @@ export async function GET(req) {
   const abertas = await prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO" }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
   const semConta = abertas.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|")
     && !(Array.isArray(t.rateio) && t.rateio.some((r) => Number(r.contaId) && Number(r.pct) > 0)));
+  // contas com crítica a conferir (qualquer data) — filtro "Críticas"
+  const comCritica = await prisma.finTitulo.findMany({ where: { tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map(tituloOut) : null,
-    semConta: semConta.map(tituloOut),
+    semConta: semConta.map(tituloOut), comCritica: comCritica.map(tituloOut),
     vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
