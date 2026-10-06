@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
-import { garantirNumeros, criarComNumero } from "../../../lib/fppNumero";
+import { garantirNumeros, criarComNumero, registrarNegociacao } from "../../../lib/fppNumero";
 
 export const dynamic = "force-dynamic";
 
@@ -36,5 +36,6 @@ export async function POST(req) {
       criadoPorId: b.criadoPorId != null ? Number(b.criadoPorId) : null,
       criadoPorNome: b.criadoPorNome || null,
   });
+  await registrarNegociacao(f.negociacao);
   return NextResponse.json(f);
 }

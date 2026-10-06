@@ -588,6 +588,13 @@ model FppParamHist {
   param FppParam @relation(fields: [paramId], references: [id], onDelete: Cascade)
 }
 
+// Nomes de negociação já usados nas FPPs (lista de seleção ao lançar uma FPP nova)
+model FppNegociacao {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique
+  createdAt DateTime @default(now())
+}
+
 // Ficha de precificação salva (alimenta o CRM).
 model Fpp {
   id            Int      @id @default(autoincrement())

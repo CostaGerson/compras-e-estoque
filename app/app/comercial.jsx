@@ -22,7 +22,20 @@ const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return i
 
 /* clonar FPP: cria uma cópia salva com o nome "CÓPIA DE ..." e devolve a ficha nova */
 const nomeCopia = (f) => `CÓPIA DE ${f.nomeComercial || f.item || "FPP"}`.toUpperCase();
-async function clonarFpp(fpp, user) {
+async function clonarFpp(fpp, user, origemId) {
+  const criador = { criadoPorId: user?.id ?? null, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim() || null };
+  const confere = (d) => {
+    if (!d?.id) throw new Error("A cópia não foi criada. Nada foi alterado.");
+    if (origemId && d.id === origemId) throw new Error("A cópia voltou com o mesmo nº da original. Nada foi alterado.");
+    return d;
+  };
+  if (fpp.id && !origemId) {   // FPP salva: o servidor copia direto do banco
+    const r = await fetch(`/api/fpp/${fpp.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "clonar", ...criador }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Erro ao clonar. Nada foi alterado.");
+    if (d.id === fpp.id) throw new Error("A cópia voltou com o mesmo nº da original. Nada foi alterado.");
+    return confere(d);
+  }
   const nome = nomeCopia(fpp);
   const body = {
     tipo: fpp.tipo, item: fpp.item, nomeComercial: nome, clienteId: fpp.clienteId ?? null, clienteNome: fpp.clienteNome ?? null,
@@ -34,8 +47,8 @@ async function clonarFpp(fpp, user) {
   };
   const r = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || "Erro ao clonar.");
-  return d;
+  if (!r.ok) throw new Error(d.error || "Erro ao clonar. Nada foi alterado.");
+  return confere(d);
 }
 
 /* ============================================================ */
@@ -158,6 +171,9 @@ function Fpp({ user, master }) {
   const [editId, setEditId] = useState(null);
   const [editNum, setEditNum] = useState(null);
   const [clientes, setClientes] = useState([]);
+  const [negs, setNegs] = useState([]);
+  const carregarNegs = () => fetch("/api/fpp/negociacoes").then((r) => r.json()).then((d) => setNegs(Array.isArray(d) ? d : [])).catch(() => {});
+  useEffect(() => { carregarNegs(); }, []);
 
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then(setParams).catch(() => {}); }, []);
   useEffect(() => { fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
@@ -298,6 +314,7 @@ function Fpp({ user, master }) {
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const salvo = await res.json().catch(() => ({}));
     setSalvando(false);
+    if (res.ok) carregarNegs();
     if (res.ok && !editId && salvo.id) { setEditId(salvo.id); setEditNum(salvo.numero); }   // salvar de novo atualiza esta, não cria outra
     setMsg(res.ok ? (editId ? `FPP ${fmtFpp(salvo.numero || editNum)} atualizada ✓` : `FPP ${fmtFpp(salvo.numero)} salva ✓`) : "Erro ao salvar.");
   }
@@ -317,16 +334,17 @@ function Fpp({ user, master }) {
     if (!f.item) return setMsg("Selecione o ITEM.");
     setSalvando(true); setMsg("");
     try {
-      const nova = await clonarFpp(montarBody(), user);
+      const nova = await clonarFpp(montarBody(), user, editId);
       setF((s) => ({ ...s, nomeComercial: nova.nomeComercial }));
       setEditId(nova.id); setEditNum(nova.numero);
       setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`);
-    } catch (e) { setMsg(e.message); }
+      carregarNegs();
+    } catch (e) { setMsg(e.message); alert(`Não foi possível clonar: ${e.message}`); }
     setSalvando(false);
   }
   async function clonarSalva(fpp) {
-    try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
-    catch (e) { alert(e.message); }
+    try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); carregarNegs(); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
+    catch (e) { alert(`Não foi possível clonar: ${e.message}`); }
   }
   function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setEditNum(null); setMsg(""); }
 
@@ -376,7 +394,9 @@ function Fpp({ user, master }) {
                   onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
                 <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
-                <Inp label="Negociação" value={f.negociacao} onChange={(v) => set("negociacao", v.toUpperCase())} placeholder="Ex.: PE 045/2026 · BID 12 · DIRETA" />
+                <Combo label="Negociação" value={f.negociacao} options={negs} livre
+                  onChange={(v) => set("negociacao", String(v || "").toUpperCase())} onPick={(v) => set("negociacao", String(v || "").toUpperCase())}
+                  placeholder="Escolha ou digite uma nova…" />
                 <div className="flex items-center gap-2 pb-1 md:col-span-2 flex-wrap">
                   <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) { setOver({}); setParamsLocaisOpen(false); } }} />
                   <span className="text-xs" style={{ color: C.sub }}>Parâmetros só desta ficha</span>
@@ -1346,8 +1366,9 @@ function Toggle({ on, onChange, disabled }) {
    - Tab / ↓ correm a lista pra baixo (Shift+Tab / ↑ pra cima), preenchendo o campo ao vivo;
    - Enter ou clicar fora confirmam a opção atual e fecham;
    - com a lista fechada, o Tab é nativo → pula pro próximo campo. */
-function Combo({ label, value, onChange, onPick, options, placeholder }) {
+function Combo({ label, value, onChange, onPick, options, placeholder, livre }) {
   const [open, setOpen] = useState(false);
+  const [navegou, setNavegou] = useState(false);
   const [q, setQ] = useState(value || "");
   const [seed, setSeed] = useState("");     // texto digitado que filtra (não muda ao navegar → a lista não "afunila")
   const [hi, setHi] = useState(0);          // índice destacado
@@ -1360,14 +1381,14 @@ function Combo({ label, value, onChange, onPick, options, placeholder }) {
     setHi(i >= 0 ? i : 0);
     setOpen(true);
   }
-  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); onChange?.(v); }
+  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); setNavegou(false); onChange?.(v); }
   function mover(dir) {
     if (!lista.length) return;
     const n = (hi + dir + lista.length) % lista.length;
-    setHi(n); setQ(lista[n]); onChange?.(lista[n]);   // preenche ao vivo
+    setHi(n); setQ(lista[n]); setNavegou(true); onChange?.(lista[n]);   // preenche ao vivo
   }
   function confirmar(o) {
-    const alvo = o != null ? o : (lista[hi] || q);
+    const alvo = o != null ? o : (livre && !navegou ? q : (lista[hi] || q));
     setQ(alvo); setSeed(alvo); setOpen(false); (onPick || onChange)?.(alvo);
   }
   function onKey(e) {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../../lib/prisma";
+import { registrarNegociacao, criarComNumero } from "../../../../lib/fppNumero";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ export async function PATCH(req, { params }) {
   if (b.condicaoPagamento !== undefined) data.condicaoPagamento = b.condicaoPagamento || null;
   if (b.leadTime !== undefined) data.leadTime = b.leadTime != null ? Number(b.leadTime) : null;
   if (b.entradas !== undefined) data.entradas = b.entradas || {};
-  if (b.overrides !== undefined) data.overrides = b.overrides || null;
+  if (b.overrides !== undefined) data.overrides = b.overrides || Prisma.DbNull;
   if (b.resultados !== undefined) data.resultados = b.resultados || {};
   if (b.custoProducao !== undefined) data.custoProducao = b.custoProducao != null ? Number(b.custoProducao) : null;
   if (b.custoFinal !== undefined) data.custoFinal = b.custoFinal != null ? Number(b.custoFinal) : null;
@@ -36,5 +38,21 @@ export async function PATCH(req, { params }) {
   if (b.margem !== undefined) data.margem = b.margem != null ? Number(b.margem) : null;
   if (b.totalItem !== undefined) data.totalItem = b.totalItem != null ? Number(b.totalItem) : null;
   const f = await prisma.fpp.update({ where: { id: Number(params.id) }, data });
+  await registrarNegociacao(f.negociacao);
+  return NextResponse.json(f);
+}
+
+// POST { acao: "clonar", criadoPorId, criadoPorNome } → cria uma FPP NOVA copiando esta (a original não muda)
+export async function POST(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  if (b.acao !== "clonar") return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
+  const o = await prisma.fpp.findUnique({ where: { id: Number(params.id) } });
+  if (!o) return NextResponse.json({ error: "Ficha não encontrada." }, { status: 404 });
+  const nome = `CÓPIA DE ${o.nomeComercial || o.item || "FPP"}`.toUpperCase();
+  const { id, numero, createdAt, updatedAt, ...resto } = o;
+  const f = await criarComNumero({
+    ...resto, nomeComercial: nome, entradas: { ...(o.entradas || {}), nomeComercial: nome },
+    criadoPorId: b.criadoPorId != null ? Number(b.criadoPorId) : o.criadoPorId, criadoPorNome: b.criadoPorNome || o.criadoPorNome,
+  });
   return NextResponse.json(f);
 }
