@@ -30,6 +30,22 @@ export async function POST(req) {
   }
   if (!okD(b.dIni) || !okD(b.dFim)) return Response.json({ error: "Informe o período." }, { status: 400 });
   await garantirContas();
-  const r = await analisarTitulos({ tipo: b.tipo === "RECEBER" ? "RECEBER" : "PAGAR", dIni: b.dIni, dFim: b.dFim < b.dIni ? b.dIni : b.dFim });
-  return Response.json(r);
+  const tipo = b.tipo === "RECEBER" ? "RECEBER" : "PAGAR", dFim = b.dFim < b.dIni ? b.dIni : b.dFim;
+  const r = await analisarTitulos({ tipo, dIni: b.dIni, dFim });
+  // fica salva, como a análise da identificação (FinAnaliseIA com competencia "TITULOS|PAGAR")
+  const resultado = { ...r, tipo, dIni: b.dIni, dFim };
+  const salva = await prisma.finAnaliseIA.create({
+    data: { competencia: `TITULOS|${tipo}`, usuarioNome: nomeU(u), ia: r.ia, nSugestoes: r.duplicidades.length, nIncong: r.contas.length, resultado },
+  });
+  return Response.json({ ...resultado, analiseId: salva.id, criadaEm: salva.createdAt, usuarioNome: salva.usuarioNome });
+}
+
+// GET ?u=&tipo= → análises salvas (mais nova primeiro)
+export async function GET(req) {
+  const sp = new URL(req.url).searchParams;
+  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  const tipo = sp.get("tipo") === "RECEBER" ? "RECEBER" : "PAGAR";
+  const l = await prisma.finAnaliseIA.findMany({ where: { competencia: `TITULOS|${tipo}` }, orderBy: { createdAt: "desc" }, take: 60,
+    select: { id: true, createdAt: true, usuarioNome: true, ia: true, nSugestoes: true, nIncong: true, resultado: true } });
+  return Response.json(l.map(({ resultado: r, ...a }) => ({ ...a, dIni: r?.dIni || null, dFim: r?.dFim || null, analisadas: r?.analisadas || 0 })));
 }

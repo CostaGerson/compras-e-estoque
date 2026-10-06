@@ -2355,12 +2355,31 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
   const [regra, setRegra] = useState({});        // k → aplicar nas demais do fornecedor
   const P = tipo === "PAGAR";
   const nomeC = (id) => (contasPorId[id] ? `${contasPorId[id].codigo} ${contasPorId[id].nome}` : "—");
+  const [salvas, setSalvas] = useState(null);   // análises salvas (como na identificação)
+  const mostrar = (j) => { setR(j); setFeito({}); setEscolha(Object.fromEntries(j.contas.map((c) => [c.k, c.contaSugeridaId]))); };
+  const listar = () => api(`/api/fin/titulos/ia?u=${user.id}&tipo=${tipo}`).then((l) => setSalvas(Array.isArray(l) ? l : [])).catch(() => setSalvas([]));
+  useEffect(() => { listar(); }, []);
   const rodar = async () => {
     setRodando(true); setErro(""); setR(null); setFeito({});
-    try { const j = await api("/api/fin/titulos/ia", "POST", { usuarioId: user.id, tipo, dIni: ini, dFim: fim }); setR(j); setEscolha(Object.fromEntries(j.contas.map((c) => [c.k, c.contaSugeridaId]))); }
+    try { mostrar(await api("/api/fin/titulos/ia", "POST", { usuarioId: user.id, tipo, dIni: ini, dFim: fim })); listar(); }
     catch (e) { setErro(e.message); }
     setRodando(false);
   };
+  const abrir = async (id) => {
+    setRodando(true); setErro(""); setR(null);
+    try { mostrar(await api(`/api/fin/titulos/ia/${id}?u=${user.id}`)); } catch (e) { setErro(e.message); }
+    setRodando(false);
+  };
+  const apagar = async (id) => {
+    if (!confirm("Apagar esta análise salva?")) return;
+    await api(`/api/fin/titulos/ia/${id}`, "DELETE", { usuarioId: user.id }).catch(() => {});
+    listar();
+  };
+  const ignorar = (k) => {
+    setFeito((f) => ({ ...f, [k]: "ignorado" }));
+    if (r?.analiseId) api(`/api/fin/titulos/ia/${r.analiseId}`, "PATCH", { usuarioId: user.id, ignorar: k }).catch(() => {});
+  };
+  const quando = (d) => new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const excluir = async (g, t) => {
     try {
       await api(`/api/fin/titulos/${t.id}`, "DELETE", { usuarioId: user.id });
@@ -2390,8 +2409,28 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
         <div className="text-xs flex-1" style={{ color: C.sub, minWidth: 260 }}>Procura contas lançadas em dobro e conta-caixa diferente do histórico (outras contas do fornecedor e a identificação do extrato).</div>
       </div>
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!r && !rodando && salvas && (
+        <div>
+          <div className="text-xs font-semibold mb-2" style={{ color: C.sub }}>{salvas.length ? "Análises salvas — abra uma anterior (sem custo) ou faça uma nova acima." : "Nenhuma análise salva ainda."}</div>
+          {salvas.map((a) => (
+            <div key={a.id} className="flex items-center gap-3 px-3 py-2 mb-1.5 rounded-lg text-xs" style={{ border: `1px solid ${C.line}` }}>
+              <button onClick={() => abrir(a.id)} className="flex-1 text-left">
+                <div className="font-semibold" style={{ color: C.navy }}>{quando(a.createdAt)} · {a.usuarioNome || "—"}{a.ia ? "" : " · só histórico"}</div>
+                <div style={{ color: C.sub }}>período {dBR(a.dIni)} a {dBR(a.dFim)} · {a.analisadas} conta(s) · {a.nSugestoes} duplicidade(s) · {a.nIncong} conta(s)-caixa</div>
+              </button>
+              <button onClick={() => abrir(a.id)} className="px-2.5 py-1 rounded-lg font-semibold" style={{ border: `1px solid ${C.line}`, color: C.blue }}>Abrir</button>
+              <button onClick={() => apagar(a.id)} title="Apagar" style={{ color: C.sub }}><Trash2 size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {rodando && <div className="flex items-center gap-2 py-8 justify-center text-sm" style={{ color: C.sub }}><Loader2 size={18} className="animate-spin" style={{ color: C.accent }} /> Analisando / carregando…</div>}
       {r && (
         <>
+          <div className="flex items-center gap-2 mb-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel2 }}>
+            <span className="flex-1" style={{ color: C.text }}>{r.salva ? "Análise salva" : "Análise"} de <b>{r.criadaEm ? quando(r.criadaEm) : "agora"}</b>{r.usuarioNome ? ` por ${r.usuarioNome}` : ""} · período {dBR(r.dIni)} a {dBR(r.dFim)}{r.resolvidas ? ` · ${r.resolvidas} item(ns) já resolvido(s)` : ""}</span>
+            <button onClick={() => { setR(null); listar(); }} className="underline" style={{ color: C.blue }}>análises salvas</button>
+          </div>
           <div className="mb-3 text-xs" style={{ color: C.sub }}>
             {r.analisadas} conta(s) analisadas · {r.duplicidades.length} possível(is) duplicidade(s) · {r.contas.length} conta(s)-caixa para revisar{r.descartadas ? ` · ${r.descartadas} alerta(s) descartado(s) pela IA` : ""}
             {r.aviso && <div className="mt-1 font-semibold" style={{ color: C.yellow }}>{r.aviso}</div>}
@@ -2401,7 +2440,9 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
           {!r.duplicidades.length && <div className="mb-4 text-xs" style={{ color: C.sub }}>Nenhuma duplicidade encontrada.</div>}
           {r.duplicidades.map((g) => (
             <div key={g.k} className="mb-3 rounded-lg" style={{ border: `1px solid ${C.line}` }}>
-              <div className="px-3 py-2 text-xs flex items-center gap-2" style={{ background: C.panel2 }}>{fonteTag(g.fonte)}<span>{g.motivo}</span></div>
+              <div className="px-3 py-2 text-xs flex items-center gap-2" style={{ background: C.panel2, opacity: feito[g.k] ? 0.5 : 1 }}>{fonteTag(g.fonte)}<span className="flex-1">{g.motivo}</span>
+                {feito[g.k] ? <span className="font-bold text-[10px]" style={{ color: C.sub }}>IGNORADO</span> : <button onClick={() => ignorar(g.k)} className="underline" style={{ color: C.sub }} title="Não é duplicidade — não mostrar de novo nesta análise">ignorar</button>}
+              </div>
               {g.titulos.map((t) => {
                 const fz = feito[`${g.k}|${t.id}`];
                 const manter = t.id === g.manterId;
@@ -2436,7 +2477,7 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span style={{ color: C.red }}>atual: {c.contaAtualId ? nomeC(c.contaAtualId) : "SEM CONTA-CAIXA"}</span>
                 <span style={{ color: C.sub }}>→</span>
-                {feito[c.k] ? <span className="font-semibold" style={{ color: C.green }}>{nomeC(escolha[c.k])} · {feito[c.k]}</span> : (
+                {feito[c.k] === "ignorado" ? <span className="font-bold text-[10px]" style={{ color: C.sub }}>IGNORADO — conta atual mantida</span> : feito[c.k] ? <span className="font-semibold" style={{ color: C.green }}>{nomeC(escolha[c.k])} · {feito[c.k]}</span> : (
                   <>
                     <div style={{ minWidth: 280, flex: 1 }}><ContaSelect conta={contasPorId[escolha[c.k]]} contas={contas.filter((x) => x.ativo !== false)} onPick={(id) => setEscolha((e) => ({ ...e, [c.k]: id }))} /></div>
                     {c.termo && !c.titulo.recorrenciaId && (
@@ -2445,6 +2486,7 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
                       </label>
                     )}
                     <button onClick={() => aplicar(c)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>Aplicar</button>
+                    <button onClick={() => ignorar(c.k)} className="px-2 py-1.5 text-xs underline" style={{ color: C.sub }} title="A conta-caixa atual está certa — não mostrar de novo nesta análise">ignorar</button>
                   </>
                 )}
               </div>
