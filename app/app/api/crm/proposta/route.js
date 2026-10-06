@@ -29,21 +29,26 @@ async function estrutura(client) {
   return { cols, chaves: [...new Set(chaves)] };
 }
 
+// Item no formato EXATO do CRM: só as chaves que as propostas feitas no próprio CRM usam
+// (chave a mais pode fazer o CRM recusar a proposta). Sem amostra → formato padrão de 4 chaves.
+const PADRAO = ["qty", "details", "description", "unit_price_cents"];
 function montarItem(it, chaves) {
   const qty = Number(it.qty) || 0;
   const unit = Math.round(Number(it.unit_price_cents) || 0);
-  const o = {
-    qty, details: it.details || null, description: String(it.description || "").slice(0, 300),
-    unit_price_cents: unit, total_cents: qty * unit,
-  };
-  const por = (lista, v) => { for (const k of lista) if (chaves.includes(k)) o[k] = v; };
-  por(APELIDOS.nome, o.description);
-  por(APELIDOS.qtd, qty);
-  por(APELIDOS.unitCents, unit);
-  por(APELIDOS.unitReais, unit / 100);
-  por(APELIDOS.totCents, qty * unit);
-  por(APELIDOS.totReais, (qty * unit) / 100);
-  por(APELIDOS.det, o.details);
+  const desc = String(it.description || "").slice(0, 300);
+  const det = it.details ? String(it.details).slice(0, 500) : null;
+  const usar = chaves.length ? chaves : PADRAO;
+  const o = {};
+  for (const k of usar) {
+    if (APELIDOS.nome.includes(k)) o[k] = desc;
+    else if (APELIDOS.qtd.includes(k)) o[k] = qty;
+    else if (APELIDOS.unitCents.includes(k)) o[k] = unit;
+    else if (APELIDOS.unitReais.includes(k)) o[k] = unit / 100;
+    else if (APELIDOS.totCents.includes(k)) o[k] = qty * unit;
+    else if (APELIDOS.totReais.includes(k)) o[k] = (qty * unit) / 100;
+    else if (APELIDOS.det.includes(k)) o[k] = det;
+    else o[k] = null;                       // chave do CRM que não conhecemos: vai vazia
+  }
   return o;
 }
 
@@ -78,7 +83,7 @@ export async function POST(req) {
   try {
     const { cols, chaves } = await estrutura(client);
     const itemsNorm = items.map((it) => montarItem(it, chaves));
-    const subtotal = itemsNorm.reduce((s, it) => s + it.qty * it.unit_price_cents, 0);
+    const subtotal = items.reduce((s, it) => s + (Number(it.qty) || 0) * Math.round(Number(it.unit_price_cents) || 0), 0);
     const freight = Math.round(Number(b.freightCents) || 0);
     const total = subtotal + freight;
     const notes = [MARCA, b.notes].filter(Boolean).join(" · ");
