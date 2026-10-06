@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { garantirContas } from "@/lib/fin";
 import { createHash } from "crypto";
+import { tituloOut } from "@/lib/finTitulos";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const up = (s) => String(s || "").toUpperCase().trim();
@@ -25,11 +26,8 @@ async function contaId(codigo) {
 }
 const diasAtraso = (venc) => Math.max(0, Math.floor((dUTC(hojeISO()) - new Date(venc)) / 86400000));
 const tOut = (t) => ({
-  id: t.id, titulo: t.titulo, parceiro: t.parceiro, documento: t.documento, numeroDoc: t.numeroDoc, valor: Number(t.valor),
-  vencimento: t.vencimento.toISOString().slice(0, 10), competencia: t.competencia, status: t.status, diasAtraso: diasAtraso(t.vencimento),
-  execucaoId: t.execucaoId, observacao: t.observacao, cobranca: t.cobranca,
-  dataPagamento: t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10) : null, valorPago: t.valorPago != null ? Number(t.valorPago) : null,
-  perdaJustificativa: t.perdaJustificativa, perdaData: t.perdaData ? t.perdaData.toISOString().slice(0, 10) : null, perdaPorNome: t.perdaPorNome,
+  ...tituloOut(t), diasAtraso: diasAtraso(t.vencimento),
+  perdaData: t.perdaData ? t.perdaData.toISOString().slice(0, 10) : null,
 });
 const anota = (obs, txt) => [obs, txt].filter(Boolean).join(" · ").slice(0, 1000);
 

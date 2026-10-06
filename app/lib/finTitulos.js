@@ -57,6 +57,7 @@ export function validarRateio(rateio) {
 export const tituloOut = (t) => ({
   ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null,
   vencimento: t.vencimento.toISOString().slice(0, 10), dataPagamento: t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10) : null,
+  vencimentoOriginal: t.vencimentoOriginal ? t.vencimentoOriginal.toISOString().slice(0, 10) : null,
   arquivoXml: undefined, temXml: !!t.arquivoXml,
   _count: undefined, nAnexos: t._count?.anexos || 0,
 });
@@ -171,7 +172,8 @@ export function notaParaLeitura(nf) {
 
 // Contas em aberto que vencem no fim de semana → aplica a regra acima (roda a cada abertura da tela; idempotente)
 export async function ajustarFinsDeSemana() {
-  const abertas = await prisma.finTitulo.findMany({ where: { status: "ABERTO" }, select: { id: true, titulo: true, vencimento: true, chaveImport: true, recorrenciaId: true } });
+  // conta reprogramada fica na data escolhida (vencimentoOriginal preenchido)
+  const abertas = await prisma.finTitulo.findMany({ where: { status: "ABERTO", vencimentoOriginal: null }, select: { id: true, titulo: true, vencimento: true, chaveImport: true, recorrenciaId: true } });
   const fds = abertas.filter((t) => [0, 6].includes(t.vencimento.getUTCDay()) && !String(t.chaveImport || "").startsWith("SEMANA|"));
   if (!fds.length) return 0;
   const recIds = [...new Set(fds.map((t) => t.recorrenciaId).filter(Boolean))];

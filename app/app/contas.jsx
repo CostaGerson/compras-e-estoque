@@ -259,11 +259,13 @@ export default function ContasPagarReceber({ user }) {
   const [sel, setSel] = useState(() => new Set());   // contas marcadas para ação em lote
   const [lote, setLote] = useState(null);             // "baixar" | "excluir"
 
-  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipo}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
+  const tipoApi = ABAS_ATRASO.includes(tipo) ? "RECEBER" : tipo;
+  const [tickAtraso, setTickAtraso] = useState(0);
+  const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
     if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
   }).catch((e) => setErro(e.message));
-  useEffect(() => { if (ABAS_ATRASO.includes(tipo)) return; setD(null); carregar(); }, [tipo, mes]);
+  useEffect(() => { if (!ABAS_ATRASO.includes(tipo) || !d || d.tipo !== "RECEBER") { setD(null); carregar(); } }, [tipo, mes]);
   useEffect(() => { if (d && !ABAS_ATRASO.includes(tipo)) carregar(); }, [dIni, dFim]);
   useEffect(() => { setSel(new Set()); }, [tipo]);
   // trocar o mês dos cards leva a lista para o mês inteiro; "hoje" volta para o dia
@@ -331,7 +333,7 @@ export default function ContasPagarReceber({ user }) {
       </div>
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
-      {ABAS_ATRASO.includes(tipo) && <AtrasoReceber user={user} aba={tipo} setAba={setTipo} />}
+      {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
       {tipo !== "RECORRENTES" && !ABAS_ATRASO.includes(tipo) && <>
       {/* NFs lançadas pelo Compras */}
       {P && d && d.nfsPendentes > 0 && (
@@ -471,7 +473,7 @@ export default function ContasPagarReceber({ user }) {
 
       </>}
 
-      {modal?.t === "titulo" && <TituloModal user={user} tipo={tipo} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "titulo" && <TituloModal user={user} tipo={tipoApi} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); if (ABAS_ATRASO.includes(tipo)) setTickAtraso((x) => x + 1); }} />}
       {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
       {modal?.t === "semana" && <SemanaModal user={user} tituloId={modal.item.id} onClose={() => { setModal(null); carregar(); }} onMudou={carregar} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
@@ -487,6 +489,13 @@ export default function ContasPagarReceber({ user }) {
       {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
     </div>
   );
+}
+
+/* R = conta reprogramada (vencimento mudou; o original fica no histórico) */
+export function MarcaR({ t }) {
+  if (!t?.vencimentoOriginal) return null;
+  return <span title={`Reprogramado — vencimento original ${dBR(t.vencimentoOriginal)}`} className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle"
+    style={{ width: 15, height: 15, background: C.roxoSoft, color: C.roxo, border: `1px solid ${C.roxo}66` }}>R</span>;
 }
 
 /* ---------------- tabela ---------------- */
@@ -546,7 +555,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
               return (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
-                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} /></td>
                   <td className="px-3 py-2" style={{ maxWidth: 260 }}>
                     <button onClick={() => onEditar(t)} className="text-left">
                       <div className="font-semibold flex items-center gap-1" style={{ color: C.navy }}>
@@ -1092,7 +1101,7 @@ function LoteModal({ acao, P, itens, onClose, onOk }) {
       <div className="rounded-lg mb-3 overflow-y-auto" style={{ maxHeight: 220, border: `1px solid ${C.line}` }}>
         {itens.map((t) => (
           <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: `1px solid ${C.line}` }}>
-            <span className="tabular-nums" style={{ color: C.sub, width: 70 }}>{dBR(t.vencimento)}</span>
+            <span className="tabular-nums" style={{ color: C.sub, width: 70 }}>{dBR(t.vencimento)}<MarcaR t={t} /></span>
             <span className="flex-1 truncate">{t.titulo}</span>
             <span className="font-semibold tabular-nums">{brl(t.valor)}</span>
           </div>
@@ -1230,7 +1239,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           for (const arq of pendentes) await api(`/api/fin/titulos/${r.id}/anexos`, "POST", { usuarioId: user.id, nome: arq.name, mime: arq.type, conteudo: await readB64(arq) });
         }
       }
-      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao });
+      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}) });
       let extra = "";
       if (ofereceRegra && (regra.usar || regra.salvar) && termoRegra.trim()) {
         const r = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, salvarRegra: regra.salvar, dryRun: !regra.usar });
@@ -1271,7 +1280,19 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         <Campo t={P ? "Fornecedor" : "Cliente"}><input list="parceiros-lst" value={f.parceiro} onChange={(e) => escolherParceiro(e.target.value)} className={inp} style={inpS} /></Campo>
         <Campo t="CNPJ / CPF"><input value={fmtDoc(f.documento)} onChange={(e) => s("documento", e.target.value.replace(/\D/g, ""))} className={inp} style={inpS} /></Campo>
         <Campo t="Valor"><Valor value={f.valor} onChange={(v) => s("valor", v)} width="100%" /></Campo>
-        <Campo t="Vencimento"><input type="date" value={f.vencimento} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={inpS} /></Campo>
+        {novo ? (
+          <Campo t="Vencimento"><input type="date" value={f.vencimento} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={inpS} /></Campo>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Campo t={item.vencimentoOriginal ? "Vencimento original" : "Vencimento"}>
+              <input type="date" value={item.vencimentoOriginal || f.vencimento} disabled={!!item.vencimentoOriginal} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={{ ...inpS, opacity: item.vencimentoOriginal ? 0.6 : 1 }} />
+            </Campo>
+            <Campo t="Reprogramado" dica="nova data; o original fica no histórico">
+              <input type="date" value={f.reprogramado ?? (item.vencimentoOriginal ? item.vencimento : "")} onChange={(e) => s("reprogramado", e.target.value)} className={inp}
+                style={{ ...inpS, borderColor: (f.reprogramado ?? (item.vencimentoOriginal ? item.vencimento : "")) ? C.roxo : C.line }} />
+            </Campo>
+          </div>
+        )}
         <Campo t="Nº do documento" dica="NF, boleto, parcela"><input value={f.numeroDoc || ""} onChange={(e) => s("numeroDoc", e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo>
         <div className="flex items-end pb-1.5"><Chave on={!!f.previsao} set={(v) => s("previsao", v)} t="Previsão (valor estimado)" cor={C.roxo} /></div>
         <div className="col-span-2"><Campo t="Rateio" dica="conta-caixa onde a conta entra na DRE"><Rateio contas={d?.contas || []} valor={f.valor} value={f.rateio} onChange={(v) => s("rateio", v)} /></Campo></div>
@@ -1297,6 +1318,14 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         <div className="mt-4 text-[11px] p-2.5 rounded-lg" style={{ background: C.panel2, color: C.sub }}>
           Origem: <b>{ehImportacao(item) ? `IMPORTAÇÃO ${new Date(item.createdAt).toLocaleDateString("pt-BR")} · ${fT}` : fT}</b> · lançado por {item.criadoPorNome || "—"} em {new Date(item.createdAt).toLocaleString("pt-BR")}
           {item.atualizadoPorNome && <> · última alteração: {item.atualizadoPorNome} em {new Date(item.updatedAt).toLocaleString("pt-BR")}</>}
+          {Array.isArray(item.reprogramacoes) && item.reprogramacoes.length > 0 && (
+            <div className="mt-1.5">
+              <b style={{ color: C.roxo }}>Reprogramações:</b>
+              {item.reprogramacoes.map((h, i) => (
+                <div key={i}>{h.desfeito ? "desfeita — voltou" : ""} {dBR(h.de)} → {dBR(h.para)} · {h.por || "—"} em {new Date(h.em).toLocaleString("pt-BR")}</div>
+              ))}
+            </div>
+          )}
           {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, use <b>Recorrências</b>.</div>}
         </div>
       )}
@@ -1763,7 +1792,7 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
           const mudou = Math.abs(t.novo - t.base) > 0.009;
           return (
             <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.feito ? 0.5 : 1 }}>
-              <td className="px-2 py-2 whitespace-nowrap">{dBR(t.vencimento)}</td>
+              <td className="px-2 py-2 whitespace-nowrap">{dBR(t.vencimento)}<MarcaR t={t} /></td>
               <td className="px-2 py-2">
                 <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
                 <div style={{ color: C.sub }}>{t.parceiro} · {(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome).join(", ")}</div>

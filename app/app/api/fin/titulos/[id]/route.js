@@ -52,7 +52,27 @@ export async function PATCH(req, { params }) {
       data.valor = v;
       if (t.recorrenciaId) data.valorConfirmado = true;
     }
-    if (b.vencimento) { data.vencimento = dataUTC(b.vencimento); data.competencia = mesDe(b.vencimento); }
+    if (b.vencimento && !t.vencimentoOriginal) { data.vencimento = dataUTC(b.vencimento); data.competencia = mesDe(b.vencimento); }
+    // REPROGRAMADO: o vencimento passa a ser a data nova; o original e cada mudança ficam no histórico.
+    // Recorrência mantém a competência (o mês da parcela); as demais contas vão para o mês da data nova.
+    if (b.reprogramado !== undefined) {
+      const atual = (data.vencimento || t.vencimento).toISOString().slice(0, 10);
+      const hist = Array.isArray(t.reprogramacoes) ? [...t.reprogramacoes] : [];
+      const por = quem.atualizadoPorNome || null, em = new Date().toISOString();
+      if (b.reprogramado && /^\d{4}-\d{2}-\d{2}$/.test(b.reprogramado) && b.reprogramado !== atual) {
+        if (!t.vencimentoOriginal) data.vencimentoOriginal = dataUTC(atual);
+        data.vencimento = dataUTC(b.reprogramado);
+        if (!t.recorrenciaId) data.competencia = mesDe(b.reprogramado);
+        hist.push({ de: atual, para: b.reprogramado, em, por });
+        data.reprogramacoes = hist;
+      } else if (!b.reprogramado && t.vencimentoOriginal) {   // desfaz: volta ao vencimento original
+        const orig = t.vencimentoOriginal.toISOString().slice(0, 10);
+        data.vencimento = t.vencimentoOriginal; data.vencimentoOriginal = null;
+        if (!t.recorrenciaId) data.competencia = mesDe(orig);
+        hist.push({ de: atual, para: orig, em, por, desfeito: true });
+        data.reprogramacoes = hist;
+      }
+    }
     if (b.rateio !== undefined) {
       const rt = validarRateio(b.rateio);
       if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 });

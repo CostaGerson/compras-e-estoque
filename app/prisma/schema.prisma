@@ -836,6 +836,9 @@ model FinTitulo {
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
   nossoNumero      String?                      // v127: nosso número do boleto (retorno CNAB)
   cobranca         String?                      // v127: REGISTRADO | LIQUIDADO | DESCONTADO (retorno do banco)
+  // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
+  vencimentoOriginal DateTime? @db.Date
+  reprogramacoes   Json?
   // v135: receber atrasado — status EXECUCAO (cobrança judicial) ou PERDA (perda reconhecida)
   execucaoId       Int?
   execucao         FinExecucao?    @relation(fields: [execucaoId], references: [id], onDelete: SetNull)

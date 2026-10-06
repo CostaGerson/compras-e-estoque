@@ -33,7 +33,7 @@ export async function PATCH(req, { params }) {
   for (const t of fut) {
     const up = {};
     for (const k of ["titulo", "parceiro", "documento", "observacao", "rateio", "valor"]) if (d[k] !== undefined) up[k] = d[k];
-    if (d.diaVencimento || d.diaUtil !== undefined) up.vencimento = ajustaFds(vencNoMes(t.competencia, d.diaVencimento ?? r.diaVencimento, d.diaUtil ?? r.diaUtil, contaSabado({ ...r, ...d })), ehFolha({ ...r, ...d }));
+    if ((d.diaVencimento || d.diaUtil !== undefined) && !t.vencimentoOriginal) up.vencimento = ajustaFds(vencNoMes(t.competencia, d.diaVencimento ?? r.diaVencimento, d.diaUtil ?? r.diaUtil, contaSabado({ ...r, ...d })), ehFolha({ ...r, ...d }));
     if (Object.keys(up).length) await prisma.finTitulo.update({ where: { id: t.id }, data: up });
   }
   await gerarRecorrencias(r.tipo);

@@ -1,7 +1,7 @@
 "use client";
 // v135 — Contas a receber atrasadas: em cobrança → execução judicial ou perda reconhecida
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Loader2, Search, Gavel, Ban, Undo2, CheckCircle2, X, Paperclip, Upload, Trash2, Download, Plus, ChevronRight, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Loader2, Search, Gavel, Ban, Undo2, CheckCircle2, X, Paperclip, Upload, Trash2, Download, Plus, ChevronRight, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -48,6 +48,10 @@ function useOrdem(itens) {
   return { lista, Th };
 }
 
+const MarcaR = ({ t }) => (t?.vencimentoOriginal ? (
+  <span title={`Reprogramado — vencimento original ${dBR(t.vencimentoOriginal)}`} className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle"
+    style={{ width: 15, height: 15, background: "#F1EDFF", color: "#7A5AF8", border: "1px solid #7A5AF866" }}>R</span>) : null);
+
 function Kpi({ rotulo, valor, sub, cor }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -75,7 +79,7 @@ const Campo = ({ l, children }) => <label className="block text-xs" style={{ col
 const BtnP = ({ children, cor = C.accent, ...p }) => <button {...p} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: cor, opacity: p.disabled ? 0.5 : 1 }}>{children}</button>;
 
 /* ============================================================ */
-export default function AtrasoReceber({ user, aba, setAba }) {
+export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -100,7 +104,7 @@ export default function AtrasoReceber({ user, aba, setAba }) {
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
 
-      {aba === "ATRASADAS" && <Atrasadas user={user} d={d} ok={ok} setErro={setErro} irExecucao={(id) => { setAba("EXECUCOES"); setTimeout(() => setAberta(id), 0); }} />}
+      {aba === "ATRASADAS" && <Atrasadas user={user} d={d} ok={ok} setErro={setErro} onEditar={onEditar} irExecucao={(id) => { setAba("EXECUCOES"); setTimeout(() => setAberta(id), 0); }} />}
       {aba === "EXECUCOES" && (aberta
         ? <Execucao user={user} id={aberta} atrasadas={d.atrasadas} voltar={() => { setAberta(null); carregar(); }} ok={ok} />
         : <Execucoes d={d} abrir={setAberta} />)}
@@ -110,7 +114,7 @@ export default function AtrasoReceber({ user, aba, setAba }) {
 }
 
 /* ---------------- atrasadas (em cobrança) ---------------- */
-function Atrasadas({ user, d, ok, setErro, irExecucao }) {
+function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [modal, setModal] = useState(null);   // "execucao" | "perda"
@@ -139,7 +143,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao }) {
           <thead><tr className="text-xs uppercase tracking-wide text-left" style={{ background: C.panel2, color: C.sub }}>
             <th className="px-3 py-2 w-8"><input type="checkbox" checked={todas} onChange={(e) => lista.forEach((t) => marcar(t.id, e.target.checked))} /></th>
             <Th col="parceiro">Cliente</Th><Th col="titulo">Conta</Th><Th col="vencimento">Vencimento</Th>
-            <Th col="diasAtraso" direita>Atraso</Th><Th col="valor" direita>Valor</Th><th className="px-3 py-2">Situação</th>
+            <Th col="diasAtraso" direita>Atraso</Th><Th col="valor" direita>Valor</Th><th className="px-3 py-2">Situação</th><th className="px-3 py-2"></th>
           </tr></thead>
           <tbody>
             {lista.map((t) => (
@@ -147,13 +151,14 @@ function Atrasadas({ user, d, ok, setErro, irExecucao }) {
                 <td className="px-3 py-2"><input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar(t.id, e.target.checked)} /></td>
                 <td className="px-3 py-2 font-semibold" style={{ color: C.navy }}>{t.parceiro}</td>
                 <td className="px-3 py-2">{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{dBR(t.vencimento)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{dBR(t.vencimento)}<MarcaR t={t} /></td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold" style={{ color: corAtraso(t.diasAtraso) }}>{t.diasAtraso} dia(s)</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">{moeda(t.valor)}</td>
                 <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>EM COBRANÇA</span></td>
+                <td className="px-3 py-2 text-right">{onEditar && <button onClick={() => onEditar(t)} title="Editar conta" className="p-1 rounded" style={{ color: C.blue }}><Pencil size={15} /></button>}</td>
               </tr>
             ))}
-            {!lista.length && <tr><td colSpan={7} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhuma conta a receber atrasada.</td></tr>}
+            {!lista.length && <tr><td colSpan={8} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhuma conta a receber atrasada.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -358,7 +363,7 @@ function Execucao({ user, id, atrasadas, voltar, ok }) {
             <tbody>
               {e.titulos.map((t) => (
                 <tr key={t.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                  <td className="py-2 pr-2"><div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div><div style={{ color: C.sub }}>{t.parceiro} · venc. {dBR(t.vencimento)}</div></td>
+                  <td className="py-2 pr-2"><div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div><div style={{ color: C.sub }}>{t.parceiro} · venc. {dBR(t.vencimento)}<MarcaR t={t} /></div></td>
                   <td className="py-2 pr-2 text-right whitespace-nowrap font-semibold">{moeda(t.status === "PAGO" ? t.valorPago ?? t.valor : t.valor)}</td>
                   <td className="py-2 text-right whitespace-nowrap">
                     {t.status === "PAGO" ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: C.greenSoft, color: C.green }}>RECEBIDO {dBR(t.dataPagamento).slice(0, 5)}</span> : <>
