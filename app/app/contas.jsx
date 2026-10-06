@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { PrestadorModal } from "./prestadores";
+import AtrasoReceber from "./atraso";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
-  Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare,
+  Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock,
 } from "lucide-react";
+const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -261,8 +263,8 @@ export default function ContasPagarReceber({ user }) {
     setD(j); setErro("");
     if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
   }).catch((e) => setErro(e.message));
-  useEffect(() => { setD(null); carregar(); }, [tipo, mes]);
-  useEffect(() => { if (d) carregar(); }, [dIni, dFim]);
+  useEffect(() => { if (ABAS_ATRASO.includes(tipo)) return; setD(null); carregar(); }, [tipo, mes]);
+  useEffect(() => { if (d && !ABAS_ATRASO.includes(tipo)) carregar(); }, [dIni, dFim]);
   useEffect(() => { setSel(new Set()); }, [tipo]);
   // trocar o mês dos cards leva a lista para o mês inteiro; "hoje" volta para o dia
   const irMes = (m) => { setMes(m); setDIni(`${m}-01`); setDFim(fimDoMes(m)); };
@@ -319,7 +321,8 @@ export default function ContasPagarReceber({ user }) {
     <div>
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["RECORRENTES", "Recorrentes", Repeat]].map(([k, t, I]) => (
+        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ATRASADAS", "Atrasados a receber", Clock],
+          ["EXECUCOES", "Execuções judiciais", Gavel], ["PERDAS", "Perdas", Ban], ["RECORRENTES", "Recorrentes", Repeat]].map(([k, t, I]) => (
           <button key={k} onClick={() => setTipo(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
             style={{ color: tipo === k ? C.accent : C.sub, borderBottom: tipo === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <I size={15} /> {t}
@@ -328,7 +331,8 @@ export default function ContasPagarReceber({ user }) {
       </div>
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
-      {tipo !== "RECORRENTES" && <>
+      {ABAS_ATRASO.includes(tipo) && <AtrasoReceber user={user} aba={tipo} setAba={setTipo} />}
+      {tipo !== "RECORRENTES" && !ABAS_ATRASO.includes(tipo) && <>
       {/* NFs lançadas pelo Compras */}
       {P && d && d.nfsPendentes > 0 && (
         <button onClick={() => setModal({ t: "nfs" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left" style={{ background: C.blueSoft, border: `1px solid ${C.blue}55`, color: C.text }}>

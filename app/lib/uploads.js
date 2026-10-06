@@ -17,6 +17,7 @@ export const ORIGENS = {
   ANEXO: "Contas a pagar/receber · anexo",
   RHDOC: "RH · carômetro",
   RET: "Retorno de cobrança",
+  EXEC: "Execução judicial · processo",
   NFPDF: "NF de entrada · PDF",
   NFXML: "NF de entrada · XML",
   TITXML: "Contas · XML da NF",
@@ -60,6 +61,11 @@ export async function listarUploads() {
   // 5) Retornos de cobrança
   for (const r of await tenta(() => prisma.finRetorno.findMany({ select: { id: true, sequencia: true, nome: true, dataArquivo: true, criadoPorNome: true, createdAt: true } }))) {
     out.push({ id: `RET-${r.id}`, origem: "RET", nomeSistema: `RETORNO DE COBRANÇA BRADESCO Nº ${r.sequencia || "—"}`, nomeOriginal: r.nome, data: r.createdAt, usuario: r.criadoPorNome });
+  }
+  // 5b) Execuções judiciais — arquivos do processo
+  for (const a of await tenta(() => prisma.finExecucaoAnexo.findMany({ select: { id: true, nome: true, tamanho: true, criadoPorNome: true, createdAt: true, execucao: { select: { titulo: true, processo: true } } } }))) {
+    out.push({ id: `EXEC-${a.id}`, origem: "EXEC", nomeSistema: up(`PROCESSO · ${a.execucao?.titulo || ""}${a.execucao?.processo ? ` (${a.execucao.processo})` : ""}`),
+      nomeOriginal: a.nome, data: a.createdAt, usuario: a.criadoPorNome, tamanho: a.tamanho });
   }
   // 6) NF de entrada (Compras) — sem registro de quem enviou: só o master exclui
   for (const n of await tenta(() => prisma.notaFiscal.findMany({ where: { OR: [{ temPdf: true }, { temXml: true }] },
@@ -107,6 +113,7 @@ export async function conteudoUpload(id) {
   if (origem === "CONTAB") { const a = await prisma.finContabDoc.findUnique({ where: { id: n }, select: { nome: true, conteudo: true } }); return a && { nome: a.nome, buf: bufDe(a.conteudo) }; }
   if (origem === "ANEXO") { const a = await prisma.finTituloAnexo.findUnique({ where: { id: n }, select: { nome: true, conteudo: true, mime: true } }); return a && { nome: a.nome, buf: bufDe(a.conteudo), mime: a.mime }; }
   if (origem === "RHDOC") { const a = await prisma.rhDocumento.findUnique({ where: { id: n }, select: { nome: true, conteudo: true, mime: true } }); return a && { nome: a.nome, buf: bufDe(a.conteudo), mime: a.mime }; }
+  if (origem === "EXEC") { const a = await prisma.finExecucaoAnexo.findUnique({ where: { id: n }, select: { nome: true, conteudo: true, mime: true } }); return a && { nome: a.nome, buf: bufDe(a.conteudo), mime: a.mime }; }
   if (origem === "RET") { const a = await prisma.finRetorno.findUnique({ where: { id: n }, select: { nome: true, conteudo: true } }); return a && { nome: a.nome, buf: bufDe(a.conteudo) }; }
   if (origem === "NFPDF" || origem === "NFXML") {
     const a = await prisma.notaFiscal.findUnique({ where: { id: n }, select: { numero: true, arquivoPdf: true, arquivoXml: true } });
@@ -143,6 +150,7 @@ export async function excluirUpload(id) {
     }
   } else if (origem === "RHDOC") await prisma.rhDocumento.delete({ where: { id: n } });
   else if (origem === "RET") await prisma.finRetorno.delete({ where: { id: n } });
+  else if (origem === "EXEC") await prisma.finExecucaoAnexo.delete({ where: { id: n } });
   else if (origem === "NFPDF") await prisma.notaFiscal.update({ where: { id: n }, data: { arquivoPdf: null, temPdf: false } });
   else if (origem === "NFXML") await prisma.notaFiscal.update({ where: { id: n }, data: { arquivoXml: null, temXml: false } });
   else if (origem === "TITXML") await prisma.finTitulo.update({ where: { id: n }, data: { arquivoXml: null } });

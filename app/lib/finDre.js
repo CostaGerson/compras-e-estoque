@@ -36,6 +36,8 @@ export const MAPA_OFICIAL = {
   1210000: "RECEITA", 1220000: "RECEITA",
   2141000: "RECEITA",            // devolução de venda abate a receita
   2142000: "RECEITA",            // multa contratual (atraso/descumprimento com cliente) também abate a receita
+  1119000: "RECEITA",            // v135: dinheiro recuperado em execução judicial
+  2143000: "RECEITA",            // v135: perda reconhecida de cliente abate a receita do mês em que é reconhecida
   // 02. CMV
   2111100: "CMV", 2111210: "CMV", 2111220: "CMV", 2111310: "CMV", 2111320: "CMV", 2111330: "CMV",
   2111340: "CMV", 2111400: "CMV", 2111500: "CMV",
@@ -226,8 +228,11 @@ export async function painel(competencia, hoje = new Date()) {
     contasPagarTotal: soma(pagar),
     receberPosicaoGeral: soma(receber),
     receberMesVigente: soma(receber.filter((t) => t.competencia === competencia)),
-    receberAtrasadas: soma(receber.filter(vencido)),
+    receberAtrasadas: soma(receber.filter(vencido)),   // = em cobrança (execução e perda já saíram do aberto)
   };
+  // v135: execuções judiciais e perdas reconhecidas
+  try { const { numerosPainel } = await import("@/lib/finAtraso"); Object.assign(auto, await numerosPainel(competencia)); }
+  catch { Object.assign(auto, { receberEmExecucao: 0, receberEmExecucaoQtd: 0, perdasMes: 0, perdasTotal: 0 }); }
 
   const dados = { ...PAINEL_VAZIO, ...((p?.dados) || {}) };
 

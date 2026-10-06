@@ -1148,6 +1148,7 @@ function PainelPrevisao({ user, comp, setComp }) {
   const sugestao = p ? {
     cenarioGeral: a.receberPosicaoGeral - a.contasPagarTotal + caixa.saldoGeral,
     cenarioMes: a.receberMesVigente + caixa.disponivelTotal - a.contasPagarMes,
+    ...(a.receberEmExecucao ? { receberLitigio: a.receberEmExecucao } : {}),   // em litígio = contas em execução judicial
   } : {};
 
   return (
@@ -1180,7 +1181,9 @@ function PainelPrevisao({ user, comp, setComp }) {
               <Auto rotulo="A pagar (total aberto)" valor={a.contasPagarTotal} cor={C.sub} />
               <Auto rotulo="A receber · posição geral" valor={a.receberPosicaoGeral} cor={C.blue} />
               <Auto rotulo="A receber no mês" valor={a.receberMesVigente} cor={C.blue} />
-              <Auto rotulo="A receber atrasado" valor={a.receberAtrasadas} cor={a.receberAtrasadas ? C.yellow : C.green} />
+              <Auto rotulo="A receber atrasado · em cobrança" valor={a.receberAtrasadas} cor={a.receberAtrasadas ? C.yellow : C.green} />
+              <Auto rotulo={`Em execução judicial${a.receberEmExecucaoQtd ? ` (${a.receberEmExecucaoQtd})` : ""}`} valor={a.receberEmExecucao || 0} cor={a.receberEmExecucao ? C.red : C.sub} />
+              <Auto rotulo="Perdas reconhecidas no mês" valor={a.perdasMes || 0} cor={a.perdasMes ? C.red : C.sub} />
             </div>
             {somaAtraso > 0 && Math.abs(somaAtraso - a.contasAtrasadas) > 1 && (
               <div className="mt-3 text-xs rounded-lg px-3 py-2 flex items-start gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>

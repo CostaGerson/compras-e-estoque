@@ -38,8 +38,9 @@ export async function GET(req) {
     let n = 0;
     for (let c = mesDe(dIni); c <= mesDe(dFim) && n < 24; c = somaMes(c, 1), n++) await garantirSemanas(c).catch(() => null);
   }
+  const fora = { status: { notIn: ["EXECUCAO", "PERDA"] } };   // v135: execução e perda têm guias próprias
   const [titulos, atrasados, criticas, contas, parceiros, recs, periodo, vencTot] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
+    prisma.finTitulo.findMany({ where: { tipo, ...fora, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
     // em aberto de meses anteriores (vencidos) — aparecem sempre
     prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO", competencia: { lt: de } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }),
     // recorrências do mês atual (e anteriores em aberto) com valor ainda não conferido
@@ -48,7 +49,7 @@ export async function GET(req) {
     prisma.finTitulo.findMany({ where: { tipo }, distinct: ["parceiro"], select: { parceiro: true, documento: true }, orderBy: { parceiro: "asc" }, take: 2000 }),
     prisma.finRecorrencia.findMany({ where: { tipo }, orderBy: { titulo: "asc" } }),
     // lista do período escolhido (de / até, por vencimento)
-    dIni ? prisma.finTitulo.findMany({ where: { tipo, vencimento: { gte: dataUTC(dIni), lte: dataUTC(dFim) } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }) : null,
+    dIni ? prisma.finTitulo.findMany({ where: { tipo, ...fora, vencimento: { gte: dataUTC(dIni), lte: dataUTC(dFim) } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }) : null,
     // vencido total: tudo em aberto com vencimento antes de hoje, de qualquer mês
     prisma.finTitulo.aggregate({ where: { tipo, status: "ABERTO", vencimento: { lt: hojeUTC } }, _sum: { valor: true }, _count: true }),
   ]);
