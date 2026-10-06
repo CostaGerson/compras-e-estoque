@@ -7,6 +7,8 @@ import { hashB64, jaImportados } from "@/lib/finHash";
 import { sincronizarPessoal } from "@/lib/finMatrizRecDb";
 import { usuarioRH, notificarQuadro } from "@/lib/rh";
 import { lerComprovantes, analisarComprovantes, baixarComprovantes } from "@/lib/finComprovantes";
+import { prisma } from "@/lib/prisma";
+import { abrirComSenhas, identificarDocAnalise, sugerirCompetencia, importarArquivoAnalise, hashBuf } from "@/lib/finImportArquivo";
 
 // POST { usuarioId, acao: "analisar", arquivos: [{ nome, conteudo (base64) }] } → lançamentos encontrados e a conta de cada um
 // POST { usuarioId, acao: "aplicar", itens: [...], arquivos: [{ nome, conteudo }] } → atualiza/cria as contas e anexa os arquivos
@@ -18,15 +20,33 @@ export async function POST(req) {
     if (b.acao === "analisar") {
       if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });
       await gerarRecorrencias("PAGAR");   // a conta do salário do mês precisa existir
-      const docs = [], hashDe = {}, vistos = new Set(), repetidos = [], comps = [];
+      const docs = [], hashDe = {}, vistos = new Set(), repetidos = [], comps = [], analise = [], protegidos = [];
+      const master = !!(u.isMaster || u.setor === "FINANCEIRO");
       for (const a of b.arquivos) {
         const h = hashB64(a.conteudo);
         if (vistos.has(h)) { repetidos.push(a.nome); continue; }   // o mesmo arquivo duas vezes no envio
         vistos.add(h); hashDe[a.nome] = h;
+        const buf = Buffer.from(String(a.conteudo || ""), "base64");
+        // abre com a senha digitada ou com as cadastradas em Senhas de PDF
+        const ab = await abrirComSenhas(buf, a.senha);
+        if (!ab.ok && ab.precisaSenha) { protegidos.push({ nome: a.nome, senhaErrada: !!a.senha }); continue; }
+        const senha = ab.ok ? ab.senha : null;
         // relatório de comprovantes do banco (um por página) → baixa das contas
-        try { const cs = await lerComprovantes(a.nome, Buffer.from(String(a.conteudo || ""), "base64")); if (cs.length) { comps.push(...cs); continue; } } catch { /* segue como documento */ }
-        try { docs.push(await lerDocumento(a.nome, Buffer.from(String(a.conteudo || ""), "base64"))); }
-        catch (e) { docs.push({ arquivo: a.nome, tipo: "DESCONHECIDO", erro: e.message || "Não consegui ler o PDF." }); }
+        try { const cs = await lerComprovantes(a.nome, buf, senha); if (cs.length) { comps.push(...cs); continue; } } catch { /* segue como documento */ }
+        let d;
+        try { d = await lerDocumento(a.nome, buf, senha); }
+        catch (e) { d = { arquivo: a.nome, tipo: "DESCONHECIDO", erro: e.message || "Não consegui ler o PDF." }; }
+        // não é documento de conta: pode ser extrato / fatura / relatório da Análise mensal
+        if (d.tipo === "DESCONHECIDO" && master && ab.ok) {
+          const t = await identificarDocAnalise(buf, ab.texto);
+          if (t) {
+            const dup = await prisma.finArquivo.findUnique({ where: { hash: hashBuf(buf) }, select: { competencia: true } });
+            analise.push({ nome: a.nome, tipo: t, competencia: await sugerirCompetencia(t.codigo, buf, senha, ab.texto), senha: senha || null,
+              jaEnviado: dup ? dup.competencia : null });
+            continue;
+          }
+        }
+        docs.push(d);
       }
       // não reconhecidos viram "outro documento": escolhe-se a conta para anexar
       const itens = docs.length ? await analisarDocumentos(docs) : [];
@@ -41,7 +61,7 @@ export async function POST(req) {
           it.avisos = [`Este documento já foi importado em ${new Date(dup.em).toLocaleDateString("pt-BR")} na conta "${dup.titulo}" — não será aplicado de novo.`];
         }
       }
-      return Response.json({ itens, comprovantes, naoReconhecidos: repetidos.map((n) => ({ nome: n, erro: "arquivo repetido neste envio — ignorado" })) });
+      return Response.json({ itens, comprovantes, analise, protegidos, naoReconhecidos: repetidos.map((n) => ({ nome: n, erro: "arquivo repetido neste envio — ignorado" })) });
     }
     // POST { usuarioId, acao: "corrigirMatriz", pessoas: [...], ref } → inclui/nomeia na Matriz oficial e atualiza as contas de pessoal
     if (b.acao === "corrigirMatriz") {
@@ -57,6 +77,25 @@ export async function POST(req) {
     // POST { usuarioId, acao: "baixarComprovantes", itens: [...], arquivos } → baixa as contas confirmadas e anexa o comprovante
     if (b.acao === "baixarComprovantes") {
       return Response.json(await baixarComprovantes(b.itens || [], b.arquivos || [], { quem: nomeU(u) }));
+    }
+    // POST { usuarioId, acao: "analise", itens: [{ nome, tipoId, competencia, senha }], arquivos } → grava na Análise mensal
+    if (b.acao === "analise") {
+      if (!(u.isMaster || u.setor === "FINANCEIRO")) return Response.json({ error: "Só o financeiro envia documentos da análise mensal." }, { status: 403 });
+      const porNome = Object.fromEntries((b.arquivos || []).map((a) => [a.nome, a]));
+      const out = [];
+      for (const it of b.itens || []) {
+        const a = porNome[it.nome];
+        if (!a || !/^\d{4}-\d{2}$/.test(it.competencia || "")) { out.push({ nome: it.nome, erro: "arquivo ou mês inválido" }); continue; }
+        try { out.push({ nome: it.nome, ...(await importarArquivoAnalise({ u, competencia: it.competencia, tipoId: it.tipoId, nome: a.nome, conteudo: a.conteudo, senha: it.senha })) }); }
+        catch (e) { out.push({ nome: it.nome, erro: e.message }); }
+      }
+      return Response.json({ resultados: out });
+    }
+    // POST { usuarioId, acao: "salvarSenha", senha, rotulo } → cadastra em Senhas de PDF
+    if (b.acao === "salvarSenha") {
+      const s2 = String(b.senha || "").trim();
+      if (s2 && !(await prisma.finSenhaPdf.findFirst({ where: { senha: s2 } }))) await prisma.finSenhaPdf.create({ data: { rotulo: String(b.rotulo || "IMPORTAR DOCUMENTO").toUpperCase(), senha: s2 } });
+      return Response.json({ ok: true });
     }
     if (b.acao === "aplicar") {
       return Response.json(await aplicarDocumentos(b.itens || [], b.arquivos || [], { quem: nomeU(u), usuarioId: u.id }));

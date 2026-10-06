@@ -2,8 +2,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos, processarArquivo } from "@/lib/fin";
-import { copiarExtratoParaContabilidade } from "@/lib/finContab";
+import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos } from "@/lib/fin";
+import { importarArquivoAnalise } from "@/lib/finImportArquivo";
 
 // POST { usuarioId, competencia, tipoId ("auto" = classifica pelo texto), nome, conteudo(base64), senha?, salvarSenha?, rotuloSenha? }
 export async function POST(req) {
@@ -60,21 +60,7 @@ export async function POST(req) {
     await prisma.finSenhaPdf.create({ data: { rotulo: String(b.rotuloSenha || `${tipo.banco} · ${tipo.documento}`).toUpperCase(), senha: r.senha } });
   }
 
-  const a = await prisma.finArquivo.create({
-    data: {
-      competencia: b.competencia, tipoId: tipo.id, nome: String(b.nome || "arquivo.pdf"), tamanho: buf.length,
-      hash, conteudo: String(b.conteudo), senhaPdf: r.senha,
-      enviadoPorId: u.id, enviadoPorNome: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase(),
-    },
-    select: { id: true, tipoId: true, nome: true, tamanho: true, enviadoPorNome: true, createdAt: true },
-  });
-  // lê o extrato na hora (se houver leitor para esse documento)
-  let leitura = null;
-  try { leitura = await processarArquivo(a.id); } catch (e) { leitura = { ok: false, erro: e.message }; }
-
-  // extrato de conta corrente: joga uma cópia no pacote da contabilidade (renomeada no padrão)
-  let contab = null;
-  try { const c = await copiarExtratoParaContabilidade(a.id); contab = c?.doc?.nome || null; } catch { contab = null; }
-
-  return Response.json({ ...a, leitura, contab, protegido: !!r.senha, paginas: r.paginas, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } });
+  const a = await importarArquivoAnalise({ u, competencia: b.competencia, tipoId: tipo.id, nome: b.nome, conteudo: b.conteudo, senha: r.senha });
+  if (a.erro) return Response.json({ error: a.erro }, { status: a.duplicado ? 409 : 400 });
+  return Response.json({ ...a, paginas: r.paginas });
 }

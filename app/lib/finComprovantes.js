@@ -68,8 +68,8 @@ export function lerPagina(L) {
   };
 }
 
-export async function lerComprovantes(nome, buf) {
-  const pags = await linhasPdf(buf);
+export async function lerComprovantes(nome, buf, senha) {
+  const pags = await linhasPdf(buf, senha);
   const out = [];
   pags.forEach((p, i) => {
     const L = p.map((l) => l.its.map((x) => x.s).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean);

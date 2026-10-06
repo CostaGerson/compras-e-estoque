@@ -26,8 +26,8 @@ const ref = (txt) => {   // "01/09/2026 a 30/09/2026" → { de, ate, comp }
   return m ? { de: `${m[3]}-${m[2]}-${m[1]}`, ate: `${m[6]}-${m[5]}-${m[4]}`, comp: `${m[6]}-${m[5]}` } : null;
 };
 
-export async function textoDoc(buf) {
-  const pags = await linhasPdf(buf);
+export async function textoDoc(buf, senha) {
+  const pags = await linhasPdf(buf, senha);
   return pags.flat().map((l) => l.its.map((i) => i.s).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
@@ -186,8 +186,8 @@ DETECTORES.push(
   },
 );
 
-export async function lerDocumento(nome, buf) {
-  const L = await textoDoc(buf);
+export async function lerDocumento(nome, buf, senha) {
+  const L = await textoDoc(buf, senha);
   const d = DETECTORES.find((x) => x.casa(L));
   if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", texto: L.slice(0, 120), erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS)." };
   return { ...d.ler(L), arquivo: nome, tipo: d.tipo };

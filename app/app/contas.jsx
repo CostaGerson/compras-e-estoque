@@ -649,13 +649,46 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
     try {
       const lista = [];
       for (const f of pdfs) lista.push({ nome: f.name, conteudo: await readB64(f) });
-      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
-      setArqs(lista); setR(j);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
-        valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
+      await analisar(lista);
     } catch (e) { setErro(e.message); }
     setSt("");
   };
+  // senhas digitadas para PDFs protegidos (as cadastradas em Senhas de PDF já são tentadas sozinhas)
+  const [senhas, setSenhas] = useState({});      // nome → { senha, salvar }
+  const [an, setAn] = useState({});              // análise mensal: nome → { ok, competencia }
+  const [anMsg, setAnMsg] = useState(null);
+  const tentarSenhas = async () => {
+    setErro(""); setSt("Abrindo com as senhas…");
+    try {
+      const lista = arqs.map((a) => (senhas[a.nome]?.senha ? { ...a, senha: senhas[a.nome].senha } : a));
+      const j = await analisar(lista);
+      for (const [nome, x] of Object.entries(senhas)) {
+        if (x.salvar && x.senha && !(j.protegidos || []).some((p) => p.nome === nome))
+          await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "salvarSenha", senha: x.senha, rotulo: nome.replace(/\.pdf$/i, "") }).catch(() => {});
+      }
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const enviarAnalise = async () => {
+    setErro(""); setSt("Enviando para a análise mensal…");
+    try {
+      const itens = (r.analise || []).filter((x) => an[x.nome]?.ok).map((x) => ({ nome: x.nome, tipoId: x.tipo.id, competencia: an[x.nome].competencia, senha: x.senha }));
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analise", itens, arquivos: arqs.filter((a) => itens.some((i) => i.nome === a.nome)) });
+      setAnMsg(j.resultados.map((x) => (x.erro ? `${x.nome}: ${x.erro}` : `${x.tipo.banco} · ${x.tipo.documento} → análise de ${nomeMes(itens.find((i) => i.nome === x.nome).competencia)}${x.leitura?.n ? ` (${x.leitura.n} lançamento(s) lido(s))` : ""}`)));
+      setR((y) => ({ ...y, analise: [] }));
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  async function analisar(lista) {
+    {
+      const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
+      setArqs(lista); setR(j);
+      setAn(Object.fromEntries((j.analise || []).map((x) => [x.nome, { ok: !x.jaEnviado, competencia: x.competencia }])));
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+        valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
+      return j;
+    }
+  }
   const muda = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
   useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
   // conferência com a Matriz de custos: corrigir na hora
@@ -712,7 +745,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       {!r && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
-          <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>, guias, <b>comprovantes do banco</b> (baixa das contas)…</div>
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>, guias, <b>comprovantes do banco</b> (baixa das contas), e também <b>extratos, faturas de cartão e relatórios do banco</b> da análise mensal…</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>O sistema reconhece cada documento, acha a conta certa, atualiza o valor e anexa o arquivo. Nada é gravado antes de você confirmar.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDFs"}</BtnP>
           <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
@@ -726,10 +759,43 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
               {r.naoReconhecidos.map((x) => <div key={x.nome}><b>{x.nome}</b>: {x.erro}</div>)}
             </div>
           )}
+          {r.protegidos?.length > 0 && (
+            <div className="rounded-xl p-3" style={{ border: `1px solid ${C.yellow}88`, background: C.yellowSoft }}>
+              <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>PDF protegido por senha</div>
+              <div className="text-[11px] mb-2" style={{ color: C.sub }}>Nenhuma senha cadastrada em Senhas de PDF abriu estes arquivos. Digite a senha:</div>
+              {r.protegidos.map((p) => (
+                <div key={p.nome} className="flex flex-wrap items-center gap-2 mb-1.5 text-xs">
+                  <b className="flex-1 min-w-[200px]">{p.nome}{p.senhaErrada && <span style={{ color: C.red }}> · senha incorreta</span>}</b>
+                  <input type="password" value={senhas[p.nome]?.senha || ""} onChange={(e) => setSenhas((x) => ({ ...x, [p.nome]: { ...x[p.nome], senha: e.target.value } }))} placeholder="senha" className="px-2 py-1 rounded text-xs" style={inpS} />
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={!!senhas[p.nome]?.salvar} onChange={(e) => setSenhas((x) => ({ ...x, [p.nome]: { ...x[p.nome], salvar: e.target.checked } }))} /> salvar em Senhas de PDF</label>
+                </div>
+              ))}
+              <div className="flex justify-end"><BtnP onClick={tentarSenhas} disabled={!!st}>{st && <Loader2 size={14} className="animate-spin" />} Abrir</BtnP></div>
+            </div>
+          )}
+          {r.analise?.length > 0 && (
+            <div className="rounded-xl p-3" style={{ border: `1px solid ${C.blue}55`, background: C.blueSoft }}>
+              <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Documentos da análise mensal</div>
+              <div className="text-[11px] mb-2" style={{ color: C.sub }}>Reconhecidos como extrato / fatura / relatório do banco. Vão para a guia Importação do mês escolhido (com leitura dos lançamentos e cópia para a contabilidade, igual à análise mensal).</div>
+              {r.analise.map((x) => (
+                <div key={x.nome} className="flex flex-wrap items-center gap-2 py-1.5 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <input type="checkbox" checked={!!an[x.nome]?.ok} onChange={(e) => setAn((y) => ({ ...y, [x.nome]: { ...y[x.nome], ok: e.target.checked } }))} />
+                  <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: "#fff", color: C.blue }}>{x.tipo.banco} · {x.tipo.documento}</span>
+                  <span className="flex-1 min-w-[160px]" style={{ color: C.sub }}>{x.nome}{x.senha ? " · 🔒 aberto com senha" : ""}</span>
+                  {x.jaEnviado && <span style={{ color: C.red }}>já enviado na análise de {nomeMes(x.jaEnviado)}</span>}
+                  <label className="flex items-center gap-1" style={{ color: C.sub }}>mês
+                    <input type="month" value={an[x.nome]?.competencia || ""} onChange={(e) => setAn((y) => ({ ...y, [x.nome]: { ...y[x.nome], competencia: e.target.value } }))} className="px-2 py-1 rounded text-xs" style={inpS} />
+                  </label>
+                </div>
+              ))}
+              <div className="flex justify-end mt-1"><BtnP onClick={enviarAnalise} disabled={!!st || !r.analise.some((x) => an[x.nome]?.ok)}>{st && <Loader2 size={14} className="animate-spin" />} Enviar para a análise mensal</BtnP></div>
+            </div>
+          )}
+          {anMsg && <div className="text-xs p-2.5 rounded-lg" style={{ background: C.greenSoft, color: C.green }}>{anMsg.map((m, i) => <div key={i}>{m}</div>)}</div>}
           {r.comprovantes?.length > 0 && <ComprovantesBaixa user={user} lista={r.comprovantes} arqs={arqs}
             onFeito={(msg) => (r.itens.length ? setR((x) => ({ ...x, comprovantes: [], msgComp: msg })) : onSalvo(msg))} />}
           {r.msgComp && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.greenSoft, color: C.green }}>{r.msgComp}</div>}
-          {!r.itens.length && !r.comprovantes?.length && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
+          {!r.itens.length && !r.comprovantes?.length && !r.analise?.length && !r.protegidos?.length && !anMsg && <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum documento reconhecido.</div>}
           {r.itens.map((it) => {
             const e = esc[it.chave] || {};
             const [tt, tc, tb] = TIPO_DOC[it.jaImportado ? "JA" : it.tipo] || [it.tipo, C.sub, C.panel2];
