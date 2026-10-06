@@ -273,6 +273,8 @@ export default function ContasPagarReceber({ user }) {
   // trocar o mês dos cards leva a lista para o mês inteiro; "hoje" volta para o dia
   const irMes = (m) => { setMes(m); setDIni(`${m}-01`); setDFim(fimDoMes(m)); };
   const irHoje = () => { setMes(mesAtual()); setDIni(hojeISO()); setDFim(hojeISO()); };
+  // vencidos do mês dos cards: do dia 1 até ontem (ou o mês inteiro, se já passou)
+  const verVencidosMes = () => { const ontem = somaDias(hojeISO(), -1), fim = fimDoMes(mes); setDIni(`${mes}-01`); setDFim(fim < ontem ? fim : ontem < `${mes}-01` ? `${mes}-01` : ontem); setFSit("VENC"); };
   const verVencidos = () => { setDIni("2020-01-01"); setDFim(somaDias(hojeISO(), -1)); setFSit("VENC"); };
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 3000); carregar(); };
 
@@ -288,6 +290,10 @@ export default function ContasPagarReceber({ user }) {
       return [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
   }, [d, busca, fSit, contasPorId]);
+  const antigos = useMemo(() => {
+    const n = busca.trim().toUpperCase();
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!n || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
+  }, [d, dIni, busca]);
   const tot = useMemo(() => {
     const ls = (d?.titulos || []).filter((t) => t.status !== "CANCELADO");
     const s = (f) => ls.filter(f).reduce((a, t) => a + t.valor, 0);
@@ -402,7 +408,7 @@ export default function ContasPagarReceber({ user }) {
             {[
               [`Contas ${P ? "a pagar" : "a receber"} no mês`, tot.total, C.navy, null],
               ["Em aberto", tot.aberto, C.blue, null],
-              ["Vencido no mês", tot.vencido, C.red, null],
+              ["Vencido no mês", tot.vencido, C.red, verVencidosMes, "clique para listar os vencidos do mês"],
               ["Vencido total", tot.vencidoTotal, C.red, verVencidos, `${tot.vencidoTotalQtd} conta(s) em aberto vencidas até ontem — clique para listar`],
             ].map(([t, v, c, click, dica]) => {
               const Tag = click ? "button" : "div";
@@ -435,7 +441,7 @@ export default function ContasPagarReceber({ user }) {
               <input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
             <div className="flex gap-1 pb-0.5">
-              {[["Hoje", hojeISO(), hojeISO()], ["Semana", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["7 dias", hojeISO(), somaDias(hojeISO(), 6)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
+              {[["Hoje", hojeISO(), hojeISO()], ["Semana atual", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
                 <button key={t} onClick={() => { setDIni(a); setDFim(b); }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                   style={dIni === a && dFim === b ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
               ))}
@@ -466,8 +472,9 @@ export default function ContasPagarReceber({ user }) {
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
-          {d.atrasados.length > 0 && fSit !== "SEMCONTA" && (
-            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(tot.atrasados)}`} cor={C.red} itens={d.atrasados} contasPorId={contasPorId} P={P}
+          {/* só no filtro Vencidos, depois dos vencidos do período; sem repetir o que já está na lista acima */}
+          {fSit === "VENC" && antigos.length > 0 && (
+            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P}
               sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
