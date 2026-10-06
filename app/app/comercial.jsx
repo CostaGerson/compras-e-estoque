@@ -142,7 +142,7 @@ function prazoComComp(dias) {
   return Math.round((comp - hoje) / 86400000);
 }
 
-function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "" }; }
+function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "", interno: false }; }
 function fichaVazia(tipo) {
   return {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
@@ -150,7 +150,7 @@ function fichaVazia(tipo) {
     nomeArtigo: "", nomeArtigoForro: "",
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
-    faccao: "",
+    faccao: "", faccaoInterna: false, logisticaInterna: false,   // processo interno: o valor volta para a operação
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     freteVolume: "", embExt: "", embInt: "SIMPLES",
@@ -276,6 +276,16 @@ function Fpp({ user, master }) {
 
     const custoProducao = materiaPrima + aviamentos + producao + personalizacao + logistica + embalagem;
 
+    // o que VOLTA para a operação (por peça): reembolso de consumo, corte e acabamento/expedição sempre;
+    // facção, personalização e logística quando marcadas como processo interno
+    const volta = {
+      consumo: reembolso, corte, acabamento: prodPeca,
+      costura: f.faccaoInterna ? num(f.faccao) : 0,
+      personalizacao: ["silk", "bordado", "sublimacao"].reduce((s2, k) => s2 + (f[k]?.interno ? perTec(f[k]) : 0), 0),
+      logistica: f.logisticaInterna ? logistica : 0,
+    };
+    volta.total = Object.values(volta).reduce((a, b) => a + b, 0);
+
     // Financeiro
     const vp = num(f.valorProposto);
     const imposto = cget("IMPOSTO");
@@ -294,7 +304,7 @@ function Fpp({ user, master }) {
     const margem = vp ? (vp - custoFinal) / vp : 0;
     const totalItem = vp * num(f.qtde);
 
-    return { mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem };
+    return { mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -444,7 +454,12 @@ function Fpp({ user, master }) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                 <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                <Inp label="Facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
+                <div>
+                  <Inp label="Facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: f.faccaoInterna ? C.accent : C.sub }}>
+                    <Toggle on={!!f.faccaoInterna} onChange={(v) => set("faccaoInterna", v)} /> Processo interno
+                  </div>
+                </div>
               </div>
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
             </Card>
@@ -452,7 +467,12 @@ function Fpp({ user, master }) {
             <Card title="Personalização">
               {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].map(([tec, lbl]) => (
                 <div key={tec} className="mb-3">
-                  <div className="text-xs font-semibold mb-1" style={{ color: C.text }}>{lbl}</div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="text-xs font-semibold" style={{ color: C.text }}>{lbl}</div>
+                    <div className="flex items-center gap-1.5 text-[11px]" style={{ color: f[tec].interno ? C.accent : C.sub }}>
+                      <Toggle on={!!f[tec].interno} onChange={(v) => setP(tec, "interno", v)} /> Processo interno
+                    </div>
+                  </div>
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                     <Inp label="Arte (total)" value={f[tec].arte} onChange={(v) => setP(tec, "arte", v)} />
                     {POS.map(([k, l]) => <Inp key={k} label={l} value={f[tec][k]} onChange={(v) => setP(tec, k, v)} />)}
@@ -466,6 +486,9 @@ function Fpp({ user, master }) {
                 <Inp label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
                 <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
                 <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 text-[11px]" style={{ color: f.logisticaInterna ? C.accent : C.sub }}>
+                <Toggle on={!!f.logisticaInterna} onChange={(v) => set("logisticaInterna", v)} /> Logística por processo interno (o valor da logística volta para a operação)
               </div>
             </Card>
 
@@ -538,6 +561,7 @@ function Fpp({ user, master }) {
               )}
               {msg && <div className="text-xs mt-2 text-center" style={{ color: msg.includes("✓") ? C.green : "#E5484D" }}>{msg}</div>}
             </div>
+            {r && <VoltaOperacao volta={r.volta} qtde={num(f.qtde)} acabRotulo={r.acabRotulo} />}
           </div>
         </div>
       )}
@@ -545,6 +569,39 @@ function Fpp({ user, master }) {
       {paramsLocaisOpen && (
         <ParamsLocaisModal params={params} tipo={tipo} f={f} pget={pget} cget={cget} over={over} setOver={setOver} onClose={() => setParamsLocaisOpen(false)} />
       )}
+    </div>
+  );
+}
+
+/* ---------- quanto volta para a operação (por peça e no total da FPP) ---------- */
+const AREAS_VOLTA = [
+  ["consumo", "Custos de produção (reembolso de consumo)"], ["corte", "Corte"], ["acabamento", "Acabamento / expedição"],
+  ["costura", "Costura (facção interna)"], ["personalizacao", "Personalização interna"], ["logistica", "Logística interna"],
+];
+function VoltaOperacao({ volta, qtde, acabRotulo }) {
+  if (!volta) return null;
+  const q = Math.max(0, Number(qtde) || 0);
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4">
+      <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Volta para a operação</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Valores previstos nesta FPP que custeiam a operação interna{q ? ` · ${q.toLocaleString("pt-BR")} peça(s)` : ""}</div>
+      <table className="w-full text-xs">
+        <thead><tr style={{ color: C.sub }}><th className="text-left font-semibold py-1">Área</th><th className="text-right font-semibold">Por peça</th><th className="text-right font-semibold">Total</th></tr></thead>
+        <tbody>
+          {AREAS_VOLTA.filter(([k]) => volta[k] > 0).map(([k, l]) => (
+            <tr key={k} style={{ borderTop: `1px solid ${C.line}` }}>
+              <td className="py-1">{k === "acabamento" ? acabRotulo || l : l}</td>
+              <td className="text-right">{brl(volta[k])}</td>
+              <td className="text-right font-semibold">{brl(volta[k] * q)}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: `2px solid ${C.line}` }}>
+            <td className="py-1.5 font-bold" style={{ color: C.navy }}>Total</td>
+            <td className="text-right font-bold" style={{ color: C.navy }}>{brl(volta.total)}</td>
+            <td className="text-right font-bold" style={{ color: C.accent }}>{brl(volta.total * q)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -909,9 +966,22 @@ const cmvFpp = (f) => {
   if (f.custoProducao != null) return (Number(f.custoProducao) + (Number(f.resultados?.opFin) || 0)) * q;
   return (Number(f.custoFinal) || 0) * q;
 };
+// volta para a operação: valores por peça gravados na FPP × quantidade
+function voltaFpp(f) {
+  const v = f.resultados?.volta, q = Number(f.qtde) || 0;
+  if (!v) return null;
+  const o = {}; for (const [k] of AREAS_VOLTA) o[k] = (Number(v[k]) || 0) * q;
+  o.total = (Number(v.total) || 0) * q;
+  return o;
+}
 function somaFpps(l) {
-  const t = { n: l.length, valor: 0, pecas: 0, mc: 0, cmv: 0 };
-  for (const f of l) { t.valor += valorFpp(f); t.pecas += Number(f.qtde) || 0; t.mc += mcFpp(f); t.cmv += cmvFpp(f); }
+  const t = { n: l.length, valor: 0, pecas: 0, mc: 0, cmv: 0, volta: { total: 0 }, semVolta: 0 };
+  for (const [k] of AREAS_VOLTA) t.volta[k] = 0;
+  for (const f of l) {
+    t.valor += valorFpp(f); t.pecas += Number(f.qtde) || 0; t.mc += mcFpp(f); t.cmv += cmvFpp(f);
+    const v = voltaFpp(f);
+    if (!v) t.semVolta++; else for (const k of Object.keys(t.volta)) t.volta[k] += v[k] || 0;
+  }
   t.mcPct = t.valor ? t.mc / t.valor : 0;
   t.cmvPct = t.valor ? t.cmv / t.valor : 0;
   t.mcPeca = t.pecas ? t.mc / t.pecas : 0;
@@ -968,8 +1038,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   const g = guiaFpp(guia);
   const cards = g.chave && !filtro ? Object.values(lista.reduce((acc, f) => {
     const k = g.chave(f);
-    const c = (acc[k] ||= { valor: k, n: 0, total: 0, qtd: 0, mc: 0, cmv: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
-    c.n++; c.total += valorFpp(f); c.qtd += Number(f.qtde) || 0; c.mc += mcFpp(f); c.cmv += cmvFpp(f);
+    const c = (acc[k] ||= { valor: k, n: 0, total: 0, qtd: 0, mc: 0, cmv: 0, volta: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
+    c.n++; c.total += valorFpp(f); c.qtd += Number(f.qtde) || 0; c.mc += mcFpp(f); c.cmv += cmvFpp(f); c.volta += voltaFpp(f)?.total || 0;
     if (!c.ultima || f.createdAt > c.ultima) c.ultima = f.createdAt;
     if (f.clienteNome) c.clientes.add(f.clienteNome); if (f.item) c.pecas.add(f.item); if (f.negociacao) c.negs.add(f.negociacao);
     return acc;
@@ -1077,6 +1147,18 @@ function FichasSalvas({ master, onEditar, onClonar }) {
             {master && <KpiFpp rotulo="CMV total" valor={brl(t.cmv)} sub={`${pct(t.cmvPct)} do valor · sem imposto`} />}
             {master && <KpiFpp rotulo="Margem de contribuição" valor={<>{brl(t.mc)} <span className="text-sm">· {pct(t.mcPct)}</span></>} cor={corMc(t.mcPct)} />}
             {master && <KpiFpp rotulo="MC média por peça" valor={<>{brl(t.mcPeca)} <span className="text-sm">· {pct(t.mcPecaPct)}</span></>} cor={corMc(t.mcPecaPct)} />}
+            {master && <KpiFpp rotulo="Volta para a operação" valor={brl(t.volta.total)} sub={t.pecas ? `${brl(t.volta.total / t.pecas)}/peça` : null} cor={C.accent} />}
+            {master && t.volta.total > 0 && (
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}`, gridColumn: "1 / -1" }}>
+                <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.sub }}>Volta para a operação, por área</div>
+                <div className="grid gap-x-6 gap-y-1 text-sm" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                  {AREAS_VOLTA.filter(([k]) => t.volta[k] > 0).map(([k, l]) => (
+                    <div key={k} className="flex justify-between gap-2"><span style={{ color: C.sub }}>{l}</span><b style={{ color: C.navy }}>{brl(t.volta[k])}</b></div>
+                  ))}
+                </div>
+                {t.semVolta > 0 && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>{t.semVolta} FPP(s) salvas antes desta versão ainda não têm a divisão — abra e clique em Atualizar ficha.</div>}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -1098,6 +1180,7 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                   <div><div style={{ color: C.sub }}>MC %</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{pct(c.total ? c.mc / c.total : 0)}</div></div>
                   <div><div style={{ color: C.sub }}>CMV total</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.cmv)}</div></div>
                   <div><div style={{ color: C.sub }}>MC média/peça</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{brl(c.qtd ? c.mc / c.qtd : 0)} · {pct(c.total ? c.mc / c.total : 0)}</div></div>
+                  <div className="col-span-2"><div style={{ color: C.sub }}>Volta para a operação</div><div className="font-bold text-sm" style={{ color: C.accent }}>{brl(c.volta)}</div></div>
                 </div>
               )}
               {!master && <div className="text-xs mb-2" style={{ color: C.sub }}>{nPt(c.qtd)} peça(s)</div>}
