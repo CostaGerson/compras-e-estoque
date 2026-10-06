@@ -45,10 +45,13 @@ export function lerPosicao(buf) {
   const wb = XLSX.read(buf, { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
-  const hi = rows.findIndex((r) => r.some((c) => norm(c) === "VENCIMENTO") && r.some((c) => norm(c).startsWith("ORIGEM")));
-  if (hi < 0) throw new Error("Não achei o cabeçalho da posição de títulos (colunas Origem e Vencimento).");
+  // layout 1 (a pagar): coluna Origem PAGAR/RECEBER · layout 2 (a receber): Código, Situação, Cliente, Tp Dcto, Vlr. Recebido…
+  let hi = rows.findIndex((r) => r.some((c) => norm(c) === "VENCIMENTO") && r.some((c) => norm(c).startsWith("ORIGEM")));
+  if (hi < 0) hi = rows.findIndex((r) => r.some((c) => norm(c) === "VENCIMENTO") && r.some((c) => /^(CLIENTE|FORNECEDOR)$/.test(norm(c))));
+  if (hi < 0) throw new Error("Não achei o cabeçalho da posição de títulos (colunas Vencimento e Origem, Cliente ou Fornecedor).");
   const cab = rows[hi].map((c) => norm(c));
   const col = (...nomes) => cab.findIndex((c) => nomes.some((n) => c === n || c.startsWith(n)));
+  if (col("ORIGEM") < 0) return lerPosicaoReceber(rows, hi, cab, col);
   const C = {
     origem: col("ORIGEM"), titulo: col("TITULO"), emissao: col("EMISSAO"), venc: col("VENCIMENTO"), pagamento: col("PAGAMENTO"),
     parceiro: col("FORNECEDOR", "CLIENTE"), doc: col("CNPJ CPF"), valor: col("VALOR"), valorAtual: col("VALOR ATUAL"),
@@ -76,9 +79,46 @@ export function lerPosicao(buf) {
   return out;
 }
 
+// "Posição de Títulos a Receber (Analítico)": sem coluna Origem — o tipo vem do cabeçalho (Cliente → RECEBER)
+const FORMA_TP = { BOLETO: "BOLETO", PIX: "PIX", DEPOSITO: "TED", TED: "TED", CHEQUE: "CHEQUE", CARTAO: "CARTAO", DINHEIRO: "DINHEIRO" };
+function lerPosicaoReceber(rows, hi, cab, col) {
+  const tipo = col("CLIENTE") >= 0 ? "RECEBER" : "PAGAR";
+  const iCod = col("CODIGO");
+  // o número do título fica na coluna sem título logo depois de "Código" (a coluna "Código" só tem "+")
+  const iTit = iCod >= 0 && !cab[iCod + 1] ? iCod + 1 : iCod;
+  const C = {
+    titulo: iTit, situacao: col("SITUACAO"), emissao: col("EMISSAO"), venc: col("VENCIMENTO"), liquidado: col("LIQUIDADO"),
+    parceiro: col("CLIENTE", "FORNECEDOR"), doc: col("CNPJ CPF"), tpDoc: col("TP DCTO"), valor: col("VALOR"),
+    recebido: col("VLR RECEBIDO", "VLR PAGO"), nosso: col("NOSSO NUMERO"), obs: col("OBSERVACAO"), descricao: col("DESCRICAO"),
+  };
+  const out = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const venc = dataCel(r[C.venc]);
+    const parceiro = String(r[C.parceiro] || "").trim().replace(/\s+/g, " ").toUpperCase();
+    if (!venc || !parceiro) continue;                                          // linha de total / vazia
+    if (C.liquidado >= 0 && dataCel(r[C.liquidado])) continue;                 // já liquidado no sistema antigo
+    const sit = norm(r[C.situacao]);
+    if (/LIQUID|BAIXAD|CANCEL|QUITAD|PAGO|RECEBIDO/.test(sit)) continue;
+    const valor = r2(numCel(r[C.valor]) - (C.recebido >= 0 ? numCel(r[C.recebido]) : 0));   // recebido em parte: fica o saldo
+    if (!(valor > 0)) continue;
+    const tpDoc = String(r[C.tpDoc] || "").trim().toUpperCase();
+    const tituloOrig = String(r[C.titulo] || "").trim();
+    const descricao = C.descricao >= 0 ? String(r[C.descricao] || "").trim().replace(/\s+/g, " ").toUpperCase() : "";
+    const fp = Object.keys(FORMA_TP).find((k) => norm(tpDoc).includes(k));
+    out.push({
+      linha: i + 1, tipo, tituloOrig, descricao, parceiro, documento: so(r[C.doc]) || null, emissao: dataCel(r[C.emissao]), vencimento: venc, valor,
+      obs: C.obs >= 0 ? String(r[C.obs] || "").trim() : "", idParceiro: "", tpDoc, situacaoOrig: sit,
+      nossoNumero: C.nosso >= 0 ? String(r[C.nosso] || "").trim() : "", formaPagamento: fp ? FORMA_TP[fp] : null,
+      factoring: /FACTOR|DESCONTAD/.test(norm(tpDoc)),
+    });
+  }
+  return out;
+}
+
 export const chavePosicao = (l) => `POSICAO|${l.tipo}|${norm(l.parceiro).replace(/ /g, "")}|${norm(l.tituloOrig).replace(/ /g, "")}|${l.vencimento}`;
 const nfDe = (l) => (l.descricao.match(/REF\.?\s*NF\s*:?\s*(\d+)/) || [])[1] || null;
-const tituloDe = (l) => (l.descricao || l.tituloOrig || "IMPORTADO").toUpperCase().slice(0, 120);
+const tituloDe = (l) => (l.descricao || (l.tipo === "RECEBER" && /^\d/.test(l.tituloOrig) ? `NF ${l.tituloOrig}` : l.tituloOrig) || "IMPORTADO").toUpperCase().slice(0, 120);
 
 // ---------------- 2) analisar ----------------
 export async function analisarPosicao(linhas) {
@@ -106,6 +146,7 @@ export async function analisarPosicao(linhas) {
   const rateioParc = new Map();
   for (const u of ultimos) if (!rateioParc.has(u.parceiro) && Array.isArray(u.rateio) && u.rateio.length) rateioParc.set(u.parceiro, u.rateio);
   const nomeConta = Object.fromEntries(contas.map((c) => [c.id, `${c.codigo} · ${c.nome}`]));
+  const contaVenda = contas.find((c) => c.codigo === "1111000")?.id || null;   // a receber sem histórico → VENDA DE UNIFORMES
 
   const ex = existentes.map((t) => ({
     ...t, valor: Number(t.valor), venc: iso(t.vencimento),
@@ -119,15 +160,18 @@ export async function analisarPosicao(linhas) {
   for (const l of linhas) {
     const chave = chavePosicao(l);
     const x = { ...l, chave, titulo: tituloDe(l), situacao: "NOVO", decisao: "IMPORTAR", motivo: "", alvo: null, conta: null };
-    const rep = `${norm(l.parceiro)}|${l.valor}|${l.vencimento}|${norm(l.descricao)}`;
+    const rep = `${norm(l.parceiro)}|${l.valor}|${l.vencimento}|${norm(l.descricao)}|${norm(l.tituloOrig)}`;
     const mesmoParc = (t) => (l.documento && t.documento && l.documento === t.documento) || t.parcN === norm(l.parceiro)
       || [...tokens(l.parceiro)].filter((w) => t.tkParc.has(w)).length >= 2;
-    if (jaChave.has(chave)) {
+    if (l.factoring && !jaChave.has(chave)) {
+      Object.assign(x, { situacao: "FACTORING", decisao: "IGNORAR",
+        motivo: `${l.tpDoc}: título descontado no factoring — o dinheiro já entrou pela antecipação e o cliente paga ao factoring. Importe só se ainda for receber.` });
+    } else if (jaChave.has(chave)) {
       const t = jaChave.get(chave);
       Object.assign(x, { situacao: "JA_IMPORTADO", decisao: "IGNORAR", alvo: { id: t.id },
         motivo: `Já importada e ainda ativa (${t.status === "PAGO" ? "baixada" : "em aberto"}): conta nº ${t.id}, vence ${dBR(iso(t.vencimento))}, R$ ${Number(t.valor).toFixed(2).replace(".", ",")}.` });
     } else if (vistos.has(rep)) {
-      Object.assign(x, { situacao: "REPETIDO", decisao: "IGNORAR", motivo: `Igual à linha ${vistos.get(rep)} da planilha (mesmo parceiro, valor, vencimento e descrição).` });
+      Object.assign(x, { situacao: "REPETIDO", decisao: "IGNORAR", motivo: `Igual à linha ${vistos.get(rep)} da planilha (mesmo parceiro, título, valor, vencimento e descrição).` });
     } else {
       const nf = nfDe(l);
       const igual = ex.filter((t) => t.tipo === l.tipo && !t.recorrenciaId && Math.abs(t.valor - l.valor) <= 0.05 && dV(t, l) <= 5
@@ -186,6 +230,7 @@ export async function analisarPosicao(linhas) {
       const r = acharRegra(regras, { historico: `${x.descricao} ${x.parceiro}`, identificacao: "", valor: x.tipo === "PAGAR" ? -x.valor : x.valor, banco: null });
       if (r) { conta = r.contaId; origemConta = "PALAVRA-CHAVE"; }
     }
+    if (!conta && x.tipo === "RECEBER" && contaVenda) { conta = contaVenda; origemConta = "PADRÃO (VENDA DE UNIFORMES)"; }
     const a = x.alvo;
     Object.assign(x, { contaId: conta, contaNome: conta ? nomeConta[conta] || null : null, origemConta, conta: undefined,
       alvo: a ? { id: a.id, titulo: a.titulo, parceiro: a.parceiro, valor: a.valor, vencimento: a.venc, status: a.status } : null });
@@ -220,7 +265,7 @@ export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
     if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANCELADA|${velha.id}`.slice(0, 190) } });
     const valor = r2(l.valor);
     const rateio = Number(l.contaId) ? [{ contaId: Number(l.contaId), pct: 100 }] : [];
-    const obs = `IMPORTADO DA POSIÇÃO DE TÍTULOS${l.emissao ? ` · EMISSÃO ${dBR(l.emissao)}` : ""}${l.tituloOrig ? ` · ${l.tituloOrig}` : ""}`;
+    const obs = `IMPORTADO DA POSIÇÃO DE TÍTULOS${l.emissao ? ` · EMISSÃO ${dBR(l.emissao)}` : ""}${l.tituloOrig ? ` · ${l.tituloOrig}` : ""}${l.tpDoc ? ` · ${l.tpDoc}` : ""}${l.nossoNumero ? ` · NOSSO Nº ${l.nossoNumero}` : ""}${l.obs ? ` · ${String(l.obs).toUpperCase()}` : ""}`;
     if (l.decisao === "SUBSTITUIR" && l.alvo?.id) {
       const t = await prisma.finTitulo.findUnique({ where: { id: Number(l.alvo.id) } });
       if (t && t.status === "ABERTO") {
@@ -246,6 +291,7 @@ export async function importarPosicao(linhas, { quem, usuarioId } = {}) {
         tipo: l.tipo, titulo: tituloDe(l), parceiro: l.parceiro || "SEM PARCEIRO", documento: l.documento || null,
         numeroDoc: l.tituloOrig || null, valor, vencimento: dataUTC(l.vencimento), competencia: mesDe(l.vencimento),
         previsao: false, rateio, observacao: obs.slice(0, 500), forma: "IMPORTACAO", chaveImport: chave,
+        formaPagamento: ["PIX", "BOLETO", "TED", "CHEQUE", "CARTAO", "DINHEIRO", "DEBITO_AUTOMATICO"].includes(l.formaPagamento) ? l.formaPagamento : null,
         criadoPorId: usuarioId || null, criadoPorNome: quem || null,
       },
     });

@@ -855,6 +855,7 @@ const SIT_POS = {
   DUPLICADO: ["Já existe", C.red, C.redSoft],
   REPETIDO: ["Repetido na planilha", C.yellow, C.yellowSoft],
   JA_IMPORTADO: ["Já importado", C.sub, C.panel2],
+  FACTORING: ["Descontado (factoring)", C.yellow, C.yellowSoft],
 };
 const DEC_POS = { IMPORTAR: "Importar", SUBSTITUIR: "Substituir a previsão", IGNORAR: "Ignorar" };
 function PosicaoModal({ user, contas, onClose, onSalvo }) {
@@ -898,7 +899,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
       {!a && (
         <Soltar onArquivos={(fs) => ler(fs[0])} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileSpreadsheet size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
-          <div className="text-sm mb-1" style={{ color: C.text }}>Envie a <b>Posição de Títulos (Analítico)</b> exportada do sistema antigo (.xls ou .xlsx).</div>
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie a <b>Posição de Títulos a Pagar ou a Receber (Analítico)</b> exportada do sistema antigo (.xls ou .xlsx).</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>Antes de gravar, o sistema confere cada linha contra as contas já lançadas, as NFs e as previsões das recorrências.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher planilha"}</BtnP>
           <input ref={ref} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { ler(e.target.files[0]); e.target.value = ""; }} />
