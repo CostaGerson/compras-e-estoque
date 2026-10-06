@@ -837,6 +837,7 @@ model FinTitulo {
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
   nossoNumero      String?                      // v127: nosso número do boleto (retorno CNAB)
   cobranca         String?                      // v127: REGISTRADO | LIQUIDADO | DESCONTADO (retorno do banco)
+  critica          String?                      // v152: crítica a conferir (linha em vermelho até alguém marcar como conferida)
   // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
   vencimentoOriginal DateTime? @db.Date
   reprogramacoes   Json?

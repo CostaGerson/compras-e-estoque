@@ -104,7 +104,7 @@ export async function analisarAntecipacao(nome, b64) {
   const achar = await indice();
   const itens = c.itens.map((it) => {
     const t = achar(it);
-    const acao = !t ? "SEM_CONTA" : t.status === "ABERTO" ? "BAIXAR" : "JA_BAIXADA";
+    const acao = !t ? "CRIAR" : t.status === "ABERTO" ? "BAIXAR" : "JA_BAIXADA";
     return { ...it, conta: saidaT(t), acao, difValor: t ? r2(Number(t.valor) - it.valor) : null };
   });
   const credito = await acharCredito(c);
@@ -156,11 +156,30 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
       nome: String(nome || "contrato.pdf"), hash: createHash("sha256").update(buf).digest("hex"), conteudo: String(b64), criadoPorNome: quem || null,
     },
   });
-  const out = { contrato: r.contrato, baixadas: 0, valorBaixado: 0, jaBaixadas: 0, semConta: 0, encargos: 0, valorEncargos: 0, dre: false };
+  const out = { contrato: r.contrato, baixadas: 0, valorBaixado: 0, jaBaixadas: 0, semConta: 0, criadas: 0, valorCriado: 0, encargos: 0, valorEncargos: 0, dre: false };
   const anexo = { nome: `CONTRATO DESCONTO ${r.contrato}.pdf`, mime: "application/pdf", tamanho: buf.length, conteudo: String(b64), hash: a.hash, criadoPorNome: quem || null };
   // 1) baixa os boletos pelo valor cheio
   for (const it of r.itens) {
-    if (!it.conta) { out.semConta++; continue; }
+    if (!it.conta) {   // boleto descontado que não existe no contas a receber: cria já recebido (descontado) e com crítica
+      const chave = `DESCONTO|237|${r.contrato}|P${it.parcela}`;
+      if (await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } })) { out.jaBaixadas++; continue; }
+      await garantirContas();
+      const venda = await prisma.finConta.findUnique({ where: { codigo: "1111000" }, select: { id: true } });
+      const nf = String(it.seu).split("-")[0];
+      const t = await prisma.finTitulo.create({
+        data: {
+          tipo: "RECEBER", titulo: `NF ${it.seu}`, parceiro: it.sacado, numeroDoc: it.seu, nossoNumero: it.nosso, valor: it.valor,
+          vencimento: dUTC(it.vencimento), competencia: it.vencimento.slice(0, 7), status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor,
+          cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true, rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [],
+          forma: "IMPORTACAO", chaveImport: chave, criadoPorNome: quem || null,
+          observacao: `DESCONTADA NO CONTRATO ${r.contrato} (${dBR(r.data)}) · PARCELA ${it.parcela}/${r.itens.length}`,
+          critica: `Título descontado no contrato ${r.contrato} que NÃO estava no contas a receber — criado pela antecipação. Confira a NF ${nf}, o cliente e o valor.`,
+        },
+      });
+      await prisma.finTituloAnexo.create({ data: { ...anexo, tituloId: t.id } });
+      out.criadas++; out.valorCriado = r2(out.valorCriado + it.valor);
+      continue;
+    }
     const t = await prisma.finTitulo.findUnique({ where: { id: it.conta.id } });
     if (!t) continue;
     const obs = `DESCONTADA NO CONTRATO ${r.contrato} (${dBR(r.data)}) · PARCELA ${it.parcela}/${r.itens.length}`;

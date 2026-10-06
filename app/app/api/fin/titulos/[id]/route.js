@@ -46,6 +46,7 @@ export async function PATCH(req, { params }) {
     if (b.numeroDoc !== undefined) data.numeroDoc = b.numeroDoc || null;
     if (b.observacao !== undefined) data.observacao = b.observacao || null;
     if (b.previsao !== undefined) data.previsao = !!b.previsao;
+    if (b.critica !== undefined) data.critica = b.critica ? String(b.critica).slice(0, 500) : null;
     if (b.valor !== undefined) {
       const v = r2(b.valor);
       if (!(v >= 0) || (v === 0 && !t.recorrenciaId)) return Response.json({ error: "Valor inválido." }, { status: 400 });

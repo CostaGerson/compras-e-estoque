@@ -166,7 +166,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
               <tr key={t.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(t.id) ? C.accentSoft : undefined }}>
                 <td className="px-3 py-2"><input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar(t.id, e.target.checked)} /></td>
                 <td className="px-3 py-2 font-semibold" style={{ color: C.navy }}>{t.parceiro}</td>
-                <td className="px-3 py-2">{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
+                <td className="px-3 py-2">{t.titulo}{t.cobranca === "DESCONTADO" && <span title="Antecipado" className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold" style={{ width: 15, height: 15, background: C.blueSoft, color: C.blue }}>A</span>}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{dBR(t.vencimento)}<MarcaR t={t} /></td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold" style={{ color: corAtraso(t.diasAtraso) }}>{t.diasAtraso} dia(s)</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">{moeda(t.valor)}</td>

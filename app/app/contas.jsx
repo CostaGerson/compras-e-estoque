@@ -531,6 +531,13 @@ export default function ContasPagarReceber({ user }) {
   );
 }
 
+/* A = recebida por antecipação (desconto de duplicatas) */
+export function MarcaA({ t }) {
+  if (t?.cobranca !== "DESCONTADO") return null;
+  return <span title="Antecipado — título descontado no banco" className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle shrink-0"
+    style={{ width: 15, height: 15, background: C.blueSoft, color: C.blue, border: `1px solid ${C.blue}66` }}>A</span>;
+}
+
 /* R = conta reprogramada (vencimento mudou; o original fica no histórico) */
 export function MarcaR({ t }) {
   if (!t?.vencimentoOriginal) return null;
@@ -593,16 +600,17 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
               const [fT, FI] = FORMA[t.forma] || [t.forma, Hand];
               const conferir = t.recorrenciaId && !t.valorConfirmado && t.status === "ABERTO" && t.competencia <= mesAtual();
               return (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : undefined }} className="hover:bg-gray-50">
+                <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
                   <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} /></td>
                   <td className="px-3 py-2" style={{ maxWidth: 260 }}>
                     <button onClick={() => onEditar(t)} className="text-left">
                       <div className="font-semibold flex items-center gap-1" style={{ color: C.navy }}>
-                        {t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}{t.titulo}
+                        {t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}<span style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span><MarcaA t={t} />
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                       </div>
                       {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
+                      {t.critica && <div className="mt-0.5 font-semibold flex items-start gap-1" style={{ color: C.red }}><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {t.critica}</div>}
                     </button>
                   </td>
                   <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}{t.documento && <div style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
@@ -1085,7 +1093,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
 }
 
 /* ---------------- antecipação (desconto de duplicatas) ---------------- */
-const ACAO_ANT = { BAIXAR: ["Baixar como descontada", C.green, C.greenSoft], JA_BAIXADA: ["Já baixada", C.blue, C.blueSoft], SEM_CONTA: ["Sem conta no sistema", C.red, C.redSoft] };
+const ACAO_ANT = { BAIXAR: ["Baixar como descontada", C.green, C.greenSoft], JA_BAIXADA: ["Já baixada", C.blue, C.blueSoft], CRIAR: ["Não está no sistema — será criada com crítica", C.red, C.redSoft] };
 function AntecipacaoModal({ user, onClose, onSalvo }) {
   const [arq, setArq] = useState(null);
   const [a, setA] = useState(null);
@@ -1104,7 +1112,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
     setSt("Aplicando…"); setErro("");
     try {
       const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "aplicar", arquivo: arq });
-      onSalvo(`Contrato ${r.contrato}: ${r.baixadas} boleto(s) baixado(s) como descontado(s) (${moeda(r.valorBaixado)})${r.jaBaixadas ? `, ${r.jaBaixadas} já estavam baixados` : ""}${r.semConta ? `, ${r.semConta} sem conta no sistema` : ""} · ${r.encargos} encargo(s) lançado(s) no contas a pagar (${moeda(r.valorEncargos)}) · DRE: ${r.dre ? "crédito do extrato aberto em receita cheia − encargos" : "fica pendente até o extrato do dia entrar"}.`);
+      onSalvo(`Contrato ${r.contrato}: ${r.baixadas} boleto(s) baixado(s) como descontado(s) (${moeda(r.valorBaixado)})${r.jaBaixadas ? `, ${r.jaBaixadas} já estavam baixados` : ""}${r.criadas ? `, ${r.criadas} criada(s) com crítica (não estavam no sistema: ${moeda(r.valorCriado)})` : ""} · ${r.encargos} encargo(s) lançado(s) no contas a pagar (${moeda(r.valorEncargos)}) · DRE: ${r.dre ? "crédito do extrato aberto em receita cheia − encargos" : "fica pendente até o extrato do dia entrar"}.`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   const ok = (x) => (x?.ok ? C.green : C.red);
@@ -1432,7 +1440,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           for (const arq of pendentes) await api(`/api/fin/titulos/${r.id}/anexos`, "POST", { usuarioId: user.id, nome: arq.name, mime: arq.type, conteudo: await readB64(arq) });
         }
       }
-      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}) });
+      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}), ...(item?.critica && f.critica === null ? { critica: null } : {}) });
       let extra = "";
       if (ofereceRegra && (regra.usar || regra.salvar) && termoRegra.trim()) {
         const r = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, salvarRegra: regra.salvar, dryRun: !regra.usar });
@@ -1451,6 +1459,13 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   return (
     <Modal titulo={novo ? `Nova conta ${P ? "a pagar" : "a receber"}` : "Editar conta"} icone={P ? TrendingDown : TrendingUp} onClose={onClose} largura={680}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP></>}>
+      {!novo && item.critica && (
+        <div className="mb-3 p-2.5 rounded-lg text-xs flex items-start gap-2" style={{ background: C.redSoft, color: C.red }}>
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <span className="flex-1"><b>Crítica:</b> {item.critica}</span>
+          <label className="flex items-center gap-1 whitespace-nowrap font-semibold cursor-pointer"><input type="checkbox" checked={f.critica === null} onChange={(e) => s("critica", e.target.checked ? null : item.critica)} /> conferida</label>
+        </div>
+      )}
       <datalist id="parceiros-lst">{(d?.parceiros || []).map((p) => <option key={p.parceiro} value={p.parceiro} />)}</datalist>
       {novo && P && (
         <div className="mb-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
