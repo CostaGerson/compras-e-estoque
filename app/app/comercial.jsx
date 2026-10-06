@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -151,6 +151,7 @@ function fichaVazia(tipo) {
     mpValor: "", forroValor: "",
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "",
+    extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     freteVolume: "", embExt: "", embInt: "SIMPLES",
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "",
@@ -250,10 +251,12 @@ function Fpp({ user, master }) {
     const punho = isMalha ? pget("PUNHO", f.punho) : 0;
     const faixa = pget("FAIXA", f.faixa);
     const botao = cget("BOTAO_UNIT") * num(f.botaoQtd);
-    const aviamentos = golaOuElast + punho + faixa + botao;
+    const extrasAv = somaExtras(f.extrasAviamentos);
+    const aviamentos = golaOuElast + punho + faixa + botao + extrasAv;
 
     // Produção
-    const producao = corte + prodPeca + num(f.faccao);
+    const extrasProd = somaExtras(f.extrasProducao);
+    const producao = corte + prodPeca + num(f.faccao) + extrasProd;
 
     // Personalização (arte rateada ÷ qtde + posições por peça)
     const perTec = (p) => (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0);
@@ -434,6 +437,7 @@ function Fpp({ user, master }) {
                 <Combo label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" />
                 <Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} />
               </div>
+              <ExtrasCustos lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} />
             </Card>
 
             <Card title="Produção">
@@ -442,6 +446,7 @@ function Fpp({ user, master }) {
                 <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                 <Inp label="Facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
               </div>
+              <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
             </Card>
 
             <Card title="Personalização">
@@ -829,6 +834,8 @@ async function imprimirFicha(f, master) {
   row("Faixa refletiva", e.faixa || "—");
   row("Qtde de botões", e.botaoQtd || "—");
   row("Facção (R$/peça)", e.faccao || "—");
+  for (const [rot, l] of [["Extra aviamento", e.extrasAviamentos], ["Extra produção", e.extrasProducao]])
+    for (const x of (Array.isArray(l) ? l : []).filter((x) => num(x.valor))) row(`${rot}: ${String(x.desc || "SEM DESCRIÇÃO").toUpperCase()} (R$/peça)`, String(x.valor));
   const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
   const pp = [];
   for (const [tec, lbl] of [["silk", "Silk/DTF"], ["bordado", "Bordado"], ["sublimacao", "Sublimação"]]) {
@@ -1340,6 +1347,36 @@ function Card({ title, children }) {
     <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4">
       <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{title}</div>
       {children}
+    </div>
+  );
+}
+/* custos extras (aviamentos / produção): sem limite de linhas, sempre em R$ por peça */
+const somaExtras = (l) => (Array.isArray(l) ? l : []).reduce((s, x) => s + num(x?.valor), 0);
+function ExtrasCustos({ lista, onChange }) {
+  const l = Array.isArray(lista) ? lista : [];
+  const alt = (i, k, v) => onChange(l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  return (
+    <div className="mt-3">
+      {l.length > 0 && (
+        <div className="space-y-2 mb-2">
+          <div className="grid gap-2 text-xs" style={{ gridTemplateColumns: "1fr 160px 28px", color: C.sub }}>
+            <span>Custo extra (descrição)</span><span>Valor (R$ por peça)</span><span />
+          </div>
+          {l.map((x, i) => (
+            <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 160px 28px" }}>
+              <input value={x.desc || ""} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: ZÍPER, ETIQUETA, LAVAGEM…"
+                className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+              <input value={x.valor ?? ""} onChange={(e) => alt(i, "valor", e.target.value)} inputMode="decimal" placeholder="0,00 por peça"
+                className="w-full px-2 py-1.5 rounded text-sm text-right" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+              <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
+            </div>
+          ))}
+          <div className="text-xs text-right" style={{ color: C.sub }}>Extras: <b style={{ color: C.navy }}>{brl(somaExtras(l))}</b> por peça</div>
+        </div>
+      )}
+      <button onClick={() => onChange([...l, { desc: "", valor: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+        <Plus size={14} /> Adicionar custo extra (R$ por peça)
+      </button>
     </div>
   );
 }
