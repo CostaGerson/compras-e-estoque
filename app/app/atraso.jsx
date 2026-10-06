@@ -25,6 +25,29 @@ const api = async (url, method = "GET", body) => {
 const inpS = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
 const corAtraso = (d) => (d > 90 ? C.red : d > 30 ? C.yellow : C.sub);
 
+// ordenar clicando no título da coluna: A→Z, Z→A, volta (igual ao resto do sistema)
+function useOrdem(itens) {
+  const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 }
+  const lista = useMemo(() => {
+    if (!ordem) return itens;
+    return [...itens].sort((a, b) => {
+      const x = a[ordem.col] ?? "", y = b[ordem.col] ?? "";
+      const r = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR", { numeric: true });
+      return r * ordem.dir || String(a.vencimento || "").localeCompare(String(b.vencimento || ""));
+    });
+  }, [itens, ordem]);
+  const clicar = (col) => setOrdem((o) => (!o || o.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
+  const Th = ({ col, children, direita }) => (
+    <th className={`px-3 py-2 ${direita ? "text-right" : ""}`}>
+      <button onClick={() => clicar(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 uppercase tracking-wide ${direita ? "flex-row-reverse" : ""}`}
+        style={{ color: ordem?.col === col ? C.accent : C.sub }}>
+        {children}<span className="text-[10px]">{ordem?.col === col ? (ordem.dir === 1 ? "▲" : "▼") : "↕"}</span>
+      </button>
+    </th>
+  );
+  return { lista, Th };
+}
+
 function Kpi({ rotulo, valor, sub, cor }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -91,10 +114,11 @@ function Atrasadas({ user, d, ok, setErro, irExecucao }) {
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [modal, setModal] = useState(null);   // "execucao" | "perda"
-  const lista = useMemo(() => {
+  const filtradas = useMemo(() => {
     const q = busca.trim().toUpperCase();
     return d.atrasadas.filter((t) => !q || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().includes(q)));
   }, [d, busca]);
+  const { lista, Th } = useOrdem(filtradas);
   const escolhidas = d.atrasadas.filter((t) => sel.has(t.id));
   const marcar = (id, on) => setSel((s) => { const n = new Set(s); on ? n.add(id) : n.delete(id); return n; });
   const todas = lista.length > 0 && lista.every((t) => sel.has(t.id));
@@ -114,8 +138,8 @@ function Atrasadas({ user, d, ok, setErro, irExecucao }) {
         <table className="w-full text-sm">
           <thead><tr className="text-xs uppercase tracking-wide text-left" style={{ background: C.panel2, color: C.sub }}>
             <th className="px-3 py-2 w-8"><input type="checkbox" checked={todas} onChange={(e) => lista.forEach((t) => marcar(t.id, e.target.checked))} /></th>
-            <th className="px-3 py-2">Cliente</th><th className="px-3 py-2">Conta</th><th className="px-3 py-2">Vencimento</th>
-            <th className="px-3 py-2 text-right">Atraso</th><th className="px-3 py-2 text-right">Valor</th><th className="px-3 py-2">Situação</th>
+            <Th col="parceiro">Cliente</Th><Th col="titulo">Conta</Th><Th col="vencimento">Vencimento</Th>
+            <Th col="diasAtraso" direita>Atraso</Th><Th col="valor" direita>Valor</Th><th className="px-3 py-2">Situação</th>
           </tr></thead>
           <tbody>
             {lista.map((t) => (
@@ -434,6 +458,7 @@ function ReceberExecucao({ user, t, onClose, onFeito }) {
 
 /* ---------------- perdas ---------------- */
 function Perdas({ user, d, ok, setErro }) {
+  const { lista, Th } = useOrdem(d.perdas);
   const voltar = async (t) => {
     if (!confirm(`Desfazer a perda de ${t.titulo} (${moeda(t.valor)})? A conta volta para cobrança e o lançamento sai da DRE.`)) return;
     try { await api("/api/fin/atraso", "POST", { usuarioId: user.id, acao: "voltar", id: t.id }); ok("Perda desfeita — conta voltou para cobrança."); }
@@ -443,11 +468,11 @@ function Perdas({ user, d, ok, setErro }) {
     <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <table className="w-full text-sm">
         <thead><tr className="text-xs uppercase tracking-wide text-left" style={{ background: C.panel2, color: C.sub }}>
-          <th className="px-3 py-2">Reconhecida em</th><th className="px-3 py-2">Cliente</th><th className="px-3 py-2">Conta</th>
-          <th className="px-3 py-2 text-right">Valor</th><th className="px-3 py-2">Justificativa</th><th className="px-3 py-2"></th>
+          <Th col="perdaData">Reconhecida em</Th><Th col="parceiro">Cliente</Th><Th col="titulo">Conta</Th>
+          <Th col="valor" direita>Valor</Th><Th col="perdaJustificativa">Justificativa</Th><th className="px-3 py-2"></th>
         </tr></thead>
         <tbody>
-          {d.perdas.map((t) => (
+          {lista.map((t) => (
             <tr key={t.id} style={{ borderTop: `1px solid ${C.line}` }}>
               <td className="px-3 py-2 whitespace-nowrap">{dBR(t.perdaData)}<div className="text-[11px]" style={{ color: C.sub }}>{t.perdaPorNome || ""}</div></td>
               <td className="px-3 py-2 font-semibold" style={{ color: C.navy }}>{t.parceiro}</td>
