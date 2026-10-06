@@ -32,7 +32,7 @@ export async function fornecedorDoEmitente(nf) {
 }
 
 // conta já lançada por outro caminho (posição de títulos, manual…): mesmo CNPJ, mesmo valor, vencimento ±5 dias
-async function contaParecida(documento, valor, venc) {
+async function contaParecida(documento, valor, venc, nfId) {
   if (!documento) return null;
   const d = dataUTC(venc);
   const l = await prisma.finTitulo.findMany({
@@ -40,7 +40,8 @@ async function contaParecida(documento, valor, venc) {
     select: { id: true, valor: true, nfId: true, chaveImport: true },
   });
   // conta que já é de outra NF (nfId ou chave NFE|) não conta — só as lançadas sem nota (posição, manual)
-  return l.find((t) => Math.abs(Number(t.valor) - valor) < 0.01 && !t.nfId && !String(t.chaveImport || "").startsWith("NFE|")) || null;
+  // já ligada a ESTA NF numa importação anterior, ou lançada sem nota (posição, manual); conta de outra NF não conta
+  return l.find((t) => Math.abs(Number(t.valor) - valor) < 0.01 && !String(t.chaveImport || "").startsWith("NFE|") && (!t.nfId || t.nfId === nfId)) || null;
 }
 
 // duplicatas da NF → contas a pagar. historico: antes do corte entram pagas.
@@ -55,11 +56,12 @@ export async function gerarContasNf({ xml, nfId, historico = false, corte = CORT
     const valor = r2(p.valor);
     if (!(valor > 0)) continue;
     if (p.jaImportada) { r.jaExistiam++; continue; }
-    const parecida = await contaParecida(n.documento, valor, p.vencimento);
-    if (parecida) {   // liga à NF em vez de duplicar
-      await prisma.finTitulo.update({ where: { id: parecida.id }, data: { ...(parecida.nfId ? {} : { nfId }), ...(parecida.chaveImport ? {} : { chaveImport: p.chaveImport }) } }).catch(() => null);
+    // a mesma parcela já lançada por outro caminho (posição, documento, manual): a conta da NF é criada e a outra
+    // é unificada a ela logo em seguida (deduplicarComprasXml) — prevalece sempre a da NF
+    const parecida = await contaParecida(n.documento, valor, p.vencimento, nfId);
+    if (parecida) {   // marca a outra como desta NF: a unificação reconhece pela NF mesmo sem o número no título
       r.vinculadas++;
-      continue;
+      if (!parecida.nfId && nfId) await prisma.finTitulo.update({ where: { id: parecida.id }, data: { nfId } }).catch(() => null);
     }
     const paga = historico && p.vencimento < corte;
     const multi = n.parcelas.length > 1;
@@ -82,6 +84,7 @@ export async function gerarContasNf({ xml, nfId, historico = false, corte = CORT
       if (String(e.code) === "P2002") r.jaExistiam++; else throw e;
     }
   }
+  if (r.vinculadas) { const { deduplicarComprasXml } = await import("@/lib/finDedupCompras"); await deduplicarComprasXml(quem || "IMPORTAÇÃO NF").catch(() => null); }
   return r;
 }
 

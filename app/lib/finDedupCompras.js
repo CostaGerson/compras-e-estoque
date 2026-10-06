@@ -20,7 +20,8 @@ export async function deduplicarComprasXml(quem = "SISTEMA") {
   });
   const xmls = todas.filter(ehXml);
   if (!xmls.length) return { removidas: 0, linhas: [] };
-  const outras = todas.filter((t) => !ehXml(t) && !t.nfId && !t.recorrenciaId && !String(t.chaveImport || "").startsWith("SEMANA|"));
+  // candidatas: as que não vieram de XML (posição, documento, manual). Ligadas a uma NF (nfId) só servem para a MESMA NF.
+  const outras = todas.filter((t) => !ehXml(t) && !t.recorrenciaId && !String(t.chaveImport || "").startsWith("SEMANA|"));
   // índice por valor (centavos) para não comparar tudo com tudo
   const porValor = new Map();
   for (const o of outras) { const k = Math.round(Number(o.valor) * 100); if (!porValor.has(k)) porValor.set(k, []); porValor.get(k).push(o); }
@@ -30,13 +31,15 @@ export async function deduplicarComprasXml(quem = "SISTEMA") {
     const cand = (porValor.get(Math.round(Number(x.valor) * 100)) || []).filter((o) => !usadas.has(o.id));
     let melhor = null;
     for (const o of cand) {
+      if (o.nfId && x.nfId && o.nfId !== x.nfId) continue;
       const dias = Math.abs(Math.round((new Date(o.vencimento) - new Date(x.vencimento)) / DIA));
       if (dias > 5) continue;
       const dx = so(x.documento), dob = so(o.documento);
       const cnpjOk = dx.length >= 11 && dob.length >= 11 && dx.slice(0, 8) === dob.slice(0, 8);
       const tx = tk(x.parceiro), to = new Set(tk(`${o.parceiro} ${o.titulo}`));
       const nomeOk = tx.length > 0 && tx.filter((p) => to.has(p)).length / tx.length >= 0.5;
-      const nfOk = !!nf && new RegExp(`(^|\\D)0*${nf}(\\D|$)`).test(`${o.titulo} ${o.numeroDoc || ""}`);
+      const mesmaNf = !!o.nfId && o.nfId === x.nfId;
+      const nfOk = mesmaNf || !!nf && new RegExp(`(^|\\D)0*${nf}(\\D|$)`).test(`${o.titulo} ${o.numeroDoc || ""}`);
       if (!(cnpjOk || nomeOk)) continue;
       if (!(nfOk || (cnpjOk && dias === 0))) continue;
       const pontos = (nfOk ? 10 : 0) + (cnpjOk ? 5 : 0) - dias;
