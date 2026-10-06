@@ -416,6 +416,7 @@ export default function ContasPagarReceber({ user }) {
         <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
         {!P && <BtnS onClick={() => setModal({ t: "retorno" })}><FileCode2 size={15} /> Importar retorno</BtnS>}
+        {!P && <BtnS onClick={() => setModal({ t: "antecipacao" })}><FileText size={15} /> Importar antecipação</BtnS>}
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
@@ -520,6 +521,7 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "antecipacao" && <AntecipacaoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "retorno" && <RetornoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "ia" && <AnaliseTitulosModal user={user} tipo={tipo} dIni={dIni} dFim={dFim < dIni ? dIni : dFim} contas={d?.contas || []} contasPorId={contasPorId}
@@ -1076,6 +1078,93 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
           </div>
           {semConta > 0 && <div className="mt-2 text-xs font-semibold" style={{ color: C.red }}>{semConta} linha(s) sem conta-caixa — o rateio é obrigatório. Escolha a conta (filtro "Sem conta-caixa") ou marque Ignorar para liberar a importação.</div>}
         </>
+      )}
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
+/* ---------------- antecipação (desconto de duplicatas) ---------------- */
+const ACAO_ANT = { BAIXAR: ["Baixar como descontada", C.green, C.greenSoft], JA_BAIXADA: ["Já baixada", C.blue, C.blueSoft], SEM_CONTA: ["Sem conta no sistema", C.red, C.redSoft] };
+function AntecipacaoModal({ user, onClose, onSalvo }) {
+  const [arq, setArq] = useState(null);
+  const [a, setA] = useState(null);
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const ler = async (fs) => {
+    const f = [...(fs || [])].find((x) => /\.pdf$/i.test(x.name));
+    if (!f) return setErro("Escolha o PDF do contrato.");
+    setErro(""); setSt("Lendo o contrato…");
+    try { const arquivo = { nome: f.name, conteudo: await readB64(f) }; setA(await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "analisar", arquivo })); setArq(arquivo); }
+    catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const aplicar = async () => {
+    setSt("Aplicando…"); setErro("");
+    try {
+      const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "aplicar", arquivo: arq });
+      onSalvo(`Contrato ${r.contrato}: ${r.baixadas} boleto(s) baixado(s) como descontado(s) (${moeda(r.valorBaixado)})${r.jaBaixadas ? `, ${r.jaBaixadas} já estavam baixados` : ""}${r.semConta ? `, ${r.semConta} sem conta no sistema` : ""} · ${r.encargos} encargo(s) lançado(s) no contas a pagar (${moeda(r.valorEncargos)}) · DRE: ${r.dre ? "crédito do extrato aberto em receita cheia − encargos" : "fica pendente até o extrato do dia entrar"}.`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  const ok = (x) => (x?.ok ? C.green : C.red);
+  return (
+    <Modal titulo="Importar antecipação (desconto de duplicatas)" icone={FileText} onClose={onClose} largura={1100}
+      rodape={a ? <>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={aplicar} disabled={!!st || !!a.jaImportado}>{st && <Loader2 size={14} className="animate-spin" />} Confirmar</BtnP>
+      </> : null}>
+      {!a && (
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
+          <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o PDF do contrato de <b>desconto de duplicatas</b> (Bradesco Net Empresa › Contratos).</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Os boletos do contrato são baixados pelo valor cheio (receita inteira), juros, IOF e TAC viram contas a pagar já pagas, e na DRE o crédito do extrato é aberto em receita bruta − encargos financeiros.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDF"}</BtnP>
+          <input ref={ref} type="file" accept=".pdf" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+        </Soltar>
+      )}
+      {a && (
+        <div className="flex flex-col gap-3">
+          {a.jaImportado && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.redSoft, color: C.red }}>Este contrato já foi importado em {new Date(a.jaImportado.em).toLocaleDateString("pt-BR")}.</div>}
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+            {[["Contrato", a.contrato, `${dBR(a.data)} · ${a.itens.length} boleto(s)`], ["Valor da operação", moeda(a.valorOperacao), "receita cheia"], ["Juros", moeda(a.juros), a.taxa || ""],
+              ["IOF", moeda(a.iof), ""], ["TAC + tarifa", moeda(a.tac + a.tarifa), ""], ["Valor líquido", moeda(a.valorLiquido), "o que caiu na conta"]].map(([t, v, sub]) => (
+              <div key={t} className="rounded-lg p-2.5" style={{ border: `1px solid ${C.line}` }}>
+                <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
+                <div className="text-base font-bold" style={{ color: C.navy }}>{v}</div>
+                {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
+              </div>
+            ))}
+          </div>
+          <div className="text-xs flex flex-wrap gap-x-4 gap-y-1">
+            <span style={{ color: ok(a.prova.parcelas) }}>Parcelas: {a.prova.parcelas.lido} de {a.prova.parcelas.pdf} {a.prova.parcelas.ok ? "✓" : "✗"}</span>
+            <span style={{ color: ok(a.prova.valor) }}>Soma dos boletos {moeda(a.prova.valor.lido)} × operação {moeda(a.prova.valor.pdf)} {a.prova.valor.ok ? "✓" : "✗"}</span>
+            <span style={{ color: ok(a.prova.liquido) }}>Operação − encargos = líquido {a.prova.liquido.ok ? "✓" : "✗"}</span>
+            <span style={{ color: a.credito ? C.green : C.yellow }}>{a.credito ? `Crédito no extrato: ${a.credito.banco} ${dBR(a.credito.data)} ${moeda(a.credito.valor)} — será aberto na DRE` : "Crédito de " + moeda(a.valorLiquido) + " ainda não está no extrato — a DRE é ajustada quando ele entrar"}</span>
+          </div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "50vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["#", "Seu nº / nosso nº", "Sacado", "Vencimento", "Situação no banco", "Valor", "Conta no sistema", "O que acontece"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>{a.itens.map((x) => {
+                const [t0, c0, bg0] = ACAO_ANT[x.acao];
+                return (
+                  <tr key={x.parcela} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-2 py-1.5">{x.parcela}</td>
+                    <td className="px-2 py-1.5"><b style={{ color: C.navy }}>{x.seu}</b><div style={{ color: C.sub }}>{x.nosso}</div></td>
+                    <td className="px-2 py-1.5">{x.sacado}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{dBR(x.vencimento)}</td>
+                    <td className="px-2 py-1.5">{x.situacao}</td>
+                    <td className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{moeda(x.valor)}</td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 260 }}>{x.conta ? <><div className="truncate font-semibold">{x.conta.titulo}</div><div style={{ color: C.sub }}>{x.conta.parceiro} · {moeda(x.conta.valor)}{Math.abs(x.difValor || 0) > 0.01 ? <span style={{ color: C.red }}> (diferença {moeda(x.difValor)})</span> : null}</div></> : "—"}</td>
+                    <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ color: c0, background: bg0 }}>{t0}</span></td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </div>
       )}
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
     </Modal>

@@ -61,6 +61,7 @@ export async function importarArquivoAnalise({ u, competencia, tipoId, nome, con
   });
   let leitura = null;
   try { leitura = await processarArquivo(a.id); } catch (e) { leitura = { ok: false, erro: e.message }; }
+  try { const { conciliarAntecipacoesPendentes } = await import("@/lib/finAntecipacao"); await conciliarAntecipacoesPendentes(a.enviadoPorNome); } catch { /* sem contrato pendente */ }
   let contab = null;
   try { const c = await copiarExtratoParaContabilidade(a.id); contab = c?.doc?.nome || null; } catch { contab = null; }
   return { ...a, leitura, contab, protegido: !!senha, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } };

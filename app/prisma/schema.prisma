@@ -942,6 +942,28 @@ model FinExecucaoEvolucao {
   @@unique([execucaoId, competencia])
 }
 
+// v151: contratos de desconto (antecipação) de duplicatas — baixa os boletos, lança os encargos e abre a receita cheia na DRE
+model FinAntecipacao {
+  id            Int      @id @default(autoincrement())
+  banco         String   @default("237")
+  contrato      String   @unique
+  data          DateTime @db.Date
+  valorOperacao Decimal  @db.Decimal(14, 2)
+  juros         Decimal  @db.Decimal(14, 2)
+  iof           Decimal  @db.Decimal(14, 2)
+  tac           Decimal  @db.Decimal(14, 2)
+  tarifa        Decimal  @db.Decimal(14, 2)
+  valorLiquido  Decimal  @db.Decimal(14, 2)
+  taxa          String?
+  itens         Json                 // parcelas do contrato
+  lancamentoId  Int?                 // crédito do extrato que foi aberto em receita cheia − encargos
+  nome          String
+  hash          String   @unique
+  conteudo      String               // PDF em base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+}
+
 // v127: arquivos de retorno de cobrança (CNAB 400) já processados
 model FinRetorno {
   id            Int      @id @default(autoincrement())
