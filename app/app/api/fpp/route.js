@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 // GET: lista de fichas salvas
 export async function GET() {
-  const lista = await prisma.fpp.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
+  const lista = await prisma.fpp.findMany({ orderBy: { createdAt: "desc" }, take: 2000 });
   return NextResponse.json(lista);
 }
 

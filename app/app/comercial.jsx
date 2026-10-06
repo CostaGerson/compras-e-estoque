@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -17,6 +17,24 @@ const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "http://147.93.35.189:3001";
 const brl = (n) => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? 0 : n; };
+
+/* clonar FPP: cria uma cópia salva com o nome "CÓPIA DE ..." e devolve a ficha nova */
+const nomeCopia = (f) => `CÓPIA DE ${f.nomeComercial || f.item || "FPP"}`.toUpperCase();
+async function clonarFpp(fpp, user) {
+  const nome = nomeCopia(fpp);
+  const body = {
+    tipo: fpp.tipo, item: fpp.item, nomeComercial: nome, clienteId: fpp.clienteId ?? null, clienteNome: fpp.clienteNome ?? null,
+    negociacao: fpp.negociacao ?? null, qtde: fpp.qtde ?? null, condicaoPagamento: fpp.condicaoPagamento ?? null, leadTime: fpp.leadTime ?? null,
+    entradas: { ...(fpp.entradas || {}), nomeComercial: nome }, overrides: fpp.overrides || null, resultados: fpp.resultados || {},
+    custoProducao: fpp.custoProducao ?? null, custoFinal: fpp.custoFinal ?? null, valorProposto: fpp.valorProposto ?? null,
+    margem: fpp.margem ?? null, totalItem: fpp.totalItem ?? null,
+    criadoPorId: user?.id ?? null, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim() || null,
+  };
+  const r = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Erro ao clonar.");
+  return d;
+}
 
 /* ============================================================ */
 export default function Comercial({ user, master }) {
@@ -261,10 +279,8 @@ function Fpp({ user, master }) {
     return { mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem };
   }, [params, tipo, f, over]);
 
-  async function salvar() {
-    if (!f.item) return setMsg("Selecione o ITEM.");
-    setSalvando(true); setMsg("");
-    const body = {
+  function montarBody() {
+    return {
       tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
       negociacao: f.negociacao || null,
       condicaoPagamento: f.condPagamento, leadTime: num(f.leadTime),
@@ -274,6 +290,11 @@ function Fpp({ user, master }) {
       margem: r?.margem, totalItem: r?.totalItem,
       criadoPorId: user?.id, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim(),
     };
+  }
+  async function salvar() {
+    if (!f.item) return setMsg("Selecione o ITEM.");
+    setSalvando(true); setMsg("");
+    const body = montarBody();
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
@@ -289,6 +310,22 @@ function Fpp({ user, master }) {
     setEditId(fpp.id);
     setAba("ficha");
     setMsg("Editando ficha salva.");
+  }
+  // clona o que está na tela (inclusive alterações ainda não salvas) e passa a editar a cópia
+  async function clonarAtual() {
+    if (!f.item) return setMsg("Selecione o ITEM.");
+    setSalvando(true); setMsg("");
+    try {
+      const nova = await clonarFpp(montarBody(), user);
+      setF((s) => ({ ...s, nomeComercial: nova.nomeComercial }));
+      setEditId(nova.id);
+      setMsg(`Cópia criada (#${nova.id}) ✓ — você está editando a cópia.`);
+    } catch (e) { setMsg(e.message); }
+    setSalvando(false);
+  }
+  async function clonarSalva(fpp) {
+    try { carregarFicha(await clonarFpp(fpp, user)); setMsg("Cópia criada ✓ — você está editando a cópia."); }
+    catch (e) { alert(e.message); }
   }
   function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setMsg(""); }
 
@@ -324,7 +361,7 @@ function Fpp({ user, master }) {
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
-      {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} />}
+      {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} onClonar={clonarSalva} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -468,6 +505,13 @@ function Fpp({ user, master }) {
                 style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
                 <Save size={15} /> {salvando ? "Salvando…" : editId ? "Atualizar ficha" : "Salvar ficha"}
               </button>
+              {editId && (
+                <button onClick={clonarAtual} disabled={salvando} title="Cria uma cópia desta FPP (com o que está na tela) e passa a editar a cópia"
+                  className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
+                  style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}`, opacity: salvando ? 0.6 : 1 }}>
+                  <Copy size={15} /> Clonar FPP
+                </button>
+              )}
               {msg && <div className="text-xs mt-2 text-center" style={{ color: msg.includes("✓") ? C.green : "#E5484D" }}>{msg}</div>}
             </div>
           </div>
@@ -821,10 +865,21 @@ const COLS = [
   { k: "createdAt", label: "Data", tipo: "data" },
 ];
 
-function FichasSalvas({ master, onEditar }) {
+// guias da aba Salvas: cada uma agrupa as FPPs em cards
+const GUIAS_FPP = [
+  { k: "todas", label: "Todas" },
+  { k: "negociacao", label: "Negociação", chave: (f) => f.negociacao || "SEM NEGOCIAÇÃO" },
+  { k: "cliente", label: "Cliente", chave: (f) => f.clienteNome || "SEM CLIENTE" },
+  { k: "peca", label: "Peça", chave: (f) => f.item || "SEM PEÇA" },
+];
+const guiaFpp = (k) => GUIAS_FPP.find((g) => g.k === k);
+
+function FichasSalvas({ master, onEditar, onClonar }) {
   const [lista, setLista] = useState(null);
   const [sort, setSort] = useState({ campo: "createdAt", dir: "desc" });
-  const [filtroCliente, setFiltroCliente] = useState(null);
+  const [guia, setGuia] = useState("todas");
+  const [filtro, setFiltro] = useState(null);          // { guia, valor } — card aberto
+  const [clonando, setClonando] = useState(null);
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [aberta, setAberta] = useState(null);
@@ -849,8 +904,25 @@ function FichasSalvas({ master, onEditar }) {
 
   if (!lista) return <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>;
 
-  let dados = filtroCliente ? lista.filter((f) => (f.clienteNome || "—") === filtroCliente) : lista;
+  let dados = filtro ? lista.filter((f) => guiaFpp(filtro.guia).chave(f) === filtro.valor) : lista;
   const q = busca.trim().toLowerCase();
+  // cards da guia (negociação / cliente / peça)
+  const g = guiaFpp(guia);
+  const cards = g.chave && !filtro ? Object.values(lista.reduce((acc, f) => {
+    const k = g.chave(f);
+    const c = (acc[k] ||= { valor: k, n: 0, total: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
+    c.n++; c.total += Number(f.totalItem) || 0;
+    if (!c.ultima || f.createdAt > c.ultima) c.ultima = f.createdAt;
+    if (f.clienteNome) c.clientes.add(f.clienteNome); if (f.item) c.pecas.add(f.item); if (f.negociacao) c.negs.add(f.negociacao);
+    return acc;
+  }, {})).filter((c) => !q || c.valor.toLowerCase().includes(q)).sort((a, b) => (a.ultima < b.ultima ? 1 : -1)) : null;
+  const abrirCard = (valor) => { setFiltro({ guia, valor }); setBusca(""); };
+  async function clonar(f) {
+    if (!onClonar) return;
+    setClonando(f.id);
+    await onClonar(f);
+    setClonando(null);
+  }
   if (q) {
     dados = dados.filter((f) => {
       const alvo = [
@@ -900,16 +972,16 @@ function FichasSalvas({ master, onEditar }) {
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="text-sm" style={{ color: C.sub }}>
-          {filtroCliente ? (
-            <button onClick={() => setFiltroCliente(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
-              <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · Cliente: <b>{filtroCliente}</b>
+          {filtro ? (
+            <button onClick={() => setFiltro(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
+              <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · {guiaFpp(filtro.guia).label}: <b>{filtro.valor}</b> · {dados.length} ficha(s)
             </button>
-          ) : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
+          ) : cards ? `${cards.length} ${g.label.toLowerCase()}(s) · ${lista.length} ficha(s)` : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={14} style={{ color: C.sub, position: "absolute", left: 8, top: 9 }} />
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar em todas as FPPs…"
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={cards ? `Buscar ${g.label.toLowerCase()}…` : "Buscar em todas as FPPs…"}
               className="pl-7 pr-2 py-1.5 rounded-md text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text, width: 240 }} />
           </div>
           {selecionadas.length > 0 && (
@@ -926,7 +998,34 @@ function FichasSalvas({ master, onEditar }) {
         </div>
       </div>
 
-      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-auto">
+      <div className="flex gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+        {GUIAS_FPP.map((x) => (
+          <button key={x.k} onClick={() => { setGuia(x.k); setFiltro(null); setBusca(""); }} className="px-3 py-2 text-sm font-medium -mb-px"
+            style={{ color: guia === x.k ? C.accent : C.sub, borderBottom: `2px solid ${guia === x.k ? C.accent : "transparent"}` }}>{x.label}</button>
+        ))}
+      </div>
+
+      {cards && (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
+          {cards.map((c) => (
+            <button key={c.valor} onClick={() => abrirCard(c.valor)} className="text-left rounded-lg p-3 transition-shadow hover:shadow-md"
+              style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="text-sm font-semibold mb-1" style={{ color: C.text }}>{c.valor}</div>
+              <div className="text-xs" style={{ color: C.accent }}><b>{c.n}</b> FPP(s)</div>
+              <div className="text-xs mt-1" style={{ color: C.sub }}>
+                {guia !== "cliente" && c.clientes.size > 0 && <div>{c.clientes.size} cliente(s)</div>}
+                {guia !== "peca" && c.pecas.size > 0 && <div>{c.pecas.size} peça(s)</div>}
+                {guia !== "negociacao" && c.negs.size > 0 && <div>{c.negs.size} negociação(ões)</div>}
+                <div>Última: {c.ultima ? new Date(c.ultima).toLocaleDateString("pt-BR") : "—"}</div>
+                {master && c.total > 0 && <div>Total: {brl(c.total)}</div>}
+              </div>
+            </button>
+          ))}
+          {cards.length === 0 && <div className="text-sm" style={{ color: C.sub }}>Nada encontrado.</div>}
+        </div>
+      )}
+
+      {!cards && <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-auto">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: C.panel2, color: C.sub }} className="text-left">
@@ -949,12 +1048,13 @@ function FichasSalvas({ master, onEditar }) {
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
-                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => setFiltroCliente(f.clienteNome || "—")} className="font-medium" style={{ color: C.accent }}>{v}</button></td>;
+                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{v}</button></td>;
                   return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>
                   <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
+                  <button onClick={() => clonar(f)} disabled={clonando === f.id} title="Clonar FPP (abre a cópia para edição)" className="p-1 rounded mr-1" style={{ color: C.blue, opacity: clonando === f.id ? 0.5 : 1 }}><Copy size={15} /></button>
                   <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
                 </td>
               </tr>
@@ -962,7 +1062,7 @@ function FichasSalvas({ master, onEditar }) {
             {dados.length === 0 && <tr><td colSpan={cols.length + 2} className="px-3 py-4 text-center" style={{ color: C.sub }}>Nenhuma ficha.</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {aberta && <FichaDetalhe f={aberta} master={master} onClose={() => setAberta(null)} onProposta={() => { setProposta([aberta]); setAberta(null); }} />}
       {proposta && <ProposalModal fichas={proposta} onClose={() => setProposta(null)} />}
