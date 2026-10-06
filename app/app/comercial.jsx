@@ -758,7 +758,7 @@ function HistModal({ paramId, onClose }) {
   useEffect(() => { fetch(`/api/fpp/params/${paramId}`).then((r) => r.json()).then(setHist); }, [paramId]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-semibold" style={{ color: C.text }}>Histórico de alterações</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
@@ -903,11 +903,20 @@ const GUIAS_FPP = [
 // números gerenciais: valor total = preço × qtde; margem de contribuição = (preço − custo final) × qtde
 const valorFpp = (f) => Number(f.totalItem) || (Number(f.valorProposto) || 0) * (Number(f.qtde) || 0);
 const mcFpp = (f) => (f.valorProposto != null && f.custoFinal != null ? (Number(f.valorProposto) - Number(f.custoFinal)) * (Number(f.qtde) || 0) : 0);
+// CMV = todos os custos exceto o imposto: custo de produção + custo financeiro
+const cmvFpp = (f) => {
+  const q = Number(f.qtde) || 0;
+  if (f.custoProducao != null) return (Number(f.custoProducao) + (Number(f.resultados?.opFin) || 0)) * q;
+  return (Number(f.custoFinal) || 0) * q;
+};
 function somaFpps(l) {
-  const t = { n: l.length, valor: 0, pecas: 0, mc: 0 };
-  for (const f of l) { t.valor += valorFpp(f); t.pecas += Number(f.qtde) || 0; t.mc += mcFpp(f); }
+  const t = { n: l.length, valor: 0, pecas: 0, mc: 0, cmv: 0 };
+  for (const f of l) { t.valor += valorFpp(f); t.pecas += Number(f.qtde) || 0; t.mc += mcFpp(f); t.cmv += cmvFpp(f); }
   t.mcPct = t.valor ? t.mc / t.valor : 0;
+  t.cmvPct = t.valor ? t.cmv / t.valor : 0;
   t.mcPeca = t.pecas ? t.mc / t.pecas : 0;
+  t.precoMedio = t.pecas ? t.valor / t.pecas : 0;
+  t.mcPecaPct = t.precoMedio ? t.mcPeca / t.precoMedio : 0;
   return t;
 }
 const corMc = (p) => (p >= 0.3 ? C.green : p >= 0.16 ? C.yellow : C.red);
@@ -959,8 +968,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   const g = guiaFpp(guia);
   const cards = g.chave && !filtro ? Object.values(lista.reduce((acc, f) => {
     const k = g.chave(f);
-    const c = (acc[k] ||= { valor: k, n: 0, total: 0, qtd: 0, mc: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
-    c.n++; c.total += valorFpp(f); c.qtd += Number(f.qtde) || 0; c.mc += mcFpp(f);
+    const c = (acc[k] ||= { valor: k, n: 0, total: 0, qtd: 0, mc: 0, cmv: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
+    c.n++; c.total += valorFpp(f); c.qtd += Number(f.qtde) || 0; c.mc += mcFpp(f); c.cmv += cmvFpp(f);
     if (!c.ultima || f.createdAt > c.ultima) c.ultima = f.createdAt;
     if (f.clienteNome) c.clientes.add(f.clienteNome); if (f.item) c.pecas.add(f.item); if (f.negociacao) c.negs.add(f.negociacao);
     return acc;
@@ -1025,6 +1034,11 @@ function FichasSalvas({ master, onEditar, onClonar }) {
             <button onClick={() => setFiltro(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
               <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · {guiaFpp(filtro.guia).label}: <b>{filtro.valor}</b> · {dados.length} ficha(s)
             </button>
+          ) : null}
+          {filtro && dados.length > 0 ? (
+            <button onClick={() => setProposta(dados)} className="ml-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
+              <Send size={13} /> Proposta {filtro.guia === "negociacao" ? "da negociação inteira" : `de todas (${dados.length})`}
+            </button>
           ) : cards ? `${cards.length} ${g.label.toLowerCase()}(s) · ${lista.length} ficha(s)` : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
         </div>
         <div className="flex items-center gap-2">
@@ -1059,9 +1073,10 @@ function FichasSalvas({ master, onEditar, onClonar }) {
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             <KpiFpp rotulo="FPPs" valor={nPt(t.n)} sub={filtro ? filtro.valor : "todas as salvas"} />
             <KpiFpp rotulo="Peças" valor={nPt(t.pecas)} />
-            {master && <KpiFpp rotulo="Valor total" valor={brl(t.valor)} />}
-            {master && <KpiFpp rotulo="Margem de contribuição" valor={brl(t.mc)} sub={`${pct(t.mcPct)} do valor`} cor={corMc(t.mcPct)} />}
-            {master && <KpiFpp rotulo="MC média por peça" valor={brl(t.mcPeca)} />}
+            {master && <KpiFpp rotulo="Valor total" valor={brl(t.valor)} sub={`preço médio ${brl(t.precoMedio)}/peça`} />}
+            {master && <KpiFpp rotulo="CMV total" valor={brl(t.cmv)} sub={`${pct(t.cmvPct)} do valor · sem imposto`} />}
+            {master && <KpiFpp rotulo="Margem de contribuição" valor={<>{brl(t.mc)} <span className="text-sm">· {pct(t.mcPct)}</span></>} cor={corMc(t.mcPct)} />}
+            {master && <KpiFpp rotulo="MC média por peça" valor={<>{brl(t.mcPeca)} <span className="text-sm">· {pct(t.mcPecaPct)}</span></>} cor={corMc(t.mcPecaPct)} />}
           </div>
         );
       })()}
@@ -1081,7 +1096,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                   <div><div style={{ color: C.sub }}>Peças</div><div className="font-bold text-sm" style={{ color: C.navy }}>{nPt(c.qtd)}</div></div>
                   <div><div style={{ color: C.sub }}>Margem de contrib.</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{brl(c.mc)}</div></div>
                   <div><div style={{ color: C.sub }}>MC %</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{pct(c.total ? c.mc / c.total : 0)}</div></div>
-                  <div className="col-span-2"><div style={{ color: C.sub }}>MC média por peça</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.qtd ? c.mc / c.qtd : 0)}</div></div>
+                  <div><div style={{ color: C.sub }}>CMV total</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.cmv)}</div></div>
+                  <div><div style={{ color: C.sub }}>MC média/peça</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{brl(c.qtd ? c.mc / c.qtd : 0)} · {pct(c.total ? c.mc / c.total : 0)}</div></div>
                 </div>
               )}
               {!master && <div className="text-xs mb-2" style={{ color: C.sub }}>{nPt(c.qtd)} peça(s)</div>}
@@ -1201,16 +1217,32 @@ function detalhesItem(f) {
   return parts.join(" · ");
 }
 
+// texto de um campo que pode variar por item: igual em todos → só o valor; diferente → "ITEM: valor · ITEM: valor"
+function porItem(fichas, valor) {
+  const vs = fichas.map(valor);
+  const unicos = [...new Set(vs.filter(Boolean))];
+  if (unicos.length <= 1) return unicos[0] || "";
+  return fichas.map((f, i) => (vs[i] ? `${f.nomeComercial || f.item}: ${vs[i]}` : null)).filter(Boolean).join(" · ");
+}
+const leadTxt = (f) => (Number(f.leadTime) > 0 ? `${Number(f.leadTime)} DIAS` : "");
+
 function ProposalModal({ fichas, onClose }) {
-  const cliente = fichas[0]?.clienteNome || "—";
-  const totalGeral = fichas.reduce((s, f) => s + (f.totalItem || (f.valorProposto || 0) * (f.qtde || 0)), 0);
+  const clientes = [...new Set(fichas.map((f) => f.clienteNome).filter(Boolean))];
+  const [cliente, setCliente] = useState(clientes[0] || "—");
   const hoje = new Date().toLocaleDateString("pt-BR");
-  const condicoes = [...new Set(fichas.map((f) => f.condicaoPagamento).filter(Boolean))].join(" | ");
+  const negs = [...new Set(fichas.map((f) => f.negociacao).filter(Boolean))];
+  const [condicoes, setCondicoes] = useState(() => porItem(fichas, (f) => f.condicaoPagamento));
+  const [prazo, setPrazo] = useState(() => {
+    const t = porItem(fichas, leadTxt);
+    if (!t) return "";
+    return t.includes(":") ? `APÓS APROVAÇÃO — ${t}` : `${t} APÓS APROVAÇÃO`;
+  });
+  const leadMax = Math.max(0, ...fichas.map((f) => Number(f.leadTime) || 0));
 
   const [meta, setMeta] = useState(null);
   const [ownerId, setOwnerId] = useState("");
   const [stage, setStage] = useState("proposta");
-  const [titulo, setTitulo] = useState(`Proposta ${cliente} · ${hoje}`);
+  const [titulo, setTitulo] = useState(`Proposta ${clientes[0] || ""}${negs.length === 1 ? ` · ${negs[0]}` : ""} · ${hoje}`);
   const [enviando, setEnviando] = useState(false);
   const [res, setRes] = useState(null);
 
@@ -1232,27 +1264,33 @@ function ProposalModal({ fichas, onClose }) {
     unit_price_cents: Math.round((f.valorProposto || 0) * 100),
   })));
   const setItem = (i, k, v) => setItems((arr) => arr.map((it, j) => j === i ? { ...it, [k]: v } : it));
+  const totalGeral = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unit_price_cents) || 0), 0) / 100;
 
   async function enviarCrm() {
     if (!ownerId) { setRes({ erro: "Selecione o dono da proposta." }); return; }
     setEnviando(true); setRes(null);
     const r = await fetch("/api/crm/proposta", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clienteNome: cliente, ownerId, stage, title: titulo, paymentTerms: condicoes, items }),
+      body: JSON.stringify({
+        clienteNome: cliente, ownerId, stage, title: titulo, paymentTerms: condicoes || null, deliveryTerms: prazo || null, leadTimeDias: leadMax || null,
+        notes: [negs.length ? `NEGOCIAÇÃO ${negs.join(", ")}` : "", `FPP ${fichas.map((f) => fmtFpp(f.numero)).join(", ")}`].filter(Boolean).join(" · "),
+        items,
+      }),
     });
-    const d = await r.json(); setEnviando(false);
+    const d = await r.json().catch(() => ({})); setEnviando(false);
     setRes(r.ok ? { ok: true, url: d.url } : { erro: d.error || "Falha ao enviar." });
   }
 
   function imprimir() {
-    const linhas = fichas.map((f, i) => `
+    const R = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const linhas = items.map((it, i) => `
       <tr>
         <td>${i + 1}</td>
-        <td>${f.nomeComercial || f.item}</td>
-        <td style="text-align:center">${f.qtde ?? "—"}</td>
-        <td style="text-align:right">${(f.valorProposto || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
-        <td style="text-align:right">${((f.totalItem) || (f.valorProposto || 0) * (f.qtde || 0)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
-        <td>${f.condicaoPagamento || "—"}</td>
+        <td><b>${it.description}</b>${it.details ? `<div style="color:#667085;font-size:11px">${it.details}</div>` : ""}</td>
+        <td style="text-align:center">${it.qty ?? "—"}</td>
+        <td style="text-align:right">${R((it.unit_price_cents || 0) / 100)}</td>
+        <td style="text-align:right">${R(((it.unit_price_cents || 0) * (Number(it.qty) || 0)) / 100)}</td>
+        <td>${leadTxt(fichas[i] || {}) || "—"}</td>
       </tr>`).join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proposta ${cliente}</title>
       <style>
@@ -1268,9 +1306,11 @@ function ProposalModal({ fichas, onClose }) {
       </style></head><body>
       <div class="top"><div class="marca">MERIDIAN</div><div style="text-align:right"><h1>Proposta comercial</h1><div style="color:#667085;font-size:12px">${hoje}</div></div></div>
       <div><b>Cliente:</b> ${cliente}</div>
-      <table><thead><tr><th>#</th><th>Item</th><th style="text-align:center">Qtde</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th><th>Pagamento</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Item</th><th style="text-align:center">Qtde</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th><th>Prazo</th></tr></thead>
       <tbody>${linhas}</tbody></table>
       <div class="tot">Total geral: ${totalGeral.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
+      ${condicoes ? `<div style="margin-top:12px"><b>Condição de pagamento:</b> ${condicoes}</div>` : ""}
+      ${prazo ? `<div style="margin-top:4px"><b>Entrega:</b> ${prazo}</div>` : ""}
       <div class="obs">Proposta gerada pelo sistema Meridian. Valores sujeitos a confirmação.</div>
       </body></html>`;
     const w = window.open("", "_blank");
@@ -1281,7 +1321,7 @@ function ProposalModal({ fichas, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-semibold" style={{ color: C.text }}>Proposta · {cliente}</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>Proposta · {cliente} · {fichas.length} item(ns)</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4">
@@ -1290,8 +1330,9 @@ function ProposalModal({ fichas, onClose }) {
               <div key={i} className="rounded-md p-2" style={{ border: `1px solid ${C.line}` }}>
                 <div className="flex gap-2 items-center">
                   <input value={it.description} onChange={(e) => setItem(i, "description", e.target.value)} className="flex-1 px-2 py-1 rounded text-sm font-medium" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
-                  <span className="text-xs" style={{ color: C.sub }}>× {it.qty}</span>
-                  <span className="text-sm font-medium" style={{ color: C.text }}>{brl((it.unit_price_cents || 0) / 100)}</span>
+                  <span className="text-xs whitespace-nowrap" style={{ color: C.sub }}>{fmtFpp(fichas[i]?.numero)} · {nPt(it.qty)} ×</span>
+                  <span className="text-sm font-medium whitespace-nowrap" style={{ color: C.text }}>{brl((it.unit_price_cents || 0) / 100)}</span>
+                  <span className="text-sm font-bold whitespace-nowrap" style={{ color: C.navy }}>= {brl(((it.unit_price_cents || 0) * (Number(it.qty) || 0)) / 100)}</span>
                 </div>
                 <input value={it.details || ""} placeholder="Detalhes (tecido · cor · faixa · personalização…)" onChange={(e) => setItem(i, "details", e.target.value)} className="w-full mt-1 px-2 py-1 rounded text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.sub }} />
               </div>
@@ -1317,9 +1358,22 @@ function ProposalModal({ fichas, onClose }) {
               </select>
             </div>
             <div>
-              <div className="text-xs mb-1" style={{ color: C.sub }}>Pagamento</div>
-              <div className="px-2 py-1.5 rounded text-sm truncate" title={condicoes} style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{condicoes || "—"}</div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente</div>
+              {clientes.length > 1 ? (
+                <select value={cliente} onChange={(e) => setCliente(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.yellow}`, color: C.text }}>
+                  {clientes.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : <div className="px-2 py-1.5 rounded text-sm truncate" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{cliente}</div>}
             </div>
+            <div className="md:col-span-3">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Condição de pagamento</div>
+              <input value={condicoes} onChange={(e) => setCondicoes(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+            </div>
+            <div className="md:col-span-3">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Prazo de entrega (lead time)</div>
+              <input value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+            </div>
+            {clientes.length > 1 && <div className="md:col-span-3 text-xs" style={{ color: C.yellow }}>As FPPs têm {clientes.length} clientes diferentes — a proposta sai para o cliente escolhido.</div>}
           </div>
 
           <div className="flex justify-end gap-2">
