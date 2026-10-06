@@ -29,6 +29,11 @@ export function lerPagina(L) {
   const tipo = /PIX/i.test(tipoTxt) ? "PIX" : /BOLETO/i.test(tipoTxt) ? "BOLETO" : /TED|DOC|TRANSFER/i.test(tipoTxt) ? "TED" : /TRIBUT|DARF|GPS|CONV[EÊ]NIO|CONCESSION/i.test(tipoTxt) ? "TRIBUTO" : tipoTxt.toUpperCase() || "OUTRO";
   const data = dataBR(campo(/^Data de d[eé]bito:\s*/i)) || dataBR(campo(/^Data da opera[cç][aã]o:\s*/i)) || dataBR(t);
   const vt = t.match(/Valor total:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/(?:^|\n)\s*Valor:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/R\$\s*([\d.]+,\d{2})/);
+  // boleto: valor do título, abatimentos e encargos (multa + juros) — explicam a diferença para a conta lançada
+  const vCampo = (re) => { const l = L.find((x) => re.test(x)); const m = l && l.match(/R\$\s*([\d.]+,\d{2})/); return m ? num(m[1]) : 0; };
+  const principal = vCampo(/^Valor:?\s*R\$/i);
+  const multa = vCampo(/^Multa:?\s*R\$/i), juros = vCampo(/^Juros:?\s*R\$/i);
+  const desconto = r2(vCampo(/^Desconto:?\s*R\$/i) + vCampo(/^Abatimento:?\s*R\$/i) + vCampo(/^Bonifica[cç][aã]o:?\s*R\$/i));
   const docCtl = t.match(/Documento:\s*(\d+)/i)?.[1] || "";
   const ctl = so(t.match(/N[°º] de controle:\s*([\d.]+)/i)?.[1] || "");
   const ident = campo(/^Identificador:\s*/i);
@@ -58,6 +63,7 @@ export function lerPagina(L) {
   return {
     tipo, data, valor: vt ? num(vt[1]) : 0, favorecido: favorecido.toUpperCase(), fantasia: fantasia.toUpperCase(), final: final.toUpperCase(),
     documento, docFinal, descricao, codBarras, vencBoleto, empresa, propria,
+    principal: principal || null, multa, juros, desconto, encargos: r2(multa + juros),
     chave: [tipo, ident || `${ctl}|${docCtl}`, data, vt ? vt[1] : ""].join("|"),
   };
 }
@@ -96,7 +102,11 @@ export function casar(comps, titulos) {
       const v = Number(t.valor), dif = r2(c.valor - v);
       const dias = Math.round((dc - new Date(t.vencimento)) / DIA);
       if (Math.abs(dias) > JANELA) continue;
-      const exato = Math.abs(dif) <= Math.max(0.02, v * 0.005);
+      const tol = Math.max(0.02, v * 0.005);
+      // valor do título no comprovante (antes de multa/juros/desconto) igual à conta = diferença explicada pelos encargos
+      const base = c.principal || r2(c.valor - (c.encargos || 0) + (c.desconto || 0));
+      const explicada = (c.encargos > 0 || c.desconto > 0) && Math.abs(base - v) <= tol;
+      const exato = Math.abs(dif) <= tol || explicada;
       const { docOk, sim } = parecenca(c, t);
       const forte = docOk || sim >= 0.5;
       // valor maior que a conta até 15% (juros/multa) só com CNPJ ou nome batendo
@@ -105,7 +115,7 @@ export function casar(comps, titulos) {
       const vencIgual = c.vencBoleto && t.vencimento.toISOString?.().slice(0, 10) === c.vencBoleto;
       const score = (exato ? 100 : 40) + (docOk ? 60 : 0) + sim * 40 + (vencIgual ? 10 : 0) - Math.abs(dias);
       const confianca = exato && forte ? "ALTA" : exato || (forte && Math.abs(dif) <= 0.02 * v) ? "MEDIA" : "BAIXA";
-      pares.push({ ci, t, dif, dias, docOk, sim: r2(sim), score, confianca });
+      pares.push({ ci, t, dif, dias, docOk, sim: r2(sim), score: score + (explicada ? 15 : 0), confianca, explicada });
     }
   });
   pares.sort((a, b) => b.score - a.score);
@@ -118,6 +128,7 @@ export function casar(comps, titulos) {
   return { escolhido, alternativas };
 }
 
+const brl = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const saidaT = (t) => ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: (t.vencimento.toISOString ? t.vencimento.toISOString() : String(t.vencimento)).slice(0, 10), previsao: t.previsao, recorrenciaId: t.recorrenciaId, numeroDoc: t.numeroDoc });
 
 // comprovantes lidos → sugestão de baixa de cada um
@@ -140,8 +151,8 @@ export async function analisarComprovantes(comps) {
     return {
       k: `${c.arquivo}#${c.pagina}`, ...c, hash: h,
       jaBaixado: jaPor[h] ? { id: jaPor[h].id, titulo: jaPor[h].titulo } : null,
-      alvo: p ? { ...saidaT(p.t), diferenca: p.dif, dias: p.dias, confianca: p.confianca, motivo: [p.docOk ? "CNPJ/CPF igual" : null, p.sim >= 0.5 ? "nome do fornecedor no comprovante" : null, Math.abs(p.dif) <= 0.02 ? "mesmo valor" : `diferença R$ ${p.dif.toFixed(2)} (juros/multa?)`, `pago ${p.dias === 0 ? "no vencimento" : p.dias > 0 ? `${p.dias} dia(s) depois do vencimento` : `${-p.dias} dia(s) antes do vencimento`}`].filter(Boolean).join(" · ") } : null,
-      opcoes: [...(p ? [p] : []), ...(alternativas[i] || []).filter((x) => !p || x.t.id !== p.t.id)].slice(0, 6).map((x) => ({ ...saidaT(x.t), diferenca: x.dif, dias: x.dias, confianca: x.confianca })),
+      alvo: p ? { ...saidaT(p.t), diferenca: p.dif, dias: p.dias, confianca: p.confianca, explicada: !!p.explicada, motivo: [p.docOk ? "CNPJ/CPF igual" : null, p.sim >= 0.5 ? "nome do fornecedor no comprovante" : null, Math.abs(p.dif) <= 0.02 ? "mesmo valor" : p.explicada ? `conta ${brl(Number(p.t.valor))}${c.juros ? ` + juros ${brl(c.juros)}` : ""}${c.multa ? ` + multa ${brl(c.multa)}` : ""}${c.desconto ? ` − desconto ${brl(c.desconto)}` : ""} = pago ${brl(c.valor)} ✓` : c.encargos > 0 ? `diferença ${brl(p.dif)} NÃO bate com juros+multa do comprovante (${brl(c.encargos)})` : `diferença ${brl(p.dif)} (juros/multa?)`, `pago ${p.dias === 0 ? "no vencimento" : p.dias > 0 ? `${p.dias} dia(s) depois do vencimento` : `${-p.dias} dia(s) antes do vencimento`}`].filter(Boolean).join(" · ") } : null,
+      opcoes: [...(p ? [p] : []), ...(alternativas[i] || []).filter((x) => !p || x.t.id !== p.t.id)].slice(0, 6).map((x) => ({ ...saidaT(x.t), diferenca: x.dif, dias: x.dias, confianca: x.confianca, explicada: !!x.explicada })),
       aviso: c.propria ? "Transferência entre contas da própria empresa — não baixa conta a pagar." : !p ? "Nenhuma conta em aberto com esse valor/fornecedor perto dessa data." : null,
     };
   });
@@ -178,7 +189,9 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
         data: {
           status: "PAGO", dataPagamento: dataUTC(it.data), valorPago: valor, previsao: false, valorConfirmado: true,
           ...(t.formaPagamento ? {} : { formaPagamento: ["PIX", "BOLETO", "TED"].includes(it.tipo) ? it.tipo : null }),
-          observacao: [t.observacao, `BAIXA POR COMPROVANTE ${it.tipo} ${it.data.split("-").reverse().join("/")} · ${it.favorecido}`].filter(Boolean).join(" · ").slice(0, 500),
+          observacao: [t.observacao, `BAIXA POR COMPROVANTE ${it.tipo} ${it.data.split("-").reverse().join("/")} · ${it.favorecido}`,
+            (Number(it.juros) || Number(it.multa) || Number(it.desconto)) ? `CONTA ${brl(t.valor)}${Number(it.juros) ? ` + JUROS ${brl(it.juros)}` : ""}${Number(it.multa) ? ` + MULTA ${brl(it.multa)}` : ""}${Number(it.desconto) ? ` − DESCONTO ${brl(it.desconto)}` : ""} = PAGO ${brl(valor)}` : null,
+          ].filter(Boolean).join(" · ").slice(0, 500),
           atualizadoPorNome: quem || null,
         },
       });

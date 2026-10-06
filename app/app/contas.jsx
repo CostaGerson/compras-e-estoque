@@ -2665,7 +2665,7 @@ export function ComprovantesBaixa({ user, lista, arqs, onFeito }) {
   const baixar = async () => {
     setSt("Baixando…"); setErro("");
     try {
-      const itens = marcados.map((c) => ({ k: c.k, tituloId: Number(esc[c.k].tituloId), arquivo: c.arquivo, pagina: c.pagina, data: c.data, valor: c.valor, tipo: c.tipo, favorecido: c.final || c.favorecido, chave: c.chave }));
+      const itens = marcados.map((c) => ({ k: c.k, tituloId: Number(esc[c.k].tituloId), arquivo: c.arquivo, pagina: c.pagina, data: c.data, valor: c.valor, tipo: c.tipo, favorecido: c.final || c.favorecido, chave: c.chave, juros: c.juros || 0, multa: c.multa || 0, desconto: c.desconto || 0 }));
       const nomes = new Set(itens.map((i) => i.arquivo));
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "baixarComprovantes", itens, arquivos: arqs.filter((a) => nomes.has(a.nome)) });
       if (j.erros?.length) setErro(j.erros.join(" · "));
@@ -2714,7 +2714,9 @@ export function ComprovantesBaixa({ user, lista, arqs, onFeito }) {
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         {conf && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ color: conf[0], background: conf[1] }}>{op.confianca}</span>}
                         {c.alvo && String(c.alvo.id) === String(e.tituloId) && <span style={{ color: C.sub }}>{c.alvo.motivo}</span>}
-                        {Math.abs(op.diferenca) > 0.02 && <span className="font-semibold" style={{ color: C.yellow }}>pago {moeda(c.valor)} × conta {moeda(op.valor)}</span>}
+                        {Math.abs(op.diferenca) > 0.02 && (op.explicada
+                          ? <span className="font-semibold" style={{ color: C.green }}>conta {moeda(op.valor)}{c.juros ? ` + juros ${moeda(c.juros)}` : ""}{c.multa ? ` + multa ${moeda(c.multa)}` : ""}{c.desconto ? ` − desc. ${moeda(c.desconto)}` : ""} = pago {moeda(c.valor)} ✓</span>
+                          : <span className="font-semibold" style={{ color: c.encargos > 0 ? C.red : C.yellow }}>pago {moeda(c.valor)} × conta {moeda(op.valor)}{c.encargos > 0 ? ` — diferença não bate com juros+multa (${moeda(c.encargos)})` : ""}</span>)}
                       </div>
                     )}
                   </>
