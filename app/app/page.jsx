@@ -12,6 +12,7 @@ import Gestao from "./gestao";
 import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
+import NfHistorico from "./nfHistorico";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 
@@ -1349,6 +1350,8 @@ function NF({ master, money, perfil }) {
   const enviar = async (files) => {
     const arr = Array.from(files || []).filter(Boolean);
     if (!arr.length) return;
+    const xmls = arr.filter((f) => /\.xml$/i.test(f.name));
+    if (xmls.length > 1) return enviarVarios(xmls);
     setMsg(null); setEnviando(true);
     try {
       const xml = arr.find((f) => /\.xml$/i.test(f.name));
@@ -1373,6 +1376,8 @@ function NF({ master, money, perfil }) {
         if (data.artigosVinculados) det.push(`${data.artigosVinculados} vinculado(s)`);
         if (data.artigosReativados) det.push(`${data.artigosReativados} reativado(s)`);
         if (data.temPdf) det.push("PDF anexado");
+        if (data.contas?.criadas) det.push(`${data.contas.criadas} conta(s) a pagar lançada(s) (${money(data.contas.valorAberto)})`);
+        if (data.contas?.vinculadas) det.push(`${data.contas.vinculadas} conta(s) já existente(s) ligada(s) à NF`);
         setMsg({ tipo: "ok", texto: base + (det.length ? " · " + det.join(" · ") : "") + "." });
         carregar();
       }
@@ -1380,6 +1385,22 @@ function NF({ master, money, perfil }) {
       setMsg({ tipo: "erro", texto: e.message });
     }
     setEnviando(false);
+  };
+
+  // vários XMLs (fluxo normal: estoque + contas a pagar), um por vez
+  const enviarVarios = async (xmls) => {
+    setMsg(null); setEnviando(true);
+    let ok = 0, contas = 0; const erros = [];
+    for (const f of xmls) {
+      try {
+        const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: "xml", conteudo: await readText(f), pdfBase64: null, perfil, usuarioId: sessaoId() }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) erros.push(`${f.name}: ${d.error || "erro"}`); else { ok++; contas += d.contas?.criadas || 0; }
+      } catch (e) { erros.push(`${f.name}: ${e.message}`); }
+    }
+    setMsg({ tipo: erros.length && !ok ? "erro" : "ok", texto: `${ok} NF(s) importada(s) · ${contas} conta(s) a pagar lançada(s)${erros.length ? ` · ${erros.length} com problema: ${erros.slice(0, 5).join(" | ")}` : ""}.` });
+    setEnviando(false); carregar();
   };
 
   const normNf = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1408,7 +1429,7 @@ function NF({ master, money, perfil }) {
         style={{ background: arrastando ? C.accentSoft : C.panel, border: `2px dashed ${arrastando ? C.accent : C.accent + "88"}` }}>
         <div className="font-semibold mb-1">Importar Nota Fiscal</div>
         <p className="text-xs mb-4" style={{ color: C.sub }}>
-          {arrastando ? "Solte os arquivos aqui…" : "Arraste o XML (e opcionalmente o PDF junto) para esta área, ou clique no botão. "}
+          {arrastando ? "Solte os arquivos aqui…" : "Arraste o XML (e opcionalmente o PDF junto) para esta área, ou clique no botão — pode mandar vários XMLs de uma vez. A nota entra no estoque e as duplicatas viram contas a pagar em aberto. "}
           Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte confiável; anexe o PDF junto para poder baixá-lo depois.
         </p>
         <label className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold cursor-pointer"
@@ -1425,6 +1446,8 @@ function NF({ master, money, perfil }) {
           }}>{msg.texto}</div>
         )}
       </div>
+
+      <NfHistorico usuarioId={sessaoId()} onFim={carregar} />
 
       <div className="flex flex-wrap items-end gap-2 mb-3">
         <div style={{ flex: "1 1 220px" }}>
@@ -1467,7 +1490,7 @@ function NF({ master, money, perfil }) {
           {nfsFiltradas.map((n) => (
             <div key={n.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
               <div className="w-24 font-mono">{n.numero}</div>
-              <div className="flex-1">{n.fornecedor?.nome || "—"}</div>
+              <div className="flex-1">{n.fornecedor?.nome || n.fornecedor?.razaoSocial || "—"}{n.historico && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold" title="Importada do histórico: sem itens e sem estoque" style={{ background: C.panel2, color: C.sub }}>HISTÓRICO</span>}</div>
               <div className="w-28" style={{ color: C.sub }}>{fmtData(n.dataEmissao)}</div>
               <div className="w-32" style={{ color: C.accent }}>{n.valorTotal != null ? money(Number(n.valorTotal)) : "—"}</div>
               <div className="w-16 text-center" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>

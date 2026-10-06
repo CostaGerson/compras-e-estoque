@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseXmlNfe, parsePdfNfe, validarVenda, camposDoTexto, unidadeDoUCom } from "@/lib/nf";
 import { lerXmlTitulo } from "@/lib/finTitulos";
+import { fornecedorDoEmitente, gerarContasNf } from "@/lib/nfEntrada";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,39 +70,7 @@ export async function POST(req) {
 
   try {
   // 3) fornecedor pelo CNPJ do emitente
-  let fornecedorId = null;
-  if (nf.emit?.cnpj) {
-    const e = nf.emit;
-    const ricos = {
-      razaoSocial: e.razaoSocial ? e.razaoSocial.toUpperCase() : null,
-      nomeFantasia: e.nomeFantasia ? e.nomeFantasia.toUpperCase() : null,
-      inscricaoEstadual: e.inscricaoEstadual || null,
-      logradouro: e.logradouro ? e.logradouro.toUpperCase() : null,
-      numero: e.numero || null,
-      complemento: e.complemento ? e.complemento.toUpperCase() : null,
-      bairro: e.bairro ? e.bairro.toUpperCase() : null,
-      municipio: e.municipio ? e.municipio.toUpperCase() : null,
-      uf: e.uf ? e.uf.toUpperCase() : null,
-      cep: e.cep || null,
-      telefones: e.telefones || null,
-    };
-    const cnpjRow = await prisma.fornecedorCnpj.findUnique({ where: { cnpj: nf.emit.cnpj } });
-    if (cnpjRow) {
-      fornecedorId = cnpjRow.fornecedorId;
-      // completa apenas campos ainda vazios
-      const atual = await prisma.fornecedor.findUnique({ where: { id: fornecedorId } });
-      const upd = {};
-      for (const k of Object.keys(ricos)) {
-        if (ricos[k] && (atual[k] == null || String(atual[k]).trim() === "")) upd[k] = ricos[k];
-      }
-      if (Object.keys(upd).length) await prisma.fornecedor.update({ where: { id: fornecedorId }, data: upd });
-    } else {
-      const forn = await prisma.fornecedor.create({
-        data: { nome: "", ...ricos, cnpjs: { create: [{ cnpj: nf.emit.cnpj, razaoSocial: nf.emit.razaoSocial || null }] } },
-      });
-      fornecedorId = forn.id;
-    }
-  }
+  let fornecedorId = await fornecedorDoEmitente(nf);
 
   // 4) NF: usa a existente (anexando arquivos) ou cria nova
   const dataEmissao = nf.dataEmissao ? new Date(nf.dataEmissao) : null;
@@ -180,9 +149,16 @@ export async function POST(req) {
     }
   }
 
+  // 6) v138: duplicatas viram contas a pagar em aberto (precisa do XML)
+  let contas = null;
+  if (arquivoXml) {
+    const u = criadoPorId ? await prisma.usuario.findUnique({ where: { id: criadoPorId }, select: { nome: true, sobrenome: true } }) : null;
+    const quem = u ? [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() : null;
+    contas = await gerarContasNf({ xml: arquivoXml, nfId: notaFiscal.id, historico: false, quem, quemId: criadoPorId }).catch(() => null);
+  }
   return Response.json({
     ok: true, jaExistia, chave: nf.chave, numero: notaFiscal.numero,
-    natureza: nf.natOp, origem: nf.origem, temPdf: !!(arquivoPdf), ...resumo,
+    natureza: nf.natOp, origem: nf.origem, temPdf: !!(arquivoPdf), ...resumo, contas,
   }, { status: 201 });
   } catch (e) {
     return Response.json({ error: "Falha ao gravar: " + (e?.message || String(e)) }, { status: 500 });

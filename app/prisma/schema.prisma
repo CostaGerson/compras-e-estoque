@@ -400,6 +400,7 @@ model NotaFiscal {
   status       StatusNf @default(LANCADA)
   modelo       String   @default("NFE")   // NFE | NFSE (serviço: não movimenta estoque)
   finIgnorada  Boolean  @default(false)   // financeiro marcou que não vira conta a pagar
+  historico    Boolean  @default(false)   // v138: importação do histórico — sem itens e sem estoque
   createdAt    DateTime @default(now())
 
   titulos       FinTitulo[]
