@@ -16,6 +16,8 @@ export async function GET(req) {
   const tipo = TIPOS.includes(sp.get("tipo")) ? sp.get("tipo") : "PAGAR";
   await garantirContas();
   { const { limparExpirados } = await import("@/lib/finLixeira"); await limparExpirados(); }   // lixeira: some o que passou de 30 dias
+  // compra lançada em dobro (NF XML + posição/documento/manual): fica só a da NF
+  const dedupCompras = tipo === "PAGAR" ? await (await import("@/lib/finDedupCompras")).deduplicarComprasXml().catch(() => null) : null;
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
@@ -60,7 +62,7 @@ export async function GET(req) {
     && !(Array.isArray(t.rateio) && t.rateio.some((r) => Number(r.contaId) && Number(r.pct) > 0)));
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   return Response.json({
-    tipo, de, ate, autoMatriz, dIni, dFim,
+    tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map(tituloOut) : null,
     semConta: semConta.map(tituloOut),
     vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,

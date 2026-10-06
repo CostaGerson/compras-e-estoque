@@ -268,6 +268,7 @@ export default function ContasPagarReceber({ user }) {
   const [tickAtraso, setTickAtraso] = useState(0);
   const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
+    if (j.dedupCompras?.removidas) setAviso(`${j.dedupCompras.removidas} conta(s) de compra lançada(s) em dobro foram unificadas: ficou a da NF (XML)${j.dedupCompras.baixasMovidas ? `, ${j.dedupCompras.baixasMovidas} baixa(s) passaram para ela` : ""}. As outras estão na Lixeira por 30 dias.`);
     if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
   }).catch((e) => setErro(e.message));
   useEffect(() => { if (!ABAS_FORA.includes(tipo) || !d || d.tipo !== "RECEBER") { setD(null); carregar(); } }, [tipo, mes]);
