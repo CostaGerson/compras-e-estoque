@@ -2,12 +2,14 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { PrestadorModal } from "./prestadores";
 import AtrasoReceber from "./atraso";
+import Lixeira from "./lixeira";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock,
 } from "lucide-react";
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
+const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA"];   // guias que não usam a lista principal
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -259,14 +261,14 @@ export default function ContasPagarReceber({ user }) {
   const [sel, setSel] = useState(() => new Set());   // contas marcadas para ação em lote
   const [lote, setLote] = useState(null);             // "baixar" | "excluir"
 
-  const tipoApi = ABAS_ATRASO.includes(tipo) ? "RECEBER" : tipo;
+  const tipoApi = ABAS_FORA.includes(tipo) ? "RECEBER" : tipo;
   const [tickAtraso, setTickAtraso] = useState(0);
   const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
     if (j.autoMatriz?.criadas) setAviso(`${j.autoMatriz.criadas} contas recorrentes da Matriz de custos foram lançadas (previsões até 12 meses à frente). Confira dia, fornecedor e conta-caixa em Recorrências.`);
   }).catch((e) => setErro(e.message));
-  useEffect(() => { if (!ABAS_ATRASO.includes(tipo) || !d || d.tipo !== "RECEBER") { setD(null); carregar(); } }, [tipo, mes]);
-  useEffect(() => { if (d && !ABAS_ATRASO.includes(tipo)) carregar(); }, [dIni, dFim]);
+  useEffect(() => { if (!ABAS_FORA.includes(tipo) || !d || d.tipo !== "RECEBER") { setD(null); carregar(); } }, [tipo, mes]);
+  useEffect(() => { if (d && !ABAS_FORA.includes(tipo)) carregar(); }, [dIni, dFim]);
   useEffect(() => { setSel(new Set()); }, [tipo]);
   // trocar o mês dos cards leva a lista para o mês inteiro; "hoje" volta para o dia
   const irMes = (m) => { setMes(m); setDIni(`${m}-01`); setDFim(fimDoMes(m)); };
@@ -315,7 +317,7 @@ export default function ContasPagarReceber({ user }) {
     try { await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { setErro(e.message); }
   };
   const excluir = async (t) => {
-    if (!confirm(t.recorrenciaId ? `Cancelar "${t.titulo}" de ${nomeMes(t.competencia)}? (os outros meses da recorrência continuam)` : `Excluir "${t.titulo}"?`)) return;
+    if (!confirm(t.recorrenciaId ? `Cancelar "${t.titulo}" de ${nomeMes(t.competencia)}? (os outros meses da recorrência continuam)` : `Excluir "${t.titulo}"? Ela fica 30 dias na Lixeira.`)) return;
     try { await api(`/api/fin/titulos/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { setErro(e.message); }
   };
 
@@ -324,7 +326,7 @@ export default function ContasPagarReceber({ user }) {
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
         {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ATRASADAS", "Atrasados a receber", Clock],
-          ["EXECUCOES", "Execuções judiciais", Gavel], ["PERDAS", "Perdas", Ban], ["RECORRENTES", "Recorrentes", Repeat]].map(([k, t, I]) => (
+          ["EXECUCOES", "Execuções judiciais", Gavel], ["PERDAS", "Perdas", Ban], ["RECORRENTES", "Recorrentes", Repeat], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => (
           <button key={k} onClick={() => setTipo(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
             style={{ color: tipo === k ? C.accent : C.sub, borderBottom: tipo === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <I size={15} /> {t}
@@ -334,7 +336,8 @@ export default function ContasPagarReceber({ user }) {
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
       {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
-      {tipo !== "RECORRENTES" && !ABAS_ATRASO.includes(tipo) && <>
+      {tipo === "LIXEIRA" && <Lixeira user={user} />}
+      {tipo !== "RECORRENTES" && !ABAS_FORA.includes(tipo) && <>
       {/* NFs lançadas pelo Compras */}
       {P && d && d.nfsPendentes > 0 && (
         <button onClick={() => setModal({ t: "nfs" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left" style={{ background: C.blueSoft, border: `1px solid ${C.blue}55`, color: C.text }}>
@@ -1116,7 +1119,7 @@ function LoteModal({ acao, P, itens, onClose, onOk }) {
         </>
       ) : (
         <div className="text-xs p-2.5 rounded-lg" style={{ background: C.redSoft, color: C.red }}>
-          As contas e seus anexos serão apagados.{viramCancel > 0 && ` ${viramCancel} de recorrência ou da semana viram CANCELADAS (para o sistema não recriar).`}
+          As contas vão para a Lixeira (30 dias para reativar, com os anexos).{viramCancel > 0 && ` ${viramCancel} de recorrência ou da semana viram CANCELADAS (para o sistema não recriar).`}
         </div>
       )}
     </Modal>

@@ -15,6 +15,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   const tipo = TIPOS.includes(sp.get("tipo")) ? sp.get("tipo") : "PAGAR";
   await garantirContas();
+  { const { limparExpirados } = await import("@/lib/finLixeira"); await limparExpirados(); }   // lixeira: some o que passou de 30 dias
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;

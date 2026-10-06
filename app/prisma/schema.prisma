@@ -877,6 +877,25 @@ model FinTituloAnexo {
   @@index([hash])
 }
 
+// v139: lixeira de contas — a conta excluída fica 30 dias aqui (cópia completa, com anexos) antes de sumir de vez
+model FinLixeira {
+  id              Int      @id @default(autoincrement())
+  tituloId        Int                 // id original da conta
+  tipo            String              // PAGAR | RECEBER
+  modo            String              // EXCLUIDA (cópia guardada) | CANCELADA (recorrência / semana: a conta continua cancelada)
+  titulo          String
+  parceiro        String
+  valor           Decimal  @db.Decimal(14, 2)
+  vencimento      DateTime @db.Date
+  status          String              // status da conta quando foi excluída
+  dados           Json                // { titulo, anexos, semanaItens }
+  excluidoPorNome String?
+  excluidoEm      DateTime @default(now())
+  expiraEm        DateTime
+
+  @@index([expiraEm])
+}
+
 // v135: execuções judiciais (uma execução pode juntar várias contas a receber)
 model FinExecucao {
   id            Int       @id @default(autoincrement())

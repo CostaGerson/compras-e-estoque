@@ -2,17 +2,20 @@
 import { prisma } from "@/lib/prisma";
 import { dataUTC } from "@/lib/finTitulos";
 import { ehCascaSemana, INICIO_SEMANAS } from "@/lib/finSemana";
+import { paraLixeira } from "@/lib/finLixeira";
 
 // Excluir uma conta:
 //  - de recorrência → CANCELADA (o mês não é recriado);
 //  - conta da semana a partir da implantação → CANCELADA (senão a sexta seria recriada);
-//  - o resto sai de vez (anexos e itens da semana vão junto).
+//  - o resto vai para a LIXEIRA (30 dias, com anexos e itens) e sai da lista.
 export async function excluirTitulo(t, quem) {
   const vencISO = new Date(t.vencimento).toISOString().slice(0, 10);
   if (t.recorrenciaId || (ehCascaSemana(t) && vencISO >= INICIO_SEMANAS)) {
+    if (t.status !== "CANCELADO") await paraLixeira(t, quem, "CANCELADA");   // v139: aparece na lixeira (reativar = reabrir)
     await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "CANCELADO", atualizadoPorNome: quem || null } });
     return "CANCELADO";
   }
+  await paraLixeira(t, quem, "EXCLUIDA");   // v139: cópia completa fica 30 dias na lixeira
   await prisma.finTitulo.delete({ where: { id: t.id } });
   return "EXCLUIDO";
 }
