@@ -826,6 +826,8 @@ model FinTitulo {
   nfId             Int?                         // NF lançada pelo Compras que originou a conta
   nf               NotaFiscal?     @relation(fields: [nfId], references: [id], onDelete: SetNull)
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
+  nossoNumero      String?                      // v127: nosso número do boleto (retorno CNAB)
+  cobranca         String?                      // v127: REGISTRADO | LIQUIDADO | DESCONTADO (retorno do banco)
   criadoPorId      Int?
   criadoPorNome    String?
   atualizadoPorNome String?
@@ -854,6 +856,20 @@ model FinTituloAnexo {
 
   @@index([tituloId])
   @@index([hash])
+}
+
+// v127: arquivos de retorno de cobrança (CNAB 400) já processados
+model FinRetorno {
+  id            Int      @id @default(autoincrement())
+  banco         String   @default("237")
+  sequencia     String?  // nº do aviso bancário (nº do retorno)
+  nome          String
+  dataArquivo   DateTime? @db.Date
+  hash          String   @unique
+  conteudo      String   // base64
+  resumo        Json?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
 }
 
 // Conta recorrente: gera um título (previsão) por mês

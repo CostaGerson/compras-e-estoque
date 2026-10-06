@@ -379,6 +379,7 @@ export default function ContasPagarReceber({ user }) {
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
+        {!P && <BtnS onClick={() => setModal({ t: "retorno" })}><FileCode2 size={15} /> Importar retorno</BtnS>}
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
@@ -475,6 +476,7 @@ export default function ContasPagarReceber({ user }) {
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "retorno" && <RetornoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "ia" && <AnaliseTitulosModal user={user} tipo={tipo} dIni={dIni} dFim={dFim < dIni ? dIni : dFim} contas={d?.contas || []} contasPorId={contasPorId}
         onEditar={(t) => setModal({ t: "titulo", item: t })} onClose={() => { setModal(null); carregar(); }} />}
@@ -956,6 +958,113 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
             </table>
           </div>
           {semConta > 0 && <div className="mt-2 text-xs font-semibold" style={{ color: C.red }}>{semConta} linha(s) sem conta-caixa — o rateio é obrigatório. Escolha a conta (filtro "Sem conta-caixa") ou marque Ignorar para liberar a importação.</div>}
+        </>
+      )}
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
+/* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
+const ACAO_RET = {
+  REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], DESCONTAR: ["Descontado", C.yellow, C.yellowSoft],
+  AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
+};
+function RetornoModal({ user, onClose, onSalvo }) {
+  const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
+  const [a, setA] = useState(null);
+  const [marc, setMarc] = useState({});       // k → aplicar
+  const [filtro, setFiltro] = useState("TODOS");
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const ler = async (fs) => {
+    const lista = [...(fs || [])];
+    if (!lista.length) return;
+    setErro(""); setSt("Lendo o retorno…");
+    try {
+      const arquivos = [];
+      for (const f of lista) arquivos.push({ nome: f.name, conteudo: await readB64(f) });
+      const r = await api("/api/fin/retorno", "POST", { usuarioId: user.id, acao: "analisar", arquivos });
+      setArqs(arquivos); setA(r);
+      const m = {}; for (const f of r.arquivos) for (const x of f.itens) m[x.k] = x.aplicar; setMarc(m);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  const itens = a ? a.arquivos.flatMap((f) => f.itens) : [];
+  const conta = (ac) => itens.filter((x) => x.acao === ac).length;
+  const vis = itens.filter((x) => filtro === "TODOS" || x.acao === filtro || (filtro === "SEM_CONTA" && x.situacao === "SEM_CONTA"));
+  const escolhidos = itens.filter((x) => marc[x.k] && x.alvo);
+  const tarifa = a ? a.arquivos.reduce((s, f) => s + f.tarifa, 0) : 0;
+  const aplicar = async () => {
+    setSt("Aplicando…"); setErro("");
+    try {
+      const r = await api("/api/fin/retorno", "POST", { usuarioId: user.id, acao: "aplicar", arquivos: arqs, itens: escolhidos });
+      onSalvo(`Retorno aplicado: ${r.liquidadas} liquidada(s) (${moeda(r.valorLiquidado)}), ${r.descontadas} descontada(s) (${moeda(r.valorDescontado)}), ${r.registradas} registrada(s)${r.tarifas ? `, tarifa ${moeda(r.valorTarifas)} lançada` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Importar retorno de cobrança (Bradesco)" icone={FileCode2} onClose={onClose} largura={1180}
+      rodape={a ? <>
+        <span className="text-xs mr-auto" style={{ color: C.sub }}>{escolhidos.length} registro(s) marcados · tarifas {moeda(tarifa)}</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={aplicar} disabled={!!st || !(escolhidos.length || tarifa > 0)}>{st && <Loader2 size={14} className="animate-spin" />} Confirmar</BtnP>
+      </> : null}>
+      {!a && (
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
+          <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o(s) arquivo(s) de <b>retorno de cobrança CNAB 400</b> do Bradesco (.RET).</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Liquidações baixam a conta, transferidos para desconto viram DESCONTADO, entradas confirmadas marcam REGISTRADO e as tarifas viram conta a pagar já paga. O arquivo fica anexado.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher arquivos"}</BtnP>
+          <input ref={ref} type="file" multiple accept=".ret,.RET,.txt" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste os arquivos para cá</div>
+        </Soltar>
+      )}
+      {a && (
+        <>
+          <div className="text-xs mb-2 space-y-0.5" style={{ color: C.sub }}>
+            {a.arquivos.map((f) => (
+              <div key={f.arquivo}><b style={{ color: C.navy }}>{f.arquivo}</b> · retorno nº {f.sequencia || "—"} de {dBR(f.dataArquivo)} · {f.itens.length} registro(s) · tarifas {moeda(f.tarifa)}
+                {f.jaProcessado && <span className="ml-2 font-semibold" style={{ color: C.yellow }}>já processado em {dBR(String(f.jaProcessado).slice(0, 10))} — reenviar é seguro</span>}</div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {[["TODOS", "Todos", itens.length], ...Object.keys(ACAO_RET).filter((k) => conta(k)).map((k) => [k, ACAO_RET[k][0], conta(k)]),
+              ...(itens.some((x) => x.situacao === "SEM_CONTA") ? [["SEM_CONTA", "Sem conta", itens.filter((x) => x.situacao === "SEM_CONTA").length]] : [])].map(([k, t, q]) => (
+              <button key={k} onClick={() => setFiltro(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={filtro === k ? { background: C.navy, color: "#fff" } : { background: (ACAO_RET[k] || [])[2] || C.panel2, color: (ACAO_RET[k] || [])[1] || C.text }}>{t} · {q}</button>
+            ))}
+          </div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "58vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["", "Ocorrência", "Nº título / nosso nº", "Data", "Valor", "Conta a receber", "Situação"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>{vis.map((x) => {
+                const [t0, c0, bg0] = ACAO_RET[x.acao] || [x.acao, C.sub, C.panel2];
+                const pode = !!x.alvo && ["REGISTRAR", "LIQUIDAR", "DESCONTAR"].includes(x.acao) && x.situacao !== "JA_BAIXADA";
+                const dt = x.acao === "LIQUIDAR" ? (x.dataCredito || x.dataOcorrencia) : x.dataOcorrencia;
+                return (
+                  <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}`, opacity: pode && !marc[x.k] ? 0.55 : 1 }}>
+                    <td className="px-2 py-1.5"><input type="checkbox" disabled={!pode} checked={!!marc[x.k]} onChange={(e) => setMarc((m) => ({ ...m, [x.k]: e.target.checked }))} /></td>
+                    <td className="px-2 py-1.5">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: c0, background: bg0 }}>{t0}</span>
+                      <div className="mt-0.5" style={{ color: C.sub }}>{x.ocorrencia} · {x.nomeOcorrencia}{x.motivos?.length ? ` · motivo ${x.motivos.join(", ")}` : ""}</div>
+                    </td>
+                    <td className="px-2 py-1.5"><div className="font-semibold" style={{ color: C.navy }}>{x.numeroDoc || x.controle || "—"}</div><div style={{ color: C.sub }}>{x.nosso}</div></td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{dBR(dt)}{x.acao === "LIQUIDAR" && x.dataCredito ? <div style={{ color: C.sub }}>crédito</div> : null}</td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap"><b>{brl(x.acao === "LIQUIDAR" ? (x.valorPago || x.valor) : x.valor)}</b>{x.juros > 0 && <div style={{ color: C.sub }}>juros {brl(x.juros)}</div>}</td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 300 }}>
+                      {x.alvo ? <><div className="font-semibold truncate" title={x.alvo.titulo}>{x.alvo.titulo}</div><div className="truncate" style={{ color: C.sub }}>{x.alvo.parceiro} · venc. {dBR(x.alvo.vencimento)} · {brl(x.alvo.valor)} · {x.alvo.status}</div></> : <span style={{ color: C.sub }}>—</span>}
+                    </td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 240, color: x.situacao === "OK" && !x.aviso ? C.green : x.situacao === "SEM_CONTA" || x.acao === "AVISO" ? C.red : C.sub }}>
+                      {x.aviso || (x.situacao === "JA_REGISTRADA" ? "Já registrada" : x.situacao === "OK" && pode ? "Pronto para aplicar" : "—")}
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
         </>
       )}
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
