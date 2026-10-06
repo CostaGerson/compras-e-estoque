@@ -1174,24 +1174,43 @@ function FichasSalvas({ master, onEditar, onClonar }) {
       </div>
       {(() => {
         const t = somaFpps(cards ? lista : dados);
-        return (
-          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+        // dados gerenciais completos só dentro de uma negociação; nas demais visões, só nº de FPPs e MC média por peça
+        const completo = filtro?.guia === "negociacao";
+        const mcPeca = <KpiFpp rotulo="MC média por peça" valor={<>{brl(t.mcPeca)} <span className="text-sm">· {pct(t.mcPecaPct)}</span></>} cor={corMc(t.mcPecaPct)} />;
+        if (!completo) return (
+          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 220px))" }}>
             <KpiFpp rotulo="FPPs" valor={nPt(t.n)} sub={filtro ? filtro.valor : "todas as salvas"} />
-            <KpiFpp rotulo="Peças" valor={nPt(t.pecas)} />
-            {master && <KpiFpp rotulo="Valor total" valor={brl(t.valor)} sub={`preço médio ${brl(t.precoMedio)}/peça`} />}
-            {master && <KpiFpp rotulo="CMV total" valor={brl(t.cmv)} sub={`${pct(t.cmvPct)} do valor · sem imposto`} />}
-            {master && <KpiFpp rotulo="Margem de contribuição" valor={<>{brl(t.mc)} <span className="text-sm">· {pct(t.mcPct)}</span></>} cor={corMc(t.mcPct)} />}
-            {master && <KpiFpp rotulo="MC média por peça" valor={<>{brl(t.mcPeca)} <span className="text-sm">· {pct(t.mcPecaPct)}</span></>} cor={corMc(t.mcPecaPct)} />}
+            {master && mcPeca}
+          </div>
+        );
+        const etapas = AREAS_VOLTA.filter(([k]) => t.volta[k] > 0);
+        return (
+          <div className="mb-4">
+            <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: `repeat(${master ? 6 : 2}, minmax(0, 1fr))` }}>
+              <KpiFpp rotulo="FPPs" valor={nPt(t.n)} sub={filtro.valor} />
+              <KpiFpp rotulo="Peças" valor={nPt(t.pecas)} />
+              {master && <KpiFpp rotulo="Valor total" valor={brl(t.valor)} sub={`preço médio ${brl(t.precoMedio)}/peça`} />}
+              {master && <KpiFpp rotulo="CMV total" valor={brl(t.cmv)} sub={`${pct(t.cmvPct)} do valor · sem imposto`} />}
+              {master && <KpiFpp rotulo="Margem de contribuição" valor={brl(t.mc)} sub={`${pct(t.mcPct)} do valor`} cor={corMc(t.mcPct)} />}
+              {master && <KpiFpp rotulo="MC média por peça" valor={brl(t.mcPeca)} sub={`${pct(t.mcPecaPct)} do preço`} cor={corMc(t.mcPecaPct)} />}
+            </div>
             {master && (
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Volta para a operação</div>
-                <div className="text-xl font-bold mt-1" style={{ color: C.accent }}>{brl(t.volta.total)}</div>
-                <div className="text-xs mb-1" style={{ color: C.sub }}>{t.pecas ? `${brl(t.volta.total / t.pecas)}/peça` : ""}</div>
-                {AREAS_VOLTA.filter(([k]) => t.volta[k] > 0).map(([k, l]) => (
-                  <div key={k} className="flex justify-between gap-2 text-[11px]" style={{ borderTop: `1px solid ${C.line}`, paddingTop: 2 }}>
-                    <span style={{ color: C.sub }}>{l.replace("Personalização · ", "Pers. ").replace(" (reembolso de consumo)", "")}</span><b style={{ color: C.navy }}>{brl(t.volta[k])}</b>
-                  </div>
-                ))}
+              <div className="rounded-xl p-4 flex flex-wrap items-stretch gap-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="pr-4" style={{ borderRight: `1px solid ${C.line}`, minWidth: 190 }}>
+                  <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Volta para a operação</div>
+                  <div className="text-2xl font-bold mt-1" style={{ color: C.accent }}>{brl(t.volta.total)}</div>
+                  <div className="text-xs" style={{ color: C.sub }}>{t.pecas ? `${brl(t.volta.total / t.pecas)} por peça` : ""}</div>
+                </div>
+                <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+                  {etapas.map(([k, l]) => (
+                    <div key={k} className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+                      <div className="text-[11px] leading-tight" style={{ color: C.sub }}>{l.replace("Personalização · ", "Personalização ").replace(" (reembolso de consumo)", "").replace(" (facção interna)", "")}</div>
+                      <div className="text-sm font-bold mt-0.5" style={{ color: C.navy }}>{brl(t.volta[k])}</div>
+                      <div className="text-[10px]" style={{ color: C.sub }}>{t.pecas ? `${brl(t.volta[k] / t.pecas)}/peça` : ""}</div>
+                    </div>
+                  ))}
+                  {!etapas.length && <div className="text-xs self-center" style={{ color: C.sub }}>Nada volta para a operação nestas FPPs.</div>}
+                </div>
               </div>
             )}
           </div>
@@ -1207,7 +1226,11 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                 <div className="text-sm font-bold" style={{ color: C.navy }}>{c.valor}</div>
                 <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: C.accentSoft, color: C.accent }}>{c.n} FPP(s)</span>
               </div>
-              {master && (
+              {master && guia !== "negociacao" && (
+                <div className="text-xs mb-2"><div style={{ color: C.sub }}>MC média por peça</div>
+                  <div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{brl(c.qtd ? c.mc / c.qtd : 0)} · {pct(c.total ? c.mc / c.total : 0)}</div></div>
+              )}
+              {master && guia === "negociacao" && (
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs mb-2">
                   <div><div style={{ color: C.sub }}>Valor total</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.total)}</div></div>
                   <div><div style={{ color: C.sub }}>Peças</div><div className="font-bold text-sm" style={{ color: C.navy }}>{nPt(c.qtd)}</div></div>
