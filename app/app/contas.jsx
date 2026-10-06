@@ -47,6 +47,22 @@ const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").s
 const FORMA = { RH: ["Lançada pelo RH", Hand], MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 // toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
 const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) || String(t.chaveImport || "").startsWith("POSICAO|");
+// busca pelo valor: "1230,83", "1.230,83", "1230.83", "R$ 1.230" ou só o começo ("1.230") acham a conta;
+// procura no valor da conta e no valor pago
+function valorBate(t, q) {
+  const s = String(q || "").replace(/R\$|\s/gi, "");
+  if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return false;
+  const digitos = s.replace(/[.,]/g, "");
+  // texto digitado como número (vírgula ou ponto como decimal)
+  const t2 = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : (s.split(".").length > 2 ? s.replace(/\./g, "") : s);
+  const alvo = Number(t2);
+  return [t.valor, t.valorPago].filter((v) => v != null).some((v) => {
+    const n = Number(v);
+    if (Number.isFinite(alvo) && Math.abs(n - alvo) < 0.005) return true;   // valor exato
+    const br = n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return br.includes(s) || br.replace(/\./g, "").includes(s) || n.toFixed(2).includes(s) || n.toFixed(2).replace(".", "").startsWith(digitos);
+  });
+}
 // conta que veio de NF de compra importada (XML no contas a pagar ou NF de entrada do Compras)
 const ehCompra = (t) => t.forma === "NF_XML" || !!t.nfId || String(t.chaveImport || "").startsWith("NFE|");
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
@@ -292,12 +308,12 @@ export default function ContasPagarReceber({ user }) {
       const s = situacao(t).k;
       if (fSit !== "TODOS" && fSit !== "SEMCONTA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
       if (!n) return true;
-      return [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
+      return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
   }, [d, busca, fSit, contasPorId, soCompra, P]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase();
-    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!n || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
   }, [d, dIni, busca, soCompra, P]);
   const tot = useMemo(() => {
     const ls = (d?.titulos || []).filter((t) => t.status !== "CANCELADO");
@@ -437,7 +453,7 @@ export default function ContasPagarReceber({ user }) {
           <div className="flex flex-wrap items-end gap-2 mb-3">
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, conta…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, nº da NF ou valor…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
             </div>
             <label className="text-xs" style={{ color: C.sub }}>De
               <input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />

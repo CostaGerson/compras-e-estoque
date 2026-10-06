@@ -52,6 +52,22 @@ const MarcaR = ({ t }) => (t?.vencimentoOriginal ? (
   <span title={`Reprogramado — vencimento original ${dBR(t.vencimentoOriginal)}`} className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle"
     style={{ width: 15, height: 15, background: "#F1EDFF", color: "#7A5AF8", border: "1px solid #7A5AF866" }}>R</span>) : null);
 
+// busca pelo valor: "1230,83", "1.230,83", "1230.83", "R$ 1.230" ou só o começo ("1.230") acham a conta;
+// procura no valor da conta e no valor pago
+function valorBate(t, q) {
+  const s = String(q || "").replace(/R\$|\s/gi, "");
+  if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return false;
+  const digitos = s.replace(/[.,]/g, "");
+  // texto digitado como número (vírgula ou ponto como decimal)
+  const t2 = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : (s.split(".").length > 2 ? s.replace(/\./g, "") : s);
+  const alvo = Number(t2);
+  return [t.valor, t.valorPago].filter((v) => v != null).some((v) => {
+    const n = Number(v);
+    if (Number.isFinite(alvo) && Math.abs(n - alvo) < 0.005) return true;   // valor exato
+    const br = n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return br.includes(s) || br.replace(/\./g, "").includes(s) || n.toFixed(2).includes(s) || n.toFixed(2).replace(".", "").startsWith(digitos);
+  });
+}
 function Kpi({ rotulo, valor, sub, cor }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -120,7 +136,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
   const [modal, setModal] = useState(null);   // "execucao" | "perda"
   const filtradas = useMemo(() => {
     const q = busca.trim().toUpperCase();
-    return d.atrasadas.filter((t) => !q || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().includes(q)));
+    return d.atrasadas.filter((t) => !q || valorBate(t, q) || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().includes(q)));
   }, [d, busca]);
   const { lista, Th } = useOrdem(filtradas);
   const escolhidas = d.atrasadas.filter((t) => sel.has(t.id));
@@ -131,7 +147,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, título, NF…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 260 }} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, título, NF ou valor…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 260 }} />
         </div>
         <div className="flex-1" />
         {escolhidas.length > 0 && <span className="text-xs" style={{ color: C.sub }}>{escolhidas.length} marcada(s) · {moeda(escolhidas.reduce((s, t) => s + t.valor, 0))}</span>}
