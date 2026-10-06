@@ -11,6 +11,8 @@ import Financeiro, { DadosFinanceiros } from "./financeiro";
 import Gestao from "./gestao";
 import Prestadores from "./prestadores";
 import Rh from "./rh";
+import Uploads from "./uploads";
+import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 
 /* ============================================================
@@ -75,13 +77,14 @@ const MENU = [
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
     ] },
   ] },
-  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados e dados financeiros", filhos: [
+  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, dados financeiros e uploads", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP"], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP"], desc: "Facções e serviços: PIX, endereço e capacidade" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
+    { key: "uploads", label: "Uploads", icon: FolderUp, perfis: ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE", "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
@@ -132,7 +135,7 @@ export default function Home() {
   const perfil = master ? "FINANCEIRO" : user.setor;
   const menu = menuDoPerfil(perfil);
   // RH só enxerga a guia RH (e mensagens/notificações)
-  if (perfil === "RH" && !["rh", "mensagens", "notificacoes"].includes(view)) setTimeout(() => setView("rh"), 0);
+  if (perfil === "RH" && !["rh", "mensagens", "notificacoes", "dados", "uploads"].includes(view)) setTimeout(() => setView("rh"), 0);
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
@@ -214,6 +217,7 @@ export default function Home() {
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
+          {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && <Usuarios master={master} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}

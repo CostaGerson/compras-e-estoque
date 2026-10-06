@@ -30,6 +30,8 @@ services:
       RESEND_FROM: ${RESEND_FROM:-}
     ports:
       - "3010:3000"
+    volumes:
+      - ./backup:/app/backup
     networks:
       - default
       - crm
