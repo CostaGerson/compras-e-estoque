@@ -315,8 +315,9 @@ export default function ContasPagarReceber({ user }) {
     const n = busca.trim().toUpperCase();
     return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
   }, [d, dIni, busca, soCompra, P]);
+  // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
   const tot = useMemo(() => {
-    const ls = (d?.titulos || []).filter((t) => t.status !== "CANCELADO");
+    const ls = lista.filter((t) => t.status !== "CANCELADO");
     const s = (f) => ls.filter(f).reduce((a, t) => a + t.valor, 0);
     return {
       total: s(() => true), pago: ls.filter((t) => t.status === "PAGO").reduce((a, t) => a + (t.valorPago ?? t.valor), 0),
@@ -324,7 +325,7 @@ export default function ContasPagarReceber({ user }) {
       atrasados: (d?.atrasados || []).reduce((a, t) => a + t.valor, 0),
       vencidoTotal: d?.vencidoTotal || 0, vencidoTotalQtd: d?.vencidoTotalQtd || 0,
     };
-  }, [d]);
+  }, [d, lista]);
   // seleção: só contas em aberto; o resumo usa tudo que está na tela (período + vencidos anteriores)
   const porId = useMemo(() => Object.fromEntries([...(d?.periodo || []), ...(d?.titulos || []), ...(d?.atrasados || [])].map((t) => [t.id, t])), [d]);
   const marcados = [...sel].map((id) => porId[id]).filter((t) => t && t.status === "ABERTO");
@@ -428,9 +429,9 @@ export default function ContasPagarReceber({ user }) {
           {/* totais do mês */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             {[
-              [`Contas ${P ? "a pagar" : "a receber"} no mês`, tot.total, C.navy, null],
-              ["Em aberto", tot.aberto, C.blue, null],
-              ["Vencido no mês", tot.vencido, C.red, verVencidosMes, "clique para listar os vencidos do mês"],
+              [`Contas ${P ? "a pagar" : "a receber"} no período`, tot.total, C.navy, null],
+              ["Em aberto no período", tot.aberto, C.blue, null],
+              ["Vencido no período", tot.vencido, C.red, () => setFSit("VENC"), "clique para listar os vencidos do período"],
               ["Vencido total", tot.vencidoTotal, C.red, verVencidos, `${tot.vencidoTotalQtd} conta(s) em aberto vencidas até ontem — clique para listar`],
             ].map(([t, v, c, click, dica]) => {
               const Tag = click ? "button" : "div";
