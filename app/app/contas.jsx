@@ -47,6 +47,8 @@ const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").s
 const FORMA = { RH: ["Lançada pelo RH", Hand], MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 // toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
 const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) || String(t.chaveImport || "").startsWith("POSICAO|");
+// conta que veio de NF de compra importada (XML no contas a pagar ou NF de entrada do Compras)
+const ehCompra = (t) => t.forma === "NF_XML" || !!t.nfId || String(t.chaveImport || "").startsWith("NFE|");
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
 
 function situacao(t) {
@@ -253,6 +255,7 @@ export default function ContasPagarReceber({ user }) {
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   const [fSit, setFSit] = useState("TODOS");
+  const [soCompra, setSoCompra] = useState(false);   // filtro rápido: só contas vindas de NF de compra (XML)
   const [modal, setModal] = useState(null);
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
@@ -284,16 +287,17 @@ export default function ContasPagarReceber({ user }) {
     if (!d) return [];
     const n = busca.trim().toUpperCase();
     return (fSit === "SEMCONTA" ? d.semConta || [] : d.periodo || d.titulos).filter((t) => {
+      if (soCompra && P && !ehCompra(t)) return false;
       const s = situacao(t).k;
       if (fSit !== "TODOS" && fSit !== "SEMCONTA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
       if (!n) return true;
       return [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
-  }, [d, busca, fSit, contasPorId]);
+  }, [d, busca, fSit, contasPorId, soCompra, P]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase();
-    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!n || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
-  }, [d, dIni, busca]);
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!n || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
+  }, [d, dIni, busca, soCompra, P]);
   const tot = useMemo(() => {
     const ls = (d?.titulos || []).filter((t) => t.status !== "CANCELADO");
     const s = (f) => ls.filter(f).reduce((a, t) => a + t.valor, 0);
@@ -451,6 +455,13 @@ export default function ContasPagarReceber({ user }) {
               <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
+            {P && (
+              <button onClick={() => setSoCompra((v) => !v)} title="Só as contas a pagar que vieram de importação de NF de compra (XML)"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+                style={soCompra ? { background: C.navy, color: "#fff", border: `1px solid ${C.navy}` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>
+                <FileCode2 size={14} /> Entrada por compra{soCompra ? " ✓" : ""}
+              </button>
+            )}
           </div>
           )}
 
