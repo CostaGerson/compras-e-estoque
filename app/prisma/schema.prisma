@@ -591,6 +591,7 @@ model FppParamHist {
 // Ficha de precificação salva (alimenta o CRM).
 model Fpp {
   id            Int      @id @default(autoincrement())
+  numero        Int?     @unique   // nº único da FPP (00001…), por data de criação — rastreio com os pedidos
   tipo          String   // MALHA | PLANO
   item          String
   nomeComercial String?

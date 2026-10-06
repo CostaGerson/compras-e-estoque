@@ -2,15 +2,17 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
   text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
-  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", yellow: "#C08401",
+  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
+  yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41",
 };
+const fmtFpp = (n) => (n ? String(n).padStart(5, "0") : "—");
 
 const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "http://147.93.35.189:3001";
 
@@ -43,34 +45,30 @@ export default function Comercial({ user, master }) {
   if (view === "fpp") {
     return (
       <div>
-        <button onClick={() => setView(null)} className="flex items-center gap-1 mb-4 text-sm font-medium" style={{ color: C.accent }}>
-          <ChevronRight size={15} style={{ transform: "rotate(180deg)" }} /> Comercial
-        </button>
+        <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
+          <button onClick={() => setView(null)} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          <button onClick={() => setView(null)} style={{ color: C.sub }}>Comercial</button>
+          <ChevronRight size={13} style={{ color: C.sub }} />
+          <span className="font-semibold" style={{ color: C.text }}>Orçamentação (FPP)</span>
+        </div>
         <Fpp user={user} master={master} />
       </div>
     );
   }
 
-  const Card = ({ icon: Ico, titulo, sub, onClick, badge }) => (
-    <button onClick={onClick} className="flex-1 text-left rounded-2xl p-6 transition-shadow hover:shadow-lg"
-      style={{ background: C.panel, border: `1px solid ${C.line}`, minHeight: 180 }}>
-      <div className="flex items-center justify-center rounded-xl mb-4" style={{ width: 56, height: 56, background: C.accentSoft }}>
-        <Ico size={28} style={{ color: C.accent }} />
-      </div>
-      <div className="text-lg font-bold flex items-center gap-2" style={{ color: C.text }}>{titulo}{badge}</div>
-      <div className="text-sm mt-1" style={{ color: C.sub }}>{sub}</div>
-    </button>
-  );
-
   return (
     <div>
-      <div className="text-sm mb-4" style={{ color: C.sub }}>Escolha uma área do comercial:</div>
-      <div className="flex flex-col md:flex-row gap-4 max-w-3xl">
-        <Card icon={Calculator} titulo="Orçamentação (FPP)" sub="Criar e gerenciar fichas de precificação e propostas" onClick={() => setView("fpp")} />
-        <Card icon={Briefcase} titulo="CRM"
-          sub="Abrir o CRM Meridian em uma nova aba"
-          onClick={() => window.open(CRM_URL, "_blank", "noopener")}
-          badge={<ExternalLink size={16} style={{ color: C.sub }} />} />
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", maxWidth: 820 }}>
+        {[
+          ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
+          ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
+        ].map(([k, Ico, t, sub, go]) => (
+          <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+            <div className="flex items-center justify-between"><Ico size={26} style={{ color: C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: "#9FB0C7" }} />}</div>
+            <div className="text-lg font-bold mt-2">{t}</div>
+            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -158,6 +156,7 @@ function Fpp({ user, master }) {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
   const [editId, setEditId] = useState(null);
+  const [editNum, setEditNum] = useState(null);
   const [clientes, setClientes] = useState([]);
 
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then(setParams).catch(() => {}); }, []);
@@ -297,8 +296,10 @@ function Fpp({ user, master }) {
     const body = montarBody();
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const salvo = await res.json().catch(() => ({}));
     setSalvando(false);
-    setMsg(res.ok ? (editId ? "Ficha atualizada ✓" : "Ficha salva ✓") : "Erro ao salvar.");
+    if (res.ok && !editId && salvo.id) { setEditId(salvo.id); setEditNum(salvo.numero); }   // salvar de novo atualiza esta, não cria outra
+    setMsg(res.ok ? (editId ? `FPP ${fmtFpp(salvo.numero || editNum)} atualizada ✓` : `FPP ${fmtFpp(salvo.numero)} salva ✓`) : "Erro ao salvar.");
   }
 
   function carregarFicha(fpp) {
@@ -307,9 +308,9 @@ function Fpp({ user, master }) {
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
     setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
     setOver(fpp.overrides || {});
-    setEditId(fpp.id);
+    setEditId(fpp.id); setEditNum(fpp.numero);
     setAba("ficha");
-    setMsg("Editando ficha salva.");
+    setMsg(`Editando a FPP ${fmtFpp(fpp.numero)} ✓`);
   }
   // clona o que está na tela (inclusive alterações ainda não salvas) e passa a editar a cópia
   async function clonarAtual() {
@@ -318,16 +319,16 @@ function Fpp({ user, master }) {
     try {
       const nova = await clonarFpp(montarBody(), user);
       setF((s) => ({ ...s, nomeComercial: nova.nomeComercial }));
-      setEditId(nova.id);
-      setMsg(`Cópia criada (#${nova.id}) ✓ — você está editando a cópia.`);
+      setEditId(nova.id); setEditNum(nova.numero);
+      setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`);
     } catch (e) { setMsg(e.message); }
     setSalvando(false);
   }
   async function clonarSalva(fpp) {
-    try { carregarFicha(await clonarFpp(fpp, user)); setMsg("Cópia criada ✓ — você está editando a cópia."); }
+    try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
     catch (e) { alert(e.message); }
   }
-  function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setMsg(""); }
+  function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setEditNum(null); setMsg(""); }
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setP = (tec, k, v) => setF((s) => ({ ...s, [tec]: { ...s[tec], [k]: v } }));
@@ -338,19 +339,17 @@ function Fpp({ user, master }) {
     <div>
       {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="flex gap-2">
-          <button onClick={() => setAba("ficha")} className="px-3 py-1.5 rounded-md text-sm font-medium"
-            style={{ background: aba === "ficha" ? C.accent : C.panel, color: aba === "ficha" ? "#fff" : C.sub, border: `1px solid ${aba === "ficha" ? C.accent : C.line}` }}>Ficha</button>
-          <button onClick={() => setAba("banco")} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium"
-            style={{ background: aba === "banco" ? C.accent : C.panel, color: aba === "banco" ? "#fff" : C.sub, border: `1px solid ${aba === "banco" ? C.accent : C.line}` }}>
-            <Database size={14} /> Banco de dados
-          </button>
-          <button onClick={() => setAba("salvas")} className="px-3 py-1.5 rounded-md text-sm font-medium"
-            style={{ background: aba === "salvas" ? C.accent : C.panel, color: aba === "salvas" ? "#fff" : C.sub, border: `1px solid ${aba === "salvas" ? C.accent : C.line}` }}>Salvas</button>
+        <div className="flex gap-1 flex-1" style={{ borderBottom: `1px solid ${C.line}` }}>
+          {[["ficha", "Ficha", Calculator], ["banco", "Banco de dados", Database], ["salvas", "Salvas", Layers]].map(([k, t, Ico]) => (
+            <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+              style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+              <Ico size={15} /> {t}
+            </button>
+          ))}
         </div>
         {aba === "ficha" && f.item && tipoDaPeca(f.item) && (
           <div className="flex items-center gap-2">
-            {editId && <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "#FEF0C7", color: C.yellow, border: `1px solid ${C.yellow}` }}>Editando #{editId}</span>}
+            {editId && <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: C.yellowSoft, color: C.yellow, border: `1px solid ${C.yellow}55` }}>Editando FPP {fmtFpp(editNum)}</span>}
             {editId && <button onClick={novaFicha} className="text-xs px-2 py-1 rounded-md" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Nova ficha</button>}
             <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
               {tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
@@ -566,7 +565,7 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
   const constComum = params.COMUM?.CONST || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg max-h-[85vh] overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3 sticky top-0" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
           <div>
@@ -643,10 +642,10 @@ function BancoParams({ params, master, user, onReload }) {
   const ordem = ["PECA", "GOLA", "PUNHO", "ELASTICO", "FAIXA", "EMB_EXT", "CONST"];
   return (
     <div>
-      <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ background: os ? C.accentSoft : C.panel2, border: `1px solid ${os ? C.accent : C.line}` }}>
+      <div className="flex items-center gap-3 mb-3 p-3 rounded-xl" style={{ background: os ? C.accentSoft : C.panel2, border: `1px solid ${os ? C.accent : C.line}` }}>
         {os ? <Unlock size={16} style={{ color: C.accent }} /> : <Lock size={16} style={{ color: C.sub }} />}
         <div className="flex-1">
-          <div className="text-sm font-semibold" style={{ color: C.text }}>ATUALIZAÇÃO DE PARÂMETROS GERAIS</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>ATUALIZAÇÃO DE PARÂMETROS GERAIS</div>
           <div className="text-xs" style={{ color: C.sub }}>Desligado, o banco de dados fica imutável. Ligado, você redefine o padrão para todas as FPPs daqui em diante — cada alteração fica no histórico com data.</div>
         </div>
         {master ? <Toggle on={os} onChange={setOs} /> : <span className="text-xs" style={{ color: C.sub }}>Só o financeiro edita</span>}
@@ -654,8 +653,8 @@ function BancoParams({ params, master, user, onReload }) {
 
       <div className="flex gap-2 mb-3">
         {["MALHA", "PLANO"].map((t) => (
-          <button key={t} onClick={() => setTipo(t)} className="px-3 py-1.5 rounded-md text-sm font-medium"
-            style={{ background: tipo === t ? C.text : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.text : C.line}` }}>{t}</button>
+          <button key={t} onClick={() => setTipo(t)} className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+            style={{ background: tipo === t ? C.navy : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.navy : C.line}` }}>{t}</button>
         ))}
       </div>
 
@@ -733,7 +732,7 @@ function HistModal({ paramId, onClose }) {
   const [hist, setHist] = useState(null);
   useEffect(() => { fetch(`/api/fpp/params/${paramId}`).then((r) => r.json()).then(setHist); }, [paramId]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-semibold" style={{ color: C.text }}>Histórico de alterações</div>
@@ -776,7 +775,7 @@ async function imprimirFicha(f, master) {
   doc.setFontSize(11); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "normal");
   doc.text("Ficha de Precificação (FPP)", M + 46, y);
   doc.setFontSize(9); doc.setTextColor(120, 120, 120);
-  doc.text(new Date().toLocaleDateString("pt-BR"), W - M, y - 3, { align: "right" });
+  doc.text(`${f.numero ? `FPP ${fmtFpp(f.numero)} · ` : ""}${new Date().toLocaleDateString("pt-BR")}`, W - M, y - 3, { align: "right" });
   if (f.negociacao) { doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold"); doc.text(String(f.negociacao), W - M, y + 2, { align: "right" }); doc.setFont(undefined, "normal"); }
   y += 6; doc.setDrawColor(255, 107, 26); doc.setLineWidth(0.6); doc.line(M, y, W - M, y); doc.setLineWidth(0.2); y += 7;
 
@@ -855,6 +854,7 @@ async function imprimirFicha(f, master) {
 
 /* ---------- Fichas salvas ---------- */
 const COLS = [
+  { k: "numero", label: "Nº", tipo: "num" },
   { k: "item", label: "Item", tipo: "txt" },
   { k: "nomeComercial", label: "Nome comercial", tipo: "txt" },
   { k: "clienteNome", label: "Cliente", tipo: "txt", cliente: true },
@@ -862,16 +862,38 @@ const COLS = [
   { k: "qtde", label: "Qtde", tipo: "num", right: true },
   { k: "valorProposto", label: "Valor prop.", tipo: "num", right: true, master: true },
   { k: "margem", label: "Margem", tipo: "num", right: true, master: true },
+  { k: "totalItem", label: "Valor total", tipo: "num", right: true, master: true },
   { k: "createdAt", label: "Data", tipo: "data" },
 ];
 
 // guias da aba Salvas: cada uma agrupa as FPPs em cards
 const GUIAS_FPP = [
-  { k: "todas", label: "Todas" },
-  { k: "negociacao", label: "Negociação", chave: (f) => f.negociacao || "SEM NEGOCIAÇÃO" },
-  { k: "cliente", label: "Cliente", chave: (f) => f.clienteNome || "SEM CLIENTE" },
-  { k: "peca", label: "Peça", chave: (f) => f.item || "SEM PEÇA" },
+  { k: "todas", label: "Todas", Ico: Layers },
+  { k: "negociacao", label: "Negociação", Ico: Handshake, chave: (f) => f.negociacao || "SEM NEGOCIAÇÃO" },
+  { k: "cliente", label: "Cliente", Ico: Users, chave: (f) => f.clienteNome || "SEM CLIENTE" },
+  { k: "peca", label: "Peça", Ico: Shirt, chave: (f) => f.item || "SEM PEÇA" },
 ];
+// números gerenciais: valor total = preço × qtde; margem de contribuição = (preço − custo final) × qtde
+const valorFpp = (f) => Number(f.totalItem) || (Number(f.valorProposto) || 0) * (Number(f.qtde) || 0);
+const mcFpp = (f) => (f.valorProposto != null && f.custoFinal != null ? (Number(f.valorProposto) - Number(f.custoFinal)) * (Number(f.qtde) || 0) : 0);
+function somaFpps(l) {
+  const t = { n: l.length, valor: 0, pecas: 0, mc: 0 };
+  for (const f of l) { t.valor += valorFpp(f); t.pecas += Number(f.qtde) || 0; t.mc += mcFpp(f); }
+  t.mcPct = t.valor ? t.mc / t.valor : 0;
+  t.mcPeca = t.pecas ? t.mc / t.pecas : 0;
+  return t;
+}
+const corMc = (p) => (p >= 0.3 ? C.green : p >= 0.16 ? C.yellow : C.red);
+const nPt = (n) => (Number(n) || 0).toLocaleString("pt-BR");
+function KpiFpp({ rotulo, valor, sub, cor }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{rotulo}</div>
+      <div className="text-xl font-bold mt-1" style={{ color: cor || C.navy }}>{valor}</div>
+      {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
+    </div>
+  );
+}
 const guiaFpp = (k) => GUIAS_FPP.find((g) => g.k === k);
 
 function FichasSalvas({ master, onEditar, onClonar }) {
@@ -910,8 +932,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   const g = guiaFpp(guia);
   const cards = g.chave && !filtro ? Object.values(lista.reduce((acc, f) => {
     const k = g.chave(f);
-    const c = (acc[k] ||= { valor: k, n: 0, total: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
-    c.n++; c.total += Number(f.totalItem) || 0;
+    const c = (acc[k] ||= { valor: k, n: 0, total: 0, qtd: 0, mc: 0, ultima: null, clientes: new Set(), pecas: new Set(), negs: new Set() });
+    c.n++; c.total += valorFpp(f); c.qtd += Number(f.qtde) || 0; c.mc += mcFpp(f);
     if (!c.ultima || f.createdAt > c.ultima) c.ultima = f.createdAt;
     if (f.clienteNome) c.clientes.add(f.clienteNome); if (f.item) c.pecas.add(f.item); if (f.negociacao) c.negs.add(f.negociacao);
     return acc;
@@ -926,7 +948,7 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   if (q) {
     dados = dados.filter((f) => {
       const alvo = [
-        f.item, f.nomeComercial, f.clienteNome, f.negociacao, f.qtde,
+        fmtFpp(f.numero), f.item, f.nomeComercial, f.clienteNome, f.negociacao, f.qtde,
         f.condicaoPagamento, f.leadTime, f.criadoPorNome,
         f.valorProposto != null ? brl(f.valorProposto) : "",
         f.margem != null ? pct(f.margem) : "",
@@ -1000,24 +1022,47 @@ function FichasSalvas({ master, onEditar, onClonar }) {
 
       <div className="flex gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
         {GUIAS_FPP.map((x) => (
-          <button key={x.k} onClick={() => { setGuia(x.k); setFiltro(null); setBusca(""); }} className="px-3 py-2 text-sm font-medium -mb-px"
-            style={{ color: guia === x.k ? C.accent : C.sub, borderBottom: `2px solid ${guia === x.k ? C.accent : "transparent"}` }}>{x.label}</button>
+          <button key={x.k} onClick={() => { setGuia(x.k); setFiltro(null); setBusca(""); }} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+            style={{ color: guia === x.k ? C.accent : C.sub, borderBottom: `2px solid ${guia === x.k ? C.accent : "transparent"}`, marginBottom: -1 }}><x.Ico size={15} /> {x.label}</button>
         ))}
       </div>
+      {(() => {
+        const t = somaFpps(cards ? lista : dados);
+        return (
+          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+            <KpiFpp rotulo="FPPs" valor={nPt(t.n)} sub={filtro ? filtro.valor : "todas as salvas"} />
+            <KpiFpp rotulo="Peças" valor={nPt(t.pecas)} />
+            {master && <KpiFpp rotulo="Valor total" valor={brl(t.valor)} />}
+            {master && <KpiFpp rotulo="Margem de contribuição" valor={brl(t.mc)} sub={`${pct(t.mcPct)} do valor`} cor={corMc(t.mcPct)} />}
+            {master && <KpiFpp rotulo="MC média por peça" valor={brl(t.mcPeca)} />}
+          </div>
+        );
+      })()}
 
       {cards && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
           {cards.map((c) => (
-            <button key={c.valor} onClick={() => abrirCard(c.valor)} className="text-left rounded-lg p-3 transition-shadow hover:shadow-md"
+            <button key={c.valor} onClick={() => abrirCard(c.valor)} className="text-left rounded-xl p-4 transition-shadow hover:shadow-lg"
               style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="text-sm font-semibold mb-1" style={{ color: C.text }}>{c.valor}</div>
-              <div className="text-xs" style={{ color: C.accent }}><b>{c.n}</b> FPP(s)</div>
-              <div className="text-xs mt-1" style={{ color: C.sub }}>
-                {guia !== "cliente" && c.clientes.size > 0 && <div>{c.clientes.size} cliente(s)</div>}
-                {guia !== "peca" && c.pecas.size > 0 && <div>{c.pecas.size} peça(s)</div>}
-                {guia !== "negociacao" && c.negs.size > 0 && <div>{c.negs.size} negociação(ões)</div>}
-                <div>Última: {c.ultima ? new Date(c.ultima).toLocaleDateString("pt-BR") : "—"}</div>
-                {master && c.total > 0 && <div>Total: {brl(c.total)}</div>}
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="text-sm font-bold" style={{ color: C.navy }}>{c.valor}</div>
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: C.accentSoft, color: C.accent }}>{c.n} FPP(s)</span>
+              </div>
+              {master && (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs mb-2">
+                  <div><div style={{ color: C.sub }}>Valor total</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.total)}</div></div>
+                  <div><div style={{ color: C.sub }}>Peças</div><div className="font-bold text-sm" style={{ color: C.navy }}>{nPt(c.qtd)}</div></div>
+                  <div><div style={{ color: C.sub }}>Margem de contrib.</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{brl(c.mc)}</div></div>
+                  <div><div style={{ color: C.sub }}>MC %</div><div className="font-bold text-sm" style={{ color: corMc(c.total ? c.mc / c.total : 0) }}>{pct(c.total ? c.mc / c.total : 0)}</div></div>
+                  <div className="col-span-2"><div style={{ color: C.sub }}>MC média por peça</div><div className="font-bold text-sm" style={{ color: C.navy }}>{brl(c.qtd ? c.mc / c.qtd : 0)}</div></div>
+                </div>
+              )}
+              {!master && <div className="text-xs mb-2" style={{ color: C.sub }}>{nPt(c.qtd)} peça(s)</div>}
+              <div className="text-[11px] pt-2 flex flex-wrap gap-x-3" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
+                {guia !== "cliente" && c.clientes.size > 0 && <span>{c.clientes.size} cliente(s)</span>}
+                {guia !== "peca" && c.pecas.size > 0 && <span>{c.pecas.size} peça(s) diferentes</span>}
+                {guia !== "negociacao" && c.negs.size > 0 && <span>{c.negs.size} negociação(ões)</span>}
+                <span>Última: {c.ultima ? new Date(c.ultima).toLocaleDateString("pt-BR") : "—"}</span>
               </div>
             </button>
           ))}
@@ -1025,10 +1070,10 @@ function FichasSalvas({ master, onEditar, onClonar }) {
         </div>
       )}
 
-      {!cards && <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-auto">
+      {!cards && <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl overflow-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ background: C.panel2, color: C.sub }} className="text-left">
+            <tr style={{ background: C.panel2, color: C.sub }} className="text-left text-xs uppercase tracking-wide">
               <th className="px-2 py-2 w-8"></th>
               {cols.map((c) => (
                 <th key={c.k} onClick={() => ordenar(c.k, c.tipo)} className={"px-3 py-2 font-medium cursor-pointer select-none " + (c.right ? "text-right" : "")}>
@@ -1045,6 +1090,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                 {cols.map((c) => {
                   let v = f[c.k];
                   if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
+                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{fmtFpp(v)}</td>;
+                  else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-right font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{brl(valorFpp(f))}</td>;
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
@@ -1073,10 +1120,10 @@ function FichasSalvas({ master, onEditar, onClonar }) {
 function FichaDetalhe({ f, master, onClose, onProposta }) {
   const r = f.resultados || {};
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-semibold" style={{ color: C.text }}>{f.nomeComercial || f.item}{f.negociacao ? ` · ${f.negociacao}` : ""}</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>{f.numero ? `FPP ${fmtFpp(f.numero)} · ` : ""}{f.nomeComercial || f.item}{f.negociacao ? ` · ${f.negociacao}` : ""}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 text-sm space-y-1.5">
@@ -1204,7 +1251,7 @@ function ProposalModal({ fichas, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-semibold" style={{ color: C.text }}>Proposta · {cliente}</div>
@@ -1270,8 +1317,8 @@ function ProposalModal({ fichas, onClose }) {
 /* ---------- pequenos componentes ---------- */
 function Card({ title, children }) {
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg p-4">
-      <div className="text-sm font-semibold mb-3" style={{ color: C.text }}>{title}</div>
+    <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4">
+      <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{title}</div>
       {children}
     </div>
   );
