@@ -1,4 +1,5 @@
 "use client";
+import Dfc from "./dfc";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
@@ -104,7 +105,7 @@ export default function Financeiro({ user }) {
       {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
       {tela.v === "alavancagem" && <Alavancagem user={user} master aba="dividas" />}
       {tela.v === "credito" && <Alavancagem user={user} master aba="credito" />}
-      {tela.v === "dfc" && <EmConstrucao titulo="DFC · Demonstrativo de fluxo de caixa futuro" Ico={LineChart} texto="Projeção de entradas e saídas por semana e por mês a partir das contas a pagar e a receber, com o saldo previsto de caixa." />}
+      {tela.v === "dfc" && <Dfc user={user} />}
     </div>
   );
 }
@@ -187,7 +188,7 @@ function FinDashboard({ user, ir }) {
         {[
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
           ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
-          ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por semana e por mês"],
+          ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por dia, com sugestões de operação"],
           ["meses", CalendarRange, "Análise financeira", "Indicadores do ano, DRE do mês, importação e identificação"],
           ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
           ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
