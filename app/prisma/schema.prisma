@@ -1376,3 +1376,60 @@ model RhEnvio {
 
   @@index([competencia])
 }
+
+// v158 — ADM › Movimento fiscal: NFs de entrada e saída importadas (XML/PDF) do sistema antigo
+model FiscalNota {
+  id            Int       @id @default(autoincrement())
+  tipo          String    // ENTRADA (→ contas a pagar) | SAIDA (→ contas a receber)
+  empresa       String    @default("MERIDIAN") // MERIDIAN | NORT
+  modelo        String    @default("NF-e")     // NF-e | NFC-e | NFS-e
+  chave         String?                          // chave de acesso (NF-e)
+  chaveRegistro String    @unique                // NFE|chave · NFSE|cnpj prestador|numero · ARQ|hash
+  numero        String
+  serie         String?
+  emissao       DateTime? @db.Date
+  competencia   String                           // AAAA-MM da emissão
+  parceiro      String                           // fornecedor (entrada) ou cliente (saída)
+  documento     String?                          // CNPJ/CPF do parceiro (só dígitos)
+  natureza      String?
+  valor         Decimal   @db.Decimal(14, 2)
+  acao          String    @default("LANCADA")    // LANCADA (gerou/ligou contas) | REGISTRADA (só registro)
+  motivo        String?                          // por que só registrou (remessa, devolução…)
+  xml           String?
+  xmlNome       String?
+  hashXml       String?
+  temXml        Boolean   @default(false)
+  pdf           String?                          // base64
+  pdfNome       String?
+  hashPdf       String?
+  temPdf        Boolean   @default(false)
+  parcelas      Json?                            // [{ parcela, vencimento, valor, tituloId, situacao: CRIADA|LIGADA|JA_LANCADA }]
+  criadoPorId   Int?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tipo, competencia])
+  @@index([chave])
+}
+
+// v158 — ADM › Demandas: tarefas administrativas criadas pelo financeiro para a auxiliar administrativa
+model AdmDemanda {
+  id               Int       @id @default(autoincrement())
+  titulo           String
+  descricao        String?
+  responsavelId    Int?                         // usuário que vai cumprir (vazio = todo o setor ADMINISTRATIVO)
+  responsavelNome  String?
+  prazo            DateTime? @db.Date
+  prioridade       String    @default("NORMAL") // NORMAL | URGENTE
+  status           String    @default("A_FAZER") // A_FAZER | FAZENDO | CONCLUIDA
+  retorno          String?                       // o que foi feito (obrigatório ao concluir)
+  concluidaEm      DateTime?
+  concluidaPorNome String?
+  criadoPorId      Int?
+  criadoPorNome    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+}

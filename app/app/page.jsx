@@ -13,6 +13,8 @@ import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
 import NfHistorico from "./nfHistorico";
+import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
+import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 
@@ -66,6 +68,10 @@ const MENU = [
   { key: "gestao", label: "Gestão", icon: Compass, perfis: TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
+  { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
+    { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
+    { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
+  ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário, ordens de compra e NF de entrada", filhos: [
@@ -77,6 +83,9 @@ const MENU = [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Tecidos, malhas, aviamentos e outros" },
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
     ] },
+  ] },
+  { key: "logistica", label: "Logística", icon: Truck, desc: "Rotas de entrega e coleta", filhos: [
+    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO"], desc: "Demandas de rota (em construção)" },
   ] },
   { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, dados financeiros e uploads", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
@@ -91,7 +100,7 @@ const MENU = [
 ];
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
-  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -204,6 +213,9 @@ export default function Home() {
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "gestao" && perfil !== "RH" && <Gestao user={user} master={master} money={money} />}
           {view === "rh" && ["FINANCEIRO", "RH"].includes(perfil) && <Rh user={user} />}
+          {view === "movfiscal" && master && <MovimentoFiscal user={user} />}
+          {view === "demandas" && ["FINANCEIRO", "ADMINISTRATIVO"].includes(perfil) && <DemandasAdm user={user} master={master} />}
+          {view === "rota" && <Rota />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
           {view === "financeiro" && master && <Financeiro user={user} />}

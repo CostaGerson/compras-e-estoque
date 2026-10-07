@@ -13,7 +13,7 @@ import { listarUploads, bufDe } from "@/lib/uploads";
 export const DIR = process.env.BACKUP_DIR || "/app/backup";
 export const ARQ = path.join(DIR, "meridian-backup.zip");
 const META = path.join(DIR, "meridian-backup.json");
-const GRANDES = new Set(["conteudo", "arquivoPdf", "arquivoXml", "arquivoOrigem", "arquivoPcPdf", "arquivoLancPdf", "arquivoPedidoPdf", "fotoBase64", "foto"]);
+const GRANDES = new Set(["conteudo", "arquivoPdf", "arquivoXml", "arquivoOrigem", "arquivoPcPdf", "arquivoLancPdf", "arquivoPedidoPdf", "fotoBase64", "foto", "xml", "pdf"]);   // xml/pdf: movimento fiscal (v158)
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
 const limpa = (s) => String(s || "").replace(/[\\/:*?"<>|\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 90);
 const enc = new TextEncoder();

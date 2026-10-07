@@ -24,6 +24,8 @@ export const ORIGENS = {
   TITXML: "Contas · XML da NF",
   PP: "Lançar PP",
   PV: "Pedido de venda",
+  FISCALXML: "Movimento fiscal · XML",
+  FISCALPDF: "Movimento fiscal · PDF",
 };
 const PP_CAMPOS = { arquivoPcPdf: "PEDIDO DE COMPRA DO CLIENTE", arquivoLancPdf: "SOLICITAÇÃO DE LANÇAMENTO", arquivoPedidoPdf: "PEDIDO" };
 
@@ -91,6 +93,13 @@ export async function listarUploads() {
   for (const p of await tenta(() => prisma.$queryRawUnsafe(`SELECT id, numero, cliente, "createdAt", length("arquivoOrigem") AS n FROM "Pv" WHERE "arquivoOrigem" IS NOT NULL AND "arquivoOrigem" <> ''`))) {
     out.push({ id: `PV-${p.id}`, origem: "PV", nomeSistema: up(`PV ${p.numero} · ${p.cliente}`), nomeOriginal: `PV ${p.numero}`, data: p.createdAt, tamanho: tam64(p.n) });
   }
+  // 9) ADM › Movimento fiscal (v158)
+  for (const n of await tenta(() => prisma.fiscalNota.findMany({ where: { OR: [{ temPdf: true }, { temXml: true }] },
+    select: { id: true, tipo: true, numero: true, parceiro: true, xmlNome: true, pdfNome: true, temXml: true, temPdf: true, criadoPorId: true, criadoPorNome: true, createdAt: true } }))) {
+    const base = `NF ${n.tipo === "SAIDA" ? "SAÍDA" : "ENTRADA"} ${n.numero} ${up(n.parceiro)}`;
+    if (n.temXml) out.push({ id: `FISCALXML-${n.id}`, origem: "FISCALXML", nomeSistema: `${base} · XML`, nomeOriginal: n.xmlNome || `NF ${n.numero}.xml`, data: n.createdAt, usuario: n.criadoPorNome, usuarioId: n.criadoPorId });
+    if (n.temPdf) out.push({ id: `FISCALPDF-${n.id}`, origem: "FISCALPDF", nomeSistema: `${base} · PDF`, nomeOriginal: n.pdfNome || `NF ${n.numero}.pdf`, data: n.createdAt, usuario: n.criadoPorNome, usuarioId: n.criadoPorId });
+  }
   return out.map((x) => ({ ...x, origemNome: ORIGENS[x.origem], data: new Date(x.data).toISOString() }))
     .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
 }
@@ -127,6 +136,11 @@ export async function conteudoUpload(id) {
   }
   if (origem === "TITXML") { const a = await prisma.finTitulo.findUnique({ where: { id: n }, select: { numeroDoc: true, arquivoXml: true } }); return a?.arquivoXml && { nome: `${a.numeroDoc || n}.xml`, buf: bufDe(a.arquivoXml) }; }
   if (origem === "PP" && PP_CAMPOS[campo]) { const a = await prisma.pp.findUnique({ where: { id: n }, select: { numero: true, [campo]: true } }); return a?.[campo] && { nome: `PP ${a.numero || n} ${PP_CAMPOS[campo]}.pdf`, buf: bufDe(a[campo]) }; }
+  if (origem === "FISCALXML" || origem === "FISCALPDF") {
+    const a = await prisma.fiscalNota.findUnique({ where: { id: n }, select: { numero: true, xml: true, xmlNome: true, pdf: true, pdfNome: true } });
+    if (origem === "FISCALXML") return a?.xml && { nome: a.xmlNome || `NF ${a.numero}.xml`, buf: Buffer.from(a.xml, "utf8") };
+    return a?.pdf && { nome: a.pdfNome || `NF ${a.numero}.pdf`, buf: Buffer.from(a.pdf, "base64") };
+  }
   if (origem === "PV") { const a = await prisma.pv.findUnique({ where: { id: n }, select: { numero: true, arquivoOrigem: true } }); return a?.arquivoOrigem && { nome: `PV ${a.numero}.pdf`, buf: bufDe(a.arquivoOrigem) }; }
   return null;
 }
@@ -162,6 +176,8 @@ export async function excluirUpload(id) {
   else if (origem === "TITXML") await prisma.finTitulo.update({ where: { id: n }, data: { arquivoXml: null } });
   else if (origem === "PP" && PP_CAMPOS[campo]) await prisma.pp.update({ where: { id: n }, data: { [campo]: null } });
   else if (origem === "PV") await prisma.pv.update({ where: { id: n }, data: { arquivoOrigem: null } });
+  else if (origem === "FISCALXML") await prisma.fiscalNota.update({ where: { id: n }, data: { xml: null, temXml: false } });
+  else if (origem === "FISCALPDF") await prisma.fiscalNota.update({ where: { id: n }, data: { pdf: null, temPdf: false } });
   else throw new Error("Origem desconhecida.");
   return true;
 }

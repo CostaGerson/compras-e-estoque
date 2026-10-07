@@ -2702,6 +2702,7 @@ export { BaixasModal };
 
 // usados também pela tela do RH
 export { Modal as ModalContas, Valor as ValorContas, C as CoresContas };
+export { Rateio };   // v158: usado no movimento fiscal (ADM)
 
 /* ============================================================
    ANALISAR COM IA — duplicidades e conta-caixa (v124)
