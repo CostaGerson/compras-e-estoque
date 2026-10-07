@@ -56,6 +56,24 @@ async function lerArquivos(files) {
   return out;
 }
 
+// v159 — parcelas: ao mudar o valor de uma, o que falta para o total da nota é dividido igualmente entre as
+// parcelas novas que ainda não foram digitadas à mão (centavos de arredondamento vão para a última).
+// Parcelas ligadas/já lançadas contam como valor fixo. Sem nenhuma livre, a última parcela nova absorve a diferença.
+export function redistribuir(parcelas, total, idx, valor) {
+  const r2 = (x) => Math.round(Number(x || 0) * 100) / 100;
+  const l = parcelas.map((p, k) => (k === idx ? { ...p, valor: r2(valor), editada: true } : { ...p }));
+  const novas = l.map((p, k) => k).filter((k) => l[k].situacao === "NOVA");
+  let livres = novas.filter((k) => k !== idx && !l[k].editada);
+  if (!livres.length) { const ult = [...novas].reverse().find((k) => k !== idx); livres = ult != null ? [ult] : []; }
+  if (!livres.length) return l;
+  const fixo = l.reduce((s, p, k) => s + (livres.includes(k) ? 0 : Number(p.valor || 0)), 0);
+  const resto = Math.max(0, Math.round((r2(total) - fixo) * 100));
+  const base = Math.floor(resto / livres.length);
+  livres.forEach((k, j) => { l[k].valor = (base + (j === livres.length - 1 ? resto - base * livres.length : 0)) / 100; });
+  return l;
+}
+const totalParcelas = (n) => n.totalParcelas ?? (Math.round(n.parcelas.reduce((s, p) => s + Number(p.valor || 0), 0) * 100) / 100 || Number(n.valor || 0));
+
 /* =================================================================== */
 /* MOVIMENTO FISCAL                                                     */
 /* =================================================================== */
@@ -215,11 +233,19 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
       setSt(`Conferindo ${arquivos.length} arquivo(s)…`);
       const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "analisar", arquivos });
       setErros(j.erros || []);
-      setNotas((j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR" })));
+      setNotas((j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n) })));
     } catch (e) { setErro(e.message); }
     setSt("");
   };
-  const altN = (i, k, v) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, [k]: v } : n)));
+  const altN = (i, k, v) => setNotas((l) => l.map((n, j) => {
+    if (j !== i) return n;
+    if (k !== "valor") return { ...n, [k]: v };
+    // valor da nota mudou (PDF): passa a ser o total e as parcelas não digitadas são refeitas
+    const livres = n.parcelas.map((p, q) => q).filter((q) => n.parcelas[q].situacao === "NOVA" && !n.parcelas[q].editada);
+    const parcelas = livres.length ? redistribuir(n.parcelas.map((p, q) => (q === livres[0] ? { ...p, editada: false } : p)), v, -1, 0) : n.parcelas;
+    return { ...n, valor: v, totalParcelas: v, parcelas };
+  }));
+  const altValor = (i, pi, v) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, parcelas: redistribuir(n.parcelas, totalParcelas(n), pi, v) } : n)));
   const altP = (i, pi, mud) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, parcelas: n.parcelas.map((p, q) => (q === pi ? { ...p, ...mud } : p)) } : n)));
 
   const resumo = useMemo(() => {
@@ -292,12 +318,15 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {erros.length > 0 && <div className="mb-3 p-2 rounded text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{erros.map((e, i) => <div key={i}>{e}</div>)}</div>}
       {notas && !notas.length && <div className="text-sm" style={{ color: C.sub }}>Nenhuma nota reconhecida.</div>}
-      {notas && notas.map((n, i) => <NotaConferencia key={i} n={n} i={i} contas={contas} altN={altN} altP={altP} />)}
+      {notas && notas.map((n, i) => <NotaConferencia key={i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} />)}
     </Modal>
   );
 }
 
-function NotaConferencia({ n, i, contas, altN, altP }) {
+function NotaConferencia({ n, i, contas, altN, altP, altValor }) {
+  const somaP = Math.round(n.parcelas.reduce((s, p) => s + Number(p.valor || 0), 0) * 100) / 100;
+  const totP = totalParcelas(n);
+  const difP = Math.round((somaP - totP) * 100) / 100;
   const T = TIPO[n.tipo] || TIPO.ENTRADA;
   const pdf = n.fonte === "PDF";
   const ign = n.decisao === "IGNORAR";
@@ -358,7 +387,7 @@ function NotaConferencia({ n, i, contas, altN, altP }) {
                     <td className="px-2 py-1">{p.situacao === "NOVA"
                       ? <input type="date" value={p.vencimento || ""} onChange={(e) => altP(i, pi, { vencimento: e.target.value, semVencimento: false })} className="rounded px-2 py-1 text-xs" style={{ ...inpS, borderColor: p.semVencimento ? C.yellow : C.line }} />
                       : dBR(p.vencimento)}</td>
-                    <td className="px-2 py-1 text-right">{p.situacao === "NOVA" ? <Valor value={p.valor} onChange={(v) => altP(i, pi, { valor: v })} /> : moeda(p.valor)}</td>
+                    <td className="px-2 py-1 text-right">{p.situacao === "NOVA" ? <Valor value={p.valor} onChange={(v) => altValor(i, pi, v)} /> : moeda(p.valor)}</td>
                     <td className="px-2 py-1 text-[11px]">
                       {p.situacao === "NOVA" && <span style={{ color: p.semVencimento ? C.yellow : C.green }}>{p.semVencimento ? "nota sem vencimento — confira a data" : "conta nova"}</span>}
                       {p.situacao === "JA_LANCADA" && <span style={{ color: C.blue }}><Link2 size={11} className="inline" /> já lançada: {p.tituloDesc} — só anexa os arquivos</span>}
@@ -368,6 +397,11 @@ function NotaConferencia({ n, i, contas, altN, altP }) {
                   </tr>
                 ))}</tbody>
               </table>
+              {n.parcelas.length > 1 && (
+                <div className="text-[11px] text-right mt-1" style={{ color: Math.abs(difP) > 0.009 ? C.red : C.sub }}>
+                  Soma das parcelas {moeda(somaP)} de {moeda(totP)}{Math.abs(difP) > 0.009 ? ` · diferença ${moeda(difP)}` : " · confere"}
+                </div>
+              )}
             </>
           )}
           {n.decisao === "REGISTRAR" && <div className="text-xs" style={{ color: C.sub }}>A nota fica registrada no movimento fiscal (com os arquivos), sem gerar conta.</div>}
