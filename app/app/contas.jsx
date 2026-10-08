@@ -692,6 +692,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
   const [senhas, setSenhas] = useState({});      // nome → { senha, salvar }
   const [an, setAn] = useState({});              // análise mensal: nome → { ok, competencia }
   const [anMsg, setAnMsg] = useState(null);
+  const [baixaIds, setBaixaIds] = useState([]);   // v166: extratos (análise mensal) para procurar baixas de contas
   const tentarSenhas = async () => {
     setErro(""); setSt("Abrindo com as senhas…");
     try {
@@ -709,6 +710,8 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
     try {
       const itens = (r.analise || []).filter((x) => an[x.nome]?.ok).map((x) => ({ nome: x.nome, tipoId: x.tipo.id, competencia: an[x.nome].competencia, senha: x.senha }));
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analise", itens, arquivos: arqs.filter((a) => itens.some((i) => i.nome === a.nome)) });
+      const ids = j.resultados.map((x) => x.id || x.arquivoId).filter(Boolean);
+      if (ids.length) setBaixaIds((v) => [...new Set([...v, ...ids])]);
       setAnMsg(j.resultados.map((x) => (x.erro ? `${x.nome}: ${x.erro}` : `${x.tipo.banco} · ${x.tipo.documento} → análise de ${nomeMes(itens.find((i) => i.nome === x.nome).competencia)}${x.leitura?.n ? ` (${x.leitura.n} lançamento(s) lido(s))` : ""}`)));
       setR((y) => ({ ...y, analise: [] }));
     } catch (e) { setErro(e.message); }
@@ -719,6 +722,8 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
       setArqs(lista); setR(j);
       setAn(Object.fromEntries((j.analise || []).map((x) => [x.nome, { ok: !x.jaEnviado, competencia: x.competencia }])));
+      const ja = (j.analise || []).map((x) => x.arquivoId).filter(Boolean);
+      if (ja.length) setBaixaIds((v) => [...new Set([...v, ...ja])]);
       setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
         valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
       return j;
@@ -827,6 +832,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
             </div>
           )}
           {anMsg && <div className="text-xs p-2.5 rounded-lg" style={{ background: C.greenSoft, color: C.green }}>{anMsg.map((m, i) => <div key={i}>{m}</div>)}</div>}
+          {baixaIds.length > 0 && <BaixasExtratoLista key={baixaIds.join(",")} user={user} ids={baixaIds} />}
           {r.comprovantes?.length > 0 && <ComprovantesBaixa user={user} lista={r.comprovantes} arqs={arqs}
             onFeito={(msg) => (r.itens.length ? setR((x) => ({ ...x, comprovantes: [], msgComp: msg })) : onSalvo(msg))} />}
           {r.msgComp && <div className="text-xs p-2.5 rounded-lg font-semibold" style={{ background: C.greenSoft, color: C.green }}>{r.msgComp}</div>}
@@ -2596,6 +2602,79 @@ const origemSimples = (chave) => {
 /* ============================================================
    BAIXAS PELO EXTRATO — uma sugestão por vez, você autoriza
    ============================================================ */
+// v166 — baixas pelo extrato dentro do Importar documento: lista o que bateu (valor + nome do credor/pagador),
+// já marca o que tem boa confiança e baixa as marcadas depois da sua aprovação.
+function BaixasExtratoLista({ user, ids }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [marc, setMarc] = useState({});
+  const [st, setSt] = useState("");
+  const [feitas, setFeitas] = useState({});
+  useEffect(() => {
+    api(`/api/fin/baixas?u=${user.id}&arquivoId=${ids.join(",")}`).then((j) => {
+      setD(j); setMarc(Object.fromEntries(j.sugestoes.map((x) => [x.lancamento.id, x.confianca !== "BAIXA"])));
+    }).catch((e) => setErro(e.message));
+  }, []);
+  const lista = d?.sugestoes || [];
+  const sel = lista.filter((x) => marc[x.lancamento.id] && !feitas[x.lancamento.id]);
+  const baixar = async () => {
+    setErro("");
+    let n = 0;
+    for (const x of sel) {
+      setSt(`Baixando ${++n} de ${sel.length}…`);
+      try { await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: x.titulo.id, lancamentoId: x.lancamento.id }); setFeitas((f) => ({ ...f, [x.lancamento.id]: "ok" })); }
+      catch (e) { setFeitas((f) => ({ ...f, [x.lancamento.id]: e.message })); }
+    }
+    setSt("");
+  };
+  const CONF = { ALTA: [C.green, C.greenSoft], MEDIA: [C.yellow, C.yellowSoft], BAIXA: [C.red, C.redSoft] };
+  const qtdOk = Object.values(feitas).filter((v) => v === "ok").length;
+  return (
+    <div className="rounded-xl p-3" style={{ border: `1px solid ${C.green}55`, background: "#fff" }}>
+      <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Baixas pelo extrato</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Pagamentos e recebimentos do extrato que batem com contas em aberto (a pagar e a receber) pelo valor e pelo nome do credor/pagador. Confira e baixe as marcadas.</div>
+      {erro && <div className="mb-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div className="text-xs" style={{ color: C.sub }}><Loader2 size={13} className="inline animate-spin mr-1" /> Procurando no extrato…</div>}
+      {d && !lista.length && <div className="text-xs" style={{ color: C.sub }}>Nenhum lançamento do extrato bateu com conta em aberto ({d.lancamentos} lançamento(s) × {d.titulos} conta(s)).</div>}
+      {lista.length > 0 && (
+        <table className="w-full text-xs">
+          <thead><tr style={{ color: C.sub }}><th /><th className="text-left px-2 py-1">No extrato</th><th className="text-right px-2 py-1">Valor</th><th className="text-left px-2 py-1">Conta em aberto</th><th className="text-right px-2 py-1">Valor</th><th className="text-left px-2 py-1">Por quê</th></tr></thead>
+          <tbody>{lista.map((x) => {
+            const f = feitas[x.lancamento.id];
+            const [c, bg] = CONF[x.confianca];
+            return (
+              <tr key={x.lancamento.id} style={{ borderTop: `1px solid ${C.line}`, opacity: f === "ok" ? 0.55 : 1 }}>
+                <td className="px-2 py-1.5 align-top">{f === "ok" ? <CheckCircle2 size={14} style={{ color: C.green }} /> : <input type="checkbox" checked={!!marc[x.lancamento.id]} onChange={(e) => setMarc((m) => ({ ...m, [x.lancamento.id]: e.target.checked }))} />}</td>
+                <td className="px-2 py-1.5 align-top">
+                  <div>{dBR(String(x.lancamento.data).slice(0, 10))} · {x.lancamento.historico}</div>
+                  {x.lancamento.identificacao && <div className="text-[10px]" style={{ color: C.sub }}>{x.lancamento.identificacao}</div>}
+                </td>
+                <td className="px-2 py-1.5 align-top text-right whitespace-nowrap" style={{ color: x.lancamento.valor < 0 ? C.red : C.green }}>{moeda(x.lancamento.valor)}</td>
+                <td className="px-2 py-1.5 align-top">
+                  <div><span className="px-1 rounded text-[9px] font-bold mr-1" style={{ background: x.titulo.tipo === "PAGAR" ? C.redSoft : C.greenSoft, color: x.titulo.tipo === "PAGAR" ? C.red : C.green }}>{x.titulo.tipo === "PAGAR" ? "PAGAR" : "RECEBER"}</span>{x.titulo.titulo}</div>
+                  <div className="text-[10px]" style={{ color: C.sub }}>{x.titulo.parceiro} · vence {dBR(String(x.titulo.vencimento).slice(0, 10))}</div>
+                </td>
+                <td className="px-2 py-1.5 align-top text-right whitespace-nowrap">{moeda(x.titulo.valor)}</td>
+                <td className="px-2 py-1.5 align-top text-[10px]">
+                  <span className="px-1 rounded font-bold mr-1" style={{ background: bg, color: c }}>{x.confianca}</span>
+                  <span style={{ color: C.sub }}>{x.motivo}{x.dias ? ` · ${Math.abs(x.dias)} dia(s) ${x.dias > 0 ? "depois" : "antes"} do vencimento` : " · no vencimento"}{x.alternativas ? ` · +${x.alternativas} conta(s) parecida(s)` : ""}</span>
+                  {f && f !== "ok" && <div style={{ color: C.red }}>{f}</div>}
+                </td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      )}
+      {lista.length > 0 && (
+        <div className="flex items-center justify-end gap-3 mt-2">
+          {qtdOk > 0 && <span className="text-xs font-semibold" style={{ color: C.green }}>{qtdOk} conta(s) baixada(s)</span>}
+          <BtnP onClick={baixar} disabled={!sel.length || !!st}>{st && <Loader2 size={14} className="animate-spin" />} {st || `Baixar ${sel.length} selecionada(s)`}</BtnP>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BaixasModal({ user, competencia, arquivoId, onClose }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
@@ -2629,7 +2708,7 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
       {d && !d.sugestoes.length && (
         <div className="text-sm text-center py-8" style={{ color: C.sub }}>
           Nenhum lançamento do extrato bateu com as contas previstas.<br />
-          <span className="text-xs">Foram comparados {d.lancamentos} lançamento(s) com {d.titulos} conta(s) em aberto, aceitando até 12 dias de diferença na data.</span>
+          <span className="text-xs">Foram comparados {d.lancamentos} lançamento(s) com {d.titulos} conta(s) em aberto, aceitando até 12 dias de diferença na data (60 dias e juros de até 15% quando o nome do credor/pagador bate).</span>
         </div>
       )}
 

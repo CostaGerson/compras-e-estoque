@@ -6,6 +6,9 @@ const r2 = (v) => Math.round(Number(v || 0) * 100) / 100;
 const MS_DIA = 86400000;
 export const JANELA_DIAS = 12;     // quanto o pagamento pode se afastar do vencimento
 export const TOLERANCIA = 0.02;    // centavos de diferença aceitos sem ressalva
+// v166: com o nome do credor/pagador batendo, aceita conta vencida há mais tempo e pagamento com juros/multa
+export const JANELA_NOME = 60;     // dias, quando o nome bate
+export const JUROS_MAX = 0.15;     // até 15% acima da conta, quando o nome bate
 
 const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const palavras = (t) => semAcento(t).replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter((p) => p.length >= 4);
@@ -22,7 +25,8 @@ function parecenca(lanc, titulo) {
 // Sugestões para uma competência (ou para os lançamentos de um arquivo recém-enviado).
 export async function sugestoes({ competencia, arquivoId } = {}) {
   const where = { desmembrado: false, substituido: false };
-  if (arquivoId) where.arquivoId = Number(arquivoId);
+  const ids = String(arquivoId || "").split(",").map(Number).filter(Boolean);
+  if (ids.length) where.arquivoId = { in: ids };
   else if (competencia) where.competencia = competencia;
 
   const lancamentos = await prisma.finLancamento.findMany({
@@ -33,7 +37,7 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
 
   // títulos ainda em aberto, no intervalo de datas dos lançamentos ± janela
   const datas = lancamentos.map((l) => new Date(l.data).getTime());
-  const de = new Date(Math.min(...datas) - JANELA_DIAS * MS_DIA);
+  const de = new Date(Math.min(...datas) - JANELA_NOME * MS_DIA);
   const ate = new Date(Math.max(...datas) + JANELA_DIAS * MS_DIA);
   const titulos = await prisma.finTitulo.findMany({
     where: { status: "ABERTO", vencimento: { gte: de, lte: ate } },
@@ -58,17 +62,22 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
       .map((t) => {
         const dif = r2(Math.abs(Number(t.valor) - valor));
         const dias = Math.round((dataL - new Date(t.vencimento)) / MS_DIA);
-        return { t, dif, dias, sim: parecenca(l, t) };
+        const sim = parecenca(l, t);
+        const exato = dif <= Math.max(TOLERANCIA, Number(t.valor) * 0.005);
+        const nome = sim >= 0.5;
+        const juros = nome && valor > Number(t.valor) && valor <= r2(Number(t.valor) * (1 + JUROS_MAX));
+        return { t, dif, dias, sim, exato, nome, juros };
       })
-      .filter((c) => c.dif <= Math.max(TOLERANCIA, Number(c.t.valor) * 0.005) && Math.abs(c.dias) <= JANELA_DIAS)
-      .sort((a, b) => (a.dif - b.dif) || (Math.abs(a.dias) - Math.abs(b.dias)) || (b.sim - a.sim));
+      .filter((c) => (c.exato && Math.abs(c.dias) <= JANELA_DIAS) || (c.nome && (c.exato || c.juros) && c.dias >= -JANELA_DIAS && c.dias <= JANELA_NOME))
+      .sort((a, b) => (b.exato - a.exato) || (b.nome - a.nome) || (a.dif - b.dif) || (Math.abs(a.dias) - Math.abs(b.dias)) || (b.sim - a.sim));
 
     if (!candidatos.length) continue;
     const c = candidatos[0];
     titulosUsados.add(c.t.id);
     const exato = c.dif <= TOLERANCIA;
-    const confianca = exato && Math.abs(c.dias) <= 3 && c.sim >= 0.4 ? "ALTA"
-      : exato && Math.abs(c.dias) <= 7 ? "MEDIA" : "BAIXA";
+    const confianca = exato && c.nome && Math.abs(c.dias) <= JANELA_DIAS ? "ALTA"
+      : exato && Math.abs(c.dias) <= 3 && c.sim >= 0.4 ? "ALTA"
+      : (exato && Math.abs(c.dias) <= 7) || (c.nome && c.exato) || c.juros ? "MEDIA" : "BAIXA";
     out.push({
       lancamento: { id: l.id, data: l.data, historico: l.historico, identificacao: l.identificacao, valor: Number(l.valor), banco: l.banco },
       titulo: { id: c.t.id, tipo: c.t.tipo, titulo: c.t.titulo, parceiro: c.t.parceiro, valor: Number(c.t.valor), vencimento: c.t.vencimento, formaPagamento: c.t.formaPagamento, numeroDoc: c.t.numeroDoc },
@@ -76,6 +85,8 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
       dias: c.dias,
       semelhanca: r2(c.sim),
       confianca,
+      motivo: [c.exato ? "mesmo valor" : c.juros ? `pago ${(r2(valor - Number(c.t.valor))).toFixed(2).replace(".", ",")} a mais (juros/multa?)` : null,
+        c.nome ? (saida ? "nome do credor no extrato" : "nome do pagador no extrato") : null].filter(Boolean).join(" · "),
       alternativas: candidatos.length - 1,
     });
   }

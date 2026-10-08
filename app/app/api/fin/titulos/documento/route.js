@@ -40,9 +40,9 @@ export async function POST(req) {
         if (d.tipo === "DESCONHECIDO" && master && ab.ok) {
           const t = await identificarDocAnalise(buf, ab.texto);
           if (t) {
-            const dup = await prisma.finArquivo.findUnique({ where: { hash: hashBuf(buf) }, select: { competencia: true } });
+            const dup = await prisma.finArquivo.findUnique({ where: { hash: hashBuf(buf) }, select: { id: true, competencia: true } });
             analise.push({ nome: a.nome, tipo: t, competencia: await sugerirCompetencia(t.codigo, buf, senha, ab.texto), senha: senha || null,
-              jaEnviado: dup ? dup.competencia : null });
+              jaEnviado: dup ? dup.competencia : null, arquivoId: dup ? dup.id : null });
             continue;
           }
         }

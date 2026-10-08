@@ -49,7 +49,7 @@ export async function importarArquivoAnalise({ u, competencia, tipoId, nome, con
   const buf = Buffer.from(String(conteudo), "base64");
   const hash = hashBuf(buf);
   const dup = await prisma.finArquivo.findUnique({ where: { hash }, include: { tipo: true } });
-  if (dup) return { erro: `Este arquivo já foi enviado em ${dup.competencia.split("-").reverse().join("/")} (${dup.tipo.banco} · ${dup.tipo.documento}).`, duplicado: true };
+  if (dup) return { erro: `Este arquivo já foi enviado em ${dup.competencia.split("-").reverse().join("/")} (${dup.tipo.banco} · ${dup.tipo.documento}).`, duplicado: true, arquivoId: dup.id };
   const tipo = await prisma.finDocTipo.findUnique({ where: { id: Number(tipoId) } });
   if (!tipo) return { erro: "Documento não encontrado." };
   const a = await prisma.finArquivo.create({
