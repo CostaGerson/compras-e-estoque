@@ -480,3 +480,28 @@ export async function excluirRegistro(id, quem) {
   await prisma.fiscalNota.delete({ where: { id: n.id } });
   return { ok: true, contas: ts.length };
 }
+
+/* ---------------- 4) registro geral (Dados › Notas fiscais) ---------------- */
+// v164 — todas as NFs: as do movimento fiscal + as de entrada lançadas antes pelo Compras (NotaFiscal) que não
+// estão no movimento fiscal (mesma chave de acesso = mesma nota, vale a do movimento fiscal).
+export async function registro({ de, ate }) {
+  const fiscal = (await listar({ de, ate })).map((n) => ({ ...n, origem: "MOVIMENTO FISCAL" }));
+  const chaves = new Set(fiscal.map((n) => n.chave).filter(Boolean));
+  const where = {};
+  if (de || ate) where.dataEmissao = { ...(de ? { gte: dataUTC(de) } : {}), ...(ate ? { lte: new Date(dataUTC(ate).getTime() + 86399999) } : {}) };
+  const antigas = await prisma.notaFiscal.findMany({
+    where, orderBy: { dataEmissao: "desc" }, take: 5000,
+    select: { id: true, numero: true, chave: true, dataEmissao: true, valorTotal: true, temPdf: true, temXml: true, modelo: true, historico: true, status: true, finIgnorada: true,
+      fornecedor: { select: { nome: true, razaoSocial: true, cnpjs: { select: { cnpj: true }, take: 1 } } },
+      titulos: { select: { id: true, status: true, vencimento: true, valor: true } } },
+  }).catch(() => []);
+  const compras = antigas.filter((n) => !n.chave || !chaves.has(n.chave)).map((n) => ({
+    id: `C${n.id}`, idCompras: n.id, origem: n.historico ? "HISTÓRICO COMPRAS" : "COMPRAS", tipo: "ENTRADA", empresa: "MERIDIAN",
+    modelo: n.modelo === "NFSE" ? "NFS-e" : "NF-e", chave: n.chave, numero: String(n.numero || "").replace(/^0+(?=\d)/, ""), serie: null,
+    emissao: n.dataEmissao ? new Date(n.dataEmissao).toISOString().slice(0, 10) : null,
+    parceiro: n.fornecedor?.razaoSocial || n.fornecedor?.nome || "SEM NOME", documento: n.fornecedor?.cnpjs?.[0]?.cnpj?.replace(/\D/g, "") || null,
+    natureza: null, valor: Number(n.valorTotal || 0), acao: n.finIgnorada ? "REGISTRADA" : "LANCADA", temXml: n.temXml, temPdf: n.temPdf,
+    parcelas: n.titulos.map((t, k) => ({ parcela: k + 1, tituloId: t.id, status: t.status, vencimento: new Date(t.vencimento).toISOString().slice(0, 10), valor: Number(t.valor) })),
+  }));
+  return [...fiscal, ...compras].sort((a, b) => String(b.emissao || "").localeCompare(String(a.emissao || "")));
+}

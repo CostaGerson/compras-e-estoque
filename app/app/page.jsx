@@ -12,8 +12,8 @@ import Gestao from "./gestao";
 import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
-import NfHistorico from "./nfHistorico";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
+import NfRegistro from "./nfRegistro";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
@@ -74,10 +74,9 @@ const MENU = [
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
-    { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário, ordens de compra e NF de entrada", filhos: [
+    { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário e ordens de compra", filhos: [
       { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido interno de compras consolidado do dia" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
-      { key: "nf", label: "NF de entrada", icon: FileText, perfis: ["FINANCEIRO", "COMPRAS"], desc: "Importação de XML/PDF e estratificação" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -87,12 +86,13 @@ const MENU = [
   { key: "logistica", label: "Logística", icon: Truck, desc: "Rotas de entrega e coleta", filhos: [
     { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO"], desc: "Demandas de rota (em construção)" },
   ] },
-  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, dados financeiros e uploads", filhos: [
+  { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, notas fiscais, dados financeiros e uploads", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP"], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP"], desc: "Facções e serviços: PIX, endereço e capacidade" },
+    { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
     { key: "uploads", label: "Uploads", icon: FolderUp, perfis: ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE", "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
   ] },
@@ -100,7 +100,7 @@ const MENU = [
 ];
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
-  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -223,12 +223,12 @@ export default function Home() {
           {view === "pp" && <LancarPP />}
           {view === "pic" && <PIC />}
           {view === "oc" && <OC money={money} />}
-          {view === "nf" && <NF master={master} money={money} perfil={perfil} />}
           {view === "estoque" && <Estoque money={money} master={master} />}
           {view === "fme" && <FME user={user} perfil={perfil} />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
+          {view === "notasfiscais" && master && <NfRegistro user={user} />}
           {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && <Usuarios master={master} />}
@@ -1311,213 +1311,6 @@ function OC({ money }) {
         <div className="flex justify-between mb-2"><span className="font-semibold">OC 4472 · Têxtil MG</span><span className="font-semibold" style={{ color: C.accent }}>{money(2220)}</span></div>
         <div className="text-xs" style={{ color: C.sub }}>Oxford Azul Marinho · 120 m · fat. à vista · fábrica 06/08 · entrega 09/08</div>
       </div>
-    </div>
-  );
-}
-function NF({ master, money, perfil }) {
-  const [nfs, setNfs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [enviando, setEnviando] = useState(false);
-  const [msg, setMsg] = useState(null); // {tipo:'ok'|'erro', texto}
-  const [arrastando, setArrastando] = useState(false);
-  const [fornecedores, setFornecedores] = useState([]);
-  const [busca, setBusca] = useState("");
-  const [filtroForn, setFiltroForn] = useState("");
-  const [dataDe, setDataDe] = useState("");
-  const [dataAte, setDataAte] = useState("");
-
-  const carregar = async () => {
-    setLoading(true);
-    try {
-      const [r, f] = await Promise.all([
-        fetch("/api/nf").then((x) => x.json()),
-        fetch("/api/fornecedores").then((x) => x.json()),
-      ]);
-      setNfs(Array.isArray(r) ? r : []);
-      setFornecedores(Array.isArray(f) ? f : []);
-    } catch {}
-    setLoading(false);
-  };
-  useEffect(() => { carregar(); }, []);
-
-  const excluir = async (n) => {
-    if (!confirm(`Excluir a NF ${n.numero}? Os itens da nota serão removidos; os artigos cadastrados permanecem.`)) return;
-    await fetch(`/api/nf/${n.id}`, { method: "DELETE" });
-    carregar();
-  };
-
-  const readText = (file) => new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onerror = () => rej(new Error("Falha ao ler o arquivo"));
-    fr.onload = () => res(fr.result);
-    fr.readAsText(file);
-  });
-  const readBase64 = (file) => new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onerror = () => rej(new Error("Falha ao ler o arquivo"));
-    fr.onload = () => res(String(fr.result).split(",")[1]);
-    fr.readAsDataURL(file);
-  });
-
-  const enviar = async (files) => {
-    const arr = Array.from(files || []).filter(Boolean);
-    if (!arr.length) return;
-    const xmls = arr.filter((f) => /\.xml$/i.test(f.name));
-    if (xmls.length > 1) return enviarVarios(xmls);
-    setMsg(null); setEnviando(true);
-    try {
-      const xml = arr.find((f) => /\.xml$/i.test(f.name));
-      const pdf = arr.find((f) => /\.pdf$/i.test(f.name));
-      let payload;
-      if (xml) {
-        payload = { tipo: "xml", conteudo: await readText(xml), pdfBase64: pdf ? await readBase64(pdf) : null, perfil, usuarioId: sessaoId() };
-      } else if (pdf) {
-        payload = { tipo: "pdf", conteudo: await readBase64(pdf), perfil, usuarioId: sessaoId() };
-      } else {
-        setMsg({ tipo: "erro", texto: "Selecione um arquivo .xml e/ou .pdf." }); setEnviando(false); return;
-      }
-      const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await r.json();
-      if (!r.ok) {
-        setMsg({ tipo: "erro", texto: data.error || "Não foi possível importar." });
-      } else {
-        const base = data.jaExistia ? `NF ${data.numero} (já existente) atualizada` : `NF ${data.numero} importada (${data.origem})`;
-        const det = [];
-        if (data.itensCriados) det.push(`${data.itensCriados} item(ns)`);
-        if (data.artigosCriados) det.push(`${data.artigosCriados} artigo(s) novo(s)`);
-        if (data.artigosVinculados) det.push(`${data.artigosVinculados} vinculado(s)`);
-        if (data.artigosReativados) det.push(`${data.artigosReativados} reativado(s)`);
-        if (data.temPdf) det.push("PDF anexado");
-        if (data.contas?.criadas) det.push(`${data.contas.criadas} conta(s) a pagar lançada(s) (${money(data.contas.valorAberto)})`);
-        if (data.contas?.vinculadas) det.push(`${data.contas.vinculadas} conta(s) já existente(s) ligada(s) à NF`);
-        setMsg({ tipo: "ok", texto: base + (det.length ? " · " + det.join(" · ") : "") + "." });
-        carregar();
-      }
-    } catch (e) {
-      setMsg({ tipo: "erro", texto: e.message });
-    }
-    setEnviando(false);
-  };
-
-  // vários XMLs (fluxo normal: estoque + contas a pagar), um por vez
-  const enviarVarios = async (xmls) => {
-    setMsg(null); setEnviando(true);
-    let ok = 0, contas = 0; const erros = [];
-    for (const f of xmls) {
-      try {
-        const r = await fetch("/api/nf/import", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipo: "xml", conteudo: await readText(f), pdfBase64: null, perfil, usuarioId: sessaoId() }) });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) erros.push(`${f.name}: ${d.error || "erro"}`); else { ok++; contas += d.contas?.criadas || 0; }
-      } catch (e) { erros.push(`${f.name}: ${e.message}`); }
-    }
-    setMsg({ tipo: erros.length && !ok ? "erro" : "ok", texto: `${ok} NF(s) importada(s) · ${contas} conta(s) a pagar lançada(s)${erros.length ? ` · ${erros.length} com problema: ${erros.slice(0, 5).join(" | ")}` : ""}.` });
-    setEnviando(false); carregar();
-  };
-
-  const normNf = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const tokensNf = normNf(busca).trim().split(/\s+/).filter(Boolean);
-  const nfsFiltradas = nfs.filter((n) => {
-    if (filtroForn && String(n.fornecedor?.id) !== String(filtroForn)) return false;
-    if (dataDe && (!n.dataEmissao || new Date(n.dataEmissao) < new Date(dataDe))) return false;
-    if (dataAte && (!n.dataEmissao || new Date(n.dataEmissao) > new Date(dataAte + "T23:59:59"))) return false;
-    if (tokensNf.length) {
-      const hay = normNf([n.numero, n.fornecedor?.nome, n.valorTotal, n.status].filter((v) => v != null).join(" "));
-      if (!tokensNf.every((t) => hay.includes(t))) return false;
-    }
-    return true;
-  });
-
-  return (
-    <div className="max-w-4xl">
-      <div
-        onDragOver={(e) => { e.preventDefault(); if (!enviando) setArrastando(true); }}
-        onDragLeave={(e) => { e.preventDefault(); setArrastando(false); }}
-        onDrop={(e) => {
-          e.preventDefault(); setArrastando(false);
-          if (!enviando) enviar(e.dataTransfer.files);
-        }}
-        className="rounded-lg p-5 mb-5 transition-colors"
-        style={{ background: arrastando ? C.accentSoft : C.panel, border: `2px dashed ${arrastando ? C.accent : C.accent + "88"}` }}>
-        <div className="font-semibold mb-1">Importar Nota Fiscal</div>
-        <p className="text-xs mb-4" style={{ color: C.sub }}>
-          {arrastando ? "Solte os arquivos aqui…" : "Arraste o XML (e opcionalmente o PDF junto) para esta área, ou clique no botão — pode mandar vários XMLs de uma vez. A nota entra no estoque e as duplicatas viram contas a pagar em aberto. "}
-          Aceita apenas notas de <b>venda</b> (remessa, industrialização, devolução, etc. são recusadas). Notas repetidas são bloqueadas pela chave. XML é a fonte confiável; anexe o PDF junto para poder baixá-lo depois.
-        </p>
-        <label className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold cursor-pointer"
-          style={{ background: enviando ? C.panel2 : C.accent, color: enviando ? C.sub : "#fff" }}>
-          {enviando ? "Importando…" : "Selecionar XML (e PDF)"}
-          <input type="file" accept=".xml,.pdf" multiple disabled={enviando} style={{ display: "none" }}
-            onChange={(e) => enviar(e.target.files)} />
-        </label>
-        {msg && (
-          <div className="mt-4 rounded p-3 text-sm" style={{
-            background: msg.tipo === "ok" ? C.greenSoft : "#FBE9E9",
-            color: msg.tipo === "ok" ? C.green : "#B42318",
-            border: `1px solid ${msg.tipo === "ok" ? C.green + "55" : "#F0A9A9"}`,
-          }}>{msg.texto}</div>
-        )}
-      </div>
-
-      <NfHistorico usuarioId={sessaoId()} onFim={carregar} />
-
-      <div className="flex flex-wrap items-end gap-2 mb-3">
-        <div style={{ flex: "1 1 220px" }}>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nº da NF, fornecedor…"
-            className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
-        <div style={{ flex: "0 1 200px" }}>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
-          <select value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
-            <option value="">Todos</option>
-            {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
-          </select>
-        </div>
-        <div>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Emissão de</div>
-          <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
-        <div>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>até</div>
-          <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
-        {(busca || filtroForn || dataDe || dataAte) && <button onClick={() => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); }} className="px-3 py-1.5 rounded text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Limpar</button>}
-      </div>
-
-      <div className="text-xs mb-2" style={{ color: C.sub }}>Notas importadas</div>
-      {loading ? <div style={{ color: C.sub }}>Carregando…</div> : (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-          <div style={{ minWidth: 900 }}>
-          <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-            <div className="w-24">NF</div>
-            <div className="flex-1">Fornecedor</div>
-            <div className="w-28">Emissão</div>
-            <div className="w-32">Valor total</div>
-            <div className="w-16 text-center">Itens</div>
-            <div className="w-28 text-center">Download</div>
-            <div className="w-20 text-right">Ação</div>
-          </div>
-          {nfsFiltradas.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma NF encontrada.</div>}
-          {nfsFiltradas.map((n) => (
-            <div key={n.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="w-24 font-mono">{n.numero}</div>
-              <div className="flex-1">{n.fornecedor?.nome || n.fornecedor?.razaoSocial || "—"}{n.historico && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold" title="Importada do histórico: sem itens e sem estoque" style={{ background: C.panel2, color: C.sub }}>HISTÓRICO</span>}</div>
-              <div className="w-28" style={{ color: C.sub }}>{fmtData(n.dataEmissao)}</div>
-              <div className="w-32" style={{ color: C.accent }}>{n.valorTotal != null ? money(Number(n.valorTotal)) : "—"}</div>
-              <div className="w-16 text-center" style={{ color: C.sub }}>{n._count?.itens ?? 0}</div>
-              <div className="w-28 text-center flex items-center justify-center gap-2">
-                {n.temPdf ? <a href={`/api/nf/${n.id}/pdf`} title="Baixar PDF" style={{ color: "#D64545", fontWeight: 700, textDecoration: "none" }}>PDF</a> : <span style={{ color: C.line }}>PDF</span>}
-                {n.temXml ? <a href={`/api/nf/${n.id}/xml`} title="Baixar XML" style={{ color: C.blue, fontWeight: 700, textDecoration: "none" }}>XML</a> : <span style={{ color: C.line }}>XML</span>}
-              </div>
-              <div className="w-20 text-right">
-                <button onClick={() => excluir(n)} title="Excluir NF" className="px-2 py-1 rounded text-xs" style={{ color: "#B42318", border: `1px solid ${C.line}` }}>Excluir</button>
-              </div>
-            </div>
-          ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
