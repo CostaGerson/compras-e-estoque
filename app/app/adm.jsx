@@ -215,30 +215,62 @@ export default function MovimentoFiscal({ user }) {
 
 const DECISOES = [["LANCAR", "Lançar contas"], ["REGISTRAR", "Só registrar"], ["IGNORAR", "Ignorar"]];
 
+// v162 — a importação fica aberta recebendo arquivos (arrastar várias vezes ou escolher), junta XML + PDF da mesma
+// nota e só confere quando o usuário pede. Na conferência dá para soltar mais arquivos (o que já foi mexido é mantido)
+// e gravar uma nota por vez ("Gravar esta") ou todas de uma vez.
+const chaveNota = (n) => n.chaveRegistro || n.chave || n.xmlNome || n.pdfNome || "";
+const tamArq = (a) => (a.xml != null ? a.xml.length : (a.b64 || "").length);
+export function juntarNotas(antigas, novas) {
+  const m = new Map((antigas || []).map((n) => [chaveNota(n), n]));
+  return novas.map((n) => {
+    const o = m.get(chaveNota(n));
+    if (!o) return n;
+    if (o.fonte === n.fonte) return o;                       // mesma nota, mesmos arquivos: mantém o que foi editado
+    const rateio = (o.rateio || []).some((r) => r.contaId) ? o.rateio : n.rateio;
+    return { ...n, aberta: o.aberta, rateio, titulo: o.titulo || n.titulo, decisao: n.existenteId ? n.decisao : o.decisao };
+  });
+}
+
 function ImportarNfs({ user, iniciais, onClose, onFim }) {
+  const [arqs, setArqs] = useState([]);       // arquivos já lidos, aguardando conferência
   const [notas, setNotas] = useState(null);
   const [erros, setErros] = useState([]);
   const [contas, setContas] = useState([]);
   const [st, setSt] = useState("");
   const [erro, setErro] = useState("");
+  const [feitas, setFeitas] = useState([]);   // notas gravadas uma a uma
   const [res, setRes] = useState(null);
   const leu = useRef(false);
 
   useEffect(() => { api(`/api/fin/contas?u=${user.id}`).then(setContas).catch(() => setContas([])); }, []);
-  useEffect(() => { if (iniciais?.length && !leu.current) { leu.current = true; ler(iniciais); } }, []);
+  useEffect(() => { if (iniciais?.length && !leu.current) { leu.current = true; adicionar(iniciais); } }, []);
 
-  const ler = async (files) => {
-    setErro(""); setSt("Lendo arquivos…");
+  const conferir = async (lista, antigas) => {
+    if (!lista.length) { setNotas(antigas ? [] : null); return; }
+    setErro(""); setSt(`Conferindo ${lista.length} arquivo(s)…`);
     try {
-      const arquivos = await lerArquivos(files);
-      if (!arquivos.length) throw new Error("Nenhum XML ou PDF encontrado (aceita .xml, .pdf e .zip).");
-      setSt(`Conferindo ${arquivos.length} arquivo(s)…`);
-      const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "analisar", arquivos });
+      const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista.map(({ tam, ...a }) => a) });
       setErros(j.erros || []);
-      setNotas((j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n) })));
+      const novas = (j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n) }));
+      setNotas(antigas ? juntarNotas(antigas, novas) : novas);
     } catch (e) { setErro(e.message); }
     setSt("");
   };
+  const adicionar = async (files) => {
+    setErro(""); setSt("Lendo arquivos…");
+    let lidos = [];
+    try { lidos = await lerArquivos(files); } catch (e) { setErro(e.message); }
+    setSt("");
+    if (!lidos.length) { setErro("Nenhum XML ou PDF encontrado (aceita .xml, .pdf e .zip)."); return; }
+    let lista = arqs;
+    const chaves = new Set(arqs.map((a) => `${a.nome}|${a.tam}`));
+    const novos = lidos.map((a) => ({ ...a, tam: tamArq(a) })).filter((a) => !chaves.has(`${a.nome}|${a.tam}`));
+    lista = [...arqs, ...novos];
+    setArqs(lista);
+    if (notas && novos.length) await conferir(lista, notas);   // já na conferência: confere de novo mantendo as edições
+  };
+  const tirar = (k) => setArqs((l) => l.filter((_, j) => j !== k));
+
   const altN = (i, k, v) => setNotas((l) => l.map((n, j) => {
     if (j !== i) return n;
     if (k !== "valor") return { ...n, [k]: v };
@@ -261,17 +293,34 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
     };
   }, [notas]);
 
+  const mandar = async (lote) => {
+    try { return (await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: lote })).resultados || []; }
+    catch (e) { return lote.map((n) => ({ numero: n.numero, situacao: "ERRO", motivo: e.message })); }
+  };
+  // tira da fila a nota gravada e os arquivos dela (para não voltar numa nova conferência)
+  const tirarGravada = (n) => {
+    const nomes = new Set([n.xmlNome, n.pdfNome].filter(Boolean));
+    setArqs((l) => l.filter((a) => !nomes.has(a.nome)));
+    setNotas((l) => l.filter((x) => x !== n));
+  };
+  const gravarUma = async (i) => {
+    const n = notas[i]; setErro(""); setSt(`Gravando NF ${n.numero || ""}…`);
+    const r = await mandar([n]);
+    setSt("");
+    if (r.some((x) => x.situacao === "ERRO")) { setErro(`NF ${n.numero}: ${r.find((x) => x.situacao === "ERRO").motivo}`); return; }
+    setFeitas((f) => [...f, ...r]); tirarGravada(n);
+  };
   const gravar = async () => {
     setErro("");
     const fila = (notas || []).filter((n) => n.decisao !== "IGNORAR");
     const out = [];
     for (let i = 0; i < fila.length; i += 8) {
       setSt(`Gravando ${Math.min(fila.length, i + 8)} de ${fila.length}…`);
-      try { const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: fila.slice(i, i + 8) }); out.push(...j.resultados); }
-      catch (e) { fila.slice(i, i + 8).forEach((n) => out.push({ numero: n.numero, situacao: "ERRO", motivo: e.message })); }
+      out.push(...(await mandar(fila.slice(i, i + 8))));
     }
-    setSt(""); setRes(out);
+    setSt(""); setRes([...feitas, ...out]);
   };
+  const fechar = () => (feitas.length ? setRes(feitas) : onClose());
 
   if (res) {
     const c = (s) => res.filter((r) => r.situacao === s).length;
@@ -291,41 +340,65 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
     );
   }
 
-  return (
-    <Modal titulo="Importar NFs de entrada e saída" icone={Upload} onClose={onClose} largura={1040}
-      rodape={notas && <>
+  const nX = arqs.filter((a) => a.xml != null).length, nP = arqs.length - nX;
+  const contagem = `${arqs.length} arquivo(s) — ${nX} XML · ${nP} PDF`;
+  const rodape = notas
+    ? <>
         <span className="mr-auto text-xs" style={{ color: C.sub }}>
+          {feitas.length > 0 && <b style={{ color: C.green }}>{feitas.length} gravada(s) · </b>}
           {resumo.pagar.length} a pagar ({moeda(resumo.pagar.reduce((s, p) => s + Number(p.valor || 0), 0))}) · {resumo.receber.length} a receber ({moeda(resumo.receber.reduce((s, p) => s + Number(p.valor || 0), 0))})
           {resumo.semConta > 0 && <span style={{ color: C.red }}> · {resumo.semConta} nota(s) sem conta-caixa</span>}
         </span>
+        <button onClick={fechar} className="px-4 py-2 text-sm" style={{ color: C.sub }}>{feitas.length ? "Concluir" : "Cancelar"}</button>
+        {resumo.gravar > 0 && <BtnP onClick={gravar} disabled={!!st}>{st && <Loader2 size={14} className="animate-spin" />} {st || `Gravar ${resumo.gravar === 1 ? "a nota" : `as ${resumo.gravar} notas`}`}</BtnP>}
+      </>
+    : <>
+        <span className="mr-auto text-xs" style={{ color: C.sub }}>{arqs.length ? contagem : "Solte quantos arquivos quiser, em quantas vezes quiser."}</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <BtnP onClick={gravar} disabled={!resumo.gravar || !!st}>{st && <Loader2 size={14} className="animate-spin" />} {st || `Gravar ${resumo.gravar} nota(s)`}</BtnP>
-      </>}>
-      {!notas && (
-        <Soltar onArquivos={ler}>
-          <label className="flex items-center gap-3 p-6 rounded-xl cursor-pointer" style={{ border: `2px dashed ${C.line}` }}>
-            <Upload size={22} style={{ color: C.accent }} />
-            <div className="text-sm">
-              <div className="font-semibold">Escolher ou arrastar NFs (XML, PDF ou .zip — pode misturar entrada e saída)</div>
-              <div className="text-xs" style={{ color: C.sub }}>
-                O sistema identifica pelo CNPJ: Meridian/NORT emitente = <b>saída → contas a receber</b>; destinatária = <b>entrada → contas a pagar</b>.
-                XML e PDF da mesma nota juntos viram um registro só (o PDF fica anexado). PDF sozinho é lido e você confere os dados.
-              </div>
-            </div>
-            <input type="file" multiple accept=".xml,.pdf,.zip" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
-          </label>
-        </Soltar>
+        <BtnP onClick={() => conferir(arqs)} disabled={!arqs.length || !!st}>{st && <Loader2 size={14} className="animate-spin" />} {st || `Conferir ${arqs.length} arquivo(s)`}</BtnP>
+      </>;
+
+  return (
+    <Modal titulo="Importar NFs de entrada e saída" icone={Upload} onClose={fechar} largura={1040} rodape={rodape}>
+      <Soltar onArquivos={adicionar} dica="Solte para adicionar">
+        <label className={`flex items-center gap-3 rounded-xl cursor-pointer ${notas ? "px-4 py-2.5 mb-3" : "p-6"}`} style={{ border: `2px dashed ${C.line}` }}>
+          <Upload size={notas ? 16 : 22} style={{ color: C.accent }} />
+          {notas
+            ? <div className="text-xs"><b>Adicionar mais arquivos</b> <span style={{ color: C.sub }}>— arraste aqui ou clique · {contagem}. O que você já conferiu é mantido.</span></div>
+            : <div className="text-sm">
+                <div className="font-semibold">Escolher ou arrastar NFs (XML, PDF ou .zip — pode misturar entrada e saída)</div>
+                <div className="text-xs" style={{ color: C.sub }}>
+                  Pode soltar várias vezes: os arquivos ficam juntos aqui até você clicar em <b>Conferir</b>.
+                  O sistema identifica pelo CNPJ: Meridian/NORT emitente = <b>saída → contas a receber</b>; destinatária = <b>entrada → contas a pagar</b>.
+                  XML e PDF da mesma nota juntos viram um registro só (o PDF fica anexado). PDF sozinho é lido e você confere os dados.
+                </div>
+              </div>}
+          <input type="file" multiple accept=".xml,.pdf,.zip" className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} />
+        </label>
+      </Soltar>
+      {!notas && arqs.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {arqs.map((a, k) => {
+            const I = a.xml != null ? FileCode2 : FileText;
+            return (
+              <span key={k} className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-[11px]" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+                <I size={12} style={{ color: a.xml != null ? C.blue : C.red }} /> {a.nome}
+                <button onClick={() => tirar(k)} className="p-0.5 rounded" style={{ color: C.sub }} title="Tirar da lista"><X size={12} /></button>
+              </span>
+            );
+          })}
+        </div>
       )}
-      {st && !notas && <div className="flex items-center gap-2 mt-3 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> {st}</div>}
-      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-      {erros.length > 0 && <div className="mb-3 p-2 rounded text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{erros.map((e, i) => <div key={i}>{e}</div>)}</div>}
-      {notas && !notas.length && <div className="text-sm" style={{ color: C.sub }}>Nenhuma nota reconhecida.</div>}
-      {notas && notas.map((n, i) => <NotaConferencia key={i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} />)}
+      {st && <div className="flex items-center gap-2 my-3 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> {st}</div>}
+      {erro && <div className="my-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {notas && erros.length > 0 && <div className="mb-3 p-2 rounded text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{erros.map((e, i) => <div key={i}>{e}</div>)}</div>}
+      {notas && !notas.length && <div className="text-sm" style={{ color: C.sub }}>{feitas.length ? `Todas as notas foram gravadas (${feitas.length}). Solte mais arquivos ou clique em Concluir.` : "Nenhuma nota reconhecida."}</div>}
+      {notas && notas.map((n, i) => <NotaConferencia key={chaveNota(n) || i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} onGravar={st ? null : () => gravarUma(i)} />)}
     </Modal>
   );
 }
 
-function NotaConferencia({ n, i, contas, altN, altP, altValor }) {
+function NotaConferencia({ n, i, contas, altN, altP, altValor, onGravar }) {
   const somaP = Math.round(n.parcelas.reduce((s, p) => s + Number(p.valor || 0), 0) * 100) / 100;
   const totP = totalParcelas(n);
   const difP = Math.round((somaP - totP) * 100) / 100;
@@ -350,6 +423,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor }) {
               style={{ background: n.decisao === k ? (k === "LANCAR" ? C.accent : C.navy) : "#fff", color: n.decisao === k ? "#fff" : C.sub, border: `1px solid ${C.line}` }}>{t}</button>
           ))}
           <button onClick={() => altN(i, "aberta", !n.aberta)} className="px-2 text-[11px]" style={{ color: C.sub }}>{n.aberta ? "fechar" : "abrir"}</button>
+          {!ign && onGravar && <button onClick={onGravar} className="ml-1 px-2.5 py-1 rounded-full text-[11px] font-semibold text-white" style={{ background: C.green }} title="Grava só esta nota agora">Gravar esta</button>}
         </div>
       </div>
       {n.aberta && (
