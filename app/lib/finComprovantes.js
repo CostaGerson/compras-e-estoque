@@ -28,13 +28,15 @@ export function lerPagina(L) {
   const tipoTxt = (L[i0 + 1] || "").trim();
   const tipo = /PIX/i.test(tipoTxt) ? "PIX" : /BOLETO/i.test(tipoTxt) ? "BOLETO" : /TED|DOC|TRANSFER/i.test(tipoTxt) ? "TED" : /TRIBUT|DARF|GPS|CONV[EÊ]NIO|CONCESSION/i.test(tipoTxt) ? "TRIBUTO" : tipoTxt.toUpperCase() || "OUTRO";
   const data = dataBR(campo(/^Data de d[eé]bito:\s*/i)) || dataBR(campo(/^Data da opera[cç][aã]o:\s*/i)) || dataBR(t);
-  const vt = t.match(/Valor total:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/(?:^|\n)\s*Valor:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/R\$\s*([\d.]+,\d{2})/);
+  // v165: layout "Pagar Boletos de Cobrança Registrados" (iText) escreve os valores sem R$ (Valor a cobrar / Valor do Documento)
+  const vt = t.match(/Valor total:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/(?:^|\n)\s*Valor:?\s*R\$\s*([\d.]+,\d{2})/i) || t.match(/R\$\s*([\d.]+,\d{2})/)
+    || t.match(/Valor (?:a cobrar|pago|cobrado):?\s*([\d.]+,\d{2})/i) || t.match(/Valor do Documento:?\s*([\d.]+,\d{2})/i);
   // boleto: valor do título, abatimentos e encargos (multa + juros) — explicam a diferença para a conta lançada
-  const vCampo = (re) => { const l = L.find((x) => re.test(x)); const m = l && l.match(/R\$\s*([\d.]+,\d{2})/); return m ? num(m[1]) : 0; };
-  const principal = vCampo(/^Valor:?\s*R\$/i);
-  const multa = vCampo(/^Multa:?\s*R\$/i), juros = vCampo(/^Juros:?\s*R\$/i);
-  const desconto = r2(vCampo(/^Desconto:?\s*R\$/i) + vCampo(/^Abatimento:?\s*R\$/i) + vCampo(/^Bonifica[cç][aã]o:?\s*R\$/i));
-  const docCtl = t.match(/Documento:\s*(\d+)/i)?.[1] || "";
+  const vCampo = (re) => { const l = L.find((x) => re.test(x)); const m = l && l.replace(re, "").match(/^\s*(?:R\$\s*)?([\d.]+,\d{2})/); return m ? num(m[1]) : 0; };
+  const principal = vCampo(/^Valor:?\s*(?=R\$)/i) || vCampo(/^Valor do Documento:?/i);
+  const multa = vCampo(/^Multa:?/i), juros = vCampo(/^Juros:?/i);
+  const desconto = r2(vCampo(/^Descontos?:?/i) + vCampo(/^Abatimentos?:?/i) + vCampo(/^Bonifica[cç][aã]o:?/i));
+  const docCtl = t.match(/(?:^|\n)\s*Documento:\s*(\d+)/i)?.[1] || "";
   const ctl = so(t.match(/N[°º] de controle:\s*([\d.]+)/i)?.[1] || "");
   const ident = campo(/^Identificador:\s*/i);
   const empresaTxt = campo(/^Empresa:\s*/i);
@@ -49,7 +51,12 @@ export function lerPagina(L) {
     final = iFin >= 0 ? L[iFin].replace(/^Raz[aã]o Social\s*/i, "").trim() : "";
     if (/N[aã]o informado/i.test(final)) final = "";
     documento = so(campo(/^CPF\/CNPJ Benefici[aá]rio:\s*/i));
-    docFinal = so(L.find((l) => /^CPF\/CNPJ Benefici[aá]rio\s+[\d.]/i.test(l)) || "");
+    // sem dois-pontos: antes do bloco "Beneficiário Final" é o do beneficiário; depois dele, o do beneficiário final
+    L.forEach((l, k) => {
+      if (!/^CPF\/CNPJ Benefici[aá]rio\s+[\d.]/i.test(l)) return;
+      if (!documento && (iFin < 0 || k < iFin)) documento = so(l);
+      else if (!docFinal) docFinal = so(l);
+    });
   } else {
     favorecido = campo(/^Nome:\s*/i);
     documento = so(campo(/^CPF\/CNPJ:\s*/i));
