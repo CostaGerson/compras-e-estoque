@@ -124,7 +124,9 @@ export default function MovimentoFiscal({ user }) {
           <div className="text-lg font-bold" style={{ color: C.navy }}>Movimento fiscal</div>
           <div className="text-xs" style={{ color: C.sub }}>NFs de entrada viram contas a pagar · NFs de saída viram contas a receber (XML e/ou PDF)</div>
         </div>
-        <BtnP onClick={() => setImportar([])}><Upload size={15} /> Importar NFs</BtnP>
+        <Soltar onArquivos={(f) => setImportar([...f])} dica="Solte aqui" className="rounded-xl">
+          <BtnP onClick={() => setImportar([])}><Upload size={15} /> Importar NFs</BtnP>
+        </Soltar>
       </div>
 
       <Soltar onArquivos={(f) => setImportar([...f])} dica="Solte os XMLs/PDFs para importar">
