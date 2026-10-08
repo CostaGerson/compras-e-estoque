@@ -33,6 +33,7 @@ const Campo = ({ t, children }) => (
 const Chip = ({ on, onClick, children }) => (
   <button onClick={onClick} className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: on ? C.navy : C.panel2, color: on ? "#fff" : C.sub }}>{children}</button>
 );
+const FORMAS_PGTO = { PIX: "PIX", BOLETO: "Boleto", DEBITO_AUTOMATICO: "Débito automático", TED: "TED/DOC", CARTAO: "Cartão", DINHEIRO: "Dinheiro", CHEQUE: "Cheque" };
 const TIPO = {
   ENTRADA: { t: "ENTRADA", s: "A PAGAR", c: C.red, bg: C.redSoft, I: ArrowDownLeft },
   SAIDA: { t: "SAÍDA", s: "A RECEBER", c: C.green, bg: C.greenSoft, I: ArrowUpRight },
@@ -279,6 +280,15 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
     const parcelas = livres.length ? redistribuir(n.parcelas.map((p, q) => (q === livres[0] ? { ...p, editada: false } : p)), v, -1, 0) : n.parcelas;
     return { ...n, valor: v, totalParcelas: v, parcelas };
   }));
+  // à vista: liga/desliga e acerta a data de pagamento; as parcelas novas vencem na data do pagamento
+  const altVista = (i, mud) => setNotas((l) => l.map((n, j) => {
+    if (j !== i) return n;
+    const m = { ...n, ...mud };
+    if (m.pagoVista && !m.formaPgto) m.formaPgto = "PIX";
+    if (m.pagoVista && !m.dataPgto) m.dataPgto = m.emissao || hojeISO();
+    if (m.pagoVista) m.parcelas = m.parcelas.map((p) => (p.situacao === "NOVA" ? { ...p, vencimento: m.dataPgto, semVencimento: false } : p));
+    return m;
+  }));
   const altValor = (i, pi, v) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, parcelas: redistribuir(n.parcelas, totalParcelas(n), pi, v) } : n)));
   const altP = (i, pi, mud) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, parcelas: n.parcelas.map((p, q) => (q === pi ? { ...p, ...mud } : p)) } : n)));
 
@@ -324,9 +334,10 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
 
   if (res) {
     const c = (s) => res.filter((r) => r.situacao === s).length;
+    const baixadas = res.reduce((s, r) => s + (r.baixadas || 0), 0);
     const criadas = res.reduce((s, r) => s + (r.criadas || 0), 0), ligadas = res.reduce((s, r) => s + (r.ligadas || 0), 0);
     const problemas = res.filter((r) => ["ERRO", "JA_IMPORTADA"].includes(r.situacao));
-    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} completada(s)` : ""}.`;
+    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} completada(s)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}.`;
     return (
       <Modal titulo="Importação concluída" icone={CheckCircle2} onClose={() => onFim(m)} largura={640}
         rodape={<BtnP onClick={() => onFim(m)}>Fechar</BtnP>}>
@@ -393,12 +404,12 @@ function ImportarNfs({ user, iniciais, onClose, onFim }) {
       {erro && <div className="my-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {notas && erros.length > 0 && <div className="mb-3 p-2 rounded text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{erros.map((e, i) => <div key={i}>{e}</div>)}</div>}
       {notas && !notas.length && <div className="text-sm" style={{ color: C.sub }}>{feitas.length ? `Todas as notas foram gravadas (${feitas.length}). Solte mais arquivos ou clique em Concluir.` : "Nenhuma nota reconhecida."}</div>}
-      {notas && notas.map((n, i) => <NotaConferencia key={chaveNota(n) || i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} onGravar={st ? null : () => gravarUma(i)} />)}
+      {notas && notas.map((n, i) => <NotaConferencia key={chaveNota(n) || i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} altVista={altVista} onGravar={st ? null : () => gravarUma(i)} />)}
     </Modal>
   );
 }
 
-function NotaConferencia({ n, i, contas, altN, altP, altValor, onGravar }) {
+function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGravar }) {
   const somaP = Math.round(n.parcelas.reduce((s, p) => s + Number(p.valor || 0), 0) * 100) / 100;
   const totP = totalParcelas(n);
   const difP = Math.round((somaP - totP) * 100) / 100;
@@ -454,6 +465,23 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, onGravar }) {
               <Campo t={`Conta-caixa${n.rateioOrigem ? ` · sugerida: ${n.rateioOrigem.toLowerCase()}` : ""}`}>
                 <Rateio contas={contas} valor={n.valor} value={n.rateio} onChange={(v) => altN(i, "rateio", v)} />
               </Campo>
+              {n.parcelas.some((p) => p.marcado && p.situacao === "NOVA") && (
+                <div className="mt-3 flex flex-wrap items-center gap-3 px-3 py-2 rounded-lg text-xs" style={{ background: n.pagoVista ? C.greenSoft : C.panel2, border: `1px solid ${n.pagoVista ? C.green : C.line}` }}>
+                  <label className="flex items-center gap-2 font-semibold cursor-pointer" style={{ color: n.pagoVista ? C.green : C.text }}>
+                    <input type="checkbox" checked={!!n.pagoVista} onChange={(e) => altVista(i, { pagoVista: e.target.checked })} />
+                    {n.tipo === "SAIDA" ? "Recebida à vista — importar e baixar" : "Paga à vista — importar e baixar"}
+                  </label>
+                  {n.pagoVista && <>
+                    <span className="flex items-center gap-1.5" style={{ color: C.sub }}>Forma
+                      <select value={n.formaPgto || ""} onChange={(e) => altVista(i, { formaPgto: e.target.value })} className="rounded px-2 py-1 text-xs" style={inpS}>
+                        {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select></span>
+                    <span className="flex items-center gap-1.5" style={{ color: C.sub }}>Data do {n.tipo === "SAIDA" ? "recebimento" : "pagamento"}
+                      <input type="date" value={n.dataPgto || ""} onChange={(e) => altVista(i, { dataPgto: e.target.value })} className="rounded px-2 py-1 text-xs" style={inpS} /></span>
+                    <span style={{ color: C.green }}>as contas novas já entram baixadas</span>
+                  </>}
+                </div>
+              )}
               <table className="w-full text-xs mt-3">
                 <thead><tr style={{ color: C.sub }}><th /><th className="text-left px-2 py-1">Parcela</th><th className="text-left px-2 py-1">Vencimento</th><th className="text-right px-2 py-1">Valor</th><th className="text-left px-2 py-1">Situação</th></tr></thead>
                 <tbody>{n.parcelas.map((p, pi) => (
@@ -465,7 +493,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, onGravar }) {
                       : dBR(p.vencimento)}</td>
                     <td className="px-2 py-1 text-right">{p.situacao === "NOVA" ? <Valor value={p.valor} onChange={(v) => altValor(i, pi, v)} /> : moeda(p.valor)}</td>
                     <td className="px-2 py-1 text-[11px]">
-                      {p.situacao === "NOVA" && <span style={{ color: p.semVencimento ? C.yellow : C.green }}>{p.semVencimento ? "nota sem vencimento — confira a data" : "conta nova"}</span>}
+                      {p.situacao === "NOVA" && <span style={{ color: p.semVencimento ? C.yellow : C.green }}>{p.semVencimento ? "nota sem vencimento — confira a data" : n.pagoVista ? "conta nova · já baixada" : "conta nova"}</span>}
                       {p.situacao === "JA_LANCADA" && <span style={{ color: C.blue }}><Link2 size={11} className="inline" /> já lançada: {p.tituloDesc} — só anexa os arquivos</span>}
                       {p.situacao === "LIGAR" && <span style={{ color: C.blue }}><Link2 size={11} className="inline" /> parece com {p.tituloDesc} — liga e anexa
                         <button onClick={() => altP(i, pi, { situacao: "NOVA", tituloId: null })} className="ml-2 underline" style={{ color: C.accent }}>criar conta nova</button></span>}

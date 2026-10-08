@@ -298,6 +298,9 @@ const arquivosDa = (n) => [
   n.pdf ? { nome: n.pdfNome || `NF ${n.numero}.pdf`, mime: "application/pdf", conteudo: n.pdf, hash: n.hashPdf || hashB64(n.pdf) } : null,
 ].filter(Boolean);
 
+// v163 — nota paga/recebida à vista: as contas novas já nascem baixadas (data e forma informadas na importação)
+export const FORMAS_VISTA = ["PIX", "BOLETO", "DEBITO_AUTOMATICO", "TED", "CARTAO", "DINHEIRO", "CHEQUE"];
+
 function validarNota(n) {
   const nome = `${n.modelo || "NF"} ${n.numero || "?"}`;
   if (!["ENTRADA", "SAIDA"].includes(n.tipo)) return `${nome}: escolha entrada ou saída.`;
@@ -314,6 +317,10 @@ function validarNota(n) {
       if (!(r2(p.valor) > 0)) return `${nome}: parcela ${p.parcela} sem valor.`;
     }
     if (marc.some((p) => p.situacao === "NOVA")) { const rt = validarRateio(n.rateio); if (rt.erro) return `${nome}: ${rt.erro}`; }
+    if (n.pagoVista) {
+      if (!FORMAS_VISTA.includes(n.formaPgto)) return `${nome}: escolha a forma de pagamento da nota paga à vista.`;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(n.dataPgto || ""))) return `${nome}: informe a data do pagamento à vista.`;
+    }
   }
   return null;
 }
@@ -393,14 +400,16 @@ export async function gravar(notas, u) {
           data: {
             tipo: tipoT, titulo: (multi ? `${titulo0} (${p.parcela}/${n.parcelas.length})` : titulo0).slice(0, 190), parceiro: n.parceiro, documento: n.documento,
             numeroDoc: `${n.modelo} ${n.numero}${multi ? ` · PARC ${p.parcela}` : ""}`, valor: r2(p.valor), vencimento: dataUTC(p.vencimento), competencia: mesDe(p.vencimento),
-            previsao: false, rateio: rt.rateio, forma: "NF_XML", formaPagamento: p.semVencimento ? null : "BOLETO", chaveImport: ck,
+            previsao: false, rateio: rt.rateio, forma: "NF_XML", formaPagamento: n.pagoVista ? n.formaPgto : p.semVencimento ? null : "BOLETO", chaveImport: ck,
+            ...(n.pagoVista ? { status: "PAGO", dataPagamento: dataUTC(n.dataPgto), valorPago: r2(p.valor), valorConfirmado: true } : {}),
             observacao: `MOVIMENTO FISCAL · NF DE ${n.tipo === "SAIDA" ? "SAÍDA" : "ENTRADA"} ${n.numero} · EMISSÃO ${n.emissao.split("-").reverse().join("/")}`,
             criadoPorId: u.id, criadoPorNome: quem,
           },
         });
         await anexar(t.id, arqs, quem);
-        parc.push({ parcela: p.parcela, vencimento: p.vencimento, valor: r2(p.valor), tituloId: t.id, situacao: "CRIADA" });
+        parc.push({ parcela: p.parcela, vencimento: p.vencimento, valor: r2(p.valor), tituloId: t.id, situacao: "CRIADA", ...(n.pagoVista ? { baixada: true } : {}) });
         r.criadas++; r.valor = r2(r.valor + r2(p.valor));
+        if (n.pagoVista) r.baixadas = (r.baixadas || 0) + 1;
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
