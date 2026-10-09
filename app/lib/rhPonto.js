@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { lerCartoesPonto, minutos, inferirHorario } from "@/lib/rhPontoLer";
 import { lerPessoal, nomeUsuario } from "@/lib/rh";
+import { lerJornadas, aplicarJornadas } from "@/lib/rhJornada";
 
 export const TOLERANCIA_ATRASO = 5;           // minutos de tolerância na entrada (art. 58 §1º da CLT)
 export const LIMITE_HE_MES = 20 * 60;         // alerta acima de 20 h extras no mês
@@ -253,6 +254,7 @@ export async function apurarPeriodo(de, ate, pessoaId = null) {
     feriasPorPessoa(pessoaId ? [pessoaId] : null),
   ]);
   await completarHorario(dias);
+  aplicarJornadas(dias, await lerJornadas(), iso);   // v169.2 — horário de cada período (mudou em 24/08/2026)
   const J = Object.fromEntries(justs.map((j) => [j.chave, j]));
   const acc = {}, det = { faltas: [], atestados: [], atrasos: [], extras: [], pendentes: [], ferias: [], justificados: [], horasFalta: [] };
   for (const d of dias) {
@@ -286,6 +288,7 @@ export async function apurar(comps, pessoaIds = null) {
   const J = Object.fromEntries(justs.map((j) => [j.chave, j]));
   // v168.3 — cartões gravados sem horário (quadro não lido): deduz a entrada prevista pelos próprios dias
   await completarHorario(dias);
+  aplicarJornadas(dias, await lerJornadas(), iso);   // v169.2 — horário de cada período (mudou em 24/08/2026)
   const fer = await feriasPorPessoa(pessoaIds);
   const porPessoa = {}, pendencias = [];
   for (const d of dias) {

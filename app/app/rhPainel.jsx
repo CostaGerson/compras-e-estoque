@@ -425,6 +425,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
   const [motivos, setMotivos] = useState([]);
   const [sel, setSel] = useState(new Set());
   const [just, setJust] = useState(null);    // { chaves }
+  const [jorn, setJorn] = useState(false);
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const ref = useRef(null);
@@ -445,6 +446,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
         <Soltar onArquivos={(fs) => setImp([...fs])} dica="Solte os cartões">
           <button onClick={() => setImp([])} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar cartões de ponto</button>
         </Soltar>
+        <button onClick={() => setJorn(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Clock size={15} style={{ color: C.accent }} /> Jornadas de trabalho</button>
         <div className="text-xs flex-1" style={{ color: C.sub, minWidth: 260 }}>PDF "Cartão de Ponto Calculado" do iPonto, um ou vários funcionários. O sistema confere o período e aponta os dias sem registro.</div>
         <span className="text-xs" style={{ color: C.sub }}>Mês</span>
         <select value={comp || ""} onChange={(e) => setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }}>
@@ -534,6 +536,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
       </div>
 
       {imp && <ImportarPonto user={user} iniciais={imp} onClose={() => setImp(null)} onFim={(m) => { setImp(null); ok(m); }} />}
+      {jorn && <JornadasModal user={user} onClose={() => setJorn(false)} onFim={(m) => { setJorn(false); ok(m); }} />}
       {just && <JustificarModal user={user} chaves={just.chaves} motivos={motivos} onClose={() => setJust(null)} onFim={(m) => { setJust(null); setSel(new Set()); ok(m); }} />}
     </div>
   );
@@ -695,6 +698,49 @@ function JustificarModal({ user, chaves, motivos, onClose, onFim }) {
       <div className="text-xs mb-1" style={{ color: C.sub }}>Observação {motivo === "OUTRO" ? "(obrigatória)" : "(opcional)"}</div>
       <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}` }} placeholder="Ex.: ponto manual assinado pelo supervisor, arquivado no RH" />
       {erro && <div className="text-sm mt-2" style={{ color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
+/* ---------- jornadas de trabalho por período (entrada prevista da pontualidade) ---------- */
+function JornadasModal({ user, onClose, onFim }) {
+  const [j, setJ] = useState(null);
+  const [pessoas, setPessoas] = useState([]);
+  const [erro, setErro] = useState("");
+  useEffect(() => { api(`/api/rh/ponto?u=${user.id}&acao=jornadas`).then((r) => { setJ(r.jornadas); setPessoas(r.pessoas || []); }).catch((e) => setErro(e.message)); }, []);
+  const alt = (lista, i, k, v) => setJ((x) => ({ ...x, [lista]: x[lista].map((y, n) => (n === i ? { ...y, [k]: v } : y)) }));
+  const tira = (lista, i) => setJ((x) => ({ ...x, [lista]: x[lista].filter((_, n) => n !== i) }));
+  const salvar = async () => { try { await api("/api/rh/ponto", "POST", { usuarioId: user.id, acao: "jornadas", jornadas: j }); onFim("Jornadas salvas: assiduidade e pontualidade recalculadas com o horário de cada período."); } catch (e) { setErro(e.message); } };
+  const inpt = "rounded px-2 py-1 text-xs outline-none";
+  const st = { border: `1px solid ${C.line}` };
+  const linhas = (lista, pessoa) => (j[lista] || []).map((x, i) => (
+    <div key={i} className="flex flex-wrap items-center gap-2 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+      {pessoa && <select value={x.pessoaId} onChange={(e) => { const p = pessoas.find((y) => y.id === e.target.value); alt(lista, i, "pessoaId", e.target.value); alt(lista, i, "nome", p?.nome || ""); }} className={inpt} style={{ ...st, minWidth: 170 }}>
+        <option value="">— funcionário —</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>}
+      <span className="text-xs" style={{ color: C.sub }}>de</span><input type="date" value={x.de || ""} onChange={(e) => alt(lista, i, "de", e.target.value || null)} className={inpt} style={st} />
+      <span className="text-xs" style={{ color: C.sub }}>até</span><input type="date" value={x.ate || ""} onChange={(e) => alt(lista, i, "ate", e.target.value || null)} className={inpt} style={st} />
+      <span className="text-xs" style={{ color: C.sub }}>entrada</span><input type="time" value={x.entrada || ""} onChange={(e) => alt(lista, i, "entrada", e.target.value)} className={inpt} style={st} />
+      <span className="text-xs" style={{ color: C.sub }}>saída</span><input type="time" value={x.saida || ""} onChange={(e) => alt(lista, i, "saida", e.target.value)} className={inpt} style={st} />
+      <button onClick={() => tira(lista, i)} style={{ color: C.sub }}><Trash2 size={13} /></button>
+    </div>
+  ));
+  return (
+    <Modal titulo="Jornadas de trabalho" icone={Clock} onClose={onClose} largura={780}
+      rodape={<>
+        {erro && <span className="text-xs mr-auto" style={{ color: C.red }}>{erro}</span>}
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+        <button onClick={salvar} disabled={!j} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+      </>}>
+      {!j && !erro && <Loader2 size={16} className="animate-spin" style={{ color: C.sub }} />}
+      {j && <>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>O cartão de ponto traz um horário só. Aqui fica o horário de cada período (segunda a sexta) — é dele que sai a entrada prevista da pontualidade. Datas em branco = sem limite.</div>
+        <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Jornada geral (todos)</div>
+        {linhas("geral")}
+        <button onClick={() => setJ((x) => ({ ...x, geral: [...x.geral, { de: null, ate: null, entrada: "08:00", saida: "18:00" }] }))} className="text-xs font-semibold flex items-center gap-1 mt-1 mb-4" style={{ color: C.accent }}><Plus size={13} /> período</button>
+        <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Exceções por funcionário <span className="text-xs font-normal" style={{ color: C.sub }}>(têm prioridade sobre a geral)</span></div>
+        {linhas("excecoes", true)}
+        <button onClick={() => setJ((x) => ({ ...x, excecoes: [...x.excecoes, { pessoaId: "", nome: "", de: null, ate: null, entrada: "08:00", saida: "18:00" }] }))} className="text-xs font-semibold flex items-center gap-1 mt-1" style={{ color: C.accent }}><Plus size={13} /> exceção</button>
+      </>}
     </Modal>
   );
 }
