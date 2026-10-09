@@ -71,11 +71,12 @@ export async function freelancerXFolha(comp) {
   const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
   const par = m?.dados?.parametros || {};
   const fimC = fimDoMes(comp);
-  const folhaMatriz = {};
+  const folhaMatriz = {}, pessoasDepto = {};
   for (const p of m?.dados?.pessoal || []) {
     if (p.admissao && p.admissao > fimC) continue;
     if (p.ativo === false && (!p.demissao || p.demissao < `${comp}-01`)) continue;
     folhaMatriz[p.depto] = (folhaMatriz[p.depto] || 0) + calcFuncionario(p, par).total;
+    pessoasDepto[p.depto] = (pessoasDepto[p.depto] || 0) + 1;
   }
   const semana = await prisma.finSemanaItem.findMany({
     where: { grupo: "FREELANCER", titulo: { vencimento: { gte: new Date(`${comp}-01T00:00:00Z`), lte: new Date(`${fimC}T00:00:00Z`) }, status: { not: "CANCELADO" } } },
@@ -84,10 +85,11 @@ export async function freelancerXFolha(comp) {
   const freeSemana = {};
   for (const s of semana) { const k = FREE_SETOR[s.setor] || s.setor; freeSemana[k] = (freeSemana[k] || 0) + Number(s.valor); }
   const linhas = SETORES_CUSTO.map((s) => {
-    const fReal = r2(porCod[s.folha] || 0), lReal = r2(porCod[s.free] || 0);
-    const folha = fReal > 0 ? fReal : r2(s.depto ? folhaMatriz[s.depto] || 0 : 0);
+    // v169.4 — folha = custo total dos funcionários do setor pela Matriz (salário, encargos, benefícios e provisões), não o líquido pago
+    const lReal = r2(porCod[s.free] || 0);
+    const folha = r2(s.depto ? folhaMatriz[s.depto] || 0 : 0);
     const free = lReal > 0 ? lReal : r2(freeSemana[s.k] || 0);
-    return { setor: s.k, folha, freelancer: free, fonteFolha: fReal > 0 ? "EXTRATO" : "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
+    return { setor: s.k, folha, pessoas: s.depto ? pessoasDepto[s.depto] || 0 : 0, freelancer: free, fonteFolha: "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
       pct: folha > 0 ? Math.round((free / folha) * 1000) / 10 : free > 0 ? null : 0 };
   }).filter((l) => l.folha || l.freelancer);
   const semSetor = r2(porCod["2117100"] || 0);

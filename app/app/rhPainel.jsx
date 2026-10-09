@@ -202,12 +202,12 @@ export function Acionaveis({ p, irPonto }) {
         </div>
         {!f.linhas.length && <div className="text-xs py-6 text-center" style={{ color: C.sub }}>Sem lançamentos de pessoal de produção ou freelancer no mês.</div>}
         <table className="w-full text-xs">
-          {f.linhas.length > 0 && <thead><tr style={{ color: C.sub }}><th className="text-left font-semibold py-1">Setor</th><th className="text-right font-semibold">Folha</th><th className="text-right font-semibold">Freelancer</th><th className="font-semibold text-left pl-3" style={{ width: "34%" }}>% sobre a folha</th></tr></thead>}
+          {f.linhas.length > 0 && <thead><tr style={{ color: C.sub }}><th className="text-left font-semibold py-1">Setor</th><th className="text-right font-semibold">Folha (custo Matriz)</th><th className="text-right font-semibold">Freelancer</th><th className="font-semibold text-left pl-3" style={{ width: "34%" }}>% sobre a folha</th></tr></thead>}
           <tbody>
             {f.linhas.map((l) => (
               <tr key={l.setor} style={{ borderTop: `1px solid ${C.line}` }}>
-                <td className="py-1.5 font-semibold" style={{ color: C.text }}>{l.setor}</td>
-                <td className="text-right tabular-nums" title={`fonte: ${l.fonteFolha}`}>{brl(l.folha)}{l.fonteFolha === "MATRIZ" && <sup style={{ color: C.sub }}>m</sup>}</td>
+                <td className="py-1.5 font-semibold" style={{ color: C.text }}>{l.setor}{l.pessoas ? <span className="font-normal" style={{ color: C.sub }}> · {l.pessoas}</span> : null}</td>
+                <td className="text-right tabular-nums" title="custo total dos funcionários do setor pela Matriz">{brl(l.folha)}</td>
                 <td className="text-right tabular-nums" title={`fonte: ${l.fonteFree}`}>{brl(l.freelancer)}</td>
                 <td className="pl-3">
                   <div className="flex items-center gap-2">
@@ -222,7 +222,7 @@ export function Acionaveis({ p, irPonto }) {
           </tbody>
         </table>
         <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-          Folha e freelancer pelo extrato identificado do mês; sem extrato, a folha vem da Matriz (<sup>m</sup>) e o freelancer das contas da semana.
+          Folha = custo total dos funcionários do setor pela Matriz de custos (salário, bônus, encargos, benefícios e provisões de 13º, férias e rescisão) — não só o líquido pago. Freelancer pelo extrato identificado do mês; sem extrato, pelas contas da semana.
           {f.semSetor > 0 && ` Freelancer sem setor (conta 2117100): R$ ${brl(f.semSetor)}.`} Acima de 30% vale avaliar contratação.
         </div>
       </div>
