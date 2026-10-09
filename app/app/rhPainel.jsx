@@ -542,7 +542,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
   );
 }
 
-function ImportarPonto({ user, iniciais, onClose, onFim }) {
+export function ImportarPonto({ user, iniciais, onClose, onFim }) {
   // v168.2 — 1º passo: janela para arrastar/escolher vários PDFs · 2º passo: leitura, crítica e escolha do funcionário
   const [arquivos, setArquivos] = useState([]);      // File[] escolhidos
   const [arqs, setArqs] = useState([]);              // [{ nome, conteudo }] lidos

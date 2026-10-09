@@ -13,6 +13,7 @@ import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
 import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
+import Transmissao from "./transmissao";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -126,6 +127,7 @@ function FinOperacional({ user, ir }) {
           <Database size={14} style={{ color: C.accent }} /> Dados
         </button>
       </div>
+      <Transmissao user={user} Historico={ImportarHistorico} />
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {cards.map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
@@ -215,6 +217,7 @@ function FinDashboard({ user, ir }) {
           <Database size={14} style={{ color: C.accent }} /> Dados
         </button>
       </div>
+      <Transmissao user={user} Historico={ImportarHistorico} />
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {[
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],
@@ -459,11 +462,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
           <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
         </div>
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
-        {podeImportar(user, "docsFinanceiros") && <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
-          <Upload size={15} /> Importar histórico
-        </button>}
       </div>
-      {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
       {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}
       {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -535,7 +534,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
 }
 
 /* ---------------- IMPORTAR HISTÓRICO (sistema anterior) ---------------- */
-function ImportarHistorico({ user, fechar }) {
+export function ImportarHistorico({ user, fechar, iniciais }) {
   const [texto, setTexto] = useState("");
   const [nome, setNome] = useState("");
   const [prev, setPrev] = useState(null);
@@ -560,6 +559,7 @@ function ImportarHistorico({ user, fechar }) {
     setNome(f.name); setTexto(t); setPrev(null); setFim(null);
     enviar(true, t);
   };
+  useEffect(() => { if (iniciais?.length) escolher(iniciais[0]); }, []);   // v171 — vindo da Transmissão de arquivos
   const SIT = { NOVO: ["Novo", C.green, C.greenSoft], SUBSTITUI: ["Substitui histórico", C.accent, C.accentSoft], BLOQUEADO: ["Fica de fora", C.red, C.redSoft] };
   const validos = prev ? prev.meses.filter((m) => m.situacao !== "BLOQUEADO") : [];
   const bloqueados = prev ? prev.meses.filter((m) => m.situacao === "BLOQUEADO") : [];
@@ -1486,13 +1486,6 @@ function Importacao({ user, comp, setComp }) {
       {/* topo: competência + resumo */}
       <div className="flex flex-wrap items-center gap-4 mb-5">
         <SeletorMes comp={comp} setComp={setComp} />
-        <input ref={loteInp} type="file" accept=".zip,application/zip,application/pdf,.pdf" multiple className="hidden"
-          onChange={(e) => { abrirLote(e.target.files); e.target.value = ""; }} />
-        {podeImportar(user, "docsFinanceiros") && <button onClick={() => loteInp.current?.click()} disabled={!dados}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ background: C.accent, color: "#fff", opacity: dados ? 1 : 0.5 }}>
-          <FolderArchive size={16} /> Importar ZIP / vários PDFs
-        </button>}
         {dados && (
           <div className="flex flex-wrap gap-2">
             <Pilula cor={C.green} bg={C.greenSoft} txt={`${tot.ok} de ${tot.total} enviados`} />
@@ -1584,7 +1577,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
 
   const falta = arqs.length < tipo.qtdEsperada;
   const imp = podeImportar(user, "docsFinanceiros");   // v167 — importar/excluir: só o master
-  const podeMais = imp && (tipo.multiplo || arqs.length === 0);
+  const podeMais = false;   // v171 — envio só pela Transmissão de arquivos (painel do Financeiro)
   const alterado = (texto || "").trim().toUpperCase() !== (just?.texto || "");
 
   const salvarJust = async () => {
@@ -1641,17 +1634,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
       )}
 
       <div className="px-4 pb-4 mt-auto">
-        {podeMais && (
-          <>
-            <input ref={inp} type="file" accept="application/pdf,.pdf" multiple={tipo.multiplo} className="hidden"
-              onChange={(e) => { onArquivos(e.target.files); e.target.value = ""; }} />
-            <button onClick={() => inp.current?.click()}
-              className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium"
-              style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: drag ? C.accentSoft : "transparent" }}>
-              <Upload size={15} /> {arqs.length ? "Enviar mais" : "Enviar PDF"}
-            </button>
-          </>
-        )}
+        {falta && imp && <div className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}><Upload size={12} /> Envie pela Transmissão de arquivos (painel do Financeiro)</div>}
 
         {/* extrato: slot do OFX (vai direto para o pacote da contabilidade) */}
         {ehExtrato && (
@@ -1665,14 +1648,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
                 </a>
                 {imp && <button onClick={() => onExcluirOfx(ofx)} title="Excluir OFX" style={{ color: C.sub }}><Trash2 size={14} /></button>}
               </>
-            ) : !imp ? <span className="flex-1 text-xs" style={{ color: C.sub }}>OFX não enviado</span> : (
-              <>
-                <input ref={inpOfx} type="file" accept=".ofx" className="hidden" onChange={(e) => { onOfx(e.target.files); e.target.value = ""; }} />
-                <button onClick={() => inpOfx.current?.click()} className="flex-1 text-left text-xs font-medium" style={{ color: C.sub }}>
-                  Enviar o <b>OFX</b> deste extrato (a contabilidade pede)
-                </button>
-              </>
-            )}
+            ) : <span className="flex-1 text-xs" style={{ color: C.sub }}>OFX não enviado</span>}
           </div>
         )}
 

@@ -415,13 +415,7 @@ export default function ContasPagarReceber({ user }) {
         <div className="flex-1" />
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
-        {podeImportar(user, P ? "contasPagar" : "contasReceber") && <>   {/* v170 — importação por permissão */}
-        <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
-        {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
-        {!P && <BtnS onClick={() => setModal({ t: "retorno" })}><FileCode2 size={15} /> Importar retorno</BtnS>}
-        {!P && <BtnS onClick={() => setModal({ t: "antecipacao" })}><FileText size={15} /> Importar antecipação</BtnS>}
-        {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
-        </>}
+        {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
@@ -1004,7 +998,7 @@ const SIT_POS = {
   FACTORING: ["Descontado (factoring)", C.yellow, C.yellowSoft],
 };
 const DEC_POS = { IMPORTAR: "Importar", SUBSTITUIR: "Substituir a previsão", IGNORAR: "Ignorar" };
-function PosicaoModal({ user, contas, onClose, onSalvo }) {
+export function PosicaoModal({ user, contas, onClose, onSalvo, iniciais }) {
   const [a, setA] = useState(null);          // resultado da análise
   const [l, setL] = useState([]);
   const [st, setSt] = useState("");
@@ -1021,6 +1015,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
     } catch (e) { setErro(e.message); }
     setSt("");
   };
+  useEffect(() => { if (iniciais?.length) ler(iniciais[0]); }, []);   // v171 — vindo da Transmissão de arquivos
   const alt = (i, k, v) => setL((x) => x.map((y) => (y.linha === i ? { ...y, [k]: v } : y)));
   const vis = l.filter((x) => filtro === "TODOS" || x.situacao === filtro || (filtro === "SEM_CONTA" && !x.contaId && (x.decisao === "IMPORTAR" || x.decisao === "SUBSTITUIR")));
   const n = (dec) => l.filter((x) => x.decisao === dec);
@@ -1111,7 +1106,7 @@ function PosicaoModal({ user, contas, onClose, onSalvo }) {
 
 /* ---------------- antecipação (desconto de duplicatas) ---------------- */
 const ACAO_ANT = { BAIXAR: ["Baixar como descontada", C.green, C.greenSoft], JA_BAIXADA: ["Já baixada", C.blue, C.blueSoft], CRIAR: ["Não está no sistema — será criada com crítica", C.red, C.redSoft] };
-function AntecipacaoModal({ user, onClose, onSalvo }) {
+export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
   const [arq, setArq] = useState(null);
   const [a, setA] = useState(null);
   const [st, setSt] = useState("");
@@ -1125,6 +1120,7 @@ function AntecipacaoModal({ user, onClose, onSalvo }) {
     catch (e) { setErro(e.message); }
     setSt("");
   };
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);   // v171
   const aplicar = async () => {
     setSt("Aplicando…"); setErro("");
     try {
@@ -1201,7 +1197,7 @@ const ACAO_RET = {
   REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],
   AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
 };
-function RetornoModal({ user, onClose, onSalvo }) {
+export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [a, setA] = useState(null);
   const [marc, setMarc] = useState({});       // k → aplicar
@@ -1222,6 +1218,7 @@ function RetornoModal({ user, onClose, onSalvo }) {
     } catch (e) { setErro(e.message); }
     setSt("");
   };
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);   // v171
   const itens = a ? a.arquivos.flatMap((f) => f.itens) : [];
   const conta = (ac) => itens.filter((x) => x.acao === ac).length;
   const vis = itens.filter((x) => filtro === "TODOS" || x.acao === filtro || (filtro === "SEM_CONTA" && x.situacao === "SEM_CONTA"));

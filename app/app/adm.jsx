@@ -233,7 +233,7 @@ export function juntarNotas(antigas, novas) {
   });
 }
 
-function ImportarNfs({ user, iniciais, onClose, onFim }) {
+export function ImportarNfs({ user, iniciais, onClose, onFim }) {
   const [arqs, setArqs] = useState([]);       // arquivos já lidos, aguardando conferência
   const [notas, setNotas] = useState(null);
   const [erros, setErros] = useState([]);

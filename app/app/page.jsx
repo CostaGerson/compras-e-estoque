@@ -76,8 +76,10 @@ const GESTAO_TODOS = [...TODOS, ...PROD, ...OFICINAS, "COMERCIAL", "LOGISTICA", 
 const MENU = [
   { key: "desenvolvimento", label: "Desenvolvimento", icon: Lightbulb, perfis: ["FINANCEIRO"], desc: "Sugestões de melhoria enviadas pelos usuários: acatar ou recusar" },
   { key: "gestao", label: "Gestão", icon: Compass, perfis: GESTAO_TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
-  { key: "agenda", label: "Agenda", icon: IcoAgenda, perfis: [...GESTAO_TODOS, "RH"], desc: "Suas demandas no mês e na semana" },
-  { key: "tarefas", label: "Tarefas", icon: ListTodo, perfis: [...GESTAO_TODOS, "RH"], desc: "Demandas entre os setores: quem faz o quê, prazos, rotinas e quem está trabalhando em quê" },
+  // v171 — Agenda é tela e grupo: Tarefas aparece embaixo dela no menu lateral só depois de clicar em Agenda
+  { key: "agenda", label: "Agenda", icon: IcoAgenda, pagina: true, perfis: [...GESTAO_TODOS, "RH"], desc: "Suas demandas no mês e na semana", filhos: [
+    { key: "tarefas", label: "Tarefas", icon: ListTodo, perfis: [...GESTAO_TODOS, "RH"], desc: "Demandas entre os setores: quem faz o quê, prazos, rotinas e quem está trabalhando em quê" },
+  ] },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
@@ -138,10 +140,10 @@ const PODE = {
   uploads: () => true,
 };
 function menuDoUsuario(u) {
-  const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : !!PODE[n.key]?.(u)));
+  const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.pagina ? !!PODE[n.key]?.(u) : n.filhos ? n.filhos.length > 0 : !!PODE[n.key]?.(u)));
   return f(MENU);
 }
-const folhas = (l) => l.flatMap((n) => (n.filhos ? folhas(n.filhos) : [n.key]));
+const folhas = (l) => l.flatMap((n) => (n.filhos ? [...(n.pagina ? [n.key] : []), ...folhas(n.filhos)] : [n.key]));
 // caminho (lista de nós) até a chave
 function caminhoMenu(lista, key, acc = []) {
   for (const n of lista) {
@@ -163,7 +165,6 @@ export default function Home() {
   const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("gestao");
   const [tab, setTab] = useState("lista");
-  const [showVal, setShowVal] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
@@ -209,7 +210,7 @@ export default function Home() {
   const ir = (k) => { setView(k); setTab("lista"); };
   // clicar em qualquer parte do caminho volta para a tela inicial daquele módulo
   const irInicio = (k) => { setView(k); setTab("lista"); setResetTick((t) => t + 1); };
-  const money = (v) => (master && showVal ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
+  const money = (v) => (master ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
   return (
     <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
@@ -254,12 +255,6 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {master && (
-              <button onClick={() => setShowVal((s) => !s)} className="flex items-center gap-1 px-2 py-1 rounded"
-                style={{ background: C.panel2, color: C.sub }}>
-                {showVal ? <Eye size={15} /> : <EyeOff size={15} />} valores
-              </button>
-            )}
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
               onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
@@ -268,7 +263,7 @@ export default function Home() {
 
         <div className="flex-1 overflow-auto p-6">
           <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
-          {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
+          {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "gestao" && pode("gestao") && <Gestao user={user} master={master} money={money} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
