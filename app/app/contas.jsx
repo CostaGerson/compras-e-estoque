@@ -1141,7 +1141,7 @@ export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
       {!a && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileText size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
-          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o PDF do contrato de <b>desconto de duplicatas</b> (Bradesco Net Empresa › Contratos).</div>
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o PDF do contrato de <b>desconto de duplicatas</b> (Bradesco Net Empresa › Contratos) ou da <b>Antecipação de Recebíveis - Duplicatas</b>.</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>Os boletos do contrato são baixados pelo valor cheio (receita inteira), juros, IOF e TAC viram contas a pagar já pagas, e na DRE o crédito do extrato é aberto em receita bruta − encargos financeiros.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDF"}</BtnP>
           <input ref={ref} type="file" accept=".pdf" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
@@ -1176,8 +1176,8 @@ export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
                 return (
                   <tr key={x.parcela} style={{ borderTop: `1px solid ${C.line}` }}>
                     <td className="px-2 py-1.5">{x.parcela}</td>
-                    <td className="px-2 py-1.5"><b style={{ color: C.navy }}>{x.seu}</b><div style={{ color: C.sub }}>{x.nosso}</div></td>
-                    <td className="px-2 py-1.5">{x.sacado}</td>
+                    <td className="px-2 py-1.5">{x.seu || x.nosso ? <><b style={{ color: C.navy }}>{x.seu}</b><div style={{ color: C.sub }}>{x.nosso}</div></> : <span style={{ color: C.sub }}>pelo valor + vencimento</span>}</td>
+                    <td className="px-2 py-1.5">{x.sacado || (x.conta ? x.conta.parceiro : "—")}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{dBR(x.vencimento)}</td>
                     <td className="px-2 py-1.5">{x.situacao}</td>
                     <td className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{moeda(x.valor)}</td>

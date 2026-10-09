@@ -18,7 +18,38 @@ const dBR = (s) => String(s).slice(0, 10).split("-").reverse().join("/");
 const DIA = 86400000;
 const CONTAS = { receita: "1118000", juros: "2135000", iof: "2115130", tac: "2134000", tarifa: "2134000" };
 
-export const ehAntecipacao = (t) => /Contratos/.test(t) && /Produto:?\s*DESCONTO|DESCONTO\s+Produto/i.test(t) && /Valor l[ií]quido/i.test(t);
+export const ehAntecipacao = (t) => (/Contratos/.test(t) && /Produto:?\s*DESCONTO|DESCONTO\s+Produto/i.test(t) && /Valor l[ií]quido/i.test(t)) || ehRecebiveis(t);
+// v176 — Bradesco "Antecipação de Recebíveis - Duplicatas" (sem nº de contrato, sem nº do título e sem sacado)
+export const ehRecebiveis = (t) => /Antecipa[çc][ãa]o de Receb[ií]veis/i.test(t) && /Valor l[ií]quido opera[çc][ãa]o/i.test(t);
+
+function lerRecebiveis(t) {
+  const v = (re) => { const m = t.match(re); return m ? num(m[1]) : 0; };
+  const data = dISO((t.match(/Data da solicita[çc][ãa]o:?\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || (t.match(/Data:\s*(\d{2}\/\d{2}\/\d{4})/) || [])[1]);
+  const hora = ((t.match(/Data:\s*\d{2}\/\d{2}\/\d{4}\s*-\s*(\d{2})h(\d{2})/) || []).slice(1).join("")) || "0000";
+  const c = {
+    formato: "RECEBIVEIS", data,
+    valorOperacao: v(/Valor total duplicatas:?\s*R\$\s*([\d.]+,\d{2})/i), juros: v(/Valor total juros:?\s*R\$\s*([\d.]+,\d{2})/i),
+    iof: v(/Valor total IOF:?\s*R\$\s*([\d.]+,\d{2})/i), tac: v(/Valor TAC:?\s*R\$\s*([\d.]+,\d{2})/i), tarifa: 0,
+    valorLiquido: v(/Valor l[ií]quido opera[çc][ãa]o:?\s*R\$\s*([\d.]+,\d{2})/i),
+    taxa: (t.match(/Taxa de juros:?\s*([\d.,]+%\s*a\.?m\.?)/i) || [])[1] || null,
+    qtd: Number((t.match(/Quantidade total duplicatas:?\s*(\d+)/i) || [])[1]) || null,
+  };
+  if (!c.data) throw new Error("Não achei a data da antecipação.");
+  // sem nº de contrato no PDF: identifica pela data/hora da solicitação e pelo líquido
+  c.contrato = `REC-${c.data.replace(/-/g, "")}-${hora}-${Math.round(c.valorLiquido * 100)}`;
+  const itens = [];
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d{4})\s+(\d{3})\s+[\d]+\s*-\s*[\dXx]\s+(\d{1,4})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})/g;
+  let m;
+  while ((m = re.exec(t))) itens.push({ vencimento: dISO(m[1]), parcela: itens.length + 1, prazo: Number(m[4]), nosso: null, seu: null, sacado: "", situacao: "A VENCER", valor: num(m[5]), jurosItem: num(m[6]), iofItem: num(m[7]) });
+  const soma = r2(itens.reduce((a, i) => a + i.valor, 0));
+  const custo = r2(c.juros + c.iof + c.tac + c.tarifa);
+  c.prova = {
+    parcelas: { pdf: c.qtd, lido: itens.length, ok: !c.qtd || c.qtd === itens.length },
+    valor: { pdf: c.valorOperacao, lido: soma, ok: Math.abs(soma - c.valorOperacao) < 0.02 },
+    liquido: { pdf: c.valorLiquido, lido: r2(c.valorOperacao - custo), ok: Math.abs(c.valorOperacao - custo - c.valorLiquido) < 0.02 },
+  };
+  return { ...c, custo, itens };
+}
 
 // texto na ordem em que o PDF grava (mantém a linha da tabela inteira, mesmo com o sacado quebrado em duas linhas)
 async function textoPlano(buf) {
@@ -34,6 +65,7 @@ async function textoPlano(buf) {
 
 export async function lerAntecipacao(buf) {
   const t = await textoPlano(buf);
+  if (ehRecebiveis(t)) return lerRecebiveis(t);
   if (!ehAntecipacao(t)) throw new Error("Não é um relatório de contrato de desconto de duplicatas (Bradesco › Contratos).");
   const v = (re) => { const m = t.match(re); return m ? num(m[1]) : 0; };
   const ct = t.match(/(\d{8,})\s*\|\s*Data:\s*(\d{2}\/\d{2}\/\d{4})/) || t.match(/Contrato:\s*(\d{8,})\s*\|\s*Data:\s*(\d{2}\/\d{2}\/\d{4})/);
@@ -92,7 +124,18 @@ async function indice() {
     const n = normNosso(t.nossoNumero || nossoObs(t.observacao));
     if (n) { porNosso.set(n, t); if (n.length > 1) porNosso.set(n.slice(0, -1), t); }
   }
-  return (it) => porDoc.get(normDoc(it.seu)) || porNosso.get(normNosso(it.nosso)) || prevista(it) || null;
+  // v176 — sem nº do título (antecipação de recebíveis): casa pelo valor e pelo vencimento do boleto (exato; senão até 5 dias)
+  const abertas = tits.filter((t) => t.status === "ABERTO");
+  const usadasV = new Set();
+  const porValorVenc = (it) => {
+    if (it.seu || it.nosso) return null;
+    const v = dUTC(it.vencimento);
+    const c = abertas.filter((t) => !usadasV.has(t.id) && Math.abs(Number(t.valor) - it.valor) <= 0.01)
+      .map((t) => ({ t, d: Math.abs(+t.vencimento - +v) / DIA })).filter((x) => x.d <= 5).sort((a, b) => a.d - b.d)[0];
+    if (c) usadasV.add(c.t.id);
+    return c?.t || null;
+  };
+  return (it) => (it.seu && porDoc.get(normDoc(it.seu))) || (it.nosso && porNosso.get(normNosso(it.nosso))) || porValorVenc(it) || prevista(it) || null;
 }
 
 const saidaT = (t) => t && ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status, cobranca: t.cobranca });
@@ -180,12 +223,13 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
       const nf = String(it.seu).split("-")[0];
       const t = await prisma.finTitulo.create({
         data: {
-          tipo: "RECEBER", titulo: `NF ${it.seu}`, parceiro: it.sacado, numeroDoc: it.seu, nossoNumero: it.nosso, valor: it.valor,
+          tipo: "RECEBER", titulo: it.seu ? `NF ${it.seu}` : `DUPLICATA DESCONTADA · VCTO ${dBR(it.vencimento)}`, parceiro: it.sacado || "NÃO IDENTIFICADO", numeroDoc: it.seu, nossoNumero: it.nosso, valor: it.valor,
           vencimento: dUTC(it.vencimento), competencia: it.vencimento.slice(0, 7), status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor,
           cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true, rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [],
           forma: "IMPORTACAO", chaveImport: chave, criadoPorNome: quem || null,
           observacao: `DESCONTADA NO CONTRATO ${r.contrato} (${dBR(r.data)}) · PARCELA ${it.parcela}/${r.itens.length}`,
-          critica: `Título descontado no contrato ${r.contrato} que NÃO estava no contas a receber — criado pela antecipação. Confira a NF ${nf}, o cliente e o valor.`,
+          critica: it.seu ? `Título descontado no contrato ${r.contrato} que NÃO estava no contas a receber — criado pela antecipação. Confira a NF ${nf}, o cliente e o valor.`
+            : `Duplicata de ${dBR(it.vencimento)} (R$ ${it.valor.toFixed(2).replace(".", ",")}) descontada na antecipação de ${dBR(r.data)} sem conta a receber com esse valor e vencimento — confira o cliente e a NF.`,
         },
       });
       await prisma.finTituloAnexo.create({ data: { ...anexo, tituloId: t.id } });
