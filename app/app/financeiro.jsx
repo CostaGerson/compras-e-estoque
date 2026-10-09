@@ -1372,7 +1372,7 @@ function Importacao({ user, comp, setComp }) {
     try {
       const r = await fetch(`/api/fin/baixas?u=${user.id}&competencia=${comp}`);
       const j = await r.json();
-      setBaixas(r.ok ? (j.sugestoes || []).length : null);
+      setBaixas(r.ok ? (j.sugestoes || []).filter((x) => !x.lancamento.vista).length : null);   // v177 — só as ainda não vistas
     } catch { setBaixas(null); }
   };
   useEffect(() => { setDados(null); setBaixas(null); setVerBaixas(false); carregar(); }, [comp]);

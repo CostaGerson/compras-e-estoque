@@ -765,6 +765,7 @@ model FinLancamento {
   revisado          Boolean  @default(false)    // crítica "consolidado sem detalhamento" conferida à mão
   ordem             Int      @default(0)
   identificadoPor   String?
+  baixaVista        Boolean  @default(false)   // v177 — sugestão de baixa já vista na validação (não reaparece no aviso)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

@@ -285,7 +285,7 @@ export default function ContasPagarReceber({ user }) {
   const [tickAtraso, setTickAtraso] = useState(0);
   // v172 — baixas pelo extrato: o sistema procura sozinho; só aparece quando há o que validar
   const [nBaixas, setNBaixas] = useState(0);
-  useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).length)).catch(() => setNBaixas(0)); }, [d, mes]);
+  useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).filter((x) => !x.lancamento.vista).length)).catch(() => setNBaixas(0)); }, [d, mes]);
   const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
     if (j.dedupCompras?.removidas) setAviso(`${j.dedupCompras.removidas} conta(s) de compra lançada(s) em dobro foram unificadas: ficou a da NF (XML)${j.dedupCompras.baixasMovidas ? `, ${j.dedupCompras.baixasMovidas} baixa(s) passaram para ela` : ""}. As outras estão na Lixeira por 30 dias.`);
@@ -2710,9 +2710,15 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
   const pular = () => { setPulados((p) => [...p, atual]); setI((x) => x + 1); };
 
   const CONF = { ALTA: [C.green, C.greenSoft], MEDIA: [C.yellow, C.yellowSoft], BAIXA: [C.red, C.redSoft] };
+  // v177 — ao fechar, as sugestões já vistas (baixadas ou puladas) saem do aviso
+  const fechar = async () => {
+    const ids = (d?.sugestoes || []).slice(0, i).map((x) => x.lancamento.id);
+    if (ids.length) await api("/api/fin/baixas", "POST", { usuarioId: user.id, acao: "vistas", ids }).catch(() => {});
+    onClose();
+  };
 
   return (
-    <Modal titulo="Baixas pelo extrato" icone={Link2} onClose={onClose} largura={720}>
+    <Modal titulo="Baixas pelo extrato" icone={Link2} onClose={fechar} largura={720}>
       {erro && <div className="mb-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Procurando no extrato…</div>}
 
@@ -2780,7 +2786,7 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
               <div className="text-sm mt-1" style={{ color: C.sub }}>
                 {feitos.length} conta(s) baixada(s){pulados.length ? ` · ${pulados.length} pulada(s), continuam em aberto` : ""}.
               </div>
-              <button onClick={onClose} className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Fechar</button>
+              <button onClick={fechar} className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Fechar</button>
             </div>
           )}
         </>

@@ -31,7 +31,7 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
 
   const lancamentos = await prisma.finLancamento.findMany({
     where, orderBy: [{ data: "asc" }, { ordem: "asc" }],
-    select: { id: true, data: true, historico: true, identificacao: true, valor: true, banco: true, competencia: true },
+    select: { id: true, data: true, historico: true, identificacao: true, valor: true, banco: true, competencia: true, baixaVista: true },
   });
   if (!lancamentos.length) return { sugestoes: [], lancamentos: 0, titulos: 0 };
 
@@ -79,7 +79,7 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
       : exato && Math.abs(c.dias) <= 3 && c.sim >= 0.4 ? "ALTA"
       : (exato && Math.abs(c.dias) <= 7) || (c.nome && c.exato) || c.juros ? "MEDIA" : "BAIXA";
     out.push({
-      lancamento: { id: l.id, data: l.data, historico: l.historico, identificacao: l.identificacao, valor: Number(l.valor), banco: l.banco },
+      lancamento: { id: l.id, data: l.data, historico: l.historico, identificacao: l.identificacao, valor: Number(l.valor), banco: l.banco, vista: !!l.baixaVista },
       titulo: { id: c.t.id, tipo: c.t.tipo, titulo: c.t.titulo, parceiro: c.t.parceiro, valor: Number(c.t.valor), vencimento: c.t.vencimento, formaPagamento: c.t.formaPagamento, numeroDoc: c.t.numeroDoc },
       diferenca: r2(valor - Number(c.t.valor)),
       dias: c.dias,
@@ -129,4 +129,11 @@ export async function desfazer(tituloId) {
     select: { id: true, titulo: true },
   }).catch(() => null);
   return t ? { ok: true, titulo: t } : { ok: false, erro: "Conta não encontrada." };
+}
+
+// v177 — sugestões já vistas na validação (baixadas ou não): somem do aviso até um lançamento novo aparecer
+export async function marcarVistas(ids) {
+  const l = (ids || []).map(Number).filter(Boolean);
+  if (!l.length) return 0;
+  return (await prisma.finLancamento.updateMany({ where: { id: { in: l } }, data: { baixaVista: true } })).count;
 }
