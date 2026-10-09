@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { unzipSync } from "fflate";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, garantirTipos } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado, competenciaValida, garantirTipos } from "@/lib/fin";
 import {
   CATEGORIAS, ORDEM_CATEGORIAS, formatoDoNome, gravarDoc, sincronizarExtratos,
   CFG_EMAIL, lerConfig, salvarConfig, emailValido, mesAno,
@@ -45,8 +45,8 @@ export async function GET(req) {
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioMaster(b?.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b?.usuarioId);
+  if (!u) return soMaster();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
 
   const categoria = String(b.categoria || "OUTRO").toUpperCase();

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { PrestadorModal } from "./prestadores";
+import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
 import {
@@ -414,11 +415,13 @@ export default function ContasPagarReceber({ user }) {
         <div className="flex-1" />
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
+        {podeImportar(user) && <>   {/* v167 — importação: só o master */}
         <BtnS onClick={() => setModal({ t: "posicao" })}><FileSpreadsheet size={15} /> Importar posição</BtnS>
         {P && <BtnS onClick={() => setModal({ t: "documento" })}><FileText size={15} /> Importar documento</BtnS>}
         {!P && <BtnS onClick={() => setModal({ t: "retorno" })}><FileCode2 size={15} /> Importar retorno</BtnS>}
         {!P && <BtnS onClick={() => setModal({ t: "antecipacao" })}><FileText size={15} /> Importar antecipação</BtnS>}
         {P && <BtnS onClick={() => setModal({ t: "xml" })}><Upload size={15} /> Importar XML</BtnS>}
+        </>}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
@@ -1380,7 +1383,7 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
           <a href={url(a)} target="_blank" rel="noreferrer" className="flex-1 truncate underline" style={{ color: C.blue }}>{a.nome}</a>
           <span style={{ color: C.sub }}>{kb(a.tamanho)}</span>
           <a href={url(a, true)} title="Baixar" style={{ color: C.sub }}><Download size={13} /></a>
-          <button onClick={() => apagar(a)} title="Remover" style={{ color: C.sub }}><Trash2 size={13} /></button>
+          {podeImportar(user) && <button onClick={() => apagar(a)} title="Remover" style={{ color: C.sub }}><Trash2 size={13} /></button>}
         </div>
       ))}
       {pendentes.map((f, i) => (

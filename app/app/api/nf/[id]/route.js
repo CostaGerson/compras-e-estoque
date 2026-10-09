@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { usuarioSoMaster, soMaster } from "@/lib/fin";
 
 // Exclui a NF, reverte o saldo em estoque dos artigos e desvincula o nfId. Os artigos permanecem no catálogo.
 export async function DELETE(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  const uid = b.usuarioId || new URL(req.url).searchParams.get("u");
+  if (!(await usuarioSoMaster(uid))) return soMaster();   // v167 — excluir NF importada: só o master
   const id = Number(params.id);
   await prisma.$transaction(async (tx) => {
     const itens = await tx.nfItem.findMany({ where: { nfId: id }, select: { id: true, artigoId: true, quantidade: true } });

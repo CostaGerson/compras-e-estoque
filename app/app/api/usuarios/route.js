@@ -5,10 +5,13 @@ const up = (v) => (v ? String(v).trim().toUpperCase() : "");
 const txt = (v) => (v == null ? "" : String(v).trim());
 const bool = (v) => v === true || v === "true" || v === 1;
 const PERMS = ["permLancaPedidos", "permLancaContas", "permAlteraStatus", "permVeValores"];
+// v167 — chave Diretoria liga lançar/editar contas e pedidos e ver valores
+const aplicaDiretoria = (data) => { if (data.diretoria) { data.permLancaPedidos = true; data.permLancaContas = true; data.permVeValores = true; data.permAlteraStatus = true; } };
+const semSegredos = (u) => { if (!u) return u; const { resetHash, resetExpira, ...r } = u; return r; };
 
 export async function GET() {
   const usuarios = await prisma.usuario.findMany({ orderBy: [{ isMaster: "desc" }, { nome: "asc" }] });
-  return Response.json(usuarios);
+  return Response.json(usuarios.map(semSegredos));
 }
 
 export async function POST(req) {
@@ -27,9 +30,11 @@ export async function POST(req) {
     ativo: b.ativo === undefined ? true : bool(b.ativo),
   };
   for (const p of PERMS) data[p] = bool(b[p]);
+  data.diretoria = bool(b.diretoria);
+  aplicaDiretoria(data);
   try {
     const u = await prisma.usuario.create({ data });
-    return Response.json(u, { status: 201 });
+    return Response.json(semSegredos(u), { status: 201 });
   } catch (e) {
     if (e.code === "P2002") return Response.json({ error: "Já existe um usuário com esse login" }, { status: 400 });
     return Response.json({ error: "Erro ao criar usuário" }, { status: 500 });

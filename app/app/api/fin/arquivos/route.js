@@ -2,15 +2,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado, competenciaValida, abrirPdf, classificarTexto, garantirTipos } from "@/lib/fin";
 import { importarArquivoAnalise } from "@/lib/finImportArquivo";
 
 // POST { usuarioId, competencia, tipoId ("auto" = classifica pelo texto), nome, conteudo(base64), senha?, salvarSenha?, rotuloSenha? }
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioMaster(b?.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b?.usuarioId);
+  if (!u) return soMaster();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   const auto = b.tipoId === "auto";
   let tipo = null;

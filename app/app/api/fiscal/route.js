@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { usuarioMaster, negado, abrirPdf } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado, abrirPdf } from "@/lib/fin";
 import { senhasSalvas } from "@/lib/finImportArquivo";
 import { analisar, gravar, listar } from "@/lib/fiscal";
 
@@ -14,8 +14,8 @@ export async function GET(req) {
 // POST { usuarioId, acao: "gravar", notas: [...] }                               → registra e lança as contas
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b.usuarioId);
+  if (!u) return soMaster();
   if (b.acao === "analisar") {
     const senhas = await senhasSalvas().catch(() => []);
     return Response.json(await analisar(b.arquivos || [], { abrirPdf, senhas }));

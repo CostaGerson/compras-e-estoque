@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
 import { analisarAntecipacao, aplicarAntecipacao, listarAntecipacoes, conciliarAntecipacoesPendentes } from "@/lib/finAntecipacao";
 
@@ -15,8 +15,8 @@ export async function GET(req) {
 // POST { usuarioId, acao: "analisar" | "aplicar", arquivo: { nome, conteudo } }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b.usuarioId);
+  if (!u) return soMaster();
   if (!b.arquivo?.conteudo) return Response.json({ error: "Envie o PDF do contrato." }, { status: 400 });
   try {
     if (b.acao === "analisar") return Response.json(await analisarAntecipacao(b.arquivo.nome, b.arquivo.conteudo));

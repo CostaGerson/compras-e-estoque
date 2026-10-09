@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ehMaster, veFinanceiro, SO_MASTER_MSG } from "@/lib/acesso";
 
 // Documentos obrigatórios por mês (1 card cada). qtdEsperada = arquivos esperados.
 export const TIPOS_PADRAO = [
@@ -33,15 +34,22 @@ export async function garantirTipos() {
   });
 }
 
-// Só o master (ou setor FINANCEIRO) acessa o financeiro.
+// Master (ou setor FINANCEIRO) e usuários com a chave Diretoria acessam o financeiro (v167).
+const SEL_U = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true };
 export async function usuarioMaster(id) {
   const uid = Number(id);
   if (!uid) return null;
-  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true } });
+  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: SEL_U });
   if (!u || !u.ativo) return null;
-  if (!(u.isMaster || u.setor === "FINANCEIRO")) return null;
+  if (!veFinanceiro(u)) return null;
   return u;
 }
+// Só o master de verdade — importação e exclusão de documentos importados (v167)
+export async function usuarioSoMaster(id) {
+  const u = await usuarioMaster(id);
+  return u && ehMaster(u) ? u : null;
+}
+export const soMaster = () => Response.json({ error: SO_MASTER_MSG }, { status: 403 });
 export const negado = () => Response.json({ error: "Acesso restrito ao financeiro." }, { status: 403 });
 
 export const competenciaValida = (c) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(c || ""));

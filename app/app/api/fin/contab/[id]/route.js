@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado } from "@/lib/fin";
 
 const MIME = {
   PDF: "application/pdf", OFX: "application/x-ofx", XML: "application/xml",
@@ -30,7 +30,7 @@ export async function GET(req, { params }) {
 // DELETE ?u=
 export async function DELETE(req, { params }) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  if (!(await usuarioSoMaster(sp.get("u")))) return soMaster();
   const id = Number(params.id);
   await prisma.finNfSaida.deleteMany({ where: { docId: id } }).catch(() => null);
   await prisma.finContabDoc.delete({ where: { id } }).catch(() => null);

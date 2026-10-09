@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { usuarioSoMaster, soMaster } from "@/lib/fin";
 import { parseXmlNfe, parsePdfNfe, validarVenda, camposDoTexto, unidadeDoUCom } from "@/lib/nf";
 import { lerXmlTitulo } from "@/lib/finTitulos";
 import { fornecedorDoEmitente, gerarContasNf } from "@/lib/nfEntrada";
@@ -35,6 +36,7 @@ export async function POST(req) {
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const { tipo, conteudo, pdfBase64, perfil, usuarioId } = body || {};
   const criadoPorId = usuarioId ? Number(usuarioId) : null;
+  if (!(await usuarioSoMaster(criadoPorId))) return soMaster();   // v167 — importação: só o master
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
   // 1) parse

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
 import { excluirRegistro } from "@/lib/fiscal";
 
@@ -22,8 +22,8 @@ export async function GET(req, { params }) {
 // DELETE { usuarioId } → exclui o registro (contas criadas por ele vão para a lixeira)
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b.usuarioId);
+  if (!u) return soMaster();
   const r = await excluirRegistro(params.id, nomeU(u));
   if (r.error) return Response.json(r, { status: 400 });
   return Response.json(r);

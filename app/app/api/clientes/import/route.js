@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { parseClienteXml, mapPlanilha, normNome } from "../../../../lib/cliente";
 import * as XLSX from "xlsx";
+import { usuarioSoMaster, soMaster } from "../../../../lib/fin";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ const vazio = (v) => v === null || v === undefined || String(v).trim() === "";
 
 export async function POST(req) {
   const body = await req.json();
+  if (!(await usuarioSoMaster(body.usuarioId))) return soMaster();   // v167 — importação: só o master
 
   // ---------------- IMPORTAÇÃO DE XMLS ----------------
   if (body.tipo === "xml") {

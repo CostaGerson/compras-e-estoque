@@ -5,6 +5,16 @@ const up = (v) => (v ? String(v).trim().toUpperCase() : "");
 const txt = (v) => (v == null ? "" : String(v).trim());
 const bool = (v) => v === true || v === "true" || v === 1;
 const PERMS = ["permLancaPedidos", "permLancaContas", "permAlteraStatus", "permVeValores"];
+// v167 — chave Diretoria liga lançar/editar contas e pedidos e ver valores
+const aplicaDiretoria = (data) => { if (data.diretoria) { data.permLancaPedidos = true; data.permLancaContas = true; data.permVeValores = true; data.permAlteraStatus = true; } };
+const semSegredos = (u) => { if (!u) return u; const { resetHash, resetExpira, ...r } = u; return r; };
+
+// GET → dados atuais do usuário (o navegador atualiza a sessão ao abrir: setor, chave Diretoria, bloqueio)
+export async function GET(req, { params }) {
+  const u = await prisma.usuario.findUnique({ where: { id: Number(params.id) || 0 } });
+  if (!u) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
+  return Response.json(semSegredos(u));
+}
 
 export async function PATCH(req, { params }) {
   const id = Number(params.id);
@@ -20,9 +30,11 @@ export async function PATCH(req, { params }) {
   if ("isMaster" in b) data.isMaster = bool(b.isMaster);
   if ("ativo" in b) data.ativo = bool(b.ativo);
   for (const p of PERMS) if (p in b) data[p] = bool(b[p]);
+  if ("diretoria" in b) data.diretoria = bool(b.diretoria);
+  aplicaDiretoria(data);
   try {
     const u = await prisma.usuario.update({ where: { id }, data });
-    return Response.json(u);
+    return Response.json(semSegredos(u));
   } catch (e) {
     if (e.code === "P2002") return Response.json({ error: "Já existe um usuário com esse login" }, { status: 400 });
     return Response.json({ error: "Erro ao salvar usuário" }, { status: 500 });

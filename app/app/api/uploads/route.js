@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { listarUploads, podeExcluir, excluirUpload, conteudoUpload, mimeDe, ORIGENS, nomeUsuario } from "@/lib/uploads";
+import { listarUploads, podeExcluir, enviouEle, excluirUpload, conteudoUpload, mimeDe, ORIGENS, nomeUsuario } from "@/lib/uploads";
 
 async function usuario(id) {
   const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true } });
@@ -16,7 +16,7 @@ export async function GET(req) {
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
   const id = sp.get("id");
   const lista = await listarUploads();
-  const meus = lista.filter((x) => master(u) || podeExcluir(u, x));
+  const meus = lista.filter((x) => master(u) || enviouEle(u, x));
   if (id) {
     if (!meus.some((x) => x.id === id)) return new Response("Sem acesso a este documento.", { status: 403 });
     const c = await conteudoUpload(id);
@@ -34,7 +34,7 @@ export async function DELETE(req) {
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
   const x = (await listarUploads()).find((y) => y.id === b.id);
   if (!x) return Response.json({ error: "Documento não encontrado (já excluído?)." }, { status: 404 });
-  if (!podeExcluir(u, x)) return Response.json({ error: "Só o master ou quem enviou pode excluir este documento." }, { status: 403 });
+  if (!podeExcluir(u, x)) return Response.json({ error: "Excluir documento importado: só o master." }, { status: 403 });
   try {
     await excluirUpload(b.id);
     return Response.json({ ok: true });

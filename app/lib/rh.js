@@ -5,13 +5,13 @@ import { nDiaUtil, mesAtual, somaMes } from "@/lib/finTitulos";
 
 export const nomeUsuario = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
-// financeiro (master) e RH
+// financeiro (master), diretoria (v167) e RH
 export async function usuarioRH(id) {
   const uid = Number(id);
   if (!uid) return null;
-  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true } });
+  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true } });
   if (!u || !u.ativo) return null;
-  return u.isMaster || u.setor === "FINANCEIRO" || u.setor === "RH" ? u : null;
+  return u.isMaster || u.setor === "FINANCEIRO" || u.setor === "RH" || u.diretoria ? u : null;
 }
 export const negadoRH = () => Response.json({ error: "Acesso restrito ao RH e ao financeiro." }, { status: 403 });
 

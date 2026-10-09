@@ -1,4 +1,5 @@
 "use client";
+import { podeImportar } from "@/lib/acesso";
 import Dfc from "./dfc";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -426,9 +427,9 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
           <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
         </div>
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
-        <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+        {podeImportar(user) && <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
           <Upload size={15} /> Importar histórico
-        </button>
+        </button>}
       </div>
       {hist && <ImportarHistorico user={user} fechar={(ok) => { setHist(false); if (ok) setRk((k) => k + 1); }} />}
       {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}
@@ -1454,11 +1455,11 @@ function Importacao({ user, comp, setComp }) {
         <SeletorMes comp={comp} setComp={setComp} />
         <input ref={loteInp} type="file" accept=".zip,application/zip,application/pdf,.pdf" multiple className="hidden"
           onChange={(e) => { abrirLote(e.target.files); e.target.value = ""; }} />
-        <button onClick={() => loteInp.current?.click()} disabled={!dados}
+        {podeImportar(user) && <button onClick={() => loteInp.current?.click()} disabled={!dados}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ background: C.accent, color: "#fff", opacity: dados ? 1 : 0.5 }}>
           <FolderArchive size={16} /> Importar ZIP / vários PDFs
-        </button>
+        </button>}
         {dados && (
           <div className="flex flex-wrap gap-2">
             <Pilula cor={C.green} bg={C.greenSoft} txt={`${tot.ok} de ${tot.total} enviados`} />
@@ -1549,7 +1550,8 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
   useEffect(() => { setTexto(just?.texto || ""); }, [just?.texto, comp]);
 
   const falta = arqs.length < tipo.qtdEsperada;
-  const podeMais = tipo.multiplo || arqs.length === 0;
+  const imp = podeImportar(user);   // v167 — importar/excluir: só o master
+  const podeMais = imp && (tipo.multiplo || arqs.length === 0);
   const alterado = (texto || "").trim().toUpperCase() !== (just?.texto || "");
 
   const salvarJust = async () => {
@@ -1599,7 +1601,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
               </a>
               <ProvaChip a={a} />
               {a.protegido && <Lock size={13} style={{ color: C.sub }} title="PDF com senha" />}
-              <button onClick={() => onExcluir(a)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>
+              {imp && <button onClick={() => onExcluir(a)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
             </div>
           ))}
         </div>
@@ -1628,9 +1630,9 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
                   <div className="text-xs font-medium truncate" style={{ color: C.text }} title={ofx.nome}>{ofx.nome}</div>
                   <div className="text-[11px]" style={{ color: C.sub }}>OFX · {kb(ofx.tamanho)} · na contabilidade</div>
                 </a>
-                <button onClick={() => onExcluirOfx(ofx)} title="Excluir OFX" style={{ color: C.sub }}><Trash2 size={14} /></button>
+                {imp && <button onClick={() => onExcluirOfx(ofx)} title="Excluir OFX" style={{ color: C.sub }}><Trash2 size={14} /></button>}
               </>
-            ) : (
+            ) : !imp ? <span className="flex-1 text-xs" style={{ color: C.sub }}>OFX não enviado</span> : (
               <>
                 <input ref={inpOfx} type="file" accept=".ofx" className="hidden" onChange={(e) => { onOfx(e.target.files); e.target.value = ""; }} />
                 <button onClick={() => inpOfx.current?.click()} className="flex-1 text-left text-xs font-medium" style={{ color: C.sub }}>
@@ -3373,12 +3375,12 @@ function SlotArquivo({ doc, formato, user, onExcluir, onPedir, dica }) {
               {kb(doc.tamanho)} · {doc.arquivoId ? "cópia da Importação" : dataHora(doc.createdAt)}
             </div>
           </a>
-          <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
+          {podeImportar(user) && <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
             title={doc.arquivoId ? "Este PDF vem da guia Importação — se excluir aqui, ele volta quando a guia recarregar. Para tirar de vez, exclua na Importação." : "Excluir"}>
             <Trash2 size={14} />
-          </button>
+          </button>}
         </>
-      ) : (
+      ) : !podeImportar(user) ? <span className="flex-1 text-xs" style={{ color: C.sub }}>{formato} não enviado</span> : (
         <>
           <input ref={inp} type="file" accept={formato === "PDF" ? ".pdf" : ".ofx"} className="hidden"
             onChange={(e) => { onPedir(e.target.files); e.target.value = ""; }} />
@@ -3423,7 +3425,7 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
     <div className="rounded-xl flex flex-col"
       style={{ background: C.panel, border: `1px solid ${drag ? C.accent : C.line}`, borderTop: `3px solid ${ok ? C.green : C.red}` }}
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); onSubir(e.dataTransfer.files); }}>
+      onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeImportar(user)) onSubir(e.dataTransfer.files); }}>
       <div className="p-4 pb-2 flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold" style={{ color: C.text }}>{cat.label}</div>
@@ -3444,13 +3446,14 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
                 <div className="text-xs font-medium truncate" style={{ color: C.text }} title={doc.nomeOriginal || doc.nome}>{doc.nome}</div>
                 <div className="text-[11px]" style={{ color: C.sub }}>{kb(doc.tamanho)} · {dataHora(doc.createdAt)}</div>
               </a>
-              <button onClick={() => onExcluir(doc)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>
+              {podeImportar(user) && <button onClick={() => onExcluir(doc)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
             </div>
           ))}
         </div>
       )}
 
       <div className="px-4 pb-4 mt-auto flex flex-col gap-2">
+        {podeImportar(user) && <>
         <input ref={inp} type="file" accept={aceita} multiple={cat.multiplo} className="hidden"
           onChange={(e) => { onSubir(e.target.files); e.target.value = ""; }} />
         <button onClick={() => inp.current?.click()}
@@ -3459,6 +3462,7 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
           <Upload size={15} /> {docs.length ? "Enviar mais" : `Enviar ${cat.formatos.join(" / ")}`}
         </button>
         {cat.multiplo && <div className="text-[11px] text-center" style={{ color: C.sub }}>aceita vários arquivos ou um ZIP</div>}
+        </>}
         {acao && (
           <div className="flex gap-2">
             <button onClick={acao.fn} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold"

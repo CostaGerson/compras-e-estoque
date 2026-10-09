@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { usuarioMaster, negado, garantirContas } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado, garantirContas } from "@/lib/fin";
 import { nomeU, gerarRecorrencias } from "@/lib/finTitulos";
 import { lerPosicao, analisarPosicao, importarPosicao } from "@/lib/finPosicao";
 
@@ -7,8 +7,8 @@ import { lerPosicao, analisarPosicao, importarPosicao } from "@/lib/finPosicao";
 // POST { usuarioId, acao: "importar", linhas: [...] }                  → cria / substitui conforme a decisão de cada linha
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b.usuarioId);
+  if (!u) return soMaster();
   try {
     if (b.acao === "analisar") {
       if (!b.conteudo) return Response.json({ error: "Envie a planilha." }, { status: 400 });

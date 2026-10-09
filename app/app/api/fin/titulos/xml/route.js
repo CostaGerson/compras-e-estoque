@@ -1,14 +1,14 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado } from "@/lib/fin";
 import { lerXmlTitulo, validarRateio, nomeU, r2, dataUTC, mesDe, previaNota } from "@/lib/finTitulos";
 
 // POST { usuarioId, tipo, arquivos:[{nome, xml}] }          → leitura (prévia), não grava
 // POST { usuarioId, tipo, gravar:true, itens:[...] }         → grava os títulos revisados
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioSoMaster(b.usuarioId);
+  if (!u) return soMaster();
   const tipo = b.tipo === "RECEBER" ? "RECEBER" : "PAGAR";
 
   if (!b.gravar) {

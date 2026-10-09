@@ -9,5 +9,6 @@ export async function POST(req) {
   const u = await prisma.usuario.findUnique({ where: { login } });
   if (!u || u.senha !== senha) return Response.json({ error: "Usuário ou senha inválidos" }, { status: 401 });
   if (!u.ativo) return Response.json({ error: "Usuário bloqueado. Fale com o master." }, { status: 403 });
-  return Response.json(u);
+  const { resetHash, resetExpira, ...r } = u;
+  return Response.json(r);
 }

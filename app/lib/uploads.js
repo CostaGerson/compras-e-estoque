@@ -104,9 +104,10 @@ export async function listarUploads() {
     .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
 }
 
-// quem pode excluir: o master ou quem enviou
-export const podeExcluir = (u, x) => !!u && (u.isMaster || u.setor === "FINANCEIRO"
-  || (x.usuarioId && x.usuarioId === u.id) || (!!x.usuario && up(x.usuario) === nomeUsuario(u)));
+// quem enviou (para listar "os meus")
+export const enviouEle = (u, x) => !!u && ((x.usuarioId && x.usuarioId === u.id) || (!!x.usuario && up(x.usuario) === nomeUsuario(u)));
+// v167 — excluir documento importado: só o master
+export const podeExcluir = (u) => !!u && !!(u.isMaster || u.setor === "FINANCEIRO");
 
 const partes = (id) => { const [origem, n, campo] = String(id).split("-"); return { origem, n: Number(n), campo }; };
 

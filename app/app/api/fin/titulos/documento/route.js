@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioMaster, negado, soMaster } from "@/lib/fin";
+import { ehDiretor } from "@/lib/acesso";
 import { nomeU, gerarRecorrencias } from "@/lib/finTitulos";
 import { lerDocumento, analisarDocumentos, aplicarDocumentos } from "@/lib/finDocumentos";
 import { corrigirMatriz } from "@/lib/finFolhaMatriz";
@@ -16,6 +17,7 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioRH(b.usuarioId);   // financeiro e RH
   if (!u) return negado();
+  if (ehDiretor(u)) return soMaster();   // v167 — importação de documentos: só o master (o RH segue enviando os dele)
   try {
     if (b.acao === "analisar") {
       if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });

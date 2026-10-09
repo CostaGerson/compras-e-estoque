@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 // setores que enxergam TODOS os alertas de produto incompleto
-const SETORES_ALERTA = ["FINANCEIRO", "COMPRAS", "ESTOQUE"];
+const SETORES_ALERTA = ["FINANCEIRO", "DIRETORIA", "COMPRAS", "ESTOQUE"];
 
 // devolve os campos obrigatórios que estão faltando no artigo (vazio = completo)
 function faltando(a) {

@@ -17,11 +17,13 @@ export async function usuarioAtivo(id) {
   if (!uid) return null;
   const u = await prisma.usuario.findUnique({
     where: { id: uid },
-    select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true },
+    select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true },
   });
   return u && u.ativo ? u : null;
 }
 export const ehMaster = (u) => !!(u && (u.isMaster || u.setor === "FINANCEIRO"));
+// v167 — enxerga valores (master ou diretoria)
+export const veValores = (u) => ehMaster(u) || !!u?.diretoria;
 export const negadoKpi = (msg = "Acesso negado.") => Response.json({ error: msg }, { status: 403 });
 
 const n = (v) => (v === null || v === undefined ? null : Number(v));

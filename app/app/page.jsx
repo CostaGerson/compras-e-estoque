@@ -17,6 +17,8 @@ import NfRegistro from "./nfRegistro";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
+import { KeyRound, ShieldCheck } from "lucide-react";
+import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar } from "@/lib/acesso";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -63,10 +65,14 @@ const COMPONENTES = {
 };
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 const TODOS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
+// v167 — setores novos
+const PROD = ["PRODUCAO"];                                             // produção: como o PCP
+const OFICINAS = ["CORTE", "BORDADO", "SILK", "COSTURA", "EXPEDICAO"];   // saldo de estoque e FME
+const GESTAO_TODOS = [...TODOS, ...PROD, ...OFICINAS, "COMERCIAL", "LOGISTICA", "NORT", "ADMINISTRATIVO"];
 // Menu em árvore: grupos (com filhos) abrem uma tela de cards; folhas abrem o módulo.
 const MENU = [
-  { key: "gestao", label: "Gestão", icon: Compass, perfis: TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
-  { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO"], desc: "Clientes, propostas e vendas" },
+  { key: "gestao", label: "Gestão", icon: Compass, perfis: GESTAO_TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
+  { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
     { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
@@ -75,32 +81,33 @@ const MENU = [
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário e ordens de compra", filhos: [
-      { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP"], desc: "Pedido interno de compras consolidado do dia" },
+      { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Pedido interno de compras consolidado do dia" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
-      { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Tecidos, malhas, aviamentos e outros" },
-      { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE"], desc: "Saídas, retornos e ajustes por setor" },
+      { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
+      { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Saídas, retornos e ajustes por setor" },
     ] },
   ] },
   { key: "logistica", label: "Logística", icon: Truck, desc: "Rotas de entrega e coleta", filhos: [
-    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO"], desc: "Demandas de rota (em construção)" },
+    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota (em construção)" },
   ] },
   { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, notas fiscais, dados financeiros e uploads", filhos: [
-    { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Cadastro de clientes" },
-    { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Fabricantes e seus CNPJs" },
-    { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS"], desc: "Malhas, tecidos, aviamentos e outros" },
-    { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP"], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
-    { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP"], desc: "Facções e serviços: PIX, endereço e capacidade" },
+    { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
+    { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Fabricantes e seus CNPJs" },
+    { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
+    { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
+    { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
-    { key: "uploads", label: "Uploads", icon: FolderUp, perfis: ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE", "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
+    { key: "uploads", label: "Uploads", icon: FolderUp, perfis: [...GESTAO_TODOS, "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
-  const pode = (n) => perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
+  // v167 — Diretoria: tudo, menos Usuários
+  const pode = (n) => perfil === "DIRETORIA" ? n.key !== "usuarios" : perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -132,17 +139,34 @@ export default function Home() {
   const [resetTick, setResetTick] = useState(0);   // clicar no título remonta o módulo na tela inicial dele
   const bumpBadges = () => setBadgeTick((x) => x + 1);
 
-  useEffect(() => { setUser(lerSessao()); setCarregouSessao(true); }, []);
+  const [tokenReset, setTokenReset] = useState(null);   // v167 — link "redefinir senha" do e-mail
+  useEffect(() => {
+    setUser(lerSessao()); setCarregouSessao(true);
+    try { setTokenReset(new URLSearchParams(window.location.search).get("redefinir")); } catch {}
+  }, []);
+  // v167 — atualiza a sessão com o cadastro atual (setor, chave Diretoria, bloqueio)
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/usuarios/${user.id}`).then((r) => (r.ok ? r.json() : null)).then((u) => {
+      if (!u) return;
+      if (!u.ativo) { localStorage.removeItem("ce_user"); setUser(null); return; }
+      const mudou = ["setor", "isMaster", "diretoria", "nome", "sobrenome", "email", "login"].some((k) => u[k] !== user[k]);
+      if (mudou) { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); }
+    }).catch(() => {});
+  }, [user?.id]);
 
   const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView(u.setor === "RH" && !u.isMaster ? "rh" : "gestao"); };
   const sair = () => { localStorage.removeItem("ce_user"); setUser(null); };
   const atualizarUser = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); };
 
   if (!carregouSessao) return null;
+  if (tokenReset) return <RedefinirSenha token={tokenReset} onFim={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch {} setTokenReset(null); }} />;
   if (!user) return <Login onEntrar={entrar} />;
 
-  const master = !!(user.isMaster || user.setor === "FINANCEIRO");
-  const perfil = master ? "FINANCEIRO" : user.setor;
+  const masterReal = ehMasterU(user);              // master de verdade: importa, exclui importados, gerencia usuários
+  const diretor = ehDiretor(user);                 // v167 — chave Diretoria
+  const master = veFinanceiro(user);               // enxerga valores e entra no financeiro
+  const perfil = masterReal ? "FINANCEIRO" : diretor ? "DIRETORIA" : user.setor;
   const menu = menuDoPerfil(perfil);
   // RH só enxerga a guia RH (e mensagens/notificações)
   if (perfil === "RH" && !["rh", "mensagens", "notificacoes", "dados", "uploads"].includes(view)) setTimeout(() => setView("rh"), 0);
@@ -212,9 +236,9 @@ export default function Home() {
           <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "gestao" && perfil !== "RH" && <Gestao user={user} master={master} money={money} />}
-          {view === "rh" && ["FINANCEIRO", "RH"].includes(perfil) && <Rh user={user} />}
+          {view === "rh" && ["FINANCEIRO", "DIRETORIA", "RH"].includes(perfil) && <Rh user={user} />}
           {view === "movfiscal" && master && <MovimentoFiscal user={user} />}
-          {view === "demandas" && ["FINANCEIRO", "ADMINISTRATIVO"].includes(perfil) && <DemandasAdm user={user} master={master} />}
+          {view === "demandas" && ["FINANCEIRO", "DIRETORIA", "ADMINISTRATIVO"].includes(perfil) && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rota />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && <Comercial user={user} master={master} />}
@@ -231,7 +255,7 @@ export default function Home() {
           {view === "notasfiscais" && master && <NfRegistro user={user} />}
           {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
           {view === "uploads" && <Uploads user={user} />}
-          {view === "usuarios" && <Usuarios master={master} />}
+          {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
           </div>
@@ -316,6 +340,8 @@ function Login({ onEntrar }) {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [entrando, setEntrando] = useState(false);
+  const [esqueci, setEsqueci] = useState(false);   // v167
+  if (esqueci) return <EsqueciSenha inicial={login} onVoltar={() => setEsqueci(false)} />;
 
   const submit = async (e) => {
     e?.preventDefault?.();
@@ -343,8 +369,95 @@ function Login({ onEntrar }) {
         <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-full mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
         {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
         <button type="submit" disabled={entrando} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: entrando ? 0.6 : 1 }}>{entrando ? "Entrando…" : "Entrar"}</button>
+        <button type="button" onClick={() => setEsqueci(true)} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Esqueci minha senha</button>
       </form>
     </div>
+  );
+}
+
+/* ===== v167 — redefinir senha pelo e-mail cadastrado ===== */
+function CaixaLogin({ titulo, children, onSubmit }) {
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
+      <form onSubmit={onSubmit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
+        <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
+          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 34, width: "auto" }} />
+        </div>
+        <div className="flex items-center justify-center gap-2 font-semibold mb-4" style={{ color: C.text }}><KeyRound size={16} style={{ color: C.accent }} /> {titulo}</div>
+        {children}
+      </form>
+    </div>
+  );
+}
+const inpLogin = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
+
+function EsqueciSenha({ inicial, onVoltar }) {
+  const [chave, setChave] = useState(inicial || "");
+  const [st, setSt] = useState(null);   // null | "enviando" | { ok, texto }
+  const enviar = async (e) => {
+    e?.preventDefault?.();
+    if (!chave.trim()) return setSt({ ok: false, texto: "Informe seu usuário ou e-mail." });
+    setSt("enviando");
+    try {
+      const r = await fetch("/api/senha/esqueci", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chave }) });
+      const d = await r.json().catch(() => ({}));
+      setSt({ ok: !!d.ok, texto: d.msg || d.erro || "Não foi possível enviar." });
+    } catch { setSt({ ok: false, texto: "Falha de conexão." }); }
+  };
+  const enviado = st && st !== "enviando" && st.ok;
+  return (
+    <CaixaLogin titulo="Esqueci minha senha" onSubmit={enviar}>
+      {!enviado && <>
+        <p className="text-xs mb-3" style={{ color: C.sub }}>Informe seu usuário ou e-mail. Enviamos um link para o e-mail cadastrado para você criar uma nova senha.</p>
+        <label className="text-xs" style={{ color: C.sub }}>Usuário ou e-mail</label>
+        <input value={chave} onChange={(e) => setChave(e.target.value)} autoFocus className="w-full mt-1 px-3 py-2 rounded outline-none" style={inpLogin} />
+      </>}
+      {st && st !== "enviando" && <div className="text-xs mt-3" style={{ color: st.ok ? C.green : "#D64545" }}>{st.texto}</div>}
+      {!enviado && <button type="submit" disabled={st === "enviando"} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: st === "enviando" ? 0.6 : 1 }}>{st === "enviando" ? "Enviando…" : "Enviar link"}</button>}
+      <button type="button" onClick={onVoltar} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Voltar para o login</button>
+    </CaixaLogin>
+  );
+}
+
+function RedefinirSenha({ token, onFim }) {
+  const [valido, setValido] = useState(null);   // null carregando | { ok, login, erro }
+  const [senha, setSenha] = useState("");
+  const [conf, setConf] = useState("");
+  const [ver, setVer] = useState(false);
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    fetch(`/api/senha/redefinir?token=${encodeURIComponent(token)}`).then((r) => r.json()).then(setValido).catch(() => setValido({ ok: false, erro: "Falha de conexão." }));
+  }, [token]);
+  const salvar = async (e) => {
+    e?.preventDefault?.();
+    if (senha.length < 6) return setSt({ ok: false, texto: "A senha precisa ter pelo menos 6 caracteres." });
+    if (senha !== conf) return setSt({ ok: false, texto: "As duas senhas não conferem." });
+    setSt("salvando");
+    try {
+      const r = await fetch("/api/senha/redefinir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, senha, confirma: conf }) });
+      const d = await r.json().catch(() => ({}));
+      setSt({ ok: !!d.ok, texto: d.msg || d.erro || "Não foi possível salvar." });
+    } catch { setSt({ ok: false, texto: "Falha de conexão." }); }
+  };
+  const feito = st && st !== "salvando" && st.ok;
+  return (
+    <CaixaLogin titulo="Criar nova senha" onSubmit={salvar}>
+      {valido === null && <div className="text-xs text-center" style={{ color: C.sub }}>Conferindo o link…</div>}
+      {valido && !valido.ok && <div className="text-xs" style={{ color: "#D64545" }}>{valido.erro}</div>}
+      {valido?.ok && !feito && <>
+        <p className="text-xs mb-3" style={{ color: C.sub }}>Usuário <b style={{ color: C.text }}>{valido.login}</b></p>
+        <label className="text-xs" style={{ color: C.sub }}>Nova senha</label>
+        <div className="flex items-center gap-2 mt-1 mb-3 px-3 py-2 rounded" style={inpLogin}>
+          <input type={ver ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} autoFocus className="flex-1 outline-none" style={{ background: "transparent", color: C.text }} />
+          <button type="button" onClick={() => setVer((v) => !v)} style={{ color: C.sub }}>{ver ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+        </div>
+        <label className="text-xs" style={{ color: C.sub }}>Repita a nova senha</label>
+        <input type={ver ? "text" : "password"} value={conf} onChange={(e) => setConf(e.target.value)} className="w-full mt-1 px-3 py-2 rounded outline-none" style={inpLogin} />
+      </>}
+      {st && st !== "salvando" && <div className="text-xs mt-3" style={{ color: st.ok ? C.green : "#D64545" }}>{st.texto}</div>}
+      {valido?.ok && !feito && <button type="submit" disabled={st === "salvando"} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: st === "salvando" ? 0.6 : 1 }}>{st === "salvando" ? "Salvando…" : "Salvar nova senha"}</button>}
+      <button type="button" onClick={onFim} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Ir para o login</button>
+    </CaixaLogin>
   );
 }
 
@@ -389,7 +502,7 @@ function TopoUsuario({ user, perfil, badgeTick, onAbrirPerfil, onSair, onIrNotif
         <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={34} />
         <div className="text-left leading-tight hidden md:block">
           <div className="text-sm font-medium" style={{ color: C.text }}>{user.nome}</div>
-          <div className="text-xs" style={{ color: C.sub }}>{user.setor}{user.isMaster ? " · master" : ""}</div>
+          <div className="text-xs" style={{ color: C.sub }}>{SETOR_NOME[user.setor] || user.setor}{user.isMaster ? " · master" : user.diretoria ? " · diretoria" : ""}</div>
         </div>
       </button>
       <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
@@ -1342,7 +1455,7 @@ function Estoque({ money, master }) {
   );
 }
 /* ===== FME · Ficha de Movimentação de Estoque ===== */
-const FME_SETORES = ["CORTE", "PCP", "ESTOQUE", "EXPEDICAO", "COMPRAS", "ADMINISTRATIVO", "FINANCEIRO"];
+const FME_SETORES = ["CORTE", "COSTURA", "BORDADO", "SILK", "EXPEDICAO", "PRODUCAO", "PCP", "ESTOQUE", "COMPRAS", "LOGISTICA", "COMERCIAL", "NORT", "ADMINISTRATIVO", "FINANCEIRO"];
 // totais de uma FME por unidade: retirado, devolvido e consumido (retirado - devolvido)
 function totaisFmeUn(itens) {
   const ret = {}, dev = {}, cons = {};
@@ -2894,7 +3007,7 @@ function ClientesPane({ master, money }) {
       for (let i = 0; i < xmls.length; i += LOTE) {
         const chunk = xmls.slice(i, i + LOTE);
         setProg(`Lendo XMLs ${Math.min(i + LOTE, xmls.length)}/${xmls.length}…`);
-        const payload = { tipo: "xml", xmls: await Promise.all(chunk.map(async (f) => ({ name: f.name, conteudo: await readText(f) }))) };
+        const payload = { usuarioId: sessaoId(), tipo: "xml", xmls: await Promise.all(chunk.map(async (f) => ({ name: f.name, conteudo: await readText(f) }))) };
         const r = await fetch("/api/clientes/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const d = await r.json();
         if (r.ok) for (const k of Object.keys(tot)) tot[k] += d[k] || 0;
@@ -2902,7 +3015,7 @@ function ClientesPane({ master, money }) {
       let planTxt = "";
       if (plan) {
         setProg("Cruzando com a planilha…");
-        const r = await fetch("/api/clientes/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: "planilha", name: plan.name, base64: await readB64(plan) }) });
+        const r = await fetch("/api/clientes/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId(), tipo: "planilha", name: plan.name, base64: await readB64(plan) }) });
         const d = await r.json();
         if (r.ok) planTxt = ` · planilha: ${d.atualizados} cadastro(s) atualizado(s)${d.semMatch ? `, ${d.semMatch} sem correspondência` : ""}`;
         else planTxt = ` · planilha: ${d.error}`;
@@ -2921,7 +3034,7 @@ function ClientesPane({ master, money }) {
 
   return (
     <div>
-      <div
+      {podeImportar(lerSessao()) && <div
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
         onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); importar(e.dataTransfer.files); }}
@@ -2936,7 +3049,7 @@ function ClientesPane({ master, money }) {
             onChange={(e) => importar(e.target.files)} disabled={enviando} />
         </label>
         {msg && <div className="text-xs mt-3" style={{ color: msg.tipo === "ok" ? C.green : "#D64545" }}>{msg.texto}</div>}
-      </div>
+      </div>}
 
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <div className="flex-1 min-w-64">
@@ -3003,7 +3116,7 @@ function ClienteHistoricoModal({ cliente, master, money, onClose, onChanged }) {
   useEffect(() => { recarregar(); }, [cliente.id]);
   const excluir = async (n) => {
     if (!confirm(`Excluir a nota NF ${n.numero || ""} deste cliente?`)) return;
-    const r = await fetch(`/api/cliente-notas/${n.id}`, { method: "DELETE" });
+    const r = await fetch(`/api/cliente-notas/${n.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId() }) });
     if (r.ok) { recarregar(); onChanged && onChanged(); }
   };
   const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
@@ -3041,7 +3154,7 @@ function ClienteHistoricoModal({ cliente, master, money, onClose, onChanged }) {
                   <div className="w-28" style={{ color: C.sub }}>NF {n.numero || "—"}</div>
                   <div className="w-32" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
                   <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? (n.valorTotal != null ? money(n.valorTotal) : "—") : "•••••"}</div>
-                  <button onClick={() => excluir(n)} title="Excluir esta nota" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
+                  {podeImportar(lerSessao()) && <button onClick={() => excluir(n)} title="Excluir esta nota" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
                 </div>
               ))}
             </div>
@@ -3218,7 +3331,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
 
   return (
     <div>
-      <div
+      {podeImportar(lerSessao()) && <div
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
         onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); importar(e.dataTransfer.files); }}
@@ -3232,7 +3345,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
           <input type="file" multiple accept=".xml,.pdf" className="hidden" onChange={(e) => importar(e.target.files)} disabled={enviando} />
         </label>
         {msg && <div className="text-xs mt-3" style={{ color: msg.tipo === "ok" ? C.green : "#D64545" }}>{msg.texto}</div>}
-      </div>
+      </div>}
 
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <div className="flex-1 min-w-64">
@@ -3400,9 +3513,9 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
   useEffect(() => { recarregar(); }, [fornecedor.id]);
   const excluir = async (n) => {
     if (!confirm(`Excluir a NF ${n.numero} desta compra? O saldo em estoque dos artigos desta nota será revertido. Esta ação não pode ser desfeita.`)) return;
-    const r = await fetch(`/api/nf/${n.id}`, { method: "DELETE" });
+    const r = await fetch(`/api/nf/${n.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId() }) });
     if (r.ok) { recarregar(); onChanged && onChanged(); }
-    else alert("Não foi possível excluir a NF.");
+    else { const j = await r.json().catch(() => ({})); alert(j.error || "Não foi possível excluir a NF."); }
   };
   const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
   const nBR = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3454,7 +3567,7 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</div>
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</div>
                   <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</div>
-                  <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
+                  {podeImportar(lerSessao()) && <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
                 </div>
               ))}
             </div>
@@ -3469,13 +3582,9 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
 }
 
 /* ===== Usuários (ligado ao banco · só master) ===== */
-const SETORES = ["FINANCEIRO", "PCP", "ESTOQUE", "ADMINISTRATIVO", "RH"];
-const PERMISSOES = [
-  ["permLancaPedidos", "Lança e edita pedidos"],
-  ["permLancaContas", "Lança e edita contas"],
-  ["permAlteraStatus", "Altera status de pedidos"],
-  ["permVeValores", "Enxerga valores no financeiro"],
-];
+const SETORES = SETORES_ACESSO;   // v167 — lib/acesso.js
+// v167 — a chave Diretoria liga lançar/editar contas e pedidos e ver valores do financeiro e da gestão
+const PERMISSOES_DIRETORIA = ["Lança e edita contas", "Lança e edita pedidos", "Enxerga valores do financeiro e da gestão", "Não importa nem exclui documentos importados"];
 
 function Switch({ on, onChange, label }) {
   return (
@@ -3571,7 +3680,7 @@ function Usuarios({ master }) {
           </div>
           {usuarios.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum usuário ainda. Clique em “Novo usuário”.</div>}
           {usuarios.map((u) => {
-            const perms = PERMISSOES.filter(([k]) => u[k]);
+            const perms = u.isMaster || u.setor === "FINANCEIRO" ? [["m", "MASTER · TUDO"]] : u.diretoria ? [["d", "DIRETORIA"]] : u.permAlteraStatus ? [["s", "Altera status de pedidos"]] : [];
             return (
               <div key={u.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <div className="w-12"><Avatar foto={u.fotoBase64} nome={`${u.nome} ${u.sobrenome || ""}`} /></div>
@@ -3580,7 +3689,7 @@ function Usuarios({ master }) {
                   <div className="text-xs" style={{ color: C.sub }}>{u.email || "—"}</div>
                 </div>
                 <div className="w-32 text-sm" style={{ color: C.sub }}>{u.login}</div>
-                <div className="w-36"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{u.setor}</span></div>
+                <div className="w-36"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{SETOR_NOME[u.setor] || u.setor}</span></div>
                 <div className="w-40 text-sm flex items-center gap-2" style={{ color: C.text }}>
                   <span style={{ fontFamily: "monospace" }}>{verSenha[u.id] ? (u.senha || "—") : "••••••"}</span>
                   <button onClick={() => setVerSenha((s) => ({ ...s, [u.id]: !s[u.id] }))} style={{ color: C.sub }}>{verSenha[u.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
@@ -3618,6 +3727,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     fotoBase64: usuario?.fotoBase64 || null, ativo: usuario?.ativo ?? true, isMaster: usuario?.isMaster ?? false,
     permLancaPedidos: usuario?.permLancaPedidos ?? false, permLancaContas: usuario?.permLancaContas ?? false,
     permAlteraStatus: usuario?.permAlteraStatus ?? false, permVeValores: usuario?.permVeValores ?? false,
+    diretoria: usuario?.diretoria ?? false,
   });
   const [verSenha, setVerSenha] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -3683,11 +3793,11 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
             {self ? (
               <div>
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Setor</div>
-                <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{f.setor}</div>
+                <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{SETOR_NOME[f.setor] || f.setor}{f.diretoria ? " · DIRETORIA" : ""}</div>
               </div>
             ) : (
               <Sel label="Setor" value={f.setor} onChange={(e) => set("setor", e.target.value)}>
-                {SETORES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {SETORES.map((s) => <option key={s} value={s}>{SETOR_NOME[s] || s}</option>)}
               </Sel>
             )}
           </div>
@@ -3709,9 +3819,19 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
             <>
               <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
                 <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Permissões de acesso</div>
-                <div className="grid grid-cols-2 gap-x-4">
-                  {PERMISSOES.map(([k, l]) => <Switch key={k} on={f[k]} onChange={(v) => set(k, v)} label={l} />)}
+                <div className="text-xs mb-2" style={{ color: C.sub }}>O menu segue o setor. Master vê e faz tudo.</div>
+                <div className="rounded-md p-2.5" style={{ background: f.diretoria ? C.accentSoft : C.panel, border: `1px solid ${f.diretoria ? C.accent : C.line}` }}>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} style={{ color: f.diretoria ? C.accent : C.sub }} />
+                    <Switch on={f.diretoria} onChange={(v) => set("diretoria", v)} label="Usuário diretoria" />
+                  </div>
+                  <ul className="text-xs mt-1 ml-6 list-disc" style={{ color: C.sub }}>
+                    {PERMISSOES_DIRETORIA.map((l) => <li key={l}>{l}</li>)}
+                  </ul>
                 </div>
+                {!f.diretoria && !f.isMaster && (
+                  <div className="mt-2"><Switch on={f.permAlteraStatus} onChange={(v) => set("permAlteraStatus", v)} label="Altera status de pedidos" /></div>
+                )}
               </div>
               <div className="flex items-center gap-6">
                 <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />

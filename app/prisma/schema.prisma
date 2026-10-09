@@ -22,6 +22,13 @@ enum Setor {
   EXPEDICAO
   ADMINISTRATIVO
   RH
+  PRODUCAO
+  COMERCIAL
+  BORDADO
+  SILK
+  NORT
+  COSTURA
+  LOGISTICA
 }
 
 enum TipoTecido {
@@ -95,6 +102,9 @@ model Usuario {
   permLancaContas  Boolean @default(false)
   permAlteraStatus Boolean @default(false)
   permVeValores    Boolean @default(false)
+  diretoria        Boolean @default(false)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)
+  resetHash        String?                   // v167 — redefinição de senha por e-mail (sha-256 do token)
+  resetExpira      DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   mensagensEnviadas  Mensagem[] @relation("MsgDe")
