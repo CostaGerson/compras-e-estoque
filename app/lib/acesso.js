@@ -22,3 +22,18 @@ export const veFinanceiro = (u) => ehMaster(u) || ehDiretor(u);
 // importação e exclusão de documentos importados
 export const podeImportar = (u) => ehMaster(u);
 export const SO_MASTER_MSG = "Importação e exclusão de documentos importados: só o master.";
+
+// v169 — setores das Tarefas (demandas entre setores)
+export const SETORES_TAREFA = [["GESTAO", "Gestão"], ["COMERCIAL", "Comercial"], ["FINANCEIRO", "Financeiro"], ["PRODUCAO", "Produção"], ["RH", "RH"], ["LOGISTICA", "Logística"]];
+export const NOME_SETOR_TAREFA = Object.fromEntries(SETORES_TAREFA);
+export function setorTarefaDe(u) {
+  if (!u) return "GESTAO";
+  if (u.diretoria || u.isMaster && u.setor !== "FINANCEIRO") return "GESTAO";
+  const s = u.setor;
+  if (s === "FINANCEIRO") return "FINANCEIRO";
+  if (s === "COMERCIAL" || s === "NORT") return "COMERCIAL";
+  if (s === "RH") return "RH";
+  if (s === "LOGISTICA") return "LOGISTICA";
+  if (s === "ADMINISTRATIVO") return "GESTAO";
+  return "PRODUCAO";   // PCP, COMPRAS, ESTOQUE, PRODUÇÃO, CORTE, BORDADO, SILK, COSTURA, EXPEDIÇÃO
+}

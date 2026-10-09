@@ -19,6 +19,8 @@ import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
+import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
+import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar } from "@/lib/acesso";
 
 /* ============================================================
@@ -74,6 +76,8 @@ const GESTAO_TODOS = [...TODOS, ...PROD, ...OFICINAS, "COMERCIAL", "LOGISTICA", 
 const MENU = [
   { key: "desenvolvimento", label: "Desenvolvimento", icon: Lightbulb, perfis: ["FINANCEIRO"], desc: "Sugestões de melhoria enviadas pelos usuários: acatar ou recusar" },
   { key: "gestao", label: "Gestão", icon: Compass, perfis: GESTAO_TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
+  { key: "agenda", label: "Agenda", icon: IcoAgenda, perfis: [...GESTAO_TODOS, "RH"], desc: "Suas demandas no mês e na semana" },
+  { key: "tarefas", label: "Tarefas", icon: ListTodo, perfis: [...GESTAO_TODOS, "RH"], desc: "Demandas entre os setores: quem faz o quê, prazos, rotinas e quem está trabalhando em quê" },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
@@ -171,7 +175,7 @@ export default function Home() {
   const perfil = masterReal ? "FINANCEIRO" : diretor ? "DIRETORIA" : user.setor;
   const menu = menuDoPerfil(perfil);
   // RH só enxerga a guia RH (e mensagens/notificações)
-  if (perfil === "RH" && !["rh", "mensagens", "notificacoes", "dados", "uploads"].includes(view)) setTimeout(() => setView("rh"), 0);
+  if (perfil === "RH" && !["rh", "mensagens", "notificacoes", "dados", "uploads", "agenda", "tarefas"].includes(view)) setTimeout(() => setView("rh"), 0);
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
@@ -259,6 +263,8 @@ export default function Home() {
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
           {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}
+          {view === "agenda" && <Agenda user={user} />}
+          {view === "tarefas" && <Tarefas user={user} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
           </div>
@@ -508,6 +514,7 @@ function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onI
           <div className="text-xs" style={{ color: C.sub }}>{SETOR_NOME[user.setor] || user.setor}{user.isMaster ? " · master" : user.diretoria ? " · diretoria" : ""}</div>
         </div>
       </button>
+      <StatusPessoa user={user} />
       <SugestaoBotao user={user} tela={tela} />
       <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
     </div>

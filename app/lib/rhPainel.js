@@ -105,7 +105,7 @@ export async function painelRH(compPedida) {
   const m = await prisma.finMatriz.findFirst({ where: { oficial: true }, select: { dados: true } });
   const sal = Object.fromEntries((m?.dados?.pessoal || []).map((p) => [p.id, Number(p.salario) || 0]));
   const serie = comp ? comps.filter((c) => c <= comp).slice(-12) : [];
-  const { porPessoa, pendencias, justs } = await apurar(serie);
+  const { porPessoa, pendencias, justs, ferias } = await apurar(serie);
   const nomeDe = Object.fromEntries(pessoas.map((p) => [p.id, p]));
   const somaComp = (c) => {
     const a = { previstos: 0, faltas: 0, atestados: 0, pendentes: 0, justificados: 0, atrasos: 0, baseAtraso: 0, minAtraso: 0, he: 0, exced: 0, diasAcima2h: 0, minFalta: 0, dias: 0 };
@@ -122,7 +122,7 @@ export async function painelRH(compPedida) {
   geral && (geral.custoHE = r2(ranking.reduce((a, r) => a + r.custoHE, 0)));
   const series = serie.map((c) => { const g = somaComp(c); return { competencia: c, assiduidade: g.assiduidade, pontualidade: g.pontualidade, he: Math.round(g.he / 6) / 10 }; });
   const ativos = pessoas.filter((p) => p.ativo !== false);
-  const semCartao = mesesSemCartao(pessoas, serie, porPessoa, justs);
+  const semCartao = mesesSemCartao(pessoas, serie, porPessoa, justs, ferias || {});
   const pendMes = [...pendencias, ...semCartao].filter((p) => !comp || p.competencia === comp);
 
   // carômetro: números do mês e tempo de casa

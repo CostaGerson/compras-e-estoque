@@ -265,23 +265,120 @@ export function Medalhas({ lista, tamanho = 18 }) {
 }
 
 // números do mês no card do carômetro
-export function StatsFuncionario({ s, comp, limiteHE }) {
-  if (!s) return null;
-  const t = s.tempo;
+// números do período no card do carômetro — clicar num número abre a síntese
+export function StatsFuncionario({ s, tempo, rotulo, limiteHE, onAbrir }) {
+  const t = tempo;
+  const cel = (k, rot, val, cor, tit) => (
+    <span role="button" tabIndex={0} title={`${tit} — clique para ver a síntese`} onClick={(e) => { e.stopPropagation(); onAbrir?.(k); }}
+      className="block rounded py-0.5 hover:bg-orange-50" style={{ cursor: onAbrir ? "pointer" : "default" }}>
+      <span className="block" style={{ color: C.sub }}>{rot}</span><span className="block font-bold text-xs" style={{ color: cor }}>{val}</span>
+    </span>
+  );
   return (
     <div className="mt-2 pt-2 text-[10px]" style={{ borderTop: `1px solid ${C.line}` }}>
       <div className="grid grid-cols-3 gap-1">
-        <div title="Assiduidade no mês"><div style={{ color: C.sub }}>Assid.</div><div className="font-bold text-xs" style={{ color: corPct(s.assiduidade) }}>{pct(s.assiduidade)}</div></div>
-        <div title="Pontualidade no mês"><div style={{ color: C.sub }}>Pont.</div><div className="font-bold text-xs" style={{ color: corPct(s.pontualidade) }}>{pct(s.pontualidade)}</div></div>
-        <div title="Horas extras no mês"><div style={{ color: C.sub }}>H. extra</div><div className="font-bold text-xs" style={{ color: corHE(s.he, limiteHE) }}>{horas(s.he)}</div></div>
+        {cel("assiduidade", "Assid.", pct(s?.assiduidade ?? null), corPct(s?.assiduidade ?? null), "Assiduidade no período")}
+        {cel("pontualidade", "Pont.", pct(s?.pontualidade ?? null), corPct(s?.pontualidade ?? null), "Pontualidade no período")}
+        {cel("he", "H. extra", s ? horas(s.he) : "—", s ? corHE(s.he, limiteHE * Math.max(1, Math.round((s.dias || 30) / 30))) : C.sub, "Horas extras no período")}
       </div>
       <div className="mt-1.5" style={{ color: C.sub }}>
         {t ? <>desde <b style={{ color: C.text }}>{dBR(t.admissao)}</b> · {t.anos > 0 ? `${t.anos} ano(s)` : `${Math.max(0, Math.floor(t.dias / 30.44))} mês(es)`}</> : "admissão não cadastrada"}
       </div>
       {t && <Medalhas lista={t.medalhas} />}
       {t?.proxima && <div className="mt-0.5" style={{ color: C.sub }}>próxima: {t.proxima.nome} em {dBR(t.proxima.data)}</div>}
-      {comp && <div className="mt-0.5" style={{ color: C.sub }}>{nomeComp(comp)}</div>}
+      {rotulo && <div className="mt-0.5" style={{ color: C.sub }}>{rotulo}</div>}
     </div>
+  );
+}
+
+/* ---------- filtro de período (carômetro) ---------- */
+const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const ultimoDia = (a, m) => new Date(Date.UTC(a, m, 0)).getUTCDate();
+export function periodoPadrao() { const h = hojeISO(); return { de: `${h.slice(0, 4)}-01-01`, ate: h }; }
+export function atalhosPeriodo() {
+  const h = hojeISO(), a = Number(h.slice(0, 4)), m = Number(h.slice(5, 7));
+  const pm = m === 1 ? [a - 1, 12] : [a, m - 1];
+  const ym = (y, mm) => `${y}-${String(mm).padStart(2, "0")}`;
+  const d12 = new Date(); d12.setFullYear(d12.getFullYear() - 1); d12.setDate(d12.getDate() + 1);
+  return [
+    ["Ano atual", { de: `${a}-01-01`, ate: h }],
+    ["Mês atual", { de: `${ym(a, m)}-01`, ate: h }],
+    ["Mês anterior", { de: `${ym(...pm)}-01`, ate: `${ym(...pm)}-${ultimoDia(...pm)}` }],
+    ["12 meses", { de: d12.toISOString().slice(0, 10), ate: h }],
+    ["Ano anterior", { de: `${a - 1}-01-01`, ate: `${a - 1}-12-31` }],
+  ];
+}
+export function FiltroPeriodo({ p, setP }) {
+  const at = atalhosPeriodo();
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs" style={{ color: C.sub }}>Período</span>
+      <input type="date" value={p.de} onChange={(e) => e.target.value && setP({ ...p, de: e.target.value })} className="rounded-lg px-2 py-1 text-xs outline-none" style={{ border: `1px solid ${C.line}` }} />
+      <span className="text-xs" style={{ color: C.sub }}>a</span>
+      <input type="date" value={p.ate} onChange={(e) => e.target.value && setP({ ...p, ate: e.target.value })} className="rounded-lg px-2 py-1 text-xs outline-none" style={{ border: `1px solid ${C.line}` }} />
+      {at.map(([t, v]) => (
+        <button key={t} onClick={() => setP(v)} className="px-2 py-1 rounded-lg text-[11px] font-semibold"
+          style={p.de === v.de && p.ate === v.ate ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- síntese de um funcionário no período ---------- */
+const DIA_SEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const diaSem = (s) => DIA_SEM[new Date(`${s}T12:00:00Z`).getUTCDay()];
+export function SinteseModal({ user, pessoa, periodo, foco, onClose }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    api(`/api/rh/ponto?u=${user.id}&acao=sintese&pessoaId=${encodeURIComponent(pessoa.id)}&de=${periodo.de}&ate=${periodo.ate}`).then(setD).catch((e) => setErro(e.message));
+  }, []);
+  const t = d?.total;
+  const datas = (l, f = (x) => dBR(x.data || x)) => l.map((x) => <span key={x.data || x} className="inline-block px-1.5 py-0.5 rounded mr-1 mb-1 text-[11px]" style={{ background: C.panel2 }}>{f(x)}</span>);
+  const frase = () => {
+    if (!t) return "Nenhum dia de ponto importado neste período.";
+    const p = [];
+    p.push(`No período de ${dBR(periodo.de)} a ${dBR(periodo.ate)}, ${pessoa.nome} tinha ${t.previstos - t.diasFerias >= 0 ? t.previstos : 0} dia(s) de trabalho previsto(s)`);
+    p.push(t.faltas ? `faltou ${t.faltas} vez(es)` : "não faltou nenhuma vez");
+    if (t.atestados) p.push(`apresentou ${t.atestados} atestado(s)`);
+    p.push(t.atrasos ? `chegou atrasado(a) ${t.atrasos} vez(es), somando ${horas(t.minAtraso)}` : "não chegou atrasado(a)");
+    p.push(t.he ? `fez ${horas(t.he)} de horas extras${t.diasAcima2h ? ` (${t.diasAcima2h} dia(s) acima de 2 h)` : ""}` : "não fez horas extras");
+    if (t.diasFerias) p.push(`esteve ${t.diasFerias} dia(s) de férias (fora do cálculo)`);
+    if (t.pendentes) p.push(`e há ${t.pendentes} dia(s) sem registro aguardando justificativa`);
+    return p.join(", ").replace(/, ([^,]*)$/, " e $1") + ".";
+  };
+  const Bloco = ({ k, titulo, cor, children, vazio }) => (
+    <div className="rounded-lg p-3 mb-2" style={{ border: `1px solid ${foco === k ? C.accent : C.line}`, background: foco === k ? C.accentSoft : C.panel }}>
+      <div className="text-xs font-bold mb-1.5" style={{ color: cor || C.navy }}>{titulo}</div>
+      {children || <div className="text-xs" style={{ color: C.sub }}>{vazio}</div>}
+    </div>
+  );
+  return (
+    <Modal titulo={`${pessoa.nome} · síntese do ponto`} icone={CalendarCheck} onClose={onClose} largura={760}>
+      {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {d && <>
+        <div className="text-sm mb-3 p-3 rounded-lg" style={{ background: C.panel2, color: C.text, lineHeight: 1.5 }}>{frase()}</div>
+        {t && <div className="grid grid-cols-4 gap-2 mb-3">
+          {[["Assiduidade", pct(t.assiduidade), corPct(t.assiduidade)], ["Pontualidade", pct(t.pontualidade), corPct(t.pontualidade)], ["Horas extras", horas(t.he), C.navy], ["Faltas · atrasos", `${t.faltas} · ${t.atrasos}`, t.faltas + t.atrasos ? C.red : C.green]].map(([r, v, c]) => (
+            <div key={r} className="rounded-lg p-2 text-center" style={{ border: `1px solid ${C.line}` }}><div className="text-[11px]" style={{ color: C.sub }}>{r}</div><div className="font-bold text-lg" style={{ color: c }}>{v}</div></div>
+          ))}
+        </div>}
+        <Bloco k="assiduidade" titulo={`Faltas (${d.faltas.length})`} cor={d.faltas.length ? C.red : C.green} vazio="Nenhuma falta.">{d.faltas.length > 0 && <div>{datas(d.faltas, (x) => `${dBR(x.data)} ${diaSem(x.data)}${x.motivo ? ` · ${x.motivo}` : ""}`)}</div>}</Bloco>
+        {(d.atestados.length > 0 || foco === "assiduidade") && <Bloco k="x" titulo={`Atestados (${d.atestados.length})`} vazio="Nenhum atestado.">{d.atestados.length > 0 && <div>{datas(d.atestados)}</div>}</Bloco>}
+        {d.horasFalta.length > 0 && <Bloco k="x" titulo={`Saídas antecipadas / horas faltantes (${d.horasFalta.length} dia(s) · ${horas(d.horasFalta.reduce((a, x) => a + x.min, 0))})`}>{datas(d.horasFalta, (x) => `${dBR(x.data)} · ${horas(x.min)}`)}</Bloco>}
+        <Bloco k="pontualidade" titulo={`Atrasos (${d.atrasos.length}${d.atrasos.length ? ` · ${horas(d.atrasos.reduce((a, x) => a + x.min, 0))}` : ""})`} cor={d.atrasos.length ? C.red : C.green} vazio="Nenhum atraso acima da tolerância de 5 min.">
+          {d.atrasos.length > 0 && <div>{datas(d.atrasos, (x) => `${dBR(x.data)} ${diaSem(x.data)} · entrou ${x.entrada} (previsto ${x.previsto}) · +${x.min} min`)}</div>}
+        </Bloco>
+        <Bloco k="he" titulo={`Horas extras (${d.extras.length} dia(s) · ${horas(d.extras.reduce((a, x) => a + x.min, 0))})`} vazio="Nenhuma hora extra.">
+          {d.extras.length > 0 && <div>{datas(d.extras, (x) => `${dBR(x.data)} ${diaSem(x.data)} · ${horas(x.min)}${x.exced ? " ⚠" : ""}`)}<div className="text-[10px]" style={{ color: C.sub }}>⚠ = acima de 2 h no dia</div></div>}
+        </Bloco>
+        {d.ferias.length > 0 && <Bloco k="x" titulo={`Férias no período (${d.ferias.length} dia(s) — fora da assiduidade e da pontualidade)`} cor={C.blue}><div className="text-xs" style={{ color: C.sub }}>{dBR(d.ferias[0])} a {dBR(d.ferias[d.ferias.length - 1])}</div></Bloco>}
+        {(d.pendentes.length > 0 || d.justificados.length > 0) && <Bloco k="x" titulo={`Crítica do ponto: ${d.pendentes.length} pendente(s) · ${d.justificados.length} justificado(s)`} cor={d.pendentes.length ? C.red : C.sub}>
+          {datas([...d.pendentes.map((x) => ({ ...x, j: false })), ...d.justificados.map((x) => ({ ...x, j: true }))].sort((a, b) => (a.data < b.data ? -1 : 1)), (x) => `${dBR(x.data)} · ${x.j ? x.motivo : x.tipo}`)}
+        </Bloco>}
+      </>}
+    </Modal>
   );
 }
 

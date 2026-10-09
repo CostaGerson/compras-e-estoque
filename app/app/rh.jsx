@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { DocumentoModal, Soltar, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { DEPTOS, REGIMES } from "@/lib/matriz";
-import { PainelRH, Acionaveis, PontoTela, StatsFuncionario, MedalhasModal } from "./rhPainel";
+import { PainelRH, Acionaveis, PontoTela, StatsFuncionario, MedalhasModal, FiltroPeriodo, SinteseModal, periodoPadrao } from "./rhPainel";
+import PlanoFerias from "./rhFerias";
+import { Palmtree } from "lucide-react";
 import { Fingerprint, Award } from "lucide-react";
 
 const api = async (url, method = "GET", body) => {
@@ -53,7 +55,7 @@ export default function Rh({ user }) {
   useEffect(() => { carregarPainel(comp); }, [comp]);
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 6000); carregar(); };
   const ativos = (d?.pessoas || []).filter((p) => p.ativo !== false);
-  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH", calendario: "Calendário de obrigações", ponto: "Ponto" };
+  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH", calendario: "Calendário de obrigações", ponto: "Ponto", ferias: "Plano de férias" };
   const cal = d?.calendario;
   const calPend = (cal?.itens || []).filter((i) => i.status !== "OK");
   const calAtras = calPend.filter((i) => i.status === "ATRASADO").length;
@@ -81,6 +83,7 @@ export default function Rh({ user }) {
                 ["carometro", IdCard, "Carômetro", `${ativos.length} funcionários`, "Um card por funcionário com dados e documentos"],
                 ["financeiro", FileText, "Financeiro", `${(d.envios || []).filter((e) => e.competencia === d.competencia).length} documento(s) neste mês`, "Folhas, guias de INSS e FGTS, iFood, rescisões e outros — direto no contas a pagar"],
                 ["calendario", CalendarClock, "Calendário de obrigações", cal ? (calPend.length ? `${calPend.length} pendente(s)${calAtras ? ` · ${calAtras} atrasado(s)` : ""}` : "tudo enviado no mês") : "—", "Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · iFood até o dia 25", calAtras ? C.red : null],
+                ["ferias", Palmtree, "Plano de férias", d.feriasResumo ? `${d.feriasResumo.agora} de férias agora · ${d.feriasResumo.proximas} nos próximos 30 dias` : "planejar férias individuais e coletivas", "Saldo por período aquisitivo, sobreposição no mesmo setor e regras da CLT", d.feriasResumo?.alertasAltos ? C.red : null],
                 ["ponto", Fingerprint, "Ponto", p?.competencias?.length ? `${pendPonto} pendência(s) · ${(p.ranking || []).length} cartão(ões) no mês` : "nenhum cartão importado", "Importar cartões de ponto, crítica de dias sem registro e justificativas", pendPonto ? C.red : null],
               ].map(([k, Ico, t, sub, desc, alerta]) => (
                 <button key={k} onClick={() => setTela(k)} className="text-left rounded-xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${alerta ? alerta + "88" : C.line}` }}>
@@ -96,6 +99,7 @@ export default function Rh({ user }) {
           {tela === "matriz" && <MatrizPessoal user={user} d={d} onSalvo={ok} />}
           {tela === "carometro" && <Carometro user={user} d={d} p={p} onMudou={carregar} onMedalhas={(m) => setP((x) => ({ ...x, medalhas: m }))} recarregarPainel={() => carregarPainel(comp)} />}
           {tela === "calendario" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
+          {tela === "ferias" && <PlanoFerias user={user} onMudou={() => { carregarPainel(comp); carregar(); }} />}
           {tela === "ponto" && <PontoTela user={user} p={p} comp={comp} setComp={setComp} recarregar={() => carregarPainel(comp)} />}
           {tela === "financeiro" && <FinanceiroRH user={user} d={d} onSalvo={ok} onAnexar={(iniciais) => setDoc({ iniciais })} />}
         </>
@@ -291,6 +295,15 @@ function PessoaModal({ user, pessoa, novo, onClose, onSalvo }) {
 /* ---------------- carômetro ---------------- */
 function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
   const [medalhas, setMedalhas] = useState(false);
+  // v169 — números do card pelo período escolhido (padrão: ano atual até hoje)
+  const [periodo, setPeriodo] = useState(periodoPadrao());
+  const [stats, setStats] = useState(null);
+  const [sintese, setSintese] = useState(null);   // { pessoa, foco }
+  useEffect(() => {
+    setStats(null);
+    api(`/api/rh/ponto?u=${user.id}&acao=carometro&de=${periodo.de}&ate=${periodo.ate}`).then((j) => setStats(j.porPessoa || {})).catch(() => setStats({}));
+  }, [periodo.de, periodo.ate]);
+  const rotuloPer = `${dBR(periodo.de)} a ${dBR(periodo.ate)}`;
   const [emp, setEmp] = useState("TODAS");
   const [busca, setBusca] = useState("");
   const [desl, setDesl] = useState(false);
@@ -310,6 +323,9 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none" style={{ ...inpS, width: 200 }} />
         </div>
         <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={desl} onChange={(e) => setDesl(e.target.checked)} /> desligados</label>
+        <div className="w-full" />
+        <FiltroPeriodo p={periodo} setP={setPeriodo} />
+        {!stats && <Loader2 size={14} className="animate-spin" style={{ color: C.sub }} />}
         <button onClick={() => setMedalhas(true)} disabled={!painel} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Award size={14} style={{ color: C.accent }} /> Medalhas e premiações</button>
       </div>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
@@ -322,12 +338,13 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
             <div className="text-xs mt-1" style={{ color: C.text }}>{p.cargo}</div>
             <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>{p.empresa} · {nomeDepto(p.depto)}</div>
             <div className="text-[10px] mt-1 font-semibold" style={{ color: p.nDocs ? C.green : C.yellow }}>{p.nDocs ? `${p.nDocs} documento(s)` : "sem documentos"}</div>
-            <StatsFuncionario s={painel?.porFuncionario?.[p.id]} comp={painel?.competencia} limiteHE={painel?.limiteHE} />
+            <StatsFuncionario s={stats?.[p.id]} tempo={painel?.porFuncionario?.[p.id]?.tempo} rotulo={rotuloPer} limiteHE={painel?.limiteHE || 1200} onAbrir={(foco) => setSintese({ pessoa: p, foco })} />
           </button>
         ))}
       </div>
       {!lista.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Ninguém aqui.</div>}
       {aberto && <FichaModal user={user} pessoa={aberto} onClose={() => { setAberto(null); onMudou(); recarregarPainel?.(); }} />}
+      {sintese && <SinteseModal user={user} pessoa={sintese.pessoa} foco={sintese.foco} periodo={periodo} onClose={() => setSintese(null)} />}
       {medalhas && painel && <MedalhasModal user={user} lista={painel.medalhas} onClose={() => setMedalhas(false)} onSalvo={() => { setMedalhas(false); recarregarPainel?.(); }} />}
     </div>
   );

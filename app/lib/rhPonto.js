@@ -167,8 +167,11 @@ export async function desfazerJustificativa(chave) {
 }
 
 // ---------- avaliação de um dia ----------
-export function avaliarDia(d, just) {
+export function avaliarDia(d, just, emFerias = false) {
   const oc = d.ocorrencias || [], mc = d.marcacoes || [];
+  // v169 — dia dentro das férias do plano: não conta para assiduidade, pontualidade nem crítica
+  if (emFerias || oc.includes("FERIAS")) return { previsto: false, pendente: false, tipoPend: null, justificado: false, motivo: null, ferias: true,
+    falta: false, atestado: false, atraso: false, minAtraso: 0, baseAtraso: false, he: (d.extra || 0) + (d.exced || 0), exced: d.exced || 0, minFalta: 0 };
   const previsto = !!d.entradaPrevista && !oc.some((o) => NAO_PREVISTO.has(o));
   const pendente = d.semRegistro || (previsto && !mc.length && !oc.length) || (mc.length % 2 === 1 && !oc.length);
   const tipoPend = !pendente ? null : (mc.length % 2 === 1 ? "MARCAÇÃO INCOMPLETA" : "SEM REGISTRO");
@@ -190,9 +193,10 @@ export function avaliarDia(d, just) {
   return r;
 }
 
-const vazio = () => ({ previstos: 0, faltas: 0, atestados: 0, pendentes: 0, justificados: 0, atrasos: 0, baseAtraso: 0, minAtraso: 0, he: 0, exced: 0, diasAcima2h: 0, minFalta: 0, dias: 0 });
+const vazio = () => ({ previstos: 0, faltas: 0, atestados: 0, pendentes: 0, justificados: 0, atrasos: 0, baseAtraso: 0, minAtraso: 0, he: 0, exced: 0, diasAcima2h: 0, minFalta: 0, dias: 0, diasFerias: 0 });
 function soma(a, r) {
   a.dias++;
+  if (r.ferias) a.diasFerias = (a.diasFerias || 0) + 1;
   if (r.previsto) a.previstos++;
   if (r.falta) a.faltas++;
   if (r.atestado) a.atestados++;
@@ -219,6 +223,56 @@ export async function competenciasComPonto() {
   return l.map((x) => x.competencia);
 }
 
+// v169 — dias de férias do plano (RhFerias) por pessoa: { pid: Set("AAAA-MM-DD") }
+export async function feriasPorPessoa(pessoaIds = null) {
+  const l = await prisma.rhFerias.findMany({ where: { status: { not: "CANCELADA" }, ...(pessoaIds ? { pessoaId: { in: pessoaIds } } : {}) } }).catch(() => []);
+  const out = {};
+  for (const f of l) {
+    const s = (out[f.pessoaId] ||= new Set());
+    for (let d = iso(f.inicio); d <= iso(f.fim); d = somaDia(d, 1)) s.add(d);
+  }
+  return out;
+}
+
+async function completarHorario(dias) {
+  const semHorario = [...new Set(dias.filter((d) => !d.entradaPrevista && (d.trab || 0) + (d.falta || 0) > 0).map((d) => d.pessoaId))];
+  if (!semHorario.length) return;
+  const todos = await prisma.rhPontoDia.findMany({ where: { pessoaId: { in: semHorario } }, select: { pessoaId: true, dow: true, trab: true, falta: true, primeiro: true, marcacoes: true } });
+  const inf = {};
+  for (const pid of semHorario) inf[pid] = inferirHorario(todos.filter((x) => x.pessoaId === pid));
+  for (const d of dias) if (!d.entradaPrevista && inf[d.pessoaId]?.[d.dow]) d.entradaPrevista = inf[d.pessoaId][d.dow][0];
+}
+
+// v169 — período livre (carômetro): { porPessoa: { pid: acumulado com índices } } e, para uma pessoa, a síntese dia a dia
+export async function apurarPeriodo(de, ate, pessoaId = null) {
+  const where = { data: { gte: dUTC(de), lte: dUTC(ate) }, ...(pessoaId ? { pessoaId } : {}) };
+  const [dias, justs, fer] = await Promise.all([
+    prisma.rhPontoDia.findMany({ where, orderBy: { data: "asc" } }),
+    prisma.rhPontoJust.findMany(pessoaId ? { where: { pessoaId } } : undefined),
+    feriasPorPessoa(pessoaId ? [pessoaId] : null),
+  ]);
+  await completarHorario(dias);
+  const J = Object.fromEntries(justs.map((j) => [j.chave, j]));
+  const acc = {}, det = { faltas: [], atestados: [], atrasos: [], extras: [], pendentes: [], ferias: [], justificados: [], horasFalta: [] };
+  for (const d of dias) {
+    const data = iso(d.data);
+    const just = J[`${d.pessoaId}|${data}`];
+    const r = avaliarDia(d, just, !!fer[d.pessoaId]?.has(data));
+    soma((acc[d.pessoaId] ||= vazio()), r);
+    if (!pessoaId) continue;
+    if (r.ferias) det.ferias.push(data);
+    if (r.falta) det.faltas.push({ data, motivo: just?.motivo || null });
+    if (r.atestado) det.atestados.push({ data });
+    if (r.atraso) det.atrasos.push({ data, entrada: (d.marcacoes || [])[0], previsto: d.entradaPrevista, min: r.minAtraso });
+    if (r.he > 0) det.extras.push({ data, dow: d.dow, min: r.he, exced: r.exced, marcacoes: d.marcacoes || [] });
+    if (r.pendente) det.pendentes.push({ data, tipo: r.tipoPend });
+    if (r.justificado) det.justificados.push({ data, motivo: just.motivo, texto: just.texto });
+    if (r.previsto && !r.falta && r.minFalta > 0 && (d.marcacoes || []).length) det.horasFalta.push({ data, min: r.minFalta });
+  }
+  const porPessoa = Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, indices(v)]));
+  return pessoaId ? { total: porPessoa[pessoaId] || null, ...det } : { porPessoa };
+}
+
 // { [pessoaId]: { [comp]: acumulado } } nas competências pedidas + lista de pendências
 export async function apurar(comps, pessoaIds = null) {
   if (!comps.length) return { porPessoa: {}, pendencias: [] };
@@ -230,29 +284,24 @@ export async function apurar(comps, pessoaIds = null) {
   ]);
   const J = Object.fromEntries(justs.map((j) => [j.chave, j]));
   // v168.3 — cartões gravados sem horário (quadro não lido): deduz a entrada prevista pelos próprios dias
-  const semHorario = [...new Set(dias.filter((d) => !d.entradaPrevista && (d.trab || 0) + (d.falta || 0) > 0).map((d) => d.pessoaId))];
-  if (semHorario.length) {
-    const todos = await prisma.rhPontoDia.findMany({ where: { pessoaId: { in: semHorario } }, select: { pessoaId: true, dow: true, trab: true, falta: true, primeiro: true, marcacoes: true } });
-    const inf = {};
-    for (const pid of semHorario) inf[pid] = inferirHorario(todos.filter((x) => x.pessoaId === pid));
-    for (const d of dias) if (!d.entradaPrevista && inf[d.pessoaId]?.[d.dow]) d.entradaPrevista = inf[d.pessoaId][d.dow][0];
-  }
+  await completarHorario(dias);
+  const fer = await feriasPorPessoa(pessoaIds);
   const porPessoa = {}, pendencias = [];
   for (const d of dias) {
     const data = iso(d.data);
     const just = J[`${d.pessoaId}|${data}`];
-    const r = avaliarDia(d, just);
+    const r = avaliarDia(d, just, !!fer[d.pessoaId]?.has(data));
     const p = (porPessoa[d.pessoaId] ||= {});
     soma((p[d.competencia] ||= vazio()), r);
     if (r.pendente || r.justificado) pendencias.push({ chave: `${d.pessoaId}|${data}`, pessoaId: d.pessoaId, data, competencia: d.competencia, tipo: r.tipoPend,
       detalhe: d.semRegistro ? "dia ausente no cartão" : (d.marcacoes || []).length ? `marcações: ${(d.marcacoes || []).join(" ")}` : "dia útil sem marcação",
       justificativa: just ? { motivo: just.motivo, texto: just.texto, por: just.porNome } : null });
   }
-  return { porPessoa, pendencias, justs: J };
+  return { porPessoa, pendencias, justs: J, ferias: fer };
 }
 
 // mês inteiro sem cartão para quem estava ativo (diretores com pró-labore não batem ponto)
-export function mesesSemCartao(pessoas, comps, porPessoa, J) {
+export function mesesSemCartao(pessoas, comps, porPessoa, J, ferias = {}) {
   const out = [];
   for (const c of comps) {
     const ini = `${c}-01`, fim = fimDoMes(c);
@@ -263,6 +312,9 @@ export function mesesSemCartao(pessoas, comps, porPessoa, J) {
       if (p.demissao && p.demissao < ini) continue;
       if (p.ativo === false && !p.demissao) continue;
       if (porPessoa[p.id]?.[c]) continue;
+      // mês todo de férias (dias úteis) não pede cartão
+      const fs = ferias[p.id];
+      if (fs) { let todos = true; for (let d = ini; d <= fim; d = somaDia(d, 1)) { const w = dUTC(d).getUTCDay(); if (w && w < 6 && !fs.has(d)) { todos = false; break; } } if (todos) continue; }
       const just = J[`${p.id}|${c}`];
       out.push({ chave: `${p.id}|${c}`, pessoaId: p.id, competencia: c, tipo: "MÊS SEM CARTÃO", detalhe: "nenhum dia de ponto importado no mês",
         justificativa: just ? { motivo: just.motivo, texto: just.texto, por: just.porNome } : null });

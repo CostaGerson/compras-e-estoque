@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { prisma } from "@/lib/prisma";
 import { usuarioRH, negadoRH } from "@/lib/rh";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";
-import { analisarArquivos, gravarCartoes, justificar, desfazerJustificativa, listarImportacoes, MOTIVOS } from "@/lib/rhPonto";
+import { analisarArquivos, gravarCartoes, justificar, desfazerJustificativa, listarImportacoes, MOTIVOS, apurarPeriodo } from "@/lib/rhPonto";
 
 // GET ?u=            → cartões importados + motivos de justificativa
 // GET ?u=&arquivo=id → o PDF do cartão
@@ -11,6 +11,12 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const u = await usuarioRH(sp.get("u"));
   if (!u) return negadoRH();
+  // v169 — carômetro por período e síntese de um funcionário
+  const de = sp.get("de"), ate = sp.get("ate");
+  if ((sp.get("acao") === "carometro" || sp.get("acao") === "sintese") && !(/^\d{4}-\d{2}-\d{2}$/.test(de || "") && /^\d{4}-\d{2}-\d{2}$/.test(ate || "")))
+    return Response.json({ error: "Período inválido." }, { status: 400 });
+  if (sp.get("acao") === "carometro") return Response.json(await apurarPeriodo(de, ate));
+  if (sp.get("acao") === "sintese") return Response.json(await apurarPeriodo(de, ate, String(sp.get("pessoaId") || "")));
   if (sp.get("arquivo")) {
     const x = await prisma.rhPontoImport.findUnique({ where: { id: Number(sp.get("arquivo")) }, select: { arquivo: true, conteudo: true } });
     if (!x) return new Response("Não encontrado.", { status: 404 });

@@ -102,7 +102,10 @@ model Usuario {
   permLancaContas  Boolean @default(false)
   permAlteraStatus Boolean @default(false)
   permVeValores    Boolean @default(false)
-  diretoria        Boolean @default(false)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)
+  diretoria        Boolean @default(false)
+  statusManual     String?                   // v169 — REUNIAO (quando a pessoa marca); ocupado vem do play de uma demanda
+  statusDesde      DateTime?
+  pessoaId         String?                   // v169 — funcionário da Matriz (férias → status inativo)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)
   resetHash        String?                   // v167 — redefinição de senha por e-mail (sha-256 do token)
   resetExpira      DateTime?
   createdAt  DateTime @default(now())
@@ -1521,4 +1524,86 @@ model Sugestao {
 
   @@index([usuarioId])
   @@index([status])
+}
+
+// v169 — RH › Plano de férias (individuais e coletivas). Dias de férias saem da assiduidade/pontualidade.
+model RhFerias {
+  id            Int      @id @default(autoincrement())
+  pessoaId      String
+  inicio        DateTime @db.Date
+  fim           DateTime @db.Date
+  dias          Int                          // corridos, inclusive
+  tipo          String   @default("INDIVIDUAL")  // INDIVIDUAL | COLETIVA
+  coletivaId    String?                      // mesmas férias coletivas (para editar/excluir juntas)
+  status        String   @default("PLANEJADA")   // PLANEJADA | CONFIRMADA | CANCELADA
+  abono         Int      @default(0)         // dias vendidos (abono pecuniário)
+  obs           String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([pessoaId])
+  @@index([inicio])
+}
+
+// v169 — Tarefas (demandas entre setores) e Agenda
+model Tarefa {
+  id               Int       @id @default(autoincrement())
+  titulo           String
+  descricao        String?
+  setor            String                        // GESTAO | COMERCIAL | FINANCEIRO | PRODUCAO | RH | LOGISTICA
+  responsavelId    Int
+  responsavelNome  String
+  criadoPorId      Int
+  criadoPorNome    String
+  prazo            DateTime  @db.Date            // data limite para atendimento
+  tipo             String    @default("PADRAO")  // PADRAO (cinza) | URGENTE (vermelho) | ROTINA (azul, toda recorrente)
+  publica          Boolean   @default(true)
+  status           String    @default("ABERTA")  // ABERTA | EM_ANDAMENTO | CONCLUIDA | CANCELADA
+  modelo           Boolean   @default(false)     // série recorrente (gera as ocorrências; não aparece na lista)
+  recorrencia      Json?                         // { tipo: DIARIA|SEMANAL|QUINZENAL|MENSAL_DIA|MENSAL_NTH|ANUAL, dow?, dia?, n?, ate? }
+  serieId          Int?                          // ocorrência → série
+  subtarefas       Json      @default("[]")      // [{ texto, feita }]
+  dependencias     Json      @default("[]")      // ids de demandas públicas que precisam estar concluídas
+  tempoTotal       Int       @default(0)         // segundos trabalhados (play/stop)
+  emAndamentoDesde DateTime?
+  retorno          String?
+  concluidaEm      DateTime?
+  concluidaPorNome String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  arquivos         TarefaArquivo[]
+  sessoes          TarefaSessao[]
+
+  @@unique([serieId, prazo])
+  @@index([responsavelId])
+  @@index([prazo])
+  @@index([status])
+}
+
+model TarefaArquivo {
+  id            Int      @id @default(autoincrement())
+  tarefaId      Int
+  nome          String
+  mime          String?
+  tamanho       Int      @default(0)
+  conteudo      String                           // base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  tarefa        Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tarefaId])
+}
+
+model TarefaSessao {
+  id        Int       @id @default(autoincrement())
+  tarefaId  Int
+  usuarioId Int
+  inicio    DateTime  @default(now())
+  fim       DateTime?
+  segundos  Int       @default(0)
+  tarefa    Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, fim])
+  @@index([tarefaId])
 }
