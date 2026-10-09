@@ -2,7 +2,7 @@
 // (assiduidade, pontualidade, horas extras) por funcionário e geral.
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { lerCartoesPonto, minutos } from "@/lib/rhPontoLer";
+import { lerCartoesPonto, minutos, inferirHorario } from "@/lib/rhPontoLer";
 import { lerPessoal, nomeUsuario } from "@/lib/rh";
 
 export const TOLERANCIA_ATRASO = 5;           // minutos de tolerância na entrada (art. 58 §1º da CLT)
@@ -229,6 +229,14 @@ export async function apurar(comps, pessoaIds = null) {
     prisma.rhPontoJust.findMany(pessoaIds ? { where: { pessoaId: { in: pessoaIds } } } : undefined),
   ]);
   const J = Object.fromEntries(justs.map((j) => [j.chave, j]));
+  // v168.3 — cartões gravados sem horário (quadro não lido): deduz a entrada prevista pelos próprios dias
+  const semHorario = [...new Set(dias.filter((d) => !d.entradaPrevista && (d.trab || 0) + (d.falta || 0) > 0).map((d) => d.pessoaId))];
+  if (semHorario.length) {
+    const todos = await prisma.rhPontoDia.findMany({ where: { pessoaId: { in: semHorario } }, select: { pessoaId: true, dow: true, trab: true, falta: true, primeiro: true, marcacoes: true } });
+    const inf = {};
+    for (const pid of semHorario) inf[pid] = inferirHorario(todos.filter((x) => x.pessoaId === pid));
+    for (const d of dias) if (!d.entradaPrevista && inf[d.pessoaId]?.[d.dow]) d.entradaPrevista = inf[d.pessoaId][d.dow][0];
+  }
   const porPessoa = {}, pendencias = [];
   for (const d of dias) {
     const data = iso(d.data);

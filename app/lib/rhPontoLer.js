@@ -6,7 +6,8 @@ const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036
 export const minutos = (hhmm) => { const m = String(hhmm || "").match(/^(\d{1,4}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : 0; };
 export const hhmm = (min) => { const n = Math.round(Number(min) || 0); const s = n < 0 ? "-" : ""; const a = Math.abs(n); return `${s}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`; };
 const dISO = (s) => { const m = String(s || "").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
-const DIAS = { DOMINGO: 0, SEGUNDA: 1, TERCA: 2, QUARTA: 3, QUINTA: 4, SEXTA: 5, SABADO: 6 };
+const DIAS = { DOMINGO: 0, SEGUNDA: 1, TERCA: 2, QUARTA: 3, QUINTA: 4, SEXTA: 5, SABADO: 6, DOM: 0, SEG: 1, TER: 2, QUA: 3, QUI: 4, SEX: 5, SAB: 6,
+  "SEGUNDA-FEIRA": 1, "TERCA-FEIRA": 2, "QUARTA-FEIRA": 3, "QUINTA-FEIRA": 4, "SEXTA-FEIRA": 5 };
 
 // ocorrência escrita no lugar da marcação
 export function ocorrenciaDe(w) {
@@ -61,6 +62,29 @@ const depois = (l, rotulo) => {
   return prox && !/:$/.test(prox.s) ? prox.s : null;
 };
 
+// v168.3 — quando o quadro "Horário de Trabalho" não vem (ou não foi lido), deduz o horário pelos próprios dias:
+// dia com H. Trab. ou H. Falt. é dia de trabalho; a entrada prevista é a entrada mais comum daquele dia da semana
+// (arredondada aos 15 min).
+export function inferirHorario(dias, horario = {}) {
+  const out = { ...(horario || {}) };
+  const porDow = {};
+  for (const d of dias) {
+    if (!((d.trab || 0) + (d.falta || 0) > 0)) continue;
+    const l = (porDow[d.dow] ||= []);
+    if (d.primeiro === "M" && d.marcacoes?.length) l.push(Math.round(minutos(d.marcacoes[0]) / 15) * 15);
+    else l.push(null);
+  }
+  const todas = Object.values(porDow).flat().filter((v) => v != null);
+  const moda = (l) => { const c = {}; for (const v of l) c[v] = (c[v] || 0) + 1; return Number(Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0]); };
+  for (const [dow, l] of Object.entries(porDow)) {
+    if (out[dow]?.length) continue;
+    const v = l.filter((x) => x != null);
+    const m = v.length ? moda(v) : todas.length ? moda(todas) : null;
+    if (m != null && Number.isFinite(m)) out[dow] = [hhmm(m)];
+  }
+  return out;
+}
+
 export async function lerCartoesPonto(buf) {
   const pags = await paginas(buf);
   const textoTudo = pags.map((p) => p.map((i) => i.s).join(" ")).join(" ");
@@ -85,7 +109,7 @@ export async function lerCartoesPonto(buf) {
         if (/Admiss[aã]o:/i.test(t)) atual.admissao = dISO(t);
         // horário de trabalho: "Segunda 08:00 12:00 13:00 18:00" (a palavra do dia pode vir numa linha vizinha)
         for (const it of l.itens) {
-          const d = DIAS[semAcento(it.s)];
+          const d = DIAS[semAcento(it.s).replace(/[.:]/g, "").trim()];
           if (d === undefined || it.x < 250) continue;
           const viz = ls.filter((o) => Math.abs(o.y - l.y) <= 2.6).flatMap((o) => o.itens).filter((o) => o.x > it.x + 10 && o.x < it.x + 140);
           const hs = viz.map((o) => o.s).filter((s) => /^\d{2}:\d{2}$/.test(s));
@@ -155,6 +179,8 @@ export async function lerCartoesPonto(buf) {
     if (!c.dias.length) throw new Error(`O cartão de ${c.nome || "?"} não tem nenhum dia.`);
     if (!c.inicio) c.inicio = c.dias[0].data;
     if (!c.fim) c.fim = c.dias[c.dias.length - 1].data;
+    c.horarioLido = Object.keys(c.horario || {}).length > 0;
+    c.horario = inferirHorario(c.dias, c.horario);
     // prova: a soma dos dias bate com o rodapé
     const s = (k) => c.dias.reduce((a, d) => a + d[k], 0);
     c.soma = { trab: s("trab"), falta: s("falta"), extra: s("extra"), exced: s("exced") };
