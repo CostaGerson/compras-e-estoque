@@ -23,6 +23,7 @@ export async function GET(req) {
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
   if (tipo === "PAGAR") { const { garantirGuiasRecorrentes } = await import("@/lib/finGuias"); await garantirGuiasRecorrentes().catch(() => null); }   // INSS/FGTS mensais = última guia
   await gerarRecorrencias(tipo);
+  if (tipo === "PAGAR") { const { lancarLote0910 } = await import("@/lib/finLote0910"); await lancarLote0910().catch((e) => console.log("Lote 09/10:", e.message)); }   // v179 — uma vez
   await ajustarFinsDeSemana().catch(() => null);   // sáb/dom → segunda; folha e adiantamento → sexta
   const de0 = sp.get("de") || mesAtual();
   if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);
