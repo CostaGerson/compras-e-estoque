@@ -47,13 +47,13 @@ const ROTULO = { nome: "nome", cargo: "cargo", depto: "setor", regime: "regime",
 export async function lerPessoal() {
   const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
   const pessoas = m?.dados?.pessoal || [];
-  const fichas = await prisma.rhFuncionario.findMany({ select: { pessoaId: true, nomeCompleto: true, foto: true, _count: { select: { documentos: true } } } });
+  const fichas = await prisma.rhFuncionario.findMany({ select: { pessoaId: true, nomeCompleto: true, foto: true, dados: true, _count: { select: { documentos: true } } } });
   const porId = Object.fromEntries(fichas.map((f) => [f.pessoaId, f]));
   return {
     matrizId: m?.id || null, atualizadaEm: m?.updatedAt || null, atualizadaPor: m?.atualizadoPor || null,
     pessoas: pessoas.map((p) => ({
       ...p, empresa: empresaDaPessoa(p), nomeCompleto: porId[p.id]?.nomeCompleto || null,
-      foto: porId[p.id]?.foto || null, nDocs: porId[p.id]?._count?.documentos || 0,
+      foto: porId[p.id]?.foto || null, nDocs: porId[p.id]?._count?.documentos || 0, horario: porId[p.id]?.dados?.horario || null,
     })),
   };
 }

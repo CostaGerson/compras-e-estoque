@@ -308,9 +308,26 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
   const [busca, setBusca] = useState("");
   const [desl, setDesl] = useState(false);
   const [aberto, setAberto] = useState(null);
+  // v169.3 — ordenar e ver por setor
+  const [ordem, setOrdem] = useState("nome");
+  const [visao, setVisao] = useState("cards");
+  const tempoDe = (p) => painel?.porFuncionario?.[p.id]?.tempo?.dias ?? -1;
+  const ORDENS = {
+    nome: [(a, b) => String(a.nome).localeCompare(String(b.nome)), "Nome"],
+    assiduidade: [(a, b) => (stats?.[b.id]?.assiduidade ?? -1) - (stats?.[a.id]?.assiduidade ?? -1), "Assiduidade (maior primeiro)"],
+    pontualidade: [(a, b) => (stats?.[b.id]?.pontualidade ?? -1) - (stats?.[a.id]?.pontualidade ?? -1), "Pontualidade (maior primeiro)"],
+    tempo: [(a, b) => tempoDe(b) - tempoDe(a), "Tempo de casa (mais antigo primeiro)"],
+    he: [(a, b) => (stats?.[b.id]?.he ?? -1) - (stats?.[a.id]?.he ?? -1), "Hora extra (mais horas primeiro)"],
+  };
   const lista = (d.pessoas || []).filter((p) => (desl ? p.ativo === false : p.ativo !== false) && (emp === "TODAS" || p.empresa === emp)
     && (!busca || `${p.nome} ${p.nomeCompleto || ""} ${p.cargo}`.toUpperCase().includes(busca.toUpperCase())))
-    .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+    .sort((a, b) => ORDENS[ordem][0](a, b) || String(a.nome).localeCompare(String(b.nome)));
+  const grupos = visao === "setor"
+    ? Object.entries(lista.reduce((g, p) => { (g[p.depto || "—"] ||= []).push(p); return g; }, {})).sort((a, b) => nomeDepto(a[0]).localeCompare(nomeDepto(b[0])))
+    : [[null, lista]];
+  const media = (ps, k) => { const v = ps.map((p) => stats?.[p.id]?.[k]).filter((x) => x != null); return v.length ? Math.round((v.reduce((a, x) => a + x, 0) / v.length) * 10) / 10 : null; };
+  const pctTxt = (v) => (v == null ? "—" : `${String(v).replace(".", ",")}%`);
+  const horasTxt = (m) => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, "0")}`;
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -323,13 +340,33 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none" style={{ ...inpS, width: 200 }} />
         </div>
         <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={desl} onChange={(e) => setDesl(e.target.checked)} /> desligados</label>
+        <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+          {[["cards", "Todos"], ["setor", "Por setor"]].map(([k, t]) => <button key={k} onClick={() => setVisao(k)} className="px-3 py-1.5 text-xs font-semibold" style={{ background: visao === k ? C.navy : C.panel, color: visao === k ? "#fff" : C.sub }}>{t}</button>)}
+        </div>
+        <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}>Ordenar por
+          <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inpS}>
+            {Object.entries(ORDENS).map(([k, [, t]]) => <option key={k} value={k}>{t}</option>)}
+          </select>
+        </label>
         <div className="w-full" />
         <FiltroPeriodo p={periodo} setP={setPeriodo} />
         {!stats && <Loader2 size={14} className="animate-spin" style={{ color: C.sub }} />}
         <button onClick={() => setMedalhas(true)} disabled={!painel} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Award size={14} style={{ color: C.accent }} /> Medalhas e premiações</button>
       </div>
+      {grupos.map(([depto, ps]) => (
+      <div key={depto || "todos"} className={depto ? "mb-5" : ""}>
+        {depto && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 px-3 py-2 rounded-lg" style={{ background: C.panel2 }}>
+            <div className="font-bold text-sm" style={{ color: C.navy }}>{nomeDepto(depto)}</div>
+            <span className="text-xs" style={{ color: C.sub }}>{ps.length} pessoa(s)</span>
+            <span className="text-xs" style={{ color: C.sub }}>assiduidade média <b style={{ color: C.text }}>{pctTxt(media(ps, "assiduidade"))}</b></span>
+            <span className="text-xs" style={{ color: C.sub }}>pontualidade média <b style={{ color: C.text }}>{pctTxt(media(ps, "pontualidade"))}</b></span>
+            <span className="text-xs" style={{ color: C.sub }}>horas extras <b style={{ color: C.text }}>{horasTxt(ps.reduce((a, p) => a + (stats?.[p.id]?.he || 0), 0))}</b></span>
+            <span className="text-xs" style={{ color: C.sub }}>faltas <b style={{ color: C.text }}>{ps.reduce((a, p) => a + (stats?.[p.id]?.faltas || 0), 0)}</b> · atrasos <b style={{ color: C.text }}>{ps.reduce((a, p) => a + (stats?.[p.id]?.atrasos || 0), 0)}</b></span>
+          </div>
+        )}
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
-        {lista.map((p) => (
+        {ps.map((p) => (
           <button key={p.id} onClick={() => setAberto(p)} className="rounded-xl p-4 text-center transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}`, opacity: p.ativo === false ? 0.6 : 1 }}>
             {p.foto ? <img src={p.foto} alt="" className="mx-auto rounded-full object-cover" style={{ width: 72, height: 72 }} />
               : <div className="mx-auto rounded-full flex items-center justify-center text-xl font-bold" style={{ width: 72, height: 72, background: C.accentSoft, color: C.accent }}>{iniciais(p.nomeCompleto || p.nome)}</div>}
@@ -338,10 +375,15 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
             <div className="text-xs mt-1" style={{ color: C.text }}>{p.cargo}</div>
             <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>{p.empresa} · {nomeDepto(p.depto)}</div>
             <div className="text-[10px] mt-1 font-semibold" style={{ color: p.nDocs ? C.green : C.yellow }}>{p.nDocs ? `${p.nDocs} documento(s)` : "sem documentos"}</div>
+            <div className="text-[10px] mt-0.5" style={{ color: p.horario?.entrada ? C.text : C.yellow }} title={p.horario?.pausas?.map((x) => `${x.nome || "pausa"} ${x.ini}–${x.fim}`).join(" · ") || ""}>
+              {p.horario?.entrada ? `horário ${p.horario.entrada}–${p.horario.saida}${p.horario.pausas?.length ? ` · ${p.horario.pausas.length} pausa(s)` : ""}` : "horário não cadastrado"}
+            </div>
             <StatsFuncionario s={stats?.[p.id]} tempo={painel?.porFuncionario?.[p.id]?.tempo} rotulo={rotuloPer} limiteHE={painel?.limiteHE || 1200} onAbrir={(foco) => setSintese({ pessoa: p, foco })} />
           </button>
         ))}
       </div>
+      </div>
+      ))}
       {!lista.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Ninguém aqui.</div>}
       {aberto && <FichaModal user={user} pessoa={aberto} onClose={() => { setAberto(null); onMudou(); recarregarPainel?.(); }} />}
       {sintese && <SinteseModal user={user} pessoa={sintese.pessoa} foco={sintese.foco} periodo={periodo} onClose={() => setSintese(null)} />}
@@ -444,6 +486,7 @@ function FichaModal({ user, pessoa, onClose }) {
                 </label>
               ))}
             </div>
+            <HorarioTrabalho user={user} h={dados.horario} onChange={(h) => setDados((x) => ({ ...x, horario: h }))} />
             <Soltar onArquivos={subir} className="mt-4 p-3 rounded-lg" style={{ background: C.panel2 }} dica={`Solte para anexar como ${tipo}`}>
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-xs font-bold flex-1" style={{ color: C.navy }}>Documentos ({f.documentos.length}) <span className="font-normal" style={{ color: C.sub }}>· arraste arquivos para cá</span></div>
@@ -615,5 +658,67 @@ function ContaRHModal({ user, onClose, onSalvo }) {
       </div>
       {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
     </Modal>
+  );
+}
+
+/* ---------- v169.3 — horário de trabalho com pausas (ficha do carômetro) ---------- */
+const DIAS_CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const mHM = (t) => { const m = String(t || "").match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const fHM = (m) => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+function HorarioTrabalho({ user, h, onChange }) {
+  const [sugestao, setSugestao] = useState(null);
+  useEffect(() => {
+    if (h?.entrada) return;
+    api(`/api/rh/ponto?u=${user.id}&acao=jornadas`).then((r) => {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const g = (r.jornadas?.geral || []).find((x) => (!x.de || hoje >= x.de) && (!x.ate || hoje <= x.ate));
+      if (g) setSugestao(g);
+    }).catch(() => {});
+  }, []);
+  const set = (k, v) => onChange({ ...(h || {}), [k]: v });
+  const pausas = h?.pausas || [];
+  const setP = (i, k, v) => set("pausas", pausas.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const e = mHM(h?.entrada), s = mHM(h?.saida);
+  const totP = pausas.reduce((a, x) => { const i = mHM(x.ini), f = mHM(x.fim); return a + (i != null && f != null && f > i ? f - i : 0); }, 0);
+  const dia = e != null && s != null ? s - e - totP : null;
+  const dias = h?.dias || [1, 2, 3, 4, 5];
+  const inpt = "rounded px-2 py-1 text-xs outline-none";
+  if (!h?.entrada) return (
+    <div className="mt-4 p-3 rounded-lg flex flex-wrap items-center gap-2" style={{ background: C.yellowSoft }}>
+      <Clock size={15} style={{ color: C.yellow }} />
+      <div className="text-xs flex-1" style={{ color: C.text }}><b>Horário de trabalho não cadastrado.</b> Sem ele, a pontualidade usa a jornada geral da empresa.</div>
+      <button onClick={() => onChange({ desde: "", dias: [1, 2, 3, 4, 5], entrada: sugestao?.entrada || "07:00", saida: sugestao?.saida || "16:48", pausas: [{ nome: "ALMOÇO", ini: "12:00", fim: "13:00" }] })}
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Cadastrar horário</button>
+    </div>
+  );
+  return (
+    <div className="mt-4 p-3 rounded-lg" style={{ border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 mb-2">
+        <Clock size={15} style={{ color: C.accent }} />
+        <div className="text-xs font-bold flex-1" style={{ color: C.navy }}>Horário de trabalho {dia != null && <span className="font-normal" style={{ color: C.sub }}>· {fHM(dia)} por dia · {fHM(dia * dias.length)} por semana</span>}</div>
+        <button onClick={() => onChange(null)} className="text-[11px]" style={{ color: C.sub }}>remover</button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs mb-2" style={{ color: C.sub }}>
+        entrada <input type="time" value={h.entrada || ""} onChange={(ev) => set("entrada", ev.target.value)} className={inpt} style={inpS} />
+        saída <input type="time" value={h.saida || ""} onChange={(ev) => set("saida", ev.target.value)} className={inpt} style={inpS} />
+        vigente desde <input type="date" value={h.desde || ""} onChange={(ev) => set("desde", ev.target.value)} className={inpt} style={inpS} />
+        <span className="flex gap-1 ml-1">{DIAS_CURTOS.map((t, i) => (
+          <button key={i} onClick={() => set("dias", dias.includes(i) ? dias.filter((x) => x !== i) : [...dias, i].sort())} className="px-1.5 py-0.5 rounded text-[11px] font-semibold"
+            style={dias.includes(i) ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.sub }}>{t}</button>
+        ))}</span>
+      </div>
+      <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Pausas</div>
+      {pausas.map((x, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2 text-xs mb-1">
+          <input value={x.nome || ""} onChange={(ev) => setP(i, "nome", ev.target.value.toUpperCase())} placeholder="ALMOÇO / CAFÉ" className={inpt} style={{ ...inpS, width: 130 }} />
+          <input type="time" value={x.ini || ""} onChange={(ev) => setP(i, "ini", ev.target.value)} className={inpt} style={inpS} />
+          <span style={{ color: C.sub }}>às</span>
+          <input type="time" value={x.fim || ""} onChange={(ev) => setP(i, "fim", ev.target.value)} className={inpt} style={inpS} />
+          <button onClick={() => set("pausas", pausas.filter((_, j) => j !== i))} style={{ color: C.sub }}><Trash2 size={12} /></button>
+        </div>
+      ))}
+      <button onClick={() => set("pausas", [...pausas, { nome: "CAFÉ", ini: "", fim: "" }])} className="text-[11px] font-semibold flex items-center gap-1" style={{ color: C.accent }}><Plus size={12} /> pausa</button>
+      <div className="text-[10px] mt-2" style={{ color: C.sub }}>A pontualidade compara a entrada do ponto com este horário (tolerância de 5 min) a partir de "vigente desde"; antes disso vale a jornada geral. Clique em <b>Salvar dados</b> para gravar.</div>
+    </div>
   );
 }
