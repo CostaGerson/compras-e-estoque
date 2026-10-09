@@ -4,14 +4,16 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
+// v175.3 — previsões simples pelo valor de face, nas datas combinadas (sem estimar juros de antecipação)
 const CONTAS = [
   { chave: "PEDIREITO|LOTE03-04|SALDO", titulo: "PÉ DIREITO · LOTES 03 E 04 · SALDO FINAL (93 PEÇAS)", valor: 2315.70, venc: "2026-10-16", forma: null, tarefas: [["2026-10-16", "ENTREGA FINAL (65 PEÇAS)"]],
     obs: "STATUS 09/10/2026: APÓS A ENTREGA FINAL DE 16/10 (NF 1986 · 52, NF 1988 · 41 E 65 PENDENTES), À VISTA. JÁ PAGO: 1.202 PEÇAS · R$ 29.929,80." },
-  { chave: "PEDIREITO|LOTE06|80", titulo: "PÉ DIREITO · LOTE 06 · RESTANTE 80% (2.000 CAMISAS)", valor: 39840.00, venc: "2026-11-30", forma: "BOLETO", tarefas: [["2026-10-13", "NF 2005 · 351 PEÇAS"]],
-    obs: "STATUS 09/10/2026: ENTRADA 20% R$ 9.960,00 PAGA EM 29/09. ENTREGAS: NF 1993 (1.627 EM 08/10), NF 2005 (351 EM 13/10), REPOSIÇÃO 22 EM 14/10." },
-  { chave: "PEDIREITO|LOTE07-08|80", titulo: "PÉ DIREITO · LOTES 07 E 08 · RESTANTE 80% (1.700 CAMISAS)", valor: 33506.05, venc: "2026-12-04", forma: "BOLETO", tarefas: [["2026-10-16", "ENTREGA 1 · 1.200 PEÇAS"], ["2026-10-20", "ENTREGA 2 · 500 PEÇAS"]],
-    obs: "STATUS 09/10/2026: ENTRADA 20% R$ 8.823,95 PAGA EM 07/10. ENTREGAS: 1.200 PEÇAS EM 16/10 E 500 PEÇAS EM 20/10." },
+  { chave: "PEDIREITO|LOTE06|80", titulo: "PÉ DIREITO · LOTE 06 · PARCELA 2/2 (80%)", valor: 39840.00, venc: "2026-10-14", forma: "BOLETO", tarefas: [["2026-10-13", "NF 2005 · 351 PEÇAS"]],
+    obs: "PARCELA 2/2 (80%). ENTRADA 20% R$ 9.960,00 PAGA EM 29/09. ENTREGAS: NF 1993 (1.627 EM 08/10), NF 2005 (351 EM 13/10), REPOSIÇÃO 22 EM 14/10." },
+  { chave: "PEDIREITO|LOTE07-08|80", titulo: "PÉ DIREITO · LOTES 07 E 08 · PARCELA 2/2 (80%)", valor: 33506.05, venc: "2026-10-20", forma: "BOLETO", tarefas: [["2026-10-16", "ENTREGA 1 · 1.200 PEÇAS"], ["2026-10-20", "ENTREGA 2 · 500 PEÇAS"]],
+    obs: "PARCELA 2/2 (80%). ENTRADA 20% R$ 8.823,95 PAGA EM 07/10. ENTREGAS: 1.200 PEÇAS EM 16/10 E 500 PEÇAS EM 20/10." },
 ];
+const OBSOLETAS = ["PEDIREITO|LOTE07-08|80|E2"];   // v175.1 dividiu os lotes 07/08 em duas contas: volta a ser uma só
 const brl = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 const br = (d) => d.split("-").reverse().join("/");
 
@@ -22,9 +24,18 @@ try {
   const parceiro = (cli?.nomeFantasia || cli?.razaoSocial || "PÉ DIREITO").toUpperCase();
   const documento = cli?.cnpj ? String(cli.cnpj).replace(/\D/g, "") : null;
   let nC = 0, nT = 0;
+  for (const ch of OBSOLETAS) {
+    const o = await prisma.finTitulo.findUnique({ where: { chaveImport: ch } });
+    if (o && o.status === "ABERTO") { await prisma.finTitulo.delete({ where: { id: o.id } }); nC++; }
+  }
   for (const c of CONTAS) {
     const venc = new Date(c.venc + "T00:00:00Z");
-    if (!(await prisma.finTitulo.findUnique({ where: { chaveImport: c.chave } }))) {
+    const existe = await prisma.finTitulo.findUnique({ where: { chaveImport: c.chave } });
+    if (existe && existe.status === "ABERTO" && (+new Date(existe.vencimento) !== +venc || Number(existe.valor) !== c.valor || existe.titulo !== c.titulo || existe.antecipacaoPrevista)) {
+      await prisma.finTitulo.update({ where: { id: existe.id }, data: { titulo: c.titulo, valor: c.valor, vencimento: venc, competencia: c.venc.slice(0, 7), observacao: c.obs, antecipacaoPrevista: false, valorBruto: null, vencimentoBoleto: null } });
+      nC++;
+    }
+    if (!existe) {
       // já lançada à mão (mesmo valor e vencimento próximo)? não duplica
       const ja = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, valor: c.valor,
         vencimento: { gte: new Date(+venc - 20 * 86400000), lte: new Date(+venc + 20 * 86400000) } } });
@@ -41,10 +52,12 @@ try {
     const lote = c.titulo.replace("PÉ DIREITO · ", "");
     for (const [dia, entrega] of c.tarefas) {
       const prazo = new Date(dia + "T00:00:00Z");
+      // demandas antigas (v174) com o título de antes: troca pela nova
       const titulo = c.forma === "BOLETO"
         ? `PÉ DIREITO · CONFIRMAR ENTREGA E EMITIR BOLETO DE ANTECIPAÇÃO · ${lote} · ${entrega}`
         : `PÉ DIREITO · CONFIRMAR ENTREGA E COBRAR À VISTA · ${lote} · ${entrega}`;
-      if (await prisma.tarefa.findFirst({ where: { titulo, prazo } })) continue;
+      // mesma demanda já criada (inclusive pela v174, com o título antigo): não repete
+      if (await prisma.tarefa.findFirst({ where: { prazo, responsavelId: igor.id, titulo: { contains: entrega } } })) continue;
       await prisma.tarefa.create({ data: {
         titulo, setor: "FINANCEIRO", responsavelId: igor.id, responsavelNome: [igor.nome, igor.sobrenome].filter(Boolean).join(" ").toUpperCase(),
         criadoPorId: igor.id, criadoPorNome: "SISTEMA", prazo, tipo: "PADRAO", publica: true,

@@ -73,15 +73,26 @@ const nossoObs = (o) => (String(o || "").match(/NOSSO N[ºO°.]*\s*:?\s*([\d.\-\
 async function indice() {
   const tits = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: { notIn: ["CANCELADO"] } },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, dataPagamento: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, dataPagamento: true,
+      antecipacaoPrevista: true, valorBruto: true, vencimentoBoleto: true },
   });
+  // v175.2 — boleto com antecipação prevista (sem nº do título ainda): casa pelo valor de face e, no empate, pelo vencimento do boleto
+  const previstas = tits.filter((t) => t.antecipacaoPrevista && t.status === "ABERTO" && t.valorBruto);
+  const usadas = new Set();
+  const prevista = (it) => {
+    const cands = previstas.filter((t) => !usadas.has(t.id) && Math.abs(Number(t.valorBruto) - it.valor) <= Math.max(1, Number(t.valorBruto) * 0.01))
+      .sort((a, b) => Math.abs(Number(a.valorBruto) - it.valor) - Math.abs(Number(b.valorBruto) - it.valor)
+        || Math.abs(+a.vencimentoBoleto - +dUTC(it.vencimento)) - Math.abs(+b.vencimentoBoleto - +dUTC(it.vencimento)));
+    if (cands[0]) usadas.add(cands[0].id);
+    return cands[0] || null;
+  };
   const porDoc = new Map(), porNosso = new Map();
   for (const t of tits) {
     if (t.numeroDoc) porDoc.set(normDoc(t.numeroDoc), t);
     const n = normNosso(t.nossoNumero || nossoObs(t.observacao));
     if (n) { porNosso.set(n, t); if (n.length > 1) porNosso.set(n.slice(0, -1), t); }
   }
-  return (it) => porDoc.get(normDoc(it.seu)) || porNosso.get(normNosso(it.nosso)) || null;
+  return (it) => porDoc.get(normDoc(it.seu)) || porNosso.get(normNosso(it.nosso)) || prevista(it) || null;
 }
 
 const saidaT = (t) => t && ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status, cobranca: t.cobranca });
@@ -105,7 +116,7 @@ export async function analisarAntecipacao(nome, b64) {
   const itens = c.itens.map((it) => {
     const t = achar(it);
     const acao = !t ? "CRIAR" : t.status === "ABERTO" ? "BAIXAR" : "JA_BAIXADA";
-    return { ...it, conta: saidaT(t), acao, difValor: t ? r2(Number(t.valor) - it.valor) : null };
+    return { ...it, conta: saidaT(t), acao, difValor: t ? r2(Number(t.antecipacaoPrevista && t.valorBruto ? t.valorBruto : t.valor) - it.valor) : null, prevista: !!t?.antecipacaoPrevista };
   });
   const credito = await acharCredito(c);
   return {
@@ -188,6 +199,8 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
       await prisma.finTitulo.update({
         where: { id: t.id },
         data: { status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true,
+          // antecipação prevista: confirma pelo contrato (volta ao valor de face; os encargos entram como contas pagas)
+          ...(t.antecipacaoPrevista ? { valor: it.valor, vencimento: dUTC(it.vencimento), competencia: it.vencimento.slice(0, 7), numeroDoc: t.numeroDoc || it.seu, antecipacaoPrevista: false } : {}),
           nossoNumero: t.nossoNumero || it.nosso, observacao: [t.observacao, obs].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: quem || null },
       });
       out.baixadas++; out.valorBaixado = r2(out.valorBaixado + it.valor);
@@ -234,4 +247,26 @@ export async function conciliarAntecipacoesPendentes(quem) {
 export async function listarAntecipacoes() {
   const l = await prisma.finAntecipacao.findMany({ orderBy: { data: "desc" }, select: { id: true, contrato: true, data: true, valorOperacao: true, juros: true, iof: true, tac: true, tarifa: true, valorLiquido: true, taxa: true, lancamentoId: true, itens: true, criadoPorNome: true, createdAt: true } });
   return l.map((a) => ({ ...a, data: a.data.toISOString().slice(0, 10), valorOperacao: Number(a.valorOperacao), juros: Number(a.juros), iof: Number(a.iof), tac: Number(a.tac), tarifa: Number(a.tarifa), valorLiquido: Number(a.valorLiquido), qtd: Array.isArray(a.itens) ? a.itens.length : 0, itens: undefined }));
+}
+
+// v175.2 — custo da antecipação pelos contratos já importados:
+// juros + IOF proporcionais a valor × dias até o vencimento; tarifa por título e TAC por contrato pela média.
+export async function custoAntecipacao() {
+  const cs = await prisma.finAntecipacao.findMany({ select: { data: true, juros: true, iof: true, tac: true, tarifa: true, itens: true } });
+  let varC = 0, base = 0, tarifa = 0, nTit = 0, tac = 0;
+  for (const c of cs) {
+    const its = Array.isArray(c.itens) ? c.itens : [];
+    const vd = its.reduce((s, i) => s + (Number(i.valor) || 0) * Math.max(0, Math.round((+dUTC(i.vencimento) - +c.data) / DIA)), 0);
+    if (!vd) continue;
+    varC += Number(c.juros) + Number(c.iof); base += vd; tarifa += Number(c.tarifa); nTit += its.length; tac += Number(c.tac);
+  }
+  if (!base) return null;
+  return { porValorDia: varC / base, tarifaTitulo: nTit ? tarifa / nTit : 0, tacContrato: tac / cs.length, contratos: cs.length,
+    taxaMes: Math.round((varC / base) * 30 * 10000) / 100 };   // % ao mês equivalente (juros + IOF)
+}
+export function liquidoEstimado(valor, dataAntecipacao, vencimentoBoleto, k) {
+  if (!k) return null;
+  const dias = Math.max(0, Math.round((+dUTC(vencimentoBoleto) - +dUTC(dataAntecipacao)) / DIA));
+  const custo = r2(valor * dias * k.porValorDia + k.tarifaTitulo + k.tacContrato);
+  return { liquido: r2(valor - custo), custo, dias };
 }
