@@ -1,6 +1,10 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioAtivoFin, negado as negadoFin } from "@/lib/fin";
+import { gerencial, tipoDe } from "@/lib/acesso";
+// v170 — cadastro de freelancers e terceirizados: master, diretoria, produção, administrativo e financeiro
+const usuarioMaster = async (id) => { const u = await usuarioAtivoFin(id); return u && (gerencial(u) || ["PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"].includes(tipoDe(u))) ? u : null; };
+const negado = () => Response.json({ error: "Sem permissão para o cadastro de prestadores." }, { status: 403 });
 import {
   listar, salvar, excluir, SETORES_FREELANCER, SERVICOS_DE_TERCEIRIZADO,
   TIPOS_FACCAO, SERVICOS_TERCEIRIZADOS, garantirContasPrestadores,

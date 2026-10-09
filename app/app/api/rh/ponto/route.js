@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { prisma } from "@/lib/prisma";
 import { usuarioRH, negadoRH } from "@/lib/rh";
+import { veRHCompleto } from "@/lib/acesso";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";
 import { lerJornadas, salvarJornadas } from "@/lib/rhJornada";
 import { analisarArquivos, gravarCartoes, justificar, desfazerJustificativa, listarImportacoes, MOTIVOS, apurarPeriodo } from "@/lib/rhPonto";
@@ -21,6 +22,7 @@ export async function GET(req) {
     const { pessoas } = await lerPessoal();
     return Response.json({ jornadas: await lerJornadas(), pessoas: pessoas.filter((p) => p.ativo !== false).map((p) => ({ id: p.id, nome: p.nome })) });
   }
+  if (["carometro", "sintese"].includes(sp.get("acao")) && !veRHCompleto(u)) return negadoRH();   // v170 — indicadores de pessoal: RH, master e diretoria
   if (sp.get("acao") === "carometro") return Response.json(await apurarPeriodo(de, ate));
   if (sp.get("acao") === "sintese") return Response.json(await apurarPeriodo(de, ate, String(sp.get("pessoaId") || "")));
   if (sp.get("arquivo")) {
@@ -60,7 +62,7 @@ export async function POST(req) {
 // DELETE { usuarioId, id } → exclui um cartão importado (só o master, regra v167)
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioSoMaster(b.usuarioId))) return soMaster();
+  if (!(await usuarioSoMaster(b.usuarioId, "docsRH"))) return soMaster();
   await prisma.rhPontoImport.deleteMany({ where: { id: Number(b.id) || 0 } });
   return Response.json({ ok: true });
 }

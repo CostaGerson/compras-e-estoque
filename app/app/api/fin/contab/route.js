@@ -45,7 +45,7 @@ export async function GET(req) {
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioSoMaster(b?.usuarioId);
+  const u = await usuarioSoMaster(b?.usuarioId, "docsFinanceiros");
   if (!u) return soMaster();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
 

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioRH, negadoRH, lerPessoal, calendario } from "@/lib/rh";
+import { veRHCompleto } from "@/lib/acesso";
 import { garantirContas } from "@/lib/fin";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
 import { planoFerias } from "@/lib/rhFerias";
@@ -20,7 +21,10 @@ export async function GET(req) {
   // v169 — resumo do plano de férias para o card
   const pf = await planoFerias(new Date().getFullYear()).catch(() => null);
   const feriasResumo = pf ? { agora: pf.agora.length, proximas: pf.proximas.length, alertasAltos: pf.alertas.filter((a) => a.nivel === "ALTO").length } : null;
+  // v170 — quem entra só pelos documentos de RH (administrativo) não vê salários nem benefícios
+  if (!veRHCompleto(u)) pessoal.pessoas = pessoal.pessoas.map((p) => ({ id: p.id, nome: p.nome, nomeCompleto: p.nomeCompleto, cargo: p.cargo, depto: p.depto, empresa: p.empresa, ativo: p.ativo, admissao: p.admissao }));
   return Response.json({
+    completo: veRHCompleto(u),
     ...pessoal, calendario: cal, competencia: comp, feriasResumo,
     // um registro por documento (o mesmo arquivo enviado de novo não aparece duas vezes)
     envios: envios.filter((e, i, l) => l.findIndex((x) => (e.hash ? x.hash === e.hash : x.arquivo === e.arquivo && x.tituloId === e.tituloId)) === i)

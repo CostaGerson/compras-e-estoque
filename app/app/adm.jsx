@@ -126,12 +126,12 @@ export default function MovimentoFiscal({ user }) {
           <div className="text-lg font-bold" style={{ color: C.navy }}>Movimento fiscal</div>
           <div className="text-xs" style={{ color: C.sub }}>NFs de entrada viram contas a pagar · NFs de saída viram contas a receber (XML e/ou PDF)</div>
         </div>
-        {podeImportar(user) && <Soltar onArquivos={(f) => setImportar([...f])} dica="Solte aqui" className="rounded-xl">
+        {podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <Soltar onArquivos={(f) => setImportar([...f])} dica="Solte aqui" className="rounded-xl">
           <BtnP onClick={() => setImportar([])}><Upload size={15} /> Importar NFs</BtnP>
         </Soltar>}
       </div>
 
-      <Soltar onArquivos={(f) => { if (podeImportar(user)) setImportar([...f]); }} dica="Solte os XMLs/PDFs para importar">
+      <Soltar onArquivos={(f) => { if (podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento")) setImportar([...f]); }} dica="Solte os XMLs/PDFs para importar">
         <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
           {[
             ["NFs de entrada", tot.ent, moeda(tot.entV), C.red],
@@ -202,7 +202,7 @@ export default function MovimentoFiscal({ user }) {
                       {n.temXml && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=xml&baixar=1`} className="inline-flex items-center gap-0.5 mr-2 font-semibold" style={{ color: C.blue }}><FileCode2 size={13} /> XML</a>}
                       {n.temPdf && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={13} /> PDF</a>}
                     </td>
-                    <td className="px-3 py-2">{podeImportar(user) && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
+                    <td className="px-3 py-2">{podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>
                 );
               })}

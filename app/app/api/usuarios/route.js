@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { ator, soMasterUsuarios, limparPermissoes } from "@/lib/usuariosAcesso";
 
 const up = (v) => (v ? String(v).trim().toUpperCase() : "");
 const txt = (v) => (v == null ? "" : String(v).trim());
@@ -9,13 +10,16 @@ const PERMS = ["permLancaPedidos", "permLancaContas", "permAlteraStatus", "permV
 const aplicaDiretoria = (data) => { if (data.diretoria) { data.isMaster = false; data.permLancaPedidos = true; data.permLancaContas = true; data.permVeValores = true; data.permAlteraStatus = true; } };
 const semSegredos = (u) => { if (!u) return u; const { resetHash, resetExpira, ...r } = u; return r; };
 
-export async function GET() {
+export async function GET(req) {
+  const a = await ator(new URL(req.url).searchParams.get("u"));
+  if (!a?.isMaster) return soMasterUsuarios();
   const usuarios = await prisma.usuario.findMany({ orderBy: [{ isMaster: "desc" }, { nome: "asc" }] });
   return Response.json(usuarios.map(semSegredos));
 }
 
 export async function POST(req) {
   const b = await req.json();
+  if (!(await ator(b.atorId))?.isMaster) return soMasterUsuarios();
   if (!txt(b.nome)) return Response.json({ error: "Nome é obrigatório" }, { status: 400 });
   if (!txt(b.login)) return Response.json({ error: "Usuário (login) é obrigatório" }, { status: 400 });
   const data = {
@@ -32,6 +36,8 @@ export async function POST(req) {
   for (const p of PERMS) data[p] = bool(b[p]);
   data.diretoria = bool(b.diretoria);
   aplicaDiretoria(data);
+  const pm = limparPermissoes(b.permissoes, data);
+  if (pm) data.permissoes = pm;   // nenhuma = todas as do tipo
   try {
     const u = await prisma.usuario.create({ data });
     return Response.json(semSegredos(u), { status: 201 });

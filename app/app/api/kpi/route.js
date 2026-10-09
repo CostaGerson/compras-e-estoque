@@ -17,6 +17,7 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const u = await usuarioAtivo(sp.get("u"));
   if (!u) return negado();
+  if (!ehMaster(u)) return negado("Relatório de KPIs: master e diretoria.");   // v170
   await garantirKpis();
   const ano = Number(sp.get("ano")) || new Date().getFullYear();
   if (!anoValido(ano)) return Response.json({ error: "Ano inválido." }, { status: 400 });

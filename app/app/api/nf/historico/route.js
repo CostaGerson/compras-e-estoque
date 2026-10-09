@@ -10,7 +10,7 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = b.usuarioId ? await prisma.usuario.findUnique({ where: { id: Number(b.usuarioId) }, select: { id: true, nome: true, sobrenome: true, ativo: true } }) : null;
   if (!u?.ativo) return Response.json({ error: "Usuário inválido." }, { status: 403 });
-  if (!(await usuarioSoMaster(u.id))) return soMaster();   // v167 — importação: só o master
+  if (!(await usuarioSoMaster(u.id, "nfEntrada"))) return soMaster();   // v170 — por permissão
   const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
   const resultados = [];
   for (const a of (b.arquivos || []).slice(0, 50)) {

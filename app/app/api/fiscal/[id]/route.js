@@ -22,7 +22,7 @@ export async function GET(req, { params }) {
 // DELETE { usuarioId } → exclui o registro (contas criadas por ele vão para a lixeira)
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "nfEntrada", "contasPagar", "contasReceber", "faturamento");
   if (!u) return soMaster();
   const r = await excluirRegistro(params.id, nomeU(u));
   if (r.error) return Response.json(r, { status: 400 });

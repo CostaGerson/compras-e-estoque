@@ -14,7 +14,7 @@ export async function GET(req) {
 // POST { usuarioId, acao: "gravar", notas: [...] }                               → registra e lança as contas
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "nfEntrada", "contasPagar", "contasReceber", "faturamento");
   if (!u) return soMaster();
   if (b.acao === "analisar") {
     const senhas = await senhasSalvas().catch(() => []);

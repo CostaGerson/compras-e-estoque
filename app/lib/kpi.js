@@ -1,6 +1,7 @@
 // KPIs da Meridian: vendas, faturamento (R$ e peças), peças produzidas e receita por canal.
 // Hoje os números são lançados à mão ou importados do Excel; cada campo vira cálculo automático
 // conforme o módulo dono dele nascer (pedidos → vendas; NF de saída → faturamento; cobranças → receita).
+import { gerencial, tipoDe } from "@/lib/acesso";
 import { prisma } from "@/lib/prisma";
 import { KPI_MESES, KPI_RECEITAS, KPI_ANOS, SEGMENTOS_PADRAO } from "@/lib/kpiSeed";
 import { VENDAS_CLIENTES_2026 } from "@/lib/kpiClientes2026";
@@ -21,9 +22,18 @@ export async function usuarioAtivo(id) {
   });
   return u && u.ativo ? u : null;
 }
-export const ehMaster = (u) => !!(u && (u.isMaster || (u.setor === "FINANCEIRO" && !u.diretoria)));
+// v170 — lança KPI e metas: master e diretoria
+export const ehMaster = (u) => gerencial(u);
 // v167 — enxerga valores (master ou diretoria)
-export const veValores = (u) => ehMaster(u) || !!u?.diretoria;
+export const veValores = (u) => gerencial(u) || tipoDe(u) === "COMERCIAL";
+// KPIs que cada tipo enxerga na Gestão
+export function kpisDoTipo(u) {
+  if (gerencial(u)) return null;   // todos
+  const t = tipoDe(u);
+  if (t === "COMERCIAL") return ["vendasValor", "vendasPecas", "faturamentoValor"];
+  if (t === "PRODUCAO") return ["pecasProduzidas", "vendasPecas"];
+  return [];
+}
 export const negadoKpi = (msg = "Acesso negado.") => Response.json({ error: msg }, { status: 403 });
 
 const n = (v) => (v === null || v === undefined ? null : Number(v));

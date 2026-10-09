@@ -7,7 +7,7 @@ import { lerXmlTitulo, validarRateio, nomeU, r2, dataUTC, mesDe, previaNota } fr
 // POST { usuarioId, tipo, gravar:true, itens:[...] }         → grava os títulos revisados
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "contasPagar", "nfEntrada");
   if (!u) return soMaster();
   const tipo = b.tipo === "RECEBER" ? "RECEBER" : "PAGAR";
 

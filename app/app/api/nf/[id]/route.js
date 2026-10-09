@@ -6,7 +6,7 @@ import { usuarioSoMaster, soMaster } from "@/lib/fin";
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
   const uid = b.usuarioId || new URL(req.url).searchParams.get("u");
-  if (!(await usuarioSoMaster(uid))) return soMaster();   // v167 — excluir NF importada: só o master
+  if (!(await usuarioSoMaster(uid, "nfEntrada"))) return soMaster();   // v170 — permissão nfEntrada
   const id = Number(params.id);
   await prisma.$transaction(async (tx) => {
     const itens = await tx.nfItem.findMany({ where: { nfId: id }, select: { id: true, artigoId: true, quantidade: true } });

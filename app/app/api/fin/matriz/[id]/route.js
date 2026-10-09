@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const MAX_VERSOES = 60;
 
 export async function GET(req, { params }) {
-  if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
+  if (!(await usuarioGerencial(new URL(req.url).searchParams.get("u")))) return negadoGerencial();
   const m = await prisma.finMatriz.findUnique({ where: { id: Number(params.id) } });
   if (!m) return Response.json({ error: "Matriz não encontrada." }, { status: 404 });
   return Response.json(m);
@@ -15,8 +15,8 @@ export async function GET(req, { params }) {
 // PUT { usuarioId, dados, resumo, versaoBase } → grava (guarda a versão anterior)
 export async function PUT(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b.usuarioId);
+  if (!u) return negadoGerencial();
   const id = Number(params.id);
   const atual = await prisma.finMatriz.findUnique({ where: { id } });
   if (!atual) return Response.json({ error: "Matriz não encontrada." }, { status: 404 });
@@ -33,7 +33,7 @@ export async function PUT(req, { params }) {
 // PATCH { usuarioId, nome } → renomeia
 export async function PATCH(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioMaster(b.usuarioId))) return negado();
+  if (!(await usuarioGerencial(b.usuarioId))) return negadoGerencial();
   await prisma.finMatriz.update({ where: { id: Number(params.id) }, data: { nome: String(b.nome || "").toUpperCase() || "SEM NOME" } });
   return Response.json({ ok: true });
 }
@@ -41,7 +41,7 @@ export async function PATCH(req, { params }) {
 // DELETE { usuarioId } → apaga cenário (a oficial não pode)
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioMaster(b.usuarioId))) return negado();
+  if (!(await usuarioGerencial(b.usuarioId))) return negadoGerencial();
   const m = await prisma.finMatriz.findUnique({ where: { id: Number(params.id) } });
   if (!m) return Response.json({ ok: true });
   if (m.oficial) return Response.json({ error: "A matriz oficial não pode ser apagada." }, { status: 400 });

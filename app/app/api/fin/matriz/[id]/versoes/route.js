@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 
 // GET ?u= → versões anteriores (sem os dados)
 export async function GET(req, { params }) {
-  if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
+  if (!(await usuarioGerencial(new URL(req.url).searchParams.get("u")))) return negadoGerencial();
   const l = await prisma.finMatrizVersao.findMany({
     where: { matrizId: Number(params.id) }, orderBy: { createdAt: "desc" },
     select: { id: true, createdAt: true, usuarioNome: true, resumo: true },
@@ -15,8 +15,8 @@ export async function GET(req, { params }) {
 // POST { usuarioId, versaoId } → restaura a versão (a atual vira uma versão também)
 export async function POST(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b.usuarioId);
+  if (!u) return negadoGerencial();
   const id = Number(params.id);
   const [m, v] = await Promise.all([prisma.finMatriz.findUnique({ where: { id } }), prisma.finMatrizVersao.findUnique({ where: { id: Number(b.versaoId) } })]);
   if (!m || !v || v.matrizId !== id) return Response.json({ error: "Versão não encontrada." }, { status: 404 });

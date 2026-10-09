@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ehMaster, veFinanceiro, SO_MASTER_MSG } from "@/lib/acesso";
+import { gerencial, temAlguma, podeImportar, SO_MASTER_MSG } from "@/lib/acesso";
 
 // Documentos obrigatórios por mês (1 card cada). qtdEsperada = arquivos esperados.
 export const TIPOS_PADRAO = [
@@ -34,20 +34,31 @@ export async function garantirTipos() {
   });
 }
 
-// Master (ou setor FINANCEIRO) e usuários com a chave Diretoria acessam o financeiro (v167).
-const SEL_U = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true };
-export async function usuarioMaster(id) {
+// v170 — acesso ao financeiro: master/diretoria (tudo) ou quem tem permissão operacional de contas, documentos financeiros ou NF
+export const SEL_U = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true, permissoes: true };
+export const PERMS_FIN = ["contasPagar", "contasReceber", "docsFinanceiros", "nfEntrada", "faturamento"];
+export async function usuarioAtivoFin(id) {
   const uid = Number(id);
   if (!uid) return null;
   const u = await prisma.usuario.findUnique({ where: { id: uid }, select: SEL_U });
-  if (!u || !u.ativo) return null;
-  if (!veFinanceiro(u)) return null;
-  return u;
+  return u && u.ativo ? u : null;
 }
-// Só o master de verdade — importação e exclusão de documentos importados (v167)
-export async function usuarioSoMaster(id) {
-  const u = await usuarioMaster(id);
-  return u && ehMaster(u) ? u : null;
+export async function usuarioMaster(id) {
+  const u = await usuarioAtivoFin(id);
+  if (!u) return null;
+  return gerencial(u) || temAlguma(u, ...PERMS_FIN) ? u : null;
+}
+// painéis gerenciais (DRE, painel de previsão, matriz, DFC, alavancagem…): só master e diretoria
+export async function usuarioGerencial(id) {
+  const u = await usuarioAtivoFin(id);
+  return u && gerencial(u) ? u : null;
+}
+export const negadoGerencial = () => Response.json({ error: "Dados gerenciais: só master e diretoria." }, { status: 403 });
+// importação e exclusão de documentos importados: quem tem uma das permissões (master/diretoria sempre)
+export async function usuarioSoMaster(id, ...perms) {
+  const u = await usuarioAtivoFin(id);
+  if (!u) return null;
+  return podeImportar(u, ...perms) ? u : null;
 }
 export const soMaster = () => Response.json({ error: SO_MASTER_MSG }, { status: 403 });
 export const negado = () => Response.json({ error: "Acesso restrito ao financeiro." }, { status: 403 });

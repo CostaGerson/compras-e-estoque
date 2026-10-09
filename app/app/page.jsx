@@ -21,7 +21,7 @@ import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
-import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar } from "@/lib/acesso";
+import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto } from "@/lib/acesso";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -110,13 +110,38 @@ const MENU = [
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
-// filtra o menu para o perfil (grupo aparece se algum filho aparecer)
-function menuDoPerfil(perfil) {
-  // v167 — Diretoria: tudo, menos Usuários
-  const pode = (n) => perfil === "DIRETORIA" ? !["usuarios", "desenvolvimento"].includes(n.key) : perfil === "ADMINISTRATIVO" ? !["usuarios", "desenvolvimento", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
-  const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
+// v170 — quem vê cada item do menu (tipo de usuário + permissões ligadas; master e diretoria veem tudo)
+const T = (u, ...tipos) => tipos.includes(tipoDe(u));
+const PODE = {
+  desenvolvimento: (u) => ehMasterU(u),
+  usuarios: (u) => ehMasterU(u),
+  gestao: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "LIDER"),
+  agenda: () => true,
+  tarefas: () => true,
+  comercial: (u) => temAlguma(u, "fpp", "proposta", "crm", "pedidoVenda"),
+  financeiro: (u) => temAlguma(u, "contasPagar", "contasReceber", "docsFinanceiros"),
+  movfiscal: (u) => temAlguma(u, "nfEntrada", "faturamento", "contasReceber"),
+  demandas: (u) => gerencial(u) || T(u, "ADMINISTRATIVO"),
+  rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
+  pic: (u) => tem(u, "pic"),
+  oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
+  estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
+  fme: (u) => tem(u, "fme"),
+  rota: () => true,
+  clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
+  fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
+  artigos: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
+  freelancers: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
+  terceirizados: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
+  notasfiscais: (u) => temAlguma(u, "nfEntrada", "contasPagar", "contasReceber", "faturamento"),
+  dadosfin: (u) => temAlguma(u, "docsFinanceiros", "contasPagar", "contasReceber"),
+  uploads: () => true,
+};
+function menuDoUsuario(u) {
+  const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : !!PODE[n.key]?.(u)));
   return f(MENU);
 }
+const folhas = (l) => l.flatMap((n) => (n.filhos ? folhas(n.filhos) : [n.key]));
 // caminho (lista de nós) até a chave
 function caminhoMenu(lista, key, acc = []) {
   for (const n of lista) {
@@ -156,7 +181,7 @@ export default function Home() {
     fetch(`/api/usuarios/${user.id}`).then((r) => (r.ok ? r.json() : null)).then((u) => {
       if (!u) return;
       if (!u.ativo) { localStorage.removeItem("ce_user"); setUser(null); return; }
-      const mudou = ["setor", "isMaster", "diretoria", "nome", "sobrenome", "email", "login"].some((k) => u[k] !== user[k]);
+      const mudou = ["setor", "isMaster", "diretoria", "nome", "sobrenome", "email", "login"].some((k) => u[k] !== user[k]) || JSON.stringify(u.permissoes ?? null) !== JSON.stringify(user.permissoes ?? null);
       if (mudou) { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); }
     }).catch(() => {});
   }, [user?.id]);
@@ -169,13 +194,16 @@ export default function Home() {
   if (tokenReset) return <RedefinirSenha token={tokenReset} onFim={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch {} setTokenReset(null); }} />;
   if (!user) return <Login onEntrar={entrar} />;
 
-  const masterReal = ehMasterU(user);              // master de verdade: importa, exclui importados, gerencia usuários
-  const diretor = ehDiretor(user);                 // v167 — chave Diretoria
-  const master = veFinanceiro(user);               // enxerga valores e entra no financeiro
-  const perfil = masterReal ? "FINANCEIRO" : diretor ? "DIRETORIA" : user.setor;
-  const menu = menuDoPerfil(perfil);
-  // RH só enxerga a guia RH (e mensagens/notificações)
-  if (perfil === "RH" && !["rh", "mensagens", "notificacoes", "dados", "uploads", "agenda", "tarefas"].includes(view)) setTimeout(() => setView("rh"), 0);
+  const masterReal = ehMasterU(user);              // v170 — só a chave "Usuário master": gerencia usuários e permissões
+  const diretor = ehDiretor(user);                 // chave Diretoria: todos os painéis e funções
+  const master = veFinanceiro(user);               // painéis gerenciais e valores (master e diretoria)
+  const tipo = tipoDe(user);
+  const perfil = masterReal ? "FINANCEIRO" : diretor ? "DIRETORIA" : user.setor;   // usado por alertas e FME
+  const menu = menuDoUsuario(user);
+  const liberadas = folhas(menu);
+  const pode = (k) => liberadas.includes(k);
+  // tela que o usuário não tem: vai para a primeira que ele tem
+  if (!["mensagens", "notificacoes"].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
@@ -241,25 +269,25 @@ export default function Home() {
         <div className="flex-1 overflow-auto p-6">
           <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
           {noAtual?.filhos && <CardsGrupo grupo={noAtual} ir={ir} />}
-          {view === "gestao" && perfil !== "RH" && <Gestao user={user} master={master} money={money} />}
-          {view === "rh" && ["FINANCEIRO", "DIRETORIA", "RH"].includes(perfil) && <Rh user={user} />}
-          {view === "movfiscal" && master && <MovimentoFiscal user={user} />}
-          {view === "demandas" && ["FINANCEIRO", "DIRETORIA", "ADMINISTRATIVO"].includes(perfil) && <DemandasAdm user={user} master={master} />}
+          {view === "gestao" && pode("gestao") && <Gestao user={user} master={master} money={money} />}
+          {view === "rh" && pode("rh") && <Rh user={user} />}
+          {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
+          {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rota />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
-          {view === "comercial" && <Comercial user={user} master={master} />}
-          {view === "financeiro" && master && <Financeiro user={user} />}
+          {view === "comercial" && pode("comercial") && <Comercial user={user} master={master || tipo === "COMERCIAL"} />}
+          {view === "financeiro" && pode("financeiro") && <Financeiro user={user} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && <LancarPP />}
-          {view === "pic" && <PIC />}
-          {view === "oc" && <OC money={money} />}
-          {view === "estoque" && <Estoque money={money} master={master} />}
-          {view === "fme" && <FME user={user} perfil={perfil} />}
+          {view === "pic" && pode("pic") && <PIC />}
+          {view === "oc" && pode("oc") && <OC money={money} />}
+          {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
+          {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
-          {view === "notasfiscais" && master && <NfRegistro user={user} />}
-          {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
+          {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
+          {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
           {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}
@@ -1466,7 +1494,7 @@ function Estoque({ money, master }) {
   );
 }
 /* ===== FME · Ficha de Movimentação de Estoque ===== */
-const FME_SETORES = ["CORTE", "COSTURA", "BORDADO", "SILK", "EXPEDICAO", "PRODUCAO", "PCP", "ESTOQUE", "COMPRAS", "LOGISTICA", "COMERCIAL", "NORT", "ADMINISTRATIVO", "FINANCEIRO"];
+const FME_SETORES = ["CORTE", "COSTURA", "BORDADO", "SILK", "SUBLIMACAO", "DTF", "EXPEDICAO", "PRODUCAO", "PCP", "ESTOQUE", "COMPRAS", "LOGISTICA", "COMERCIAL", "NORT", "ADMINISTRATIVO", "FINANCEIRO"];
 // totais de uma FME por unidade: retirado, devolvido e consumido (retirado - devolvido)
 function totaisFmeUn(itens) {
   const ret = {}, dev = {}, cons = {};
@@ -3342,7 +3370,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
 
   return (
     <div>
-      {podeImportar(lerSessao()) && <div
+      {podeImportar(lerSessao(), "nfEntrada") && <div
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
         onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); importar(e.dataTransfer.files); }}
@@ -3578,7 +3606,7 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</div>
                   <div className="w-28 text-right" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</div>
                   <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</div>
-                  {podeImportar(lerSessao()) && <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
+                  {podeImportar(lerSessao(), "nfEntrada") && <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
                 </div>
               ))}
             </div>
@@ -3595,7 +3623,6 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
 /* ===== Usuários (ligado ao banco · só master) ===== */
 const SETORES = SETORES_ACESSO;   // v167 — lib/acesso.js
 // v167 — a chave Diretoria liga lançar/editar contas e pedidos e ver valores do financeiro e da gestão
-const PERMISSOES_DIRETORIA = ["Lança e edita contas", "Lança e edita pedidos", "Enxerga valores do financeiro e da gestão", "Não importa nem exclui documentos importados"];
 
 function Switch({ on, onChange, label }) {
   return (
@@ -3650,7 +3677,7 @@ function Usuarios({ master }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const u = await fetch("/api/usuarios").then((r) => r.json());
+      const u = await fetch(`/api/usuarios?u=${sessaoId()}`).then((r) => r.json());
       setUsuarios(Array.isArray(u) ? u : []);
     } catch {}
     setLoading(false);
@@ -3658,12 +3685,12 @@ function Usuarios({ master }) {
   useEffect(() => { carregar(); }, []);
 
   const toggleAtivo = async (u) => {
-    await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !u.ativo }) });
+    await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId(), ativo: !u.ativo }) });
     carregar();
   };
   const excluir = async (u) => {
     if (!window.confirm(`Excluir o usuário ${u.nome}? Esta ação não pode ser desfeita.`)) return;
-    await fetch(`/api/usuarios/${u.id}`, { method: "DELETE" });
+    await fetch(`/api/usuarios/${u.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId() }) });
     carregar();
   };
 
@@ -3691,7 +3718,9 @@ function Usuarios({ master }) {
           </div>
           {usuarios.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum usuário ainda. Clique em “Novo usuário”.</div>}
           {usuarios.map((u) => {
-            const perms = ehMasterU(u) ? [["m", "MASTER · TUDO"]] : u.diretoria ? [["d", "DIRETORIA"]] : u.permAlteraStatus ? [["s", "Altera status de pedidos"]] : [];
+            const tpu = tipoDe(u), dt = PERMS_DO_TIPO[tpu] || [];
+            const perms = tpu === "MASTER" ? [["m", "MASTER · TUDO"]] : tpu === "DIRETORIA" ? [["d", "DIRETORIA · TODOS OS PAINÉIS"]]
+              : [["t", TIPO_NOME[tpu].toUpperCase()], ...(dt.length ? [["p", `${(Array.isArray(u.permissoes) ? u.permissoes.filter((p) => dt.includes(p)) : dt).length}/${dt.length} permissões`]] : [])];
             return (
               <div key={u.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <div className="w-12"><Avatar foto={u.fotoBase64} nome={`${u.nome} ${u.sobrenome || ""}`} /></div>
@@ -3739,6 +3768,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     permLancaPedidos: usuario?.permLancaPedidos ?? false, permLancaContas: usuario?.permLancaContas ?? false,
     permAlteraStatus: usuario?.permAlteraStatus ?? false, permVeValores: usuario?.permVeValores ?? false,
     diretoria: usuario?.diretoria ?? false,
+    permissoes: Array.isArray(usuario?.permissoes) ? usuario.permissoes : null,   // v170 — null = todas as do tipo
   });
   const [verSenha, setVerSenha] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -3758,8 +3788,8 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     setSalvando(true);
     // no modo "meu perfil" só mando os campos editáveis do próprio usuário
     const body = self
-      ? { nome: f.nome, sobrenome: f.sobrenome, email: f.email, login: f.login, senha: f.senha, fotoBase64: f.fotoBase64 }
-      : f;
+      ? { atorId: sessaoId(), nome: f.nome, sobrenome: f.sobrenome, email: f.email, login: f.login, senha: f.senha, fotoBase64: f.fotoBase64 }
+      : { ...f, atorId: sessaoId(), permissoes: f.permissoes ?? (PERMS_DO_TIPO[tipoDe(f)] || []) };
     const url = ed ? `/api/usuarios/${usuario.id}` : "/api/usuarios";
     const method = ed ? "PATCH" : "POST";
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -3807,7 +3837,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
                 <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{SETOR_NOME[f.setor] || f.setor}{f.diretoria ? " · DIRETORIA" : ""}</div>
               </div>
             ) : (
-              <Sel label="Setor" value={f.setor} onChange={(e) => set("setor", e.target.value)}>
+              <Sel label="Setor" value={f.setor} onChange={(e) => setF((s) => ({ ...s, setor: e.target.value, permissoes: null }))}>
                 {SETORES.map((s) => <option key={s} value={s}>{SETOR_NOME[s] || s}</option>)}
               </Sel>
             )}
@@ -3828,25 +3858,37 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
 
           {!self && (
             <>
-              <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                <div className="text-xs font-semibold mb-2" style={{ color: C.sub, textTransform: "uppercase" }}>Permissões de acesso</div>
-                <div className="text-xs mb-2" style={{ color: C.sub }}>O menu segue o setor. Master vê e faz tudo.</div>
-                <div className="rounded-md p-2.5" style={{ background: f.diretoria ? C.accentSoft : C.panel, border: `1px solid ${f.diretoria ? C.accent : C.line}` }}>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} style={{ color: f.diretoria ? C.accent : C.sub }} />
-                    <Switch on={f.diretoria} onChange={(v) => setF((s) => ({ ...s, diretoria: v, isMaster: v ? false : s.isMaster }))} label="Usuário diretoria" />
+              {(() => {   // v170 — tipo pelo setor + chaves; cada tipo tem as suas permissões
+                const tp = tipoDe(f);
+                const doTipo = PERMS_DO_TIPO[tp] || [];
+                const ligadas = f.permissoes ?? doTipo;
+                const alterna = (p, v) => set("permissoes", v ? [...new Set([...ligadas, p])] : ligadas.filter((x) => x !== p));
+                return (
+                  <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="text-xs font-semibold flex-1" style={{ color: C.sub, textTransform: "uppercase" }}>Tipo de usuário e permissões</div>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{TIPO_NOME[tp]}</span>
+                    </div>
+                    <div className="text-xs mb-2" style={{ color: C.sub }}>O tipo vem do setor (ou das chaves Master e Diretoria). Visualizações: <b style={{ color: C.text }}>{VISAO_DO_TIPO[tp]}</b>.</div>
+                    <div className="rounded-md p-2.5 mb-2" style={{ background: f.diretoria ? C.accentSoft : C.panel, border: `1px solid ${f.diretoria ? C.accent : C.line}` }}>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck size={16} style={{ color: f.diretoria ? C.accent : C.sub }} />
+                        <Switch on={f.diretoria} onChange={(v) => setF((s) => ({ ...s, diretoria: v, isMaster: v ? false : s.isMaster }))} label="Usuário diretoria" />
+                      </div>
+                      <div className="text-[11px] ml-6" style={{ color: C.sub }}>Todos os painéis gerenciais e todas as funções operacionais. Não cadastra usuários nem altera permissões.</div>
+                    </div>
+                    {tp === "MASTER" && <div className="text-xs" style={{ color: C.text }}>Todas as permissões e visualizações. Só o master cadastra e edita usuários e altera permissões.</div>}
+                    {tp !== "MASTER" && tp !== "DIRETORIA" && (doTipo.length ? (
+                      <div className="flex flex-col gap-0.5">
+                        {doTipo.map((p) => <Switch key={p} on={ligadas.includes(p)} onChange={(v) => alterna(p, v)} label={PERMISSOES[p]} />)}
+                      </div>
+                    ) : <div className="text-xs" style={{ color: C.sub }}>Este tipo não tem permissões operacionais: usa agenda, tarefas e rota.</div>)}
                   </div>
-                  <ul className="text-xs mt-1 ml-6 list-disc" style={{ color: C.sub }}>
-                    {PERMISSOES_DIRETORIA.map((l) => <li key={l}>{l}</li>)}
-                  </ul>
-                </div>
-                {!f.diretoria && !f.isMaster && (
-                  <div className="mt-2"><Switch on={f.permAlteraStatus} onChange={(v) => set("permAlteraStatus", v)} label="Altera status de pedidos" /></div>
-                )}
-              </div>
+                );
+              })()}
               <div className="flex items-center gap-6">
                 <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />
-                <Switch on={f.isMaster} onChange={(v) => setF((s) => ({ ...s, isMaster: v, diretoria: v ? false : s.diretoria }))} label="Usuário master (Financeiro)" />
+                <Switch on={f.isMaster} onChange={(v) => setF((s) => ({ ...s, isMaster: v, diretoria: v ? false : s.diretoria }))} label="Usuário master" />
               </div>
             </>
           )}

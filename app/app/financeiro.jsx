@@ -1,5 +1,5 @@
 "use client";
-import { podeImportar } from "@/lib/acesso";
+import { podeImportar, gerencial, tem, temAlguma } from "@/lib/acesso";
 import Dfc from "./dfc";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -57,6 +57,8 @@ function statusCard(n, esperado, justificativa, arqs = []) {
 /* ============================================================ */
 export default function Financeiro({ user }) {
   // tela: dash | meses | mes | contas | regras | senhas
+  // v170 — quem não é master/diretoria vê só o operacional (documentos financeiros e contas)
+  const ger = gerencial(user);
   const [tela, setTela] = useState({ v: "dash" });
   const [ano, setAno] = useState(new Date().getFullYear());
   const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
@@ -86,11 +88,11 @@ export default function Financeiro({ user }) {
           ))}
         </div>
       )}
-      {tela.v === "dash" && <FinDashboard user={user} ir={ir} />}
+      {tela.v === "dash" && (ger ? <FinDashboard user={user} ir={ir} /> : <FinOperacional user={user} ir={ir} />)}
       {tela.v === "dados" && <DadosFinanceiros user={user} ir={ir} />}
       {tela.v === "meses" && (
         <AnaliseMensal user={user} ano={ano} setAno={setAno}
-          abrir={(comp) => ir({ v: "mes", comp, aba: "dre" })}
+          abrir={(comp) => ir({ v: "mes", comp, aba: ger ? "dre" : "importacao" })}
           abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })}
           abrirAlav={() => ir({ v: "alavancagem" })} />
       )}
@@ -102,11 +104,39 @@ export default function Financeiro({ user }) {
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
-      {tela.v === "matriz" && <MatrizCustos user={user} />}
+      {tela.v === "matriz" && ger && <MatrizCustos user={user} />}
       {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
-      {tela.v === "alavancagem" && <Alavancagem user={user} master aba="dividas" />}
-      {tela.v === "credito" && <Alavancagem user={user} master aba="credito" />}
-      {tela.v === "dfc" && <Dfc user={user} />}
+      {tela.v === "alavancagem" && ger && <Alavancagem user={user} master aba="dividas" />}
+      {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}
+      {tela.v === "dfc" && ger && <Dfc user={user} />}
+    </div>
+  );
+}
+
+/* ---------------- v170 — início do financeiro para quem não é gerencial ---------------- */
+function FinOperacional({ user, ir }) {
+  const cards = [
+    temAlguma(user, "contasPagar", "contasReceber") && ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Lançar, editar, excluir e importar títulos; vencimentos e baixas"],
+    tem(user, "docsFinanceiros") && ["meses", CalendarRange, "Documentos financeiros", "Extratos, faturas, contratos e guias do mês: importação, identificação, contabilidade e recebimentos"],
+  ].filter(Boolean);
+  return (
+    <div>
+      <div className="flex justify-end mb-3">
+        <button onClick={() => ir({ v: "dados" })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+          <Database size={14} style={{ color: C.accent }} /> Dados
+        </button>
+      </div>
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+        {cards.map(([v, Ico, t, sub]) => (
+          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+            <Ico size={26} style={{ color: C.accent }} />
+            <div className="text-lg font-bold mt-2">{t}</div>
+            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+          </button>
+        ))}
+      </div>
+      {!cards.length && <div className="text-sm" style={{ color: C.sub }}>Seu usuário não tem permissões no financeiro.</div>}
+      <div className="text-xs" style={{ color: C.sub }}>DRE, painéis, matriz de custos, DFC e alavancagem são dados gerenciais (master e diretoria).</div>
     </div>
   );
 }
@@ -324,6 +354,7 @@ function useAnual(user, ano) {
   const [erro, setErro] = useState("");
   useEffect(() => {
     setD(null); setErro("");
+    if (ano == null) return;   // v170 — sem painel gerencial
     fetch(`/api/fin/anual?u=${user.id}&ano=${ano}`)
       .then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro"))))
       .catch(() => setErro("Falha de conexão."));
@@ -412,7 +443,8 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
 function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
-  const [anual, erroAnual] = useAnual(user, ano);
+  const ger = gerencial(user);
+  const [anual, erroAnual] = useAnual(user, ger ? ano : null);
   const [hist, setHist] = useState(false);
   const alavMes = useMemo(
     () => Object.fromEntries((anual?.meses || []).map((m) => [m.competencia, m.alavancagem])),
@@ -427,7 +459,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
           <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
         </div>
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
-        {podeImportar(user) && <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+        {podeImportar(user, "docsFinanceiros") && <button onClick={() => setHist(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
           <Upload size={15} /> Importar histórico
         </button>}
       </div>
@@ -454,11 +486,11 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
                 </div>
                 {temAlgo ? (
                   <>
-                    <div className="grid grid-cols-2 gap-1 mt-3 text-xs">
+                    {ger && <div className="grid grid-cols-2 gap-1 mt-3 text-xs">
                       <span style={{ color: C.sub }}>Entradas</span><span className="text-right font-semibold" style={{ color: C.blue }}>{moeda(m.entradas)}</span>
                       <span style={{ color: C.sub }}>Saídas</span><span className="text-right font-semibold" style={{ color: C.red }}>{moeda(m.saidas)}</span>
                       <span style={{ color: C.sub }}>Resultado</span><span className="text-right font-bold" style={{ color: m.resultado >= 0 ? C.green : C.red }}>{moeda(m.resultado)}</span>
-                    </div>
+                    </div>}
                     <div className="mt-3">
                       <div className="flex justify-between text-[10px]" style={{ color: C.sub }}><span>Identificado</span><span>{pctId}%</span></div>
                       <div className="h-1.5 rounded-full mt-0.5" style={{ background: C.panel2 }}><div className="h-1.5 rounded-full" style={{ width: `${pctId}%`, background: pctId === 100 ? C.green : C.accent }} /></div>
@@ -615,7 +647,8 @@ function MesFinanceiro({ user, tela, setTela }) {
   const setComp = (c) => setTela((t) => ({ ...t, comp: c }));
   const setAba = (aba, extra = {}) => setTela((t) => ({ ...t, aba, ...extra }));
   const abas = [["dre", "DRE do mês", PieIco], ["painel", "Painel de previsão", Gauge], ["importacao", "Importação", FileStack],
-    ["identificacao", "Identificação", Tag], ["contabilidade", "Contabilidade", Building2], ["recebimentos", "Recebimentos", Table2]];
+    ["identificacao", "Identificação", Tag], ["contabilidade", "Contabilidade", Building2], ["recebimentos", "Recebimentos", Table2]]
+    .filter(([k]) => gerencial(user) || !["dre", "painel"].includes(k));   // v170 — DRE e painel são gerenciais
   return (
     <div>
       <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -626,8 +659,8 @@ function MesFinanceiro({ user, tela, setTela }) {
           </button>
         ))}
       </div>
-      {tela.aba === "dre" && <DreGerencial user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
-      {tela.aba === "painel" && <PainelPrevisao user={user} comp={comp} setComp={setComp} />}
+      {tela.aba === "dre" && gerencial(user) && <DreGerencial user={user} comp={comp} setComp={setComp} abrirConta={(contaId) => setAba("identificacao", { contaFiltro: contaId })} />}
+      {tela.aba === "painel" && gerencial(user) && <PainelPrevisao user={user} comp={comp} setComp={setComp} />}
       {tela.aba === "importacao" && <Importacao user={user} comp={comp} setComp={setComp} />}
       {tela.aba === "identificacao" && <Identificacao key={`${comp}-${tela.contaFiltro || ""}`} user={user} comp={comp} setComp={setComp} contaInicial={tela.contaFiltro} />}
       {tela.aba === "contabilidade" && <Contabilidade user={user} comp={comp} setComp={setComp} irRecebimentos={() => setAba("recebimentos")} />}
@@ -1455,7 +1488,7 @@ function Importacao({ user, comp, setComp }) {
         <SeletorMes comp={comp} setComp={setComp} />
         <input ref={loteInp} type="file" accept=".zip,application/zip,application/pdf,.pdf" multiple className="hidden"
           onChange={(e) => { abrirLote(e.target.files); e.target.value = ""; }} />
-        {podeImportar(user) && <button onClick={() => loteInp.current?.click()} disabled={!dados}
+        {podeImportar(user, "docsFinanceiros") && <button onClick={() => loteInp.current?.click()} disabled={!dados}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ background: C.accent, color: "#fff", opacity: dados ? 1 : 0.5 }}>
           <FolderArchive size={16} /> Importar ZIP / vários PDFs
@@ -1550,7 +1583,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
   useEffect(() => { setTexto(just?.texto || ""); }, [just?.texto, comp]);
 
   const falta = arqs.length < tipo.qtdEsperada;
-  const imp = podeImportar(user);   // v167 — importar/excluir: só o master
+  const imp = podeImportar(user, "docsFinanceiros");   // v167 — importar/excluir: só o master
   const podeMais = imp && (tipo.multiplo || arqs.length === 0);
   const alterado = (texto || "").trim().toUpperCase() !== (just?.texto || "");
 
@@ -3375,12 +3408,12 @@ function SlotArquivo({ doc, formato, user, onExcluir, onPedir, dica }) {
               {kb(doc.tamanho)} · {doc.arquivoId ? "cópia da Importação" : dataHora(doc.createdAt)}
             </div>
           </a>
-          {podeImportar(user) && <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
+          {podeImportar(user, "docsFinanceiros") && <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
             title={doc.arquivoId ? "Este PDF vem da guia Importação — se excluir aqui, ele volta quando a guia recarregar. Para tirar de vez, exclua na Importação." : "Excluir"}>
             <Trash2 size={14} />
           </button>}
         </>
-      ) : !podeImportar(user) ? <span className="flex-1 text-xs" style={{ color: C.sub }}>{formato} não enviado</span> : (
+      ) : !podeImportar(user, "docsFinanceiros") ? <span className="flex-1 text-xs" style={{ color: C.sub }}>{formato} não enviado</span> : (
         <>
           <input ref={inp} type="file" accept={formato === "PDF" ? ".pdf" : ".ofx"} className="hidden"
             onChange={(e) => { onPedir(e.target.files); e.target.value = ""; }} />
@@ -3425,7 +3458,7 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
     <div className="rounded-xl flex flex-col"
       style={{ background: C.panel, border: `1px solid ${drag ? C.accent : C.line}`, borderTop: `3px solid ${ok ? C.green : C.red}` }}
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeImportar(user)) onSubir(e.dataTransfer.files); }}>
+      onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeImportar(user, "docsFinanceiros")) onSubir(e.dataTransfer.files); }}>
       <div className="p-4 pb-2 flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold" style={{ color: C.text }}>{cat.label}</div>
@@ -3446,14 +3479,14 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
                 <div className="text-xs font-medium truncate" style={{ color: C.text }} title={doc.nomeOriginal || doc.nome}>{doc.nome}</div>
                 <div className="text-[11px]" style={{ color: C.sub }}>{kb(doc.tamanho)} · {dataHora(doc.createdAt)}</div>
               </a>
-              {podeImportar(user) && <button onClick={() => onExcluir(doc)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
+              {podeImportar(user, "docsFinanceiros") && <button onClick={() => onExcluir(doc)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
             </div>
           ))}
         </div>
       )}
 
       <div className="px-4 pb-4 mt-auto flex flex-col gap-2">
-        {podeImportar(user) && <>
+        {podeImportar(user, "docsFinanceiros") && <>
         <input ref={inp} type="file" accept={aceita} multiple={cat.multiplo} className="hidden"
           onChange={(e) => { onSubir(e.target.files); e.target.value = ""; }} />
         <button onClick={() => inp.current?.click()}

@@ -10,7 +10,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 // Meses que já têm lançamentos vindos de documentos (extratos/faturas deste sistema) ficam de fora.
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "docsFinanceiros");
   if (!u) return soMaster();
   const { itens, erros } = lerHistorico(b.texto);
   if (!itens.length) return Response.json({ error: "Nenhum lançamento encontrado. Envie o .txt do 'Extrato' do sistema anterior." }, { status: 400 });
@@ -78,7 +78,7 @@ export async function POST(req) {
 // DELETE { usuarioId, competencia } → remove o histórico importado de um mês
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioSoMaster(b.usuarioId))) return soMaster();
+  if (!(await usuarioSoMaster(b.usuarioId, "docsFinanceiros"))) return soMaster();
   const r = await prisma.finLancamento.deleteMany({ where: { competencia: String(b.competencia || ""), origem: "HISTORICO" } });
   return Response.json({ ok: true, removidos: r.count });
 }

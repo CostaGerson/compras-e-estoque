@@ -18,7 +18,7 @@ export async function criar(u, { texto, tela }) {
   if (t.length < 10) return { error: "Descreva a melhoria com um pouco mais de detalhe (mínimo 10 caracteres)." };
   const s = await prisma.sugestao.create({ data: { usuarioId: u.id, usuarioNome: nome(u), setor: u.setor, tela: String(tela || "").slice(0, 80) || null, texto: t.slice(0, 4000) } });
   // avisa os masters na caixa de entrada
-  const masters = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO", diretoria: false }] }, select: { id: true } });
+  const masters = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }] }, select: { id: true } });
   const para = masters.filter((m) => m.id !== u.id);
   if (para.length) await prisma.mensagem.createMany({ data: para.map((m) => ({ deId: u.id, paraId: m.id, texto: `💡 SUGESTÃO DE MELHORIA #${s.id} de ${nome(u)}${s.tela ? ` (tela ${s.tela})` : ""}: ${t.slice(0, 600)} — veja em Desenvolvimento.` })) });
   return { ok: true, sugestao: s };

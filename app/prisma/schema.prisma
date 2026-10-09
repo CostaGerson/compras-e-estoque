@@ -29,6 +29,8 @@ enum Setor {
   NORT
   COSTURA
   LOGISTICA
+  SUBLIMACAO
+  DTF
 }
 
 enum TipoTecido {
@@ -103,6 +105,7 @@ model Usuario {
   permAlteraStatus Boolean @default(false)
   permVeValores    Boolean @default(false)
   diretoria        Boolean @default(false)
+  permissoes       Json?                     // v170 — permissões do tipo que estão ligadas (null = todas as do tipo)
   statusManual     String?                   // v169 — REUNIAO (quando a pessoa marca); ocupado vem do play de uma demanda
   statusDesde      DateTime?
   pessoaId         String?                   // v169 — funcionário da Matriz (férias → status inativo)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)

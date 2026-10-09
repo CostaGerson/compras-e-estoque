@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 import { garantirContratos, garantirTributosEmBranco, panorama, calcular, parcelaPrice, TIPOS, GRUPOS, ORDEM_GRUPOS, GRUPOS_TRIBUTO, somaMeses } from "@/lib/alavancagem";
 import { previaMatriz, contaSugerida, lancarCreditoContratado } from "@/lib/alavancagemMatriz";
 
@@ -19,8 +19,8 @@ const up = (v) => (v ? String(v).toUpperCase().trim() : null);
 
 // GET ?u= → panorama completo + catálogos
 export async function GET(req) {
-  const u = await usuarioMaster(new URL(req.url).searchParams.get("u"));
-  if (!u) return negado();
+  const u = await usuarioGerencial(new URL(req.url).searchParams.get("u"));
+  if (!u) return negadoGerencial();
   await garantirContratos();
   await garantirTributosEmBranco();
   const [p, previa] = await Promise.all([panorama(), previaMatriz().catch(() => [])]);
@@ -34,8 +34,8 @@ export async function GET(req) {
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioMaster(b?.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b?.usuarioId);
+  if (!u) return negadoGerencial();
   const c = b.contrato || {};
 
   const tipo = up(c.tipo) || "PARCELADO";
@@ -85,8 +85,8 @@ export async function POST(req) {
 export async function PUT(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioMaster(b?.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b?.usuarioId);
+  if (!u) return negadoGerencial();
   const id = Number(b.id);
   if (!id) return Response.json({ error: "Contrato não informado." }, { status: 400 });
 
@@ -106,7 +106,7 @@ export async function PUT(req) {
 // DELETE ?u=&id=
 export async function DELETE(req) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   await prisma.finContrato.delete({ where: { id: Number(sp.get("id")) } }).catch(() => null);
   return Response.json({ ok: true });
 }

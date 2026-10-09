@@ -7,7 +7,7 @@ import { lerPosicao, analisarPosicao, importarPosicao } from "@/lib/finPosicao";
 // POST { usuarioId, acao: "importar", linhas: [...] }                  → cria / substitui conforme a decisão de cada linha
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "contasPagar", "contasReceber");
   if (!u) return soMaster();
   try {
     if (b.acao === "analisar") {

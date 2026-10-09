@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 
 const dec = (v) => {
   if (v === "" || v === null || v === undefined) return null;
@@ -14,7 +14,7 @@ const up = (v) => (v ? String(v).toUpperCase().trim() : null);
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  if (!(await usuarioMaster(b?.usuarioId))) return negado();
+  if (!(await usuarioGerencial(b?.usuarioId))) return negadoGerencial();
   const banco = up(b.banco), produto = up(b.produto);
   if (!banco || !produto) return Response.json({ error: "Informe banco e produto." }, { status: 400 });
   const limite = dec(b.limite);
@@ -32,7 +32,7 @@ export async function POST(req) {
 export async function PUT(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  if (!(await usuarioMaster(b?.usuarioId))) return negado();
+  if (!(await usuarioGerencial(b?.usuarioId))) return negadoGerencial();
   const campos = ["banco", "produto", "limite", "taxaMensal", "utilizado", "observacao"];
   if (!campos.includes(b.campo)) return Response.json({ error: "Campo inválido." }, { status: 400 });
   const d = {};
@@ -46,7 +46,7 @@ export async function PUT(req) {
 // DELETE ?u=&id=
 export async function DELETE(req) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   await prisma.finLimiteCredito.delete({ where: { id: Number(sp.get("id")) } }).catch(() => null);
   return Response.json({ ok: true });
 }

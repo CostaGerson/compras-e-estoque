@@ -2,18 +2,33 @@
 // documentos mensais ligados ao contas a pagar e calendário de obrigações — Meridian e NORT.
 import { prisma } from "@/lib/prisma";
 import { nDiaUtil, mesAtual, somaMes } from "@/lib/finTitulos";
+import { veRHCompleto, tem, temAlguma } from "@/lib/acesso";
 
 export const nomeUsuario = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
-// financeiro (master), diretoria (v167) e RH
-export async function usuarioRH(id) {
+// v170 — guia RH: master/diretoria e RH veem tudo; quem tem a permissão "documentos de RH" (administrativo) entra só nos documentos e no ponto
+const SEL_RH = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true, permissoes: true };
+async function ativo(id) {
   const uid = Number(id);
   if (!uid) return null;
-  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true } });
-  if (!u || !u.ativo) return null;
-  return u.isMaster || u.setor === "FINANCEIRO" || u.setor === "RH" || u.diretoria ? u : null;
+  const u = await prisma.usuario.findUnique({ where: { id: uid }, select: SEL_RH });
+  return u && u.ativo ? u : null;
 }
-export const negadoRH = () => Response.json({ error: "Acesso restrito ao RH e ao financeiro." }, { status: 403 });
+export async function usuarioRH(id) {
+  const u = await ativo(id);
+  return u && (veRHCompleto(u) || tem(u, "docsRH")) ? u : null;
+}
+// dados de pessoal (salários, carômetro, painel, férias): master, diretoria e RH
+export async function usuarioRHCompleto(id) {
+  const u = await ativo(id);
+  return u && veRHCompleto(u) ? u : null;
+}
+// importar documento / anexos de contas: documentos de RH, contas ou documentos financeiros
+export async function usuarioDocs(id) {
+  const u = await ativo(id);
+  return u && (veRHCompleto(u) || temAlguma(u, "docsRH", "contasPagar", "contasReceber", "docsFinanceiros")) ? u : null;
+}
+export const negadoRH = () => Response.json({ error: "Sem permissão para esta área do RH." }, { status: 403 });
 
 export const empresaDaPessoa = (p) => (p?.depto === "NORT" ? "NORT" : "MERIDIAN");
 

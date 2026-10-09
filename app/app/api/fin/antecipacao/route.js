@@ -15,7 +15,7 @@ export async function GET(req) {
 // POST { usuarioId, acao: "analisar" | "aplicar", arquivo: { nome, conteudo } }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "contasReceber");
   if (!u) return soMaster();
   if (!b.arquivo?.conteudo) return Response.json({ error: "Envie o PDF do contrato." }, { status: 400 });
   try {

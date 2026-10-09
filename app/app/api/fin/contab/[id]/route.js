@@ -30,7 +30,7 @@ export async function GET(req, { params }) {
 // DELETE ?u=
 export async function DELETE(req, { params }) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioSoMaster(sp.get("u")))) return soMaster();
+  if (!(await usuarioSoMaster(sp.get("u"), "docsFinanceiros"))) return soMaster();
   const id = Number(params.id);
   await prisma.finNfSaida.deleteMany({ where: { docId: id } }).catch(() => null);
   await prisma.finContabDoc.delete({ where: { id } }).catch(() => null);

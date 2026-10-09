@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado, soMaster } from "@/lib/fin";
-import { ehDiretor, ehMaster } from "@/lib/acesso";
+import { gerencial, tem } from "@/lib/acesso";
 import { nomeU, gerarRecorrencias } from "@/lib/finTitulos";
 import { lerDocumento, analisarDocumentos, aplicarDocumentos } from "@/lib/finDocumentos";
 import { corrigirMatriz } from "@/lib/finFolhaMatriz";
 import { hashB64, jaImportados } from "@/lib/finHash";
 import { sincronizarPessoal } from "@/lib/finMatrizRecDb";
-import { usuarioRH, notificarQuadro } from "@/lib/rh";
+import { usuarioRH, usuarioDocs, notificarQuadro } from "@/lib/rh";
 import { lerComprovantes, analisarComprovantes, baixarComprovantes } from "@/lib/finComprovantes";
 import { prisma } from "@/lib/prisma";
 import { abrirComSenhas, identificarDocAnalise, sugerirCompetencia, importarArquivoAnalise, hashBuf } from "@/lib/finImportArquivo";
@@ -15,15 +15,14 @@ import { abrirComSenhas, identificarDocAnalise, sugerirCompetencia, importarArqu
 // POST { usuarioId, acao: "aplicar", itens: [...], arquivos: [{ nome, conteudo }] } → atualiza/cria as contas e anexa os arquivos
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioRH(b.usuarioId);   // financeiro e RH
+  const u = await usuarioDocs(b.usuarioId);   // v170 — documentos de RH, contas ou documentos financeiros
   if (!u) return negado();
-  if (ehDiretor(u)) return soMaster();   // v167 — importação de documentos: só o master (o RH segue enviando os dele)
   try {
     if (b.acao === "analisar") {
       if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });
       await gerarRecorrencias("PAGAR");   // a conta do salário do mês precisa existir
       const docs = [], hashDe = {}, vistos = new Set(), repetidos = [], comps = [], analise = [], protegidos = [];
-      const master = ehMaster(u);
+      const master = gerencial(u) || tem(u, "docsFinanceiros");
       for (const a of b.arquivos) {
         const h = hashB64(a.conteudo);
         if (vistos.has(h)) { repetidos.push(a.nome); continue; }   // o mesmo arquivo duas vezes no envio
@@ -82,7 +81,7 @@ export async function POST(req) {
     }
     // POST { usuarioId, acao: "analise", itens: [{ nome, tipoId, competencia, senha }], arquivos } → grava na Análise mensal
     if (b.acao === "analise") {
-      if (!ehMaster(u)) return Response.json({ error: "Só o financeiro envia documentos da análise mensal." }, { status: 403 });
+      if (!(gerencial(u) || tem(u, "docsFinanceiros"))) return Response.json({ error: "Sem permissão para documentos financeiros da análise mensal." }, { status: 403 });
       const porNome = Object.fromEntries((b.arquivos || []).map((a) => [a.nome, a]));
       const out = [];
       for (const it of b.itens || []) {

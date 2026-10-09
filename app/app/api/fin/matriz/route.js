@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 import { MATRIZ_SEED } from "@/lib/matrizSeed";
 import { ajustarAdiantamento, separarMutuos } from "@/lib/finAjustes";
 
@@ -15,7 +15,7 @@ async function garantirMatriz() {
 
 // GET ?u= → lista (oficial primeiro) — sem os dados
 export async function GET(req) {
-  if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
+  if (!(await usuarioGerencial(new URL(req.url).searchParams.get("u")))) return negadoGerencial();
   await garantirMatriz();
   await ajustarAdiantamento().catch(() => null);   // marca os optantes pelo adiantamento (uma vez)
   await separarMutuos().catch(() => null);         // uma linha de mútuo por sócio (uma vez)
@@ -26,8 +26,8 @@ export async function GET(req) {
 // POST { usuarioId, nome, copiarDe } → novo cenário (cópia de outra matriz)
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioMaster(b.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b.usuarioId);
+  if (!u) return negadoGerencial();
   const base = await prisma.finMatriz.findUnique({ where: { id: Number(b.copiarDe) } });
   if (!base) return Response.json({ error: "Matriz de origem não encontrada." }, { status: 404 });
   const m = await prisma.finMatriz.create({

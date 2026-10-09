@@ -75,7 +75,8 @@ export default function Rh({ user }) {
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d ? <div className="flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <>
-          {tela === "inicio" && <PainelRH user={user} p={p} comp={comp} setComp={setComp} />}
+          {tela === "inicio" && d.completo !== false && <PainelRH user={user} p={p} comp={comp} setComp={setComp} />}
+          {tela === "inicio" && d.completo === false && <div className="text-xs mb-1" style={{ color: C.sub }}>Seu acesso ao RH é pelos documentos: folha, guias, recargas de benefícios e cartões de ponto.</div>}
           {tela === "inicio" && (
             <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {[
@@ -85,7 +86,7 @@ export default function Rh({ user }) {
                 ["calendario", CalendarClock, "Calendário de obrigações", cal ? (calPend.length ? `${calPend.length} pendente(s)${calAtras ? ` · ${calAtras} atrasado(s)` : ""}` : "tudo enviado no mês") : "—", "Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · iFood até o dia 25", calAtras ? C.red : null],
                 ["ferias", Palmtree, "Plano de férias", d.feriasResumo ? `${d.feriasResumo.agora} de férias agora · ${d.feriasResumo.proximas} nos próximos 30 dias` : "planejar férias individuais e coletivas", "Saldo por período aquisitivo, sobreposição no mesmo setor e regras da CLT", d.feriasResumo?.alertasAltos ? C.red : null],
                 ["ponto", Fingerprint, "Ponto", p?.competencias?.length ? `${pendPonto} pendência(s) · ${(p.ranking || []).length} cartão(ões) no mês` : "nenhum cartão importado", "Importar cartões de ponto, crítica de dias sem registro e justificativas", pendPonto ? C.red : null],
-              ].map(([k, Ico, t, sub, desc, alerta]) => (
+              ].filter(([k]) => d.completo !== false || ["financeiro", "calendario", "ponto"].includes(k)).map(([k, Ico, t, sub, desc, alerta]) => (
                 <button key={k} onClick={() => setTela(k)} className="text-left rounded-xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${alerta ? alerta + "88" : C.line}` }}>
                   <Ico size={26} style={{ color: C.accent }} />
                   <div className="font-bold text-base mt-2" style={{ color: C.navy }}>{t}</div>
@@ -95,7 +96,7 @@ export default function Rh({ user }) {
               ))}
             </div>
           )}
-          {tela === "inicio" && <Acionaveis p={p} irPonto={() => setTela("ponto")} />}
+          {tela === "inicio" && d.completo !== false && <Acionaveis p={p} irPonto={() => setTela("ponto")} />}
           {tela === "matriz" && <MatrizPessoal user={user} d={d} onSalvo={ok} />}
           {tela === "carometro" && <Carometro user={user} d={d} p={p} onMudou={carregar} onMedalhas={(m) => setP((x) => ({ ...x, medalhas: m }))} recarregarPainel={() => carregarPainel(comp)} />}
           {tela === "calendario" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}

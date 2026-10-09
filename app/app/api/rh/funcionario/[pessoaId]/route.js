@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioRH, negadoRH, nomeUsuario } from "@/lib/rh";
+import { usuarioRHCompleto, negadoRH, nomeUsuario } from "@/lib/rh";
 
 const LIMITE = 15 * 1024 * 1024;
 const ficha = (pessoaId) => prisma.rhFuncionario.upsert({ where: { pessoaId }, create: { pessoaId }, update: {} });
@@ -9,7 +9,7 @@ const ficha = (pessoaId) => prisma.rhFuncionario.upsert({ where: { pessoaId }, c
 // GET ?u=&doc=ID → o arquivo
 export async function GET(req, { params }) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioRH(sp.get("u")))) return negadoRH();
+  if (!(await usuarioRHCompleto(sp.get("u")))) return negadoRH();
   const f = await ficha(params.pessoaId);
   if (sp.get("doc")) {
     const d = await prisma.rhDocumento.findFirst({ where: { id: Number(sp.get("doc")), funcionarioId: f.id } });
@@ -27,7 +27,7 @@ export async function GET(req, { params }) {
 // PUT { usuarioId, nomeCompleto?, dados?, foto? } → atualiza a ficha
 export async function PUT(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioRH(b.usuarioId);
+  const u = await usuarioRHCompleto(b.usuarioId);
   if (!u) return negadoRH();
   await ficha(params.pessoaId);
   const data = { atualizadoPorNome: nomeUsuario(u) };
@@ -44,7 +44,7 @@ export async function PUT(req, { params }) {
 // POST { usuarioId, tipo, nome, mime, conteudo } → documento novo
 export async function POST(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioRH(b.usuarioId);
+  const u = await usuarioRHCompleto(b.usuarioId);
   if (!u) return negadoRH();
   const f = await ficha(params.pessoaId);
   const conteudo = String(b.conteudo || "");
@@ -61,7 +61,7 @@ export async function POST(req, { params }) {
 // DELETE { usuarioId, docId }
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioRH(b.usuarioId))) return negadoRH();
+  if (!(await usuarioRHCompleto(b.usuarioId))) return negadoRH();
   const f = await prisma.rhFuncionario.findUnique({ where: { pessoaId: params.pessoaId } });
   if (f) await prisma.rhDocumento.deleteMany({ where: { id: Number(b.docId), funcionarioId: f.id } });
   return Response.json({ ok: true });

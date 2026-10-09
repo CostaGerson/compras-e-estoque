@@ -6,7 +6,7 @@ async function usuario(id) {
   const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true } });
   return u?.ativo ? u : null;
 }
-const master = (u) => !!(u.isMaster || (u.setor === "FINANCEIRO" && !u.diretoria));
+const master = (u) => !!(u.isMaster || u.diretoria);
 
 // GET ?u=           → lista (master vê tudo; os demais, o que eles enviaram)
 // GET ?u=&id=ARQ-12 → baixa o arquivo

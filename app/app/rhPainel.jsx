@@ -528,7 +528,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
               <td className="px-3 py-1.5">{horas((x.totais?.extra || 0) + (x.totais?.exced || 0))}</td>
               <td className="px-3 py-1.5"><a href={`/api/rh/ponto?u=${user.id}&arquivo=${x.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1" style={{ color: C.blue }}><FileText size={12} /> {x.arquivo}</a></td>
               <td className="px-3 py-1.5" style={{ color: C.sub }}>{new Date(x.createdAt).toLocaleString("pt-BR")} · {x.criadoPorNome || "—"}</td>
-              <td className="px-3 py-1.5">{podeImportar(user) && <button onClick={() => excluir(x)} title="Excluir (só o master)" style={{ color: C.sub }}><Trash2 size={13} /></button>}</td>
+              <td className="px-3 py-1.5">{podeImportar(user, "docsRH") && <button onClick={() => excluir(x)} title="Excluir" style={{ color: C.sub }}><Trash2 size={13} /></button>}</td>
             </tr>
           ))}</tbody>
         </table>

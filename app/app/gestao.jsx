@@ -125,9 +125,14 @@ function Painel({ user, master, money, abrirRelatorio }) {
           {/* ---- os 5 KPIs do mês ---- */}
           <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
             {d.kpis.map((k) => (
-              <CardKpi key={k.chave} k={k} mes={mes} ano={ano} user={user} master={master} money={money} />
+              <CardKpi key={k.chave} k={k} mes={mes} ano={ano} user={user} master={master || d.veValores} money={money} />
             ))}
-            <CardReceitaCanais canais={d.canais} total={d.receitaMes} master={master} money={money} />
+            {!d.restrito && <CardReceitaCanais canais={d.canais} total={d.receitaMes} master={master} money={money} />}
+            {d.restrito && !d.kpis.length && (
+              <div className="rounded-xl p-5 text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+                <b style={{ color: C.navy }}>Metas e evolução da meta do seu setor</b><br />Entram aqui quando o cronômetro do chão de fábrica estiver no ar.
+              </div>
+            )}
           </div>
 
           {/* ---- indicadores do ano ---- */}
@@ -138,14 +143,15 @@ function Painel({ user, master, money, abrirRelatorio }) {
             <div className="flex-1 h-px" style={{ background: C.line }} />
           </div>
           <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-            <Indicador rotulo="Ticket médio" valor={master ? `R$ ${brl(d.anuais.ticketMedio)}` : "•••••"}
+            <Indicador rotulo="Ticket médio" valor={master || d.veValores ? `R$ ${brl(d.anuais.ticketMedio)}` : "•••••"}
               detalhe={`faturamento ÷ peças faturadas`} delta={d.anuais.vsAnterior?.ticketMedio} anoRef={anoAnterior} Ico={Receipt} />
             <Indicador rotulo="Média mensal de peças faturadas" valor={d.anuais.mediaPecasFaturadas == null ? "—" : inteiro(d.anuais.mediaPecasFaturadas)}
               detalhe={mesesTxt(d.anuais.bases?.pecasFaturadas || 0)} delta={d.anuais.vsAnterior?.mediaPecasFaturadas} anoRef={anoAnterior} Ico={Factory} />
-            <Indicador rotulo="Média mensal de faturamento" valor={d.anuais.mediaFaturamento == null ? "—" : master ? compacto(d.anuais.mediaFaturamento, "R$") : "•••••"}
+            <Indicador rotulo="Média mensal de faturamento" valor={d.anuais.mediaFaturamento == null ? "—" : master || d.veValores ? compacto(d.anuais.mediaFaturamento, "R$") : "•••••"}
               detalhe={mesesTxt(d.anuais.bases?.faturamento || 0)} delta={d.anuais.vsAnterior?.mediaFaturamento} anoRef={anoAnterior} Ico={Wallet} />
           </div>
 
+          {!d.restrito && <>
           {/* ---- acesso aos relatórios ---- */}
           <div className="flex items-center gap-2 mb-3">
             <div className="text-xs font-bold tracking-wider" style={{ color: C.navy }}>RELATÓRIO DE KPIs</div>
@@ -157,6 +163,7 @@ function Painel({ user, master, money, abrirRelatorio }) {
             <CardAcesso Ico={History} titulo="Histórico" sub={`Anos fechados — ${(d.anos || []).filter((a) => a < ano).join(", ") || "sem histórico"}`}
               onClick={() => abrirRelatorio(anoAnterior)} />
           </div>
+          </>}
         </>
       )}
 

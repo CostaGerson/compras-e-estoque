@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { ator, soMasterUsuarios, limparPermissoes, CAMPOS_PROPRIOS } from "@/lib/usuariosAcesso";
 
 const up = (v) => (v ? String(v).trim().toUpperCase() : "");
 const txt = (v) => (v == null ? "" : String(v).trim());
@@ -19,6 +21,13 @@ export async function GET(req, { params }) {
 export async function PATCH(req, { params }) {
   const id = Number(params.id);
   const b = await req.json();
+  // v170 — master edita tudo; o próprio usuário, só o perfil
+  const a = await ator(b.atorId);
+  if (!a) return soMasterUsuarios();
+  if (!a.isMaster) {
+    if (a.id !== id) return soMasterUsuarios();
+    for (const k of Object.keys(b)) if (!CAMPOS_PROPRIOS.includes(k) && k !== "atorId") delete b[k];
+  }
   const data = {};
   if ("nome" in b) data.nome = up(b.nome);
   if ("sobrenome" in b) data.sobrenome = up(b.sobrenome);
@@ -32,6 +41,10 @@ export async function PATCH(req, { params }) {
   for (const p of PERMS) if (p in b) data[p] = bool(b[p]);
   if ("diretoria" in b) data.diretoria = bool(b.diretoria);
   aplicaDiretoria(data);
+  if ("permissoes" in b) {
+    const atual = await prisma.usuario.findUnique({ where: { id }, select: { setor: true, isMaster: true, diretoria: true } });
+    data.permissoes = limparPermissoes(b.permissoes, { ...atual, ...data }) ?? Prisma.DbNull;
+  }
   try {
     const u = await prisma.usuario.update({ where: { id }, data });
     return Response.json(semSegredos(u));
@@ -42,6 +55,8 @@ export async function PATCH(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  if (!(await ator(b.atorId || new URL(req.url).searchParams.get("u")))?.isMaster) return soMasterUsuarios();
   await prisma.usuario.delete({ where: { id: Number(params.id) } });
   return Response.json({ ok: true });
 }

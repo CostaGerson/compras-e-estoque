@@ -36,7 +36,7 @@ export async function POST(req) {
   try { body = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const { tipo, conteudo, pdfBase64, perfil, usuarioId } = body || {};
   const criadoPorId = usuarioId ? Number(usuarioId) : null;
-  if (!(await usuarioSoMaster(criadoPorId))) return soMaster();   // v167 — importação: só o master
+  if (!(await usuarioSoMaster(criadoPorId, "nfEntrada"))) return soMaster();   // v170 — por permissão
   if (!tipo || !conteudo) return Response.json({ error: "Envie o arquivo (tipo e conteúdo)." }, { status: 400 });
 
   // 1) parse

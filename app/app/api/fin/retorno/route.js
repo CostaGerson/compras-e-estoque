@@ -7,7 +7,7 @@ import { analisarRetornos, aplicarRetornos } from "@/lib/finRetorno";
 // POST { usuarioId, acao: "aplicar", arquivos, itens: [...] }                   → registra / baixa / lança tarifa / anexa
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  const u = await usuarioSoMaster(b.usuarioId);
+  const u = await usuarioSoMaster(b.usuarioId, "contasReceber");
   if (!u) return soMaster();
   const arquivos = Array.isArray(b.arquivos) ? b.arquivos.filter((a) => a?.conteudo) : [];
   if (!arquivos.length) return Response.json({ error: "Envie o arquivo de retorno (.RET)." }, { status: 400 });

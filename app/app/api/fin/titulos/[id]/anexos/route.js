@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { negado } from "@/lib/fin";
-import { usuarioRH as usuarioMaster } from "@/lib/rh";
+import { usuarioDocs as usuarioMaster } from "@/lib/rh";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";   // financeiro e RH
 import { nomeU } from "@/lib/finTitulos";
 import { hashB64 } from "@/lib/finHash";
@@ -50,7 +50,7 @@ export async function POST(req, { params }) {
 // DELETE { usuarioId, anexoId }
 export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioSoMaster(b.usuarioId))) return soMaster();   // v167 — excluir anexo: só o master
+  if (!(await usuarioSoMaster(b.usuarioId, "contasPagar", "contasReceber"))) return soMaster();   // v170 — por permissão
   await prisma.finTituloAnexo.deleteMany({ where: { id: Number(b.anexoId), tituloId: Number(params.id) } });
   return Response.json({ ok: true });
 }

@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado } from "@/lib/fin";
+import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
 import { simularPagamentoExtra, calcular } from "@/lib/alavancagem";
 
 const dec = (v) => {
@@ -17,7 +17,7 @@ const data = (v) => {
 // GET ?u=&contratoId= → histórico de pagamentos extras do contrato
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const l = await prisma.finPagamentoExtra.findMany({
     where: { contratoId: Number(sp.get("contratoId")) }, orderBy: { data: "desc" },
   });
@@ -29,8 +29,8 @@ export async function GET(req) {
 export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
-  const u = await usuarioMaster(b?.usuarioId);
-  if (!u) return negado();
+  const u = await usuarioGerencial(b?.usuarioId);
+  if (!u) return negadoGerencial();
 
   const contrato = await prisma.finContrato.findUnique({ where: { id: Number(b.contratoId) } });
   if (!contrato) return Response.json({ error: "Contrato não encontrado." }, { status: 404 });
@@ -79,7 +79,7 @@ export async function POST(req) {
 // DELETE ?u=&id= → desfaz o registro (não reverte o contrato; ajuste à mão se precisar)
 export async function DELETE(req) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioMaster(sp.get("u")))) return negado();
+  if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   await prisma.finPagamentoExtra.delete({ where: { id: Number(sp.get("id")) } }).catch(() => null);
   return Response.json({ ok: true });
 }

@@ -19,7 +19,7 @@ export async function GET(req, { params }) {
 // DELETE ?u=
 export async function DELETE(req, { params }) {
   const sp = new URL(req.url).searchParams;
-  if (!(await usuarioSoMaster(sp.get("u")))) return soMaster();
+  if (!(await usuarioSoMaster(sp.get("u"), "docsFinanceiros"))) return soMaster();
   const a = await prisma.finArquivo.findUnique({ where: { id: Number(params.id) }, select: { competencia: true } });
   await prisma.finArquivo.delete({ where: { id: Number(params.id) } }).catch(() => null);
   if (a) await conciliarCompetencia(a.competencia).catch(() => null); // desfaz trocas que dependiam deste arquivo

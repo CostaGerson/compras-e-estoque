@@ -6,7 +6,7 @@ import { usuarioMaster, usuarioSoMaster, soMaster, negado, competenciaValida, pr
 // POST { usuarioId, competencia, reler?: [arquivoId] } — lê arquivos pendentes, confere detalhamentos e aplica palavras-chave
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
-  if (!(await usuarioSoMaster(b.usuarioId))) return soMaster();
+  if (!(await usuarioSoMaster(b.usuarioId, "docsFinanceiros"))) return soMaster();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   if (Array.isArray(b.reler) && b.reler.length) {
     await prisma.finArquivo.updateMany({ where: { id: { in: b.reler.map(Number) }, competencia: b.competencia }, data: { processado: false } });
