@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { gerencial, temAlguma, podeImportar, SO_MASTER_MSG } from "@/lib/acesso";
+import { compDoParcial, filtrarRepetidos } from "@/lib/finParciais";
 
 // Documentos obrigatórios por mês (1 card cada). qtdEsperada = arquivos esperados.
 export const TIPOS_PADRAO = [
@@ -264,21 +265,30 @@ export async function processarArquivo(arquivoId, { conciliarDepois = true } = {
   if (!LEITORES[a.tipo.codigo]) return { ok: true, n: 0, semLeitor: true };
 
   const r = await lerArquivo(a.tipo.codigo, buf, a.senhaPdf);
+  let linhas = r.lancamentos.map((l, i) => ({
+    competencia: a.parcial ? compDoParcial(a.tipo.codigo, l.data, a.competencia) : a.competencia, arquivoId: a.id, banco: r.banco,
+    data: new Date(l.data + "T00:00:00Z"), historico: String(l.historico || "").toUpperCase(),
+    documento: l.documento || null, identificacao: l.identificacao ? String(l.identificacao).toUpperCase() : null,
+    valor: l.valor, ordem: i,
+  }));
+  // v172 — parcial: o que já veio em outro extrato/fatura do mesmo documento (parcial ou mensal) não entra de novo
+  let repetidas = 0, noMensal = 0;
+  if (a.parcial) {
+    ({ novas: linhas, repetidas, noMensal } = await filtrarRepetidos(a, linhas));
+  }
+  const comps = [...new Set([a.competencia, ...linhas.map((l) => l.competencia)])];
   await prisma.$transaction([
     prisma.finLancamento.deleteMany({ where: { arquivoId: a.id } }),
-    prisma.finLancamento.createMany({
-      data: r.lancamentos.map((l, i) => ({
-        competencia: a.competencia, arquivoId: a.id, banco: r.banco,
-        data: new Date(l.data + "T00:00:00Z"), historico: String(l.historico || "").toUpperCase(),
-        documento: l.documento || null, identificacao: l.identificacao ? String(l.identificacao).toUpperCase() : null,
-        valor: l.valor, ordem: i,
-      })),
-    }),
-    prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: r.saldoAnterior, prova: r.prova } }),
+    prisma.finLancamento.createMany({ data: linhas }),
+    prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: a.parcial ? null : r.saldoAnterior, prova: r.prova,
+      ...(a.parcial && !linhas.length && noMensal ? { consolidadoEm: new Date() } : {}) } }),
   ]);
-  if (conciliarDepois) await conciliarCompetencia(a.competencia);
-  const auto = await aplicarRegras(a.competencia);
-  return { ok: true, n: r.lancamentos.length, auto, prova: r.prova };
+  let auto = 0;
+  for (const c of comps) {
+    if (conciliarDepois) await conciliarCompetencia(c);
+    auto += (await aplicarRegras(c)) || 0;
+  }
+  return { ok: true, n: linhas.length, auto, prova: r.prova, ...(a.parcial ? { parcial: true, repetidas, noMensal } : {}) };
 }
 
 // Só refaz a prova real de um arquivo (não mexe nos lançamentos — usado para arquivos lidos antes da v50)

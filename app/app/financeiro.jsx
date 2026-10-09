@@ -1327,6 +1327,12 @@ function Importacao({ user, comp, setComp }) {
   const [baixas, setBaixas] = useState(null);     // nº de baixas sugeridas pelo extrato do mês
   const [verBaixas, setVerBaixas] = useState(false);
   const [pedirSenha, setPedirSenha] = useState(null); // { tipo, file, b64, errada }
+  const [aviso, setAviso] = useState("");
+  const descartarSobras = async (tipo) => {
+    if (!confirm(`Descartar os lançamentos dos parciais de ${tipo.banco} · ${tipo.documento} que não apareceram no mensal?`)) return;
+    await fetch("/api/fin/arquivos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "descartarSobras", competencia: comp, tipoId: tipo.id }) });
+    carregar();
+  };
 
   const carregar = async () => {
     setErro("");
@@ -1353,7 +1359,8 @@ function Importacao({ user, comp, setComp }) {
       const arqs = dados.arquivos.filter((a) => a.tipoId === t.id);
       const just = dados.justificativas.find((j) => j.tipoId === t.id) || null;
       const ofx = (dados.ofx || []).find((o) => o.tipoId === t.id) || null;
-      return { tipo: t, arqs, just, ofx, ehExtrato: /_EXTRATO$/.test(t.codigo || ""), st: statusCard(arqs.length, t.qtdEsperada, just, arqs) };
+      const parciais = (dados.parciais || []).filter((p) => p.tipoId === t.id);
+      return { tipo: t, arqs, just, ofx, parciais, ehExtrato: /_EXTRATO$/.test(t.codigo || ""), st: statusCard(arqs.length, t.qtdEsperada, just, arqs) };
     });
   }, [dados]);
 
@@ -1393,6 +1400,10 @@ function Importacao({ user, comp, setComp }) {
     const d = await r.json().catch(() => ({}));
     if (r.status === 423 && d.precisaSenha) { setPedirSenha({ tipo, file, b64, errada: !!d.senhaErrada }); return "senha"; }
     if (!r.ok) { alert(`${file.name}: ${d.error || "erro ao enviar"}`); return "erro"; }
+    const cs = d.consolidacao;
+    setAviso([`${file.name}: ${d.leitura?.n ?? 0} lançamento(s) lido(s)`,
+      cs && !cs.erro ? `${cs.aproveitados} já estavam nos parciais (mantida a identificação) · ${cs.novos} novo(s)${cs.descartadas ? ` · ${cs.descartadas} do parcial fora do mensal descartado(s)` : ""}${cs.sobras ? ` · ${cs.sobras} do parcial ainda sem par` : ""}` : "",
+      d.baixas ? `${d.baixas} baixa(s) para validar` : ""].filter(Boolean).join(" · "));
     return "ok";
   };
 
@@ -1505,6 +1516,7 @@ function Importacao({ user, comp, setComp }) {
       )}
 
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {aviso && <div className="p-3 rounded-lg mb-4 text-xs flex items-start gap-2" style={{ background: C.greenSoft, color: C.green }}><CheckCircle2 size={15} className="shrink-0" /><span className="flex-1">{aviso}</span><button onClick={() => setAviso("")}><X size={14} /></button></div>}
       {!dados && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
 
       {!!baixas && (
@@ -1514,7 +1526,7 @@ function Importacao({ user, comp, setComp }) {
           <span className="flex-1">
             <b>{baixas} pagamento(s) do extrato</b> batem com contas previstas deste mês. Confira um a um e autorize a baixa.
           </span>
-          <span className="font-semibold" style={{ color: C.green }}>Conferir →</span>
+          <span className="font-semibold" style={{ color: C.green }}>Validar →</span>
         </button>
       )}
       {verBaixas && <BaixasModal user={user} competencia={comp} onClose={() => { setVerBaixas(false); procurarBaixas(); }} />}
@@ -1529,7 +1541,7 @@ function Importacao({ user, comp, setComp }) {
             {g.cards.map((c) => (
               <CardDoc key={c.tipo.id} c={c} user={user} comp={comp}
                 onArquivos={(fs) => onArquivos(c.tipo, fs)} onExcluir={excluir} onMudou={carregar}
-                onOfx={(fs) => enviarOfx(c.tipo, fs)} onExcluirOfx={excluirOfx} />
+                onOfx={(fs) => enviarOfx(c.tipo, fs)} onExcluirOfx={excluirOfx} onDescartar={() => descartarSobras(c.tipo)} />
             ))}
           </div>
         </div>
@@ -1566,8 +1578,8 @@ function Pilula({ cor, bg, txt, onClick }) {
   return <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ color: cor, background: bg }}>{txt}</span>;
 }
 
-function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExcluirOfx }) {
-  const { tipo, arqs, just, st, ofx, ehExtrato } = c;
+function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExcluirOfx, onDescartar }) {
+  const { tipo, arqs, just, st, ofx, ehExtrato, parciais } = c;
   const inp = useRef(null);
   const inpOfx = useRef(null);
   const [drag, setDrag] = useState(false);
@@ -1577,7 +1589,8 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
 
   const falta = arqs.length < tipo.qtdEsperada;
   const imp = podeImportar(user, "docsFinanceiros");   // v167 — importar/excluir: só o master
-  const podeMais = false;   // v171 — envio só pela Transmissão de arquivos (painel do Financeiro)
+  const podeMais = imp && (tipo.multiplo || arqs.length === 0);   // v172 — o card é a entrada do documento MENSAL
+  const mensalLanc = /_(EXTRATO|FATURA)$/.test(tipo.codigo || "");
   const alterado = (texto || "").trim().toUpperCase() !== (just?.texto || "");
 
   const salvarJust = async () => {
@@ -1634,7 +1647,27 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
       )}
 
       <div className="px-4 pb-4 mt-auto">
-        {falta && imp && <div className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}><Upload size={12} /> Envie pela Transmissão de arquivos (painel do Financeiro)</div>}
+        {/* v172 — parciais (Transmissão): lançamentos já no mês, aguardando o mensal */}
+        {parciais?.length > 0 && (
+          <div className="mb-2 rounded-lg px-2 py-1.5 text-[11px]" style={{ background: arqs.length ? C.yellowSoft : C.blueSoft, color: C.text }}>
+            <div className="font-semibold" style={{ color: arqs.length ? C.yellow : C.blue }}>
+              {arqs.length ? `${parciais.reduce((a, p) => a + p.n, 0)} lançamento(s) de parciais não apareceram no mensal` : `${parciais.length} parcial(is) · aguardando o ${tipo.documento.toLowerCase()} mensal`}
+            </div>
+            {parciais.map((p) => <div key={p.id} style={{ color: C.sub }}>{p.de.split("-").reverse().slice(0, 2).join("/")} a {p.ate.split("-").reverse().slice(0, 2).join("/")} · {p.n} lanç. · {p.identificados} identificado(s)</div>)}
+            {arqs.length > 0 && imp && <button onClick={onDescartar} className="mt-1 font-semibold underline" style={{ color: C.red }}>Descartar (o mensal manda)</button>}
+          </div>
+        )}
+        {podeMais && (
+          <>
+            <input ref={inp} type="file" accept="application/pdf,.pdf" multiple={tipo.multiplo} className="hidden"
+              onChange={(e) => { onArquivos(e.target.files); e.target.value = ""; }} />
+            <button onClick={() => inp.current?.click()}
+              className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium"
+              style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: drag ? C.accentSoft : "transparent" }}>
+              <Upload size={15} /> {arqs.length ? "Enviar mais" : mensalLanc ? `Enviar ${/FATURA/.test(tipo.codigo) ? "fatura" : "extrato"} mensal` : "Enviar PDF"}
+            </button>
+          </>
+        )}
 
         {/* extrato: slot do OFX (vai direto para o pacote da contabilidade) */}
         {ehExtrato && (

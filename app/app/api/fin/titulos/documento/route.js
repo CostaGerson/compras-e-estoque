@@ -87,7 +87,7 @@ export async function POST(req) {
       for (const it of b.itens || []) {
         const a = porNome[it.nome];
         if (!a || !/^\d{4}-\d{2}$/.test(it.competencia || "")) { out.push({ nome: it.nome, erro: "arquivo ou mês inválido" }); continue; }
-        try { out.push({ nome: it.nome, ...(await importarArquivoAnalise({ u, competencia: it.competencia, tipoId: it.tipoId, nome: a.nome, conteudo: a.conteudo, senha: it.senha })) }); }
+        try { out.push({ nome: it.nome, ...(await importarArquivoAnalise({ u, competencia: it.competencia, tipoId: it.tipoId, nome: a.nome, conteudo: a.conteudo, senha: it.senha, parcial: true })) }); }   // v172 — fora do card mensal = parcial
         catch (e) { out.push({ nome: it.nome, erro: e.message }); }
       }
       return Response.json({ resultados: out });

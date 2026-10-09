@@ -283,6 +283,9 @@ export default function ContasPagarReceber({ user }) {
 
   const tipoApi = ABAS_FORA.includes(tipo) ? "RECEBER" : tipo;
   const [tickAtraso, setTickAtraso] = useState(0);
+  // v172 — baixas pelo extrato: o sistema procura sozinho; só aparece quando há o que validar
+  const [nBaixas, setNBaixas] = useState(0);
+  useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).length)).catch(() => setNBaixas(0)); }, [d, mes]);
   const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
     if (j.dedupCompras?.removidas) setAviso(`${j.dedupCompras.removidas} conta(s) de compra lançada(s) em dobro foram unificadas: ficou a da NF (XML)${j.dedupCompras.baixasMovidas ? `, ${j.dedupCompras.baixasMovidas} baixa(s) passaram para ela` : ""}. As outras estão na Lixeira por 30 dias.`);
@@ -395,12 +398,12 @@ export default function ContasPagarReceber({ user }) {
       )}
 
       {/* baixas sugeridas pelo extrato */}
-      {d && (
+      {d && nBaixas > 0 && (
         <button onClick={() => setModal({ t: "baixas" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
-          style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>
-          <Link2 size={18} style={{ color: C.accent }} />
-          <span className="flex-1">Conferir <b>baixas pelo extrato</b> — o sistema procura no extrato deste mês os pagamentos que batem com as contas previstas.</span>
-          <span className="font-semibold" style={{ color: C.accent }}>Procurar →</span>
+          style={{ background: C.greenSoft, border: `1px solid ${C.green}55`, color: C.text }}>
+          <Link2 size={18} style={{ color: C.green }} />
+          <span className="flex-1"><b>{nBaixas} pagamento(s) do extrato</b> batem com contas lançadas deste mês. Confira e autorize a baixa.</span>
+          <span className="font-semibold" style={{ color: C.green }}>Validar →</span>
         </button>
       )}
 
@@ -709,7 +712,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "analise", itens, arquivos: arqs.filter((a) => itens.some((i) => i.nome === a.nome)) });
       const ids = j.resultados.map((x) => x.id || x.arquivoId).filter(Boolean);
       if (ids.length) setBaixaIds((v) => [...new Set([...v, ...ids])]);
-      setAnMsg(j.resultados.map((x) => (x.erro ? `${x.nome}: ${x.erro}` : `${x.tipo.banco} · ${x.tipo.documento} → análise de ${nomeMes(itens.find((i) => i.nome === x.nome).competencia)}${x.leitura?.n ? ` (${x.leitura.n} lançamento(s) lido(s))` : ""}`)));
+      setAnMsg(j.resultados.map((x) => (x.erro ? `${x.nome}: ${x.erro}` : `${x.tipo.banco} · ${x.tipo.documento}${x.parcial ? " parcial" : ""} → análise de ${nomeMes(itens.find((i) => i.nome === x.nome).competencia)}${x.leitura?.n != null ? ` (${x.leitura.n} lançamento(s) novo(s)${x.leitura.repetidas ? ` · ${x.leitura.repetidas} já importado(s) em outro extrato` : ""})` : ""}${x.baixas ? ` · ${x.baixas} baixa(s) para validar abaixo` : ""}`)));
       setR((y) => ({ ...y, analise: [] }));
     } catch (e) { setErro(e.message); }
     setSt("");
@@ -813,7 +816,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
           {r.analise?.length > 0 && (
             <div className="rounded-xl p-3" style={{ border: `1px solid ${C.blue}55`, background: C.blueSoft }}>
               <div className="text-sm font-bold mb-1" style={{ color: C.navy }}>Documentos da análise mensal</div>
-              <div className="text-[11px] mb-2" style={{ color: C.sub }}>Reconhecidos como extrato / fatura / relatório do banco. Vão para a guia Importação do mês escolhido (com leitura dos lançamentos e cópia para a contabilidade, igual à análise mensal).</div>
+              <div className="text-[11px] mb-2" style={{ color: C.sub }}>Reconhecidos como extrato / fatura / relatório do banco. Extratos e faturas entram como <b>parciais</b>: os lançamentos já podem ser identificados e dar baixa nas contas, mas o documento do mês só é dado como enviado pelo card da Importação (extrato/fatura mensal), que cruza com os parciais e descarta as repetições.</div>
               {r.analise.map((x) => (
                 <div key={x.nome} className="flex flex-wrap items-center gap-2 py-1.5 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
                   <input type="checkbox" checked={!!an[x.nome]?.ok} onChange={(e) => setAn((y) => ({ ...y, [x.nome]: { ...y[x.nome], ok: e.target.checked } }))} />

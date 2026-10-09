@@ -15,7 +15,7 @@ export async function GET(req) {
       select: { competencia: true, data: true, valor: true, contaId: true, origem: true },
     }),
     prisma.finDocTipo.findMany({ where: { ativo: true }, select: { id: true, qtdEsperada: true } }),
-    prisma.finArquivo.findMany({ where: { competencia: { startsWith: ano } }, select: { competencia: true, tipoId: true, prova: true } }),
+    prisma.finArquivo.findMany({ where: { competencia: { startsWith: ano }, parcial: false }, select: { competencia: true, tipoId: true, prova: true } }),
     prisma.finJustificativa.findMany({ where: { competencia: { startsWith: ano } }, select: { competencia: true, tipoId: true } }),
   ]);
   const vazio = () => ({ entradas: 0, saidas: 0, n: 0, pend: 0, valorPend: 0, conciliacao: 0, hist: 0 });

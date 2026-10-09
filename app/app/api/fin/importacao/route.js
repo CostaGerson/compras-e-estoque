@@ -13,7 +13,7 @@ export async function GET(req) {
   const [tipos, arquivos, justificativas] = await Promise.all([
     prisma.finDocTipo.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
     prisma.finArquivo.findMany({
-      where: { competencia },
+      where: { competencia, parcial: false },   // v172 — parciais não contam como o documento do mês
       orderBy: { createdAt: "asc" },
       select: { id: true, tipoId: true, nome: true, tamanho: true, senhaPdf: true, enviadoPorNome: true, createdAt: true, processado: true, prova: true },
     }),
@@ -26,7 +26,10 @@ export async function GET(req) {
   }).catch(() => []);
   // arquivos lidos antes da prova real existir: confere agora (uma vez só)
   for (const a of arquivos) if (a.prova == null) a.prova = await provarArquivo(a.id);
+  const { parciaisDoMes } = await import("@/lib/finParciais");
+  const parciais = await parciaisDoMes(competencia).catch(() => []);
   return Response.json({
+    parciais,
     tipos,
     arquivos: arquivos.map(({ senhaPdf, ...a }) => ({ ...a, protegido: !!senhaPdf })),
     justificativas,

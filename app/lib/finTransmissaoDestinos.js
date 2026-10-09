@@ -1,6 +1,6 @@
 // v171 — destinos da Transmissão de arquivos (usado no servidor e na tela)
 export const DESTINOS = {
-  DOCUMENTO: { rotulo: "Documentos financeiros", desc: "Boletos, guias, folha, recibos, iFood, comprovantes (baixa das contas) e extratos/faturas (análise mensal)", perms: ["contasPagar", "contasReceber", "docsFinanceiros", "docsRH"] },
+  DOCUMENTO: { rotulo: "Documentos financeiros", desc: "Boletos, guias, folha, recibos, iFood, comprovantes (baixa das contas) e extratos/faturas parciais (lançamentos já identificáveis; o mensal entra pelo card da Importação)", perms: ["contasPagar", "contasReceber", "docsFinanceiros", "docsRH"] },
   NF: { rotulo: "Notas fiscais", desc: "XML e DANFE/NFS-e: entradas viram contas a pagar e saídas contas a receber (Movimento fiscal)", perms: ["nfEntrada", "contasPagar", "contasReceber", "faturamento"] },
   RETORNO: { rotulo: "Retorno de cobrança (CNAB)", desc: "Registro, liquidação e tarifas dos boletos: baixa as contas a receber", perms: ["contasReceber"] },
   ANTECIPACAO: { rotulo: "Antecipação de recebíveis", desc: "Contrato de desconto de duplicatas: baixa as contas descontadas e lança os custos", perms: ["contasReceber"], porArquivo: true },

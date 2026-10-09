@@ -32,7 +32,7 @@ export async function GET(req) {
   const [ls, contas, arqs, pendentes, detalhes] = await Promise.all([
     prisma.finLancamento.findMany({ where: { competencia: ondeComp }, orderBy: [{ data: "asc" }, { arquivoId: "asc" }, { ordem: "asc" }, { id: "asc" }] }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
-    anual ? Promise.resolve([]) : prisma.finArquivo.findMany({ where: { competencia, processado: true }, select: { saldoAnterior: true, lancamentos: { select: { banco: true }, take: 1 } } }),
+    anual ? Promise.resolve([]) : prisma.finArquivo.findMany({ where: { competencia, processado: true, parcial: false }, select: { saldoAnterior: true, lancamentos: { select: { banco: true }, take: 1 } } }),
     prisma.finArquivo.count({ where: { competencia: ondeComp, processado: false, tipo: { codigo: { in: [...Object.keys(LEITORES), ...Object.keys(LEITORES_DETALHE)] } } } }),
     prisma.finArquivo.findMany({ where: { competencia: ondeComp, processado: true, tipo: { codigo: { in: Object.keys(LEITORES_DETALHE) } } }, select: { conciliacao: true } }),
   ]);

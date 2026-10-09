@@ -121,10 +121,11 @@ export async function gravarDoc({ competencia, categoria, tipoId = null, banco =
 export async function copiarExtratoParaContabilidade(arquivoId) {
   const a = await prisma.finArquivo.findUnique({
     where: { id: arquivoId },
-    select: { id: true, competencia: true, conteudo: true, nome: true, tipo: { select: { id: true, codigo: true, banco: true } } },
+    select: { id: true, competencia: true, conteudo: true, nome: true, parcial: true, tipo: { select: { id: true, codigo: true, banco: true } } },
   });
   if (!a || !a.tipo) return null;
   if (!/_EXTRATO$/.test(a.tipo.codigo)) return null;   // só extrato de conta corrente
+  if (a.parcial) return null;                            // v172 — parcial não vai para a contabilidade
   // nunca sobrescreve: se já existe um PDF deste banco no mês, deixa como está
   const ja = await prisma.finContabDoc.findFirst({
     where: { competencia: a.competencia, categoria: "EXTRATO", formato: "PDF", tipoId: a.tipo.id },
@@ -141,7 +142,7 @@ export async function copiarExtratoParaContabilidade(arquivoId) {
 // Refaz as cópias de um mês (usado quando a guia é aberta pela 1ª vez num mês antigo).
 export async function sincronizarExtratos(competencia) {
   const arqs = await prisma.finArquivo.findMany({
-    where: { competencia, tipo: { codigo: { endsWith: "_EXTRATO" } } },
+    where: { competencia, parcial: false, tipo: { codigo: { endsWith: "_EXTRATO" } } },
     select: { id: true },
   });
   let n = 0;

@@ -36,8 +36,8 @@ export async function listarUploads() {
   const out = [];
   // 1) Análise mensal — extratos, faturas, relatórios
   for (const a of await tenta(() => prisma.finArquivo.findMany({
-    select: { id: true, competencia: true, nome: true, tamanho: true, enviadoPorId: true, enviadoPorNome: true, createdAt: true, tipo: { select: { banco: true, documento: true } } } }))) {
-    out.push({ id: `ARQ-${a.id}`, origem: "ARQ", nomeSistema: up(`${a.tipo?.documento || "DOCUMENTO"} ${a.tipo?.banco || ""} ${mesNome(a.competencia)}`).replace(/\s+/g, " "),
+    select: { id: true, competencia: true, nome: true, tamanho: true, enviadoPorId: true, enviadoPorNome: true, createdAt: true, parcial: true, tipo: { select: { banco: true, documento: true } } } }))) {
+    out.push({ id: `ARQ-${a.id}`, origem: "ARQ", nomeSistema: up(`${a.tipo?.documento || "DOCUMENTO"}${a.parcial ? " PARCIAL" : ""} ${a.tipo?.banco || ""} ${mesNome(a.competencia)}`).replace(/\s+/g, " "),
       nomeOriginal: a.nome, data: a.createdAt, usuario: a.enviadoPorNome, usuarioId: a.enviadoPorId, tamanho: a.tamanho });
   }
   // 2) Contabilidade (as cópias automáticas da importação não aparecem: somem junto com o original)

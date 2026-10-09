@@ -11,6 +11,12 @@ export async function POST(req) {
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioSoMaster(b?.usuarioId, "docsFinanceiros");
   if (!u) return soMaster();
+  // v172 — card: descartar lançamentos de parciais que não apareceram no mensal
+  if (b.acao === "descartarSobras") {
+    if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+    const { descartarSobras } = await import("@/lib/finParciais");
+    return Response.json({ ok: true, descartadas: await descartarSobras(b.competencia, b.tipoId) });
+  }
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   const auto = b.tipoId === "auto";
   let tipo = null;

@@ -675,6 +675,11 @@ model FinArquivo {
   itens          Json?    // documentos de detalhamento: itens lidos (fatura, cobrança, folha, iFood…)
   conciliacao    Json?    // resultado da conferência com o extrato
   prova          Json?    // prova real da leitura: lido x totais declarados no próprio PDF
+  // v172 — extrato/fatura PARCIAL (dias ou semanas, enviado pela Transmissão): não conta como o documento do mês;
+  // o mensal (card da Importação) absorve os lançamentos dos parciais e descarta as duplicidades
+  parcial        Boolean  @default(false)
+  consolidadoNoId Int?    // arquivo mensal que absorveu este parcial
+  consolidadoEm  DateTime?
 
   tipo        FinDocTipo      @relation(fields: [tipoId], references: [id], onDelete: Cascade)
   lancamentos FinLancamento[]

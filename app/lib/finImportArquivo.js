@@ -45,24 +45,39 @@ export async function identificarDocAnalise(buf, texto) {
 }
 
 // grava o documento na análise mensal (mesma regra da guia Importação): arquivo + leitura + cópia para a contabilidade
-export async function importarArquivoAnalise({ u, competencia, tipoId, nome, conteudo, senha }) {
+// v172 — parcial: extrato/fatura de alguns dias ou semanas (Transmissão de arquivos). Só documentos que geram
+// lançamentos (extratos e faturas) podem ser parciais; o mensal entra só pelo card da Importação.
+export async function importarArquivoAnalise({ u, competencia, tipoId, nome, conteudo, senha, parcial = false }) {
   const buf = Buffer.from(String(conteudo), "base64");
   const hash = hashBuf(buf);
   const dup = await prisma.finArquivo.findUnique({ where: { hash }, include: { tipo: true } });
   if (dup) return { erro: `Este arquivo já foi enviado em ${dup.competencia.split("-").reverse().join("/")} (${dup.tipo.banco} · ${dup.tipo.documento}).`, duplicado: true, arquivoId: dup.id };
   const tipo = await prisma.finDocTipo.findUnique({ where: { id: Number(tipoId) } });
   if (!tipo) return { erro: "Documento não encontrado." };
+  if (parcial) { const { LEITORES } = await import("@/lib/finParse"); parcial = !!LEITORES[tipo.codigo]; }
   const a = await prisma.finArquivo.create({
     data: {
-      competencia, tipoId: tipo.id, nome: String(nome || "arquivo.pdf"), tamanho: buf.length, hash, conteudo: String(conteudo), senhaPdf: senha || null,
+      competencia, tipoId: tipo.id, nome: String(nome || "arquivo.pdf"), tamanho: buf.length, hash, conteudo: String(conteudo), senhaPdf: senha || null, parcial,
       enviadoPorId: u.id, enviadoPorNome: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase(),
     },
     select: { id: true, tipoId: true, nome: true, tamanho: true, enviadoPorNome: true, createdAt: true },
   });
   let leitura = null;
   try { leitura = await processarArquivo(a.id); } catch (e) { leitura = { ok: false, erro: e.message }; }
+  // mensal: absorve os parciais do mesmo documento (mantém o que já foi identificado e descarta as repetições)
+  let consolidacao = null;
+  if (!parcial && leitura?.ok) {
+    try {
+      const { consolidarParciais } = await import("@/lib/finParciais");
+      consolidacao = await consolidarParciais(a.id);
+      if (consolidacao) { const { conciliarCompetencia } = await import("@/lib/fin"); await conciliarCompetencia(competencia); }
+    } catch (e) { consolidacao = { erro: e.message }; }
+  }
   try { const { conciliarAntecipacoesPendentes } = await import("@/lib/finAntecipacao"); await conciliarAntecipacoesPendentes(a.enviadoPorNome); } catch { /* sem contrato pendente */ }
   let contab = null;
-  try { const c = await copiarExtratoParaContabilidade(a.id); contab = c?.doc?.nome || null; } catch { contab = null; }
-  return { ...a, leitura, contab, protegido: !!senha, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } };
+  if (!parcial) try { const c = await copiarExtratoParaContabilidade(a.id); contab = c?.doc?.nome || null; } catch { contab = null; }
+  // baixas: procura sozinho, no período do extrato, os pagamentos que batem com as contas lançadas (vão para a validação)
+  let baixas = 0;
+  try { const { sugestoes } = await import("@/lib/finBaixas"); baixas = (await sugestoes({ arquivoId: a.id })).sugestoes.length; } catch { baixas = 0; }
+  return { ...a, parcial, leitura, consolidacao, baixas, contab, protegido: !!senha, tipo: { id: tipo.id, banco: tipo.banco, documento: tipo.documento } };
 }
