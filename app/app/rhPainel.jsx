@@ -346,9 +346,8 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <Soltar onArquivos={(fs) => setImp([...fs])} dica="Solte os cartões">
-          <button onClick={() => ref.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar cartões de ponto</button>
+          <button onClick={() => setImp([])} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={15} /> Importar cartões de ponto</button>
         </Soltar>
-        <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files?.length) setImp([...e.target.files]); e.target.value = ""; }} />
         <div className="text-xs flex-1" style={{ color: C.sub, minWidth: 260 }}>PDF "Cartão de Ponto Calculado" do iPonto, um ou vários funcionários. O sistema confere o período e aponta os dias sem registro.</div>
         <span className="text-xs" style={{ color: C.sub }}>Mês</span>
         <select value={comp || ""} onChange={(e) => setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }}>
@@ -444,24 +443,74 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
 }
 
 function ImportarPonto({ user, iniciais, onClose, onFim }) {
-  const [arqs, setArqs] = useState([]);
+  // v168.2 — 1º passo: janela para arrastar/escolher vários PDFs · 2º passo: leitura, crítica e escolha do funcionário
+  const [arquivos, setArquivos] = useState([]);      // File[] escolhidos
+  const [arqs, setArqs] = useState([]);              // [{ nome, conteudo }] lidos
   const [r, setR] = useState(null);
   const [esc, setEsc] = useState({});   // `${arquivo}#${indice}` → pessoaId
-  const [st, setSt] = useState("Lendo os cartões…");
+  const [st, setSt] = useState("");
   const [erro, setErro] = useState("");
-  useEffect(() => {
-    (async () => {
-      try {
-        const lista = await Promise.all([...iniciais].filter((f) => /\.pdf$/i.test(f.name)).map(async (f) => ({ nome: f.name, conteudo: await readB64(f) })));
-        if (!lista.length) { setSt(""); return setErro("Escolha os PDFs do cartão de ponto."); }
-        setArqs(lista);
-        const j = await api("/api/rh/ponto", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista });
-        setR(j);
-        setEsc(Object.fromEntries(j.itens.filter((i) => !i.erro).map((i) => [`${i.arquivo}#${i.indice}`, i.pessoaId || ""])));
-        setSt("");
-      } catch (e) { setSt(""); setErro(e.message); }
-    })();
-  }, []);
+  const [arrasto, setArrasto] = useState(0);
+  const inp = useRef(null);
+  const adicionar = (fs) => {
+    const novos = [...(fs || [])];
+    const pdfs = novos.filter((f) => /\.pdf$/i.test(f.name));
+    setErro(novos.length > pdfs.length ? `${novos.length - pdfs.length} arquivo(s) ignorado(s): só PDF do cartão de ponto.` : "");
+    setArquivos((a) => [...a, ...pdfs.filter((f) => !a.some((x) => x.name === f.name && x.size === f.size))]);
+  };
+  useEffect(() => { if (iniciais?.length) adicionar(iniciais); }, []);
+  const ler = async () => {
+    setErro(""); setSt(`Lendo ${arquivos.length} arquivo(s)…`);
+    try {
+      const lista = await Promise.all(arquivos.map(async (f) => ({ nome: f.name, conteudo: await readB64(f) })));
+      const itens = []; let pessoas = [];
+      for (let i = 0; i < lista.length; i += 8) {          // em lotes, para não pesar a requisição
+        setSt(`Lendo os cartões ${Math.min(i + 8, lista.length)}/${lista.length}…`);
+        const j = await api("/api/rh/ponto", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista.slice(i, i + 8) });
+        itens.push(...j.itens); pessoas = j.pessoas;
+      }
+      setArqs(lista);
+      setR({ itens, pessoas });
+      setEsc(Object.fromEntries(itens.filter((i) => !i.erro).map((i) => [`${i.arquivo}#${i.indice}`, i.pessoaId || ""])));
+      setSt("");
+    } catch (e) { setSt(""); setErro(e.message); }
+  };
+  const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  const ev = (f) => (e) => { e.preventDefault(); e.stopPropagation(); f(e); };
+
+  if (!r) return (
+    <Modal titulo="Importar cartões de ponto" icone={Upload} onClose={onClose} largura={760}
+      rodape={<>
+        <span className="text-xs mr-auto" style={{ color: C.sub }}>{arquivos.length ? `${arquivos.length} arquivo(s) · ${kb(arquivos.reduce((a, f) => a + f.size, 0))}` : "nenhum arquivo"}</span>
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
+        <button onClick={ler} disabled={!arquivos.length || !!st} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff", opacity: !arquivos.length || st ? 0.5 : 1 }}>
+          {st && <Loader2 size={14} className="animate-spin" />} {st || `Ler ${arquivos.length || ""} cartão(ões)`}
+        </button>
+      </>}>
+      <div onDragEnter={ev(() => setArrasto((n) => n + 1))} onDragOver={ev(() => {})} onDragLeave={ev(() => setArrasto((n) => Math.max(0, n - 1)))}
+        onDrop={ev((e) => { setArrasto(0); adicionar(e.dataTransfer?.files); })} onClick={() => !st && inp.current?.click()}
+        className="rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+        style={{ minHeight: 190, border: `2px dashed ${arrasto ? C.accent : C.line}`, background: arrasto ? C.accentSoft : C.panel2, padding: 24 }}>
+        <Upload size={34} style={{ color: C.accent }} />
+        <div className="font-semibold mt-2" style={{ color: C.navy }}>Arraste aqui os cartões de ponto</div>
+        <div className="text-xs mt-1" style={{ color: C.sub }}>vários PDFs de uma vez (um por funcionário ou um PDF com vários) · ou <span style={{ color: C.accent, fontWeight: 600 }}>clique para escolher</span></div>
+        <input ref={inp} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} />
+      </div>
+      {erro && <div className="p-2.5 rounded-lg mt-3 text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {arquivos.length > 0 && (
+        <div className="mt-3 rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+          {arquivos.map((f, i) => (
+            <div key={f.name + f.size} className="flex items-center gap-2 px-3 py-1.5 text-xs" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
+              <FileText size={14} style={{ color: C.accent }} className="shrink-0" />
+              <span className="flex-1 truncate" style={{ color: C.text }} title={f.name}>{f.name}</span>
+              <span style={{ color: C.sub }}>{kb(f.size)}</span>
+              {!st && <button onClick={() => setArquivos((a) => a.filter((_, j) => j !== i))} title="Tirar da lista" style={{ color: C.sub }}><X size={14} /></button>}
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
   const validos = (r?.itens || []).filter((i) => !i.erro);
   const prontos = validos.filter((i) => esc[`${i.arquivo}#${i.indice}`]);
   const gravar = async () => {
@@ -476,6 +525,7 @@ function ImportarPonto({ user, iniciais, onClose, onFim }) {
   return (
     <Modal titulo="Importar cartões de ponto" icone={Upload} onClose={onClose} largura={1100}
       rodape={<>
+        <button onClick={() => { setR(null); setErro(""); }} disabled={!!st} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.blue }}><Plus size={13} /> adicionar mais arquivos</button>
         <span className="text-xs mr-auto" style={{ color: C.sub }}>{validos.length ? `${prontos.length} de ${validos.length} cartão(ões) com funcionário escolhido` : ""}</span>
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
         <button onClick={gravar} disabled={!prontos.length || !!st} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff", opacity: !prontos.length || st ? 0.5 : 1 }}>
