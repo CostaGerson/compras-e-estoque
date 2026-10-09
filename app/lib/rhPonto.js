@@ -187,6 +187,7 @@ export function avaliarDia(d, just, emFerias = false) {
   if (!mc.length && oc.includes("ATESTADO")) r.atestado = true;
   if (mc.length && d.primeiro === "M") {
     r.baseAtraso = true;
+    // pontual: qualquer entrada antes do horário previsto ou até 5 min depois dele; atraso só acima disso
     const atraso = minutos(mc[0]) - minutos(d.entradaPrevista);
     if (atraso > TOLERANCIA_ATRASO) { r.atraso = true; r.minAtraso = atraso; }
   }

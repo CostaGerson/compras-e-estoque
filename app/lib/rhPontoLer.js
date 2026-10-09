@@ -64,14 +64,14 @@ const depois = (l, rotulo) => {
 
 // v168.3 — quando o quadro "Horário de Trabalho" não vem (ou não foi lido), deduz o horário pelos próprios dias:
 // dia com H. Trab. ou H. Falt. é dia de trabalho; a entrada prevista é a entrada mais comum daquele dia da semana
-// (arredondada aos 15 min).
+// (arredondada à meia hora mais próxima — 07:52 vira 08:00; assim quem chega um pouco antes não vira "atrasado").
 export function inferirHorario(dias, horario = {}) {
   const out = { ...(horario || {}) };
   const porDow = {};
   for (const d of dias) {
     if (!((d.trab || 0) + (d.falta || 0) > 0)) continue;
     const l = (porDow[d.dow] ||= []);
-    if (d.primeiro === "M" && d.marcacoes?.length) l.push(Math.round(minutos(d.marcacoes[0]) / 15) * 15);
+    if (d.primeiro === "M" && d.marcacoes?.length) l.push(Math.round(minutos(d.marcacoes[0]) / 30) * 30);
     else l.push(null);
   }
   const todas = Object.values(porDow).flat().filter((v) => v != null);

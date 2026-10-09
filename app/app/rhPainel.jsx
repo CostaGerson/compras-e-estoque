@@ -38,7 +38,7 @@ export function PainelRH({ user, p, comp, setComp }) {
     { k: "assiduidade", rot: "Assiduidade geral", Ico: CalendarCheck, val: pct(g?.assiduidade), cor: corPct(g?.assiduidade),
       sub: g ? `${g.faltas} falta(s) · ${g.atestados} atestado(s) em ${g.previstos - g.pendentes} dia(s) previstos` : "sem ponto importado", ord: (a, b) => (a.assiduidade ?? 999) - (b.assiduidade ?? 999), cel: (r) => pct(r.assiduidade), cc: (r) => corPct(r.assiduidade), det: (r) => `${r.faltas} falta(s) · ${r.atestados} atestado(s)` },
     { k: "pontualidade", rot: "Pontualidade geral", Ico: Clock, val: pct(g?.pontualidade), cor: corPct(g?.pontualidade),
-      sub: g ? `${g.atrasos} atraso(s) · ${horas(g.minAtraso)} no total · tolerância de 5 min` : "—", ord: (a, b) => (a.pontualidade ?? 999) - (b.pontualidade ?? 999), cel: (r) => pct(r.pontualidade), cc: (r) => corPct(r.pontualidade), det: (r) => `${r.atrasos} atraso(s) · ${horas(r.minAtraso)}` },
+      sub: g ? `${g.atrasos} atraso(s) · ${horas(g.minAtraso)} no total · pontual: antes do horário ou até 5 min depois` : "—", ord: (a, b) => (a.pontualidade ?? 999) - (b.pontualidade ?? 999), cel: (r) => pct(r.pontualidade), cc: (r) => corPct(r.pontualidade), det: (r) => `${r.atrasos} atraso(s) · ${horas(r.minAtraso)}` },
     { k: "he", rot: "Horas extras gerais", Ico: Timer, val: g ? horas(g.he) : "—", cor: g ? (g.diasAcima2h ? C.red : C.navy) : C.sub,
       sub: g ? `custo estimado R$ ${brl(g.custoHE)} (50%) · ${g.diasAcima2h} dia(s) acima de 2 h` : "—", ord: (a, b) => b.he - a.he, cel: (r) => horas(r.he), cc: (r) => corHE(r.he, p.limiteHE), det: (r) => `R$ ${brl(r.custoHE)}${r.diasAcima2h ? ` · ${r.diasAcima2h} dia(s) > 2 h` : ""}` },
     { k: "pend", rot: "Pendências de ponto", Ico: ShieldAlert, val: String(pend), cor: pend ? C.red : C.green,
@@ -367,7 +367,7 @@ export function SinteseModal({ user, pessoa, periodo, foco, onClose }) {
         <Bloco k="assiduidade" titulo={`Faltas (${d.faltas.length})`} cor={d.faltas.length ? C.red : C.green} vazio="Nenhuma falta.">{d.faltas.length > 0 && <div>{datas(d.faltas, (x) => `${dBR(x.data)} ${diaSem(x.data)}${x.motivo ? ` · ${x.motivo}` : ""}`)}</div>}</Bloco>
         {(d.atestados.length > 0 || foco === "assiduidade") && <Bloco k="x" titulo={`Atestados (${d.atestados.length})`} vazio="Nenhum atestado.">{d.atestados.length > 0 && <div>{datas(d.atestados)}</div>}</Bloco>}
         {d.horasFalta.length > 0 && <Bloco k="x" titulo={`Saídas antecipadas / horas faltantes (${d.horasFalta.length} dia(s) · ${horas(d.horasFalta.reduce((a, x) => a + x.min, 0))})`}>{datas(d.horasFalta, (x) => `${dBR(x.data)} · ${horas(x.min)}`)}</Bloco>}
-        <Bloco k="pontualidade" titulo={`Atrasos (${d.atrasos.length}${d.atrasos.length ? ` · ${horas(d.atrasos.reduce((a, x) => a + x.min, 0))}` : ""})`} cor={d.atrasos.length ? C.red : C.green} vazio="Nenhum atraso acima da tolerância de 5 min.">
+        <Bloco k="pontualidade" titulo={`Atrasos (${d.atrasos.length}${d.atrasos.length ? ` · ${horas(d.atrasos.reduce((a, x) => a + x.min, 0))}` : ""})`} cor={d.atrasos.length ? C.red : C.green} vazio="Nenhum atraso: todas as entradas foram antes do horário ou até 5 min depois.">
           {d.atrasos.length > 0 && <div>{datas(d.atrasos, (x) => `${dBR(x.data)} ${diaSem(x.data)} · entrou ${x.entrada} (previsto ${x.previsto}) · +${x.min} min`)}</div>}
         </Bloco>
         <Bloco k="he" titulo={`Horas extras (${d.extras.length} dia(s) · ${horas(d.extras.reduce((a, x) => a + x.min, 0))})`} vazio="Nenhuma hora extra.">
@@ -509,7 +509,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
         </table>
         {!(p?.ranking || []).length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum cartão neste mês.</div>}
         <div className="px-4 py-2 text-[11px]" style={{ color: C.sub, borderTop: `1px solid ${C.line}` }}>
-          Assiduidade = 1 − faltas ÷ dias previstos (atestado não conta como falta; dia pendente fica fora até ser justificado). Pontualidade = entradas até 5 min do horário ÷ dias com entrada. Custo de HE estimado a 50% sobre o salário ÷ 220.
+          Assiduidade = 1 − faltas ÷ dias previstos (atestado não conta como falta; dia pendente fica fora até ser justificado). Pontualidade = entradas antes do horário ou até 5 min depois ÷ dias com entrada. Custo de HE estimado a 50% sobre o salário ÷ 220.
         </div>
       </div>
 
