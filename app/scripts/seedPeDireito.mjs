@@ -37,10 +37,12 @@ try {
     }
     if (!existe) {
       // já lançada à mão (mesmo valor e vencimento próximo)? não duplica
-      const ja = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, valor: c.valor,
+      const ja = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, valor: c.valor, OR: [{ chaveImport: null }, { NOT: { chaveImport: { startsWith: "PEDIREITO|" } } }],
         vencimento: { gte: new Date(+venc - 20 * 86400000), lte: new Date(+venc + 20 * 86400000) } } });
-      if (!ja) {
-        await prisma.finTitulo.create({ data: {
+      // v176.1 — lança mesmo assim (pedido do Gerson); se houver conta parecida, deixa a crítica para conferir duplicidade
+      {
+        const critica = ja ? `Já existe conta a receber de mesmo valor perto desta data: "${ja.titulo}" · ${ja.parceiro} · venc. ${ja.vencimento.toISOString().slice(0, 10).split("-").reverse().join("/")} · ${ja.status}. Confira se é a mesma e exclua a duplicada.` : null;
+        await prisma.finTitulo.create({ data: { critica,
           tipo: "RECEBER", titulo: c.titulo, parceiro, documento, valor: c.valor, vencimento: venc, competencia: c.venc.slice(0, 7),
           previsao: true, status: "ABERTO", rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], observacao: c.obs, forma: "MANUAL",
           formaPagamento: c.forma, chaveImport: c.chave, criadoPorId: igor?.id || null, criadoPorNome: "SISTEMA · STATUS PÉ DIREITO",
