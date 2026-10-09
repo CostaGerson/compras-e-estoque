@@ -1347,6 +1347,10 @@ model FinSemanaItem {
   vencimentoNegociado DateTime? @db.Date      // recebimento + prazo
   excepcional   Boolean  @default(false)      // pagamento fora da sexta programada
   linhas        Json     @default("[]")       // facção/serviço: [{pedido,item,qtd,unitario,total}]
+  // v181 — cada item é uma conta própria: baixa individual pelo extrato
+  pago          Boolean  @default(false)
+  dataPagamento DateTime? @db.Date
+  lancamentoId  Int?
   valor         Decimal  @db.Decimal(14, 2)
   observacao    String?
   criadoPorNome String?

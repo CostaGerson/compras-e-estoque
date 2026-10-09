@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado, competenciaValida } from "@/lib/fin";
-import { sugestoes, baixar, desfazer, marcarVistas } from "@/lib/finBaixas";
+import { sugestoes, baixar, desfazer, marcarVistas, baixarItem, desfazerItem } from "@/lib/finBaixas";
 
 // GET ?u=&competencia=  ou  ?u=&arquivoId= → baixas sugeridas
 export async function GET(req) {
@@ -20,6 +20,11 @@ export async function POST(req) {
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
   if (b.acao === "vistas") return Response.json({ ok: true, n: await marcarVistas(b.ids) });
+  if (b.itemId) {   // v181 — item da semana (freelancer/terceirizado)
+    const ri = await baixarItem({ itemId: b.itemId, lancamentoId: b.lancamentoId, quem: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() });
+    if (!ri.ok) return Response.json({ error: ri.erro }, { status: 400 });
+    return Response.json(ri);
+  }
   const r = await baixar({ tituloId: b.tituloId, lancamentoId: b.lancamentoId, quem: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() });
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
   return Response.json(r);
@@ -29,7 +34,7 @@ export async function POST(req) {
 export async function DELETE(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioMaster(sp.get("u")))) return negado();
-  const r = await desfazer(sp.get("tituloId"));
+  const r = sp.get("itemId") ? await desfazerItem(sp.get("itemId")) : await desfazer(sp.get("tituloId"));
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
   return Response.json(r);
 }

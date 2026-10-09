@@ -1667,7 +1667,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
               {d.itens.map((it) => (
                 <tr key={it.id} style={{ borderTop: `1px solid ${C.line}` }}>
                   <td className="px-2 py-1.5">
-                    <div className="font-semibold">{it.nome}</div>
+                    <div className="font-semibold">{it.nome}{it.pago && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span>}</div>
                     <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX {it.chavePix}</div>
                   </td>
                   <td className="px-2 py-1.5">{it.setorNome}</td>
@@ -2655,7 +2655,7 @@ function BaixasExtratoLista({ user, ids }) {
     let n = 0;
     for (const x of sel) {
       setSt(`Baixando ${++n} de ${sel.length}…`);
-      try { await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: x.titulo.id, lancamentoId: x.lancamento.id }); setFeitas((f) => ({ ...f, [x.lancamento.id]: "ok" })); }
+      try { await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: x.titulo.id, itemId: x.titulo.itemId, lancamentoId: x.lancamento.id }); setFeitas((f) => ({ ...f, [x.lancamento.id]: "ok" })); }
       catch (e) { setFeitas((f) => ({ ...f, [x.lancamento.id]: e.message })); }
     }
     setSt("");
@@ -2723,7 +2723,7 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
   const autorizar = async () => {
     setOcupado(true);
     try {
-      await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: atual.titulo.id, lancamentoId: atual.lancamento.id });
+      await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: atual.titulo.id, itemId: atual.titulo.itemId, lancamentoId: atual.lancamento.id });
       setFeitos((f) => [...f, atual]);
       setI((x) => x + 1);
     } catch (e) { setErro(e.message); }
