@@ -3,6 +3,12 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 try {
+  // v168.1 — quem ganhou a chave Diretoria deixa de ser master (desde que sobre outro master)
+  const outros = await prisma.usuario.count({ where: { isMaster: true, diretoria: false, ativo: true } });
+  if (outros > 0) {
+    const r = await prisma.usuario.updateMany({ where: { isMaster: true, diretoria: true }, data: { isMaster: false } });
+    if (r.count) console.log(`Seed: ${r.count} usuário(s) da diretoria deixaram de ser master.`);
+  }
   const master = await prisma.usuario.findFirst({ where: { isMaster: true } });
   if (!master) {
     await prisma.usuario.upsert({

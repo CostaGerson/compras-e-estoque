@@ -21,7 +21,7 @@ export async function usuarioAtivo(id) {
   });
   return u && u.ativo ? u : null;
 }
-export const ehMaster = (u) => !!(u && (u.isMaster || u.setor === "FINANCEIRO"));
+export const ehMaster = (u) => !!(u && (u.isMaster || (u.setor === "FINANCEIRO" && !u.diretoria)));
 // v167 — enxerga valores (master ou diretoria)
 export const veValores = (u) => ehMaster(u) || !!u?.diretoria;
 export const negadoKpi = (msg = "Acesso negado.") => Response.json({ error: msg }, { status: 403 });

@@ -14,7 +14,8 @@ export const SETOR_NOME = {
   COSTURA: "COSTURA", EXPEDICAO: "EXPEDIÇÃO", LOGISTICA: "LOGÍSTICA",
 };
 
-export const ehMaster = (u) => !!u && !!(u.isMaster || u.setor === "FINANCEIRO");
+// v168.1 — a chave Diretoria tira o poder de master de quem está no setor FINANCEIRO (só o "Usuário master" ligado mantém)
+export const ehMaster = (u) => !!u && !!(u.isMaster || (u.setor === "FINANCEIRO" && !u.diretoria));
 export const ehDiretor = (u) => !!u && !!u.diretoria && !ehMaster(u);
 // enxerga valores e entra no financeiro / lança e edita contas e pedidos
 export const veFinanceiro = (u) => ehMaster(u) || ehDiretor(u);

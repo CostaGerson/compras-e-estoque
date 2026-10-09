@@ -219,7 +219,7 @@ export async function listarItens(tituloId) {
 
 // Avisa o financeiro quando alguém marca um pagamento como excepcional.
 async function avisarFinanceiro(texto, deId) {
-  const destinos = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO" }] }, select: { id: true } });
+  const destinos = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO", diretoria: false }] }, select: { id: true } });
   if (!destinos.length) return 0;
   const de = deId || destinos[0].id;
   await prisma.mensagem.createMany({ data: destinos.map((u) => ({ deId: de, paraId: u.id, texto })) });

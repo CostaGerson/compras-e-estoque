@@ -2,6 +2,7 @@
 // Cada origem vira linhas { id: "ORIGEM-123", origem, nomeSistema, nomeOriginal, data, usuario, usuarioId, tamanho }.
 // Excluir desfaz o vínculo: o card que dependia do arquivo volta a acusar a falta (calendário do RH,
 // importação da análise mensal, contabilidade…).
+import { ehMaster } from "@/lib/acesso";
 import { prisma } from "@/lib/prisma";
 import { conciliarCompetencia } from "@/lib/fin";
 
@@ -107,7 +108,7 @@ export async function listarUploads() {
 // quem enviou (para listar "os meus")
 export const enviouEle = (u, x) => !!u && ((x.usuarioId && x.usuarioId === u.id) || (!!x.usuario && up(x.usuario) === nomeUsuario(u)));
 // v167 — excluir documento importado: só o master
-export const podeExcluir = (u) => !!u && !!(u.isMaster || u.setor === "FINANCEIRO");
+export const podeExcluir = (u) => ehMaster(u);
 
 const partes = (id) => { const [origem, n, campo] = String(id).split("-"); return { origem, n: Number(n), campo }; };
 

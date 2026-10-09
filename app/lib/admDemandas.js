@@ -22,7 +22,7 @@ async function avisar(paraIds, texto, deId) {
   return para.length;
 }
 const equipeAdm = async () => (await prisma.usuario.findMany({ where: { ativo: true, setor: "ADMINISTRATIVO" }, select: { id: true } })).map((x) => x.id);
-const gestores = async () => (await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO" }] }, select: { id: true } })).map((x) => x.id);
+const gestores = async () => (await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO", diretoria: false }] }, select: { id: true } })).map((x) => x.id);
 const dBR = (d) => (d ? new Date(d).toISOString().slice(0, 10).split("-").reverse().join("/") : "SEM PRAZO");
 
 export const demandaOut = (d) => ({ ...d, prazo: d.prazo ? new Date(d.prazo).toISOString().slice(0, 10) : null });

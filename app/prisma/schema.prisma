@@ -1443,3 +1443,82 @@ model AdmDemanda {
 
   @@index([status])
 }
+
+// v168 — RH › Ponto: cartões de ponto importados (iPonto) e a crítica de dias sem registro
+model RhPontoImport {
+  id            Int      @id @default(autoincrement())
+  pessoaId      String                       // funcionário da Matriz (p1, p2…)
+  nome          String                       // nome no cartão
+  cpf           String?
+  cracha        String?
+  cargo         String?
+  admissao      DateTime? @db.Date
+  empresa       String   @default("MERIDIAN")
+  inicio        DateTime @db.Date
+  fim           DateTime @db.Date
+  horario       Json     @default("{}")      // { "1": ["08:00","12:00","13:00","18:00"], … } (0 = domingo)
+  totais        Json     @default("{}")
+  arquivo       String
+  hash          String   @unique
+  conteudo      String                       // PDF em base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  dias          RhPontoDia[]
+
+  @@index([pessoaId])
+}
+
+model RhPontoDia {
+  id          Int      @id @default(autoincrement())
+  importId    Int
+  pessoaId    String
+  data        DateTime @db.Date
+  competencia String                         // AAAA-MM
+  dow         Int
+  marcacoes   Json     @default("[]")        // ["08:00","12:00",…]
+  ocorrencias Json     @default("[]")        // FERIADO, FOLGA, FALTA, ATESTADO, FERIAS, SABADO, DOMINGO…
+  primeiro    String?                        // o que veio na 1ª posição: M (marcação) ou a ocorrência
+  entradaPrevista String?                    // HH:MM pelo horário do cartão
+  trab        Int      @default(0)           // minutos
+  falta       Int      @default(0)
+  extra       Int      @default(0)
+  exced       Int      @default(0)
+  semRegistro Boolean  @default(false)       // dia que não veio no cartão (crítica)
+  import      RhPontoImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([pessoaId, data])
+  @@index([competencia])
+}
+
+// justificativa da crítica: dia sem ponto (chave pessoa|AAAA-MM-DD) ou mês sem cartão (pessoa|AAAA-MM)
+model RhPontoJust {
+  id        Int      @id @default(autoincrement())
+  chave     String   @unique
+  pessoaId  String
+  ref       String                           // AAAA-MM-DD ou AAAA-MM
+  motivo    String                           // TROCA DE SISTEMA | PONTO MANUAL | ATESTADO | FÉRIAS | FOLGA | FALTA | OUTRO
+  texto     String?
+  porNome   String?
+  createdAt DateTime @default(now())
+
+  @@index([pessoaId])
+}
+
+// v168 — sugestões de melhoria (botão ao lado do Sair) → Desenvolvimento (master)
+model Sugestao {
+  id            Int       @id @default(autoincrement())
+  usuarioId     Int
+  usuarioNome   String
+  setor         String?
+  tela          String?                       // onde o usuário estava
+  texto         String
+  status        String    @default("NOVA")    // NOVA | EM_ANALISE | ACATADA | RECUSADA
+  resposta      String?                       // motivo da recusa ou nota do acatamento
+  respondidoPor String?
+  respondidoEm  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([usuarioId])
+  @@index([status])
+}

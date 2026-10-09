@@ -6,7 +6,7 @@ const txt = (v) => (v == null ? "" : String(v).trim());
 const bool = (v) => v === true || v === "true" || v === 1;
 const PERMS = ["permLancaPedidos", "permLancaContas", "permAlteraStatus", "permVeValores"];
 // v167 — chave Diretoria liga lançar/editar contas e pedidos e ver valores
-const aplicaDiretoria = (data) => { if (data.diretoria) { data.permLancaPedidos = true; data.permLancaContas = true; data.permVeValores = true; data.permAlteraStatus = true; } };
+const aplicaDiretoria = (data) => { if (data.diretoria) { data.isMaster = false; data.permLancaPedidos = true; data.permLancaContas = true; data.permVeValores = true; data.permAlteraStatus = true; } };
 const semSegredos = (u) => { if (!u) return u; const { resetHash, resetExpira, ...r } = u; return r; };
 
 export async function GET() {

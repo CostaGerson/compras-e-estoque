@@ -17,7 +17,8 @@ import NfRegistro from "./nfRegistro";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
+import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar } from "@/lib/acesso";
 
 /* ============================================================
@@ -71,6 +72,7 @@ const OFICINAS = ["CORTE", "BORDADO", "SILK", "COSTURA", "EXPEDICAO"];   // sald
 const GESTAO_TODOS = [...TODOS, ...PROD, ...OFICINAS, "COMERCIAL", "LOGISTICA", "NORT", "ADMINISTRATIVO"];
 // Menu em árvore: grupos (com filhos) abrem uma tela de cards; folhas abrem o módulo.
 const MENU = [
+  { key: "desenvolvimento", label: "Desenvolvimento", icon: Lightbulb, perfis: ["FINANCEIRO"], desc: "Sugestões de melhoria enviadas pelos usuários: acatar ou recusar" },
   { key: "gestao", label: "Gestão", icon: Compass, perfis: GESTAO_TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
@@ -107,7 +109,7 @@ const MENU = [
 // filtra o menu para o perfil (grupo aparece se algum filho aparecer)
 function menuDoPerfil(perfil) {
   // v167 — Diretoria: tudo, menos Usuários
-  const pode = (n) => perfil === "DIRETORIA" ? n.key !== "usuarios" : perfil === "ADMINISTRATIVO" ? !["usuarios", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
+  const pode = (n) => perfil === "DIRETORIA" ? !["usuarios", "desenvolvimento"].includes(n.key) : perfil === "ADMINISTRATIVO" ? !["usuarios", "desenvolvimento", "financeiro", "dadosfin", "rh", "movfiscal", "notasfiscais"].includes(n.key) : (n.perfis || []).includes(perfil);
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.filhos ? n.filhos.length > 0 : pode(n)));
   return f(MENU);
 }
@@ -226,7 +228,7 @@ export default function Home() {
                 {showVal ? <Eye size={15} /> : <EyeOff size={15} />} valores
               </button>
             )}
-            <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick}
+            <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
               onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
           </div>
@@ -256,6 +258,7 @@ export default function Home() {
           {view === "dadosfin" && master && <DadosFinanceiros user={user} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
+          {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}
           </div>
@@ -469,7 +472,7 @@ function Badge({ n }) {
   );
 }
 
-function TopoUsuario({ user, perfil, badgeTick, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens }) {
+function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens }) {
   const [naoVistos, setNaoVistos] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
@@ -505,6 +508,7 @@ function TopoUsuario({ user, perfil, badgeTick, onAbrirPerfil, onSair, onIrNotif
           <div className="text-xs" style={{ color: C.sub }}>{SETOR_NOME[user.setor] || user.setor}{user.isMaster ? " · master" : user.diretoria ? " · diretoria" : ""}</div>
         </div>
       </button>
+      <SugestaoBotao user={user} tela={tela} />
       <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
     </div>
   );
@@ -3680,7 +3684,7 @@ function Usuarios({ master }) {
           </div>
           {usuarios.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum usuário ainda. Clique em “Novo usuário”.</div>}
           {usuarios.map((u) => {
-            const perms = u.isMaster || u.setor === "FINANCEIRO" ? [["m", "MASTER · TUDO"]] : u.diretoria ? [["d", "DIRETORIA"]] : u.permAlteraStatus ? [["s", "Altera status de pedidos"]] : [];
+            const perms = ehMasterU(u) ? [["m", "MASTER · TUDO"]] : u.diretoria ? [["d", "DIRETORIA"]] : u.permAlteraStatus ? [["s", "Altera status de pedidos"]] : [];
             return (
               <div key={u.id} className="flex px-4 py-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <div className="w-12"><Avatar foto={u.fotoBase64} nome={`${u.nome} ${u.sobrenome || ""}`} /></div>
@@ -3823,7 +3827,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
                 <div className="rounded-md p-2.5" style={{ background: f.diretoria ? C.accentSoft : C.panel, border: `1px solid ${f.diretoria ? C.accent : C.line}` }}>
                   <div className="flex items-center gap-2">
                     <ShieldCheck size={16} style={{ color: f.diretoria ? C.accent : C.sub }} />
-                    <Switch on={f.diretoria} onChange={(v) => set("diretoria", v)} label="Usuário diretoria" />
+                    <Switch on={f.diretoria} onChange={(v) => setF((s) => ({ ...s, diretoria: v, isMaster: v ? false : s.isMaster }))} label="Usuário diretoria" />
                   </div>
                   <ul className="text-xs mt-1 ml-6 list-disc" style={{ color: C.sub }}>
                     {PERMISSOES_DIRETORIA.map((l) => <li key={l}>{l}</li>)}
@@ -3835,7 +3839,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
               </div>
               <div className="flex items-center gap-6">
                 <Switch on={f.ativo} onChange={(v) => set("ativo", v)} label={f.ativo ? "Usuário ativo" : "Usuário bloqueado"} />
-                <Switch on={f.isMaster} onChange={(v) => set("isMaster", v)} label="Usuário master (Financeiro)" />
+                <Switch on={f.isMaster} onChange={(v) => setF((s) => ({ ...s, isMaster: v, diretoria: v ? false : s.diretoria }))} label="Usuário master (Financeiro)" />
               </div>
             </>
           )}

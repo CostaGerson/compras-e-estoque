@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { DocumentoModal, Soltar, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { DEPTOS, REGIMES } from "@/lib/matriz";
+import { PainelRH, Acionaveis, PontoTela, StatsFuncionario, MedalhasModal } from "./rhPainel";
+import { Fingerprint, Award } from "lucide-react";
 
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -44,9 +46,18 @@ export default function Rh({ user }) {
   const [doc, setDoc] = useState(null);   // { iniciais?: FileList } — enviar documentos (calendário, botão, arrastar)
   const carregar = () => api(`/api/rh?u=${user.id}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, []);
+  // v168 — painel de gestão (ponto, gráficos, alertas, freelancer × folha)
+  const [p, setP] = useState(null);
+  const [comp, setComp] = useState("");
+  const carregarPainel = (c = comp) => api(`/api/rh/painel?u=${user.id}${c ? `&comp=${c}` : ""}`).then((j) => { setP(j); if (!c && j.competencia) setComp(j.competencia); }).catch((e) => setErro(e.message));
+  useEffect(() => { carregarPainel(comp); }, [comp]);
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 6000); carregar(); };
   const ativos = (d?.pessoas || []).filter((p) => p.ativo !== false);
-  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH" };
+  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH", calendario: "Calendário de obrigações", ponto: "Ponto" };
+  const cal = d?.calendario;
+  const calPend = (cal?.itens || []).filter((i) => i.status !== "OK");
+  const calAtras = calPend.filter((i) => i.status === "ATRASADO").length;
+  const pendPonto = (p?.pendencias || []).filter((x) => !x.justificativa).length;
 
   return (
     <div>
@@ -62,25 +73,30 @@ export default function Rh({ user }) {
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d ? <div className="flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
         <>
-          {tela === "inicio" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
+          {tela === "inicio" && <PainelRH user={user} p={p} comp={comp} setComp={setComp} />}
           {tela === "inicio" && (
             <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {[
                 ["matriz", Users2, "Matriz de pessoal", `${ativos.length} ativos · ${ativos.filter((p) => p.empresa === "NORT").length} na NORT`, "Salários, benefícios, setor, admissão e desligamento — a Matriz do financeiro acompanha"],
                 ["carometro", IdCard, "Carômetro", `${ativos.length} funcionários`, "Um card por funcionário com dados e documentos"],
                 ["financeiro", FileText, "Financeiro", `${(d.envios || []).filter((e) => e.competencia === d.competencia).length} documento(s) neste mês`, "Folhas, guias de INSS e FGTS, iFood, rescisões e outros — direto no contas a pagar"],
-              ].map(([k, Ico, t, sub, desc]) => (
-                <button key={k} onClick={() => setTela(k)} className="text-left rounded-xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                ["calendario", CalendarClock, "Calendário de obrigações", cal ? (calPend.length ? `${calPend.length} pendente(s)${calAtras ? ` · ${calAtras} atrasado(s)` : ""}` : "tudo enviado no mês") : "—", "Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · iFood até o dia 25", calAtras ? C.red : null],
+                ["ponto", Fingerprint, "Ponto", p?.competencias?.length ? `${pendPonto} pendência(s) · ${(p.ranking || []).length} cartão(ões) no mês` : "nenhum cartão importado", "Importar cartões de ponto, crítica de dias sem registro e justificativas", pendPonto ? C.red : null],
+              ].map(([k, Ico, t, sub, desc, alerta]) => (
+                <button key={k} onClick={() => setTela(k)} className="text-left rounded-xl p-5 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${alerta ? alerta + "88" : C.line}` }}>
                   <Ico size={26} style={{ color: C.accent }} />
                   <div className="font-bold text-base mt-2" style={{ color: C.navy }}>{t}</div>
-                  <div className="text-xs font-semibold mt-0.5" style={{ color: C.text }}>{sub}</div>
+                  <div className="text-xs font-semibold mt-0.5" style={{ color: alerta || C.text }}>{sub}</div>
                   <div className="text-xs mt-1" style={{ color: C.sub }}>{desc}</div>
                 </button>
               ))}
             </div>
           )}
+          {tela === "inicio" && <Acionaveis p={p} irPonto={() => setTela("ponto")} />}
           {tela === "matriz" && <MatrizPessoal user={user} d={d} onSalvo={ok} />}
-          {tela === "carometro" && <Carometro user={user} d={d} onMudou={carregar} />}
+          {tela === "carometro" && <Carometro user={user} d={d} p={p} onMudou={carregar} onMedalhas={(m) => setP((x) => ({ ...x, medalhas: m }))} recarregarPainel={() => carregarPainel(comp)} />}
+          {tela === "calendario" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
+          {tela === "ponto" && <PontoTela user={user} p={p} comp={comp} setComp={setComp} recarregar={() => carregarPainel(comp)} />}
           {tela === "financeiro" && <FinanceiroRH user={user} d={d} onSalvo={ok} onAnexar={(iniciais) => setDoc({ iniciais })} />}
         </>
       )}
@@ -273,7 +289,8 @@ function PessoaModal({ user, pessoa, novo, onClose, onSalvo }) {
 }
 
 /* ---------------- carômetro ---------------- */
-function Carometro({ user, d, onMudou }) {
+function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
+  const [medalhas, setMedalhas] = useState(false);
   const [emp, setEmp] = useState("TODAS");
   const [busca, setBusca] = useState("");
   const [desl, setDesl] = useState(false);
@@ -293,6 +310,7 @@ function Carometro({ user, d, onMudou }) {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none" style={{ ...inpS, width: 200 }} />
         </div>
         <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={desl} onChange={(e) => setDesl(e.target.checked)} /> desligados</label>
+        <button onClick={() => setMedalhas(true)} disabled={!painel} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Award size={14} style={{ color: C.accent }} /> Medalhas e premiações</button>
       </div>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
         {lista.map((p) => (
@@ -304,11 +322,13 @@ function Carometro({ user, d, onMudou }) {
             <div className="text-xs mt-1" style={{ color: C.text }}>{p.cargo}</div>
             <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>{p.empresa} · {nomeDepto(p.depto)}</div>
             <div className="text-[10px] mt-1 font-semibold" style={{ color: p.nDocs ? C.green : C.yellow }}>{p.nDocs ? `${p.nDocs} documento(s)` : "sem documentos"}</div>
+            <StatsFuncionario s={painel?.porFuncionario?.[p.id]} comp={painel?.competencia} limiteHE={painel?.limiteHE} />
           </button>
         ))}
       </div>
       {!lista.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Ninguém aqui.</div>}
-      {aberto && <FichaModal user={user} pessoa={aberto} onClose={() => { setAberto(null); onMudou(); }} />}
+      {aberto && <FichaModal user={user} pessoa={aberto} onClose={() => { setAberto(null); onMudou(); recarregarPainel?.(); }} />}
+      {medalhas && painel && <MedalhasModal user={user} lista={painel.medalhas} onClose={() => setMedalhas(false)} onSalvo={() => { setMedalhas(false); recarregarPainel?.(); }} />}
     </div>
   );
 }

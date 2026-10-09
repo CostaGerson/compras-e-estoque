@@ -30,7 +30,7 @@ export async function notificarQuadro(texto, deId) {
 
 // Avisos só para o financeiro (master + setor FINANCEIRO)
 export async function notificarFinanceiro(texto, deId) {
-  const destinos = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO" }] }, select: { id: true } });
+  const destinos = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { setor: "FINANCEIRO", diretoria: false }] }, select: { id: true } });
   const para = destinos.filter((u) => u.id !== deId);
   if (!para.length) return 0;
   await prisma.mensagem.createMany({ data: para.map((u) => ({ deId: deId || para[0].id, paraId: u.id, texto: String(texto).slice(0, 2000) })) });
