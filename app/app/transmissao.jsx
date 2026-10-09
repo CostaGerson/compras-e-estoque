@@ -52,7 +52,7 @@ export function agrupar(itens) {
   return g;
 }
 
-export default function Transmissao({ user, Historico }) {
+export default function Transmissao({ user, Historico, onMudou }) {
   const [itens, setItens] = useState(null);       // [{ nome, destino, detalhe, motivo, competencia, tipoId, file }]
   const [st, setSt] = useState("");
   const [erro, setErro] = useState("");
@@ -95,7 +95,7 @@ export default function Transmissao({ user, Historico }) {
 
   const grupos = itens ? agrupar(itens) : [];
   const pendentes = grupos.filter((g) => g.destino !== "DESCONHECIDO" && podeDestino(user, g.destino) && !["ok"].includes(estado[g.chave]?.k));
-  const marcar = (g, k, msg) => setEstado((e) => ({ ...e, [g.chave]: { k, msg } }));
+  const marcar = (g, k, msg) => { setEstado((e) => ({ ...e, [g.chave]: { k, msg } })); if (k !== "enviando") onMudou?.(); };
   const proximo = (feito) => {
     const resto = pendentes.filter((g) => g.chave !== feito.chave && !estado[g.chave]);
     setAberto(null);

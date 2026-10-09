@@ -191,18 +191,20 @@ const NIVEL = { ALTO: [C.red, C.redSoft], MEDIO: [C.yellow, C.yellowSoft], BAIXO
 export function Acionaveis({ p, irPonto }) {
   if (!p) return null;
   const f = p.freelancer;
-  const maxPct = Math.max(30, ...(f?.linhas || []).map((l) => l.pct || 0));
+  // v173 — % = participação do freelancer no custo total de mão de obra do setor; limite = previsto na Matriz
+  const lim = f?.previsto ?? 30;
+  const corPct = (v) => (v > lim ? C.red : v > lim * 0.8 ? C.yellow : C.green);
   return (
     <div className="grid gap-4 mt-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))" }}>
       <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center gap-2 mb-3">
           <Users2 size={16} style={{ color: C.accent }} />
           <div className="font-bold text-sm" style={{ color: C.navy }}>Freelancer × folha por setor · {nomeComp(f.competencia, true)}</div>
-          <span className="ml-auto text-xs font-bold" style={{ color: (f.total.pct || 0) > 30 ? C.red : C.text }}>{f.total.pct == null ? "—" : `${String(f.total.pct).replace(".", ",")}% no total`}</span>
+          <span className="ml-auto text-xs font-bold" style={{ color: f.critica ? C.red : C.text }}>{f.total.pct == null ? "—" : `${String(f.total.pct).replace(".", ",")}% no total`}{f.previsto != null && <span className="font-normal" style={{ color: C.sub }}> · Matriz {String(f.previsto).replace(".", ",")}%</span>}</span>
         </div>
         {!f.linhas.length && <div className="text-xs py-6 text-center" style={{ color: C.sub }}>Sem lançamentos de pessoal de produção ou freelancer no mês.</div>}
         <table className="w-full text-xs">
-          {f.linhas.length > 0 && <thead><tr style={{ color: C.sub }}><th className="text-left font-semibold py-1">Setor</th><th className="text-right font-semibold">Folha (custo Matriz)</th><th className="text-right font-semibold">Freelancer</th><th className="font-semibold text-left pl-3" style={{ width: "34%" }}>% sobre a folha</th></tr></thead>}
+          {f.linhas.length > 0 && <thead><tr style={{ color: C.sub }}><th className="text-left font-semibold py-1">Setor</th><th className="text-right font-semibold">Folha (custo Matriz)</th><th className="text-right font-semibold">Freelancer</th><th className="font-semibold text-left pl-3" style={{ width: "34%" }}>% freelancer no custo de mão de obra</th></tr></thead>}
           <tbody>
             {f.linhas.map((l) => (
               <tr key={l.setor} style={{ borderTop: `1px solid ${C.line}` }}>
@@ -212,18 +214,19 @@ export function Acionaveis({ p, irPonto }) {
                 <td className="pl-3">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 rounded-full" style={{ background: TRILHO }}>
-                      <div className="h-2 rounded-full" style={{ width: `${Math.min(100, ((l.pct ?? maxPct) / maxPct) * 100)}%`, background: l.pct == null || l.pct > 30 ? C.red : l.pct > 15 ? C.yellow : C.green }} />
+                      <div className="h-2 rounded-full" style={{ width: `${Math.min(100, l.pct || 0)}%`, background: corPct(l.pct || 0) }} />
                     </div>
-                    <span className="tabular-nums font-bold w-12 text-right" style={{ color: l.pct == null || l.pct > 30 ? C.red : C.text }}>{l.pct == null ? "só free" : `${String(l.pct).replace(".", ",")}%`}</span>
+                    <span className="tabular-nums font-bold w-12 text-right" style={{ color: (l.pct || 0) > lim ? C.red : C.text }}>{`${String(l.pct || 0).replace(".", ",")}%`}</span>
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {f.critica && <div className="mt-2 p-2 rounded-lg text-[11px] flex gap-1.5" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={13} className="shrink-0 mt-0.5" /> {f.critica}</div>}
         <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-          Folha = custo total dos funcionários do setor pela Matriz de custos (salário, bônus, encargos, benefícios e provisões de 13º, férias e rescisão) — não só o líquido pago. Freelancer pelo extrato identificado do mês; sem extrato, pelas contas da semana.
-          {f.semSetor > 0 && ` Freelancer sem setor (conta 2117100): R$ ${brl(f.semSetor)}.`} Acima de 30% vale avaliar contratação.
+          % = freelancer ÷ (folha + freelancer) do setor: quanto do custo de mão de obra foi com freelancer. Folha = custo total dos funcionários do setor pela Matriz de custos (salário, bônus, encargos, benefícios e provisões de 13º, férias e rescisão) — não só o líquido pago. Freelancer pelo extrato identificado do mês; sem extrato, pelas contas da semana.
+          {f.semSetor > 0 && ` Freelancer sem setor (conta 2117100): R$ ${brl(f.semSetor)}.`} {f.previsto != null ? `Previsto na Matriz (tabela Pessoal x Freelancer): ${String(f.previsto).replace(".", ",")}% — acima disso gera crítica no RH e na Matriz.` : "Matriz sem tabela Pessoal x Freelancer: referência de 30%."}
         </div>
       </div>
 

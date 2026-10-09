@@ -9,7 +9,16 @@ export async function GET(req, { params }) {
   if (!(await usuarioGerencial(new URL(req.url).searchParams.get("u")))) return negadoGerencial();
   const m = await prisma.finMatriz.findUnique({ where: { id: Number(params.id) } });
   if (!m) return Response.json({ error: "Matriz não encontrada." }, { status: 404 });
-  return Response.json(m);
+  // v173 — crítica: freelancer do mês passado acima do % previsto na Matriz
+  let critica = null;
+  if (m.oficial) {
+    try {
+      const { freelancerXFolha } = await import("@/lib/rhPainel");
+      const { mesAtual, somaMes } = await import("@/lib/finTitulos");
+      critica = (await freelancerXFolha(somaMes(mesAtual(), -1))).critica;
+    } catch { critica = null; }
+  }
+  return Response.json({ ...m, critica });
 }
 
 // PUT { usuarioId, dados, resumo, versaoBase } → grava (guarda a versão anterior)

@@ -242,6 +242,7 @@ export default function MatrizCustos({ user }) {
         </button>
       </div>
       {sujo && <div className="mb-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={14} /> Alterações não salvas em: <b>{mexidos.join(", ")}</b></div>}
+      {doc?.critica && <div className="mb-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> <span className="flex-1">{doc.critica}</span><button onClick={() => setAba("producao")} className="font-semibold underline shrink-0">Ver tabela</button></div>}
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
 

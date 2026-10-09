@@ -14,6 +14,7 @@ import MatrizCustos from "./matriz";
 import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
 import Transmissao from "./transmissao";
+import Uploads from "./uploads";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -76,6 +77,7 @@ export default function Financeiro({ user }) {
   if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
   if (tela.v === "alavancagem") migalhas.push({ t: "Alavancagem" });
   if (tela.v === "credito") migalhas.push({ t: "Posição de crédito" });
+  if (tela.v === "transmissao") migalhas.push({ t: "Transmissão de arquivos" });
   return (
     <div>
       {migalhas.length > 1 && (
@@ -91,6 +93,7 @@ export default function Financeiro({ user }) {
       )}
       {tela.v === "dash" && (ger ? <FinDashboard user={user} ir={ir} /> : <FinOperacional user={user} ir={ir} />)}
       {tela.v === "dados" && <DadosFinanceiros user={user} ir={ir} />}
+      {tela.v === "transmissao" && <PaginaTransmissao user={user} />}
       {tela.v === "meses" && (
         <AnaliseMensal user={user} ano={ano} setAno={setAno}
           abrir={(comp) => ir({ v: "mes", comp, aba: ger ? "dre" : "importacao" })}
@@ -114,6 +117,28 @@ export default function Financeiro({ user }) {
   );
 }
 
+/* ---------------- v173 — Transmissão de arquivos: botão pequeno → página com o card e o histórico ---------------- */
+function BotaoTransmissao({ ir }) {
+  return (
+    <button onClick={() => ir({ v: "transmissao" })} title="Enviar documentos: o sistema identifica e leva cada um para o lugar certo"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-shadow hover:shadow-md"
+      style={{ background: C.accent, color: "#fff" }}>
+      <Upload size={14} /> Transmissão
+    </button>
+  );
+}
+function PaginaTransmissao({ user }) {
+  const [tick, setTick] = useState(0);
+  return (
+    <div>
+      <Transmissao user={user} Historico={ImportarHistorico} onMudou={() => setTick((t) => t + 1)} />
+      <div className="text-sm font-bold mb-2 mt-6" style={{ color: C.navy }}>Histórico de documentos importados</div>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>Os mesmos documentos da guia Dados › Uploads (tudo o que foi enviado fica guardado lá).</div>
+      <Uploads key={tick} user={user} />
+    </div>
+  );
+}
+
 /* ---------------- v170 — início do financeiro para quem não é gerencial ---------------- */
 function FinOperacional({ user, ir }) {
   const cards = [
@@ -122,12 +147,12 @@ function FinOperacional({ user, ir }) {
   ].filter(Boolean);
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3">
+        <BotaoTransmissao ir={ir} />
         <button onClick={() => ir({ v: "dados" })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
           <Database size={14} style={{ color: C.accent }} /> Dados
         </button>
       </div>
-      <Transmissao user={user} Historico={ImportarHistorico} />
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {cards.map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
@@ -210,14 +235,14 @@ function FinDashboard({ user, ir }) {
   const hoje = new Date();
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3">
+        <BotaoTransmissao ir={ir} />
         <button onClick={() => ir({ v: "dados" })} title="Plano de contas, palavras-chave e senhas de PDF"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-shadow hover:shadow-md"
           style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
           <Database size={14} style={{ color: C.accent }} /> Dados
         </button>
       </div>
-      <Transmissao user={user} Historico={ImportarHistorico} />
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {[
           ["matriz", Grid3x3, "Matriz de custos", "Pessoal, estrutura, dívidas, metas e custo por peça"],

@@ -1,6 +1,6 @@
 // v168 — painel de gestão do RH: indicadores de ponto, gráficos, medalhas de tempo de casa e dados acionáveis
 import { prisma } from "@/lib/prisma";
-import { calcFuncionario, DEPTOS } from "@/lib/matriz";
+import { calcFuncionario, calcFreelancer, DEPTOS } from "@/lib/matriz";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
 import { competenciasComPonto, apurar, indices, mesesSemCartao, pessoasParaPonto, LIMITE_HE_MES, fimDoMes } from "@/lib/rhPonto";
 
@@ -89,13 +89,23 @@ export async function freelancerXFolha(comp) {
     const lReal = r2(porCod[s.free] || 0);
     const folha = r2(s.depto ? folhaMatriz[s.depto] || 0 : 0);
     const free = lReal > 0 ? lReal : r2(freeSemana[s.k] || 0);
-    return { setor: s.k, folha, pessoas: s.depto ? pessoasDepto[s.depto] || 0 : 0, freelancer: free, fonteFolha: "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
-      pct: folha > 0 ? Math.round((free / folha) * 1000) / 10 : free > 0 ? null : 0 };
+    // v173 — participação do freelancer no custo total de mão de obra do setor: free ÷ (folha + free)
+    const custo = r2(folha + free);
+    return { setor: s.k, folha, pessoas: s.depto ? pessoasDepto[s.depto] || 0 : 0, freelancer: free, custo, fonteFolha: "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
+      pct: custo > 0 ? Math.round((free / custo) * 1000) / 10 : 0 };
   }).filter((l) => l.folha || l.freelancer);
   const semSetor = r2(porCod["2117100"] || 0);
   const tot = { folha: r2(linhas.reduce((a, l) => a + l.folha, 0)), freelancer: r2(linhas.reduce((a, l) => a + l.freelancer, 0) + semSetor) };
-  tot.pct = tot.folha ? Math.round((tot.freelancer / tot.folha) * 1000) / 10 : null;
-  return { competencia: comp, linhas, semSetor, total: tot };
+  tot.custo = r2(tot.folha + tot.freelancer);
+  tot.pct = tot.custo ? Math.round((tot.freelancer / tot.custo) * 1000) / 10 : null;
+  // previsto na Matriz: % freelancer da tabela Pessoal x Freelancer (expedição + corte) — o mesmo da razão interna
+  const fe = calcFreelancer(m?.dados?.freelancer?.expedicao), fc = calcFreelancer(m?.dados?.freelancer?.corte);
+  const totG = fe.tot.custo + fc.tot.custo;
+  const previsto = totG ? Math.round(((fe.tot.freelancer + fc.tot.freelancer) / totG) * 1000) / 10 : null;
+  const critica = previsto != null && tot.pct != null && tot.pct > previsto
+    ? `Freelancer em ${comp.split("-").reverse().join("/")}: ${String(tot.pct).replace(".", ",")}% do custo de mão de obra, acima dos ${String(previsto).replace(".", ",")}% previstos na Matriz (tabela Pessoal x Freelancer). Corrija a Matriz (razão interna e custo por peça) ou reveja o uso de freelancers.`
+    : null;
+  return { competencia: comp, linhas, semSetor, total: tot, previsto, critica };
 }
 
 // ---------- painel ----------
@@ -161,10 +171,12 @@ export async function painelRH(compPedida) {
   alertas.sort((a, b) => peso[a.nivel] - peso[b.nivel]);
 
   const compFree = somaMes(mesAtual(), -1);
+  const free = await freelancerXFolha(compFree);
+  if (free.critica) { alertas.unshift({ tipo: "FREELANCER", nivel: "ALTO", texto: free.critica }); }
   return {
     competencias: comps, competencia: comp, geral, series, ranking, porFuncionario, medalhas,
     pendencias: pendMes.map((p) => ({ ...p, nome: nomeDe[p.pessoaId]?.nome || p.pessoaId })).sort((a, b) => (a.nome + (a.data || "")).localeCompare(b.nome + (b.data || ""))),
-    alertas, freelancer: await freelancerXFolha(compFree), limiteHE: LIMITE_HE_MES,
+    alertas, freelancer: free, limiteHE: LIMITE_HE_MES,
     deptos: Object.fromEntries(DEPTOS),
   };
 }
