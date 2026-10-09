@@ -1675,7 +1675,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                     {it.grupo === "FREELANCER"
                       ? <>
                           <div>{it.dias} dia(s) × {moeda((it.diaria || 0) + (it.transporte || 0))}{it.transporte ? ` (diária ${moeda(it.diaria)} + transporte ${moeda(it.transporte)})` : ""}</div>
-                          {!!it.custoExtra && <div style={{ color: C.yellow }}>custo extra {moeda(it.custoExtra)} · {it.justificativa || "sem justificativa"}</div>}
+                          {!!it.custoExtra && <JustificarExtra it={it} user={user} onSalvo={(j) => setD(j)} />}
                         </>
                       : (it.linhas || []).map((l, i) => (
                           <div key={i}>{l.qtd} {l.item || "pç"} × {moeda(l.unitario)} · pedido {l.pedido} = <b style={{ color: C.text }}>{moeda(l.total)}</b></div>
@@ -1817,10 +1817,10 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
         <div className="mt-2 text-xs" style={{ color: C.sub }}>
           {f.dias || 0} dia(s) × {moeda((Number(f.diaria) || 0) + (Number(f.transporte) || 0))}
           {Number(f.transporte) > 0 ? ` (diária ${moeda(f.diaria)} + transporte ${moeda(f.transporte)})` : ""}
-          {Number(f.custoExtra) > 0 ? ` + extra ${moeda(f.custoExtra)}` : ""}
+          {Number(f.custoExtra) ? ` ${Number(f.custoExtra) > 0 ? "+" : "−"} extra ${moeda(Math.abs(Number(f.custoExtra)))}` : ""}
         </div>
       )}
-      {free && Number(f.custoExtra) > 0 && (
+      {free && Number(f.custoExtra) !== 0 && !!Number(f.custoExtra) && (
         <div className="mt-3"><Campo t="Justificativa do custo extra" dica="obrigatória">
           <input value={f.justificativa} onChange={(e) => s("justificativa")(e.target.value.toUpperCase())} className={inp}
             style={{ ...inpS, borderColor: f.justificativa ? C.line : C.yellow }} placeholder="POR QUE HOUVE ESSE EXTRA?" />
@@ -2306,6 +2306,20 @@ function NfsComprasModal({ user, onClose, onLancar }) {
 }
 
 /* ---------------- recorrências ---------------- */
+// v178 — situação da recorrência neste mês: lançada (venc./status), cancelada, não gerada (e por quê)
+function SituacaoRec({ r, onRecriar }) {
+  const m = mesAtual();
+  const t = (r.situacao || []).find((x) => x.competencia === m);
+  const prox = (r.situacao || []).find((x) => x.competencia > m);
+  const motivo = !r.ativo ? "recorrência inativa" : r.inicio > m ? `começa em ${nomeMes(r.inicio)}` : r.fim && r.fim < m ? `terminou em ${nomeMes(r.fim)}` : (r.periodicidade || 1) > 1 ? "não é mês dela (periódica)" : "não gerada";
+  if (t && t.status !== "CANCELADO") return <span><b style={{ color: t.status === "PAGO" ? C.green : C.navy }}>{t.status === "PAGO" ? "paga" : "lançada"}</b> · vence {dBR(t.vencimento)}{prox ? <span style={{ color: C.sub }}> · próx. {dBR(prox.vencimento)}</span> : null}</span>;
+  return (
+    <span style={{ color: C.red }}>{t ? "cancelada/excluída" : motivo}
+      {!((r.periodicidade || 1) > 1 && !t && r.ativo) && <button onClick={onRecriar} className="ml-1 underline font-semibold" style={{ color: C.accent }}>recriar</button>}
+    </span>
+  );
+}
+
 function RecorrenciasModal({ user, d, contasPorId, onClose }) {
   const [daMatriz, setDaMatriz] = useState(false);
   const [l, setL] = useState(d.recorrencias.map((r) => ({ ...r, fim: r.fim || "" })));
@@ -2322,6 +2336,13 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
     try { await api(`/api/fin/recorrencias/${r.id}`, "DELETE", { usuarioId: user.id }); setL((x) => x.filter((y) => y.id !== r.id)); } catch (e) { setErro(e.message); }
   };
   const alt = (id, k, v) => setL((x) => x.map((y) => (y.id === id ? { ...y, [k]: v } : y)));
+  // v178 — conta do mês que sumiu (cancelada/excluída, recorrência inativa ou fora do período): recria a previsão
+  const recriar = async (r) => {
+    try {
+      const j = await api(`/api/fin/recorrencias/${r.id}`, "PATCH", { usuarioId: user.id, acao: "recriar", competencia: mesAtual() });
+      setErro(""); alert(j.geradas ? `Conta de ${nomeMes(mesAtual())} recriada. Feche e confira no contas a pagar.` : "Nada a recriar.");
+    } catch (e) { setErro(e.message); }
+  };
   return (
     daMatriz ? <MatrizRecModal user={user} contasPorId={contasPorId} onClose={onClose} onVoltar={() => setDaMatriz(false)} /> :
     <Modal titulo="Contas recorrentes" icone={Repeat} onClose={onClose} largura={1000}
@@ -2331,7 +2352,7 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
       {!l.length ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma conta recorrente.</div> : (
         <table className="w-full text-xs">
           <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
-            {["Título", "Fornecedor", "Conta-caixa", "Valor base", "Vencimento", "Início", "Até", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
+            {["Título", "Fornecedor", "Conta-caixa", "Valor base", "Vencimento", "Início", "Até", "Este mês", ""].map((h, i) => <th key={i} className="text-left px-2 py-1.5 font-semibold">{h}</th>)}
           </tr></thead>
           <tbody>{l.map((r) => {
             const e = edit === r.id;
@@ -2347,6 +2368,7 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
                 </> : r.diaUtil ? `${r.diaVencimento}º dia útil${sabTxt(r)}` : `dia ${r.diaVencimento}`}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{nomeMes(r.inicio)}</td>
                 <td className="px-2 py-1.5 whitespace-nowrap">{e ? <input type="month" value={r.fim} onChange={(ev) => alt(r.id, "fim", ev.target.value)} className="rounded px-2 py-1" style={inpS} /> : r.fim ? nomeMes(r.fim) : "sem fim"}</td>
+                <td className="px-2 py-1.5" style={{ minWidth: 170 }}><SituacaoRec r={r} onRecriar={() => recriar(r)} /></td>
                 <td className="px-2 py-1.5 whitespace-nowrap text-right">
                   {e ? <><button onClick={() => salvar(r)} className="px-2 py-1 rounded font-semibold text-white mr-1" style={{ background: C.accent }}>Salvar</button>
                     <button onClick={() => { setEdit(null); setL(d.recorrencias.map((x) => ({ ...x, fim: x.fim || "" }))); }} className="px-2 py-1" style={{ color: C.sub }}>Cancelar</button></>

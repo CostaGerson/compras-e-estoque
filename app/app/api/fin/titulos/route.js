@@ -64,13 +64,18 @@ export async function GET(req) {
   // contas com crítica a conferir (qualquer data) — filtro "Críticas"
   const comCritica = await prisma.finTitulo.findMany({ where: { tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
+  // v178 — situação de cada recorrência no mês atual e no próximo (para achar a que "sumiu")
+  const recTit = recs.length ? await prisma.finTitulo.findMany({ where: { recorrenciaId: { in: recs.map((r) => r.id) }, competencia: { gte: hoje, lte: somaMes(hoje, 1) } },
+    select: { id: true, recorrenciaId: true, competencia: true, status: true, vencimento: true, valor: true } }) : [];
+  const situacaoRec = (r) => recTit.filter((t) => t.recorrenciaId === r.id).sort((a, b) => a.competencia.localeCompare(b.competencia))
+    .map((t) => ({ id: t.id, competencia: t.competencia, status: t.status, vencimento: t.vencimento.toISOString().slice(0, 10), valor: Number(t.valor) }));
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map(tituloOut) : null,
     semConta: semConta.map(tituloOut), comCritica: comCritica.map(tituloOut),
     vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,
     titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
-    contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor) })),
+    contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
   });
 }
 

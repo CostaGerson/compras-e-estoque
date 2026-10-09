@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
@@ -38,6 +39,14 @@ export async function POST(req) {
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
+  // v180 — só a justificativa do custo extra (diferença sobre as diárias)
+  if (b.acao === "justificar") {
+    const txt = String(b.justificativa || "").trim().toUpperCase();
+    if (!txt) return Response.json({ error: "Escreva a justificativa." }, { status: 400 });
+    const it = await prisma.finSemanaItem.update({ where: { id: Number(b.id) }, data: { justificativa: txt } }).catch(() => null);
+    if (!it) return Response.json({ error: "Lançamento não encontrado." }, { status: 404 });
+    return Response.json({ ok: true, ...(await abrirSemana(it.tituloId)) });
+  }
   const r = await salvarItem(b.tituloId, b.item || {}, { id: b.id, quem: quemE(u), usuarioId: u.id });
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
   return Response.json({ ...r, ...(await abrirSemana(r.tituloId || b.tituloId)) });

@@ -133,7 +133,7 @@ export function validarItem(item) {
   if (item.grupo === "FREELANCER") {
     if (!(Number(item.diaria) > 0)) return "Informe o valor da diária.";
     if (!(Number(item.dias) > 0)) return "Informe quantos dias ele trabalhou.";
-    if (Number(item.custoExtra) > 0 && !String(item.justificativa || "").trim()) {
+    if (Number(item.custoExtra) !== 0 && Number.isFinite(Number(item.custoExtra)) && !String(item.justificativa || "").trim()) {
       return "Com custo extra, a justificativa é obrigatória.";
     }
     return null;

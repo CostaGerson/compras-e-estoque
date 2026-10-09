@@ -11,6 +11,16 @@ export async function PATCH(req, { params }) {
   const id = Number(params.id);
   const r = await prisma.finRecorrencia.findUnique({ where: { id } });
   if (!r) return Response.json({ error: "Recorrência não encontrada." }, { status: 404 });
+  // v178 — recriar a conta de um mês que foi cancelada/excluída (volta a previsão da recorrência)
+  if (b.acao === "recriar") {
+    const comp = /^\d{4}-\d{2}$/.test(b.competencia || "") ? b.competencia : mesAtual();
+    await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, competencia: comp, status: "CANCELADO" } });
+    if (!r.ativo) await prisma.finRecorrencia.update({ where: { id }, data: { ativo: true } });
+    if (r.inicio > comp) await prisma.finRecorrencia.update({ where: { id }, data: { inicio: comp } });
+    if (r.fim && r.fim < comp) await prisma.finRecorrencia.update({ where: { id }, data: { fim: null } });
+    const n = await gerarRecorrencias(r.tipo);
+    return Response.json({ ok: true, geradas: n });
+  }
   const d = {};
   if (b.titulo !== undefined) d.titulo = String(b.titulo).trim().toUpperCase();
   if (b.parceiro !== undefined) d.parceiro = String(b.parceiro).trim().toUpperCase();
