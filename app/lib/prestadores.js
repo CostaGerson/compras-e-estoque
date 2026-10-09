@@ -122,6 +122,11 @@ export async function salvar(tipo, campos, { id, quem } = {}) {
     endereco: campos.endereco ? String(campos.endereco).trim().toUpperCase() : null,
     documento: campos.documento ? String(campos.documento).replace(/\D/g, "") || null : null,
     observacao: campos.observacao ? String(campos.observacao).trim().toUpperCase() : null,
+    // v175 — freelancer: função e diárias por turno
+    funcao: tipo === "FREELANCER" && campos.funcao ? String(campos.funcao).trim().toUpperCase() : null,
+    diarias: tipo === "FREELANCER" && Array.isArray(campos.diarias)
+      ? campos.diarias.filter((d) => Number(d.diaria) > 0).map((d) => ({ turno: String(d.turno || "ÚNICO").toUpperCase(), diaria: r2(d.diaria), passagem: r2(d.passagem) }))
+      : null,
     ...(campos.ativo === undefined ? {} : { ativo: !!campos.ativo }),
   };
   // mesmo nome e mesmo tipo = a mesma pessoa; não deixo cadastrar duas vezes

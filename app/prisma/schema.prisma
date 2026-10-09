@@ -1309,6 +1309,8 @@ model Prestador {
   endereco      String?  // obrigatório no terceirizado
   documento     String?  // CPF/CNPJ (opcional)
   observacao    String?
+  funcao        String?  // v175 — freelancer: função (ARREMATE, CORTADOR, MOTORISTA…)
+  diarias       Json?    // v175 — freelancer: [{ turno: DIA|NOITE|ÚNICO, diaria, passagem }]
   ativo         Boolean  @default(true)
   criadoPorNome String?
   createdAt     DateTime @default(now())

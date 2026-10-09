@@ -1750,10 +1750,15 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
   const [lista, setLista] = useState(prestadores);
   const s = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
 
-  const escolher = (p) => setF((x) => ({
-    ...x, prestadorId: p.id, nome: p.nome, chavePix: p.chavePix || x.chavePix,
-    setor: x.setor || primeiroSetor(p, grupo, catalogo),
-  }));
+  // v175 — freelancer: a diária e a passagem vêm do cadastro (turno escolhido; o primeiro por padrão)
+  const [turnos, setTurnos] = useState([]);
+  const aplicarTurno = (d) => d && setF((x) => ({ ...x, diaria: Number(d.diaria) || 0, transporte: Number(d.passagem) || 0 }));
+  const escolher = (p) => {
+    setF((x) => ({ ...x, prestadorId: p.id, nome: p.nome, chavePix: p.chavePix || x.chavePix, setor: x.setor || primeiroSetor(p, grupo, catalogo) }));
+    const ds = free && Array.isArray(p.diarias) ? p.diarias : [];
+    setTurnos(ds);
+    if (ds.length && !item) aplicarTurno(ds[0]);
+  };
 
   const altL = (i, k, v) => setF((x) => ({ ...x, linhas: x.linhas.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
   const total = free
@@ -1800,6 +1805,9 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
             {catalogo.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
           </select>
         </Campo>
+        {free && turnos.length > 1 && <Campo t="Turno" dica="do cadastro"><select onChange={(e) => aplicarTurno(turnos[Number(e.target.value)])} className={inp} style={inpS}>
+          {turnos.map((d, i) => <option key={i} value={i}>{d.turno} · {moeda(Number(d.diaria))}{d.passagem ? ` + ${moeda(Number(d.passagem))}` : ""}</option>)}
+        </select></Campo>}
         {free && <Campo t="Valor da diária"><Valor value={f.diaria} onChange={s("diaria")} width="100%" /></Campo>}
         {free && <Campo t="Transporte por dia" dica="entra no valor do dia"><Valor value={f.transporte} onChange={s("transporte")} width="100%" /></Campo>}
         {free && <Campo t="Dias trabalhados"><input value={f.dias} onChange={(e) => s("dias")(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={inpS} /></Campo>}
