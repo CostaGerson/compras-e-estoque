@@ -99,7 +99,7 @@ const MENU = [
       { key: "anCorte", label: "Corte", icon: IcoCorte, desc: "Peças cortadas no mês, custo do setor (folha + freelancers) e comparação com a meta e com terceirizar" },
       { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk, bordado, DTF e sublimação (em construção)" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Em construção" },
-      { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Em construção" },
+      { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -288,10 +288,10 @@ export default function Home() {
           {view === "oc" && pode("oc") && <OC money={money} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
-          {view === "anCorte" && pode("anCorte") && <AnaliseCorte user={user} />}
+          {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}
           {view === "anPersonalizacao" && pode("anPersonalizacao") && <EmConstrucaoOp titulo="Análise de personalização (silk, bordado, DTF e sublimação)" />}
           {view === "anCostura" && pode("anCostura") && <EmConstrucaoOp titulo="Análise de costura" />}
-          {view === "anExpedicao" && pode("anExpedicao") && <EmConstrucaoOp titulo="Análise de expedição" texto="Mande a planilha de análise da expedição que vocês já usam para eu montar no mesmo formato do corte." />}
+          {view === "anExpedicao" && pode("anExpedicao") && <AnaliseCorte key="EXPEDICAO" user={user} setor="EXPEDICAO" />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}

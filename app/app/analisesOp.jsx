@@ -2,7 +2,7 @@
 // v182 — Produção › Análises operacionais. Corte: custo do setor (pessoal pela Matriz + freelancers identificados) ÷ peças processadas,
 // comparado com a meta (peças estimadas) e com o custo de terceirizar. Mesma mecânica da planilha "Análise Corte".
 import React, { useState, useEffect, useRef } from "react";
-import { Upload, Loader2, Save, Scissors, AlertTriangle, ChevronDown, ChevronRight, Construction } from "lucide-react";
+import { Upload, Loader2, Save, Scissors, PackageCheck, AlertTriangle, ChevronDown, ChevronRight, Construction } from "lucide-react";
 import { CoresContas as C } from "./contas";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -40,7 +40,14 @@ const Kpi = ({ t, v, sub, cor }) => (
 const inp = "rounded px-2 py-1 text-sm text-right tabular-nums";
 const inpS = { border: `1px solid ${C.line}`, background: "#fff", color: C.text };
 
-export default function AnaliseCorte({ user }) {
+const TXT = {
+  CORTE: { titulo: "Análise do corte", Ico: Scissors, de: "do corte", imp: "Importar planilha do corte",
+    ajuda: <>Importe a exportação do sistema de produção (<i>analise-corte_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo — ou a planilha histórica do ano (uma aba por mês).</> },
+  EXPEDICAO: { titulo: "Análise da expedição", Ico: PackageCheck, de: "da expedição", imp: "Importar planilha da expedição",
+    ajuda: <>Peças expedidas por categoria no mês. Importe a planilha do ano (uma aba por mês) ou preencha as quantidades à mão; pessoal e freelancers vêm do sistema.</> },
+};
+export default function AnaliseCorte({ user, setor = "CORTE" }) {
+  const T = TXT[setor] || TXT.CORTE;
   const [comp, setComp] = useState(null);
   const [d, setD] = useState(null);
   const [f, setF] = useState(null);          // campos editáveis
@@ -53,7 +60,7 @@ export default function AnaliseCorte({ user }) {
   const carregar = async (c) => {
     setErro("");
     try {
-      const j = await api(`/api/producao/analises?u=${user.id}&setor=CORTE${c ? `&competencia=${c}` : ""}`);
+      const j = await api(`/api/producao/analises?u=${user.id}&setor=${setor}${c ? `&competencia=${c}` : ""}`);
       if (!c) { const ult = j.competencias[j.competencias.length - 1] || mesAnterior(); setComp(ult); return; }
       setD(j);
       const a = j.analise;
@@ -72,7 +79,7 @@ export default function AnaliseCorte({ user }) {
     if (!file) return;
     setSt("Lendo a planilha…"); setErro(""); setAviso("");
     try {
-      const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, acao: "importar", nome: file.name, conteudo: await readB64(file), competencia: comp });
+      const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "importar", nome: file.name, conteudo: await readB64(file), competencia: comp });
       setAviso(j.tipo === "HISTORICO"
         ? `Histórico importado: ${j.meses.length} mês(es) — ${j.meses.map((m) => `${nomeMes(m.competencia)} (${int(m.total)} pç${m.preservado ? ", peças da exportação mantidas" : ""})`).join(", ")}.`
         : `${nomeMes(j.meses[0].competencia)}: ${int(j.meses[0].total)} peças importadas${j.meses[0].semCategoria ? ` · ${int(j.meses[0].semCategoria)} sem categoria ficaram fora` : ""}.`);
@@ -83,13 +90,13 @@ export default function AnaliseCorte({ user }) {
   };
   const salvar = async () => {
     setSt("Salvando…"); setErro("");
-    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, acao: "salvar", competencia: comp, campos: f }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
+    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos: f }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
     catch (e) { setErro(e.message); }
     setSt("");
   };
   const criarVazia = async () => {
     setSt("Criando…");
-    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, acao: "salvar", competencia: comp, campos: { pecasEstimadas: 13000 } }); setD(j); carregar(comp); } catch (e) { setErro(e.message); }
+    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos: { pecasEstimadas: 13000 } }); setD(j); carregar(comp); } catch (e) { setErro(e.message); }
     setSt("");
   };
   const s = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
@@ -103,7 +110,7 @@ export default function AnaliseCorte({ user }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="flex items-center gap-2 mr-2"><Scissors size={20} style={{ color: C.accent }} /><div className="text-lg font-bold" style={{ color: C.navy }}>Análise do corte</div></div>
+        <div className="flex items-center gap-2 mr-2"><T.Ico size={20} style={{ color: C.accent }} /><div className="text-lg font-bold" style={{ color: C.navy }}>{T.titulo}</div></div>
         <select value={comp || ""} onChange={(e) => setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS}>
           {meses.map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}
         </select>
@@ -111,12 +118,12 @@ export default function AnaliseCorte({ user }) {
         <div className="flex-1" />
         <input ref={inpRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { importar(e.target.files); e.target.value = ""; }} />
         <button onClick={() => inpRef.current?.click()} disabled={!!st} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>
-          {st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Importar planilha do corte
+          {st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {T.imp}
         </button>
         {f && <button onClick={salvar} disabled={!!st} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.navy }}><Save size={14} /> Salvar</button>}
       </div>
       <div className="text-[11px] mb-3" style={{ color: C.sub }}>
-        Importe a exportação do sistema de produção (<i>analise-corte_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo — ou a planilha histórica do ano (uma aba por mês).
+        {T.ajuda}
       </div>
       {erro && <div className="p-2.5 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {aviso && <div className="p-2.5 rounded-lg mb-3 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
@@ -151,7 +158,7 @@ export default function AnaliseCorte({ user }) {
 
       {d && !d.analise && (
         <div className="rounded-xl p-6 text-center text-sm" style={{ background: C.panel, border: `1px dashed ${C.line}`, color: C.sub }}>
-          Sem análise de {nomeMes(comp)}. Importe a planilha do corte ou <button onClick={criarVazia} className="underline font-semibold" style={{ color: C.accent }}>preencha à mão</button>.
+          Sem análise de {nomeMes(comp)}. Importe a planilha {T.de} ou <button onClick={criarVazia} className="underline font-semibold" style={{ color: C.accent }}>preencha à mão</button>.
         </div>
       )}
 
@@ -173,7 +180,7 @@ export default function AnaliseCorte({ user }) {
               <table className="w-full text-xs"><tbody>
                 <tr><td className="py-1">Pessoal (custo total da folha · Matriz)</td><td className="text-right">{brl(d.auto?.pessoal)}</td>
                   <td className="text-right pl-2"><input value={f.pessoalManual} onChange={(e) => s("pessoalManual")(e.target.value)} placeholder="usar Matriz" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
-                <tr><td className="py-1">Freelancers do corte <span style={{ color: C.sub }}>({String(d.auto?.fonteFree || "—").toLowerCase()})</span></td><td className="text-right">{brl(d.auto?.freelancer)}</td>
+                <tr><td className="py-1">Freelancers {T.de} <span style={{ color: C.sub }}>({String(d.auto?.fonteFree || "—").toLowerCase()})</span></td><td className="text-right">{brl(d.auto?.freelancer)}</td>
                   <td className="text-right pl-2"><input value={f.freelancerManual} onChange={(e) => s("freelancerManual")(e.target.value)} placeholder="usar sistema" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 {f.freelancerManual !== "" && f.freelancerManual != null && Math.abs(Number(String(f.freelancerManual).replace(",", ".")) - (d.auto?.freelancer || 0)) >= 1 && (
                   <tr><td colSpan={3} className="py-1 text-[11px] font-semibold" style={{ color: C.yellow }}>
@@ -182,7 +189,7 @@ export default function AnaliseCorte({ user }) {
                 <tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
               </tbody></table>
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>Vazio = automático: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários do corte) e freelancers do corte identificados no extrato ou nas contas da semana. Preencha só para corrigir um mês antigo.</div>
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>Vazio = automático: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Preencha só para corrigir um mês antigo.</div>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>
@@ -216,7 +223,7 @@ export default function AnaliseCorte({ user }) {
                 <tr style={{ borderTop: `2px solid ${C.line}` }}><td className="px-2 py-1.5 font-bold">Total</td><td className="px-2 text-right font-bold tabular-nums">{int(c.pecas)}</td><td className="px-2 text-right">100%</td><td /><td /><td className="px-2 text-right" style={{ color: C.sub }}>peça média {brl(c.incorrido)}</td></tr>
               </tbody>
             </table>
-            <div className="text-[11px] px-3 py-2" style={{ color: C.sub }}>Valor interno no mês = (valor de mercado ÷ média da peça terceirizada) × custo incorrido por peça — o custo de cada tipo de peça cortada dentro, proporcional ao preço de mercado. As quantidades e valores de mercado podem ser ajustados (salve para recalcular).</div>
+            <div className="text-[11px] px-3 py-2" style={{ color: C.sub }}>Valor interno no mês = (valor de mercado ÷ média da peça terceirizada) × custo incorrido por peça — o custo de cada tipo de peça feita dentro, proporcional ao preço de mercado. As quantidades e valores de mercado podem ser ajustados (salve para recalcular).</div>
           </div>
 
           {/* conclusão */}

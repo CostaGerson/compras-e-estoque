@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { analiseCorte, lerPlanilhaCorte, gravarAnalises } from "@/lib/opAnalise";
+import { analiseCorte, lerPlanilhaCorte, gravarAnalises, SETORES_ANALISE } from "@/lib/opAnalise";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -11,8 +11,9 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const comp = /^\d{4}-\d{2}$/.test(sp.get("competencia") || "") ? sp.get("competencia") : null;
-  if ((sp.get("setor") || "CORTE") !== "CORTE") return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
-  return Response.json(await analiseCorte(comp));
+  const setor = sp.get("setor") || "CORTE";
+  if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
+  return Response.json(await analiseCorte(comp, setor));
 }
 
 // POST { usuarioId, acao: "importar", nome, conteudo(base64), competencia? } → lê a planilha (do mês ou o histórico do ano)
@@ -22,11 +23,12 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioGerencial(b.usuarioId);
   if (!u) return negadoGerencial();
-  const setor = "CORTE";
+  const setor = b.setor || "CORTE";
+  if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
   try {
     if (b.acao === "importar") {
       const buf = Buffer.from(String(b.conteudo || ""), "base64");
-      const r = lerPlanilhaCorte(buf, b.nome, b.competencia);
+      const r = lerPlanilhaCorte(buf, b.nome, b.competencia, setor);
       if (!r.analises.length || !r.analises.some((a) => a.total > 0)) return Response.json({ error: "Não achei peças na planilha (esperava a aba Conferência ou a linha ITEM/QTDE)." }, { status: 400 });
       const out = await gravarAnalises(setor, r.analises, { nome: b.nome, quem: nomeU(u), historico: r.tipo === "HISTORICO" });
       const e = out.find((x) => x.erro);
@@ -45,7 +47,7 @@ export async function POST(req) {
       if (c.qtds) data.qtds = Object.fromEntries(Object.entries(c.qtds).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]));
       data.atualizadoPorNome = nomeU(u);
       await prisma.opAnalise.upsert({ where: { setor_competencia: { setor, competencia: b.competencia } }, update: data, create: { setor, competencia: b.competencia, qtds: {}, ...data } });
-      return Response.json({ ok: true, ...(await analiseCorte(b.competencia)) });
+      return Response.json({ ok: true, ...(await analiseCorte(b.competencia, setor)) });
     }
     if (b.acao === "excluir") {
       await prisma.opAnalise.delete({ where: { setor_competencia: { setor, competencia: b.competencia } } }).catch(() => null);

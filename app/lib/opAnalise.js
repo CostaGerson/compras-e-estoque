@@ -19,8 +19,17 @@ export const CATEGORIAS_CORTE = [
   ["AVENTAL", "Avental", 0], ["FORRO", "Forro", 0],
 ];
 export const MERCADO_PADRAO = Object.fromEntries(CATEGORIAS_CORTE.map(([k, , v]) => [k, v]));
+// v183 — expedição (ordem da planilha "Análise Expedição 2026")
+export const CATEGORIAS_EXPEDICAO = [
+  ["CAMISETA", "Camiseta", 1.5], ["POLO", "Polo", 2.7], ["MOLETOM", "Moletom", 1.5], ["JAQUETA", "Jaqueta", 1.5], ["CAMISA_SOCIAL", "Camisa social", 5.5],
+  ["JALECO_OPERACIONAL", "Jaleco operacional", 1.5], ["CALCA_OPERACIONAL", "Calça operacional", 1.5], ["CALCA_JEANS", "Calça jeans", 2.1], ["CALCA_SOCIAL", "Calça social", 2.1],
+];
+export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, EXPEDICAO: CATEGORIAS_EXPEDICAO };
+export const SETORES_ANALISE = Object.keys(CATEGORIAS_OP);
+const catsDe = (setor) => CATEGORIAS_OP[setor] || CATEGORIAS_CORTE;
+export const mercadoPadrao = (setor) => Object.fromEntries(catsDe(setor).map(([k, , v]) => [k, v]));
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
-const chaveCat = (t) => { const k = sa(t); return CATEGORIAS_CORTE.some(([c]) => c === k) ? k : null; };
+const chaveCat = (t, setor = "CORTE") => { const k = sa(t); return catsDe(setor).some(([c]) => c === k) ? k : null; };
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const MESES = ["JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
 
@@ -41,14 +50,14 @@ function compDaAba(nomeAba, anoArq) {
   return `${ano}-${String(mes + 1).padStart(2, "0")}`;
 }
 
-export function lerPlanilhaCorte(buf, nome = "", compPadrao = null) {
+export function lerPlanilhaCorte(buf, nome = "", compPadrao = null, setor = "CORTE") {
   const wb = XLSX.read(buf, { type: "buffer" });
   // v182.1 — aba por mês: aceita nome completo ou abreviado ("Janeiro", "JAN", "Set-26", "CORTE MARÇO 2026", "03/2026")
   const anoArq = (String(nome).match(/20\d{2}/) || [])[0] || String(new Date().getFullYear());
   const mesesAbas = wb.SheetNames.map((n) => ({ n, c: compDaAba(n, anoArq) })).filter((x) => x.c);
   if (mesesAbas.length) {
     const vistos = new Set();
-    const analises = mesesAbas.map((x) => lerAbaAnalise(wb.Sheets[x.n], x.c, true))
+    const analises = mesesAbas.map((x) => lerAbaAnalise(wb.Sheets[x.n], x.c, true, setor))
       .filter((a) => a.total > 0 && !vistos.has(a.competencia) && vistos.add(a.competencia));
     if (analises.length) return { tipo: "HISTORICO", analises };
   }
@@ -70,11 +79,11 @@ export function lerPlanilhaCorte(buf, nome = "", compPadrao = null) {
     return { tipo: "MES", analises: [{ competencia, qtds, detalhe, semCategoria, total: Object.values(qtds).reduce((a, b) => a + b, 0) }] };
   }
   const aba = wb.SheetNames.find((n) => sa(n) === "ANALISE") || wb.SheetNames[0];
-  return { tipo: "MES", analises: [lerAbaAnalise(wb.Sheets[aba], competencia, false)] };
+  return { tipo: "MES", analises: [lerAbaAnalise(wb.Sheets[aba], competencia, false, setor)] };
 }
 
 // aba no formato da análise: linha ITEM (categorias) + QTDE; à direita PESSOAL/FREELANCERS/PEÇAS ESTIMADAS/CUSTO ESTIMADO
-function lerAbaAnalise(sh, competencia, historico) {
+function lerAbaAnalise(sh, competencia, historico, setor = "CORTE") {
   const rows = XLSX.utils.sheet_to_json(sh, { header: 1, defval: null, raw: true });
   const iItem = rows.findIndex((r) => r && sa(r[0]) === "ITEM");
   const iQtd = rows.findIndex((r) => r && sa(r[0]) === "QTDE");
@@ -83,7 +92,7 @@ function lerAbaAnalise(sh, competencia, historico) {
   const iTot = rows.findIndex((r) => r && sa(r[0]) === "TOTAL_POR_PECA");
   if (iItem >= 0 && iQtd >= 0) {
     for (let i = iItem + 1; i < (iTot > iItem ? iTot : iQtd + 1); i++) {
-      rows[iItem].forEach((c, j) => { const k = j > 0 && chaveCat(c); const v = rows[i]?.[j]; if (k && typeof v === "number" && v) qtds[k] = (qtds[k] || 0) + v; });
+      rows[iItem].forEach((c, j) => { const k = j > 0 && chaveCat(c, setor); const v = rows[i]?.[j]; if (k && typeof v === "number" && v) qtds[k] = (qtds[k] || 0) + v; });
     }
   }
   // valores à direita: rótulo numa coluna, valor na seguinte
@@ -91,7 +100,7 @@ function lerAbaAnalise(sh, competencia, historico) {
   const texto = (rot) => { for (let i = 0; i < rows.length; i++) { const j = (rows[i] || []).findIndex((c) => sa(c) === rot); if (j >= 0) { const v = rows[i + 1]?.[j]; return v ? String(v).trim() : null; } } return null; };
   const mercado = {};
   const iMerc = rows.findIndex((r) => r && sa(r[0]) === "VALOR_UNIT_MERCADO");
-  if (iItem >= 0 && iMerc >= 0) rows[iItem].forEach((c, j) => { const k = j > 0 && chaveCat(c); const v = rows[iMerc][j]; if (k && typeof v === "number") mercado[k] = v; });
+  if (iItem >= 0 && iMerc >= 0) rows[iItem].forEach((c, j) => { const k = j > 0 && chaveCat(c, setor); const v = rows[iMerc][j]; if (k && typeof v === "number") mercado[k] = v; });
   const pessoal = ao("PESSOAL"), free = ao("FREELANCERS");
   const custoEst = ao("CUSTO_ESTIMADO");
   return {
@@ -126,7 +135,7 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
     const r = await prisma.opAnalise.upsert({
       where: { setor_competencia: { setor, competencia: a.competencia } },
       update: data,
-      create: { setor, competencia: a.competencia, mercado: ant?.mercado || MERCADO_PADRAO, meta: ant?.meta || null, pecasEstimadas: ant?.pecasEstimadas || 13000, custoMeta: ant?.custoMeta ?? null, ...data },
+      create: { setor, competencia: a.competencia, mercado: ant?.mercado || mercadoPadrao(setor), meta: ant?.meta || null, pecasEstimadas: ant?.pecasEstimadas || 13000, custoMeta: ant?.custoMeta ?? null, ...data },
     });
     out.push({ competencia: r.competencia, total: Object.values(a.qtds || {}).reduce((x, y) => x + (Number(y) || 0), 0), semCategoria: a.semCategoria || 0, preservado: !!(historico && atual?.detalhe) });
   }
@@ -135,8 +144,8 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
 
 // ---------------- cálculo (mesma mecânica da planilha) ----------------
 export function calcularCorte(a, pessoal, freelancer) {
-  const merc = { ...MERCADO_PADRAO, ...(a.mercado || {}) };
-  const cats = CATEGORIAS_CORTE.map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k]) || 0 }));
+  const merc = { ...mercadoPadrao(a.setor), ...(a.mercado || {}) };
+  const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k]) || 0 }));
   const pecas = cats.reduce((s, c) => s + c.qtd, 0);
   const custoTotal = r2(pessoal + freelancer);
   const incorrido = pecas ? custoTotal / pecas : 0;                                   // custo incorrido por peça
@@ -160,10 +169,10 @@ export async function custoDoSetor(setor, competencia) {
   return { pessoal: l?.folha || 0, freelancer: l?.freelancer || 0, fonteFree: l?.fonteFree || "—", pessoas: l?.pessoas || 0 };
 }
 
-export async function analiseCorte(competencia) {
-  const lista = await prisma.opAnalise.findMany({ where: { setor: "CORTE" }, orderBy: { competencia: "asc" }, select: { competencia: true, qtds: true } });
-  const a = competencia ? await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor: "CORTE", competencia } } }) : null;
-  const auto = competencia ? await custoDoSetor("CORTE", competencia) : null;
+export async function analiseCorte(competencia, setor = "CORTE") {
+  const lista = await prisma.opAnalise.findMany({ where: { setor }, orderBy: { competencia: "asc" }, select: { competencia: true, qtds: true } });
+  const a = competencia ? await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia } } }) : null;
+  const auto = competencia ? await custoDoSetor(setor, competencia) : null;
   let calc = null;
   if (a) {
     const pessoal = a.pessoalManual != null ? a.pessoalManual : auto.pessoal;
@@ -173,8 +182,8 @@ export async function analiseCorte(competencia) {
   // série do ano para o gráfico: custo incorrido por peça e peças
   const serie = [];
   for (const x of lista.filter((y) => !competencia || y.competencia.slice(0, 4) === competencia.slice(0, 4))) {
-    const full = await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor: "CORTE", competencia: x.competencia } } });
-    const au = await custoDoSetor("CORTE", x.competencia);
+    const full = await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia: x.competencia } } });
+    const au = await custoDoSetor(setor, x.competencia);
     const free = full.freelancerManual ?? au.freelancer;
     const c = calcularCorte(full, full.pessoalManual ?? au.pessoal, free);
     // v182.2 — confronto: freelancer da planilha/manual × o que o sistema identificou no mês
@@ -183,5 +192,5 @@ export async function analiseCorte(competencia) {
       freelancer: free, freeSistema: au.freelancer, fonteFree: full.freelancerManual != null ? "PLANILHA" : "SISTEMA",
       difFree: full.freelancerManual != null ? Math.round((full.freelancerManual - au.freelancer) * 100) / 100 : 0 });
   }
-  return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, categorias: CATEGORIAS_CORTE.map(([k, n]) => ({ k, n })) };
+  return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, setor, categorias: catsDe(setor).map(([k, n]) => ({ k, n })) };
 }
