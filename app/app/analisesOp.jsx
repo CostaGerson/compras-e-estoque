@@ -74,9 +74,9 @@ export default function AnaliseCorte({ user }) {
     try {
       const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, acao: "importar", nome: file.name, conteudo: await readB64(file), competencia: comp });
       setAviso(j.tipo === "HISTORICO"
-        ? `Histórico importado: ${j.meses.map((m) => nomeMes(m.competencia)).join(", ")}.`
+        ? `Histórico importado: ${j.meses.length} mês(es) — ${j.meses.map((m) => `${nomeMes(m.competencia)} (${int(m.total)} pç${m.preservado ? ", peças da exportação mantidas" : ""})`).join(", ")}.`
         : `${nomeMes(j.meses[0].competencia)}: ${int(j.meses[0].total)} peças importadas${j.meses[0].semCategoria ? ` · ${int(j.meses[0].semCategoria)} sem categoria ficaram fora` : ""}.`);
-      const alvo = j.tipo === "HISTORICO" ? comp : j.meses[0].competencia;
+      const alvo = j.tipo === "HISTORICO" ? j.meses[j.meses.length - 1].competencia : j.meses[0].competencia;
       if (alvo === comp) carregar(comp); else setComp(alvo);
     } catch (e) { setErro(e.message); }
     setSt("");
@@ -121,6 +121,29 @@ export default function AnaliseCorte({ user }) {
       {erro && <div className="p-2.5 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {aviso && <div className="p-2.5 rounded-lg mb-3 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+      {/* v182.1 — resumo do ano: todos os meses importados */}
+      {d?.serie?.length > 0 && (
+        <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
+          <table className="w-full text-xs">
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Custo do setor", "Incorrido/pç", "Estimado/pç", "Resultado", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <tbody>{d.serie.map((x) => { const ok = x.incorrido <= x.estimado; const sel = x.competencia === comp; return (
+              <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
+                <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
+                <td className="text-right tabular-nums">{int(x.pecas)}</td>
+                <td className="text-right tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
+                <td className="text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
+                <td className="text-right tabular-nums" style={{ color: C.sub }}>{x.estimado ? brl(x.estimado) : "—"}</td>
+                <td className="text-right tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : ok ? C.green : C.red }}>{x.incorrido && x.estimado ? `${((x.incorrido / x.estimado - 1) * 100).toFixed(1).replace(".", ",")}%` : "—"}</td>
+                <td className="w-28 pl-2"><div className="h-2.5 rounded relative" style={{ background: C.panel2 }}>
+                  <div className="h-2.5 rounded" style={{ width: `${Math.min(100, (x.incorrido / Math.max(...d.serie.map((y) => Math.max(y.incorrido, y.estimado)), 0.01)) * 100)}%`, background: ok ? C.green : C.red }} />
+                </div></td>
+              </tr>); })}</tbody>
+          </table>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Clique no mês para abrir. Resultado = incorrido ÷ estimado − 1 (verde dentro da meta, vermelho acima).</div>
+        </div>
+      )}
+
       {d && !d.analise && (
         <div className="rounded-xl p-6 text-center text-sm" style={{ background: C.panel, border: `1px dashed ${C.line}`, color: C.sub }}>
           Sem análise de {nomeMes(comp)}. Importe a planilha do corte ou <button onClick={criarVazia} className="underline font-semibold" style={{ color: C.accent }}>preencha à mão</button>.
@@ -196,25 +219,6 @@ export default function AnaliseCorte({ user }) {
               </div>
             ))}
           </div>
-
-          {/* série do ano */}
-          {d.serie?.length > 1 && (
-            <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Custo por peça no ano</div>
-              {(() => { const mx = Math.max(...d.serie.map((x) => x.incorrido), ...d.serie.map((x) => x.estimado), 0.01); return d.serie.map((x) => (
-                <div key={x.competencia} className="flex items-center gap-2 text-xs py-0.5">
-                  <button onClick={() => setComp(x.competencia)} className="w-24 text-left" style={{ color: x.competencia === comp ? C.accent : C.text, fontWeight: x.competencia === comp ? 700 : 400 }}>{nomeMes(x.competencia)}</button>
-                  <div className="flex-1 h-3 rounded relative" style={{ background: C.panel2 }}>
-                    <div className="h-3 rounded" style={{ width: `${(x.incorrido / mx) * 100}%`, background: x.incorrido <= x.estimado ? C.green : C.red }} />
-                    <div className="absolute top-0 h-3" style={{ left: `${(x.estimado / mx) * 100}%`, width: 2, background: C.navy }} title="estimado" />
-                  </div>
-                  <span className="w-20 text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</span>
-                  <span className="w-20 text-right tabular-nums" style={{ color: C.sub }}>{int(x.pecas)} pç</span>
-                </div>
-              )); })()}
-              <div className="text-[11px] mt-1" style={{ color: C.sub }}>Barra = custo incorrido por peça (verde dentro da meta, vermelho acima); traço = custo estimado.</div>
-            </div>
-          )}
 
           {/* conferência */}
           {Array.isArray(d.analise.detalhe) && d.analise.detalhe.length > 0 && (

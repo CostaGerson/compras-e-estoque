@@ -27,12 +27,30 @@ const MESES = ["JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO
 // ---------------- leitura das planilhas ----------------
 // (1) exportação do sistema de produção "analise-corte_AAAA-MM-DD_a_AAAA-MM-DD.xlsx": aba Conferência (pedido a pedido) ou aba Análise
 // (2) planilha histórica "Análise Corte AAAA.xlsx": uma aba por mês (Janeiro…Dezembro) com QTDE, pessoal, freelancers, metas e causas
+const ABREV = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+function compDaAba(nomeAba, anoArq) {
+  const t = sa(nomeAba);
+  if (!t || t === "CONFERENCIA" || t === "ANALISE") return null;
+  const partes = t.split("_");
+  let mes = -1;
+  partes.forEach((p) => { if (mes < 0) { const i = MESES.indexOf(p); const j = ABREV.indexOf(p.slice(0, 3)); if (i >= 0) mes = i; else if (j >= 0 && (p.length === 3 || MESES[j].startsWith(p))) mes = j; } });
+  let ano = (t.match(/20\d{2}/) || [])[0];
+  if (mes < 0) { const m = t.match(/^(\d{1,2})_(20\d{2}|\d{2})$/); if (m && +m[1] >= 1 && +m[1] <= 12) { mes = +m[1] - 1; ano = m[2].length === 2 ? "20" + m[2] : m[2]; } }
+  if (mes < 0) return null;
+  if (!ano) { const m2 = t.match(/_(\d{2})$/); ano = m2 ? "20" + m2[1] : anoArq; }
+  return `${ano}-${String(mes + 1).padStart(2, "0")}`;
+}
+
 export function lerPlanilhaCorte(buf, nome = "", compPadrao = null) {
   const wb = XLSX.read(buf, { type: "buffer" });
-  const mesesAbas = wb.SheetNames.filter((n) => MESES.includes(sa(n)));
+  // v182.1 — aba por mês: aceita nome completo ou abreviado ("Janeiro", "JAN", "Set-26", "CORTE MARÇO 2026", "03/2026")
+  const anoArq = (String(nome).match(/20\d{2}/) || [])[0] || String(new Date().getFullYear());
+  const mesesAbas = wb.SheetNames.map((n) => ({ n, c: compDaAba(n, anoArq) })).filter((x) => x.c);
   if (mesesAbas.length) {
-    const ano = (String(nome).match(/20\d{2}/) || [])[0] || String(new Date().getFullYear());
-    return { tipo: "HISTORICO", analises: mesesAbas.map((n) => lerAbaAnalise(wb.Sheets[n], `${ano}-${String(MESES.indexOf(sa(n)) + 1).padStart(2, "0")}`, true)).filter((a) => a.total > 0) };
+    const vistos = new Set();
+    const analises = mesesAbas.map((x) => lerAbaAnalise(wb.Sheets[x.n], x.c, true))
+      .filter((a) => a.total > 0 && !vistos.has(a.competencia) && vistos.add(a.competencia));
+    if (analises.length) return { tipo: "HISTORICO", analises };
   }
   const m = String(nome).match(/(\d{4})-(\d{2})-\d{2}/);
   const competencia = m ? `${m[1]}-${m[2]}` : compPadrao;
@@ -110,7 +128,7 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
       update: data,
       create: { setor, competencia: a.competencia, mercado: ant?.mercado || MERCADO_PADRAO, meta: ant?.meta || null, pecasEstimadas: ant?.pecasEstimadas || 13000, custoMeta: ant?.custoMeta ?? null, ...data },
     });
-    out.push({ competencia: r.competencia, total: a.total, semCategoria: a.semCategoria || 0 });
+    out.push({ competencia: r.competencia, total: Object.values(a.qtds || {}).reduce((x, y) => x + (Number(y) || 0), 0), semCategoria: a.semCategoria || 0, preservado: !!(historico && atual?.detalhe) });
   }
   return out;
 }
