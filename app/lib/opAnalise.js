@@ -174,9 +174,14 @@ export async function analiseCorte(competencia) {
   const serie = [];
   for (const x of lista.filter((y) => !competencia || y.competencia.slice(0, 4) === competencia.slice(0, 4))) {
     const full = await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor: "CORTE", competencia: x.competencia } } });
-    const au = full.pessoalManual != null ? null : await custoDoSetor("CORTE", x.competencia);
-    const c = calcularCorte(full, full.pessoalManual ?? au.pessoal, full.freelancerManual ?? au.freelancer);
-    serie.push({ competencia: x.competencia, pecas: c.pecas, incorrido: c.incorrido, custoTotal: c.custoTotal, estimado: c.estimado });
+    const au = await custoDoSetor("CORTE", x.competencia);
+    const free = full.freelancerManual ?? au.freelancer;
+    const c = calcularCorte(full, full.pessoalManual ?? au.pessoal, free);
+    // v182.2 — confronto: freelancer da planilha/manual × o que o sistema identificou no mês
+    serie.push({ competencia: x.competencia, pecas: c.pecas, incorrido: c.incorrido, custoTotal: c.custoTotal, estimado: c.estimado,
+      pessoal: full.pessoalManual ?? au.pessoal, fontePessoal: full.pessoalManual != null ? "PLANILHA" : "MATRIZ",
+      freelancer: free, freeSistema: au.freelancer, fonteFree: full.freelancerManual != null ? "PLANILHA" : "SISTEMA",
+      difFree: full.freelancerManual != null ? Math.round((full.freelancerManual - au.freelancer) * 100) / 100 : 0 });
   }
   return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, categorias: CATEGORIAS_CORTE.map(([k, n]) => ({ k, n })) };
 }

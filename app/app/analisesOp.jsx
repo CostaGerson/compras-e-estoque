@@ -126,11 +126,16 @@ export default function AnaliseCorte({ user }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Custo do setor", "Incorrido/pç", "Estimado/pç", "Resultado", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", "Custo do setor", "Incorrido/pç", "Estimado/pç", "Resultado", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ok = x.incorrido <= x.estimado; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
                 <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
                 <td className="text-right tabular-nums">{int(x.pecas)}</td>
+                <td className="text-right tabular-nums" title={x.fontePessoal === "PLANILHA" ? "da planilha" : "Matriz de custos"}>{x.pessoal ? brl(x.pessoal) : "—"}{x.fontePessoal === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}</td>
+                <td className="text-right tabular-nums" title={x.fonteFree === "PLANILHA" ? `planilha ${brl(x.freelancer)} × sistema ${brl(x.freeSistema)}` : "identificados no sistema"}>
+                  {brl(x.freelancer)}{x.fonteFree === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}
+                  {Math.abs(x.difFree) >= 1 && <div className="text-[10px] font-semibold" style={{ color: C.yellow }}>sistema {brl(x.freeSistema)} ({x.difFree > 0 ? "+" : "−"}{brl(Math.abs(x.difFree))})</div>}
+                </td>
                 <td className="text-right tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
                 <td className="text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
                 <td className="text-right tabular-nums" style={{ color: C.sub }}>{x.estimado ? brl(x.estimado) : "—"}</td>
@@ -140,7 +145,7 @@ export default function AnaliseCorte({ user }) {
                 </div></td>
               </tr>); })}</tbody>
           </table>
-          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Clique no mês para abrir. Resultado = incorrido ÷ estimado − 1 (verde dentro da meta, vermelho acima).</div>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Clique no mês para abrir. ·P = valor da planilha (meses antigos); sem ·P = sistema (Matriz e freelancers identificados). Em amarelo, o freelancer que o sistema registrou quando difere da planilha — vale o da planilha. Resultado = incorrido ÷ estimado − 1.</div>
         </div>
       )}
 
@@ -170,6 +175,10 @@ export default function AnaliseCorte({ user }) {
                   <td className="text-right pl-2"><input value={f.pessoalManual} onChange={(e) => s("pessoalManual")(e.target.value)} placeholder="usar Matriz" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 <tr><td className="py-1">Freelancers do corte <span style={{ color: C.sub }}>({String(d.auto?.fonteFree || "—").toLowerCase()})</span></td><td className="text-right">{brl(d.auto?.freelancer)}</td>
                   <td className="text-right pl-2"><input value={f.freelancerManual} onChange={(e) => s("freelancerManual")(e.target.value)} placeholder="usar sistema" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
+                {f.freelancerManual !== "" && f.freelancerManual != null && Math.abs(Number(String(f.freelancerManual).replace(",", ".")) - (d.auto?.freelancer || 0)) >= 1 && (
+                  <tr><td colSpan={3} className="py-1 text-[11px] font-semibold" style={{ color: C.yellow }}>
+                    Conflito: informado {brl(Number(String(f.freelancerManual).replace(",", ".")))} × registrado no sistema {brl(d.auto?.freelancer)} — vale o informado.
+                  </td></tr>)}
                 <tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
               </tbody></table>
