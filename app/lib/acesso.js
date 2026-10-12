@@ -68,6 +68,9 @@ export const ehDiretor = (u) => !!u && !!u.diretoria && !u.isMaster;
 export const gerencial = (u) => ehMaster(u) || ehDiretor(u);         // todos os painéis gerenciais e todas as funções
 export const veFinanceiro = gerencial;
 // v184 — lançar PP: master, diretoria e o Leandro (encarregado do PCP)
+// v185 — ver PP: produção (PCP/compras/estoque e líderes de setor) sem valores; valores só para quem lança e o administrativo
+export const veValoresPP = (u) => lancaPP(u) || tipoDe(u) === "ADMINISTRATIVO";
+export const vePP = (u) => veValoresPP(u) || ["PRODUCAO", "LIDER"].includes(tipoDe(u));
 export const lancaPP = (u) => !!u && (gerencial(u) || /(^|\s)LEANDRO(\s|$)/.test(`${u.nome || ""} ${u.sobrenome || ""}`.toUpperCase()));                               // compatibilidade: valores e painéis gerenciais
 // permissão operacional: master/diretoria têm todas; os demais, as do seu tipo que estiverem ligadas
 export function tem(u, perm) {

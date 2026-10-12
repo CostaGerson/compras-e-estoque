@@ -1,14 +1,15 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioPP, negadoPP } from "@/lib/pp";
+import { usuarioPP, negadoPP, ppParaUsuario } from "@/lib/pp";
 
 export async function GET(req) {
-  if (!(await usuarioPP(req))) return negadoPP();
+  const u = await usuarioPP(req, "ve");
+  if (!u) return negadoPP();
   const pps = await prisma.pp.findMany({
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { itens: true } } },
   });
-  return Response.json(pps);
+  return Response.json(pps.map((p) => ppParaUsuario(p, u)));
 }
 
 const dec = (v) => {

@@ -1,8 +1,15 @@
-// v184 — acesso às rotas do PP (Lançar PP): master, diretoria e Leandro (PCP)
+// v184/v185 — acesso ao PP: lançar (master, diretoria, Leandro/PCP); ver (produção, sem valores); valores (quem lança e o administrativo)
 import { usuarioAtivoFin } from "@/lib/fin";
-import { lancaPP } from "@/lib/acesso";
-export async function usuarioPP(req) {
+import { lancaPP, vePP, veValoresPP } from "@/lib/acesso";
+export async function usuarioPP(req, nivel = "lanca") {
   const u = await usuarioAtivoFin(req.headers.get("x-usuario-id"));
-  return u && lancaPP(u) ? u : null;
+  if (!u) return null;
+  return (nivel === "ve" ? vePP(u) : lancaPP(u)) ? u : null;
 }
-export const negadoPP = () => Response.json({ error: "Lançar PP: só master, diretoria e o encarregado do PCP." }, { status: 403 });
+export const negadoPP = () => Response.json({ error: "PP: sem acesso para este usuário." }, { status: 403 });
+// tira os valores do pedido para quem não pode vê-los
+export function ppParaUsuario(pp, u) {
+  if (!pp || veValoresPP(u)) return pp;
+  const { valorTotal, ...resto } = pp;
+  return { ...resto, valorTotal: null, ...(Array.isArray(pp.itens) ? { itens: pp.itens.map(({ valorUnitario, valorTotal, valorTerceirizado, ...it }) => ({ ...it, valorUnitario: null, valorTotal: null, valorTerceirizado: null })) } : {}) };
+}
