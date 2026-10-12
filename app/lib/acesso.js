@@ -66,7 +66,9 @@ export const VISAO_DO_TIPO = {
 export const ehMaster = (u) => !!u && !!u.isMaster;                 // v170 — setor FINANCEIRO não é mais master
 export const ehDiretor = (u) => !!u && !!u.diretoria && !u.isMaster;
 export const gerencial = (u) => ehMaster(u) || ehDiretor(u);         // todos os painéis gerenciais e todas as funções
-export const veFinanceiro = gerencial;                               // compatibilidade: valores e painéis gerenciais
+export const veFinanceiro = gerencial;
+// v184 — lançar PP: master, diretoria e o Leandro (encarregado do PCP)
+export const lancaPP = (u) => !!u && (gerencial(u) || /(^|\s)LEANDRO(\s|$)/.test(`${u.nome || ""} ${u.sobrenome || ""}`.toUpperCase()));                               // compatibilidade: valores e painéis gerenciais
 // permissão operacional: master/diretoria têm todas; os demais, as do seu tipo que estiverem ligadas
 export function tem(u, perm) {
   if (!u) return false;

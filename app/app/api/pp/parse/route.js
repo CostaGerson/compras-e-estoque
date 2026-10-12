@@ -1,3 +1,4 @@
+import { usuarioPP, negadoPP } from "@/lib/pp";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ function parsePedido(t) {
 }
 
 export async function POST(req) {
+  if (!(await usuarioPP(req))) return negadoPP();
   const b = await req.json();
   let out = {};
   const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;

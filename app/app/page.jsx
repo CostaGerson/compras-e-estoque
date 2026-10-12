@@ -23,7 +23,7 @@ import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import AnaliseCorte, { EmConstrucaoOp } from "./analisesOp";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
-import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto } from "@/lib/acesso";
+import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP } from "@/lib/acesso";
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -89,7 +89,8 @@ const MENU = [
     { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
-  { key: "producao", label: "Produção", icon: Factory, desc: "Compras e estoque de matéria-prima", filhos: [
+  { key: "producao", label: "Produção", icon: Factory, desc: "Pedidos de produção, análises, compras e estoque", filhos: [
+    { key: "pp", label: "Lançar PP", icon: FileText, desc: "Pedido de produção com grade, foto e parâmetros de cada peça" },
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário e ordens de compra", filhos: [
       { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Pedido interno de compras consolidado do dia" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
@@ -134,6 +135,7 @@ const PODE = {
   movfiscal: (u) => temAlguma(u, "nfEntrada", "faturamento", "contasReceber"),
   demandas: (u) => gerencial(u) || T(u, "ADMINISTRATIVO"),
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
+  pp: (u) => lancaPP(u),
   pic: (u) => tem(u, "pic"),
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
@@ -283,7 +285,7 @@ export default function Home() {
           {view === "comercial" && pode("comercial") && <Comercial user={user} master={master || tipo === "COMERCIAL"} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro user={user} />}
           {view === "fabrica" && <Producao />}
-          {view === "pp" && <LancarPP />}
+          {view === "pp" && pode("pp") && <LancarPP user={user} />}
           {view === "pic" && pode("pic") && <PIC />}
           {view === "oc" && pode("oc") && <OC money={money} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
@@ -1018,13 +1020,17 @@ function Autocomplete({ value, onChange, onPick, buscar, render, placeholder, in
   );
 }
 
-function LancarPP() {
+// v184 — chamadas do PP levam o usuário (rotas só para master, diretoria e Leandro/PCP)
+let ppUid = null;
+const ppFetch = (url, o = {}) => fetch(url, { ...o, headers: { ...(o.headers || {}), "x-usuario-id": String(ppUid || "") } });
+function LancarPP({ user }) {
+  ppUid = user?.id;
   const [lista, setLista] = useState([]);
   const [modo, setModo] = useState("lista"); // lista | editor
   const [ppId, setPpId] = useState(null);
 
   const carregar = async () => {
-    try { const d = await fetch("/api/pp").then((r) => r.json()); setLista(Array.isArray(d) ? d : []); } catch {}
+    try { const d = await ppFetch("/api/pp").then((r) => r.json()); setLista(Array.isArray(d) ? d : []); } catch {}
   };
   useEffect(() => { carregar(); }, []);
 
@@ -1058,7 +1064,7 @@ function LancarPP() {
             <div className="w-32 text-right" style={{ color: C.accent, fontWeight: 600 }}>{p.valorTotal != null ? ppMoney(p.valorTotal) : "—"}</div>
             <div className="w-28 flex justify-end gap-2">
               <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
-              <button onClick={async () => { if (confirm("Excluir este PP?")) { await fetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>
+              <button onClick={async () => { if (confirm("Excluir este PP?")) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>
             </div>
           </div>
         ))}
@@ -1109,7 +1115,7 @@ function PpEditor({ ppId, onVoltar }) {
 
   useEffect(() => {
     if (!ppId) return;
-    fetch(`/api/pp/${ppId}`).then((r) => r.json()).then((d) => {
+    ppFetch(`/api/pp/${ppId}`).then((r) => r.json()).then((d) => {
       setF({
         numero: d.numero || "", clienteNome: d.clienteNome || "", clienteCnpj: d.clienteCnpj || "", clienteIe: d.clienteIe || "",
         clienteEndereco: d.clienteEndereco || "", clienteContato: d.clienteContato || "", oc: d.oc || "",
@@ -1136,7 +1142,7 @@ function PpEditor({ ppId, onVoltar }) {
     if (campo === "arquivoPedidoPdf" || campo === "arquivoLancPdf") {
       const body = campo === "arquivoPedidoPdf" ? { pedidoBase64: b64 } : { lancBase64: b64 };
       try {
-        const d = await fetch("/api/pp/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+        const d = await ppFetch("/api/pp/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
         setF((s) => {
           const n = { ...s };
           for (const k of ["numero", "clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "oc", "prazoEntrega", "dtDespacho", "tipoPedido", "vendedor"]) if (d[k]) n[k] = d[k];
@@ -1177,8 +1183,8 @@ function PpEditor({ ppId, onVoltar }) {
     const url = ppId ? `/api/pp/${ppId}` : "/api/pp";
     // sempre cria novo se não tiver id; edição simples recria via delete+create
     let novoId = ppId;
-    if (ppId) { await fetch(`/api/pp/${ppId}`, { method: "DELETE" }); }
-    const r = await fetch("/api/pp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (ppId) { await ppFetch(`/api/pp/${ppId}`, { method: "DELETE" }); }
+    const r = await ppFetch("/api/pp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d = await r.json();
     setSalvando(false);
     if (!r.ok) { alert(d.error || "Erro ao salvar."); return; }

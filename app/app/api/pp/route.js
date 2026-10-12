@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { usuarioPP, negadoPP } from "@/lib/pp";
 
-export async function GET() {
+export async function GET(req) {
+  if (!(await usuarioPP(req))) return negadoPP();
   const pps = await prisma.pp.findMany({
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { itens: true } } },
@@ -21,6 +23,7 @@ const decPonto = (v) => {
 };
 
 export async function POST(req) {
+  if (!(await usuarioPP(req))) return negadoPP();
   const b = await req.json();
   const itens = Array.isArray(b.itens) ? b.itens : [];
   try {
