@@ -1626,3 +1626,27 @@ model TarefaSessao {
   @@index([usuarioId, fim])
   @@index([tarefaId])
 }
+
+// v182 — Análises operacionais da produção (corte; depois personalização, costura, expedição): uma por setor e mês
+model OpAnalise {
+  id                Int      @id @default(autoincrement())
+  setor             String   // CORTE | PERSONALIZACAO | COSTURA | EXPEDICAO
+  competencia       String   // AAAA-MM
+  qtds              Json     @default("{}")   // { CAMISETA: 6970, ... } peças processadas por categoria
+  detalhe           Json?    // linhas importadas (pedido, cliente, produto, categoria, qtde, concluído)
+  semCategoria      Int      @default(0)      // peças sem categoria na planilha (ficam fora da análise)
+  arquivoNome       String?
+  pecasEstimadas    Float    @default(13000)
+  custoMeta         Float?   // custo estimado por peça fixo (se vazio: custo total ÷ peças estimadas)
+  mercado           Json?    // valor unitário de mercado por categoria
+  pessoalManual     Float?   // custo do pessoal informado à mão (histórico); vazio = Matriz
+  freelancerManual  Float?   // freelancer informado à mão (histórico); vazio = identificado no sistema
+  meta              String?
+  causas            String?
+  providencias      String?
+  atualizadoPorNome String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([setor, competencia])
+}
