@@ -502,7 +502,8 @@ function Lista({ titulo, sub, itens = [], set, cdb }) {
           </tr></thead>
           <tbody>{itens.map((i) => (
             <tr key={i.id} style={{ borderTop: `1px solid ${C.line}`, opacity: i.ativo === false ? 0.45 : 1 }}>
-              <td className="px-4 py-1.5" style={{ minWidth: 220 }}><TxtInput value={i.natureza} onChange={(v) => alt(i.id, "natureza", v)} placeholder="NATUREZA" /></td>
+              <td className="px-4 py-1.5" style={{ minWidth: 220 }}><TxtInput value={i.natureza} onChange={(v) => alt(i.id, "natureza", v)} placeholder="NATUREZA" />
+                {i.semRecorrencia && <div className="text-[10px] mt-0.5" style={{ color: C.sub }} title="As parcelas já estão lançadas uma a uma no contas a pagar">parcelas no contas a pagar · não gera recorrência</div>}</td>
               <td className="px-2 py-1.5" style={{ minWidth: 200 }}><TxtInput value={i.parceiro || ""} onChange={(v) => alt(i.id, "parceiro", v)} placeholder="A DEFINIR" /></td>
               <td className="px-2 py-1.5 text-right"><NumInput value={i.valor} onChange={(v) => alt(i.id, "valor", v)} width={120} /></td>
               {cdb && <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!i.cdb} onChange={(e) => alt(i.id, "cdb", e.target.checked)} /></td>}

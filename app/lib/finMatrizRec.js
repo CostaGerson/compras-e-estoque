@@ -62,6 +62,7 @@ export function propostasDaMatriz(dados) {
   for (const [area, grupo] of [["vidaVegetativa", "Vida vegetativa"], ["logistica", "Logística/Manutenção"], ["administracao", "Administração"], ["sistemas", "Sistemas"], ["dividas", "Dívidas"]]) {
     for (const it of dados[area] || []) {
       if (it.ativo === false || it.cdb) continue; // CDB entra na provisão geral
+      if (it.semRecorrencia) continue;           // v198: parcelamento com parcelas lançadas uma a uma (não gera recorrência)
       // o item pode definir dia próprio e periodicidade; num item periódico o `valor` da Matriz
       // é o peso MENSAL e `valorParcela` é o que sai do caixa de fato naquele mês
       const per = Math.max(1, Number(it.periodicidade) || 1);
