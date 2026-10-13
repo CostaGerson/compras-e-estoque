@@ -1,4 +1,4 @@
-// Backup diário: um ZIP só (meridian-backup.zip), substituído a cada dia.
+// Backup diário: meridian-backup.zip (o mais recente) + cópias dos últimos 7 dias (meridian-backup-AAAA-MM-DD.zip).
 //   dados/<Tabela>.json   → todas as tabelas do banco (sem os arquivos em base64)
 //   arquivos/<Tabela>/... → cada arquivo enviado ao sistema, já no formato original (PDF, XML, XLSX, RET…)
 //   uploads.csv           → a lista da guia Uploads (nome no sistema, nome original, data, quem enviou)
@@ -21,12 +21,21 @@ const enc = new TextEncoder();
 let rodando = null;              // promessa do backup em andamento
 let ultimoErro = null;
 
+export const MANTER = 7;   // v190: dias de cópias guardadas
+const copiaDe = (d) => path.join(DIR, `meridian-backup-${d}.zip`);
+export function listarCopias() {
+  try {
+    return fs.readdirSync(DIR).map((f) => f.match(/^meridian-backup-(\d{4}-\d{2}-\d{2})\.zip$/)).filter(Boolean)
+      .map((m) => ({ data: m[1], tamanho: fs.statSync(path.join(DIR, m[0])).size })).sort((a, b) => b.data.localeCompare(a.data));
+  } catch { return []; }
+}
+export function arquivoDoDia(d) { return /^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) ? copiaDe(d) : ARQ; }
 export function infoBackup() {
   let meta = null;
   try { meta = JSON.parse(fs.readFileSync(META, "utf8")); } catch { /* ainda não há backup */ }
   let tamanho = 0;
   try { tamanho = fs.statSync(ARQ).size; } catch { meta = null; }
-  return { existe: !!meta, ...(meta || {}), tamanho, gerando: !!rodando, erro: ultimoErro, hoje: hojeSP() };
+  return { existe: !!meta, ...(meta || {}), tamanho, gerando: !!rodando, erro: ultimoErro, hoje: hojeSP(), dir: DIR, copias: listarCopias() };
 }
 
 function zipEm(arquivo) {
@@ -110,6 +119,9 @@ export async function gerarBackup({ quem } = {}) {
       ].join("\r\n"));
       await z.terminar();
       fs.renameSync(tmp, ARQ);                     // substitui o de ontem
+      // v190: cópia datada do dia + apaga as mais antigas que MANTER dias
+      try { fs.copyFileSync(ARQ, copiaDe(hojeSP())); } catch (e) { console.error("[backup] cópia:", e.message); }
+      for (const c of listarCopias().slice(MANTER)) { try { fs.unlinkSync(copiaDe(c.data)); } catch { /* nada */ } }
       const meta = { data: hojeSP(), geradoEm: new Date().toISOString(), por: quem || "AUTOMÁTICO", tabelas: Object.keys(contagem).length,
         registros: Object.values(contagem).reduce((a, b) => a + b, 0), arquivos: nArquivos, segundos: Math.round((Date.now() - ini) / 1000) };
       fs.writeFileSync(META, JSON.stringify(meta));
@@ -118,6 +130,7 @@ export async function gerarBackup({ quem } = {}) {
     } catch (e) {
       try { fs.unlinkSync(tmp); } catch { /* nada */ }
       ultimoErro = e.message || String(e);
+      console.error("[backup] falhou:", ultimoErro);
       throw e;
     }
   })();

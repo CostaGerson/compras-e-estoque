@@ -40,7 +40,7 @@ function Backup({ user }) {
         <div className="text-sm font-bold" style={{ color: C.navy }}>Backup diário</div>
         <div className="text-xs" style={{ color: C.sub }}>
           {!b ? "Carregando…" : b.gerando ? "Gerando o backup agora… pode levar alguns minutos."
-            : b.existe ? <>Último: <b style={{ color: b.data === b.hoje ? C.green : C.yellow }}>{dtHora(b.geradoEm)}</b> · {kb(b.tamanho)} · {b.registros?.toLocaleString("pt-BR")} registros · {b.arquivos} arquivos · {b.por}. Substituído todo dia, automaticamente.</>
+            : b.existe ? <>Último: <b style={{ color: b.data === b.hoje ? C.green : C.yellow }}>{dtHora(b.geradoEm)}</b> · {kb(b.tamanho)} · {b.registros?.toLocaleString("pt-BR")} registros · {b.arquivos} arquivos · {b.por}. Gerado todo dia, automaticamente; ficam guardadas as cópias dos últimos 7 dias.</>
             : "Ainda não há backup. O primeiro é gerado alguns minutos depois de o sistema subir, ou clique em Gerar agora."}
         </div>
         {(erro || b?.erro) && <div className="text-xs mt-1" style={{ color: C.red }}>{erro || `Último erro: ${b.erro}`}</div>}
@@ -52,6 +52,13 @@ function Backup({ user }) {
         style={{ background: C.accent, opacity: b?.existe && !b.gerando ? 1 : 0.5, pointerEvents: b?.existe && !b.gerando ? "auto" : "none" }}>
         <Download size={15} /> Baixar backup
       </a>
+      {(b?.copias || []).length > 1 && (
+        <select defaultValue="" onChange={(e) => { if (e.target.value) window.location.href = `/api/backup?u=${user.id}&baixar=1&data=${e.target.value}`; e.target.value = ""; }}
+          className="rounded-lg px-2 py-2 text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} title="Baixar a cópia de um dia anterior">
+          <option value="">Dias anteriores…</option>
+          {b.copias.map((c) => <option key={c.data} value={c.data}>{c.data.split("-").reverse().join("/")} · {kb(c.tamanho)}</option>)}
+        </select>
+      )}
     </div>
   );
 }
