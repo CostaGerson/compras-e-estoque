@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
-import { detalheExecucao, salvarExecucao, salvarEvolucao, anexarExecucao } from "@/lib/finAtraso";
+import { detalheExecucao, salvarExecucao, salvarEvolucao, anexarExecucao, encerrarExecucao } from "@/lib/finAtraso";
 
 // GET ?u=            → execução com contas, evoluções e anexos
 // GET ?u=&anexo=ID   → baixa o anexo
@@ -35,6 +35,7 @@ export async function POST(req, { params }) {
   if (!u) return negado();
   try {
     if (b.acao === "evolucao") return Response.json(await salvarEvolucao(params.id, b.competencia, b.texto, nomeU(u)));
+    if (b.acao === "encerrar") { const r = await encerrarExecucao(params.id, { data: b.data, obs: b.obs }, nomeU(u)); return Response.json({ ...(await detalheExecucao(params.id)), encerrou: r }); }
     if (b.acao === "anexos") { await anexarExecucao(params.id, b.arquivos, nomeU(u)); return Response.json(await detalheExecucao(params.id)); }
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (e) { return Response.json({ error: e.message }, { status: 400 }); }

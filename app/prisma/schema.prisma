@@ -873,6 +873,7 @@ model FinTitulo {
   liquidadoPorNome String?
   recompraId       Int?
   notas            Json?                        // v189: observações livres [{ texto, por, em }] — aparecem na lista                         // conta a pagar criada quando o cliente não pagou (banco cobra da Meridian)
+  criticaVista     String?                      // v196: texto da crítica que foi vistada (sai do botão Críticas, a linha continua vermelha)
   critica          String?                      // v152: crítica a conferir (linha em vermelho até alguém marcar como conferida)
   // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
   vencimentoOriginal DateTime? @db.Date

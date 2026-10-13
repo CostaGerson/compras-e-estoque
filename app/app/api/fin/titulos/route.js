@@ -64,7 +64,8 @@ export async function GET(req) {
   const semConta = abertas.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|")
     && !(Array.isArray(t.rateio) && t.rateio.some((r) => Number(r.contaId) && Number(r.pct) > 0)));
   // contas com crítica a conferir (qualquer data) — filtro "Críticas"
-  const comCritica = await prisma.finTitulo.findMany({ where: { tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
+  const comCritica = (await prisma.finTitulo.findMany({ where: { tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }))
+    .filter((t) => t.criticaVista !== t.critica);   // v196: vistadas saem do botão (a linha continua vermelha)
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   // v178 — situação de cada recorrência no mês atual e no próximo (para achar a que "sumiu")
   const recTit = recs.length ? await prisma.finTitulo.findMany({ where: { recorrenciaId: { in: recs.map((r) => r.id) }, competencia: { gte: hoje, lte: somaMes(hoje, 1) } },

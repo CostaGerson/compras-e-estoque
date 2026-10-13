@@ -118,6 +118,13 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
         <Kpi rotulo="Recuperado em execuções" valor={moeda(d.execucoes.reduce((s, e) => s + e.valorRecuperado, 0))} cor={C.green} />
         <Kpi rotulo="Perdas reconhecidas" valor={moeda(soma(d.perdas))} sub={`no mês: ${moeda(soma(perdasMes))}`} cor={C.red} />
       </div>
+      {/* v196 — uma guia só: troca o status aqui dentro */}
+      <div className="inline-flex rounded-lg overflow-hidden mb-4" style={{ border: `1px solid ${C.line}` }}>
+        {[["ATRASADAS", `Em cobrança · ${d.atrasadas.length}`], ["EXECUCOES", `Execuções judiciais · ${execAtivas.length}`], ["PERDAS", `Perdas · ${d.perdas.length}`]].map(([k, t]) => (
+          <button key={k} onClick={() => setAba(k)} className="px-4 py-2 text-xs font-semibold"
+            style={aba === k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub }}>{t}</button>
+        ))}
+      </div>
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
 
@@ -305,6 +312,7 @@ function Execucao({ user, id, atrasadas, voltar, ok }) {
   const [txtEv, setTxtEv] = useState("");
   const [addContas, setAddContas] = useState(false);
   const [receber, setReceber] = useState(null);
+  const [encerrar, setEncerrar] = useState(null);   // v196 { data, obs }
   const [arrasto, setArrasto] = useState(false);
   const ref = useRef(null);
   const aplicar = (x) => { setE(x); setF({ titulo: x.titulo, processo: x.processo || "", cliente: x.cliente || "", vara: x.vara || "", advogado: x.advogado || "", dataAbertura: x.dataAbertura || "", observacao: x.observacao || "", status: x.status }); };
@@ -332,7 +340,27 @@ function Execucao({ user, id, atrasadas, voltar, ok }) {
         <Gavel size={22} style={{ color: C.accent }} />
         <div className="flex-1"><div className="text-lg font-bold" style={{ color: C.navy }}>{e.titulo}</div>
           <div className="text-xs" style={{ color: C.sub }}>{e.processo ? `Processo ${e.processo}` : "Sem nº de processo"} · em execução {moeda(e.valorEmExecucao)} · recuperado {moeda(e.valorRecuperado)}</div></div>
+        {e.status === "ATIVA"
+          ? <BtnP cor={C.red} onClick={() => setEncerrar({ data: hojeISO(), obs: "" })}><CheckCircle2 size={14} /> Encerrar execução</BtnP>
+          : <span className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: C.panel2, color: C.sub }}>ENCERRADA</span>}
       </div>
+      {encerrar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={() => setEncerrar(null)}>
+          <div className="rounded-2xl w-full p-5" style={{ background: C.panel, maxWidth: 480 }} onClick={(x) => x.stopPropagation()}>
+            <div className="font-bold mb-1" style={{ color: C.navy }}>Encerrar a execução · {e.titulo}</div>
+            <div className="text-xs mb-3" style={{ color: C.sub }}>As contas ainda em execução ({moeda(e.valorEmExecucao)}) são baixadas como recebidas na data abaixo, na conta-caixa de recebimento de execução judicial. Para reconhecer perda em vez de receber, use a guia Perdas antes de encerrar.</div>
+            <Campo l="Data da baixa"><input type="date" value={encerrar.data} onChange={(x) => setEncerrar((v) => ({ ...v, data: x.target.value }))} className="w-full rounded-lg px-2 py-1.5 text-sm" style={inpS} /></Campo>
+            <div className="mt-3"><Campo l="Observação do encerramento"><textarea rows={3} value={encerrar.obs} onChange={(x) => setEncerrar((v) => ({ ...v, obs: x.target.value }))} placeholder="Ex.: acordo homologado, pagamento integral…" className="w-full rounded-lg px-2 py-1.5 text-sm" style={inpS} /></Campo></div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setEncerrar(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+              <BtnP cor={C.red} disabled={!!st} onClick={() => run("enc", async () => {
+                const r = await api(`/api/fin/execucoes/${id}`, "POST", { usuarioId: user.id, acao: "encerrar", data: encerrar.data, obs: encerrar.obs });
+                aplicar(r); setEncerrar(null); ok(`Execução encerrada · ${r.encerrou?.baixadas || 0} conta(s) baixada(s) (${moeda(r.encerrou?.total || 0)}).`);
+              })}>{st === "enc" && <Loader2 size={14} className="animate-spin" />} Encerrar e baixar</BtnP>
+            </div>
+          </div>
+        </div>
+      )}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))" }}>
         {/* dados */}

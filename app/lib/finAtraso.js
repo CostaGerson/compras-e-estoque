@@ -178,6 +178,19 @@ export async function receberNaExecucao(id, { data, valor }, quem) {
   return { ok: true };
 }
 
+// v196 — encerra a execução: baixa como recebidas todas as contas ainda em execução (na data informada, conta-caixa da execução)
+export async function encerrarExecucao(id, { data, obs }, quem) {
+  const e = await prisma.finExecucao.findUnique({ where: { id: Number(id) }, include: { titulos: { where: { status: "EXECUCAO" } } } });
+  if (!e) throw new Error("Execução não encontrada.");
+  if (e.status === "ENCERRADA") throw new Error("Esta execução já está encerrada.");
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(String(data || "")) ? data : hojeISO();
+  let n = 0, total = 0;
+  for (const t of e.titulos) { await receberNaExecucao(t.id, { data: dt }, quem); n++; total = r2(total + Number(t.valor)); }
+  const nota = `ENCERRADA EM ${dBR(dUTC(dt))} POR ${quem || "—"}${obs ? `: ${String(obs).trim()}` : ""}${n ? ` · ${n} CONTA(S) BAIXADA(S), R$ ${total.toFixed(2).replace(".", ",")}` : ""}`;
+  await prisma.finExecucao.update({ where: { id: e.id }, data: { status: "ENCERRADA", observacao: [e.observacao, nota].filter(Boolean).join("\n").slice(0, 4000) } });
+  return { ok: true, baixadas: n, total };
+}
+
 // ---------------- execução: dados, evolução e anexos ----------------
 export async function salvarExecucao(id, d) {
   const data = {};

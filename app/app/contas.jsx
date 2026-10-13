@@ -275,7 +275,8 @@ export default function ContasPagarReceber({ user }) {
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   const [fSit, setFSit] = useState("TODOS");
-  const [soCompra, setSoCompra] = useState(false);   // filtro rápido: só contas vindas de NF de compra (XML)
+  const [soCompra, setSoCompra] = useState(false);
+  const [soRec, setSoRec] = useState(false);   // v196: só contas recorrentes   // filtro rápido: só contas vindas de NF de compra (XML)
   const [modal, setModal] = useState(null);
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
@@ -312,6 +313,7 @@ export default function ContasPagarReceber({ user }) {
     const n = busca.trim().toUpperCase();
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
+      if (soRec && !t.recorrenciaId) return false;
       const s = situacao(t).k;
       // v188 — receber: "em aberto" traz os antecipados que o cliente ainda não pagou (virtual); "em aberto real" só o que vai entrar no caixa
       const aberta = ["ABER", "VENC", "PREV"].includes(s);
@@ -321,11 +323,11 @@ export default function ContasPagarReceber({ user }) {
       if (!n) return true;
       return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
-  }, [d, busca, fSit, contasPorId, soCompra, P]);
+  }, [d, busca, fSit, contasPorId, soCompra, soRec, P]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase();
-    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
-  }, [d, dIni, busca, soCompra, P]);
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
+  }, [d, dIni, busca, soCompra, soRec, P]);
   // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
   const tot = useMemo(() => {
     const ls = lista.filter((t) => t.status !== "CANCELADO");
@@ -364,13 +366,16 @@ export default function ContasPagarReceber({ user }) {
     <div>
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ANTECIPACOES", "Antecipações", BadgePercent], ["ATRASADAS", "Atrasados a receber", Clock],
-          ["EXECUCOES", "Execuções judiciais", Gavel], ["PERDAS", "Perdas", Ban], ["RECORRENTES", "Recorrentes", Repeat], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => (
-          <button key={k} onClick={() => setTipo(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
-            style={{ color: tipo === k ? C.accent : C.sub, borderBottom: tipo === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ANTECIPACOES", "Antecipações", BadgePercent], ["ATRASADAS", "Atrasados, execuções e perdas", Clock],
+          ["RECORRENTES", "Recorrentes", Repeat], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => {
+          const ativo = tipo === k || (k === "ATRASADAS" && ABAS_ATRASO.includes(tipo));
+          return (
+          <button key={k} onClick={() => setTipo(k === "ATRASADAS" && ABAS_ATRASO.includes(tipo) ? tipo : k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+            style={{ color: ativo ? C.accent : C.sub, borderBottom: ativo ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <I size={15} /> {t}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
@@ -467,6 +472,12 @@ export default function ContasPagarReceber({ user }) {
               <span className="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5" style={{ background: C.redSoft, color: C.red }}>
                 {fSit === "CRITICA" ? <><AlertTriangle size={14} /> Contas com crítica a conferir · qualquer vencimento</> : "Todas as contas em aberto sem conta-caixa · qualquer vencimento"}
               </span>
+              {fSit === "CRITICA" && lista.length > 0 && (
+                <button onClick={async () => {
+                  if (!confirm(`Vistar as ${lista.length} crítica(s) listada(s)? As contas continuam em vermelho na lista, mas saem do botão Críticas.`)) return;
+                  try { const r = await api("/api/fin/titulos/lote", "POST", { usuarioId: user.id, acao: "vistarCritica", ids: lista.map((t) => t.id) }); setFSit("TODOS"); ok(`${r.feitos} crítica(s) vistada(s).`); } catch (e) { setErro(e.message); }
+                }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={13} /> Vistar críticas</button>
+              )}
               <button onClick={() => setFSit("TODOS")} className="text-xs underline" style={{ color: C.blue }}>voltar à lista do período</button>
             </div>
           ) : (
@@ -494,10 +505,15 @@ export default function ContasPagarReceber({ user }) {
               {!P && <option value="ANTEC">Antecipados aguardando o cliente</option>}<option value="CANC">Cancelados</option>
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
-            <button onClick={() => setFSit("CRITICA")} title="Contas com crítica a conferir (qualquer data)"
+            {(d?.comCritica || []).length > 0 && <button onClick={() => setFSit("CRITICA")} title="Contas com crítica a conferir (qualquer data)"
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
               style={(d?.comCritica || []).length ? { background: C.redSoft, color: C.red, border: `1px solid ${C.red}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>
               <AlertTriangle size={14} /> Críticas · {(d?.comCritica || []).length}
+            </button>}
+            <button onClick={() => setSoRec((v) => !v)} title="Só as contas recorrentes (da Matriz / recorrências) — os demais filtros continuam valendo"
+              className="flex items-center justify-center px-2.5 py-2 rounded-lg text-xs font-bold"
+              style={soRec ? { background: C.roxo, color: "#fff", border: `1px solid ${C.roxo}` } : { background: C.panel, color: C.roxo, border: `1px solid ${C.line}` }}>
+              R{soRec ? " ✓" : ""}
             </button>
             {P && (
               <button onClick={() => setSoCompra((v) => !v)} title="Só as contas a pagar que vieram de importação de NF de compra (XML)"
@@ -1520,6 +1536,10 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         <div className="mb-3 p-2.5 rounded-lg text-xs flex items-start gap-2" style={{ background: C.redSoft, color: C.red }}>
           <AlertTriangle size={14} className="shrink-0 mt-0.5" />
           <span className="flex-1"><b>Crítica:</b> {item.critica}</span>
+          {item.criticaVista !== item.critica
+            ? <button onClick={async () => { try { await api("/api/fin/titulos/lote", "POST", { usuarioId: user.id, acao: "vistarCritica", ids: [item.id] }); onSalvo("Crítica vistada — a conta continua em vermelho na lista."); } catch (e) { setErro(e.message); } }}
+                title="Sai do botão Críticas, mas a linha continua em vermelho" className="px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap" style={{ background: C.green, color: "#fff" }}>vistar</button>
+            : <span className="whitespace-nowrap font-semibold" style={{ color: C.green }}>✓ vistada</span>}
           <label className="flex items-center gap-1 whitespace-nowrap font-semibold cursor-pointer"><input type="checkbox" checked={f.critica === null} onChange={(e) => s("critica", e.target.checked ? null : item.critica)} /> conferida</label>
         </div>
       )}
