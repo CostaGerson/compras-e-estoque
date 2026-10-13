@@ -190,7 +190,7 @@ export async function panorama(hoje = new Date()) {
     return { grupo: k, label, itens, total: r2(itens.reduce((s, t) => s + (t.valor || 0), 0)) };
   }).filter((g) => g.itens.length);
   const totalTributos = r2(tribPorGrupo.reduce((s, g) => s + g.total, 0));
-  const mensalTributos = r2(tributos.reduce((s, t) => s + (t.parcelado ? Number(t.parcelaMensal || 0) : 0), 0));
+  const mensalTributos = r2(tributos.reduce((s, t) => s + (!t.parcelado ? 0 : t.fases ? Number(calcularTributo(t, hoje).parcela || 0) : Number(t.parcelaMensal || 0)), 0));
 
   // posição de crédito: nos mútuos o utilizado vem dos contratos do credor
   const porCredor = {};
@@ -272,9 +272,7 @@ export function parcelaPrice(capital, taxaPct, meses) {
 
 // ---------------- parcelamentos de tributo que sempre existem (preenchidos depois) ----------------
 export const TRIBUTOS_EM_BRANCO = [
-  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 1", valor: 0, exigivel: true, parcelado: true },
-  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 2", valor: 0, exigivel: true, parcelado: true },
-  { grupo: "RFB", descricao: "PARCELAMENTO FEDERAL 3", valor: 0, exigivel: true, parcelado: true },
+  // v199: os federais saíram (a negociação de out/2026 entrou com os números reais)
   { grupo: "ESTADUAL", descricao: "PARCELAMENTO ESTADUAL 1", valor: 0, exigivel: true, parcelado: true },
 ];
 // Cria os que faltarem (por descrição). Roda em toda abertura — não duplica e não mexe nos existentes.
@@ -291,13 +289,23 @@ export function calcularTributo(t, hoje = new Date()) {
   const parcelaInf = n(t.parcelaMensal);
   const parcelasInf = t.parcelas != null ? Number(t.parcelas) : null;
   // o que estiver faltando, o sistema sugere a partir do que existe
-  const parcelas = parcelasInf ?? (valor && parcelaInf ? Math.ceil(valor / parcelaInf) : null);
+  const somaFases = Array.isArray(t.fases) && t.fases.length ? t.fases.reduce((x, f) => x + (Number(f.n) || 0), 0) : null;
+  const parcelas = parcelasInf ?? somaFases ?? (valor && parcelaInf ? Math.ceil(valor / parcelaInf) : null);
   const parcela = parcelaInf ?? (valor && parcelasInf ? r2(valor / parcelasInf) : null);
   const inicio = dia(t.inicio);
   const pagasCalc = inicio && parcelas ? Math.max(0, Math.min(parcelas, mesesEntre(inicio, hoje) + 1)) : null;
   const pagas = t.parcelasPagas != null ? Number(t.parcelasPagas) : pagasCalc;
   const restantes = parcelas != null && pagas != null ? Math.max(0, parcelas - pagas) : null;
-  const saldo = restantes != null && parcela != null ? r2(parcela * restantes) : (valor || null);
+  let saldo = restantes != null && parcela != null ? r2(parcela * restantes) : (valor || null);
+  // v199 — parcelamento em fases (ex.: 12x de um valor e depois 133x de outro)
+  const fases = Array.isArray(t.fases) && t.fases.length ? t.fases.map((f) => ({ n: Number(f.n) || 0, valor: Number(f.valor) || 0 })) : null;
+  if (fases && parcelas != null && pagas != null) {
+    let k = 0, s = 0, atual = null;
+    for (const f of fases) for (let i = 0; i < f.n; i++) { k++; if (k > pagas) { s += f.valor; if (atual == null) atual = f.valor; } }
+    saldo = r2(s);
+    if (atual != null) return { parcelas, parcela: atual, parcelasPagas: pagas, parcelasPagasCalculadas: pagasCalc, parcelasRestantes: restantes,
+      saldo, fim: inicio && parcelas ? somaMeses(inicio, parcelas - 1) : null, sugeriuParcela: false, sugeriuParcelas: false, emBranco: false, fases };
+  }
   const fim = inicio && parcelas ? somaMeses(inicio, parcelas - 1) : null;
   return {
     parcelas, parcela, parcelasPagas: pagas, parcelasPagasCalculadas: pagasCalc, parcelasRestantes: restantes,

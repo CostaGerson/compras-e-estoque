@@ -1280,6 +1280,7 @@ model FinTributo {
   inicio        DateTime? @db.Date
   competencia   String?   // AAAA-MM de referência
   observacao    String?
+  fases         Json?     // v199: parcela que muda no meio [{ n, valor }] (ex.: transação PGFN 12x + 133x)
   updatedAt     DateTime  @updatedAt
 }
 

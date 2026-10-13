@@ -401,7 +401,8 @@ function LinhaTributo({ x, grupo, master, user, onMudou }) {
       </td>
       <td className="px-2 py-1.5 text-right tabular-nums"><Cel valor={x.valor} campo="valor" /></td>
       <td className="px-2 py-1.5 text-right tabular-nums">
-        <Cel valor={x.parcelaMensal ?? (c.sugeriuParcela ? c.parcela : null)} campo="parcelaMensal" sugerido={c.sugeriuParcela} />
+        {c.fases ? <span title={c.fases.map((f) => `${f.n}x ${brl(f.valor)}`).join(" + ")}>{brl(c.parcela)} <span className="text-[10px]" style={{ color: C.sub }}>({c.fases.length} fases)</span></span>
+          : <Cel valor={x.parcelaMensal ?? (c.sugeriuParcela ? c.parcela : null)} campo="parcelaMensal" sugerido={c.sugeriuParcela} />}
       </td>
       <td className="px-2 py-1.5 text-right tabular-nums">
         <Cel valor={x.parcelas ?? (c.sugeriuParcelas ? c.parcelas : null)} campo="parcelas" tipo="int" largura={60} sugerido={c.sugeriuParcelas} />
