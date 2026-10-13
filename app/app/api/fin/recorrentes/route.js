@@ -30,7 +30,14 @@ export async function POST(req) {
   if (!u) return negado();
   const { recorrencias } = await listar();
   const r = recorrencias.find((x) => x.id === Number(b.id));
-  if (!r) return Response.json({ error: "Recorrência não encontrada." }, { status: 404 });
+  // v194 — exclui de uma vez as recorrentes a pagar que não vêm da Matriz (previsões em aberto apagadas; pagas ficam)
+  if (b.acao === "excluirForaMatriz") {
+    const ids = recorrencias.filter((x) => x.foraMatriz && (!b.ids || b.ids.map(Number).includes(x.id))).map((x) => x.id);
+    let n = 0, prev = 0;
+    for (const id of ids) { const e = await excluir(id, { quem: quemE(u) }); if (e.ok) { n++; prev += e.previsoesApagadas || 0; } }
+    return Response.json({ ok: true, excluidas: n, previsoesApagadas: prev, ...(await listar()) });
+  }
+  if (!r && b.acao !== "excluirForaMatriz") return Response.json({ error: "Recorrência não encontrada." }, { status: 404 });
 
   if (b.acao === "usarMatriz") {
     if (r.valorMatriz == null) return Response.json({ error: "Esta conta não vem da Matriz." }, { status: 400 });

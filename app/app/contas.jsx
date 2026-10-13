@@ -1569,7 +1569,11 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         </Campo>
         <Campo t="Observação"><textarea rows={3} value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
       </div>
-      {novo ? (
+      {novo && P ? (
+        <div className="mt-4 p-2.5 rounded-lg text-[11px]" style={{ background: C.panel2, color: C.sub }}>
+          Conta que se repete todo mês? Cadastre na <b>Matriz de custos</b> — o contas a pagar recebe as previsões automaticamente.
+        </div>
+      ) : novo ? (
         <div className="mt-4 p-3 rounded-lg" style={{ background: f.recorrente ? C.roxoSoft : C.panel2 }}>
           <Chave on={!!f.recorrente} set={(v) => setF((x) => ({ ...x, recorrente: v, previsao: v ? true : x.previsao }))} t="Conta recorrente (todo mês)" cor={C.roxo} />
           {f.recorrente && (
@@ -1591,7 +1595,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
               ))}
             </div>
           )}
-          {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, use <b>Recorrências</b>.</div>}
+          {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, altere na <b>Matriz de custos</b> (ou na guia Recorrentes).</div>}
         </div>
       )}
       {ofereceRegra && (
@@ -2442,6 +2446,7 @@ function Recorrentes({ user, contasPorId }) {
   const [aviso, setAviso] = useState(null);
   const [editar, setEditar] = useState(null);
   const [soDivergentes, setSoDivergentes] = useState(false);
+  const [soFora, setSoFora] = useState(false);
   const [busca, setBusca] = useState("");
 
   const carregar = () => api(`/api/fin/recorrentes?u=${user.id}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
@@ -2484,8 +2489,17 @@ function Recorrentes({ user, contasPorId }) {
   if (!d) return <div style={{ color: C.sub }}>Carregando…</div>;
 
   const divergentes = d.recorrencias.filter((r) => r.divergente);
+  const fora = d.recorrencias.filter((r) => r.foraMatriz);
+  const excluirFora = async () => {
+    if (!confirm(`Excluir as ${fora.length} conta(s) recorrente(s) a pagar que NÃO vêm da Matriz de custos?\n\n${fora.map((r) => `• ${r.titulo} — ${moeda(r.valor)}`).join("\n")}\n\nAs previsões em aberto deste mês em diante são apagadas; contas pagas ficam no histórico.`)) return;
+    try {
+      const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, acao: "excluirForaMatriz" });
+      setD(j); setSoFora(false);
+      setAviso({ tipo: "ok", texto: `${j.excluidas} recorrente(s) fora da Matriz excluída(s) · ${j.previsoesApagadas} previsão(ões) apagada(s).` });
+    } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
+  };
   const n = busca.trim().toUpperCase();
-  const lista = d.recorrencias.filter((r) => (!soDivergentes || r.divergente) &&
+  const lista = d.recorrencias.filter((r) => (!soDivergentes || r.divergente) && (!soFora || r.foraMatriz) &&
     (!n || [r.titulo, r.parceiro, r.observacao].some((x) => String(x || "").toUpperCase().includes(n))));
   const totalMes = d.recorrencias.filter((r) => r.ativo && r.tipo === "PAGAR").reduce((s, r) => s + r.valor, 0);
 
@@ -2496,6 +2510,17 @@ function Recorrentes({ user, contasPorId }) {
           style={{ background: aviso.tipo === "ok" ? C.greenSoft : C.redSoft, color: aviso.tipo === "ok" ? C.green : C.red }}>
           <div className="flex-1">{aviso.texto}</div>
           <button onClick={() => setAviso(null)}><X size={14} /></button>
+        </div>
+      )}
+
+      {fora.length > 0 && (
+        <div className="px-4 py-3 mb-4 rounded-xl text-sm" style={{ background: C.redSoft, border: `1px solid ${C.red}55`, color: C.text }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <AlertTriangle size={18} style={{ color: C.red }} />
+            <span className="flex-1"><b>{fora.length} conta(s) recorrente(s) a pagar fora da Matriz de custos</b> ({moeda(fora.reduce((s, r) => s + r.valor, 0))}/mês) — lançadas à mão, por isso podem duplicar o que já está na Matriz. Toda recorrente deve vir da Matriz.</span>
+            <button onClick={() => setSoFora((x) => !x)} className="font-semibold" style={{ color: C.red }}>{soFora ? "ver todas" : "ver essas →"}</button>
+            <button onClick={excluirFora} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}>Excluir todas</button>
+          </div>
         </div>
       )}
 
@@ -2549,7 +2574,7 @@ function Recorrentes({ user, contasPorId }) {
                   {(r.periodicidade || 1) > 1 && <div style={{ color: C.accent }}>{rotPeriodo(r.periodicidade)}</div>}
                 </td>
                 <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>
-                <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.daMatriz ? "Matriz de custos" : "Manual"}</td>
+                <td className="px-2 py-1.5" style={{ color: r.foraMatriz ? C.red : C.sub, fontWeight: r.foraMatriz ? 700 : 400 }}>{r.daMatriz ? "Matriz de custos" : r.foraMatriz ? "FORA DA MATRIZ" : "Manual"}</td>
                 <td className="px-2 py-1.5">
                   {!r.daMatriz ? <span style={{ color: C.sub }}>—</span>
                     : r.divergente ? (

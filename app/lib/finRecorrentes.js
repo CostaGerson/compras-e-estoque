@@ -58,7 +58,7 @@ export async function listar() {
     formas: FORMAS_PAGAMENTO,
     recorrencias: recs.map((r) => {
       const valor = Number(r.valor);
-      const daMatriz = String(r.chaveOrigem || "").startsWith("MATRIZ|");
+      const daMatriz = ehEspelho(r.chaveOrigem);
       const valorMatriz = daMatriz ? porChave[r.chaveOrigem] ?? null : null;
       const divergente = valorMatriz != null && Math.abs(valorMatriz - valor) > 0.009;
       return {
@@ -69,6 +69,7 @@ export async function listar() {
         valorMatriz, divergente, diferenca: divergente ? r2(valor - valorMatriz) : null,
         podeAtualizarMatriz: divergente && origemEditavel(r.chaveOrigem),
         titulosAbertos: nAbertos[r.id] || 0,
+        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem),   // v194: recorrente lançada à mão (não vem da Matriz)
       };
     }),
   };
