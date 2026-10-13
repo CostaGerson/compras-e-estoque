@@ -313,8 +313,11 @@ export default function ContasPagarReceber({ user }) {
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
       const s = situacao(t).k;
-      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s))
-        || (fSit === "VIRTUAL" && (["ABER", "VENC", "PREV"].includes(s) || antPendente(t))) || (fSit === "PAGO" && s === "LIQ"))) return false;
+      // v188 — receber: "em aberto" traz os antecipados que o cliente ainda não pagou (virtual); "em aberto real" só o que vai entrar no caixa
+      const aberta = ["ABER", "VENC", "PREV"].includes(s);
+      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s
+        || (fSit === "ABERTOS" && (aberta || (!P && antPendente(t)))) || (fSit === "VIRTUAL" && (aberta || antPendente(t)))
+        || (fSit === "REAL" && aberta) || (fSit === "PAGO" && s === "LIQ"))) return false;
       if (!n) return true;
       return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
@@ -423,7 +426,7 @@ export default function ContasPagarReceber({ user }) {
         <div className="flex-1" />
         {d && <BotaoExcel onClick={() => {
           const ids = [...lista, ...(fSit === "VENC" ? antigos : [])].map((t) => t.id);
-          const sitTxt = { TODOS: "", ABERTOS: "EM ABERTO", VENC: "VENCIDOS", PREV: "PREVISÕES", PAGO: P ? "PAGOS" : "RECEBIDOS", CANC: "CANCELADOS", SEMCONTA: "SEM CONTA-CAIXA", CRITICA: "COM CRÍTICA", VIRTUAL: "EM ABERTO VIRTUAL", ANTEC: "ANTECIPADOS AGUARDANDO" }[fSit] ?? fSit;
+          const sitTxt = { TODOS: "", ABERTOS: "EM ABERTO", VENC: "VENCIDOS", PREV: "PREVISÕES", PAGO: P ? "PAGOS" : "RECEBIDOS", CANC: "CANCELADOS", SEMCONTA: "SEM CONTA-CAIXA", CRITICA: "COM CRÍTICA", VIRTUAL: "EM ABERTO VIRTUAL", REAL: "EM ABERTO REAL", ANTEC: "ANTECIPADOS AGUARDANDO" }[fSit] ?? fSit;
           const per = ["SEMCONTA", "CRITICA"].includes(fSit) ? "QUALQUER VENCIMENTO" : `VENCIMENTO ${dBR(dIni)} A ${dBR(dFim < dIni ? dIni : dFim)}`;
           return exportarExcel(user, ids, [`CONTAS ${P ? "A PAGAR" : "A RECEBER"}`, per, sitTxt, busca && `BUSCA "${busca}"`, soCompra && P && "SÓ ENTRADA POR COMPRA"].filter(Boolean).join(" · "),
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
@@ -443,8 +446,8 @@ export default function ContasPagarReceber({ user }) {
             {[
               ...(P ? [[`Contas a pagar no período`, tot.total, C.navy, () => setFSit("TODOS"), "clique para listar todas as contas do período"],
                 ["Em aberto no período", tot.aberto, C.blue, () => setFSit("ABERTOS"), "clique para listar as contas em aberto do período"]]
-              : [["Em aberto virtual", tot.virtual, C.navy, () => setFSit("VIRTUAL"), "a receber de fato + títulos antecipados que o cliente ainda não pagou — clique para listar"],
-                ["Em aberto real", tot.aberto, C.blue, () => setFSit("ABERTOS"), "só o que ainda vai entrar no caixa (sem os antecipados) — clique para listar"]]),
+              : [["Em aberto virtual", tot.virtual, C.navy, () => setFSit("ABERTOS"), "a receber de fato + títulos antecipados que o cliente ainda não pagou — clique para listar"],
+                ["Em aberto real", tot.aberto, C.blue, () => setFSit("REAL"), "só o que ainda vai entrar no caixa (sem os antecipados) — clique para listar"]]),
               ["Vencido no período", tot.vencido, C.red, () => setFSit("VENC"), "clique para listar os vencidos do período"],
               ["Vencido total", tot.vencidoTotal, C.red, verVencidos, `${tot.vencidoTotalQtd} conta(s) em aberto vencidas até ontem — clique para listar`],
             ].map(([t, v, c, click, dica]) => {
@@ -486,9 +489,10 @@ export default function ContasPagarReceber({ user }) {
               ))}
             </div>
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
-              <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
+              <option value="TODOS">Todas as situações</option><option value="ABERTOS">{P ? "Em aberto (inclui previsões)" : "Em aberto (inclui antecipados e previsões)"}</option>
+              {!P && <option value="REAL">Em aberto real (sem antecipados)</option>}<option value="VENC">Vencidos</option>
               <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option>
-              {!P && <><option value="VIRTUAL">Em aberto virtual (com antecipados)</option><option value="ANTEC">Antecipados aguardando o cliente</option></>}<option value="CANC">Cancelados</option>
+              {!P && <option value="ANTEC">Antecipados aguardando o cliente</option>}<option value="CANC">Cancelados</option>
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
             <button onClick={() => setFSit("CRITICA")} title="Contas com crítica a conferir (qualquer data)"
