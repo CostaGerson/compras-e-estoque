@@ -60,7 +60,10 @@ export async function listar() {
       const valor = Number(r.valor);
       const daMatriz = ehEspelho(r.chaveOrigem);
       const valorMatriz = daMatriz ? porChave[r.chaveOrigem] ?? null : null;
-      const divergente = valorMatriz != null && Math.abs(valorMatriz - valor) > 0.009;
+      // v195 — vistada: aceita como está enquanto o valor da conta e o da Matriz não mudarem
+      const vistada = !!r.vistoEm && r.vistoValor != null && Math.abs(Number(r.vistoValor) - valor) < 0.01
+        && (valorMatriz == null ? r.vistoMatriz == null : r.vistoMatriz != null && Math.abs(Number(r.vistoMatriz) - valorMatriz) < 0.01);
+      const divergente = !vistada && valorMatriz != null && Math.abs(valorMatriz - valor) > 0.009;
       return {
         id: r.id, tipo: r.tipo, titulo: r.titulo, parceiro: r.parceiro, valor,
         diaVencimento: r.diaVencimento, diaUtil: r.diaUtil, periodicidade: r.periodicidade || 1, formaPagamento: r.formaPagamento,
@@ -69,7 +72,9 @@ export async function listar() {
         valorMatriz, divergente, diferenca: divergente ? r2(valor - valorMatriz) : null,
         podeAtualizarMatriz: divergente && origemEditavel(r.chaveOrigem),
         titulosAbertos: nAbertos[r.id] || 0,
-        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem),   // v194: recorrente lançada à mão (não vem da Matriz)
+        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem) && !vistada,   // v194: recorrente lançada à mão (não vem da Matriz)
+        extraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem),
+        vistada, vistoEm: r.vistoEm, vistoPor: r.vistoPor,
       };
     }),
   };
@@ -177,6 +182,44 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
   if (atualizarMatriz && d.valor !== undefined) matriz = await levarParaMatriz(r.chaveOrigem, d.valor, quem);
 
   return { ok: true, titulos, matriz };
+}
+
+// v195 — vistar: considera a conta conferida, mantendo ou mudando o valor.
+//  · custo único da Matriz → o valor novo vai para a Matriz (e o espelho leva às contas)
+//  · guia INSS/FGTS ou conta fora da Matriz → muda a recorrência e as contas em aberto deste mês em diante (menos as pontuais)
+//  · calculada pela Matriz (folha, provisão, NORT, cartão) → só aceita como está (valor se muda na Matriz)
+export async function vistar(id, valor, { quem } = {}) {
+  let r = await prisma.finRecorrencia.findUnique({ where: { id: Number(id) } });
+  if (!r) return { ok: false, erro: "Recorrência não encontrada." };
+  const novo = valor === undefined || valor === null || valor === "" ? Number(r.valor) : r2(numBR(valor));
+  if (!(novo >= 0)) return { ok: false, erro: "Valor inválido." };
+  let titulos = 0;
+  if (Math.abs(novo - Number(r.valor)) > 0.009) {
+    const { ehGuia } = await import("@/lib/finGuias");
+    if (origemEditavel(r.chaveOrigem)) {
+      const res = await alterarItemMatriz(r.chaveOrigem, { valor: novo }, quem);
+      if (!res.ok) return res;
+    } else if (!ehEspelho(r.chaveOrigem) || ehGuia(r.chaveOrigem)) {
+      await prisma.finRecorrencia.update({ where: { id: r.id }, data: { valor: novo } });
+      const u = await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, status: "ABERTO", pontual: false, competencia: { gte: mesAtual() } }, data: { valor: novo } });
+      titulos = u.count;
+      if (ehGuia(r.chaveOrigem)) {   // a guia passa a valer este valor (a Matriz não sobrescreve)
+        const reg = JSON.stringify({ comp: mesAtual(), valor: novo, quem: quem || null, em: new Date().toISOString(), visto: true });
+        const k = `GUIA_VALOR|${r.chaveOrigem}`;
+        await prisma.finConfig.upsert({ where: { chave: k }, create: { chave: k, valor: reg }, update: { valor: reg } });
+      }
+    } else {
+      return { ok: false, erro: "Valor calculado pela Matriz (folha, provisão, NORT ou cartão): para mudar, altere a Matriz de custos. Para mudar só um mês, edite a conta no contas a pagar. Vistar sem mudar o valor aceita a conta como está." };
+    }
+    r = await prisma.finRecorrencia.findUnique({ where: { id: r.id } });
+  }
+  let valorMatriz = null;
+  if (ehEspelho(r.chaveOrigem)) {
+    const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
+    try { valorMatriz = (propostasDaMatriz(m.dados).propostas.find((p) => p.chave === r.chaveOrigem) || {}).valor ?? null; } catch { valorMatriz = null; }
+  }
+  await prisma.finRecorrencia.update({ where: { id: r.id }, data: { vistoEm: new Date(), vistoPor: quem || null, vistoValor: r.valor, vistoMatriz: valorMatriz == null ? null : r2(valorMatriz) } });
+  return { ok: true, titulo: r.titulo, valor: Number(r.valor), titulos };
 }
 
 // Exclui a recorrência e as previsões futuras que ela gerou.

@@ -1034,7 +1034,12 @@ model FinRecorrencia {
   fim           String?  // AAAA-MM (vazio = sem fim)
   ativo         Boolean  @default(true)
   observacao    String?
-  chaveOrigem   String?  @unique   // ex.: MATRIZ|vidaVegetativa|<item> — evita gerar duas vezes
+  chaveOrigem   String?  @unique
+  // v195 — "vistar conta": conferida à mão (some da crítica enquanto valor e Matriz continuarem os mesmos)
+  vistoEm       DateTime?
+  vistoPor      String?
+  vistoValor    Decimal? @db.Decimal(14, 2)
+  vistoMatriz   Decimal? @db.Decimal(14, 2)   // ex.: MATRIZ|vidaVegetativa|<item> — evita gerar duas vezes
   criadoPorNome String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

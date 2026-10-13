@@ -2447,6 +2447,7 @@ function Recorrentes({ user, contasPorId }) {
   const [editar, setEditar] = useState(null);
   const [soDivergentes, setSoDivergentes] = useState(false);
   const [soFora, setSoFora] = useState(false);
+  const [vistando, setVistando] = useState(null);   // v195
   const [busca, setBusca] = useState("");
 
   const carregar = () => api(`/api/fin/recorrentes?u=${user.id}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
@@ -2524,6 +2525,14 @@ function Recorrentes({ user, contasPorId }) {
         </div>
       )}
 
+      {vistando && <VistarModal r={vistando} onClose={() => setVistando(null)} onOk={async (valor) => {
+        try {
+          const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, id: vistando.id, acao: "vistar", valor });
+          setD(j); setVistando(null);
+          setAviso({ tipo: "ok", texto: `"${j.titulo}" vistada${Math.abs(j.valor - vistando.valor) > 0.009 ? ` com ${moeda(j.valor)}${j.titulos ? ` · ${j.titulos} conta(s) em aberto atualizada(s)` : ""}` : ` · valor mantido (${moeda(j.valor)})`}.` });
+        } catch (e) { setAviso({ tipo: "erro", texto: e.message }); setVistando(null); }
+      }} />}
+
       {divergentes.length > 0 && (
         <div className="px-4 py-3 mb-4 rounded-xl text-sm" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}55`, color: C.text }}>
           <div className="flex items-center gap-2">
@@ -2574,7 +2583,11 @@ function Recorrentes({ user, contasPorId }) {
                   {(r.periodicidade || 1) > 1 && <div style={{ color: C.accent }}>{rotPeriodo(r.periodicidade)}</div>}
                 </td>
                 <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>
-                <td className="px-2 py-1.5" style={{ color: r.foraMatriz ? C.red : C.sub, fontWeight: r.foraMatriz ? 700 : 400 }}>{r.daMatriz ? "Matriz de custos" : r.foraMatriz ? "FORA DA MATRIZ" : "Manual"}</td>
+                <td className="px-2 py-1.5" style={{ color: r.foraMatriz ? C.red : C.sub, fontWeight: r.foraMatriz ? 700 : 400 }}>
+                  {r.daMatriz ? "Matriz de custos" : r.extraMatriz ? "FORA DA MATRIZ" : "Manual"}
+                  {r.foraMatriz && <button onClick={() => setVistando(r)} className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.green, color: "#fff" }}>vistar conta</button>}
+                  {r.vistada && <div className="text-[10px] font-normal flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={10} /> vistada{r.vistoPor ? ` · ${r.vistoPor.split(" ")[0]}` : ""}{r.vistoEm ? ` ${new Date(r.vistoEm).toLocaleDateString("pt-BR")}` : ""}</div>}
+                </td>
                 <td className="px-2 py-1.5">
                   {!r.daMatriz ? <span style={{ color: C.sub }}>—</span>
                     : r.divergente ? (
@@ -2582,6 +2595,9 @@ function Recorrentes({ user, contasPorId }) {
                         <span style={{ color: C.yellow }}>{moeda(r.valorMatriz)}</span>
                         <button onClick={() => resolver(r, "usarMatriz")} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>
                           usar a Matriz
+                        </button>
+                        <button onClick={() => setVistando(r)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.green, color: "#fff" }}>
+                          vistar conta
                         </button>
                         {r.podeAtualizarMatriz && (
                           <button onClick={() => resolver(r, "levarParaMatriz")} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>
@@ -2703,6 +2719,27 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
         <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
           {salvando ? "Salvando…" : "Salvar"}
         </button>
+      </div>
+    </Modal>
+  );
+}
+/* v195 — vistar conta: conferida, mantendo ou mudando o valor */
+function VistarModal({ r, onClose, onOk }) {
+  const [v, setV] = useState(r.valor);
+  const [s, setS] = useState(false);
+  return (
+    <Modal titulo={`Vistar conta · ${r.titulo}`} icone={CheckCircle2} onClose={onClose} largura={460}
+      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP disabled={s} onClick={async () => { setS(true); await onOk(lerNum(v)); }}>{s && <Loader2 size={14} className="animate-spin" />} Vistar</BtnP></>}>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>
+        {r.parceiro} · {r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}
+        {r.valorMatriz != null && <> · Matriz: <b>{moeda(r.valorMatriz)}</b></>}
+        {r.extraMatriz && <> · <b style={{ color: C.red }}>fora da Matriz</b></>}
+      </div>
+      <Campo t="Valor da conta" dica="mantenha para aceitar como está"><Valor value={v} onChange={setV} width="100%" autoFocus /></Campo>
+      <div className="text-[11px] mt-3" style={{ color: C.sub }}>
+        A conta passa a ser considerada conferida e sai da crítica. Se mudar o valor, as contas em aberto deste mês em diante acompanham
+        {r.podeAtualizarMatriz || origemSimples(r.chaveOrigem) ? " (o valor vai também para a Matriz de custos)" : ""}. Se a Matriz ou o valor mudarem depois, a crítica volta.
       </div>
     </Modal>
   );

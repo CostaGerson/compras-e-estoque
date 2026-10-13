@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { listar, atualizar, levarParaMatriz, excluir } from "@/lib/finRecorrentes";
+import { listar, atualizar, levarParaMatriz, excluir, vistar } from "@/lib/finRecorrentes";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -39,9 +39,15 @@ export async function POST(req) {
   }
   if (!r && b.acao !== "excluirForaMatriz") return Response.json({ error: "Recorrência não encontrada." }, { status: 404 });
 
+  if (b.acao === "vistar") {   // v195
+    const v = await vistar(r.id, b.valor, { quem: quemE(u) });
+    if (!v.ok) return Response.json({ error: v.erro }, { status: 400 });
+    return Response.json({ ...v, ...(await listar()) });
+  }
   if (b.acao === "usarMatriz") {
     if (r.valorMatriz == null) return Response.json({ error: "Esta conta não vem da Matriz." }, { status: 400 });
-    const out = await atualizar(r.id, { valor: r.valorMatriz }, { quem: quemE(u) });
+    const out = await vistar(r.id, r.valorMatriz, { quem: quemE(u) });   // v195: valor da Matriz + conferida
+    if (!out.ok) return Response.json({ error: out.erro }, { status: 400 });
     return Response.json({ ok: true, aplicado: "MATRIZ→CONTA", ...out, ...(await listar()) });
   }
   if (b.acao === "levarParaMatriz") {
