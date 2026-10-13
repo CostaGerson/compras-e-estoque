@@ -234,14 +234,14 @@ function TabelaTitulos({ itens, sel, marcar, acoes }) {
             <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, background: sel?.has(t.id) ? C.accentSoft : t.critica || s.k === "COBRADO" ? C.redSoft : undefined, boxShadow: t.critica || s.k === "COBRADO" ? `inset 3px 0 0 ${C.red}` : undefined }}>
               {sel && <td className="pl-3 py-2">{antPendente(t) && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
               <td className="px-3 py-2 whitespace-nowrap font-semibold">{dBR(t.vencimento)}</td>
-              <td className="px-3 py-2" style={{ maxWidth: 280 }}>
-                <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
-                {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
-                {t.critica && <div className="mt-0.5 font-semibold flex items-start gap-1" style={{ color: C.red }}><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {t.critica}</div>}
-                <Notas t={t} />
-                {t.recompra && <div className="mt-0.5" style={{ color: t.recompra.status === "PAGO" ? C.roxo : C.red }}>Conta a pagar da cobrança: {moeda(t.recompra.valor)} · venc. {dBR(t.recompra.vencimento)} · {t.recompra.status === "PAGO" ? `paga ${dBR(t.recompra.dataPagamento)}` : t.recompra.status === "CANCELADO" ? "cancelada" : "em aberto"}</div>}
+              <td className="px-3 py-2" style={{ maxWidth: 280 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.recompra && `Conta a pagar: ${moeda(t.recompra.valor)} venc. ${dBR(t.recompra.vencimento)} (${t.recompra.status})`, t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
+                <div className="font-semibold truncate" style={{ color: C.navy, maxWidth: 270 }}>{t.titulo}</div>
+                {t.critica ? <div className="font-semibold flex items-center gap-1 truncate" style={{ color: C.red, maxWidth: 270 }}><AlertTriangle size={11} className="shrink-0" /><span className="truncate">{t.critica}</span></div>
+                  : (t.notas || []).length ? <div className="truncate" style={{ color: C.yellow, maxWidth: 270 }}><b className="text-[9px]">OBS</b> {t.notas[t.notas.length - 1].texto}{t.notas.length > 1 ? ` (+${t.notas.length - 1})` : ""}</div>
+                  : t.recompra ? <div className="truncate" style={{ color: t.recompra.status === "PAGO" ? C.roxo : C.red, maxWidth: 270 }}>Conta a pagar: {moeda(t.recompra.valor)} · venc. {dBR(t.recompra.vencimento)}</div>
+                  : (t.numeroDoc || t.observacao) ? <div className="truncate" style={{ color: C.sub, maxWidth: 270 }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div> : null}
               </td>
-              <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}</td>
+              <td className="px-3 py-2" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div></td>
               <td className="px-3 py-2 text-right font-bold whitespace-nowrap">{brl(t.valor)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{t.formaPagamento === "DESCONTO" ? "Boleto" : t.formaPagamento || "—"}</td>
               <td className="px-3 py-2 whitespace-nowrap">

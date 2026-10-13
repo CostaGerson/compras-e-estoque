@@ -626,29 +626,31 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                 <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
                   <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} /></td>
-                  <td className="px-3 py-2" style={{ maxWidth: 260 }}>
-                    <button onClick={() => onEditar(t)} className="text-left">
-                      <div className="font-semibold flex items-center gap-1" style={{ color: C.navy }}>
-                        <MarcaA t={t} user={user} />{t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}<span style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
+                  <td className="px-3 py-2" style={{ maxWidth: 280 }}>
+                    <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
+                      <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
+                        <MarcaA t={t} user={user} />{t.recorrenciaId && <Repeat size={12} className="shrink-0" style={{ color: C.roxo }} title="Recorrente" />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                       </div>
-                      {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
-                      {t.critica && <div className="mt-0.5 font-semibold flex items-start gap-1" style={{ color: C.red }}><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {t.critica}</div>}
+                      {/* v191 — uma linha só: crítica > OBS > documento/observação (o resto aparece ao abrir a conta) */}
+                      {t.critica ? <div className="font-semibold flex items-center gap-1 truncate" style={{ color: C.red }}><AlertTriangle size={11} className="shrink-0" /><span className="truncate">{t.critica}</span></div>
+                        : (t.notas || []).length ? <div className="truncate" style={{ color: C.yellow }}><b className="text-[9px]">OBS</b> {t.notas[t.notas.length - 1].texto}{t.notas.length > 1 ? ` (+${t.notas.length - 1})` : ""}</div>
+                        : (t.numeroDoc || t.observacao) ? <div className="truncate" style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div> : null}
                     </button>
-                    <Notas t={t} />
                   </td>
-                  <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}{t.documento && <div style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
+                  <td className="px-3 py-2" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div>{t.documento && <div className="truncate" style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 220 }}>
                     {t.status === "ABERTO" && semRateio(t) && <button onClick={() => onEditar(t)} className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }} title="Rateio obrigatório — clique para informar a conta-caixa">SEM CONTA-CAIXA</button>}
-                    {(t.rateio || []).map((r, i) => {
+                    {(t.rateio || []).slice(0, 1).map((r, i) => {
                       const c = contasPorId[r.contaId];
-                      return <div key={i} className="truncate">{c ? `${c.codigo} ${c.nome}` : "?"}{t.rateio.length > 1 && <span style={{ color: C.sub }}> · {brl(r.pct)}%</span>}</div>;
+                      return <div key={i} className="truncate" style={{ maxWidth: 210 }} title={(t.rateio || []).map((x) => { const k = contasPorId[x.contaId]; return `${k ? `${k.codigo} ${k.nome}` : "?"} · ${brl(x.pct)}%`; }).join("\n")}>{c ? `${c.codigo} ${c.nome}` : "?"}{t.rateio.length > 1 && <span style={{ color: C.sub }}> · {brl(r.pct)}%</span>}</div>;
                     })}
+                    {(t.rateio || []).length > 1 && <div className="text-[10px]" style={{ color: C.sub }}>+{t.rateio.length - 1} conta(s) no rateio</div>}
                   </td>
                   <td className="px-3 py-2 text-right font-bold whitespace-nowrap">
                     {brl(t.valor)}
-                    {t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
-                    {conferir && <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>}
+                    {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
+                      : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
                   <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
@@ -1495,6 +1497,26 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   return (
     <Modal titulo={novo ? `Nova conta ${P ? "a pagar" : "a receber"}` : "Editar conta"} icone={P ? TrendingDown : TrendingUp} onClose={onClose} largura={680}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP></>}>
+      {/* v191 — o que não cabe na linha da lista aparece aqui */}
+      {!novo && (
+        <div className="mb-3 p-2.5 rounded-lg text-xs grid gap-x-4 gap-y-1" style={{ background: C.panel2, color: C.text, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+          <div><span style={{ color: C.sub }}>Situação:</span> <b>{situacao(item).t}</b></div>
+          {item.status === "PAGO" && <div><span style={{ color: C.sub }}>{P ? "Pago" : "Recebido"}:</span> <b>{moeda(item.valorPago ?? item.valor)}</b> em {dBR(item.dataPagamento)}</div>}
+          {item.formaPagamento && <div><span style={{ color: C.sub }}>Forma:</span> {FORMAS_PGTO[item.formaPagamento] || item.formaPagamento}</div>}
+          {item.nossoNumero && <div><span style={{ color: C.sub }}>Nosso nº:</span> {item.nossoNumero}</div>}
+          {item.cobranca && <div><span style={{ color: C.sub }}>Cobrança:</span> {item.cobranca}</div>}
+          {ehAntecipado(item) && <div><span style={{ color: C.sub }}>Antecipado:</span> {dBR(item.antecipadoEm || item.dataPagamento)}{item.liquidadoEm ? ` · liquidado ${dBR(item.liquidadoEm)}` : " · aguarda o cliente"}</div>}
+          {item.vencimentoOriginal && <div><span style={{ color: C.sub }}>Venc. original:</span> {dBR(item.vencimentoOriginal)}</div>}
+          {(item.rateio || []).length > 1 && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: C.sub }}>Rateio:</span> {item.rateio.map((r) => { const c = (d?.contas || []).find((x) => x.id === r.contaId); return `${c ? `${c.codigo} ${c.nome}` : "?"} (${brl(r.pct)}%)`; }).join(" · ")}</div>}
+          <div><span style={{ color: C.sub }}>Lançada por:</span> {item.criadoPorNome || "—"} · {item.createdAt ? new Date(item.createdAt).toLocaleDateString("pt-BR") : ""}</div>
+          {item.atualizadoPorNome && <div><span style={{ color: C.sub }}>Alterada por:</span> {item.atualizadoPorNome}</div>}
+          {(item.notas || []).length > 0 && (
+            <div style={{ gridColumn: "1 / -1" }} className="mt-1">
+              {item.notas.map((x, i) => <div key={i} className="px-2 py-1 mb-0.5 rounded" style={{ background: C.yellowSoft }}><b className="text-[9px]" style={{ color: C.yellow }}>OBS</b> {x.texto} <span style={{ color: C.sub }}>· {x.por || "—"} {x.em ? new Date(x.em).toLocaleString("pt-BR") : ""}</span></div>)}
+            </div>
+          )}
+        </div>
+      )}
       {!novo && item.critica && (
         <div className="mb-3 p-2.5 rounded-lg text-xs flex items-start gap-2" style={{ background: C.redSoft, color: C.red }}>
           <AlertTriangle size={14} className="shrink-0 mt-0.5" />
@@ -1546,7 +1568,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
             {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Campo>
-        <Campo t="Observação"><input value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
+        <Campo t="Observação"><textarea rows={3} value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
       </div>
       {novo ? (
         <div className="mt-4 p-3 rounded-lg" style={{ background: f.recorrente ? C.roxoSoft : C.panel2 }}>
