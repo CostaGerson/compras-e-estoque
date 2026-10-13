@@ -7,7 +7,7 @@
 //  - cliente pagou depois e a conta a pagar ainda está em aberto → a conta a pagar é cancelada.
 import { prisma } from "@/lib/prisma";
 import { garantirContas } from "@/lib/fin";
-import { somaDiasUteis, dataUTC, mesDe, r2, tituloOut, COM_ANEXOS } from "@/lib/finTitulos";
+import { somaDiasUteis, subtraiDiasUteis, dataUTC, mesDe, r2, tituloOut, COM_ANEXOS } from "@/lib/finTitulos";
 
 export const FORMAS_ANT = { BRADESCO: "Bradesco", AZUL_CAPITAL: "Factoring Azul Capital", PORTAL_PROPRIO: "Portal próprio" };
 const PARCEIRO = { BRADESCO: ["BANCO BRADESCO S.A.", "60746948000112"], AZUL_CAPITAL: ["AZUL CAPITAL", null], PORTAL_PROPRIO: ["PORTAL PRÓPRIO DE ANTECIPAÇÃO", null] };
@@ -94,6 +94,44 @@ export async function sincronizarAntecipados(quem) {
   await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
   await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
   await cobrarVencidos(quem).catch((e) => console.log("antecipados/cobrar:", e.message));
+}
+
+// v189 — "seta vermelha": título antecipado que não deveria ter ido ao banco (ex.: cancelado e enviado por engano).
+// Cria a conta a PAGAR de recompra vencendo 2 dias úteis antes do vencimento original, com os dados do título.
+// Pagar essa conta liquida o título (RECOMPRA), como na cobrança automática.
+export async function recomprar(id, motivo, quem) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser recomprado.");
+  if (t.liquidadoEm) throw new Error("O título já está liquidado.");
+  if (t.recompraId) {
+    const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId }, select: { status: true } });
+    if (c && c.status !== "CANCELADO") throw new Error("Este título já tem conta a pagar de recompra/cobrança.");
+  }
+  await garantirContas();
+  const conta = await prisma.finConta.findUnique({ where: { codigo: "2131300" }, select: { id: true } });
+  const forma = t.antecipadoForma || "BRADESCO";
+  const [parc, doc] = PARCEIRO[forma] || PARCEIRO.BRADESCO;
+  const hoje = hojeUTC();
+  let venc = subtraiDiasUteis(t.vencimento, 2);
+  if (venc < hoje) venc = hoje;
+  const ctr = t.antecipacaoId ? await prisma.finAntecipacao.findUnique({ where: { id: t.antecipacaoId }, select: { contrato: true } }) : null;
+  const mot = String(motivo || "").trim().toUpperCase();
+  const chave = `RECOMPRA|${t.id}`;
+  const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
+  if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANC|${velha.id}` } });   // libera a chave da cobrança cancelada
+  const p = await prisma.finTitulo.create({ data: {
+    tipo: "PAGAR", titulo: `RECOMPRA DE TÍTULO ANTECIPADO · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
+    numeroDoc: t.numeroDoc, nossoNumero: t.nossoNumero, valor: t.valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
+    rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: t.formaPagamento && t.formaPagamento !== "DESCONTO" ? t.formaPagamento : "BOLETO",
+    chaveImport: chave, valorConfirmado: true, criadoPorNome: quem || null,
+    observacao: [`TÍTULO A RECEBER #${t.id} · ${t.titulo} · CLIENTE ${t.parceiro}${t.documento ? ` (${t.documento})` : ""} · NF/DOC ${t.numeroDoc || "—"}${t.nossoNumero ? ` · NOSSO Nº ${t.nossoNumero}` : ""}`,
+      `VENC. ORIGINAL ${dBR(t.vencimento)} · ANTECIPADO EM ${dBR(t.antecipadoEm || t.dataPagamento || t.vencimento)} (${FORMAS_ANT[forma]}${ctr ? ` · CONTRATO ${ctr.contrato}` : ""})`,
+      mot ? `MOTIVO: ${mot}` : null].filter(Boolean).join(" · ").slice(0, 1000),
+    critica: `Recompra do título antecipado ${t.titulo} (${t.parceiro}) — pagar até ${dBR(venc)}, 2 dias úteis antes do vencimento original (${dBR(t.vencimento)}), para não gerar problema com ${FORMAS_ANT[forma]}.`,
+  } });
+  await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id, atualizadoPorNome: quem || null,
+    critica: [t.critica, `Recompra solicitada${mot ? ` (${mot})` : ""} — conta a pagar até ${dBR(venc)}.`].filter(Boolean).join(" · ").slice(0, 500) } });
+  return { id: p.id, vencimento: venc.toISOString().slice(0, 10), valor: Number(t.valor) };
 }
 
 // marca o título como liquidado (cliente pagou quem antecipou)

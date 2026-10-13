@@ -4,7 +4,7 @@ import { PrestadorModal } from "./prestadores";
 import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
-import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel } from "./antecipacoes";
+import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel, BotaoRecompra, BotaoObs, Notas } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
@@ -523,14 +523,14 @@ export default function ContasPagarReceber({ user }) {
             </div>
           )}
 
-          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P} user={user}
+          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
             sel={sel} marcar={marcar}
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
           {/* só no filtro Vencidos, depois dos vencidos do período; sem repetir o que já está na lista acima */}
           {fSit === "VENC" && antigos.length > 0 && (
-            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P} user={user}
+            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
               sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
@@ -583,7 +583,7 @@ const chaveOrdem = (t, col, contasPorId) => {
     default: return "";
   }
 };
-function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
+function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
   const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
   const itens = useMemo(() => {
     if (!ordem) return itens0;
@@ -635,6 +635,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onEditar, on
                       {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
                       {t.critica && <div className="mt-0.5 font-semibold flex items-start gap-1" style={{ color: C.red }}><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {t.critica}</div>}
                     </button>
+                    <Notas t={t} />
                   </td>
                   <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}{t.documento && <div style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 220 }}>
@@ -665,6 +666,8 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onEditar, on
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
+                    <BotaoObs t={t} user={user} onFeito={onMudou} />
+                    {!P && <BotaoRecompra t={t} user={user} onFeito={onMudou} />}
                     {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
                     {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={() => { if (ehAntecipado(t) && !t.liquidadoEm && !confirm(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`)) return; onAcao(t, "estornar"); }}
                       title={ehAntecipado(t) ? (t.liquidadoEm ? "Desfazer a baixa do cliente" : "Desfazer a antecipação") : "Estornar baixa"} className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}

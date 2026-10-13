@@ -66,7 +66,7 @@ export async function gerarXlsxTitulos(ids, { titulo = "" } = {}) {
     "RECORRÊNCIA", "RECORRÊNCIA · PERIODICIDADE", "RECORRÊNCIA · VENCIMENTO", "VALOR DO MÊS CONFERIDO",
     "ORIGEM", "CHAVE DE IMPORTAÇÃO", "NF DE COMPRA (Nº)", "NF DE COMPRA (CHAVE)", "TEM XML",
     "EXECUÇÃO JUDICIAL", "PERDA · JUSTIFICATIVA", "PERDA · DATA",
-    "REPROGRAMAÇÕES", "CRÍTICA", "OBSERVAÇÃO", "ANEXOS (QTD)", "ANEXOS (ARQUIVOS)",
+    "REPROGRAMAÇÕES", "CRÍTICA", "OBS (NOTAS)", "OBSERVAÇÃO", "ANEXOS (QTD)", "ANEXOS (ARQUIVOS)",
     "ITENS DA SEMANA (QTD)", "ITENS DA SEMANA PAGOS", "ITENS DA SEMANA (RESUMO)",
     "CRIADO POR", "CRIADO EM", "ALTERADO POR", "ATUALIZADO EM",
   ];
@@ -87,7 +87,7 @@ export async function gerarXlsxTitulos(ids, { titulo = "" } = {}) {
       t.recorrencia ? (t.recorrencia.diaUtil ? `${t.recorrencia.diaVencimento}º DIA ÚTIL` : `DIA ${t.recorrencia.diaVencimento}`) : "", t.recorrenciaId ? (t.valorConfirmado ? "SIM" : "NÃO") : "",
       ORIGEM[t.forma] || t.forma || "", t.chaveImport || "", t.nf?.numero || "", t.nf?.chave || "", t.arquivoXml ? "SIM" : "NÃO",
       t.execucao ? [t.execucao.titulo, t.execucao.processo].filter(Boolean).join(" · ") : "", t.perdaJustificativa || "", dt(t.perdaData),
-      repro, t.critica || "", t.observacao || "", (t.anexos || []).length, (t.anexos || []).map((a) => a.nome).join(" | "),
+      repro, t.critica || "", (Array.isArray(t.notas) ? t.notas : []).map((x) => `${x.texto} (${x.por || "—"} ${iso(x.em)?.split("-").reverse().join("/") || ""})`).join(" | "), t.observacao || "", (t.anexos || []).length, (t.anexos || []).map((a) => a.nome).join(" | "),
       its.length || null, its.length ? its.filter((i) => i.pago).length : null,
       its.map((i) => `${i.nome} · ${i.setor} · ${Number(i.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}${i.pago ? " · PAGO" : ""}`).join(" | "),
       t.criadoPorNome || "", dth(t.createdAt), t.atualizadoPorNome || "", dth(t.updatedAt),
@@ -148,7 +148,7 @@ export async function gerarXlsxTitulos(ids, { titulo = "" } = {}) {
 
 // larguras + formato de data e de valor pelas palavras do cabeçalho
 function formatar(ws, cab, nLin) {
-  ws["!cols"] = cab.map((h) => ({ wch: /TÍTULO|OBSERVAÇÃO|CRÍTICA|RESUMO|ARQUIVOS|HISTÓRICO|RATEIO|REPROGRAMA|CONTA-CAIXA|PRESTADOR|CONTA DA SEMANA/.test(h) ? 42 : /FORNECEDOR|CHAVE/.test(h) ? 32 : Math.max(10, Math.min(24, h.length + 2)) }));
+  ws["!cols"] = cab.map((h) => ({ wch: /TÍTULO|OBSERVAÇÃO|OBS \(NOTAS\)|CRÍTICA|RESUMO|ARQUIVOS|HISTÓRICO|RATEIO|REPROGRAMA|CONTA-CAIXA|PRESTADOR|CONTA DA SEMANA/.test(h) ? 42 : /FORNECEDOR|CHAVE/.test(h) ? 32 : Math.max(10, Math.min(24, h.length + 2)) }));
   cab.forEach((h, c) => {
     const ehValor = /\(R\$\)|DIÁRIA|TRANSPORTE|CUSTO EXTRA|LÍQUIDO|^%$/.test(h);
     const ehHora = /CRIADO EM|ATUALIZADO EM/.test(h);

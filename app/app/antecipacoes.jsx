@@ -2,7 +2,7 @@
 // v186 — Contas a receber › Antecipações: títulos antecipados (por título ou por contrato), % antecipado,
 // liquidação (cliente pagou quem antecipou) e contrato de origem (o "A" amarelo).
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Loader2, Search, CheckCircle2, Undo2, AlertTriangle, FileText, Plus, ChevronDown, ChevronRight, Download, Percent, FileSpreadsheet } from "lucide-react";
+import { X, Loader2, Search, CheckCircle2, Undo2, AlertTriangle, FileText, Plus, ChevronDown, ChevronRight, Download, Percent, FileSpreadsheet, ArrowLeftCircle, Plus as Mais, Trash2 } from "lucide-react";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -59,6 +59,91 @@ export function sitAntecipado(t) {
 }
 export const ehAntecipado = (t) => t && (t.antecipadoForma || t.cobranca === "DESCONTADO");
 export const antPendente = (t) => ehAntecipado(t) && t.status === "PAGO" && !t.liquidadoEm;
+
+/* v189 — seta vermelha: recomprar o título antecipado (conta a pagar 2 dias úteis antes do vencimento) */
+export function BotaoRecompra({ t, user, onFeito }) {
+  const [aberto, setAberto] = useState(false);
+  if (!antPendente(t) || t.recompraId) return null;
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setAberto(true); }} title="Recomprar: criar conta a pagar 2 dias úteis antes do vencimento (título que não deveria ter sido antecipado)"
+        className="mr-2" style={{ color: C.red }}><ArrowLeftCircle size={15} /></button>
+      {aberto && <RecompraModal t={t} user={user} onClose={() => setAberto(false)} onOk={(m) => { setAberto(false); onFeito && onFeito(m); }} />}
+    </>
+  );
+}
+function RecompraModal({ t, user, onClose, onOk }) {
+  const [motivo, setMotivo] = useState("TÍTULO CANCELADO ENVIADO AO BANCO POR ERRO");
+  const [erro, setErro] = useState("");
+  const [s, setS] = useState(false);
+  const ir = async () => {
+    setS(true); setErro("");
+    try { const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "recomprar", id: t.id, motivo }); onOk(`Conta a pagar de recompra criada: ${moeda(r.valor)} vencendo ${dBR(r.vencimento)}.`); }
+    catch (e) { setErro(e.message); setS(false); }
+  };
+  return (
+    <Modal titulo="Recomprar título antecipado" onClose={onClose} largura={520}
+      rodape={<><button onClick={onClose} className="px-3 py-2 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Cancelar</button>
+        <button onClick={ir} disabled={s} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.red, color: "#fff" }}>{s && <Loader2 size={14} className="animate-spin" />} Criar conta a pagar</button></>}>
+      <div className="text-sm font-semibold" style={{ color: C.navy }}>{t.titulo} · {t.parceiro}</div>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>{moeda(t.valor)} · vence {dBR(t.vencimento)} · {FORMAS_ANT[t.antecipadoForma] || "Bradesco"}</div>
+      <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: C.redSoft, color: C.red }}>Cria uma conta a pagar com os dados deste título, vencendo 2 dias úteis antes do vencimento original. Ao pagá-la, este título fica baixado (recomprado).</div>
+      <label className="text-xs" style={{ color: C.sub }}>Motivo
+        <input value={motivo} onChange={(e) => setMotivo(e.target.value.toUpperCase())} className="block w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
+      {erro && <div className="mt-2 text-xs" style={{ color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
+/* v189 — OBS: observações do lançamento, visíveis na lista */
+export function Notas({ t }) {
+  const l = Array.isArray(t?.notas) ? t.notas : [];
+  if (!l.length) return null;
+  return <div className="mt-0.5">{l.map((x, i) => (
+    <div key={i} className="flex items-start gap-1 px-1.5 py-0.5 mb-0.5 rounded" style={{ background: C.yellowSoft, color: C.text }}>
+      <span className="font-bold text-[9px] mt-px" style={{ color: C.yellow }}>OBS</span>
+      <span>{x.texto} <span style={{ color: C.sub }}>· {(x.por || "").split(" ")[0]} {x.em ? new Date(x.em).toLocaleDateString("pt-BR") : ""}</span></span>
+    </div>
+  ))}</div>;
+}
+export function BotaoObs({ t, user, onFeito }) {
+  const [aberto, setAberto] = useState(false);
+  const n = Array.isArray(t.notas) ? t.notas.length : 0;
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setAberto(true); }} title="OBS — observações deste lançamento" className="mr-2 inline-flex items-center" style={{ color: n ? C.yellow : C.sub }}>
+        <Mais size={15} />{n > 0 && <span className="text-[9px] font-bold">{n}</span>}
+      </button>
+      {aberto && <ObsModal t={t} user={user} onClose={() => setAberto(false)} onFeito={() => { setAberto(false); onFeito && onFeito(); }} />}
+    </>
+  );
+}
+function ObsModal({ t, user, onClose, onFeito }) {
+  const [texto, setTexto] = useState("");
+  const [notas, setNotas] = useState(Array.isArray(t.notas) ? t.notas : []);
+  const [erro, setErro] = useState("");
+  const [s, setS] = useState(false);
+  const enviar = async (acao, extra) => {
+    setS(true); setErro("");
+    try { const r = await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao, ...extra }); setNotas(r.notas || []); setTexto(""); return true; }
+    catch (e) { setErro(e.message); return false; } finally { setS(false); }
+  };
+  return (
+    <Modal titulo={`OBS · ${t.titulo}`} onClose={onFeito} largura={520}
+      rodape={<><button onClick={onFeito} className="px-3 py-2 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Fechar</button>
+        <button disabled={s || !texto.trim()} onClick={async () => { if (await enviar("nota", { texto })) onFeito(); }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: C.accent, color: "#fff" }}>{s && <Loader2 size={14} className="animate-spin" />} Salvar OBS</button></>}>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{t.parceiro} · {moeda(t.valor)} · vence {dBR(t.vencimento)}</div>
+      {notas.map((x, i) => (
+        <div key={i} className="flex items-start gap-2 px-2 py-1.5 mb-1 rounded-lg text-xs" style={{ background: C.yellowSoft }}>
+          <div className="flex-1">{x.texto}<div style={{ color: C.sub }}>{x.por || "—"} · {x.em ? new Date(x.em).toLocaleString("pt-BR") : ""}</div></div>
+          <button onClick={() => confirm("Apagar esta OBS?") && enviar("nota-excluir", { indice: i })} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>
+        </div>
+      ))}
+      <textarea autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} placeholder="Escreva a observação…" className="w-full mt-2 rounded-lg px-3 py-2 text-sm outline-none" style={inpS} />
+      {erro && <div className="mt-2 text-xs" style={{ color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
 
 /* "A" amarelo — título antecipado; clicar abre o contrato */
 export function MarcaA({ t, user }) {
@@ -153,6 +238,7 @@ function TabelaTitulos({ itens, sel, marcar, acoes }) {
                 <div className="font-semibold" style={{ color: C.navy }}>{t.titulo}</div>
                 {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
                 {t.critica && <div className="mt-0.5 font-semibold flex items-start gap-1" style={{ color: C.red }}><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {t.critica}</div>}
+                <Notas t={t} />
                 {t.recompra && <div className="mt-0.5" style={{ color: t.recompra.status === "PAGO" ? C.roxo : C.red }}>Conta a pagar da cobrança: {moeda(t.recompra.valor)} · venc. {dBR(t.recompra.vencimento)} · {t.recompra.status === "PAGO" ? `paga ${dBR(t.recompra.dataPagamento)}` : t.recompra.status === "CANCELADO" ? "cancelada" : "em aberto"}</div>}
               </td>
               <td className="px-3 py-2" style={{ maxWidth: 200 }}>{t.parceiro}</td>
@@ -317,6 +403,8 @@ export default function Antecipacoes({ user }) {
     <>
       {antPendente(t) && !t.recompraId && <button onClick={() => setModal({ t: "liq", itens: [t] })} title="Cliente pagou — baixar" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
       {antPendente(t) && t.recompraId && <button onClick={() => setModal({ t: "liq", itens: [t] })} title="Cliente pagou depois — baixar (cancela a conta a pagar em aberto)" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
+      <BotaoRecompra t={t} user={user} onFeito={ok} />
+      <BotaoObs t={t} user={user} onFeito={carregar} />
       {t.liquidacao !== "RECOMPRA" && <button onClick={() => desfazer(t)} title={t.liquidadoEm ? "Desfazer a baixa" : "Desfazer a antecipação"} className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}
       {t.antecipacaoId && <button onClick={() => setModal({ t: "contrato", id: t.antecipacaoId })} title="Ver contrato" style={{ color: C.yellow }}><FileText size={14} /></button>}
     </>

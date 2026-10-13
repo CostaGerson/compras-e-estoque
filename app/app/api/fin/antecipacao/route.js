@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { usuarioMaster, usuarioSoMaster, soMaster, negado } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
 import { analisarAntecipacao, aplicarAntecipacao, listarAntecipacoes, conciliarAntecipacoesPendentes } from "@/lib/finAntecipacao";
-import { sincronizarAntecipados, listarAntecipados, contratoDoTitulo, contratoPorId, arquivoContrato, liquidar, desfazerLiquidacao, desfazerAntecipacao, registrarManual } from "@/lib/finAntecipados";
+import { sincronizarAntecipados, listarAntecipados, contratoDoTitulo, contratoPorId, arquivoContrato, liquidar, desfazerLiquidacao, desfazerAntecipacao, registrarManual, recomprar } from "@/lib/finAntecipados";
 const okD = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 
 // GET ?u= → contratos de desconto importados
@@ -34,7 +34,7 @@ export async function GET(req) {
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   // v186 — liquidação (cliente pagou), desfazer, antecipação manual
-  if (["liquidar", "desliquidar", "desfazer", "manual"].includes(b.acao)) {
+  if (["liquidar", "desliquidar", "desfazer", "manual", "recomprar"].includes(b.acao)) {
     const um = await usuarioMaster(b.usuarioId);
     if (!um) return negado();
     try {
@@ -46,6 +46,7 @@ export async function POST(req) {
       }
       if (b.acao === "desliquidar") return Response.json(await desfazerLiquidacao(b.id));
       if (b.acao === "desfazer") return Response.json(await desfazerAntecipacao(b.id, nomeU(um)));
+      if (b.acao === "recomprar") return Response.json(await recomprar(b.id, b.motivo, nomeU(um)));
       if (b.acao === "manual") return Response.json(await registrarManual(b, nomeU(um)));
     } catch (e) { return Response.json({ error: e.message || "Erro" }, { status: 400 }); }
   }

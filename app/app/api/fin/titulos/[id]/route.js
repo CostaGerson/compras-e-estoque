@@ -31,6 +31,17 @@ export async function PATCH(req, { params }) {
     } catch (e) { return Response.json({ error: e.message }, { status: 400 }); }
     return Response.json(tituloOut(await prisma.finTitulo.findUnique({ where: { id } })));
   }
+  // v189 — observações (OBS): acrescenta / apaga uma nota visível na lista
+  if (b.acao === "nota" || b.acao === "nota-excluir") {
+    const notas = Array.isArray(t.notas) ? [...t.notas] : [];
+    if (b.acao === "nota") {
+      const texto = String(b.texto || "").trim();
+      if (!texto) return Response.json({ error: "Escreva a observação." }, { status: 400 });
+      notas.push({ texto: texto.slice(0, 1000), por: nomeU(u), em: new Date().toISOString() });
+    } else notas.splice(Number(b.indice), 1);
+    const n = await prisma.finTitulo.update({ where: { id }, data: { notas, ...quem } });
+    return Response.json(tituloOut(n));
+  }
   if (b.acao === "baixar") {
     const vp = r2(b.valorPago ?? t.valor);
     if (!b.dataPagamento) return Response.json({ error: "Informe a data do pagamento." }, { status: 400 });

@@ -34,6 +34,16 @@ export function somaDiasUteis(d, n) {
   }
   return x;
 }
+// v189 — n dias úteis ANTES da data
+export function subtraiDiasUteis(d, n) {
+  let x = d instanceof Date ? d : dataUTC(d), c = 0;
+  while (c < n) {
+    x = new Date(x.getTime() - 86400000);
+    const dow = x.getUTCDay();
+    if (dow !== 0 && dow !== 6 && !FERIADOS.includes(x.toISOString().slice(5, 10))) c++;
+  }
+  return x;
+}
 // Fim de semana (v122): conta que vence sábado/domingo passa para a segunda seguinte;
 // folha (salário, folha NORT, pró-labore, estágio) e adiantamento do dia 20 são antecipados para a sexta.
 const RX_FOLHA = /(^|[^A-Z])(SAL[AÁ]RIO|FOLHA|PR[OÓ][ -]?LABORE|EST[AÁ]GIO|ADIANTAMENTO SALARIAL)([^A-Z]|$)/;

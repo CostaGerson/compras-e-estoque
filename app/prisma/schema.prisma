@@ -870,7 +870,8 @@ model FinTitulo {
   liquidadoEm      DateTime? @db.Date           // cliente pagou o banco (ou recompra paga)
   liquidacao       String?                      // CLIENTE | RECOMPRA
   liquidadoPorNome String?
-  recompraId       Int?                         // conta a pagar criada quando o cliente não pagou (banco cobra da Meridian)
+  recompraId       Int?
+  notas            Json?                        // v189: observações livres [{ texto, por, em }] — aparecem na lista                         // conta a pagar criada quando o cliente não pagou (banco cobra da Meridian)
   critica          String?                      // v152: crítica a conferir (linha em vermelho até alguém marcar como conferida)
   // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
   vencimentoOriginal DateTime? @db.Date
