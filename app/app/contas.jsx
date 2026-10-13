@@ -4,7 +4,7 @@ import { PrestadorModal } from "./prestadores";
 import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
-import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente } from "./antecipacoes";
+import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
@@ -421,6 +421,13 @@ export default function ContasPagarReceber({ user }) {
         </div>
         {(mes !== mesAtual() || dIni !== hojeISO() || dFim !== hojeISO()) && <button onClick={irHoje} className="text-xs underline" style={{ color: C.blue }}>hoje</button>}
         <div className="flex-1" />
+        {d && <BotaoExcel onClick={() => {
+          const ids = [...lista, ...(fSit === "VENC" ? antigos : [])].map((t) => t.id);
+          const sitTxt = { TODOS: "", ABERTOS: "EM ABERTO", VENC: "VENCIDOS", PREV: "PREVISÕES", PAGO: P ? "PAGOS" : "RECEBIDOS", CANC: "CANCELADOS", SEMCONTA: "SEM CONTA-CAIXA", CRITICA: "COM CRÍTICA", VIRTUAL: "EM ABERTO VIRTUAL", ANTEC: "ANTECIPADOS AGUARDANDO" }[fSit] ?? fSit;
+          const per = ["SEMCONTA", "CRITICA"].includes(fSit) ? "QUALQUER VENCIMENTO" : `VENCIMENTO ${dBR(dIni)} A ${dBR(dFim < dIni ? dIni : dFim)}`;
+          return exportarExcel(user, ids, [`CONTAS ${P ? "A PAGAR" : "A RECEBER"}`, per, sitTxt, busca && `BUSCA "${busca}"`, soCompra && P && "SÓ ENTRADA POR COMPRA"].filter(Boolean).join(" · "),
+            `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
+        }} />}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}

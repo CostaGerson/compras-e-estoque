@@ -2,7 +2,7 @@
 // v186 — Contas a receber › Antecipações: títulos antecipados (por título ou por contrato), % antecipado,
 // liquidação (cliente pagou quem antecipou) e contrato de origem (o "A" amarelo).
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Loader2, Search, CheckCircle2, Undo2, AlertTriangle, FileText, Plus, ChevronDown, ChevronRight, Download, Percent } from "lucide-react";
+import { X, Loader2, Search, CheckCircle2, Undo2, AlertTriangle, FileText, Plus, ChevronDown, ChevronRight, Download, Percent, FileSpreadsheet } from "lucide-react";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -26,6 +26,24 @@ const api = async (url, method = "GET", body) => {
   if (!r.ok) throw new Error(d.error || "Erro");
   return d;
 };
+// v187 — exporta para Excel as contas que estão na tela (na ordem da tela)
+export async function exportarExcel(user, ids, titulo, nome) {
+  if (!ids.length) { alert("Nenhuma conta na tela para exportar."); return; }
+  const r = await fetch("/api/fin/titulos/xlsx", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids, titulo, nome }) });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro ao gerar o Excel."); return; }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a"); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+export function BotaoExcel({ onClick }) {
+  const [x, setX] = useState(false);
+  return (
+    <button onClick={async () => { setX(true); try { await onClick(); } finally { setX(false); } }} disabled={x} title="Exportar para Excel as contas que estão na tela, com todas as informações de cada lançamento"
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-60" style={{ background: "#E7F6EE", color: "#12A150", border: "1px solid #12A15055" }}>
+      {x ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Exportar Excel
+    </button>
+  );
+}
 const inpS = { background: C.panel, border: `1px solid ${C.line}`, color: C.text };
 
 // situação do antecipado (vinda do servidor em sitAnt, ou calculada pelos campos)
@@ -319,6 +337,7 @@ export default function Antecipacoes({ user }) {
           ))}
         </div>
         <div className="flex-1" />
+        {d && <BotaoExcel onClick={() => exportarExcel(user, lista.map((t) => t.id), `CONTAS A RECEBER › ANTECIPAÇÕES · VENCIMENTO ${dBR(dIni)} A ${dBR(dFim)}${fForma ? ` · ${FORMAS_ANT[fForma]}` : ""}${fSit ? ` · ${fSit}` : ""}${busca ? ` · BUSCA "${busca}"` : ""}`, `antecipacoes_${dIni}_a_${dFim}.xlsx`)} />}
         <button onClick={() => setModal({ t: "manual" })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Registrar antecipação</button>
       </div>
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
