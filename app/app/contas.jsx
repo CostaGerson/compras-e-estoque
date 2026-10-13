@@ -1672,6 +1672,28 @@ function BaixaModal({ t, P, onClose, onOk }) {
 
 /* ---------------- conta da semana: freelancers e terceirizados ---------------- */
 const GRUPO_ROT_FIXO = { FREELANCER: "Freelancer", FACCAO: "Facção", CORTE: "Corte", BORDADO: "Bordado", SILK: "Silk", SUBLIMACAO: "Sublimação", DTF: "DTF", OUTRO: "Outro serviço" };
+/* v197 — custo extra do freelancer na conta da semana: mostra a justificativa ou pede para justificar (positivo ou negativo) */
+function JustificarExtra({ it, user, onSalvo }) {
+  const [txt, setTxt] = useState("");
+  const [s, setS] = useState(false);
+  const [erro, setErro] = useState("");
+  const extra = Number(it.custoExtra) || 0;
+  if (it.justificativa) return <div>custo extra {moeda(extra)} · <span style={{ color: C.text }}>{it.justificativa}</span></div>;
+  return (
+    <div className="mt-0.5">
+      <div className="font-semibold" style={{ color: C.red }}>custo extra {moeda(extra)} · sem justificativa</div>
+      <div className="flex items-center gap-1 mt-0.5">
+        <input value={txt} onChange={(e) => setTxt(e.target.value.toUpperCase())} placeholder="Justifique o custo extra" className="flex-1 rounded px-2 py-1 text-xs outline-none" style={{ border: `1px solid ${C.red}66`, minWidth: 160 }} />
+        <button disabled={s || !txt.trim()} onClick={async () => {
+          setS(true); setErro("");
+          try { onSalvo(await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "justificar", id: it.id, justificativa: txt })); }
+          catch (e) { setErro(e.message); } finally { setS(false); }
+        }} className="px-2 py-1 rounded text-[11px] font-semibold disabled:opacity-50" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+      </div>
+      {erro && <div style={{ color: C.red }}>{erro}</div>}
+    </div>
+  );
+}
 const rotGrupo = (d, g) => (d?.nomesGrupo || {})[g] || GRUPO_ROT_FIXO[g] || g;
 // o cadastro do prestador usa a lista completa: setores (freelancer) ou facção + serviços (terceirizado)
 const catCadastro = (d) => d.tipo === "FREELANCER"
