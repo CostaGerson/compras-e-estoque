@@ -857,6 +857,7 @@ model FinTitulo {
   nfId             Int?                         // NF lançada pelo Compras que originou a conta
   nf               NotaFiscal?     @relation(fields: [nfId], references: [id], onDelete: SetNull)
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
+  pontual          Boolean   @default(false)    // v192: recorrência alterada só neste mês (a Matriz não mexe mais nela)
   nossoNumero      String?                      // v127: nosso número do boleto (retorno CNAB)
   cobranca         String?                      // v127: REGISTRADO | LIQUIDADO | DESCONTADO (retorno do banco)
   // v175.2 — boleto que será antecipado: valor = líquido estimado (custo dos contratos anteriores); confirma quando o contrato subir

@@ -432,7 +432,6 @@ export default function ContasPagarReceber({ user }) {
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
         }} />}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
-        <BtnS onClick={() => setModal({ t: "recorrencias" })}><Repeat size={15} /> Recorrências{d ? ` (${d.recorrencias.filter((r) => r.ativo).length})` : ""}</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
       </div>
@@ -2468,16 +2467,16 @@ function Recorrentes({ user, contasPorId }) {
       "",
       "As previsões em aberto deste mês em diante também são apagadas.",
       "Contas já pagas ou com valor conferido à mão ficam no histórico.",
-      r.daMatriz ? "\nEsta conta vem da Matriz de custos — ela volta a aparecer quando você usar \"Gerar a partir da Matriz\"." : "",
+      r.daMatriz ? "\nEsta conta vem da Matriz de custos: o item será desativado na Matriz e o contas a pagar acompanha." : "",
     ].join("\n");
     if (!confirm(aviso)) return;
     try {
       const j = await api("/api/fin/recorrentes", "DELETE", { usuarioId: user.id, id: r.id });
       setD(j);
       setAviso({ tipo: "ok", texto: `"${j.titulo}" excluída`
-        + (j.previsoesApagadas ? ` · ${j.previsoesApagadas} previsão(ões) apagada(s) (${moeda(j.valorApagado)})` : " · não havia previsão em aberto")
+        + (j.pelaMatriz ? " · item desativado na Matriz de custos (previsões em aberto apagadas)" : j.previsoesApagadas ? ` · ${j.previsoesApagadas} previsão(ões) apagada(s) (${moeda(j.valorApagado)})` : " · não havia previsão em aberto")
         + (j.titulosMantidos ? ` · ${j.titulosMantidos} conta(s) já lançada(s) ficaram no histórico` : "")
-        + (j.daMatriz ? " · volta se você gerar de novo a partir da Matriz" : "") });
+        });
     } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
   };
 
@@ -2596,6 +2595,8 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  // v192 — espelho da Matriz: custo único grava na Matriz; calculado (folha, provisão, NORT, cartão) só forma/observação
+  const travado = r.daMatriz && !origemSimples(r.chaveOrigem);
   const novoValor = lerNum(f.valor);
   const vaiDivergir = r.valorMatriz != null && Math.abs(novoValor - r.valorMatriz) > 0.009;
 
@@ -2614,10 +2615,10 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
   return (
     <Modal titulo={`Conta recorrente · ${r.titulo}`} icone={Repeat} onClose={onClose} largura={640}>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-        <Campo t="Conta"><input value={f.titulo} onChange={(e) => set("titulo")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
-        <Campo t="Fornecedor"><input value={f.parceiro} onChange={(e) => set("parceiro")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
-        <Campo t="Valor"><Valor value={f.valor} onChange={set("valor")} width="100%" /></Campo>
-        <Campo t="Dia do vencimento"><input value={f.diaVencimento} onChange={(e) => set("diaVencimento")(e.target.value)} inputMode="numeric" className="w-full rounded-lg px-2 py-1.5 text-sm text-right" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Conta"><input disabled={travado} value={f.titulo} onChange={(e) => set("titulo")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Fornecedor"><input disabled={travado} value={f.parceiro} onChange={(e) => set("parceiro")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Valor"><div style={travado ? { pointerEvents: "none", opacity: 0.6 } : undefined}><Valor value={f.valor} onChange={set("valor")} width="100%" /></div></Campo>
+        <Campo t="Dia do vencimento"><input disabled={travado} value={f.diaVencimento} onChange={(e) => set("diaVencimento")(e.target.value)} inputMode="numeric" className="w-full rounded-lg px-2 py-1.5 text-sm text-right" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
         <Campo t="Forma de pagamento" dica="ajuda a casar com o extrato">
           <select value={f.formaPagamento} onChange={(e) => set("formaPagamento")(e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
             <option value="">—</option>
@@ -2625,19 +2626,25 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
           </select>
         </Campo>
         <Campo t="Repete a cada" dica="mensal, trimestral…">
-          <select value={f.periodicidade} onChange={(e) => set("periodicidade")(Number(e.target.value))} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
+          <select disabled={travado} value={f.periodicidade} onChange={(e) => set("periodicidade")(Number(e.target.value))} className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}>
             {Object.entries(PERIODOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Campo>
-        <Campo t="Encerrar em (AAAA-MM)"><input value={f.fim} onChange={(e) => set("fim")(e.target.value)} placeholder="sem fim" className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
+        <Campo t="Encerrar em (AAAA-MM)"><input disabled={r.daMatriz} value={f.fim} onChange={(e) => set("fim")(e.target.value)} placeholder="sem fim" className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
       </div>
       <div className="flex flex-wrap gap-4 mt-3">
-        <Chave on={f.diaUtil} set={set("diaUtil")} t={`vence no ${f.diaVencimento}º dia útil`} />
+        <Chave on={f.diaUtil} set={travado || r.daMatriz ? () => {} : set("diaUtil")} t={`vence no ${f.diaVencimento}º dia útil`} />
         <Chave on={f.ativo} set={set("ativo")} t="conta ativa" cor={C.green} />
       </div>
       <Campo t="Observação"><input value={f.observacao} onChange={(e) => set("observacao")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
 
       {r.daMatriz && (
+        <div className="mt-4 p-3 rounded-lg text-xs font-semibold" style={{ background: C.blueSoft, color: C.blue }}>
+          {travado ? "Conta calculada pela Matriz de custos: nome, fornecedor, valor e vencimento se alteram na própria Matriz. Aqui: forma de pagamento e observação."
+            : "Conta da Matriz de custos: o que você mudar aqui (nome, fornecedor, valor, dia, periodicidade) é gravado na Matriz e as contas em aberto acompanham. Para mudar só um mês, edite a conta no contas a pagar."}
+        </div>
+      )}
+      {false && r.daMatriz && (
         <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: vaiDivergir ? C.yellowSoft : C.panel2, color: C.text }}>
           <div className="font-semibold mb-1" style={{ color: vaiDivergir ? C.yellow : C.sub }}>
             Esta conta vem da Matriz de custos {r.valorMatriz != null ? `(hoje a Matriz diz ${moeda(r.valorMatriz)})` : ""}

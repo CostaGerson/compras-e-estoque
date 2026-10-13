@@ -36,7 +36,10 @@ export async function PUT(req, { params }) {
   const velhas = await prisma.finMatrizVersao.findMany({ where: { matrizId: id }, orderBy: { createdAt: "desc" }, skip: MAX_VERSOES, select: { id: true } });
   if (velhas.length) await prisma.finMatrizVersao.deleteMany({ where: { id: { in: velhas.map((v) => v.id) } } });
   const m = await prisma.finMatriz.update({ where: { id }, data: { dados: b.dados, atualizadoPor: nomeU(u) } });
-  return Response.json({ ok: true, updatedAt: m.updatedAt, atualizadoPor: m.atualizadoPor });
+  // v192 — a oficial é a base das recorrências: o contas a pagar espelha na hora
+  let contas = null;
+  if (atual.oficial) { const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb"); contas = await sincronizarMatriz(nomeU(u)).catch((e) => ({ erro: e.message })); }
+  return Response.json({ ok: true, updatedAt: m.updatedAt, atualizadoPor: m.atualizadoPor, contas });
 }
 
 // PATCH { usuarioId, nome } → renomeia

@@ -21,6 +21,7 @@ export async function GET(req) {
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;
+  if (tipo === "PAGAR") { const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb"); await sincronizarMatriz().catch((e) => console.log("espelho da Matriz:", e.message)); }   // v192
   if (tipo === "PAGAR") { const { garantirGuiasRecorrentes } = await import("@/lib/finGuias"); await garantirGuiasRecorrentes().catch(() => null); }   // INSS/FGTS mensais = última guia
   await gerarRecorrencias(tipo);
   if (tipo === "PAGAR") { const { lancarLote0910 } = await import("@/lib/finLote0910"); await lancarLote0910().catch((e) => console.log("Lote 09/10:", e.message)); }   // v179 — uma vez

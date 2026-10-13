@@ -493,6 +493,7 @@ function Lista({ titulo, sub, itens = [], set, cdb }) {
         <table className="w-full text-xs">
           <thead><tr style={{ color: C.sub, background: C.panel2 }}>
             <th className="text-left px-4 py-2 font-semibold">Natureza</th>
+            <th className="text-left px-2 py-2 font-semibold" title="Vai para a conta recorrente do contas a pagar">Fornecedor</th>
             <th className="text-right px-2 py-2 font-semibold">Valor mensal</th>
             {cdb && <th className="text-center px-2 py-2 font-semibold" title="Entra na reserva mensal do CDB">CDB</th>}
             <th className="text-left px-2 py-2 font-semibold">Observação</th>
@@ -502,6 +503,7 @@ function Lista({ titulo, sub, itens = [], set, cdb }) {
           <tbody>{itens.map((i) => (
             <tr key={i.id} style={{ borderTop: `1px solid ${C.line}`, opacity: i.ativo === false ? 0.45 : 1 }}>
               <td className="px-4 py-1.5" style={{ minWidth: 220 }}><TxtInput value={i.natureza} onChange={(v) => alt(i.id, "natureza", v)} placeholder="NATUREZA" /></td>
+              <td className="px-2 py-1.5" style={{ minWidth: 200 }}><TxtInput value={i.parceiro || ""} onChange={(v) => alt(i.id, "parceiro", v)} placeholder="A DEFINIR" /></td>
               <td className="px-2 py-1.5 text-right"><NumInput value={i.valor} onChange={(v) => alt(i.id, "valor", v)} width={120} /></td>
               {cdb && <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!i.cdb} onChange={(e) => alt(i.id, "cdb", e.target.checked)} /></td>}
               <td className="px-2 py-1.5" style={{ minWidth: 220 }}><TxtInput value={i.obs} onChange={(v) => alt(i.id, "obs", v)} upper={false} placeholder="—" /></td>

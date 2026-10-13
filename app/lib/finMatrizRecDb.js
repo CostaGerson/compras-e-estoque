@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { garantirContas } from "@/lib/fin";
 import { MATRIZ_SEED } from "@/lib/matrizSeed";
 import { propostasDaMatriz } from "@/lib/finMatrizRec";
-import { validarRateio, gerarRecorrencias, r2, mesAtual } from "@/lib/finTitulos";
+import { validarRateio, gerarRecorrencias, r2, mesAtual, vencNoMes, ajustaFds, contaSabado, ehFolha } from "@/lib/finTitulos";
+const ESPELHO = /^(MATRIZ|NORT|CARTAO)\|/;   // v192: recorrências que espelham a Matriz de custos
+const SEM_PARCEIRO = (p) => !p || /^A DEFINIR$/i.test(String(p).trim());
 import { ehGuia, guiasComValor } from "@/lib/finGuias";
 
 const mesmoRateio = (a, b) => JSON.stringify((a || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort()) === JSON.stringify((b || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort());
@@ -36,9 +38,11 @@ export async function montarMatrizRec() {
       || e.diaVencimento !== p.dia || !!e.diaUtil !== !!p.util
       || (e.periodicidade || 1) !== Math.max(1, Number(p.periodicidade) || 1));
     const difRateio = e && p.chave.startsWith("MATRIZ|pessoal|") && !mesmoRateio(e.rateio, rateio);
-    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio), valorGuia };
+    // v192 — nome e fornecedor também espelham (fornecedor "A DEFINIR" na Matriz não apaga o que foi informado na conta)
+    const difNome = e && (String(e.titulo) !== String(p.titulo).toUpperCase() || (!SEM_PARCEIRO(p.parceiro) && String(e.parceiro) !== String(p.parceiro).toUpperCase()));
+    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio || difNome), valorGuia };
   });
-  const obsoletas = existentes.filter((e) => e.chaveOrigem.startsWith("MATRIZ|") && !ehGuia(e.chaveOrigem) && !chavesProp.has(e.chaveOrigem))
+  const obsoletas = existentes.filter((e) => ESPELHO.test(e.chaveOrigem) && !ehGuia(e.chaveOrigem) && !chavesProp.has(e.chaveOrigem))
     .map((e) => ({ id: e.id, chave: e.chaveOrigem, titulo: e.titulo, valor: Number(e.valor) }));
   return { totalMatriz, propostas: lista, obsoletas };
 }
@@ -67,24 +71,83 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
         criadas++;
       } else if (p.jaExiste && p.mudou && atual.has(p.chave)) {
         const up = { ...(p.valorGuia ? {} : { valor: r2(p.valor) }), diaVencimento: p.dia, diaUtil: !!p.util,
-                     periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}) };
+                     periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}),
+                     titulo: String(p.titulo).toUpperCase(), ...(SEM_PARCEIRO(p.parceiro) ? {} : { parceiro: String(p.parceiro).toUpperCase() }) };
         if (p.chave.startsWith("MATRIZ|pessoal|") && rt.rateio) up.rateio = rt.rateio;
-        await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
-        const upT = { ...(up.valor !== undefined ? { valor: up.valor } : {}), ...(up.rateio ? { rateio: up.rateio } : {}) };
-        if (Object.keys(upT).length) await prisma.finTitulo.updateMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", valorConfirmado: false }, data: upT });
+        const rec = await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
+        // v192 — as contas em aberto deste mês em diante espelham a Matriz (nome, fornecedor, valor, rateio e vencimento),
+        // menos as alteradas pontualmente no contas a pagar
+        const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", pontual: false, vencimentoOriginal: null } });
+        for (const t of tits) {
+          await prisma.finTitulo.update({ where: { id: t.id }, data: {
+            titulo: rec.titulo, parceiro: rec.parceiro, ...(up.valor !== undefined ? { valor: up.valor } : {}), ...(up.rateio ? { rateio: up.rateio } : {}),
+            vencimento: ajustaFds(vencNoMes(t.competencia, rec.diaVencimento, rec.diaUtil, contaSabado(rec)), ehFolha(rec)),
+          } });
+        }
         atualizadas++;
       }
     } catch (e) { erros.push(`${p.titulo}: ${e.message}`); }
   }
   for (const id of encerrar.map(Number)) {
     if (!r.obsoletas.some((o) => o.id === id)) continue;
-    await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
+    await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, status: "ABERTO", pontual: false, competencia: { gte: mesAtual() } } });
+    await prisma.finTitulo.updateMany({ where: { recorrenciaId: id }, data: { recorrenciaId: null } });   // pagas e pontuais ficam no histórico
     await prisma.finRecorrencia.delete({ where: { id } }).catch(() => {});
     encerradas++;
   }
   const geradas = await gerarRecorrencias("PAGAR");
   const vinculadas = await vincularProLaboreAvulso().catch(() => 0);
   return { ok: true, criadas, atualizadas, encerradas, geradas, vinculadas, erros };
+}
+
+// v192 — espelho completo da Matriz: cria o que é novo, atualiza o que mudou e encerra o que saiu da Matriz
+let sincronizando = null;
+export async function sincronizarMatriz(quem) {
+  if (sincronizando) return sincronizando;
+  sincronizando = (async () => {
+    await marcarPontuaisAntigos().catch(() => null);
+    await fornecedoresParaMatriz().catch(() => null);
+    const m = await montarMatrizRec();
+    if (m.error) return m;
+    const novas = m.propostas.filter((p) => !p.jaExiste), mud = m.propostas.filter((p) => p.mudou);
+    if (!novas.length && !mud.length && !m.obsoletas.length) return { ok: true, criadas: 0, atualizadas: 0, encerradas: 0 };
+    return aplicarMatrizRec({ quem: quem || "MATRIZ DE CUSTOS", chaves: "TODAS", atualizar: mud.map((p) => p.chave), encerrar: m.obsoletas.map((o) => o.id) });
+  })();
+  try { return await sincronizando; } finally { sincronizando = null; }
+}
+// v193 — uma vez: o fornecedor já informado nas recorrências vai para o item da Matriz que ainda não tem fornecedor
+const CHAVE_FORN = "AJUSTE|fornecedores-matriz-v193";
+const AREAS_FORN = ["vidaVegetativa", "logistica", "administracao", "sistemas", "dividas"];
+async function fornecedoresParaMatriz() {
+  if (await prisma.finConfig.findUnique({ where: { chave: CHAVE_FORN } }).catch(() => null)) return;
+  const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
+  if (!m) return;
+  await prisma.finConfig.create({ data: { chave: CHAVE_FORN, valor: new Date().toISOString() } });
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|" } }, select: { chaveOrigem: true, parceiro: true } });
+  const forn = new Map(recs.filter((r) => !SEM_PARCEIRO(r.parceiro)).map((r) => [r.chaveOrigem, r.parceiro]));
+  const dados = { ...(m.dados || {}) };
+  let n = 0;
+  for (const a of AREAS_FORN) {
+    if (!Array.isArray(dados[a])) continue;
+    dados[a] = dados[a].map((it) => {
+      const f = forn.get(`MATRIZ|${a}|${it.id}`);
+      if (f && SEM_PARCEIRO(it.parceiro)) { n++; return { ...it, parceiro: f }; }
+      return it;
+    });
+  }
+  if (n) await prisma.finMatriz.update({ where: { id: m.id }, data: { dados } });
+}
+
+// uma vez: contas de recorrência já ajustadas à mão (valor diferente da recorrência ou reprogramadas) ficam como pontuais
+const CHAVE_PONTUAL = "AJUSTE|pontuais-v192";
+async function marcarPontuaisAntigos() {
+  if (await prisma.finConfig.findUnique({ where: { chave: CHAVE_PONTUAL } }).catch(() => null)) return;
+  await prisma.finConfig.create({ data: { chave: CHAVE_PONTUAL, valor: new Date().toISOString() } });
+  const recs = await prisma.finRecorrencia.findMany({ select: { id: true, valor: true } });
+  const val = new Map(recs.map((r) => [r.id, Number(r.valor)]));
+  const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: { not: null }, status: "ABERTO", competencia: { gte: mesAtual() } }, select: { id: true, recorrenciaId: true, valor: true, valorConfirmado: true, vencimentoOriginal: true } });
+  const ids = tits.filter((t) => t.vencimentoOriginal || (t.valorConfirmado && Math.abs(Number(t.valor) - (val.get(t.recorrenciaId) ?? Number(t.valor))) > 0.009)).map((t) => t.id);
+  if (ids.length) await prisma.finTitulo.updateMany({ where: { id: { in: ids } }, data: { pontual: true } });
 }
 
 // Pró-labore lançado à mão / importado (sem recorrência) no mesmo mês da previsão do sócio:

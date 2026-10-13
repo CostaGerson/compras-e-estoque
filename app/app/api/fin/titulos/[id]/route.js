@@ -56,6 +56,14 @@ export async function PATCH(req, { params }) {
     const v = r2(b.valor ?? t.valor);
     if (!(v >= 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
     data = { valor: v, valorConfirmado: true };
+    // v192 — conta da Matriz: "aplicar aos próximos" grava na Matriz (custo único) e o espelho leva aos meses seguintes
+    const rec0 = b.aplicarFuturos && t.recorrenciaId ? await prisma.finRecorrencia.findUnique({ where: { id: t.recorrenciaId }, select: { chaveOrigem: true } }) : null;
+    if (rec0 && /^(MATRIZ|NORT|CARTAO)\|/.test(String(rec0.chaveOrigem || ""))) {
+      const { alterarItemMatriz } = await import("@/lib/finRecorrentes");
+      const res = await alterarItemMatriz(rec0.chaveOrigem, { valor: v }, nomeU(u));
+      if (!res.ok) return Response.json({ error: res.erro }, { status: 400 });
+      b.aplicarFuturos = false;
+    }
     if (b.aplicarFuturos && t.recorrenciaId) {
       await prisma.finTitulo.updateMany({ where: { recorrenciaId: t.recorrenciaId, competencia: { gt: t.competencia }, valorConfirmado: false, status: "ABERTO" }, data: { valor: v } });
       await prisma.finRecorrencia.update({ where: { id: t.recorrenciaId }, data: { valor: v } });
@@ -106,6 +114,9 @@ export async function PATCH(req, { params }) {
       if (choque) return Response.json({ error: "Já existe uma parcela desta recorrência nesse mês." }, { status: 400 });
     }
   }
+  // v192 — mexeu numa conta de recorrência pelo contas a pagar: ajuste pontual (a Matriz não sobrescreve este mês)
+  if (t.recorrenciaId && (b.acao === "editar" || b.acao === undefined || (b.acao === "confirmar" && data.valor !== undefined && Math.abs(Number(data.valor) - Number(t.valor)) > 0.009))
+      && ["titulo", "parceiro", "valor", "vencimento", "rateio", "documento", "numeroDoc"].some((k) => data[k] !== undefined && JSON.stringify(data[k]) !== JSON.stringify(t[k]))) data.pontual = true;
   const n = await prisma.finTitulo.update({ where: { id }, data: { ...data, ...quem } });
   // INSS/FGTS: o último valor lançado vira o valor da recorrência (e dos meses seguintes)
   if (data.valor !== undefined || b.acao === "baixar") { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(id, quem.atualizadoPorNome).catch(() => null); }

@@ -74,6 +74,35 @@ export async function listar() {
   };
 }
 
+export const ehEspelho = (chave) => /^(MATRIZ|NORT|CARTAO)\|/.test(String(chave || ""));
+
+// v192 — escreve nome, fornecedor, valor, dia, periodicidade e ativo no item da Matriz oficial (itens de custo único)
+export async function alterarItemMatriz(chaveOrigem, campos, quem) {
+  if (!origemEditavel(chaveOrigem)) return { ok: false, erro: "Esta conta é calculada pela Matriz (folha, provisão, NORT ou cartão) — altere na própria Matriz de custos." };
+  const [, area, itemId] = String(chaveOrigem).split("|");
+  const m = await prisma.finMatriz.findFirst({ where: { oficial: true } });
+  if (!m) return { ok: false, erro: "Matriz oficial não encontrada." };
+  const dados = { ...(m.dados || {}) };
+  const lista = Array.isArray(dados[area]) ? dados[area] : null;
+  const i = lista ? lista.findIndex((x) => String(x.id) === String(itemId)) : -1;
+  if (i < 0) return { ok: false, erro: "O item correspondente não existe mais na Matriz." };
+  const it = { ...lista[i] };
+  if (campos.titulo !== undefined && String(campos.titulo).trim()) it.natureza = String(campos.titulo).toUpperCase();
+  if (campos.parceiro !== undefined) it.parceiro = String(campos.parceiro || "").toUpperCase() || undefined;
+  if (campos.diaVencimento !== undefined) it.dia = Math.min(31, Math.max(1, Number(campos.diaVencimento) || 1));
+  if (campos.periodicidade !== undefined) it.periodicidade = Math.max(1, Math.min(12, Number(campos.periodicidade) || 1));
+  if (campos.valor !== undefined) {
+    const v = r2(numBR(campos.valor)), per = Math.max(1, Number(it.periodicidade) || 1);
+    if (per > 1) { it.valorParcela = v; it.valor = r2(v / per); } else { it.valor = v; delete it.valorParcela; }
+  }
+  if (campos.ativo !== undefined) it.ativo = !!campos.ativo;
+  dados[area] = lista.map((x, k) => (k === i ? it : x));
+  await prisma.finMatriz.update({ where: { id: m.id }, data: { dados, atualizadoPor: quem || "CONTAS RECORRENTES" } });
+  const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb");
+  const sinc = await sincronizarMatriz(quem).catch((e) => ({ erro: e.message }));
+  return { ok: true, item: it.natureza, sinc };
+}
+
 // Escreve o valor da recorrência de volta no item da Matriz oficial.
 export async function levarParaMatriz(chaveOrigem, valor, quem) {
   if (!origemEditavel(chaveOrigem)) {
@@ -98,6 +127,24 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
   const r = await prisma.finRecorrencia.findUnique({ where: { id: Number(id) } });
   if (!r) return { ok: false, erro: "Recorrência não encontrada." };
 
+  // v192 — conta que espelha a Matriz: nome/fornecedor/valor/dia/periodicidade/ativo vão para a Matriz (e voltam pelo espelho);
+  // aqui ficam só forma de pagamento e observação
+  if (ehEspelho(r.chaveOrigem)) {
+    const loc = {};
+    if ("formaPagamento" in campos) loc.formaPagamento = campos.formaPagamento ? String(campos.formaPagamento).toUpperCase() : null;
+    if ("observacao" in campos) loc.observacao = campos.observacao ? String(campos.observacao).toUpperCase() : null;
+    if (Object.keys(loc).length) {
+      await prisma.finRecorrencia.update({ where: { id: r.id }, data: loc });
+      if (loc.formaPagamento !== undefined) await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, status: "ABERTO", pontual: false, competencia: { gte: mesAtual() } }, data: { formaPagamento: loc.formaPagamento } });
+    }
+    const chaves = ["titulo", "parceiro", "valor", "diaVencimento", "periodicidade", "ativo"];
+    const mudou = chaves.filter((k) => k in campos && String(campos[k] ?? "") !== String(k === "valor" ? Number(r.valor) : r[k] ?? ""));
+    if (!mudou.length) return { ok: true, titulos: 0, matriz: null };
+    if (!origemEditavel(r.chaveOrigem)) return { ok: false, erro: "Esta conta é calculada pela Matriz (folha, provisão, NORT ou cartão). Nome, valor e vencimento se alteram na Matriz de custos; aqui só forma de pagamento e observação." };
+    const res = await alterarItemMatriz(r.chaveOrigem, Object.fromEntries(mudou.map((k) => [k, campos[k]])), quem);
+    if (!res.ok) return res;
+    return { ok: true, titulos: res.sinc?.atualizadas || 0, matriz: { ok: true, item: res.item, depois: "ajustada" } };
+  }
   const d = {};
   if ("titulo" in campos) d.titulo = String(campos.titulo || "").toUpperCase();
   if ("parceiro" in campos) d.parceiro = String(campos.parceiro || "").toUpperCase();
@@ -136,6 +183,13 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
 export async function excluir(id, { quem } = {}) {
   const r = await prisma.finRecorrencia.findUnique({ where: { id: Number(id) } });
   if (!r) return { ok: false, erro: "Recorrência não encontrada." };
+  // v192 — conta da Matriz: exclui na Matriz (item desativado) e o espelho encerra a recorrência
+  if (ehEspelho(r.chaveOrigem) && !(r.chaveOrigem === "MATRIZ|pessoal|INSS" || r.chaveOrigem === "MATRIZ|pessoal|FGTS" || /^NORT\|(INSS|FGTS)$/.test(r.chaveOrigem))) {
+    if (!origemEditavel(r.chaveOrigem)) return { ok: false, erro: "Esta conta é calculada pela Matriz (folha, provisão, NORT ou cartão) — para tirá-la, altere a Matriz de custos." };
+    const res = await alterarItemMatriz(r.chaveOrigem, { ativo: false }, quem);
+    if (!res.ok) return res;
+    return { ok: true, titulo: r.titulo, daMatriz: true, previsoesApagadas: 0, valorApagado: 0, titulosMantidos: 0, pelaMatriz: true };
+  }
 
   const titulos = await prisma.finTitulo.findMany({
     where: { recorrenciaId: r.id },

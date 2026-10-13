@@ -22,5 +22,6 @@ export async function POST(req, { params }) {
   if (!m || !v || v.matrizId !== id) return Response.json({ error: "Versão não encontrada." }, { status: 404 });
   await prisma.finMatrizVersao.create({ data: { matrizId: id, dados: m.dados, usuarioNome: m.atualizadoPor, resumo: `antes de restaurar a versão de ${new Date(v.createdAt).toLocaleString("pt-BR")}` } });
   await prisma.finMatriz.update({ where: { id }, data: { dados: v.dados, atualizadoPor: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() } });
+  { const m0 = await prisma.finMatriz.findUnique({ where: { id }, select: { oficial: true } }); if (m0?.oficial) { const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb"); await sincronizarMatriz("RESTAURAÇÃO DA MATRIZ").catch(() => null); } }
   return Response.json({ ok: true });
 }
