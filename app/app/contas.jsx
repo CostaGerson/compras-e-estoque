@@ -4,13 +4,14 @@ import { PrestadorModal } from "./prestadores";
 import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
+import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
-  Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock,
+  Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
 } from "lucide-react";
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
-const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA"];   // guias que não usam a lista principal
+const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA", "ANTECIPACOES"];   // guias que não usam a lista principal
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -69,6 +70,8 @@ const ehCompra = (t) => t.forma === "NF_XML" || !!t.nfId || String(t.chaveImport
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
 
 function situacao(t) {
+  // v186 — antecipado: recebido do banco/factoring; falta o cliente pagar (liquidação)
+  if (t.status === "PAGO" && ehAntecipado(t)) { const a = sitAntecipado(t); return { ...a, k: t.liquidadoEm ? "LIQ" : "ANTEC" }; }
   if (t.status === "CANCELADO") return { k: "CANC", t: "Cancelado", c: C.sub, bg: C.panel2 };
   if (t.status === "PAGO") return { k: "PAGO", t: `Pago ${dBR(t.dataPagamento).slice(0, 5)}`, c: C.green, bg: C.greenSoft };
   if (t.vencimento < hojeISO()) return { k: "VENC", t: "Vencido", c: C.red, bg: C.redSoft };
@@ -310,7 +313,8 @@ export default function ContasPagarReceber({ user }) {
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
       const s = situacao(t).k;
-      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s)))) return false;
+      if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s || (fSit === "ABERTOS" && ["ABER", "VENC", "PREV"].includes(s))
+        || (fSit === "VIRTUAL" && (["ABER", "VENC", "PREV"].includes(s) || antPendente(t))) || (fSit === "PAGO" && s === "LIQ"))) return false;
       if (!n) return true;
       return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
     });
@@ -325,7 +329,7 @@ export default function ContasPagarReceber({ user }) {
     const s = (f) => ls.filter(f).reduce((a, t) => a + t.valor, 0);
     return {
       total: s(() => true), pago: ls.filter((t) => t.status === "PAGO").reduce((a, t) => a + (t.valorPago ?? t.valor), 0),
-      aberto: s((t) => t.status === "ABERTO"), vencido: s((t) => t.status === "ABERTO" && t.vencimento < hojeISO()), previsao: s((t) => t.status === "ABERTO" && t.previsao),
+      aberto: s((t) => t.status === "ABERTO"), virtual: s((t) => t.status === "ABERTO" || antPendente(t)), vencido: s((t) => t.status === "ABERTO" && t.vencimento < hojeISO()), previsao: s((t) => t.status === "ABERTO" && t.previsao),
       atrasados: (d?.atrasados || []).reduce((a, t) => a + t.valor, 0),
       vencidoTotal: d?.vencidoTotal || 0, vencidoTotalQtd: d?.vencidoTotalQtd || 0,
     };
@@ -357,7 +361,7 @@ export default function ContasPagarReceber({ user }) {
     <div>
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ATRASADAS", "Atrasados a receber", Clock],
+        {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ANTECIPACOES", "Antecipações", BadgePercent], ["ATRASADAS", "Atrasados a receber", Clock],
           ["EXECUCOES", "Execuções judiciais", Gavel], ["PERDAS", "Perdas", Ban], ["RECORRENTES", "Recorrentes", Repeat], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => (
           <button key={k} onClick={() => setTipo(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
             style={{ color: tipo === k ? C.accent : C.sub, borderBottom: tipo === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
@@ -369,6 +373,7 @@ export default function ContasPagarReceber({ user }) {
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
       {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
       {tipo === "LIXEIRA" && <Lixeira user={user} />}
+      {tipo === "ANTECIPACOES" && <Antecipacoes user={user} />}
       {tipo !== "RECORRENTES" && !ABAS_FORA.includes(tipo) && <>
       {/* NFs lançadas pelo Compras */}
       {P && d && d.nfsPendentes > 0 && (
@@ -429,8 +434,10 @@ export default function ContasPagarReceber({ user }) {
           {/* totais do mês */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             {[
-              [`Contas ${P ? "a pagar" : "a receber"} no período`, tot.total, C.navy, null],
-              ["Em aberto no período", tot.aberto, C.blue, null],
+              ...(P ? [[`Contas a pagar no período`, tot.total, C.navy, () => setFSit("TODOS"), "clique para listar todas as contas do período"],
+                ["Em aberto no período", tot.aberto, C.blue, () => setFSit("ABERTOS"), "clique para listar as contas em aberto do período"]]
+              : [["Em aberto virtual", tot.virtual, C.navy, () => setFSit("VIRTUAL"), "a receber de fato + títulos antecipados que o cliente ainda não pagou — clique para listar"],
+                ["Em aberto real", tot.aberto, C.blue, () => setFSit("ABERTOS"), "só o que ainda vai entrar no caixa (sem os antecipados) — clique para listar"]]),
               ["Vencido no período", tot.vencido, C.red, () => setFSit("VENC"), "clique para listar os vencidos do período"],
               ["Vencido total", tot.vencidoTotal, C.red, verVencidos, `${tot.vencidoTotalQtd} conta(s) em aberto vencidas até ontem — clique para listar`],
             ].map(([t, v, c, click, dica]) => {
@@ -438,7 +445,7 @@ export default function ContasPagarReceber({ user }) {
               return (
                 <Tag key={t} onClick={click || undefined} title={dica} className="rounded-xl px-4 py-3 text-left transition-shadow hover:shadow-sm"
                   style={{ background: C.panel, border: `1px solid ${t === "Vencido total" && v > 0 ? C.red + "55" : C.line}` }}>
-                  <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}>{t}{click && <Search size={11} style={{ color: C.accent }} />}</div>
+                  <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}>{t}{click && <Search size={12} style={{ color: C.accent }} />}</div>
                   <div className="text-lg font-bold" style={{ color: c }}>{moeda(v)}</div>
                 </Tag>
               );
@@ -466,14 +473,15 @@ export default function ContasPagarReceber({ user }) {
               <input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
             <div className="flex gap-1 pb-0.5">
-              {[["Hoje", hojeISO(), hojeISO()], ["Semana atual", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
+              {[["Hoje", hojeISO(), hojeISO()], ["Semana atual", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["Mês até hoje", `${mesAtual()}-01`, hojeISO()], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
                 <button key={t} onClick={() => { setDIni(a); setDFim(b); }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                   style={dIni === a && dFim === b ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
               ))}
             </div>
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
               <option value="TODOS">Todas as situações</option><option value="ABERTOS">Em aberto (inclui previsões)</option><option value="VENC">Vencidos</option>
-              <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option><option value="CANC">Cancelados</option>
+              <option value="PREV">Previsões</option><option value="PAGO">{P ? "Pagos" : "Recebidos"}</option>
+              {!P && <><option value="VIRTUAL">Em aberto virtual (com antecipados)</option><option value="ANTEC">Antecipados aguardando o cliente</option></>}<option value="CANC">Cancelados</option>
               <option value="SEMCONTA">Sem conta-caixa (todas)</option>
             </select>
             <button onClick={() => setFSit("CRITICA")} title="Contas com crítica a conferir (qualquer data)"
@@ -504,14 +512,14 @@ export default function ContasPagarReceber({ user }) {
             </div>
           )}
 
-          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P}
+          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P} user={user}
             sel={sel} marcar={marcar}
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
           {/* só no filtro Vencidos, depois dos vencidos do período; sem repetir o que já está na lista acima */}
           {fSit === "VENC" && antigos.length > 0 && (
-            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P}
+            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P} user={user}
               sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
@@ -539,12 +547,8 @@ export default function ContasPagarReceber({ user }) {
   );
 }
 
-/* A = recebida por antecipação (desconto de duplicatas) */
-export function MarcaA({ t }) {
-  if (t?.cobranca !== "DESCONTADO") return null;
-  return <span title="Antecipado — título descontado no banco" className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle shrink-0"
-    style={{ width: 15, height: 15, background: C.blueSoft, color: C.blue, border: `1px solid ${C.blue}66` }}>A</span>;
-}
+/* A amarelo = título antecipado (v186: clicar abre o contrato) */
+export function MarcaA({ t, user }) { return <MarcaAnt t={t} user={user} />; }
 
 /* R = conta reprogramada (vencimento mudou; o original fica no histórico) */
 export function MarcaR({ t }) {
@@ -568,7 +572,7 @@ const chaveOrdem = (t, col, contasPorId) => {
     default: return "";
   }
 };
-function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
+function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
   const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
   const itens = useMemo(() => {
     if (!ordem) return itens0;
@@ -614,7 +618,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
                   <td className="px-3 py-2" style={{ maxWidth: 260 }}>
                     <button onClick={() => onEditar(t)} className="text-left">
                       <div className="font-semibold flex items-center gap-1" style={{ color: C.navy }}>
-                        {t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}<span style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span><MarcaA t={t} />
+                        <MarcaA t={t} user={user} />{t.recorrenciaId && <Repeat size={12} style={{ color: C.roxo }} title="Recorrente" />}<span style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                       </div>
                       {(t.numeroDoc || t.observacao) && <div style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
@@ -650,8 +654,9 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, onEditar, onBaixar
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {t.status === "ABERTO" && <button onClick={() => onBaixar(t)} title={P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
-                    {t.status === "PAGO" && <button onClick={() => onAcao(t, "estornar")} title="Estornar baixa" className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}
+                    {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
+                    {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={() => { if (ehAntecipado(t) && !t.liquidadoEm && !confirm(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`)) return; onAcao(t, "estornar"); }}
+                      title={ehAntecipado(t) ? (t.liquidadoEm ? "Desfazer a baixa do cliente" : "Desfazer a antecipação") : "Estornar baixa"} className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}
                     {t.status === "CANCELADO" ? <button onClick={() => onAcao(t, "reabrir")} title="Reabrir" className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>
                       : <button onClick={() => onEditar(t)} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={14} /></button>}
                     {t.status !== "PAGO" && t.status !== "CANCELADO" && <button onClick={() => onExcluir(t)} title={t.recorrenciaId ? "Cancelar este mês" : "Excluir"} style={{ color: C.sub }}>{t.recorrenciaId ? <Ban size={14} /> : <Trash2 size={14} />}</button>}
@@ -1586,14 +1591,21 @@ function BaixaModal({ t, P, onClose, onOk }) {
   const [v, setV] = useState(t.valor);
   const [s, setS] = useState(false);
   return (
-    <Modal titulo={P ? "Registrar pagamento" : "Registrar recebimento"} icone={CheckCircle2} onClose={onClose} largura={420}
+    <Modal titulo={antPendente(t) ? "Cliente pagou o título antecipado" : P ? "Registrar pagamento" : "Registrar recebimento"} icone={CheckCircle2} onClose={onClose} largura={420}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP disabled={s} onClick={async () => { setS(true); await onOk(dt, v); }}>Confirmar</BtnP></>}>
       <div className="text-sm font-semibold mb-1" style={{ color: C.navy }}>{t.titulo}</div>
       <div className="text-xs mb-4" style={{ color: C.sub }}>{t.parceiro} · vence {dBR(t.vencimento)} · {moeda(t.valor)}</div>
+      {antPendente(t) ? (
+        <>
+          <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: C.yellowSoft, color: C.yellow }}>Título antecipado — o valor já entrou pela antecipação. Esta baixa só confirma que o cliente pagou quem antecipou{t.recompraId ? " (a conta a pagar da cobrança, se ainda em aberto, é cancelada)" : ""}.</div>
+          <Campo t="Data do pagamento do cliente"><input type="date" value={dt} onChange={(e) => setDt(e.target.value)} className={inp} style={inpS} /></Campo>
+        </>
+      ) : (
       <div className="grid grid-cols-2 gap-3">
         <Campo t={P ? "Data do pagamento" : "Data do recebimento"}><input type="date" value={dt} onChange={(e) => setDt(e.target.value)} className={inp} style={inpS} /></Campo>
         <Campo t="Valor" dica="com juros/desconto"><Valor value={v} onChange={setV} width="100%" /></Campo>
       </div>
+      )}
     </Modal>
   );
 }

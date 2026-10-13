@@ -44,5 +44,7 @@ export async function acaoEmLote({ acao, ids, dataPagamento, quem }) {
       r.feitos++;
     }
   }
+  // v186 — cobrança de antecipação paga → título original liquidado
+  if (acao === "baixar" && abertos.some((t) => String(t.chaveImport || "").startsWith("RECOMPRA|"))) { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem).catch(() => null); }
   return r;
 }

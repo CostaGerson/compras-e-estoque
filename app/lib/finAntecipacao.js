@@ -225,7 +225,7 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
         data: {
           tipo: "RECEBER", titulo: it.seu ? `NF ${it.seu}` : `DUPLICATA DESCONTADA · VCTO ${dBR(it.vencimento)}`, parceiro: it.sacado || "NÃO IDENTIFICADO", numeroDoc: it.seu, nossoNumero: it.nosso, valor: it.valor,
           vencimento: dUTC(it.vencimento), competencia: it.vencimento.slice(0, 7), status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor,
-          cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true, rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [],
+          cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true, antecipadoForma: "BRADESCO", antecipadoEm: dUTC(r.data), antecipacaoId: a.id, rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [],
           forma: "IMPORTACAO", chaveImport: chave, criadoPorNome: quem || null,
           observacao: `DESCONTADA NO CONTRATO ${r.contrato} (${dBR(r.data)}) · PARCELA ${it.parcela}/${r.itens.length}`,
           critica: it.seu ? `Título descontado no contrato ${r.contrato} que NÃO estava no contas a receber — criado pela antecipação. Confira a NF ${nf}, o cliente e o valor.`
@@ -242,7 +242,7 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
     if (t.status === "ABERTO") {
       await prisma.finTitulo.update({
         where: { id: t.id },
-        data: { status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true,
+        data: { status: "PAGO", dataPagamento: dUTC(r.data), valorPago: it.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO", previsao: false, valorConfirmado: true, antecipadoForma: "BRADESCO", antecipadoEm: dUTC(r.data), antecipacaoId: a.id,
           // antecipação prevista: confirma pelo contrato (volta ao valor de face; os encargos entram como contas pagas)
           ...(t.antecipacaoPrevista ? { valor: it.valor, vencimento: dUTC(it.vencimento), competencia: it.vencimento.slice(0, 7), numeroDoc: t.numeroDoc || it.seu, antecipacaoPrevista: false } : {}),
           nossoNumero: t.nossoNumero || it.nosso, observacao: [t.observacao, obs].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: quem || null },
@@ -250,6 +250,7 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
       out.baixadas++; out.valorBaixado = r2(out.valorBaixado + it.valor);
     } else {
       if (!String(t.observacao || "").includes(`CONTRATO ${r.contrato}`)) await prisma.finTitulo.update({ where: { id: t.id }, data: { observacao: [t.observacao, obs].filter(Boolean).join(" · ").slice(0, 1000) } });
+      if (t.cobranca === "DESCONTADO" && !t.antecipacaoId) await prisma.finTitulo.update({ where: { id: t.id }, data: { antecipadoForma: t.antecipadoForma || "BRADESCO", antecipadoEm: t.antecipadoEm || dUTC(r.data), antecipacaoId: a.id } });
       out.jaBaixadas++;
     }
     if (!(await prisma.finTituloAnexo.findFirst({ where: { tituloId: t.id, hash: a.hash }, select: { id: true } }))) await prisma.finTituloAnexo.create({ data: { ...anexo, tituloId: t.id } });

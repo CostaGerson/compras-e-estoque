@@ -20,6 +20,17 @@ export async function PATCH(req, { params }) {
   const quem = { atualizadoPorNome: nomeU(u) };
   let data = {};
 
+  // v186 — título antecipado: "baixar" = cliente pagou (liquida); "estornar" = desfaz a liquidação ou a antecipação
+  const ant = t.tipo === "RECEBER" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO");
+  if (ant && ["baixar", "liquidar", "estornar", "desliquidar"].includes(b.acao)) {
+    const A = await import("@/lib/finAntecipados");
+    try {
+      if (b.acao === "baixar" || b.acao === "liquidar") await A.liquidar(id, b.dataPagamento || b.data, nomeU(u));
+      else if (t.liquidadoEm) await A.desfazerLiquidacao(id);
+      else await A.desfazerAntecipacao(id, nomeU(u));
+    } catch (e) { return Response.json({ error: e.message }, { status: 400 }); }
+    return Response.json(tituloOut(await prisma.finTitulo.findUnique({ where: { id } })));
+  }
   if (b.acao === "baixar") {
     const vp = r2(b.valorPago ?? t.valor);
     if (!b.dataPagamento) return Response.json({ error: "Informe a data do pagamento." }, { status: 400 });
@@ -87,6 +98,8 @@ export async function PATCH(req, { params }) {
   const n = await prisma.finTitulo.update({ where: { id }, data: { ...data, ...quem } });
   // INSS/FGTS: o último valor lançado vira o valor da recorrência (e dos meses seguintes)
   if (data.valor !== undefined || b.acao === "baixar") { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(id, quem.atualizadoPorNome).catch(() => null); }
+  // v186 — cobrança de antecipação: pagar/estornar baixa/volta o título original
+  if (String(t.chaveImport || "").startsWith("RECOMPRA|")) { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem.atualizadoPorNome).catch(() => null); }
   return Response.json(tituloOut(n));
 }
 

@@ -24,6 +24,16 @@ export function nDiaUtil(comp, n, sabado = false) {
   }
   return new Date(Date.UTC(a, m, 0));
 }
+// v186 — n dias úteis depois da data (sem sábado/domingo e feriados nacionais fixos)
+export function somaDiasUteis(d, n) {
+  let x = d instanceof Date ? d : dataUTC(d), c = 0;
+  while (c < n) {
+    x = new Date(x.getTime() + 86400000);
+    const dow = x.getUTCDay();
+    if (dow !== 0 && dow !== 6 && !FERIADOS.includes(x.toISOString().slice(5, 10))) c++;
+  }
+  return x;
+}
 // Fim de semana (v122): conta que vence sábado/domingo passa para a segunda seguinte;
 // folha (salário, folha NORT, pró-labore, estágio) e adiantamento do dia 20 são antecipados para a sexta.
 const RX_FOLHA = /(^|[^A-Z])(SAL[AÁ]RIO|FOLHA|PR[OÓ][ -]?LABORE|EST[AÁ]GIO|ADIANTAMENTO SALARIAL)([^A-Z]|$)/;
@@ -58,6 +68,8 @@ export const tituloOut = (t) => ({
   ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null,
   vencimento: t.vencimento.toISOString().slice(0, 10), dataPagamento: t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10) : null,
   vencimentoOriginal: t.vencimentoOriginal ? t.vencimentoOriginal.toISOString().slice(0, 10) : null,
+  antecipadoEm: t.antecipadoEm ? t.antecipadoEm.toISOString().slice(0, 10) : null,
+  liquidadoEm: t.liquidadoEm ? t.liquidadoEm.toISOString().slice(0, 10) : null,
   arquivoXml: undefined, temXml: !!t.arquivoXml,
   _count: undefined, nAnexos: t._count?.anexos || 0,
 });

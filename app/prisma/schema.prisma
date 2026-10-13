@@ -863,6 +863,14 @@ model FinTitulo {
   antecipacaoPrevista Boolean @default(false)
   valorBruto       Decimal?  @db.Decimal(14, 2)   // valor de face do boleto
   vencimentoBoleto DateTime? @db.Date
+  // v186 — antecipação: forma (BRADESCO | AZUL_CAPITAL | PORTAL_PROPRIO), contrato e confirmação de que o cliente pagou
+  antecipadoForma  String?
+  antecipadoEm     DateTime? @db.Date
+  antecipacaoId    Int?                         // FinAntecipacao (contrato) que antecipou o título
+  liquidadoEm      DateTime? @db.Date           // cliente pagou o banco (ou recompra paga)
+  liquidacao       String?                      // CLIENTE | RECOMPRA
+  liquidadoPorNome String?
+  recompraId       Int?                         // conta a pagar criada quando o cliente não pagou (banco cobra da Meridian)
   critica          String?                      // v152: crítica a conferir (linha em vermelho até alguém marcar como conferida)
   // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
   vencimentoOriginal DateTime? @db.Date
@@ -883,6 +891,7 @@ model FinTitulo {
   @@unique([recorrenciaId, competencia])
   @@index([tipo, competencia])
   @@index([tipo, status])
+  @@index([antecipacaoId])
   semanaItens FinSemanaItem[]
   anexos      FinTituloAnexo[]
 }
@@ -973,6 +982,7 @@ model FinExecucaoEvolucao {
 model FinAntecipacao {
   id            Int      @id @default(autoincrement())
   banco         String   @default("237")
+  forma         String   @default("BRADESCO")   // v186: BRADESCO | AZUL_CAPITAL | PORTAL_PROPRIO
   contrato      String   @unique
   data          DateTime @db.Date
   valorOperacao Decimal  @db.Decimal(14, 2)

@@ -107,7 +107,7 @@ export async function analisarRetornos(arquivos) {
   const jaPor = Object.fromEntries(ja.map((x) => [x.hash, x.createdAt]));
   const tits = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true },
   });
   const porDoc = new Map(), porNosso = new Map();
   const add = (m, k, t) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(t); };
@@ -128,6 +128,7 @@ export async function analisarRetornos(arquivos) {
       let situacao = "OK", msg = aviso || null;
       if (["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) {
         if (!t) { situacao = "SEM_CONTA"; msg = "Nenhuma conta a receber com esse nº de título / nosso número."; }
+        else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = "Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação."; }
         else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
         else if (acao === "CRITICA" && !["ABERTO", "EXECUCAO"].includes(t.status)) { situacao = "JA_BAIXADA"; msg = `${aviso} (conta já ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} no sistema — sem crítica)`; }
         else if (acao === "REGISTRAR" && t.cobranca) { situacao = "JA_REGISTRADA"; }
@@ -192,6 +193,18 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
       }
       if (acao !== "LIQUIDAR") continue;
       if (usados.has(id)) continue;
+      // v186 — título antecipado: o pagamento do cliente confirma a antecipação (liquidado), sem mexer no recebimento
+      if (t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) {
+        const dl = reg.dataOcorrencia || reg.dataCredito;
+        if (!dl) throw new Error("registro sem data");
+        await prisma.finTitulo.update({ where: { id }, data: { liquidadoEm: dataUTC(dl), liquidacao: "CLIENTE", liquidadoPorNome: quem || "RETORNO", antecipadoForma: t.antecipadoForma || "BRADESCO",
+          observacao: [t.observacao, `CLIENTE PAGOU O TÍTULO ANTECIPADO (RETORNO ${f.sequencia || f.arquivo}, ${dBR(dl)})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: quem || null } });
+        usados.add(id);
+        await anexar(id, f.a, f.hash, quem);
+        r.antecipadasLiquidadas = (r.antecipadasLiquidadas || 0) + 1;
+        r.linhas.push(`${t.titulo}: antecipado — cliente pagou em ${dBR(dl)}`);
+        continue;
+      }
       if (t.status !== "ABERTO") { r.linhas.push(`${t.titulo}: já baixada — ignorada`); continue; }
       const liq = acao === "LIQUIDAR";
       const dt = liq ? (reg.dataCredito || reg.dataOcorrencia) : reg.dataOcorrencia;

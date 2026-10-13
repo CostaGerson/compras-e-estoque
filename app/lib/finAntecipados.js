@@ -1,0 +1,229 @@
+// v186 — Títulos antecipados (contas a receber)
+// O título antecipado fica PAGO (cobranca DESCONTADO) desde o dia da antecipação — o dinheiro veio do banco/factoring.
+// Falta saber se o CLIENTE pagou quem antecipou: isso é a "liquidação" (liquidadoEm).
+//  - liquidado pelo retorno do banco, pela baixa manual ou em lote;
+//  - não liquidado até 3 dias úteis depois do vencimento → vira conta a PAGAR (em vermelho): quem antecipou cobra da Meridian;
+//  - pagou a conta a pagar → o título original fica liquidado (RECOMPRA); estornou → volta a pendente;
+//  - cliente pagou depois e a conta a pagar ainda está em aberto → a conta a pagar é cancelada.
+import { prisma } from "@/lib/prisma";
+import { garantirContas } from "@/lib/fin";
+import { somaDiasUteis, dataUTC, mesDe, r2, tituloOut, COM_ANEXOS } from "@/lib/finTitulos";
+
+export const FORMAS_ANT = { BRADESCO: "Bradesco", AZUL_CAPITAL: "Factoring Azul Capital", PORTAL_PROPRIO: "Portal próprio" };
+const PARCEIRO = { BRADESCO: ["BANCO BRADESCO S.A.", "60746948000112"], AZUL_CAPITAL: ["AZUL CAPITAL", null], PORTAL_PROPRIO: ["PORTAL PRÓPRIO DE ANTECIPAÇÃO", null] };
+export const DIAS_TOLERANCIA = 3;
+// cobrança automática só para vencimentos a partir da implantação (o que venceu antes não tem confirmação no sistema)
+export const INICIO_COBRANCA = "2026-10-01";
+const DIA = 86400000;
+const dBR = (d) => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10).split("-").reverse().join("/");
+const hojeUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
+export const ehAntecipado = (t) => !!t && t.tipo === "RECEBER" && (!!t.antecipadoForma || t.cobranca === "DESCONTADO");
+export const prazoCobranca = (venc) => somaDiasUteis(venc, DIAS_TOLERANCIA);
+
+// títulos descontados antes da v186: forma Bradesco e o contrato pela observação / pelos itens do contrato
+async function completarAntigos() {
+  const sem = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", cobranca: "DESCONTADO", antecipadoForma: null }, select: { id: true, observacao: true, dataPagamento: true } });
+  if (!sem.length) return 0;
+  const cts = await prisma.finAntecipacao.findMany({ select: { id: true, contrato: true, itens: true, data: true } });
+  const porConta = new Map();
+  for (const c of cts) for (const i of Array.isArray(c.itens) ? c.itens : []) if (i.contaId) porConta.set(Number(i.contaId), c);
+  for (const t of sem) {
+    const m = String(t.observacao || "").match(/CONTRATO ([A-Z0-9\-]+)/);
+    const c = (m && cts.find((x) => x.contrato === m[1])) || porConta.get(t.id) || null;
+    await prisma.finTitulo.update({ where: { id: t.id }, data: { antecipadoForma: "BRADESCO", antecipacaoId: c?.id || null, antecipadoEm: c?.data || t.dataPagamento || null } });
+  }
+  return sem.length;
+}
+
+// cria as contas a pagar dos antecipados que o cliente não pagou
+async function cobrarVencidos(quem) {
+  const hoje = hojeUTC();
+  const pend = await prisma.finTitulo.findMany({
+    where: { tipo: "RECEBER", antecipadoForma: { not: null }, status: "PAGO", liquidadoEm: null, recompraId: null, vencimento: { gte: dataUTC(INICIO_COBRANCA), lt: hoje } },
+  });
+  let n = 0;
+  for (const t of pend) {
+    const prazo = prazoCobranca(t.vencimento);
+    if (!(prazo < hoje)) continue;   // ainda dentro dos 3 dias úteis
+    const chave = `RECOMPRA|${t.id}`;
+    let p = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
+    if (!p) {
+      await garantirContas();
+      const conta = await prisma.finConta.findUnique({ where: { codigo: "2131300" }, select: { id: true } });
+      const [parc, doc] = PARCEIRO[t.antecipadoForma] || PARCEIRO.BRADESCO;
+      const venc = prazo;
+      p = await prisma.finTitulo.create({
+        data: {
+          tipo: "PAGAR", titulo: `COBRANÇA DE ANTECIPAÇÃO NÃO PAGA · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
+          numeroDoc: t.numeroDoc, valor: t.valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
+          rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: "DEBITO_AUTOMATICO", chaveImport: chave, valorConfirmado: true,
+          observacao: `TÍTULO A RECEBER #${t.id} ANTECIPADO (${FORMAS_ANT[t.antecipadoForma] || t.antecipadoForma}) VENCIDO EM ${dBR(t.vencimento)} SEM PAGAMENTO DO CLIENTE`,
+          critica: `O cliente ${t.parceiro} não pagou o título antecipado ${t.titulo} (venc. ${dBR(t.vencimento)}) até ${dBR(prazo)}: ${FORMAS_ANT[t.antecipadoForma] || "quem antecipou"} cobra da Meridian. Ao baixar esta conta, o título original também é baixado.`,
+          criadoPorNome: quem || "SISTEMA",
+        },
+      });
+    }
+    await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id,
+      critica: [t.critica, `Cliente não pagou o título antecipado até ${dBR(prazo)} — virou conta a pagar (cobrança de ${FORMAS_ANT[t.antecipadoForma] || "quem antecipou"}).`].filter(Boolean).join(" · ").slice(0, 500) } });
+    n++;
+  }
+  return n;
+}
+
+// conta a pagar da cobrança paga → título original liquidado; estornada → volta; cliente pagou → cancela a cobrança
+async function amarrarCobrancas(quem) {
+  const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true } });
+  if (!ligados.length) return;
+  const cobs = await prisma.finTitulo.findMany({ where: { id: { in: ligados.map((t) => t.recompraId) } }, select: { id: true, status: true, dataPagamento: true, observacao: true } });
+  const porId = new Map(cobs.map((c) => [c.id, c]));
+  for (const t of ligados) {
+    const c = porId.get(t.recompraId);
+    if (!c) continue;
+    if (c.status === "PAGO" && !t.liquidadoEm) {
+      await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: c.dataPagamento || hojeUTC(), liquidacao: "RECOMPRA", liquidadoPorNome: quem || "SISTEMA" } });
+    } else if (c.status !== "PAGO" && t.liquidacao === "RECOMPRA") {
+      await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null } });
+    } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE") {
+      await prisma.finTitulo.update({ where: { id: c.id }, data: { status: "CANCELADO", critica: null,
+        observacao: [c.observacao, `CANCELADA: O CLIENTE PAGOU O TÍTULO (${dBR(t.liquidadoEm)})`].filter(Boolean).join(" · ").slice(0, 1000) } });
+    }
+  }
+}
+
+export async function sincronizarAntecipados(quem) {
+  await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
+  await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
+  await cobrarVencidos(quem).catch((e) => console.log("antecipados/cobrar:", e.message));
+}
+
+// marca o título como liquidado (cliente pagou quem antecipou)
+export async function liquidar(id, data, quem) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser liquidado.");
+  if (t.liquidadoEm) return { ja: true };
+  await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: dataUTC(data), liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
+    critica: t.recompraId ? t.critica : null } });
+  await amarrarCobrancas(quem);
+  return { ok: true };
+}
+export async function desfazerLiquidacao(id) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!t?.liquidadoEm) return { ja: true };
+  if (t.liquidacao === "RECOMPRA") throw new Error("Liquidado pela conta a pagar da cobrança — estorne a conta a pagar.");
+  await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null } });
+  if (t.recompraId) {   // a cobrança tinha sido cancelada porque o cliente pagou: volta a valer
+    const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId }, select: { status: true } });
+    if (c?.status === "CANCELADO") await prisma.finTitulo.update({ where: { id: t.recompraId }, data: { status: "ABERTO" } });
+  }
+  return { ok: true };
+}
+
+// desfaz a antecipação do título (volta a ser conta a receber em aberto)
+export async function desfazerAntecipacao(id, quem) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!ehAntecipado(t)) throw new Error("O título não está antecipado.");
+  if (t.recompraId) {
+    const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId }, select: { status: true } });
+    if (c?.status === "PAGO") throw new Error("A cobrança desta antecipação já foi paga — estorne a conta a pagar antes.");
+    if (c) await prisma.finTitulo.update({ where: { id: t.recompraId }, data: { status: "CANCELADO", critica: null } });
+  }
+  await prisma.finTitulo.update({ where: { id: t.id }, data: {
+    status: "ABERTO", dataPagamento: null, valorPago: null, cobranca: null, formaPagamento: t.formaPagamento === "DESCONTO" ? "BOLETO" : t.formaPagamento,
+    antecipadoForma: null, antecipadoEm: null, antecipacaoId: null, liquidadoEm: null, liquidacao: null, liquidadoPorNome: null, recompraId: null, critica: null,
+    observacao: [t.observacao, `ANTECIPAÇÃO DESFEITA POR ${quem || "—"}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: quem || null,
+  } });
+  return { ok: true };
+}
+
+// antecipação registrada à mão (factoring Azul Capital, portal próprio ou Bradesco sem PDF)
+export async function registrarManual({ forma, data, contrato, ids, liquido, arquivo }, quem) {
+  if (!FORMAS_ANT[forma]) throw new Error("Escolha a forma de antecipação.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) throw new Error("Informe a data da antecipação.");
+  const tits = await prisma.finTitulo.findMany({ where: { id: { in: (ids || []).map(Number) }, tipo: "RECEBER", status: "ABERTO" } });
+  if (!tits.length) throw new Error("Selecione os títulos em aberto que foram antecipados.");
+  const total = r2(tits.reduce((s, t) => s + Number(t.valor), 0));
+  const liq = liquido != null && liquido !== "" ? r2(liquido) : total;
+  if (liq > total + 0.01) throw new Error("O valor líquido é maior que a soma dos títulos.");
+  const { createHash } = await import("crypto");
+  const num = String(contrato || "").trim().toUpperCase() || `${forma === "AZUL_CAPITAL" ? "AZUL" : forma === "PORTAL_PROPRIO" ? "PORTAL" : "BRAD"}-${data.replace(/-/g, "")}-${Math.round(liq * 100)}`;
+  if (await prisma.finAntecipacao.findUnique({ where: { contrato: num }, select: { id: true } })) throw new Error(`Já existe o contrato ${num}.`);
+  const b64 = arquivo?.conteudo ? String(arquivo.conteudo) : "";
+  const a = await prisma.finAntecipacao.create({ data: {
+    forma, banco: forma === "BRADESCO" ? "237" : forma, contrato: num, data: dataUTC(data), valorOperacao: total, juros: r2(total - liq), iof: 0, tac: 0, tarifa: 0, valorLiquido: liq,
+    itens: tits.map((t, i) => ({ parcela: i + 1, vencimento: t.vencimento.toISOString().slice(0, 10), valor: Number(t.valor), seu: t.numeroDoc, sacado: t.parceiro, contaId: t.id })),
+    nome: arquivo?.nome || `${num} (sem arquivo)`, hash: createHash("sha256").update(b64 || `MANUAL|${num}|${Date.now()}`).digest("hex"), conteudo: b64, criadoPorNome: quem || null,
+  } });
+  for (const t of tits) {
+    await prisma.finTitulo.update({ where: { id: t.id }, data: {
+      status: "PAGO", dataPagamento: dataUTC(data), valorPago: t.valor, cobranca: "DESCONTADO", formaPagamento: t.formaPagamento || "BOLETO", previsao: false, valorConfirmado: true,
+      antecipadoForma: forma, antecipadoEm: dataUTC(data), antecipacaoId: a.id, atualizadoPorNome: quem || null,
+      observacao: [t.observacao, `ANTECIPADA (${FORMAS_ANT[forma]}) · CONTRATO ${num} (${dBR(data)})`].filter(Boolean).join(" · ").slice(0, 1000),
+    } });
+    if (b64) await prisma.finTituloAnexo.create({ data: { tituloId: t.id, nome: arquivo.nome || `CONTRATO ${num}.pdf`, mime: arquivo.mime || "application/pdf", tamanho: Math.floor(b64.length * 3 / 4), conteudo: b64, criadoPorNome: quem || null } });
+  }
+  return { contrato: num, titulos: tits.length, valor: total, liquido: liq };
+}
+
+// situação do título antecipado
+export function situacaoAntecipado(t, hoje = hojeUTC()) {
+  if (t.liquidadoEm) return t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO";
+  if (t.recompraId) return "COBRADO";
+  const v = t.vencimento instanceof Date ? t.vencimento : dataUTC(t.vencimento);
+  if (v < hoje) return "VENCIDO";   // dentro dos 3 dias úteis
+  return "A_VENCER";
+}
+
+const contratoOut = (a) => a && ({ id: a.id, forma: a.forma, banco: a.banco, contrato: a.contrato, data: a.data.toISOString().slice(0, 10), valorOperacao: Number(a.valorOperacao),
+  juros: Number(a.juros), iof: Number(a.iof), tac: Number(a.tac), tarifa: Number(a.tarifa), valorLiquido: Number(a.valorLiquido), taxa: a.taxa, nome: a.nome,
+  temArquivo: a.conteudo !== undefined ? !!a.conteudo : !/\(sem arquivo\)$/.test(String(a.nome || "")), criadoPorNome: a.criadoPorNome, lancamentoId: a.lancamentoId,
+  qtd: Array.isArray(a.itens) ? a.itens.length : 0 });
+
+// guia Antecipações: títulos antecipados com vencimento no período + % antecipado do contas a receber
+export async function listarAntecipados({ dIni, dFim }) {
+  const per = { vencimento: { gte: dataUTC(dIni), lte: dataUTC(dFim) } };
+  const [tits, todos] = await Promise.all([
+    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }], status: { not: "CANCELADO" }, ...per }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
+    prisma.finTitulo.aggregate({ where: { tipo: "RECEBER", status: { notIn: ["CANCELADO"] }, ...per }, _sum: { valor: true }, _count: true }),
+  ]);
+  const ids = [...new Set(tits.map((t) => t.antecipacaoId).filter(Boolean))];
+  const recIds = tits.map((t) => t.recompraId).filter(Boolean);
+  const [cts, recs] = await Promise.all([
+    ids.length ? prisma.finAntecipacao.findMany({ where: { id: { in: ids } }, select: { id: true, forma: true, banco: true, contrato: true, data: true, valorOperacao: true, juros: true, iof: true, tac: true, tarifa: true, valorLiquido: true, taxa: true, nome: true, criadoPorNome: true, lancamentoId: true, itens: true } }) : [],
+    recIds.length ? prisma.finTitulo.findMany({ where: { id: { in: recIds } }, select: { id: true, status: true, vencimento: true, valor: true, dataPagamento: true } }) : [],
+  ]);
+  const contratos = cts.map(contratoOut);
+  const recPor = new Map(recs.map((r) => [r.id, { id: r.id, status: r.status, vencimento: r.vencimento.toISOString().slice(0, 10), valor: Number(r.valor), dataPagamento: r.dataPagamento?.toISOString().slice(0, 10) || null }]));
+  const hoje = hojeUTC();
+  const lista = tits.map((t) => ({ ...tituloOut(t), antecipadoForma: t.antecipadoForma || "BRADESCO", sitAnt: situacaoAntecipado(t, hoje), prazoCobranca: prazoCobranca(t.vencimento).toISOString().slice(0, 10), recompra: recPor.get(t.recompraId) || null }));
+  const totalReceber = Number(todos._sum.valor || 0);
+  const antecipado = r2(lista.reduce((s, t) => s + t.valor, 0));
+  return { titulos: lista, contratos, totalReceber, antecipado, pct: totalReceber ? Math.round((antecipado / totalReceber) * 10000) / 100 : 0, qtdReceber: todos._count || 0 };
+}
+
+// contrato de um título (ao clicar no A)
+export async function contratoDoTitulo(tituloId) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(tituloId) } });
+  if (!t) throw new Error("Título não encontrado.");
+  const a = t.antecipacaoId ? await prisma.finAntecipacao.findUnique({ where: { id: t.antecipacaoId } }) : null;
+  return contratoComTitulos(a, t);
+}
+export async function contratoPorId(id) {
+  const a = await prisma.finAntecipacao.findUnique({ where: { id: Number(id) } });
+  if (!a) throw new Error("Contrato não encontrado.");
+  return contratoComTitulos(a, null);
+}
+async function contratoComTitulos(a, t) {
+  const tits = a ? await prisma.finTitulo.findMany({ where: { antecipacaoId: a.id }, orderBy: { vencimento: "asc" } }) : t ? [t] : [];
+  const hoje = hojeUTC();
+  return {
+    contrato: a ? contratoOut(a) : null,
+    forma: a?.forma || t?.antecipadoForma || "BRADESCO",
+    semContrato: !a ? (t ? `Título antecipado sem contrato vinculado${t.observacao ? ` — ${t.observacao}` : ""}.` : "") : null,
+    titulos: tits.map((x) => ({ ...tituloOut(x), sitAnt: situacaoAntecipado(x, hoje), prazoCobranca: prazoCobranca(x.vencimento).toISOString().slice(0, 10) })),
+  };
+}
+export async function arquivoContrato(id) {
+  const a = await prisma.finAntecipacao.findUnique({ where: { id: Number(id) }, select: { nome: true, conteudo: true } });
+  if (!a?.conteudo) return null;
+  return { nome: /\.pdf$/i.test(a.nome) ? a.nome : `${a.nome}.pdf`, buf: Buffer.from(a.conteudo, "base64") };
+}
