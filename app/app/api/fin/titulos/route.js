@@ -24,6 +24,7 @@ export async function GET(req) {
   if (tipo === "PAGAR") { const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb"); await sincronizarMatriz().catch((e) => console.log("espelho da Matriz:", e.message)); }   // v192
   if (tipo === "PAGAR") { const { garantirGuiasRecorrentes } = await import("@/lib/finGuias"); await garantirGuiasRecorrentes().catch(() => null); }   // INSS/FGTS mensais = última guia
   await gerarRecorrencias(tipo);
+  if (tipo === "PAGAR") { const { impostosSobreVendas } = await import("@/lib/finImpostosVendas"); await impostosSobreVendas().catch((e) => console.log("Impostos sobre vendas:", e.message)); }   // v200
   if (tipo === "PAGAR") { const { lancarLote0910 } = await import("@/lib/finLote0910"); await lancarLote0910().catch((e) => console.log("Lote 09/10:", e.message)); }   // v179 — uma vez
   await ajustarFinsDeSemana().catch(() => null);
   { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados().catch(() => null); }   // v186: antecipados não pagos viram conta a pagar   // sáb/dom → segunda; folha e adiantamento → sexta

@@ -72,7 +72,7 @@ export async function listar() {
         valorMatriz, divergente, diferenca: divergente ? r2(valor - valorMatriz) : null,
         podeAtualizarMatriz: divergente && origemEditavel(r.chaveOrigem),
         titulosAbertos: nAbertos[r.id] || 0,
-        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem) && !vistada,   // v194: recorrente lançada à mão (não vem da Matriz)
+        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem) && !/^IMPOSTO\|/.test(String(r.chaveOrigem || "")) && !vistada,   // v200: impostos sobre vendas têm regra própria   // v194: recorrente lançada à mão (não vem da Matriz)
         extraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem),
         vistada, vistoEm: r.vistoEm, vistoPor: r.vistoPor,
       };
