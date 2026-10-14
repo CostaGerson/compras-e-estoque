@@ -58,7 +58,7 @@ function statusCard(n, esperado, justificativa, arqs = []) {
 }
 
 /* ============================================================ */
-export default function Financeiro({ user, telaInicial }) {
+export default function Financeiro({ user, telaInicial, irMetas }) {
   // tela: dash | meses | mes | contas | regras | senhas
   // v170 — quem não é master/diretoria vê só o operacional (documentos financeiros e contas)
   const ger = gerencial(user);
@@ -113,7 +113,7 @@ export default function Financeiro({ user, telaInicial }) {
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
-      {tela.v === "matriz" && ger && <MatrizCustos user={user} />}
+      {tela.v === "matriz" && ger && <MatrizCustos user={user} irMetas={irMetas} />}
       {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
       {tela.v === "alavancagem" && ger && <Alavancagem user={user} master aba="dividas" />}
       {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}

@@ -45,17 +45,11 @@ const api = async (url, method, body) => {
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
 
 /* ============================================================ */
-export default function Gestao({ user, master, money, irMatriz }) {
-  const [tela, setTela] = useState({ v: "painel" });
+export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
+  const [tela, setTela] = useState(telaInicial?.v ? { v: telaInicial.v, ano: telaInicial.ano } : { v: "painel" });
   const voltar = () => setTela({ v: "painel" });
   return (
     <div>
-      {irMatriz && (
-        <div className="flex justify-end mb-3">
-          <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}
-            title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>
-        </div>
-      )}
       {tela.v !== "painel" && (
         <div className="flex items-center gap-1 text-sm mb-4">
           <button onClick={voltar} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}>
@@ -67,7 +61,7 @@ export default function Gestao({ user, master, money, irMatriz }) {
         </div>
       )}
       {tela.v === "painel"
-        ? <Painel user={user} master={master} money={money} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
+        ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
         : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}`} user={user} anoInicial={tela.ano} />
         : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} abrirMetas={(ano) => setTela({ v: "metas", ano })} />}
     </div>
@@ -75,7 +69,7 @@ export default function Gestao({ user, master, money, irMatriz }) {
 }
 
 /* ---------------- PAINEL (tela inicial da Gestão) ---------------- */
-function Painel({ user, master, money, abrirRelatorio, abrirMetas }) {
+function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz }) {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1);
@@ -116,6 +110,10 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas }) {
           </div>
         )}
         <div className="flex-1" />
+        {irMatriz && (
+          <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}
+            title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>
+        )}
         {d?.podeEditar && (
           <button onClick={() => abrirMetas(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
             style={{ border: `1px solid ${C.accent}`, color: C.accent }}>

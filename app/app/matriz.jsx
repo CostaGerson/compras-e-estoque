@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Grid3x3, Save, Undo2, Plus, Trash2, X, Loader2, HelpCircle, History, Copy, Pencil, Users, Leaf, Truck, Briefcase,
-  Cpu, Landmark, Factory, SlidersHorizontal, LayoutDashboard, UserX, UserCheck, AlertTriangle, PiggyBank, Columns3, RotateCcw,
+  Cpu, Landmark, Factory, SlidersHorizontal, LayoutDashboard, UserX, UserCheck, AlertTriangle, PiggyBank, Columns3, RotateCcw, Target,
 } from "lucide-react";
 import { calcularMatriz, calcFuncionario, calcFreelancer, DEPTOS, REGIMES, FORMULAS } from "@/lib/matriz";
 import { compararComOficial, trazerDaOficial } from "@/lib/matrizCenario";
@@ -118,7 +118,7 @@ const ABAS = [
 ];
 
 /* ============================================================ */
-export default function MatrizCustos({ user }) {
+export default function MatrizCustos({ user, irMetas }) {
   const [lista, setLista] = useState(null);
   const [atualId, setAtualId] = useState(null);
   const [doc, setDoc] = useState(null);       // registro salvo
@@ -236,6 +236,12 @@ export default function MatrizCustos({ user }) {
 
   return (
     <div>
+      {/* v220 — no topo: como é calculado + metas */}
+      <div className="flex justify-end items-center gap-2 mb-2">
+        <ComoCalcula itens={FORMULAS.painel} />
+        {irMetas && <button onClick={() => irMetas(new Date().getFullYear())} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+          style={{ color: C.accent, border: `1px solid ${C.accent}`, background: "#fff" }}><Target size={14} /> Metas de {new Date().getFullYear()}</button>}
+      </div>
       {/* barra da matriz */}
       <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <Grid3x3 size={18} style={{ color: C.accent }} />
@@ -369,7 +375,6 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg }) {
           </div>
         </div>
       )}
-      <div className="flex justify-end"><ComoCalcula itens={FORMULAS.painel} /></div>
       {/* distribuição (pizza) + blocos */}
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
         <Cartao titulo="Distribuição do custo do negócio">
