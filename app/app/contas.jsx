@@ -1754,6 +1754,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
             <Plus size={14} /> {rotGrupo(d, g)}
           </button>
         ))}
+        {d.tipo === "FREELANCER" && <ExcelFreelancers user={user} tituloId={tituloId} onFeito={(j) => { setD(j); onMudou && onMudou(); }} onErro={setErro} />}
         <div className="flex-1" />
         {d.grupos.map((g) => d.porGrupo[g] ? (
           <span key={g} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: C.panel2, color: C.sub }}>
@@ -1791,7 +1792,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                           {!!it.custoExtra && <JustificarExtra it={it} user={user} onSalvo={(j) => setD(j)} />}
                         </>
                       : (it.linhas || []).map((l, i) => (
-                          <div key={i}>{l.qtd} {l.item || "pç"} × {moeda(l.unitario)} · pedido {l.pedido} = <b style={{ color: C.text }}>{moeda(l.total)}</b></div>
+                          <div key={i}>{l.qtd} {l.item || "pç"}{l.tipo ? ` (${((d.catalogos.FACCAO || []).find((c) => c.k === l.tipo) || {}).n || l.tipo})` : ""} × {moeda(l.unitario)} · pedido {l.pedido} = <b style={{ color: C.text }}>{moeda(l.total)}</b></div>
                         ))}
                     {it.descricao && <div>{it.descricao}</div>}
                     {it.vencimentoNegociado && (
@@ -1824,10 +1825,56 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
   );
 }
 
+// v208 — freelancers da semana pela planilha modelo: baixar o modelo (com o cadastro) e importar preenchido
+function ExcelFreelancers({ user, tituloId, onFeito, onErro }) {
+  const [st, setSt] = useState("");
+  const ref = useRef(null);
+  const baixar = async () => {
+    setSt("modelo");
+    try {
+      const r = await fetch(`/api/fin/semana?u=${user.id}&modelo=1`);
+      if (!r.ok) throw new Error("Não consegui gerar o modelo.");
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a"); a.href = url; a.download = "modelo-freelancers-semana.xlsx"; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { onErro(e.message); }
+    setSt("");
+  };
+  const importar = async (file) => {
+    if (!file) return;
+    setSt("importar");
+    try {
+      const conteudo = await readB64(file);
+      const sim = await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "importar", simular: true, tituloId, conteudo });
+      const linhas = sim.linhas || [];
+      if (!linhas.length) throw new Error("Nenhuma linha com DIAS preenchido na planilha.");
+      const txt = linhas.map((x) => `${x.ok ? "✓" : "✗"} ${x.nome} · ${x.dias} dia(s)${x.ok ? ` · R$ ${Number(x.valor).toFixed(2).replace(".", ",")}${x.novo ? " · NOVO CADASTRO" : ""}` : ` · ${x.erro}`}`).join("\n");
+      if (!confirm(`Lançar ${sim.lancadas} freelancer(s) nesta semana (R$ ${Number(sim.total).toFixed(2).replace(".", ",")})?${sim.erros ? ` ${sim.erros} linha(s) com erro ficam de fora.` : ""}\n\n${txt}`)) { setSt(""); return; }
+      const j = await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "importar", tituloId, conteudo });
+      onFeito(j);
+      if (j.erros) onErro(`Importados ${j.lancadas}. Com erro: ${j.linhas.filter((x) => !x.ok).map((x) => `linha ${x.linha} ${x.nome}: ${x.erro}`).join(" · ")}`);
+    } catch (e) { onErro(e.message); }
+    setSt("");
+  };
+  return (
+    <>
+      <button onClick={baixar} disabled={!!st} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green, background: C.panel }}
+        title="Planilha com os freelancers cadastrados (diária e transporte do cadastro): preencha os DIAS e importe">
+        {st === "modelo" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Modelo Excel
+      </button>
+      <button onClick={() => ref.current?.click()} disabled={!!st} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.green }}>
+        {st === "importar" ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Importar Excel
+      </button>
+      <input ref={ref} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { importar(e.target.files?.[0]); e.target.value = ""; }} />
+    </>
+  );
+}
+
 // as colunas da tabela de pedidos: o cabeçalho e a linha usam exatamente as mesmas larguras
 const COL = {
   pedido: { width: 150, flex: "0 0 150px" },
   item: { flex: "1 1 0", width: "auto", minWidth: 0 },
+  tipo: { width: 170, flex: "0 0 170px" },
   qtd: { width: 80, flex: "0 0 80px" },
   unit: { width: 120, flex: "0 0 120px" },
   total: { width: 110, flex: "0 0 110px" },
@@ -1852,9 +1899,11 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
     prazoDias: item?.prazoDias ?? "",
     excepcional: !!item?.excepcional,
     dataPagamento: "",
-    linhas: item?.linhas?.length ? item.linhas : [{ pedido: "", item: "", qtd: 0, unitario: 0 }],
+    linhas: item?.linhas?.length ? item.linhas.map((l) => ({ ...l, tipo: l.tipo || (grupo === "FACCAO" ? item.setor : undefined) })) : [{ pedido: "", item: "", qtd: 0, unitario: 0, tipo: "" }],
     observacao: item?.observacao || "",
   }));
+  const porLinha = grupo === "FACCAO";   // v208: facção — tipo de peça em cada linha (pedido), não no prestador
+  const semPixCadastro = !!f.prestadorId && !String((lista.find((p) => p.id === f.prestadorId) || {}).chavePix || "").trim();
   const [prog, setProg] = useState(null);     // { sexta, vencimento, aviso }
   const [ciente, setCiente] = useState(!!item);
   const [erro, setErro] = useState("");
@@ -1911,13 +1960,13 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
           <PrestadorPicker lista={lista} valor={f.nome} onEscolher={escolher}
             onNovo={(nome) => setNovoPrestador(nome)} />
         </Campo>
-        <Campo t="Chave PIX"><input value={f.chavePix} onChange={(e) => s("chavePix")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.chavePix ? C.line : C.yellow }} /></Campo>
-        <Campo t={free ? "Setor" : "Tipo de peça / serviço"}>
+        <Campo t="Chave PIX" dica={semPixCadastro ? "sem PIX no cadastro: esta chave vai para o cadastro" : undefined}><input value={f.chavePix} onChange={(e) => s("chavePix")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.chavePix ? C.line : C.yellow }} /></Campo>
+        {!porLinha && <Campo t={free ? "Setor" : "Tipo de peça / serviço"}>
           <select value={f.setor} onChange={(e) => s("setor")(e.target.value)} className={inp} style={{ ...inpS, borderColor: f.setor ? C.line : C.yellow }}>
             <option value="">—</option>
             {catalogo.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
           </select>
-        </Campo>
+        </Campo>}
         {free && turnos.length > 1 && <Campo t="Turno" dica="do cadastro"><select onChange={(e) => aplicarTurno(turnos[Number(e.target.value)])} className={inp} style={inpS}>
           {turnos.map((d, i) => <option key={i} value={i}>{d.turno} · {moeda(Number(d.diaria))}{d.passagem ? ` + ${moeda(Number(d.passagem))}` : ""}</option>)}
         </select></Campo>}
@@ -1952,6 +2001,7 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
             <span style={COL.pedido}>Nº do pedido</span>
             <span style={COL.item}>Item</span>
+            {porLinha && <span style={COL.tipo}>Tipo de peça</span>}
             <span style={{ ...COL.qtd, textAlign: "right", paddingRight: 8 }}>Qtd</span>
             <span style={{ ...COL.unit, textAlign: "right", paddingRight: 8 }}>Unitário</span>
             <span style={{ ...COL.total, textAlign: "right" }}>Total</span>
@@ -1961,6 +2011,10 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
             <div key={i} className="flex items-center gap-2 mb-1.5">
               <input value={l.pedido} onChange={(e) => altL(i, "pedido", e.target.value.toUpperCase())} placeholder="PEDIDO" className={inp} style={{ ...inpS, ...COL.pedido }} />
               <input value={l.item || ""} onChange={(e) => altL(i, "item", e.target.value.toUpperCase())} placeholder="camiseta, polo…" className={inp} style={{ ...inpS, ...COL.item }} />
+              {porLinha && <select value={l.tipo || ""} onChange={(e) => altL(i, "tipo", e.target.value)} className={inp} style={{ ...inpS, ...COL.tipo, borderColor: l.tipo ? C.line : C.yellow }}>
+                <option value="">—</option>
+                {catalogo.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+              </select>}
               <input value={l.qtd} onChange={(e) => altL(i, "qtd", e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={`${inp} text-right`} style={{ ...inpS, ...COL.qtd }} />
               <div style={COL.unit}><Valor value={l.unitario} onChange={(v) => altL(i, "unitario", v)} width="100%" /></div>
               <span className="text-xs font-semibold tabular-nums" style={{ ...COL.total, textAlign: "right" }}>
@@ -1970,7 +2024,7 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
                 style={{ color: C.sub, ...COL.x }}><X size={14} /></button>
             </div>
           ))}
-          <button type="button" onClick={() => setF((x) => ({ ...x, linhas: [...x.linhas, { pedido: "", item: "", qtd: 0, unitario: 0 }] }))}
+          <button type="button" onClick={() => setF((x) => ({ ...x, linhas: [...x.linhas, { pedido: "", item: "", qtd: 0, unitario: 0, tipo: x.linhas[x.linhas.length - 1]?.tipo || "" }] }))}
             className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Outro pedido</button>
         </div>
       )}

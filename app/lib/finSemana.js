@@ -127,6 +127,12 @@ export function validarItem(item) {
   if (!GRUPOS_ITEM[item.grupo]) return "Grupo inválido.";
   if (!String(item.nome || "").trim()) return "Escolha o prestador.";
   if (!String(item.chavePix || "").trim()) return "A chave PIX é obrigatória.";
+  // v208 — facção: o tipo de peça é de cada linha (pedido), não do prestador
+  if (item.grupo === "FACCAO") {
+    const ls = item.linhas || [];
+    for (const [i, l] of ls.entries()) if (!catalogoDe("FACCAO").some((c) => c.k === l.tipo)) return `Linha ${i + 1}: escolha o tipo de peça.`;
+    item.setor = setorPrincipal(ls) || item.setor;
+  }
   if (!catalogoDe(item.grupo).some((c) => c.k === item.setor)) {
     return item.grupo === "FREELANCER" ? "Escolha o setor." : "Escolha o tipo de peça ou o serviço.";
   }
@@ -160,9 +166,16 @@ export function validarItem(item) {
   return null;
 }
 
-const normLinhas = (linhas) => (linhas || []).map((l) => ({
+// tipo de peça com o maior valor entre as linhas (vai para o "setor" do item, usado na lista)
+export function setorPrincipal(linhas) {
+  const t = {};
+  for (const l of linhas || []) if (l.tipo) t[l.tipo] = (t[l.tipo] || 0) + (Number(l.qtd) || 0) * (Number(l.unitario) || 0);
+  return Object.entries(t).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+}
+const normLinhas = (linhas, grupo) => (linhas || []).map((l) => ({
   pedido: String(l.pedido || "").trim().toUpperCase(),
   item: String(l.item || "").trim().toUpperCase() || null,
+  ...(grupo === "FACCAO" && l.tipo ? { tipo: l.tipo } : {}),
   qtd: Number(l.qtd) || 0,
   unitario: r2(l.unitario),
   total: r2((Number(l.qtd) || 0) * (Number(l.unitario) || 0)),
@@ -190,7 +203,12 @@ export async function recalcular(tituloId) {
   const itens = await prisma.finSemanaItem.findMany({ where: { tituloId: Number(tituloId) } });
   const total = r2(itens.reduce((s, i) => s + Number(i.valor), 0));
   const porConta = {};
-  for (const i of itens) if (i.contaId) porConta[i.contaId] = r2((porConta[i.contaId] || 0) + Number(i.valor));
+  for (const i of itens) {
+    const ls = Array.isArray(i.linhas) ? i.linhas : [];
+    if (i.grupo === "FACCAO" && ls.length && ls.every((l) => l.contaId)) {   // v208: facção rateada por linha
+      for (const l of ls) porConta[l.contaId] = r2((porConta[l.contaId] || 0) + (Number(l.total) || 0));
+    } else if (i.contaId) porConta[i.contaId] = r2((porConta[i.contaId] || 0) + Number(i.valor));
+  }
   const ents = Object.entries(porConta).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   let acc = 0;
   const rateio = total
@@ -238,7 +256,18 @@ export async function salvarItem(tituloId, item, { id, quem, usuarioId } = {}) {
   const destino = await destinoDoItem(item, atual);
   if (!destino.titulo) return { ok: false, erro: "Não consegui achar a conta da semana." };
 
-  const linhas = item.grupo === "FREELANCER" ? [] : normLinhas(item.linhas);
+  const linhas = item.grupo === "FREELANCER" ? [] : normLinhas(item.linhas, item.grupo);
+  // v208 — facção: cada linha leva a conta-caixa do seu tipo de peça (o rateio da semana sai por linha)
+  if (item.grupo === "FACCAO") {
+    const cs = await prisma.finConta.findMany({ where: { codigo: { in: linhas.map((l) => contaDoSetor("FACCAO", l.tipo)).filter(Boolean) } }, select: { id: true, codigo: true } });
+    const id = Object.fromEntries(cs.map((c) => [c.codigo, c.id]));
+    for (const l of linhas) l.contaId = id[contaDoSetor("FACCAO", l.tipo)] || null;
+  }
+  // v208 — prestador sem PIX no cadastro: a chave digitada no lançamento passa a valer no cadastro
+  if (item.prestadorId && String(item.chavePix || "").trim()) {
+    const p = await prisma.prestador.findUnique({ where: { id: Number(item.prestadorId) }, select: { id: true, chavePix: true } }).catch(() => null);
+    if (p && !String(p.chavePix || "").trim()) await prisma.prestador.update({ where: { id: p.id }, data: { chavePix: String(item.chavePix).trim() } }).catch(() => null);
+  }
   const free = item.grupo === "FREELANCER";
   const data = {
     tituloId: destino.titulo.id,
@@ -351,3 +380,78 @@ export async function limparSemanasAntigas() {
 // Excluir conta da semana: a partir da implantação vira CANCELADA (senão o sistema recriaria a sexta);
 // antes dela, sai de vez.
 export const ehCascaSemana = (t) => String(t?.chaveImport || "").startsWith("SEMANA|");
+
+// ---------------- v208 — importação de freelancers pela planilha modelo ----------------
+const semAc = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+export const COLUNAS_MODELO_FREE = ["NOME", "CHAVE PIX", "SETOR", "DIÁRIA", "TRANSPORTE POR DIA", "DIAS", "CUSTO EXTRA", "JUSTIFICATIVA", "OBSERVAÇÃO"];
+export async function modeloFreelancers() {
+  const XLSX = await import("xlsx");
+  const ps = await prisma.prestador.findMany({ where: { ativo: true, tipo: "FREELANCER" }, orderBy: { nome: "asc" } });
+  const setorDe = (p) => { const s = (p.servicos || [])[0]; return SETORES_FREELANCER.find((x) => x.k === s)?.n || ""; };
+  const linhas = ps.map((p) => {
+    const d = Array.isArray(p.diarias) && p.diarias[0] ? p.diarias[0] : {};
+    return [p.nome, p.chavePix || "", setorDe(p), Number(d.diaria) || null, Number(d.passagem) || null, null, null, "", ""];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([COLUNAS_MODELO_FREE, ...linhas]);
+  ws["!cols"] = [{ wch: 34 }, { wch: 30 }, { wch: 14 }, { wch: 10 }, { wch: 18 }, { wch: 8 }, { wch: 12 }, { wch: 36 }, { wch: 30 }];
+  const inst = XLSX.utils.aoa_to_sheet([
+    ["COMO PREENCHER"],
+    ["1. Preencha a coluna DIAS de quem trabalhou na semana. Linha sem DIAS (ou com 0) é ignorada."],
+    ["2. Diária e transporte vêm do cadastro — altere se mudou. Transporte é por dia e entra no valor do dia."],
+    ["3. Custo extra (positivo ou negativo) exige JUSTIFICATIVA."],
+    ["4. Pessoa nova: escreva o NOME, a CHAVE PIX e o SETOR — o cadastro é criado na importação."],
+    ["5. Chave PIX preenchida para quem não tinha no cadastro passa a valer no cadastro."],
+    [""], ["SETORES VÁLIDOS"], ...SETORES_FREELANCER.map((s) => [s.n]),
+  ]);
+  inst["!cols"] = [{ wch: 100 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Freelancers");
+  XLSX.utils.book_append_sheet(wb, inst, "Instruções");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+}
+const numBR = (v) => { if (v == null || v === "") return 0; if (typeof v === "number") return v; const t = String(v).replace(/R\$|\s/g, ""); const n = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); return Number.isFinite(n) ? n : NaN; };
+// lê a planilha e lança cada linha com DIAS > 0 na semana (tituloId); devolve o resumo por linha
+export async function importarFreelancers(tituloId, b64, { quem, usuarioId, simular } = {}) {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(Buffer.from(String(b64 || ""), "base64"), { type: "buffer" });
+  const ws = wb.Sheets["Freelancers"] || wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const cab = (rows[0] || []).map(semAc);
+  const ix = (n) => cab.indexOf(semAc(n));
+  if (ix("NOME") < 0 || ix("DIAS") < 0) return { ok: false, erro: "Planilha fora do modelo: faltam as colunas NOME e DIAS. Baixe o modelo de novo." };
+  const ps = await prisma.prestador.findMany({ where: { tipo: "FREELANCER" } });
+  const porNome = new Map(ps.map((p) => [semAc(p.nome), p]));
+  const res = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const val = (n) => (ix(n) >= 0 ? r[ix(n)] : "");
+    const nome = String(val("NOME") || "").trim().toUpperCase();
+    const dias = numBR(val("DIAS"));
+    if (!nome || !(dias > 0)) continue;
+    const setorTxt = semAc(val("SETOR"));
+    const setor = SETORES_FREELANCER.find((s) => semAc(s.n) === setorTxt || s.k === setorTxt)?.k;
+    let p = porNome.get(semAc(nome));
+    const pix = String(val("CHAVE PIX") || "").trim() || p?.chavePix || "";
+    const linha = { linha: i + 1, nome, dias };
+    if (!p && !simular) {
+      if (!pix || !setor) { res.push({ ...linha, ok: false, erro: "Pessoa nova: informe CHAVE PIX e SETOR para criar o cadastro." }); continue; }
+      p = await prisma.prestador.create({ data: { tipo: "FREELANCER", nome, chavePix: pix, servicos: [setor], criadoPorNome: quem || null } });
+      porNome.set(semAc(nome), p); linha.novo = true;
+    }
+    const d = p && Array.isArray(p.diarias) && p.diarias[0] ? p.diarias[0] : {};
+    const item = {
+      grupo: "FREELANCER", prestadorId: p?.id || null, nome, chavePix: pix,
+      setor: setor || (p?.servicos || [])[0] || "",
+      diaria: val("DIÁRIA") !== "" ? numBR(val("DIÁRIA")) : Number(d.diaria) || 0,
+      transporte: val("TRANSPORTE POR DIA") !== "" ? numBR(val("TRANSPORTE POR DIA")) : Number(d.passagem) || 0,
+      dias, custoExtra: numBR(val("CUSTO EXTRA")) || 0,
+      justificativa: String(val("JUSTIFICATIVA") || "").trim(), observacao: String(val("OBSERVAÇÃO") || "").trim(),
+    };
+    const erro = validarItem({ ...item });
+    if (erro) { res.push({ ...linha, ok: false, erro }); continue; }
+    if (simular) { res.push({ ...linha, ok: true, valor: valorDoItem(item), novo: !p }); continue; }
+    const s = await salvarItem(tituloId, item, { quem, usuarioId });
+    res.push(s.ok ? { ...linha, ok: true, valor: Number(s.item.valor) } : { ...linha, ok: false, erro: s.erro });
+  }
+  return { ok: true, linhas: res, lancadas: res.filter((x) => x.ok).length, erros: res.filter((x) => !x.ok).length, total: r2(res.filter((x) => x.ok).reduce((s, x) => s + (x.valor || 0), 0)) };
+}

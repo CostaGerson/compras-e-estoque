@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { abrirSemana, salvarItem, excluirItem, garantirSemanas, programacao, tituloDaData, sextaDaSemana, sextaAPartirDe, tipoDoGrupo } from "@/lib/finSemana";
+import { modeloFreelancers, importarFreelancers, abrirSemana, salvarItem, excluirItem, garantirSemanas, programacao, tituloDaData, sextaDaSemana, sextaAPartirDe, tipoDoGrupo } from "@/lib/finSemana";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -17,6 +17,11 @@ export async function GET(req) {
     return Response.json(await garantirSemanas(comp));
   }
   // prévia da programação: recebimento + prazo → sexta de pagamento
+  // v208 — modelo Excel para lançar freelancers da semana
+  if (q.get("modelo")) {
+    const buf = await modeloFreelancers();
+    return new Response(buf, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": 'attachment; filename="modelo-freelancers-semana.xlsx"' } });
+  }
   if (q.get("recebimento")) {
     const prog = programacao(q.get("recebimento"), q.get("prazo"));
     return prog ? Response.json(prog) : Response.json({ error: "Informe a data de recebimento e o prazo." }, { status: 400 });
@@ -39,6 +44,12 @@ export async function POST(req) {
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
+  // v208 — importa a planilha modelo de freelancers na semana (simular: só confere)
+  if (b.acao === "importar") {
+    const r = await importarFreelancers(b.tituloId, b.conteudo, { quem: quemE(u), usuarioId: u.id, simular: !!b.simular });
+    if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
+    return Response.json({ ...r, ...(await abrirSemana(b.tituloId)) });
+  }
   // v180 — só a justificativa do custo extra (diferença sobre as diárias)
   if (b.acao === "justificar") {
     const txt = String(b.justificativa || "").trim().toUpperCase();

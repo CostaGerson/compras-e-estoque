@@ -20,7 +20,7 @@ const PECAS_MALHA = [
 const PECAS_PLANO = [
   ["CALÇA BRIM CONVENCIONAL", 1.30, 1.65, 1.15, 1.0],
   ["CALÇA BRIM REFORÇADA",    1.40, 1.65, 1.15, 1.0],
-  ["CALÇA JEANS",             1.32, 1.65, 1.15, 1.0],
+  ["CALÇA JEANS",             1.32, 1.65, 2.65, 1.0],
   ["CALÇA TACTEL",            1.25, 1.65, 1.15, 1.2],
   ["BLUSÃO BRIM",             1.40, 2.20, 4.53, 0.6],
   ["JALECO MANGA CURTA",      1.30, 2.20, 4.53, 0.6],
@@ -109,6 +109,22 @@ async function main() {
   o = 0; for (const [k, v, r] of CONST_MALHA) await up("MALHA", "CONST", k, v, null, o++, r);
   o = 0; for (const [k, v, r] of CONST_PLANO) await up("PLANO", "CONST", k, v, null, o++, r);
   o = 0; for (const [k, v, r] of CONST_COMUM) await up("COMUM", "CONST", k, v, null, o++, r);
+  // v208 — acabamento da calça jeans e das calças sociais: R$ 2,65 (decisão do Igor, 14/10/2026) — uma vez, com histórico
+  const flag = "AJUSTE|fpp-acab-calca-jeans-social-v208";
+  if (!(await prisma.finConfig.findUnique({ where: { chave: flag } }).catch(() => null))) {
+    const calcas = (await prisma.fppParam.findMany({ where: { tipo: "PLANO", grupo: "PECA" } }))
+      .filter((p) => /CAL[ÇC]A/i.test(p.chave) && /JEANS|SOCIAL/i.test(p.chave));
+    for (const p of calcas) {
+      const extra = { ...(p.extra || {}) };
+      const de = Number(extra.acab ?? 0);
+      if (de === 2.65) continue;
+      extra.acab = 2.65;
+      await prisma.fppParam.update({ where: { id: p.id }, data: { extra } });
+      await prisma.fppParamHist.create({ data: { paramId: p.id, campo: "acab", deNum: de, paraNum: 2.65, usuarioNome: "SISTEMA (v208 · pedido do Igor)" } });
+      console.log(`FPP: acabamento ${p.chave} ${de} → 2,65`);
+    }
+    await prisma.finConfig.create({ data: { chave: flag, valor: new Date().toISOString() } }).catch(() => null);
+  }
   console.log(`Seed FPP: ok (antes havia ${existe} parâmetros).`);
 }
 

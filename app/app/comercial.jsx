@@ -185,14 +185,14 @@ function fichaVazia(tipo) {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
     negociacao: "",
     nomeArtigo: "", nomeArtigoForro: "",
-    mpValor: "", forroValor: "",
+    mpValor: "", forroValor: "", consumoForro: "",   // v208: consumo do forro (m/peça) — vazio = estimado pelo fator
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     freteVolume: "", embExt: "", embInt: "SIMPLES",
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "",
-    valorProposto: "",
+    valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
   };
 }
 
@@ -280,7 +280,9 @@ function Fpp({ user, master }) {
     else mp = num(f.mpValor) * rendCons + reembolso;
     // Forro (plano)
     let forro = 0;
-    if (!isMalha) forro = num(f.forroValor) * (cget("FORRO_FATOR") * rendCons);
+    const consumoForroEst = cget("FORRO_FATOR") * rendCons;
+    const consumoForro = num(f.consumoForro) > 0 ? num(f.consumoForro) : consumoForroEst;   // v208: informado na ficha ou estimado
+    if (!isMalha) forro = num(f.forroValor) * consumoForro;
     const materiaPrima = mp + forro + linha;
 
     // Aviamentos (sem a linha, que já entrou na matéria-prima)
@@ -329,12 +331,14 @@ function Fpp({ user, master }) {
       for (const p of cond) if (p.tipo === "boleto") opTit += vp * p.frac * cget("OP_TITULO_TAXA") * (prazoComComp(p.dias) / 30);
     }
     const opFin = opInv + opTit;
-    const custoFinal = custoProducao + opFin + imposto * vp;
+    const comissaoPct = num(f.comissaoPct) / 100;   // v208: comissão do vendedor (% do valor do pedido)
+    const comissao = vp * comissaoPct;
+    const custoFinal = custoProducao + opFin + imposto * vp + comissao;
     const roic = custoFinal ? (vp - custoFinal) / custoFinal : 0;
     const margem = vp ? (vp - custoFinal) / vp : 0;
     const totalItem = vp * num(f.qtde);
 
-    return { mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -461,6 +465,8 @@ function Fpp({ user, master }) {
                 <Ref label={tipo === "MALHA" ? "Rendimento (peças/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                 {tipo === "PLANO" && <Inp label="Artigo (forro)" value={f.nomeArtigoForro} onChange={(v) => set("nomeArtigoForro", v.toUpperCase())} text placeholder="Nome do artigo do forro" />}
                 {tipo === "PLANO" && <Inp label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />}
+                {tipo === "PLANO" && <Inp label="Consumo do forro (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
+                  placeholder={r ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")} — informe o real` : ""} />}
               </div>
             </Card>
 
@@ -535,6 +541,8 @@ function Fpp({ user, master }) {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                 <Inp label="Lead time (dias)" value={f.leadTime} onChange={(v) => set("leadTime", v)} />
+                <Inp label="Comissão do vendedor (%)" value={f.comissaoPct} onChange={(v) => set("comissaoPct", v)} placeholder="ex.: 3" />
+                {num(f.comissaoPct) > 0 && r && <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Comissão: <b style={{ color: C.text }}>{brl(r.comissao)}</b>/peça · <b style={{ color: C.text }}>{brl(r.comissaoTotal)}</b> no pedido</div>}
               </div>
               <div className="text-[11px] mt-2" style={{ color: C.sub }}>
                 Investimento: juros sobre o custo durante todo o lead time. Título: juros por parcela em boleto (prazo + 2 dias úteis), conforme a condição de pagamento.
@@ -558,6 +566,7 @@ function Fpp({ user, master }) {
                   <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
                   <Lin l="Custo de produção" v={brl(r.custoProducao)} forte />
                   <Lin l="Operação financeira" v={brl(r.opFin)} />
+                  {r.comissao > 0 && <Lin l={`Comissão vendedor (${(r.comissaoPct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} v={brl(r.comissao)} />}
                   <Lin l="Custo final" v={brl(r.custoFinal)} forte />
                   <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
                   <Lin l="ROIC" v={pct(r.roic)} cor={r.roic >= 0.3 ? C.green : r.roic >= 0.16 ? C.yellow : "#E5484D"} />
@@ -914,6 +923,7 @@ async function imprimirFicha(f, master) {
   else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); row("Artigo (forro)", e.nomeArtigoForro || "—"); }
   row(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—");
   if (!isMalha) row("Custo do forro (R$/m)", e.forroValor || "—");
+  if (!isMalha) row("Consumo do forro (m/peça)", e.consumoForro || (r.consumoForroEst != null ? `${Number(r.consumoForroEst).toFixed(2).replace(".", ",")} (estimado)` : "—"));
   y += 2;
 
   sec("Aviamentos e produção");
@@ -942,6 +952,7 @@ async function imprimirFicha(f, master) {
     row("Embalagem", brlp(r.embalagem));
     row("Custo de produção", brlp(r.custoProducao), { forte: true });
     row("Operação financeira", brlp(r.opFin));
+    if (Number(r.comissao) > 0) row(`Comissão vendedor (${(Number(r.comissaoPct) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`, `${brlp(r.comissao)} · total ${brlp(r.comissaoTotal)}`);
     row("Custo final", brlp(f.custoFinal ?? r.custoFinal), { forte: true });
     row("ROIC", pctp(r.roic));
     // margem de contribuição destacada
