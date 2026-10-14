@@ -13,6 +13,7 @@ import { DocumentoModal, Soltar, ModalContas as Modal, ValorContas as Valor, Cor
 import { DEPTOS, REGIMES } from "@/lib/matriz";
 import { PainelRH, Acionaveis, PontoTela, StatsFuncionario, MedalhasModal, FiltroPeriodo, SinteseModal, periodoPadrao } from "./rhPainel";
 import PlanoFerias from "./rhFerias";
+import Transmissao from "./transmissao";   // v204 — transmissão de arquivos também no RH (TRCT, cartões de ponto, folha, guias…)
 import { Palmtree } from "lucide-react";
 import { Fingerprint, Award } from "lucide-react";
 
@@ -55,7 +56,7 @@ export default function Rh({ user }) {
   useEffect(() => { carregarPainel(comp); }, [comp]);
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 6000); carregar(); };
   const ativos = (d?.pessoas || []).filter((p) => p.ativo !== false);
-  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH", calendario: "Calendário de obrigações", ponto: "Ponto", ferias: "Plano de férias" };
+  const TITULOS = { matriz: "Matriz de pessoal", carometro: "Carômetro", financeiro: "Financeiro do RH", calendario: "Calendário de obrigações", ponto: "Ponto", ferias: "Plano de férias", transmissao: "Transmissão de arquivos" };
   const cal = d?.calendario;
   const calPend = (cal?.itens || []).filter((i) => i.status !== "OK");
   const calAtras = calPend.filter((i) => i.status === "ATRASADO").length;
@@ -69,6 +70,14 @@ export default function Rh({ user }) {
           <button onClick={() => setTela("inicio")} style={{ color: C.sub }}>RH</button>
           <span style={{ color: C.sub }}>›</span>
           <span className="font-semibold">{TITULOS[tela]}</span>
+        </div>
+      )}
+      {tela === "inicio" && (
+        <div className="flex justify-end mb-3">
+          <button onClick={() => setTela("transmissao")} title="Enviar documentos (TRCT, cartões de ponto, folha, guias…): o sistema identifica e leva cada um para o lugar certo"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-shadow hover:shadow-md" style={{ background: C.accent, color: "#fff" }}>
+            <Upload size={14} /> Transmissão
+          </button>
         </div>
       )}
       {aviso && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
@@ -102,6 +111,7 @@ export default function Rh({ user }) {
           {tela === "calendario" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
           {tela === "ferias" && <PlanoFerias user={user} onMudou={() => { carregarPainel(comp); carregar(); }} />}
           {tela === "ponto" && <PontoTela user={user} p={p} comp={comp} setComp={setComp} recarregar={() => carregarPainel(comp)} />}
+          {tela === "transmissao" && <Transmissao user={user} onMudou={() => { carregar(); carregarPainel(comp); }} />}
           {tela === "financeiro" && <FinanceiroRH user={user} d={d} onSalvo={ok} onAnexar={(iniciais) => setDoc({ iniciais })} />}
         </>
       )}

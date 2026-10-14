@@ -6,6 +6,7 @@ export const DESTINOS = {
   ANTECIPACAO: { rotulo: "Antecipação de recebíveis", desc: "Contrato de desconto de duplicatas: baixa as contas descontadas e lança os custos", perms: ["contasReceber"], porArquivo: true },
   POSICAO: { rotulo: "Posição de contas (planilha)", desc: "Planilha de posição: importa e confere duplicidades das contas a pagar/receber", perms: ["contasPagar", "contasReceber"], porArquivo: true },
   HISTORICO: { rotulo: "Histórico de lançamentos (.txt)", desc: "Lançamentos antigos já identificados para a análise mensal", perms: ["docsFinanceiros"], porArquivo: true },
+  RESCISAO: { rotulo: "Rescisão (TRCT)", desc: "Vai para o RH: conta a pagar do líquido na data limite, término do contrato na Matriz e o TRCT nos documentos do funcionário", perms: ["docsRH"], porArquivo: true },
   PONTO: { rotulo: "Cartões de ponto", desc: "Vai para o RH: assiduidade, pontualidade e horas extras", perms: ["docsRH"] },
   OFX: { rotulo: "Extrato OFX", desc: "Vai para o pacote da contabilidade do mês (banco e mês identificados no arquivo)", perms: ["docsFinanceiros"], direto: true },
   SPED: { rotulo: "SPED", desc: "Vai para o pacote da contabilidade do mês", perms: ["docsFinanceiros"], direto: true },
