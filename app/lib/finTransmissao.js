@@ -5,6 +5,7 @@ import { ehAntecipacao } from "@/lib/finAntecipacao";
 import { lerHistorico } from "@/lib/finHistorico";
 import { DESTINOS } from "@/lib/finTransmissaoDestinos";
 import { ehTrct } from "@/lib/rhRescisao";
+import { ehOsKm } from "@/lib/finOsKm";
 
 export { DESTINOS };
 
@@ -63,6 +64,7 @@ export function identificar(nome, buf, pdf = null, dica = null) {
     const t = pdf.texto || "";
     if (ehPonto(t)) return r("PONTO");
     if (ehTrct(t)) return r("RESCISAO", { detalhe: "TRCT" });   // v204
+    if (ehOsKm(t)) { const nr = (t.match(/NR:\s*(\d+)/) || [])[1]; return r("OS", { detalhe: nr ? `OS ${nr}` : "OS" }); }   // v209
     if (ehAntecipacao(t.replace(/\s+/g, " "))) return r("ANTECIPACAO");
     if (ehDanfe(t)) return r("NF", { detalhe: /DANFE|DOCUMENTO\s+AUXILIAR/i.test(t) ? "DANFE" : "NFS-e" });
     return r("DOCUMENTO", { detalhe: dica || null });

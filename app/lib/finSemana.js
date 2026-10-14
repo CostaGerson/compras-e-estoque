@@ -176,6 +176,7 @@ const normLinhas = (linhas, grupo) => (linhas || []).map((l) => ({
   pedido: String(l.pedido || "").trim().toUpperCase(),
   item: String(l.item || "").trim().toUpperCase() || null,
   ...(grupo === "FACCAO" && l.tipo ? { tipo: l.tipo } : {}),
+  ...(l.os ? { os: String(l.os) } : {}), ...(l.osParcial ? { osParcial: true } : {}),   // v209: OS do KM
   qtd: Number(l.qtd) || 0,
   unitario: r2(l.unitario),
   total: r2((Number(l.qtd) || 0) * (Number(l.unitario) || 0)),

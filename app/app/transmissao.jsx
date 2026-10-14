@@ -11,8 +11,9 @@ import { DocumentoModal, PosicaoModal, AntecipacaoModal, RetornoModal, CoresCont
 import { ImportarNfs } from "./adm";
 import { ImportarPonto } from "./rhPainel";
 import RescisaoModal from "./rhRescisao";
+import OsKmModal from "./osKm";   // v209
 
-const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "ANTECIPACAO", "POSICAO", "HISTORICO", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
+const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "ANTECIPACAO", "POSICAO", "HISTORICO", "OS", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
 const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const readU8 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(new Uint8Array(fr.result)); fr.readAsArrayBuffer(f); });
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
@@ -162,7 +163,7 @@ export default function Transmissao({ user, Historico, onMudou }) {
           {st ? <Loader2 size={28} className="animate-spin" style={{ color: C.accent }} /> : <Upload size={28} style={{ color: C.accent }} />}
           <div className="font-semibold mt-1.5" style={{ color: C.navy }}>{st || "Arraste aqui os arquivos ou clique para escolher"}</div>
           {!st && <div className="text-[11px] mt-1" style={{ color: C.sub }}>
-            PDF (boletos, guias, folha, recibos, comprovantes, extratos, faturas, DANFE, contrato de antecipação, cartão de ponto, TRCT) · XML de NF · retorno CNAB (.RET) · OFX · SPED · planilha de posição (.xls) · histórico (.txt) · ZIP com tudo isso
+            PDF (boletos, guias, folha, recibos, comprovantes, extratos, faturas, DANFE, contrato de antecipação, cartão de ponto, TRCT, OS do KM) · XML de NF · retorno CNAB (.RET) · OFX · SPED · planilha de posição (.xls) · histórico (.txt) · ZIP com tudo isso
           </div>}
           <input ref={inp} type="file" multiple className="hidden" onChange={(e) => { receber(e.target.files); e.target.value = ""; }} />
         </div>
@@ -223,6 +224,7 @@ export default function Transmissao({ user, Historico, onMudou }) {
       {aberto?.destino === "RETORNO" && <RetornoModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "ANTECIPACAO" && <AntecipacaoModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "POSICAO" && <PosicaoModal user={user} contas={contas} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
+      {aberto?.destino === "OS" && <OsKmModal user={user} arquivos={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "RESCISAO" && <RescisaoModal user={user} arquivo={files[0]} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "PONTO" && <ImportarPonto user={user} iniciais={files} onClose={() => fechar(aberto)} onFim={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "HISTORICO" && Historico && <Historico user={user} iniciais={files} fechar={(ok) => (ok ? salvo(aberto, "Histórico gravado") : fechar(aberto))} />}

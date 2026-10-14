@@ -42,6 +42,8 @@ export function PrestadorModal({ user, tipo, prestador, catalogo, nomeSugerido, 
     observacao: prestador?.observacao || "",
     ativo: prestador?.ativo ?? true,
     funcao: prestador?.funcao || "",
+    prazoDias: prestador?.prazoDias ?? "",
+    nomeKm: prestador?.nomeKm || "",
     diarias: Array.isArray(prestador?.diarias) && prestador.diarias.length ? prestador.diarias : [{ turno: "ÚNICO", diaria: "", passagem: "" }],
   }));
   const altD = (i, k, v) => setF((x) => ({ ...x, diarias: x.diarias.map((d, j) => (j === i ? { ...d, [k]: v } : d)) }));
@@ -107,6 +109,12 @@ export function PrestadorModal({ user, tipo, prestador, catalogo, nomeSugerido, 
             </div>
           )}
 
+          {!free && (
+            <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <Campo t="Prazo de pagamento" dica="dias corridos · vazio = 0"><input value={f.prazoDias} onChange={(e) => s("prazoDias")(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={inp} style={inpS} placeholder="0" /></Campo>
+              <Campo t="Nome na OS do KM" dica="se diferente do nome"><input value={f.nomeKm} onChange={(e) => s("nomeKm")(e.target.value.toUpperCase())} className={inp} style={inpS} placeholder="ex.: ELIAS" /></Campo>
+            </div>
+          )}
           {!free && (
             <div className="mt-3"><Campo t="Endereço" dica="obrigatório para terceirizado">
               <input value={f.endereco} onChange={(e) => s("endereco")(e.target.value.toUpperCase())} className={inp} style={{ ...inpS, borderColor: f.endereco ? C.line : C.yellow }} />
@@ -212,6 +220,7 @@ export default function Prestadores({ user, tipo = "FREELANCER" }) {
             <th className="px-2 py-2 text-left font-semibold">{free ? "Setor" : "Serviços prestados"}</th>
             {free ? <th className="px-2 py-2 text-left font-semibold">Diária + passagem</th> : <th className="px-2 py-2 text-right font-semibold">Capacidade/semana</th>}
             <th className="px-2 py-2 text-left font-semibold">Chave PIX</th>
+            {!free && <th className="px-2 py-2 text-right font-semibold">Prazo</th>}
             {!free && <th className="px-2 py-2 text-left font-semibold">Endereço</th>}
             <th className="px-2 py-2"></th>
           </tr></thead>
@@ -235,6 +244,7 @@ export default function Prestadores({ user, tipo = "FREELANCER" }) {
                   ? <td className="px-2 py-1.5 tabular-nums" style={{ color: C.text }}>{Array.isArray(p.diarias) && p.diarias.length ? p.diarias.map((d) => `${d.turno.toLowerCase()} ${Number(d.diaria).toFixed(2).replace(".", ",")}${d.passagem ? ` + ${Number(d.passagem).toFixed(2).replace(".", ",")}` : ""}`).join(" · ") : <span style={{ color: C.sub }}>—</span>}{p.funcao && <div style={{ color: C.sub }}>{p.funcao}</div>}</td>
                   : <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: p.capacidade ? C.text : C.sub }}>{p.capacidade ? `${p.capacidade} peças` : "—"}</td>}
                 <td className="px-2 py-1.5" style={{ color: p.chavePix ? C.sub : C.yellow }}>{p.chavePix || "sem PIX"}</td>
+                {!free && <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.sub }}>{p.prazoDias ? `${p.prazoDias} dia(s)` : "0"}{p.nomeKm && <div className="text-[10px]">KM: {p.nomeKm}</div>}</td>}
                 {!free && <td className="px-2 py-1.5" style={{ color: p.endereco ? C.sub : C.yellow, maxWidth: 260 }}>{p.endereco || "sem endereço"}</td>}
                 <td className="px-2 whitespace-nowrap">
                   <button onClick={() => setModal({ prestador: p })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
