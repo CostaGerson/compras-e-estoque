@@ -66,6 +66,12 @@ function valorBate(t, q) {
   });
 }
 // conta que veio de NF de compra importada (XML no contas a pagar ou NF de entrada do Compras)
+// v203 — confirmação do "Excluir pagamento" (a conta volta para em aberto)
+function confirmaExcluirPgto(t, P) {
+  if (ehAntecipado(t) && !t.liquidadoEm) return confirm(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`);
+  const v = Number(t.valorPago ?? t.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  return confirm(`EXCLUIR ${P ? "PAGAMENTO" : "RECEBIMENTO"} de "${t.titulo}"?\n\n${P ? "Pago" : "Recebido"} em ${dBR(t.dataPagamento)} · R$ ${v}\n\nA conta volta a ficar EM ABERTO (a baixa pelo extrato ou comprovante é desfeita).`);
+}
 const ehCompra = (t) => t.forma === "NF_XML" || !!t.nfId || String(t.chaveImport || "").startsWith("NFE|");
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
 
@@ -640,7 +646,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
               return (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
-                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} /></td>
+                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>
                     <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
@@ -686,8 +692,8 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     <BotaoObs t={t} user={user} onFeito={onMudou} />
                     {!P && <BotaoRecompra t={t} user={user} onFeito={onMudou} />}
                     {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
-                    {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={() => { if (ehAntecipado(t) && !t.liquidadoEm && !confirm(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`)) return; onAcao(t, "estornar"); }}
-                      title={ehAntecipado(t) ? (t.liquidadoEm ? "Desfazer a baixa do cliente" : "Desfazer a antecipação") : "Estornar baixa"} className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}
+                    {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={() => { if (!confirmaExcluirPgto(t, P)) return; onAcao(t, "estornar"); }}
+                      title={ehAntecipado(t) ? (t.liquidadoEm ? "Desfazer a baixa do cliente" : "Desfazer a antecipação") : P ? "Excluir pagamento" : "Excluir recebimento"} className="mr-2" style={{ color: C.red }}><Undo2 size={15} /></button>}
                     {t.status === "CANCELADO" ? <button onClick={() => onAcao(t, "reabrir")} title="Reabrir" className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>
                       : <button onClick={() => onEditar(t)} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={14} /></button>}
                     {t.status !== "PAGO" && t.status !== "CANCELADO" && <button onClick={() => onExcluir(t)} title={t.recorrenciaId ? "Cancelar este mês" : "Excluir"} style={{ color: C.sub }}>{t.recorrenciaId ? <Ban size={14} /> : <Trash2 size={14} />}</button>}
@@ -1502,6 +1508,15 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
       onSalvo((novo ? (f.recorrente ? "Conta recorrente criada — previsões lançadas nos próximos meses." : "Conta lançada.") : "Conta atualizada.") + extra);
     } catch (e) { setErro(e.message); setSalvando(false); }
   };
+  // v203 — excluir pagamento: a conta volta para em aberto
+  const excluirPgto = async () => {
+    if (!confirmaExcluirPgto(item, P)) return;
+    setSalvando(true); setErro("");
+    try {
+      await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "estornar" });
+      onSalvo(`${P ? "Pagamento" : "Recebimento"} excluído — a conta voltou para em aberto.`);
+    } catch (e) { setErro(e.message); setSalvando(false); }
+  };
   // freelancer/terceirizado: as mesmas regras do lançamento semanal, na conta da próxima sexta
   if (avulso) return (
     <SemanaModal user={user} tituloId={avulso.tituloId}
@@ -1516,7 +1531,9 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
       {!novo && (
         <div className="mb-3 p-2.5 rounded-lg text-xs grid gap-x-4 gap-y-1" style={{ background: C.panel2, color: C.text, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
           <div><span style={{ color: C.sub }}>Situação:</span> <b>{situacao(item).t}</b></div>
-          {item.status === "PAGO" && <div><span style={{ color: C.sub }}>{P ? "Pago" : "Recebido"}:</span> <b>{moeda(item.valorPago ?? item.valor)}</b> em {dBR(item.dataPagamento)}</div>}
+          {item.emissao && <div><span style={{ color: C.sub }}>Emissão da NF:</span> <b>{dBR(item.emissao)}</b></div>}
+          {item.status === "PAGO" && <div><span style={{ color: C.sub }}>{P ? "Pago" : "Recebido"}:</span> <b>{moeda(item.valorPago ?? item.valor)}</b> em {dBR(item.dataPagamento)}
+            {item.liquidacao !== "RECOMPRA" && !ehAntecipado(item) && <button type="button" onClick={excluirPgto} className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }}>{P ? "EXCLUIR PAGAMENTO" : "EXCLUIR RECEBIMENTO"}</button>}</div>}
           {item.formaPagamento && <div><span style={{ color: C.sub }}>Forma:</span> {FORMAS_PGTO[item.formaPagamento] || item.formaPagamento}</div>}
           {item.nossoNumero && <div><span style={{ color: C.sub }}>Nosso nº:</span> {item.nossoNumero}</div>}
           {item.cobranca && <div><span style={{ color: C.sub }}>Cobrança:</span> {item.cobranca}</div>}

@@ -57,7 +57,7 @@ export async function gerarXlsxTitulos(ids, { titulo = "" } = {}) {
   const nomeConta = (id) => { const c = conta.get(Number(id)); return c ? `${c.codigo} ${c.nome}` : `#${id}`; };
 
   const cab = [
-    "ID", "TIPO", "VENCIMENTO", "VENC. ORIGINAL (REPROGRAMADO)", "COMPETÊNCIA", "TÍTULO", "FORNECEDOR / CLIENTE", "CPF / CNPJ", "Nº DOCUMENTO", "NOSSO NÚMERO",
+    "ID", "TIPO", "EMISSÃO DA NF", "VENCIMENTO", "VENC. ORIGINAL (REPROGRAMADO)", "COMPETÊNCIA", "TÍTULO", "FORNECEDOR / CLIENTE", "CPF / CNPJ", "Nº DOCUMENTO", "NOSSO NÚMERO",
     "VALOR (R$)", "VALOR PAGO / RECEBIDO (R$)", "DIFERENÇA (R$)", "DATA PAGAMENTO / RECEBIMENTO", "SITUAÇÃO", "STATUS NO SISTEMA", "PREVISÃO", "FORMA DE PAGAMENTO",
     "CONTA-CAIXA (RATEIO)", "Nº DE CONTAS NO RATEIO",
     "BAIXA PELO EXTRATO · BANCO", "BAIXA PELO EXTRATO · DATA", "BAIXA PELO EXTRATO · HISTÓRICO",
@@ -76,7 +76,7 @@ export async function gerarXlsxTitulos(ids, { titulo = "" } = {}) {
     const repro = Array.isArray(t.reprogramacoes) ? t.reprogramacoes.map((x) => `${iso(x.de)?.split("-").reverse().join("/")} → ${iso(x.para)?.split("-").reverse().join("/")}${x.por ? ` (${x.por})` : ""}${x.desfeito ? " desfeito" : ""}`).join(" | ") : "";
     const its = t.semanaItens || [];
     return [
-      t.id, t.tipo === "PAGAR" ? "A PAGAR" : "A RECEBER", dt(t.vencimento), dt(t.vencimentoOriginal), t.competencia, t.titulo, t.parceiro, t.documento || "", t.numeroDoc || "", t.nossoNumero || "",
+      t.id, t.tipo === "PAGAR" ? "A PAGAR" : "A RECEBER", dt(t.emissao), dt(t.vencimento), dt(t.vencimentoOriginal), t.competencia, t.titulo, t.parceiro, t.documento || "", t.numeroDoc || "", t.nossoNumero || "",
       n(t.valor), n(t.valorPago), t.valorPago != null ? n(Number(t.valorPago) - Number(t.valor)) : null, dt(t.dataPagamento), situacaoTexto(t), t.status, t.previsao ? "SIM" : "NÃO", PGTO[t.formaPagamento] || t.formaPagamento || "",
       r.map((x) => `${nomeConta(x.contaId)}${r.length > 1 ? ` (${Number(x.pct).toLocaleString("pt-BR")}%)` : ""}`).join(" | ") || "SEM CONTA-CAIXA", r.length,
       l?.banco || "", dt(l?.data), l?.historico || "",

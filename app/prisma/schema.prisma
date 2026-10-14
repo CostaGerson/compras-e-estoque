@@ -838,6 +838,7 @@ model FinTitulo {
   parceiro         String    // fornecedor (pagar) ou cliente (receber)
   documento        String?   // CNPJ/CPF do parceiro (só dígitos)
   numeroDoc        String?   // nº da NF / boleto / parcela
+  emissao          DateTime? @db.Date           // v203: data de emissão da NF que originou a conta
   valor            Decimal   @db.Decimal(14, 2)
   vencimento       DateTime  @db.Date
   competencia      String    // AAAA-MM do vencimento

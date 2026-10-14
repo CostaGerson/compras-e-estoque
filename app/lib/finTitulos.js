@@ -80,6 +80,7 @@ export const tituloOut = (t) => ({
   vencimentoOriginal: t.vencimentoOriginal ? t.vencimentoOriginal.toISOString().slice(0, 10) : null,
   antecipadoEm: t.antecipadoEm ? t.antecipadoEm.toISOString().slice(0, 10) : null,
   liquidadoEm: t.liquidadoEm ? t.liquidadoEm.toISOString().slice(0, 10) : null,
+  emissao: t.emissao ? t.emissao.toISOString().slice(0, 10) : null,
   arquivoXml: undefined, temXml: !!t.arquivoXml,
   _count: undefined, nAnexos: t._count?.anexos || 0,
 });

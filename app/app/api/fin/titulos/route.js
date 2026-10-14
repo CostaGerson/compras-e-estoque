@@ -27,6 +27,7 @@ export async function GET(req) {
   if (tipo === "PAGAR") { const { impostosSobreVendas } = await import("@/lib/finImpostosVendas"); await impostosSobreVendas().catch((e) => console.log("Impostos sobre vendas:", e.message)); }   // v200
   if (tipo === "PAGAR") { const { lancarLote0910 } = await import("@/lib/finLote0910"); await lancarLote0910().catch((e) => console.log("Lote 09/10:", e.message)); }   // v179 — uma vez
   await ajustarFinsDeSemana().catch(() => null);
+  { const { preencherEmissao } = await import("@/lib/finEmissao"); await preencherEmissao().catch((e) => console.log("Emissão das NFs:", e.message)); }   // v203
   { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados().catch(() => null); }   // v186: antecipados não pagos viram conta a pagar   // sáb/dom → segunda; folha e adiantamento → sexta
   const de0 = sp.get("de") || mesAtual();
   if (tipo === "PAGAR") await limparSemanasAntigas().catch(() => null);
