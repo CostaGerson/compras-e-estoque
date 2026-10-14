@@ -30,8 +30,11 @@ export async function POST(req) {
   if (!u) return negadoGerencial();
   const base = await prisma.finMatriz.findUnique({ where: { id: Number(b.copiarDe) } });
   if (!base) return Response.json({ error: "Matriz de origem não encontrada." }, { status: 404 });
+  // v217 — cópia da oficial já leva as metas da Gestão (como a oficial mostra)
+  let dados = base.dados;
+  if (base.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); dados = await dadosComMetas(dados).catch(() => dados); }
   const m = await prisma.finMatriz.create({
-    data: { nome: String(b.nome || `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`).toUpperCase(), oficial: false, dados: base.dados, atualizadoPor: nomeU(u) },
+    data: { nome: String(b.nome || `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`).toUpperCase(), oficial: false, dados, atualizadoPor: nomeU(u) },
   });
   return Response.json({ id: m.id });
 }

@@ -84,7 +84,11 @@ export async function metasDoAno(ano) {
   const tkMeta = num(kAno?.metaTicketMedio);
   const fA = num(kAno?.metaFaturamento), pA = num(kAno?.metaPecasFaturadas);
   const ticket = tkMeta ?? (fA != null && pA ? Math.round((fA / pA) * 100) / 100 : null);
-  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, receitaJan: await receitaJaneiro(a), naturezas };
+  // ticket realizado: faturamento ÷ peças faturadas do ano até agora (e o do ano anterior)
+  const rAtual = await relatorio(a).catch(() => null);
+  const tkReal = (r) => (r && r.ticketMedio != null ? { valor: Math.round(r.ticketMedio * 100) / 100, meses: r.mediaMensal?.bases?.faturamento || 0 } : null);
+  const ticketRealizado = { atual: tkReal(rAtual), anterior: tkReal(rels[a - 1] || null) };
+  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a), naturezas };
 }
 
 // receita de JAN = faturamento de DEZ do ano anterior (meta do mês; sem ela, meta do ano ÷ 12; sem meta, o realizado)

@@ -211,6 +211,13 @@ export default function MetasPagina({ user, anoInicial }) {
                 <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>META QUE VOCÊ DEFINE</div>
                 <div className="font-bold" style={{ color: C.navy }}>Ticket médio (R$ por peça)</div>
                 {!orig.ticketGravado && orig.ticket != null && <div className="text-[11px]" style={{ color: C.sub }}>sugerido: faturamento ÷ peças das metas atuais</div>}
+                {orig.ticketRealizado?.atual && <div className="text-xs mt-1" style={{ color: C.text }}>
+                  Realizado em {ano} até agora: <b>R$ {fmt("R$", orig.ticketRealizado.atual.valor)}</b> <span style={{ color: C.sub }}>({orig.ticketRealizado.atual.meses} {orig.ticketRealizado.atual.meses === 1 ? "mês" : "meses"})</span>
+                  {Math.abs(orig.ticketRealizado.atual.valor - (ticket ?? 0)) >= 0.01 && <> · <button onClick={() => setTicket(orig.ticketRealizado.atual.valor)} className="font-semibold underline" style={{ color: C.accent }}>usar este</button></>}
+                </div>}
+                {orig.ticketRealizado?.anterior && <div className="text-[11px]" style={{ color: C.sub }}>
+                  Realizado em {ano - 1}: R$ {fmt("R$", orig.ticketRealizado.anterior.valor)}
+                </div>}
               </div>
               <label className="block" style={{ width: 160 }}>
                 <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>R$</div>

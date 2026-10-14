@@ -5,6 +5,7 @@ import {
   Cpu, Landmark, Factory, SlidersHorizontal, LayoutDashboard, UserX, UserCheck, AlertTriangle, PiggyBank, Columns3, RotateCcw,
 } from "lucide-react";
 import { calcularMatriz, calcFuncionario, calcFreelancer, DEPTOS, REGIMES, FORMULAS } from "@/lib/matriz";
+import { compararComOficial, trazerDaOficial } from "@/lib/matrizCenario";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -164,6 +165,15 @@ export default function MatrizCustos({ user }) {
   // v215 — cenário simula com os próprios números (ignora as metas da Gestão)
   const calc = useMemo(() => (dados ? calcularMatriz(doc?.oficial ? dados : { ...dados, metasGestao: null }) : null), [dados, doc]);
   const calcOf = useMemo(() => (oficialDados && doc && !doc.oficial ? calcularMatriz(oficialDados) : null), [oficialDados, doc]);
+  // v217 — o que a oficial tem e este cenário não (itens novos, dívidas e parcelamentos reais)
+  const difOf = useMemo(() => (dados && oficialDados && doc && !doc.oficial ? compararComOficial(dados, oficialDados) : null), [dados, oficialDados, doc]);
+  const [verDif, setVerDif] = useState(false);
+  const [comParam, setComParam] = useState(false);
+  const trazer = () => {
+    const r = trazerDaOficial(dados, oficialDados, { parametros: comParam });
+    setDados(r.dados); setVerDif(false);
+    setMexidos((m) => (m.includes("Atualizado pela oficial") ? m : [...m, "Atualizado pela oficial"]));
+  };
 
   const muda = (chave, valor) => {
     setDados((d) => ({ ...d, [chave]: typeof valor === "function" ? valor(d[chave]) : valor }));
@@ -188,9 +198,12 @@ export default function MatrizCustos({ user }) {
     await abrir(Number(id)).catch((e) => setErro(e.message));
   };
   const novoCenario = async () => {
-    const nome = prompt("Nome do cenário (cópia da matriz aberta, com as alterações ainda não salvas não incluídas):", `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`);
+    // v217 — por padrão o cenário nasce da OFICIAL (com tudo: dívidas, parcelamentos, pessoal e metas da Gestão)
+    const of = (lista || []).find((x) => x.oficial);
+    const daOficial = doc.oficial || !of || confirm(`Copiar da matriz OFICIAL (atual)?\n\nOK = cópia da oficial · Cancelar = cópia deste cenário "${doc.nome}"`);
+    const nome = prompt(`Nome do cenário (cópia ${daOficial ? "da oficial" : `de "${doc.nome}"`}; alterações não salvas não entram):`, `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`);
     if (!nome) return;
-    const r = await api("/api/fin/matriz", "POST", { usuarioId: user.id, nome, copiarDe: doc.id }).catch((e) => setErro(e.message));
+    const r = await api("/api/fin/matriz", "POST", { usuarioId: user.id, nome, copiarDe: daOficial && of ? of.id : doc.id }).catch((e) => setErro(e.message));
     if (r) { await carregarLista(); await abrir(r.id); }
   };
   const resetar = async () => {
@@ -246,6 +259,30 @@ export default function MatrizCustos({ user }) {
         </button>
       </div>
       {sujo && <div className="mb-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={14} /> Alterações não salvas em: <b>{mexidos.join(", ")}</b></div>}
+      {difOf && (difOf.faltam.length + difOf.dividas.length + difOf.quitadas.length + difOf.desligados.length + difOf.parametros.length > 0) && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.blueSoft, color: C.navy }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <AlertTriangle size={14} style={{ color: C.blue }} />
+            <span className="flex-1">Este cenário está diferente da oficial em dados reais:
+              {difOf.faltam.length > 0 && <> <b>{difOf.faltam.length}</b> item(ns) que a oficial tem e o cenário não ({[...new Set(difOf.faltam.map((f) => f.rot))].map((r) => `${r} ${difOf.faltam.filter((f) => f.rot === r).length}`).join(" · ")});</>}
+              {difOf.dividas.length > 0 && <> <b>{difOf.dividas.length}</b> dívida(s)/parcelamento(s) com valor desatualizado;</>}
+              {difOf.quitadas.length > 0 && <> <b>{difOf.quitadas.length}</b> dívida(s) que já saíram da oficial;</>}
+              {difOf.desligados.length > 0 && <> <b>{difOf.desligados.length}</b> pessoa(s) já desligada(s) na oficial;</>}
+              {difOf.parametros.length > 0 && <> parâmetros diferentes ({difOf.parametros.join(", ")});</>}
+            </span>
+            <button onClick={() => setVerDif((v) => !v)} className="font-semibold underline">{verDif ? "esconder" : "ver"}</button>
+            {difOf.parametros.length > 0 && <label className="flex items-center gap-1"><input type="checkbox" checked={comParam} onChange={(e) => setComParam(e.target.checked)} /> parâmetros também</label>}
+            <button onClick={trazer} className="px-2.5 py-1 rounded font-semibold text-white" style={{ background: C.blue }}>Trazer da oficial</button>
+          </div>
+          {verDif && <div className="mt-2 grid gap-0.5" style={{ color: C.text }}>
+            {difOf.faltam.map((f, i) => <div key={`f${i}`}>+ {f.rot}: {f.item.natureza || f.item.nome} {f.item.valor != null ? `· R$ ${brl(f.item.valor)}` : ""}</div>)}
+            {difOf.dividas.map((f, i) => <div key={`d${i}`}>↻ Dívidas: {f.item.natureza} · R$ {brl(f.antes.valor)} → R$ {brl(f.item.valor)}</div>)}
+            {difOf.quitadas.map((f, i) => <div key={`q${i}`}>− Dívidas: {f.item.natureza} (não está mais na oficial)</div>)}
+            {difOf.desligados.map((f, i) => <div key={`p${i}`}>− Pessoal: {f.item.nome} (desligado na oficial)</div>)}
+            {difOf.sobram.length > 0 && <div style={{ color: C.sub }}>Fica como está (é simulação deste cenário): {difOf.sobram.map((f) => f.item.natureza || f.item.nome).join(", ")}</div>}
+          </div>}
+        </div>
+      )}
       {doc?.critica && <div className="mb-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> <span className="flex-1">{doc.critica}</span><button onClick={() => setAba("producao")} className="font-semibold underline shrink-0">Ver tabela</button></div>}
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
