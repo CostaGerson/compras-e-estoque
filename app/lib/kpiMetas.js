@@ -93,7 +93,21 @@ export async function metasDoAno(ano) {
   const rAtual = await relatorio(a).catch(() => null);
   const tkReal = (r) => (r && r.ticketMedio != null ? { valor: Math.round(r.ticketMedio * 100) / 100, meses: r.mediaMensal?.bases?.faturamento || 0 } : null);
   const ticketRealizado = { atual: tkReal(rAtual), anterior: tkReal(rels[a - 1] || null) };
-  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a), naturezas };
+  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a),
+    freelancer: { meta: num(kAno?.metaPctFreelancer), ...(await sugestaoFreelancer().catch(() => ({}))) }, naturezas };
+}
+
+// v224 — sugestão do % de freelancer: o real da análise folha × freelancer (último mês fechado e média de 3 meses)
+async function sugestaoFreelancer() {
+  const { freelancerXFolha } = await import("@/lib/rhPainel");
+  const { mesAtual, somaMes } = await import("@/lib/finTitulos");
+  const meses = [1, 2, 3].map((k) => somaMes(mesAtual(), -k));
+  const rs = [];
+  for (const c of meses) { const r = await freelancerXFolha(c).catch(() => null); if (r?.total?.custo) rs.push({ comp: c, pct: r.total.pct / 100, freelancer: r.total.freelancer, custo: r.total.custo, previsto: r.previsto }); }
+  const ult = rs[0] || null;
+  const media = rs.length ? rs.reduce((s2, x) => s2 + x.freelancer, 0) / rs.reduce((s2, x) => s2 + x.custo, 0) : null;
+  return { ultimo: ult ? { comp: ult.comp, pct: ult.pct } : null, media3: media != null ? { pct: Math.round(media * 10000) / 10000, meses: rs.length } : null,
+    tabelaMatriz: rs[0]?.previsto != null ? rs[0].previsto / 100 : null };
 }
 
 // receita de JAN = faturamento de DEZ do ano anterior (meta do mês; sem ela, meta do ano ÷ 12; sem meta, o realizado)
@@ -109,13 +123,13 @@ async function receitaJaneiro(a) {
 }
 
 // v216 — grava pela regra de coerência: entra vendas (peças) + ticket; o resto é calculado (lib/kpiMetasCalc.js)
-export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem) {
+export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem, pctFreelancer) {
   const a = Number(ano);
   const rj = await receitaJaneiro(a);
   const d = derivarMetas(vendasValorMeses, ticket, rj.valor);
   const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
   metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
-  const r = await salvarMetas(a, metas, margem, quem, ticket);
+  const r = await salvarMetas(a, metas, margem, quem, ticket, pctFreelancer);
   // a receita de JAN do ano seguinte acompanha o faturamento de DEZ deste ano
   const prox = await prisma.kpiAno.findUnique({ where: { ano: a + 1 } }).catch(() => null);
   const dez = d.faturamentoValor.meses[11];
@@ -129,10 +143,11 @@ export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem
 }
 
 // grava: { k: { anual, meses[12] } } e margem (fração)
-export async function salvarMetas(ano, metas, margem, quem, ticket) {
+export async function salvarMetas(ano, metas, margem, quem, ticket, pctFreelancer) {
   const a = Number(ano);
   const dAno = {};
   if (margem !== undefined) dAno.metaMargem = margem;
+  if (pctFreelancer !== undefined) dAno.metaPctFreelancer = pctFreelancer;
   if (ticket !== undefined) dAno.metaTicketMedio = ticket == null ? null : r2(ticket);
   const porMes = [...Array(12)].map(() => ({}));
   for (const n of NATUREZAS) {

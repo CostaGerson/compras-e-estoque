@@ -15,7 +15,7 @@ export async function metasDaGestao(hoje = new Date()) {
   // mesma regra dos cards do KPI: a meta do mês é a lançada; se não houver, a do ano ÷ 12
   const fatMes = num(km?.metaFaturamentoValor) ?? (fatAno != null ? fatAno / 12 : null);
   const pcsMes = num(km?.metaFaturamentoPecas) ?? (pcsAno != null ? pcsAno / 12 : null);
-  const margem = num(ka?.metaMargem), ticketMeta = num(ka?.metaTicketMedio);
+  const margem = num(ka?.metaMargem), ticketMeta = num(ka?.metaTicketMedio), pctFreelancer = num(ka?.metaPctFreelancer);
   if (fatMes == null && pcsMes == null && margem == null) return null;
   const pecas = pcsMes ? Math.round(pcsMes) : null;
   // v215 — resultados anuais saem das metas do ANO (não do mês × 12): ticket = meta de ticket (METAS) ou faturamento ÷ peças do ano
@@ -23,7 +23,7 @@ export async function metasDaGestao(hoje = new Date()) {
   const fonteTicket = ticketMeta != null ? "meta de ticket médio (METAS)" : fatAno != null && pcsAno ? "meta de faturamento ÷ meta de peças do ano" : "meta de faturamento ÷ meta de peças do mês";
   const pcsMedia = pcsAno ? pcsAno / 12 : fatAno != null && ticket ? fatAno / 12 / ticket : pecas;
   return { ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, fatAno, fatMes, pcsAno, pcsMes: pecas, pcsMedia,
-    ticket, fonteTicket, margem };
+    ticket, fonteTicket, margem, pctFreelancer };
 }
 
 export { aplicarMetas } from "@/lib/matrizMetasCalc";

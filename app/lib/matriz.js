@@ -84,8 +84,10 @@ export function calcularMatriz(d) {
   // PRODUÇÃO
   const fe = calcFreelancer(d.freelancer?.expedicao), fc = calcFreelancer(d.freelancer?.corte);
   const totGeral = fe.tot.custo + fc.tot.custo, totFree = fe.tot.freelancer + fc.tot.freelancer;
-  const pctFreelancer = totGeral ? totFree / totGeral : 0;           // L3
-  const razaoInterna = pr.razaoInternaAuto ? 1 - pctFreelancer : n(pr.razaoInternaManual);
+  // v224 — na oficial, o % de freelancer é a meta da página Metas (Gestão); sem ela, a tabela Pessoal x Freelancer
+  const mgF = d.metasGestao?.pctFreelancer;
+  const pctFreelancer = mgF != null ? n(mgF) : totGeral ? totFree / totGeral : 0;           // L3
+  const razaoInterna = mgF != null || pr.razaoInternaAuto ? 1 - pctFreelancer : n(pr.razaoInternaManual);
   const razaoProd = n(pr.custoPeca) * razaoInterna;                   // E29
   const razaoLog = n(pr.razaoLog);                                    // E31
   const custoPecaInterno = razaoProd + razaoLog;

@@ -101,9 +101,13 @@ export async function freelancerXFolha(comp) {
   // previsto na Matriz: % freelancer da tabela Pessoal x Freelancer (expedição + corte) — o mesmo da razão interna
   const fe = calcFreelancer(m?.dados?.freelancer?.expedicao), fc = calcFreelancer(m?.dados?.freelancer?.corte);
   const totG = fe.tot.custo + fc.tot.custo;
-  const previsto = totG ? Math.round(((fe.tot.freelancer + fc.tot.freelancer) / totG) * 1000) / 10 : null;
+  let previsto = totG ? Math.round(((fe.tot.freelancer + fc.tot.freelancer) / totG) * 1000) / 10 : null;
+  let fontePrev = "na Matriz (tabela Pessoal x Freelancer)";
+  // v224 — com meta de % freelancer na página Metas (Gestão), ela é o previsto
+  const kA = await prisma.kpiAno.findUnique({ where: { ano: Number(comp.slice(0, 4)) } }).catch(() => null);
+  if (kA?.metaPctFreelancer != null) { previsto = Math.round(Number(kA.metaPctFreelancer) * 1000) / 10; fontePrev = "na meta (Metas da Gestão)"; }
   const critica = previsto != null && tot.pct != null && tot.pct > previsto
-    ? `Freelancer em ${comp.split("-").reverse().join("/")}: ${String(tot.pct).replace(".", ",")}% do custo de mão de obra, acima dos ${String(previsto).replace(".", ",")}% previstos na Matriz (tabela Pessoal x Freelancer). Corrija a Matriz (razão interna e custo por peça) ou reveja o uso de freelancers.`
+    ? `Freelancer em ${comp.split("-").reverse().join("/")}: ${String(tot.pct).replace(".", ",")}% do custo de mão de obra, acima dos ${String(previsto).replace(".", ",")}% previstos ${fontePrev}. Reveja a meta/Matriz ou o uso de freelancers.`
     : null;
   return { competencia: comp, linhas, semSetor, total: tot, previsto, critica };
 }

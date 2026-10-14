@@ -1203,6 +1203,7 @@ model KpiAno {
   metaPecasFaturadas  Int?
   metaVendasPecas     Int?     // v213: meta anual de vendas em peças
   metaTicketMedio     Decimal? @db.Decimal(14, 2) // v214: meta de ticket médio (R$/peça) do ano
+  metaPctFreelancer   Decimal? @db.Decimal(6, 4)  // v224: meta de % freelancer no custo de mão de obra (fração)
   metaPecasProduzidas Int?
   // margem de contribuição em fração (0.18 = 18%), mesma convenção da Matriz de custos
   metaMargem          Decimal? @db.Decimal(6, 4)

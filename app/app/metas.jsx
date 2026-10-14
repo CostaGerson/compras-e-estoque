@@ -160,6 +160,7 @@ export default function MetasPagina({ user, anoInicial }) {
   const [orig, setOrig] = useState(null);
   const [vend, setVend] = useState(null);   // v221: vendas (R$) — a meta que você define
   const [margem, setMargem] = useState(null);
+  const [freela, setFreela] = useState(null);   // v224: % freelancer (em %)
   const [ticket, setTicket] = useState(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -185,6 +186,7 @@ export default function MetasPagina({ user, anoInicial }) {
     setOrig({ ...d, vend: v });
     setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
+    setFreela(d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
   };
   useEffect(() => {
@@ -196,7 +198,7 @@ export default function MetasPagina({ user, anoInicial }) {
     setSalvando(true); setErro(""); setAviso("");
     try {
       montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
-        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket) }));
+        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket), freelancer: freela == null ? "" : String(freela) }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
       carregarMatriz();
     } catch (e) { setErro(e.message); }
@@ -211,7 +213,8 @@ export default function MetasPagina({ user, anoInicial }) {
       const pcsAno = der.faturamentoPecas.anual;
       const mg = { ...(matriz.metasGestao || {}), ano, nomeMes: `${MESES[mesI]}/${ano}`,
         fatAno: der.faturamentoValor.anual, fatMes: der.faturamentoValor.meses[mesI], pcsAno, pcsMedia: pcsAno ? pcsAno / 12 : null,
-        ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null };
+        ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null,
+        pctFreelancer: freela != null ? freela / 100 : null };
       const dv = aplicarMetas(matriz, mg);
       return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg };
     } catch { return null; }
@@ -273,6 +276,31 @@ export default function MetasPagina({ user, anoInicial }) {
                 <Campo un="R$" valor={margem} onCommit={setMargem} grande />
               </label>
             </div>
+            {(() => {
+              const F = orig.freelancer || {};
+              const p = (v) => `${fmt("R$", v * 100)}%`;
+              const nomeC = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
+              const sug = F.media3?.pct ?? F.ultimo?.pct ?? null;
+              return (
+                <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                  <div className="flex-1 min-w-[150px]">
+                    <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>PRODUÇÃO</div>
+                    <div className="font-bold" style={{ color: C.navy }}>% de freelancer</div>
+                    <div className="text-[11px]" style={{ color: C.sub }}>no custo de mão de obra (folha + freelancer)</div>
+                    {(F.ultimo || F.media3) && <div className="text-xs mt-1" style={{ color: C.text }}>
+                      Atual (folha × freelancer): {F.ultimo && <><b>{p(F.ultimo.pct)}</b> em {nomeC(F.ultimo.comp)}</>}
+                      {F.media3 && <span style={{ color: C.sub }}> · média {F.media3.meses} {F.media3.meses === 1 ? "mês" : "meses"}: <b style={{ color: C.text }}>{p(F.media3.pct)}</b></span>}
+                      {sug != null && Math.abs(sug * 100 - (freela ?? -1)) >= 0.01 && <> · <button onClick={() => setFreela(r2(sug * 100))} className="font-semibold underline" style={{ color: C.accent }}>usar {p(sug)}</button></>}
+                    </div>}
+                    {!F.ultimo && !F.media3 && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem análise de folha × freelancer nos últimos meses.</div>}
+                  </div>
+                  <label className="block" style={{ width: 160 }}>
+                    <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
+                    <Campo un="R$" valor={freela} onCommit={setFreela} grande />
+                  </label>
+                </div>
+              );
+            })()}
           </div>
 
           <CardNatureza n={vend} original={orig.vend} set={setVend} ticket={ticket} />
