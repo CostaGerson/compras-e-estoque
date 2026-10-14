@@ -1903,13 +1903,13 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
     observacao: item?.observacao || "",
   }));
   const porLinha = grupo === "FACCAO";   // v208: facção — tipo de peça em cada linha (pedido), não no prestador
-  const semPixCadastro = !!f.prestadorId && !String((lista.find((p) => p.id === f.prestadorId) || {}).chavePix || "").trim();
   const [prog, setProg] = useState(null);     // { sexta, vencimento, aviso }
   const [ciente, setCiente] = useState(!!item);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [novoPrestador, setNovoPrestador] = useState(null);   // nome digitado que não existe
   const [lista, setLista] = useState(prestadores);
+  const semPixCadastro = !!f.prestadorId && !String(((lista || []).find((p) => p.id === f.prestadorId) || {}).chavePix || "").trim();
   const s = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
 
   // v175 — freelancer: a diária e a passagem vêm do cadastro (turno escolhido; o primeiro por padrão)
