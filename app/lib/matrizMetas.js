@@ -15,19 +15,23 @@ export async function metasDaGestao(hoje = new Date()) {
   // mesma regra dos cards do KPI: a meta do mês é a lançada; se não houver, a do ano ÷ 12
   const fatMes = num(km?.metaFaturamentoValor) ?? (fatAno != null ? fatAno / 12 : null);
   const pcsMes = num(km?.metaFaturamentoPecas) ?? (pcsAno != null ? pcsAno / 12 : null);
-  const margem = num(ka?.metaMargem);
+  const margem = num(ka?.metaMargem), ticketMeta = num(ka?.metaTicketMedio);
   if (fatMes == null && pcsMes == null && margem == null) return null;
   const pecas = pcsMes ? Math.round(pcsMes) : null;
-  return { ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, fatAno, fatMes, pcsAno, pcsMes: pecas,
-    ticket: fatMes != null && pecas ? fatMes / pecas : null, margem };
+  // v215 — resultados anuais saem das metas do ANO (não do mês × 12): ticket = meta de ticket (METAS) ou faturamento ÷ peças do ano
+  const ticket = ticketMeta ?? (fatAno != null && pcsAno ? fatAno / pcsAno : fatMes != null && pecas ? fatMes / pecas : null);
+  const fonteTicket = ticketMeta != null ? "meta de ticket médio (METAS)" : fatAno != null && pcsAno ? "meta de faturamento ÷ meta de peças do ano" : "meta de faturamento ÷ meta de peças do mês";
+  const pcsMedia = pcsAno ? pcsAno / 12 : fatAno != null && ticket ? fatAno / 12 / ticket : pecas;
+  return { ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, fatAno, fatMes, pcsAno, pcsMes: pecas, pcsMedia,
+    ticket, fonteTicket, margem };
 }
 
 // aplica as metas da Gestão nos dados da Matriz (só na oficial)
 export function aplicarMetas(dados, mg) {
   if (!dados || !mg) return dados;
   const pr = { ...(dados.producao || {}) };
-  if (mg.pcsMes) pr.metaPecas = mg.pcsMes;
-  if (mg.ticket != null) pr.ticketMedio = mg.ticket;   // sem arredondar: peças × ticket = meta do mês exata
+  if (mg.pcsMedia) pr.metaPecas = mg.pcsMedia;          // média mensal da meta do ano
+  if (mg.ticket != null) pr.ticketMedio = mg.ticket;
   if (mg.margem != null) pr.margemContribuicao = mg.margem;
   return { ...dados, producao: pr, metasGestao: mg };
 }

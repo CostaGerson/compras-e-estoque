@@ -66,9 +66,14 @@ export async function conferencia(ano = new Date().getFullYear(), hoje = new Dat
     { tela: "Gestão › KPI (campo META)", fonte: "meta do mês", valor: metaMesFat(mesHoje) != null ? r2(metaMesFat(mesHoje)) : null },
     { tela: "Matriz de custos (meta do mês)", fonte: "puxada de METAS", valor: M ? r2(M.metaMensal) : null },
   ]));
-  checks.push(chk("Metas", `Meta de peças faturadas de ${MESES[mesHoje - 1]}/${a}`, [
-    { tela: "Gestão › KPI (campo META)", fonte: "meta de peças do mês", un: "pc", valor: metaMesPcs(mesHoje) != null ? Math.round(metaMesPcs(mesHoje)) : null },
-    { tela: "Matriz de custos (Produção)", fonte: "puxada de METAS", un: "pc", valor: pr.metaPecas != null ? Number(pr.metaPecas) : null },
+  const pcsAnoG = num(kAno?.metaPecasFaturadas);
+  checks.push(chk("Metas", "Meta de faturamento do ano", [
+    { tela: "Gestão › METAS", fonte: "meta do ano", valor: metaFatGestao },
+    { tela: "Matriz de custos (Metas e resultado)", fonte: "puxada de METAS", valor: M ? r2(M.metaFatAnual) : null },
+  ]));
+  checks.push(chk("Metas", "Meta de peças faturadas (média do mês)", [
+    { tela: "Gestão › METAS", fonte: "meta de peças do ano ÷ 12", un: "pc", valor: pcsAnoG != null ? Math.round(pcsAnoG / 12) : null },
+    { tela: "Matriz de custos (Produção)", fonte: "puxada de METAS", un: "pc", valor: pr.metaPecas != null ? Math.round(Number(pr.metaPecas)) : null },
   ], "Quantidade de peças."));
   checks.push(chk("Metas", "Margem de contribuição", [
     { tela: "Gestão › METAS", fonte: "margem (%)", valor: kAno?.metaMargem != null ? r2(Number(kAno.metaMargem) * 100) : null },

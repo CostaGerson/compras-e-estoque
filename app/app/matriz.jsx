@@ -19,6 +19,9 @@ const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDig
 const moeda = (v) => "R$ " + brl(v);
 const pct = (v, c = 2) => ((Number(v) || 0) * 100).toLocaleString("pt-BR", { minimumFractionDigits: c, maximumFractionDigits: c }) + "%";
 const int = (v) => Math.round(Number(v) || 0).toLocaleString("pt-BR");
+// v215 — valor resumido: R$ 7,195M · R$ 67,745K
+const curto = (v) => { const x = Number(v) || 0, a = Math.abs(x), f = (y) => y.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  return a >= 1e6 ? `R$ ${f(x / 1e6)}M` : a >= 1e3 ? `R$ ${f(x / 1e3)}K` : moeda(x); };
 const lerNum = (s) => {
   const t = String(s ?? "").trim().replace(/\s|R\$|%/g, "");
   if (!t) return 0;
@@ -158,7 +161,8 @@ export default function MatrizCustos({ user }) {
     return () => window.removeEventListener("beforeunload", h);
   }, [sujo]);
 
-  const calc = useMemo(() => (dados ? calcularMatriz(dados) : null), [dados]);
+  // v215 — cenário simula com os próprios números (ignora as metas da Gestão)
+  const calc = useMemo(() => (dados ? calcularMatriz(doc?.oficial ? dados : { ...dados, metasGestao: null }) : null), [dados, doc]);
   const calcOf = useMemo(() => (oficialDados && doc && !doc.oficial ? calcularMatriz(oficialDados) : null), [oficialDados, doc]);
 
   const muda = (chave, valor) => {
@@ -364,16 +368,15 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg }) {
 
         {/* metas e resultado */}
         <Cartao titulo="Metas e resultado">
-          {mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão · mês da análise {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
-          <Kv k="Meta de faturamento (mês)" v={moeda(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
-          {mg?.fatAno != null
-            ? <Kv k="Meta de faturamento (ano · Gestão)" v={moeda(mg.fatAno)} extra={<span className="text-[10px]" style={{ color: C.sub }}>no ritmo da meta do mês: {moeda(calc.metaFatAnual)}</span>} />
-            : <Kv k="Meta de faturamento (ano)" v={moeda(calc.metaFatAnual)} />}
-          <Kv k="Meta por dia útil" v={moeda(calc.metaDia)} />
+          {mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão. Resultados do ano pela meta do ano; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
+          <Kv k={`Meta de faturamento (mês${mg ? ` · ${mg.nomeMes}` : ""})`} v={curto(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
+          <Kv k={`Meta de faturamento (ano${mg ? " · Gestão" : ""})`} v={curto(calc.metaFatAnual)} extra={<Dif a={calc.metaFatAnual} o={calcOf?.metaFatAnual} />} />
+          <Kv k="Ticket médio utilizado" v={moeda(pr?.ticketMedio)} extra={<span className="text-[10px]" style={{ color: C.sub }}>{mg ? mg.fonteTicket : "do cenário"} · {int(pr?.metaPecas)} peças/mês em média</span>} />
+          <Kv k="Meta por dia útil" v={curto(calc.metaDia)} />
           <Kv k="Balanço meta x custo operacional" v={brlN(calc.balanco, 3)} cor={calc.balanco >= 1 ? C.green : C.red}
             extra={<span className="text-[10px]" style={{ color: C.sub }}>a operação se paga com {int(calc.pecasCobrem)} peças/mês</span>} />
-          <Kv k="Lucro líquido no cenário" v={`${pct(calc.lucroCenario)} · ${moeda(calc.lucroCenarioR)}/ano`} cor={calc.lucroCenario >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroCenario} o={calcOf?.lucroCenario} tipo="pct" />} />
-          <Kv k="Lucro líquido real" v={`${pct(calc.lucroReal)} · ${moeda(calc.lucroRealR)}/ano`} cor={calc.lucroReal >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroReal} o={calcOf?.lucroReal} tipo="pct" />} />
+          <Kv k="Lucro líquido no cenário" v={`${pct(calc.lucroCenario)} · ${curto(calc.lucroCenarioR)}/ano`} cor={calc.lucroCenario >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroCenario} o={calcOf?.lucroCenario} tipo="pct" />} />
+          <Kv k="Lucro líquido real" v={`${pct(calc.lucroReal)} · ${curto(calc.lucroRealR)}/ano`} cor={calc.lucroReal >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroReal} o={calcOf?.lucroReal} tipo="pct" />} />
           <Kv k="Breakeven (peças faturadas/mês)" v={int(calc.breakevenPecas)} extra={<span className="text-[10px]" style={{ color: C.sub }}>lucro real zera nessa meta</span>} />
         </Cartao>
 
@@ -763,8 +766,8 @@ function Producao({ dados, calc, muda, mg }) {
         <Cartao titulo="Metas">
           {mg ? <>
             <div className="text-[11px] py-1" style={{ color: C.sub }}>Vêm do botão METAS da Gestão ({mg.nomeMes}). Para mudar, altere lá ou simule num cenário.</div>
-            <Linha t="Ticket médio" dica="meta de faturamento ÷ meta de peças do mês"><b>{moeda(pr.ticketMedio)}</b></Linha>
-            <Linha t="Meta de peças faturadas (mês)"><b>{int(pr.metaPecas)}</b></Linha>
+            <Linha t="Ticket médio" dica={mg.fonteTicket}><b>{moeda(pr.ticketMedio)}</b></Linha>
+            <Linha t="Meta de peças faturadas (média do mês)" dica="meta de peças do ano ÷ 12"><b>{int(pr.metaPecas)}</b></Linha>
             <Linha t="Margem de contribuição">{mg.margem != null ? <b>{pct(pr.margemContribuicao)}</b> : <NumInput tipo="pct" value={pr.margemContribuicao} onChange={(v) => s("margemContribuicao", v)} width={90} />}</Linha>
           </> : <>
           <Linha t="Ticket médio (semestre)"><NumInput value={pr.ticketMedio} onChange={(v) => s("ticketMedio", v)} /></Linha>

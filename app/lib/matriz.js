@@ -91,7 +91,9 @@ export function calcularMatriz(d) {
   const custoPecaInterno = razaoProd + razaoLog;
 
   // METAS E RESULTADO
-  const metaFatAnual = n(pr.metaPecas) * n(pr.ticketMedio) * 12;      // M48
+  // v215 — na oficial, o ano é a meta do ano da Gestão (METAS) e o mês é a meta do mês da análise
+  const mg = d.metasGestao || null;
+  const metaFatAnual = mg?.fatAno != null ? n(mg.fatAno) : n(pr.metaPecas) * n(pr.ticketMedio) * 12;      // M48
   const pecasCobrem = custoPecaInterno ? operacaoPrecificada / custoPecaInterno : 0;
   const balanco = pecasCobrem ? n(pr.metaPecas) / pecasCobrem : 0;    // R48
   const admAnual = custoAdministrativo * 12;                          // S52
@@ -102,7 +104,7 @@ export function calcularMatriz(d) {
   // BREAKEVEN: meta de peças que zera o lucro real
   const divBe = n(pr.ticketMedio) * n(pr.margemContribuicao) + custoPecaInterno;
   const breakevenPecas = divBe > 0 ? custoNegocio / divBe : 0;
-  const metaMensal = metaFatAnual / 12;
+  const metaMensal = mg?.fatMes != null ? n(mg.fatMes) : metaFatAnual / 12;
 
   // RESERVA CDB: provisões do pessoal + itens marcados
   const marcados = [...(d.vidaVegetativa || []), ...(d.logistica || []), ...(d.administracao || []), ...(d.sistemas || [])].filter((i) => i.cdb && i.ativo !== false);
