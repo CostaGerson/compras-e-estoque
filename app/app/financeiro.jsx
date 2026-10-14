@@ -58,11 +58,11 @@ function statusCard(n, esperado, justificativa, arqs = []) {
 }
 
 /* ============================================================ */
-export default function Financeiro({ user }) {
+export default function Financeiro({ user, telaInicial }) {
   // tela: dash | meses | mes | contas | regras | senhas
   // v170 — quem não é master/diretoria vê só o operacional (documentos financeiros e contas)
   const ger = gerencial(user);
-  const [tela, setTela] = useState({ v: "dash" });
+  const [tela, setTela] = useState(telaInicial?.v ? { v: telaInicial.v } : { v: "dash" });
   const [ano, setAno] = useState(new Date().getFullYear());
   const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
   const migalhas = [{ t: "Financeiro", go: () => ir({ v: "dash" }) }];

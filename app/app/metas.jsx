@@ -5,6 +5,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Lock, Unlock, Save, Loader2, History, RotateCcw, Target } from "lucide-react";
 import { derivarMetas } from "@/lib/kpiMetasCalc";
+import { calcularMatriz } from "@/lib/matriz";
+import { aplicarMetas } from "@/lib/matrizMetasCalc";
+import { CardMetasResultado } from "./matriz";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -155,6 +158,15 @@ export default function MetasPagina({ user, anoInicial }) {
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [matriz, setMatriz] = useState(null);   // v219: matriz oficial para o impacto ao vivo
+  const carregarMatriz = async () => {
+    try {
+      const l = await api(`/api/fin/matriz?u=${user.id}`);
+      const of = l.find((x) => x.oficial);
+      if (of) setMatriz((await api(`/api/fin/matriz/${of.id}?u=${user.id}`)).dados);
+    } catch { setMatriz(null); }
+  };
+  useEffect(() => { carregarMatriz(); }, []);
 
   const montar = (d) => {
     const v = d.naturezas.find((n) => n.k === "vendasPecas");
@@ -174,10 +186,24 @@ export default function MetasPagina({ user, anoInicial }) {
       montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasPecas: { anual: vend.anual, meses: vend.meses } },
         margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket) }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
+      carregarMatriz();
     } catch (e) { setErro(e.message); }
     setSalvando(false);
   };
   const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor) : null;
+  // v219 — impacto ao vivo na Matriz oficial: metas da tela (ainda não gravadas) × metas gravadas
+  const vivo = (() => {
+    if (!matriz || !der) return null;
+    try {
+      const hoje = new Date(), mesI = ano === hoje.getFullYear() ? hoje.getMonth() : 0;
+      const pcsAno = der.faturamentoPecas.anual;
+      const mg = { ...(matriz.metasGestao || {}), ano, nomeMes: `${MESES[mesI]}/${ano}`,
+        fatAno: der.faturamentoValor.anual, fatMes: der.faturamentoValor.meses[mesI], pcsAno, pcsMedia: pcsAno ? pcsAno / 12 : null,
+        ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null };
+      const dv = aplicarMetas(matriz, mg);
+      return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg };
+    } catch { return null; }
+  })();
   const LINHAS = [
     ["vendasValor", "Vendas (R$)", "R$", "peças vendidas × ticket"],
     ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "= peças vendidas do mês"],
@@ -204,7 +230,8 @@ export default function MetasPagina({ user, anoInicial }) {
       {aviso && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {!vend && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {vend && (
-        <>
+        <div className="flex flex-wrap gap-4 items-start">
+        <div className="flex-1" style={{ minWidth: 320 }}>
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
             <div className="rounded-xl p-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-[150px]">
@@ -258,7 +285,14 @@ export default function MetasPagina({ user, anoInicial }) {
               ))}</tbody>
             </table>
           </div>
-        </>
+        </div>
+        {vivo && (
+          <div className="sticky top-2" style={{ width: 380, maxWidth: "100%" }}>
+            <CardMetasResultado calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
+              nota="Matriz oficial ao vivo com as metas desta tela (antes de salvar). A comparação é com as metas gravadas." />
+          </div>
+        )}
+        </div>
       )}
     </div>
   );

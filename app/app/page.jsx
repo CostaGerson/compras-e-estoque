@@ -176,6 +176,8 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("gestao");
+  const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
+  useEffect(() => { if (view !== "financeiro") setFinInicial(null); }, [view]);
   const [tab, setTab] = useState("lista");
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
@@ -276,14 +278,14 @@ export default function Home() {
         <div className="flex-1 overflow-auto p-6">
           <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} />}
-          {view === "gestao" && pode("gestao") && <Gestao user={user} master={master} money={money} />}
+          {view === "gestao" && pode("gestao") && <Gestao user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? () => { setFinInicial({ v: "matriz", t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rota />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && pode("comercial") && <Comercial user={user} master={master || tipo === "COMERCIAL"} />}
-          {view === "financeiro" && pode("financeiro") && <Financeiro user={user} />}
+          {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
           {view === "pic" && pode("pic") && <PIC />}

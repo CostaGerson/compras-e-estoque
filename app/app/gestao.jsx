@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import MetasPagina from "./metas";
 import {
   Target, Factory, Receipt, Wallet, BarChart3, History, ArrowLeft, Pencil, Save, X,
-  Upload, Loader2, ChevronLeft, ChevronRight, ChevronDown,
+  Upload, Loader2, ChevronLeft, ChevronRight, ChevronDown, Grid3x3,
 } from "lucide-react";
 
 /* Paleta Meridian */
@@ -45,11 +45,17 @@ const api = async (url, method, body) => {
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
 
 /* ============================================================ */
-export default function Gestao({ user, master, money }) {
+export default function Gestao({ user, master, money, irMatriz }) {
   const [tela, setTela] = useState({ v: "painel" });
   const voltar = () => setTela({ v: "painel" });
   return (
     <div>
+      {irMatriz && (
+        <div className="flex justify-end mb-3">
+          <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}
+            title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>
+        </div>
+      )}
       {tela.v !== "painel" && (
         <div className="flex items-center gap-1 text-sm mb-4">
           <button onClick={voltar} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}>

@@ -26,15 +26,8 @@ export async function metasDaGestao(hoje = new Date()) {
     ticket, fonteTicket, margem };
 }
 
-// aplica as metas da Gestão nos dados da Matriz (só na oficial)
-export function aplicarMetas(dados, mg) {
-  if (!dados || !mg) return dados;
-  const pr = { ...(dados.producao || {}) };
-  if (mg.pcsMedia) pr.metaPecas = mg.pcsMedia;          // média mensal da meta do ano
-  if (mg.ticket != null) pr.ticketMedio = mg.ticket;
-  if (mg.margem != null) pr.margemContribuicao = mg.margem;
-  return { ...dados, producao: pr, metasGestao: mg };
-}
+export { aplicarMetas } from "@/lib/matrizMetasCalc";
+import { aplicarMetas } from "@/lib/matrizMetasCalc";
 
 export async function dadosComMetas(dados, hoje = new Date()) {
   return aplicarMetas(dados, await metasDaGestao(hoje).catch(() => null));
