@@ -1,7 +1,8 @@
 "use client";
 // v209 — OS do KM (fechamento de facção) → fechamento de terceirizados da semana
 import React, { useState, useEffect, useMemo } from "react";
-import { Loader2, ClipboardList, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, ClipboardList, AlertTriangle, CheckCircle2, Plus } from "lucide-react";
+import { PrestadorModal } from "./prestadores";
 import { ModalContas as Modal, CoresContas as C } from "./contas";
 
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
@@ -31,6 +32,7 @@ export default function OsKmModal({ user, arquivos: files, onClose, onSalvo }) {
   const [arqs, setArqs] = useState([]);
   const [linhas, setLinhas] = useState([]);   // por OS: { ...item, marcado, prestadorId, tipo, chavePix }
   const [receb, setReceb] = useState("");
+  const [novo, setNovo] = useState(null);   // linha que abriu o cadastro de terceirizado
 
   useEffect(() => {
     (async () => {
@@ -94,10 +96,14 @@ export default function OsKmModal({ user, arquivos: files, onClose, onSalvo }) {
                     <td className="px-2 py-1.5"><b style={{ color: C.navy }}>{x.os.nr}</b><div style={{ color: C.sub }}>{dBR(x.os.dataOs)} · {x.os.servico || "—"}</div></td>
                     <td className="px-2 py-1.5" style={{ minWidth: 190 }}>
                       <div style={{ color: C.sub }}>KM: {x.os.prestador}</div>
-                      <select value={x.prestadorId} onChange={(e) => { alt(i, "prestadorId", e.target.value); alt(i, "chavePix", prest(e.target.value)?.chavePix || ""); }} className={inp} style={{ ...inpS, borderColor: x.prestadorId ? C.line : C.yellow }}>
-                        <option value="">— escolha —</option>
-                        {d.prestadores.map((q) => <option key={q.id} value={q.id}>{q.nome}{q.nomeKm ? ` (KM ${q.nomeKm})` : ""}</option>)}
-                      </select>
+                      <div className="flex items-center gap-1">
+                        <select value={x.prestadorId} onChange={(e) => { alt(i, "prestadorId", e.target.value); alt(i, "chavePix", prest(e.target.value)?.chavePix || ""); }} className={inp} style={{ ...inpS, borderColor: x.prestadorId ? C.line : C.yellow }}>
+                          <option value="">— escolha —</option>
+                          {d.prestadores.map((q) => <option key={q.id} value={q.id}>{q.nome}{q.nomeKm ? ` (KM ${q.nomeKm})` : ""}</option>)}
+                        </select>
+                        <button type="button" onClick={() => setNovo(x)} title="Cadastrar terceirizado novo" className="shrink-0 flex items-center justify-center rounded"
+                          style={{ width: 26, height: 26, background: C.accent, color: "#fff" }}><Plus size={14} /></button>
+                      </div>
                       {x.prestadorId && !String(p?.chavePix || "").trim() && <input value={x.chavePix} onChange={(e) => alt(i, "chavePix", e.target.value)} placeholder="CHAVE PIX (vai para o cadastro)" className={`${inp} mt-1`} style={{ ...inpS, borderColor: x.chavePix ? C.line : C.yellow }} />}
                     </td>
                     <td className="px-2 py-1.5" style={{ maxWidth: 260 }}><b>{x.os.pedido}</b>{x.os.itemPedido ? ` · item ${x.os.itemPedido}` : ""}<div className="truncate" style={{ color: C.sub }} title={`${x.os.cliente} - ${x.os.peca}`}>{x.os.cliente} · {x.os.peca}</div></td>
@@ -120,6 +126,18 @@ export default function OsKmModal({ user, arquivos: files, onClose, onSalvo }) {
             </table>
           </div>
         </>
+      )}
+      {novo && (
+        <PrestadorModal user={user} tipo="TERCEIRIZADO" nomeSugerido={novo.os.prestador} nomeKmInicial={novo.os.prestador}
+          servicosIniciais={novo.tipo ? [`FACCAO:${novo.tipo}`] : []} catalogo={d.catalogoCadastro || []}
+          onClose={() => setNovo(null)}
+          onSalvo={(j) => {
+            const p = j.prestador;
+            setD((x) => ({ ...x, prestadores: [...x.prestadores.filter((q) => q.id !== p.id), { id: p.id, nome: p.nome, nomeKm: p.nomeKm, chavePix: p.chavePix, prazoDias: p.prazoDias ?? 0 }].sort((a, b) => a.nome.localeCompare(b.nome)) }));
+            // todas as OS com esse mesmo nome no KM (ainda sem terceirizado) passam a usar o cadastro novo
+            setLinhas((l) => l.map((y) => (y.os && !y.prestadorId && y.os.prestador === novo.os.prestador ? { ...y, prestadorId: p.id, chavePix: p.chavePix || "" } : y)));
+            setNovo(null);
+          }} />
       )}
     </Modal>
   );

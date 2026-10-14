@@ -8,7 +8,7 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { salvarItem, programacao } from "@/lib/finSemana";
-import { TIPOS_FACCAO } from "@/lib/prestadores";
+import { TIPOS_FACCAO, SERVICOS_DE_TERCEIRIZADO } from "@/lib/prestadores";
 
 const num = (s) => { const v = Number(String(s || "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(v) ? v : 0; };
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -110,7 +110,7 @@ export async function analisarOs(arquivos, abrirPdf) {
         qtd, unitario: unit, total: r2(qtd * unit), jaLancado: lanc.qtd, avisos, ok: qtd > 0 });
     } catch (e) { itens.push({ arquivo: a.nome, erro: e.message }); }
   }
-  return { itens, prestadores: ps.map((p) => ({ id: p.id, nome: p.nome, nomeKm: p.nomeKm, chavePix: p.chavePix, prazoDias: p.prazoDias ?? 0 })), tipos: TIPOS_FACCAO.map((t) => ({ k: t.k, n: t.n })) };
+  return { itens, prestadores: ps.map((p) => ({ id: p.id, nome: p.nome, nomeKm: p.nomeKm, chavePix: p.chavePix, prazoDias: p.prazoDias ?? 0 })), tipos: TIPOS_FACCAO.map((t) => ({ k: t.k, n: t.n })), catalogoCadastro: SERVICOS_DE_TERCEIRIZADO };
 }
 
 // itens: [{ arquivo, os, prestadorId, tipo, qtd, unitario, chavePix }] · arquivos: [{ nome, conteudo }] · dataRecebimento

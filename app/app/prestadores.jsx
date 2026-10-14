@@ -29,13 +29,13 @@ function Campo({ t, dica, children }) {
 }
 
 /* ---------------- card de cadastro (serve na aba Dados e no meio de um lançamento) ---------------- */
-export function PrestadorModal({ user, tipo, prestador, catalogo, nomeSugerido, onClose, onSalvo }) {
+export function PrestadorModal({ user, tipo, prestador, catalogo, nomeSugerido, servicosIniciais, nomeKmInicial, onClose, onSalvo }) {
   const free = tipo === "FREELANCER";
   const [f, setF] = useState(() => ({
     nome: prestador?.nome || nomeSugerido || "",
     telefone: prestador?.telefone || "",
     chavePix: prestador?.chavePix || "",
-    servicos: prestador?.servicos || [],
+    servicos: prestador?.servicos || servicosIniciais || [],
     capacidade: prestador?.capacidade ?? "",
     endereco: prestador?.endereco || "",
     documento: prestador?.documento || "",
@@ -43,7 +43,7 @@ export function PrestadorModal({ user, tipo, prestador, catalogo, nomeSugerido, 
     ativo: prestador?.ativo ?? true,
     funcao: prestador?.funcao || "",
     prazoDias: prestador?.prazoDias ?? "",
-    nomeKm: prestador?.nomeKm || "",
+    nomeKm: prestador?.nomeKm || nomeKmInicial || "",
     diarias: Array.isArray(prestador?.diarias) && prestador.diarias.length ? prestador.diarias : [{ turno: "ÚNICO", diaria: "", passagem: "" }],
   }));
   const altD = (i, k, v) => setF((x) => ({ ...x, diarias: x.diarias.map((d, j) => (j === i ? { ...d, [k]: v } : d)) }));
