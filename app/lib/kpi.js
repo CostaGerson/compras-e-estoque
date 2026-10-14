@@ -30,7 +30,7 @@ export const veValores = (u) => gerencial(u) || tipoDe(u) === "COMERCIAL";
 export function kpisDoTipo(u) {
   if (gerencial(u)) return null;   // todos
   const t = tipoDe(u);
-  if (t === "COMERCIAL") return ["vendasValor", "vendasPecas", "faturamentoValor"];
+  if (t === "COMERCIAL") return ["vendasValor", "vendasPecas", "faturamentoValor", "ticketMedio"];
   if (t === "PRODUCAO") return ["pecasProduzidas", "vendasPecas"];
   return [];
 }
@@ -196,7 +196,7 @@ export async function relatorio(ano) {
       },
       receita: { segmentos: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot),
         fonte: cur.dre[mes] != null ? "DRE" : rcMan ? "MANUAL" : null, manual: rcMan || null },
-      metaVendasValor: n(c.metaVendasValor), metaReceitaValor: n(c.metaReceitaValor),
+      metaVendasValor: n(c.metaVendasValor), metaReceitaValor: n(c.metaReceitaValor), metaVendasPecas: n(c.metaVendasPecas),
       observacao: c.observacao || null,
     };
   });
@@ -241,6 +241,8 @@ export async function relatorio(ano) {
     faturamento: n(cur.metaAno?.metaFaturamento),
     receita: n(cur.metaAno?.metaReceita),
     pecasFaturadas: n(cur.metaAno?.metaPecasFaturadas),
+    vendasPecas: n(cur.metaAno?.metaVendasPecas),
+    ticketMedio: n(cur.metaAno?.metaTicketMedio),
     pecasProduzidas: n(cur.metaAno?.metaPecasProduzidas),
     margem: n(cur.metaAno?.metaMargem),
   };
@@ -281,6 +283,12 @@ export async function painel(ano, mes) {
   const r = await relatorio(ano);
   const l = r.linhas[mes - 1] || r.linhas[0];
   const serie = (f) => r.linhas.map(f);
+  const tkt = (x) => (x.faturamento.atual && x.faturamento.pecas ? x.faturamento.atual / x.faturamento.pecas : null);
+  const metaTicket = (x) => {
+    if (r.metas.ticketMedio != null) return r.metas.ticketMedio;
+    const f = metaMes(x.faturamento.metaValor, r.metas.faturamento), p = metaMes(x.faturamento.metaPecas, r.metas.pecasFaturadas);
+    return f && p ? f / p : null;
+  };
 
   const kpis = [
     {
@@ -291,8 +299,9 @@ export async function painel(ano, mes) {
     },
     {
       chave: "vendasPecas", rotulo: "Vendas", unidade: "peças",
-      valor: l.vendas.pecas, meta: l.faturamento.metaPecas,
-      serie: serie((x) => x.vendas.pecas), metaSerie: serie((x) => x.faturamento.metaPecas),
+      // v213: meta própria de vendas em peças (METAS); sem ela, a de peças faturadas (regra antiga)
+      valor: l.vendas.pecas, meta: metaMes(l.metaVendasPecas, r.metas.vendasPecas) ?? l.faturamento.metaPecas,
+      serie: serie((x) => x.vendas.pecas), metaSerie: serie((x) => metaMes(x.metaVendasPecas, r.metas.vendasPecas) ?? x.faturamento.metaPecas),
       fonte: "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
@@ -300,6 +309,13 @@ export async function painel(ano, mes) {
       valor: l.faturamento.atual, meta: metaMes(l.faturamento.metaValor, r.metas.faturamento),
       serie: serie((x) => x.faturamento.atual), metaSerie: serie((x) => metaMes(x.faturamento.metaValor, r.metas.faturamento)),
       fonte: "Lançamento manual — virá das NFs de saída emitidas",
+    },
+    {
+      // v214 — ticket médio do mês = faturamento ÷ peças faturadas; meta = a de METAS (ano), ou a implícita nas metas do mês
+      chave: "ticketMedio", rotulo: "Ticket médio", unidade: "R$",
+      valor: tkt(l), meta: metaTicket(l),
+      serie: serie(tkt), metaSerie: serie(metaTicket),
+      fonte: "Faturamento ÷ peças faturadas do mês",
     },
     {
       chave: "pecasProduzidas", rotulo: "Peças produzidas", unidade: "peças",

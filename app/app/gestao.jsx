@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import MetasPagina from "./metas";
 import {
   Target, Factory, Receipt, Wallet, BarChart3, History, ArrowLeft, Pencil, Save, X,
   Upload, Loader2, ChevronLeft, ChevronRight, ChevronDown,
@@ -56,24 +57,24 @@ export default function Gestao({ user, master, money }) {
           </button>
           <button onClick={voltar} className="hover:underline" style={{ color: C.sub }}>Gestão</button>
           <ChevronRight size={14} style={{ color: C.sub }} />
-          <span>Relatório de KPIs {tela.ano}</span>
+          <span>{tela.v === "metas" ? `Metas de ${tela.ano}` : `Relatório de KPIs ${tela.ano}`}</span>
         </div>
       )}
       {tela.v === "painel"
-        ? <Painel user={user} master={master} money={money} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} />
-        : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} />}
+        ? <Painel user={user} master={master} money={money} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
+        : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}`} user={user} anoInicial={tela.ano} />
+        : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} abrirMetas={(ano) => setTela({ v: "metas", ano })} />}
     </div>
   );
 }
 
 /* ---------------- PAINEL (tela inicial da Gestão) ---------------- */
-function Painel({ user, master, money, abrirRelatorio }) {
+function Painel({ user, master, money, abrirRelatorio, abrirMetas }) {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
-  const [metas, setMetas] = useState(false);
 
   const carregar = async () => {
     setErro("");
@@ -110,7 +111,7 @@ function Painel({ user, master, money, abrirRelatorio }) {
         )}
         <div className="flex-1" />
         {d?.podeEditar && (
-          <button onClick={() => setMetas(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+          <button onClick={() => abrirMetas(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
             style={{ border: `1px solid ${C.accent}`, color: C.accent }}>
             <Target size={15} /> Metas de {ano}
           </button>
@@ -167,8 +168,6 @@ function Painel({ user, master, money, abrirRelatorio }) {
         </>
       )}
 
-      {metas && <MetasModal user={user} ano={ano} onClose={() => setMetas(false)}
-        onSalvo={() => { setMetas(false); setD(null); carregar(); }} />}
     </div>
   );
 }
@@ -435,13 +434,12 @@ function CardAcesso({ Ico, titulo, sub, onClick, destaque }) {
 }
 
 /* ---------------- RELATÓRIO DE KPIs (no formato da planilha) ---------------- */
-function Relatorio({ user, master, money, anoInicial }) {
+function Relatorio({ user, master, money, anoInicial, abrirMetas }) {
   const [ano, setAno] = useState(anoInicial || new Date().getFullYear());
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState(null);
   const [editar, setEditar] = useState(null);   // { mes }
-  const [metas, setMetas] = useState(false);
   const impInp = useRef(null);
   const [importando, setImportando] = useState(false);
 
@@ -486,7 +484,7 @@ function Relatorio({ user, master, money, anoInicial }) {
               style={{ background: C.panel2, color: C.navy, opacity: importando ? 0.5 : 1 }}>
               {importando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Importar Excel
             </button>
-            <button onClick={() => setMetas(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+            <button onClick={() => abrirMetas(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
               style={{ border: `1px solid ${C.accent}`, color: C.accent }}>
               <Target size={15} /> Metas do ano
             </button>
@@ -510,8 +508,6 @@ function Relatorio({ user, master, money, anoInicial }) {
 
       {editar && <LancamentoModal user={user} d={d} mes={editar.mes} onClose={() => setEditar(null)}
         onSalvo={(novo) => { setD((x) => ({ ...novo, anos: x.anos, podeEditar: x.podeEditar, segmentosPadrao: x.segmentosPadrao })); setEditar(null); }} />}
-      {metas && <MetasModal user={user} ano={d.ano} dados={d} onClose={() => setMetas(false)}
-        onSalvo={(novo) => { setD((x) => ({ ...novo, anos: x.anos, podeEditar: x.podeEditar, segmentosPadrao: x.segmentosPadrao })); setMetas(false); }} />}
     </div>
   );
 }
@@ -838,116 +834,6 @@ function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
           <Save size={15} /> {salvando ? "Salvando…" : "Salvar"}
         </button>
       </div>
-    </Modal>
-  );
-}
-
-/* Metas do ano — abre pelo painel e pelo relatório. Busca os próprios dados. */
-function MetasModal({ user, ano, dados, onClose, onSalvo }) {
-  const [d, setD] = useState(dados || null);
-  const [f, setF] = useState(null);
-  const [prod, setProd] = useState({});
-  const [aplicarTodos, setAplicarTodos] = useState("");
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState("");
-
-  const montar = (x) => {
-    setF({
-      vendas: x.metas.vendas ?? "", faturamento: x.metas.faturamento ?? "", receita: x.metas.receita ?? "",
-      pecasFaturadas: x.metas.pecasFaturadas ?? "",
-      margem: x.metas.margem == null ? "" : String(Math.round(x.metas.margem * 10000) / 100).replace(".", ","),
-      semNotaVendas: x.semNota?.vendas || "", semNotaFaturamento: x.semNota?.faturamento || "",
-    });
-    const pr = {};
-    x.linhas.forEach((l) => { pr[l.mes] = l.producao.meta == null ? "" : String(l.producao.meta); });
-    setProd(pr);
-  };
-  useEffect(() => {
-    if (d) { montar(d); return; }
-    (async () => {
-      try { const x = await api(`/api/kpi?u=${user.id}&ano=${ano}`); setD(x); montar(x); }
-      catch (e) { setErro(e.message); }
-    })();
-  }, []);
-
-  const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
-  const espalhar = () => {
-    const v = aplicarTodos.trim();
-    if (!v) return;
-    setProd(Object.fromEntries(MESES.map((_, i) => [i + 1, v])));
-  };
-  const totalProd = Object.values(prod).reduce((s2, v) => s2 + (Number(String(v).replace(/\./g, "").replace(",", ".")) || 0), 0);
-
-  const salvar = async () => {
-    setSalvando(true); setErro("");
-    try {
-      const novo = await api("/api/kpi", "POST", {
-        usuarioId: user.id, ano, metas: f,
-        pecasProduzidasMes: Object.fromEntries(Object.entries(prod).map(([m, v]) => [m, v === "" ? null : v])),
-      });
-      onSalvo(novo);
-    } catch (e) { setErro(e.message); setSalvando(false); }
-  };
-
-  return (
-    <Modal titulo={`Metas de ${ano}`} onClose={onClose} largura={720}>
-      {!f ? (
-        erro ? <div className="p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>
-             : <div style={{ color: C.sub }}>Carregando…</div>
-      ) : (
-        <>
-          <div className="text-xs font-bold tracking-wider mb-2" style={{ color: C.navy }}>METAS DO ANO</div>
-          <div className="text-xs mb-2" style={{ color: C.sub }}>
-            Vale como meta mensal dividida por 12, a não ser que o mês tenha meta própria lançada.
-          </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-            <Campo rotulo="Meta de faturamento (R$)" valor={f.faturamento} onChange={set("faturamento")} />
-            <Campo rotulo="Meta de vendas (R$)" valor={f.vendas} onChange={set("vendas")} />
-            <Campo rotulo="Meta de receita (R$)" valor={f.receita} onChange={set("receita")} />
-            <Campo rotulo="Meta de peças faturadas" valor={f.pecasFaturadas} onChange={set("pecasFaturadas")} />
-            <Campo rotulo="Margem de contribuição (%)" valor={f.margem} onChange={set("margem")} dica="ex.: 18" />
-          </div>
-
-          <div className="text-xs font-bold tracking-wider mt-5 mb-1" style={{ color: C.navy }}>
-            META DE PEÇAS PRODUZIDAS, MÊS A MÊS
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <div className="text-xs" style={{ color: C.sub }}>Total do ano: <b style={{ color: C.text }}>{inteiro(totalProd)} peças</b></div>
-            <div className="flex-1" />
-            <input value={aplicarTodos} onChange={(e) => setAplicarTodos(e.target.value)} inputMode="numeric" placeholder="mesmo valor"
-              className="rounded-lg px-2 py-1 text-xs text-right tabular-nums" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text, width: 110 }} />
-            <button onClick={espalhar} className="text-xs font-semibold" style={{ color: C.accent }}>aplicar nos 12 meses</button>
-          </div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))" }}>
-            {MESES.map((m, i) => (
-              <label key={m} className="block">
-                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>{m}</div>
-                <input value={prod[i + 1] ?? ""} onChange={(e) => setProd((x) => ({ ...x, [i + 1]: e.target.value }))} inputMode="numeric"
-                  className="w-full rounded-lg px-2 py-1.5 text-sm text-right tabular-nums"
-                  style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} />
-              </label>
-            ))}
-          </div>
-
-          <div className="text-xs font-bold tracking-wider mt-5 mb-1" style={{ color: C.navy }}>SEM NOTA</div>
-          <div className="text-xs mb-2" style={{ color: C.sub }}>
-            Valor do ano que não cai em nenhum mês. Entra no total, como na planilha.
-          </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-            <Campo rotulo="Vendas sem nota (R$)" valor={f.semNotaVendas} onChange={set("semNotaVendas")} />
-            <Campo rotulo="Faturamento sem nota (R$)" valor={f.semNotaFaturamento} onChange={set("semNotaFaturamento")} />
-          </div>
-
-          {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-          <div className="flex justify-end gap-2 mt-5">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
-            <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-              <Save size={15} /> {salvando ? "Salvando…" : "Salvar"}
-            </button>
-          </div>
-        </>
-      )}
     </Modal>
   );
 }
