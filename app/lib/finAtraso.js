@@ -34,12 +34,19 @@ const anota = (obs, txt) => [obs, txt].filter(Boolean).join(" · ").slice(0, 100
 // ---------------- leitura ----------------
 export async function visaoAtraso() {
   const hoje = dUTC(hojeISO());
+  { const { preencherEmissao } = await import("@/lib/finEmissao"); await preencherEmissao().catch(() => null); }   // v205: emissão da NF no card de cobrança
   const [atrasadas, perdas, execs] = await Promise.all([
     prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO", vencimento: { lt: hoje } }, orderBy: { vencimento: "asc" } }),
     prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PERDA" }, orderBy: [{ perdaData: "desc" }, { id: "desc" }] }),
     listarExecucoes(),
   ]);
-  return { atrasadas: atrasadas.map(tOut), perdas: perdas.map(tOut), execucoes: execs, mesAtual: mes(hojeISO()) };
+  // v205 — contato do cliente (cadastro) para a cobrança: e-mail, preposto, telefones
+  const docs = [...new Set(atrasadas.map((t) => String(t.documento || "").replace(/\D/g, "")).filter(Boolean))];
+  const cli = docs.length ? await prisma.cliente.findMany({ select: { cnpj: true, razaoSocial: true, nomeFantasia: true, emailNf: true, preposto: true, telefones: true } }).catch(() => []) : [];
+  const porDoc = {};
+  for (const c of cli) { const k = String(c.cnpj || "").replace(/\D/g, ""); if (k) porDoc[k] = c; }
+  const comCli = (t) => { const c = porDoc[String(t.documento || "").replace(/\D/g, "")]; return { ...tOut(t), contato: c ? { razao: c.razaoSocial, fantasia: c.nomeFantasia, email: c.emailNf, preposto: c.preposto, telefones: c.telefones } : null }; };
+  return { atrasadas: atrasadas.map(comCli), perdas: perdas.map(tOut), execucoes: execs, mesAtual: mes(hojeISO()) };
 }
 
 export async function listarExecucoes() {

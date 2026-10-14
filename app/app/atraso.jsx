@@ -1,7 +1,9 @@
 "use client";
 // v135 — Contas a receber atrasadas: em cobrança → execução judicial ou perda reconhecida
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { MarcaA } from "./antecipacoes";
+import { MarcaA, BotaoExcel, exportarExcel } from "./antecipacoes";
+import { CardCobrancaModal, EmailCobrancaModal } from "./cobranca";   // v205
+import { Mail, Image as ImageIcon } from "lucide-react";
 import { Loader2, Search, Gavel, Ban, Undo2, CheckCircle2, X, Paperclip, Upload, Trash2, Download, Plus, ChevronRight, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
 
 const C = {
@@ -141,7 +143,7 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
 function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
-  const [modal, setModal] = useState(null);   // "execucao" | "perda"
+  const [modal, setModal] = useState(null);   // "execucao" | "perda" | "card" | "email"
   const filtradas = useMemo(() => {
     const q = busca.trim().toUpperCase();
     return d.atrasadas.filter((t) => !q || valorBate(t, q) || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().includes(q)));
@@ -159,6 +161,11 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
         </div>
         <div className="flex-1" />
         {escolhidas.length > 0 && <span className="text-xs" style={{ color: C.sub }}>{escolhidas.length} marcada(s) · {moeda(escolhidas.reduce((s, t) => s + t.valor, 0))}</span>}
+        {/* v205 — Excel (marcadas, ou todas da tela) e cobrança das marcadas */}
+        <BotaoExcel onClick={() => exportarExcel(user, (escolhidas.length ? lista.filter((t) => sel.has(t.id)) : lista).map((t) => t.id),
+          `Atrasados a receber${escolhidas.length ? " (selecionados)" : ""}${busca ? ` · busca "${busca}"` : ""}`, `atrasados-receber-${hojeISO()}.xlsx`)} />
+        <BtnP cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={15} /> E-mail de cobrança</BtnP>
+        <BtnP cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={15} /> Gerar card cobrança</BtnP>
         <BtnP cor={C.navy} disabled={!escolhidas.length} onClick={() => setModal("execucao")}><Gavel size={15} /> Mover para execução</BtnP>
         <BtnP cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={15} /> Reconhecer perda</BtnP>
       </div>
@@ -188,6 +195,8 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
       </div>
       {modal === "execucao" && <MoverExecucao user={user} contas={escolhidas} execucoes={d.execucoes.filter((e) => e.status === "ATIVA")}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.movidas} conta(s) movida(s) para a execução.`); irExecucao(r.execucaoId); }} />}
+      {modal === "card" && <CardCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
+      {modal === "email" && <EmailCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
       {modal === "perda" && <ReconhecerPerda user={user} contas={escolhidas}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.perdas} perda(s) reconhecida(s) · ${moeda(r.valor)} lançado(s) na DRE de ${nomeMes(r.competencia)}.`); }} />}
     </div>
