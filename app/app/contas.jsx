@@ -1266,14 +1266,14 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
   useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);   // v171
   const itens = a ? a.arquivos.flatMap((f) => f.itens) : [];
   const conta = (ac) => itens.filter((x) => x.acao === ac).length;
-  const vis = itens.filter((x) => filtro === "TODOS" || x.acao === filtro || (filtro === "SEM_CONTA" && x.situacao === "SEM_CONTA"));
-  const escolhidos = itens.filter((x) => marc[x.k] && x.alvo);
+  const vis = itens.filter((x) => filtro === "TODOS" || x.acao === filtro || (filtro === "SEM_CONTA" && x.situacao === "SEM_CONTA") || (filtro === "CRIAR" && x.situacao === "CRIAR"));
+  const escolhidos = itens.filter((x) => marc[x.k] && (x.alvo || x.criar));
   const tarifa = a ? a.arquivos.reduce((s, f) => s + f.tarifa, 0) : 0;
   const aplicar = async () => {
     setSt("Aplicando…"); setErro("");
     try {
       const r = await api("/api/fin/retorno", "POST", { usuarioId: user.id, acao: "aplicar", arquivos: arqs, itens: escolhidos });
-      onSalvo(`Retorno aplicado: ${r.liquidadas} liquidada(s) (${moeda(r.valorLiquidado)}), ${r.criticas ? `${r.criticas} com crítica (não baixadas — veja o filtro Críticas), ` : ""}${r.registradas} registrada(s)${r.tarifas ? `, tarifa ${moeda(r.valorTarifas)} lançada` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+      onSalvo(`Retorno aplicado: ${r.criadas ? `${r.criadas} conta(s) a receber criada(s), ` : ""}${r.liquidadas} liquidada(s) (${moeda(r.valorLiquidado)}), ${r.criticas ? `${r.criticas} com crítica (não baixadas — veja o filtro Críticas), ` : ""}${r.registradas} registrada(s)${r.tarifas ? `, tarifa ${moeda(r.valorTarifas)} lançada` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   return (
@@ -1303,7 +1303,8 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
           </div>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {[["TODOS", "Todos", itens.length], ...Object.keys(ACAO_RET).filter((k) => conta(k)).map((k) => [k, ACAO_RET[k][0], conta(k)]),
-              ...(itens.some((x) => x.situacao === "SEM_CONTA") ? [["SEM_CONTA", "Sem conta", itens.filter((x) => x.situacao === "SEM_CONTA").length]] : [])].map(([k, t, q]) => (
+              ...(itens.some((x) => x.situacao === "SEM_CONTA") ? [["SEM_CONTA", "Sem conta", itens.filter((x) => x.situacao === "SEM_CONTA").length]] : []),
+              ...(itens.some((x) => x.situacao === "CRIAR") ? [["CRIAR", "Criar conta", itens.filter((x) => x.situacao === "CRIAR").length]] : [])].map(([k, t, q]) => (
               <button key={k} onClick={() => setFiltro(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold"
                 style={filtro === k ? { background: C.navy, color: "#fff" } : { background: (ACAO_RET[k] || [])[2] || C.panel2, color: (ACAO_RET[k] || [])[1] || C.text }}>{t} · {q}</button>
             ))}
@@ -1315,7 +1316,7 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
               </tr></thead>
               <tbody>{vis.map((x) => {
                 const [t0, c0, bg0] = ACAO_RET[x.acao] || [x.acao, C.sub, C.panel2];
-                const pode = !!x.alvo && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(x.acao) && x.situacao !== "JA_BAIXADA";
+                const pode = (!!x.alvo && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(x.acao) && x.situacao !== "JA_BAIXADA") || x.situacao === "CRIAR";
                 const dt = x.acao === "LIQUIDAR" ? (x.dataCredito || x.dataOcorrencia) : x.dataOcorrencia;
                 return (
                   <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}`, opacity: pode && !marc[x.k] ? 0.55 : 1 }}>
@@ -1328,9 +1329,11 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
                     <td className="px-2 py-1.5 whitespace-nowrap">{dBR(dt)}{x.acao === "LIQUIDAR" && x.dataCredito ? <div style={{ color: C.sub }}>crédito</div> : null}</td>
                     <td className="px-2 py-1.5 text-right whitespace-nowrap"><b>{brl(x.acao === "LIQUIDAR" ? (x.valorPago || x.valor) : x.valor)}</b>{x.juros > 0 && <div style={{ color: C.sub }}>juros {brl(x.juros)}</div>}</td>
                     <td className="px-2 py-1.5" style={{ maxWidth: 300 }}>
-                      {x.alvo ? <><div className="font-semibold truncate" title={x.alvo.titulo}>{x.alvo.titulo}</div><div className="truncate" style={{ color: C.sub }}>{x.alvo.parceiro} · venc. {dBR(x.alvo.vencimento)} · {brl(x.alvo.valor)} · {x.alvo.status}</div></> : <span style={{ color: C.sub }}>—</span>}
+                      {x.alvo ? <><div className="font-semibold truncate" title={x.alvo.titulo}>{x.alvo.titulo}</div><div className="truncate" style={{ color: C.sub }}>{x.alvo.parceiro} · venc. {dBR(x.alvo.vencimento)} · {brl(x.alvo.valor)} · {x.alvo.status}</div></>
+                        : x.criar ? <><div className="font-semibold truncate" style={{ color: C.blue }}>CRIAR · NF {x.criar.nf}{x.criar.total > 1 ? ` (${x.criar.parc}/${x.criar.total})` : ""}</div><div className="truncate" style={{ color: C.sub }}>{x.criar.parceiro} · venc. {dBR(x.vencimento)} · {brl(x.valor)}</div></>
+                        : <span style={{ color: C.sub }}>—</span>}
                     </td>
-                    <td className="px-2 py-1.5" style={{ maxWidth: 240, color: x.situacao === "OK" && !x.aviso ? C.green : x.situacao === "SEM_CONTA" || x.acao === "AVISO" ? C.red : C.sub }}>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 240, color: x.situacao === "OK" && !x.aviso ? C.green : x.situacao === "CRIAR" ? C.blue : x.situacao === "SEM_CONTA" || x.acao === "AVISO" ? C.red : C.sub }}>
                       {x.aviso || (x.situacao === "JA_REGISTRADA" ? "Já registrada" : x.situacao === "OK" && pode ? "Pronto para aplicar" : "—")}
                     </td>
                   </tr>

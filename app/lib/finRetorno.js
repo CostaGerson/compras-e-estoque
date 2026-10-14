@@ -65,6 +65,27 @@ export function lerRetorno(nome, b64) {
 // ---------------- 2) analisar ----------------
 const normDoc = (s) => String(s || "").toUpperCase().replace(/\s+/g, "");
 const normNosso = (s) => String(s || "").replace(/\D/g, "").replace(/^0+/, "");
+// v207 — nosso número do Bradesco = 11 dígitos + DV (0–9 ou "P"): compara só os 11 dígitos, sem o DV
+// (antes o "P" sumia e "15471P" virava "15471", casando por engano com outro título)
+export function baseNosso(s) {
+  const t = String(s || "").toUpperCase().replace(/[^0-9P]/g, "");
+  const b = t.length >= 12 ? t.slice(0, 11) : /P$/.test(t) ? t.slice(0, -1) : t;
+  return b.replace(/\D/g, "").replace(/^0+/, "");
+}
+// "1990-1/1", "1788-1/1-P" → { nf: "1990", parc: 1, total: 1 }
+export function nfDoSeuNumero(s) {
+  const m = String(s || "").trim().match(/^0*(\d+)\s*-\s*(\d+)\s*\/\s*(\d+)/);
+  return m ? { nf: m[1], parc: Number(m[2]), total: Number(m[3]) } : null;
+}
+// nº da NF e parcela de uma conta a receber: título "NF 1990", "NF 1990 (1/2)", "NF 1793-2/2"; documento "NF-e 1990 · PARC 2", "1990-1/1"
+export function nfDaConta(t) {
+  const txt = `${t.titulo || ""} | ${t.numeroDoc || ""}`.toUpperCase();
+  const m = txt.match(/\bNF(?:S?-?E)?\s*0*(\d+)/) || String(t.numeroDoc || "").match(/^0*(\d+)\s*-\s*\d+\s*\//);
+  if (!m) return null;
+  const p = txt.match(/\((\d+)\s*\/\s*(\d+)\)/) || txt.match(/\d\s*-\s*(\d+)\s*\/\s*(\d+)/) || txt.match(/PARC\.?\s*(\d+)(?:\s*\/\s*(\d+))?/);
+  return { nf: m[1], parc: p ? Number(p[1]) : null, total: p && p[2] ? Number(p[2]) : null };
+}
+const valorPerto = (a, b) => Math.abs(Number(a) - Number(b)) <= Math.max(1, Number(b) * 0.02);
 const nossoObs = (o) => (String(o || "").match(/NOSSO N[ºO°.]*\s*:?\s*([\d.\-\/ ]{4,})/i) || [])[1] || null;
 
 // motivos das ocorrências (manual do arquivo-retorno CNAB 400 do Bradesco, posições 319–328)
@@ -109,25 +130,67 @@ export async function analisarRetornos(arquivos) {
     where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
     select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true },
   });
-  const porDoc = new Map(), porNosso = new Map();
+  const porDoc = new Map(), porNosso = new Map(), porNf = new Map();
   const add = (m, k, t) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(t); };
   for (const t of tits) {
     add(porDoc, normDoc(t.numeroDoc), t);
-    const n = normNosso(t.nossoNumero || nossoObs(t.observacao));
-    add(porNosso, n, t); if (n.length > 1) add(porNosso, n.slice(0, -1), t);   // com e sem o dígito
+    add(porNosso, baseNosso(t.nossoNumero || nossoObs(t.observacao)), t);
+    const nf = nfDaConta(t); if (nf) add(porNf, nf.nf, { t, ...nf });
   }
   const prefere = (l) => (l || []).slice().sort((a, b) => (a.status === "ABERTO" ? 0 : 1) - (b.status === "ABERTO" ? 0 : 1))[0] || null;
+  // NFs de saída sem conta a receber (Movimento fiscal só registrado, ou XML enviado na contabilidade)
+  const [fiscais, saidas] = await Promise.all([
+    prisma.fiscalNota.findMany({ where: { tipo: "SAIDA" }, select: { numero: true, parceiro: true, documento: true, emissao: true, valor: true, acao: true, empresa: true } }).catch(() => []),
+    prisma.finNfSaida.findMany({ select: { numero: true, destNome: true, destCnpj: true, emissao: true, valor: true } }).catch(() => []),
+  ]);
+  const nfInfo = new Map();
+  for (const n of saidas) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.destNome, documento: String(n.destCnpj || "").replace(/\D/g, "") || null, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), fonte: "NF DE SAÍDA (CONTABILIDADE)" });
+  for (const n of fiscais) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.parceiro, documento: n.documento, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), empresa: n.empresa, fonte: n.acao === "REGISTRADA" ? "MOVIMENTO FISCAL (SÓ REGISTRO, SEM CONTA)" : "MOVIMENTO FISCAL" });
+  // casamento: seu número exato → NF + parcela → nosso número (só se nº e valor não contradizem)
+  function casar(r) {
+    const porN = prefere(porDoc.get(normDoc(r.numeroDoc))) || prefere(porDoc.get(normDoc(r.controle)));
+    if (porN) return { t: porN, por: "NUMERO" };
+    const sn = nfDoSeuNumero(r.numeroDoc);
+    if (sn) {
+      let c = (porNf.get(sn.nf) || []).filter((x) => x.t.status !== "CANCELADO");
+      const comParc = c.filter((x) => x.parc === sn.parc);
+      if (comParc.length) c = comParc;
+      else if (sn.total > 1) c = c.filter((x) => x.parc == null && valorPerto(x.t.valor, r.valor));
+      else c = c.filter((x) => x.parc == null || x.parc === 1);
+      if (c.length > 1) c = c.filter((x) => valorPerto(x.t.valor, r.valor));
+      const t = prefere(c.map((x) => x.t));
+      if (t) return { t, por: "NF" };
+    }
+    const bn = baseNosso(r.nosso);
+    const t = bn ? prefere(porNosso.get(bn)) : null;
+    if (t) {
+      const nfC = nfDaConta(t);
+      const numOk = !sn || !nfC || nfC.nf === sn.nf;
+      if (numOk && valorPerto(t.valor, r.valor)) return { t, por: "NOSSO" };
+      return { t: null, recusado: `Nosso número igual ao de "${t.titulo}" (${Number(t.valor).toFixed(2).replace(".", ",")}), mas o nº do título ou o valor não batem — não casei.` };
+    }
+    return { t: null };
+  }
   const out = lidos.map((f) => ({
     arquivo: f.arquivo, sequencia: f.sequencia, dataArquivo: f.dataArquivo, empresa: f.empresa, tarifa: f.tarifa, hash: f.hash,
     jaProcessado: jaPor[f.hash] || null,
     itens: f.registros.map((r) => {
       const { acao, aviso } = acaoDe(r);
-      const n = normNosso(r.nosso);
-      const t = prefere(porDoc.get(normDoc(r.numeroDoc))) || prefere(porDoc.get(normDoc(r.controle)))
-        || prefere(porNosso.get(n)) || (n.length > 1 ? prefere(porNosso.get(n.slice(0, -1))) : null);
+      const cs = casar(r);
+      const t = cs.t;
+      let criar = null;
       let situacao = "OK", msg = aviso || null;
       if (["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) {
-        if (!t) { situacao = "SEM_CONTA"; msg = "Nenhuma conta a receber com esse nº de título / nosso número."; }
+        if (!t) {
+          situacao = "SEM_CONTA"; msg = cs.recusado || "Nenhuma conta a receber com esse nº de título / nosso número.";
+          // v207 — a NF existe no sistema mas não virou conta a receber: oferece criar a conta com os dados do boleto
+          const sn = nfDoSeuNumero(r.numeroDoc), nf = sn && nfInfo.get(sn.nf);
+          if (nf && acao !== "CRITICA") {
+            situacao = "CRIAR";
+            criar = { nf: nf.numero, parceiro: nf.parceiro, documento: nf.documento, emissao: nf.emissao, valorNf: nf.valor, empresa: nf.empresa || "MERIDIAN", parc: sn.parc, total: sn.total, fonte: nf.fonte };
+            msg = `NF ${nf.numero} está no sistema (${nf.fonte}) mas sem conta a receber — criar a conta ${sn.parc}/${sn.total} com os dados do boleto.`;
+          }
+        }
         else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = "Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação."; }
         else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
         else if (acao === "CRITICA" && !["ABERTO", "EXECUCAO"].includes(t.status)) { situacao = "JA_BAIXADA"; msg = `${aviso} (conta já ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} no sistema — sem crítica)`; }
@@ -137,7 +200,8 @@ export async function analisarRetornos(arquivos) {
         k: `${f.arquivo}#${r.seq}`, arquivo: f.arquivo, ...r, acao, nomeOcorrencia: OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`,
         situacao, aviso: msg,
         alvo: t ? { id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status } : null,
-        aplicar: !!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao),
+        criar,
+        aplicar: (!!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) || situacao === "CRIAR",
       };
     }),
   }));
@@ -165,10 +229,31 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
   for (const it of itens || []) {
     const f = porNome[it.arquivo];
     try {
-      const id = Number(it.alvo?.id);
-      if (!id || !f) continue;
+      if (!f) continue;
       const reg = f.registros.find((x) => x.seq === it.seq);
       if (!reg) throw new Error("registro não encontrado no arquivo");
+      let id = Number(it.alvo?.id);
+      // v207 — NF sem conta a receber: cria a conta com os dados do boleto (valor e vencimento) e segue o retorno nela
+      if (!id && it.criar?.nf) {
+        const c = it.criar;
+        const chave = `RETNF|${c.nf}|${c.parc}/${c.total}`;
+        const ja = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
+        if (ja) id = ja.id;
+        else {
+          const venda = await prisma.finConta.findUnique({ where: { codigo: "1111000" }, select: { id: true } }).catch(() => null);
+          const venc = reg.vencimento || reg.dataOcorrencia || f.dataArquivo;
+          const nova = await prisma.finTitulo.create({ data: {
+            tipo: "RECEBER", titulo: `${c.empresa === "NORT" ? "NORT - " : ""}NF ${c.nf}${c.total > 1 ? ` (${c.parc}/${c.total})` : ""}`, parceiro: String(c.parceiro || "SEM NOME").toUpperCase(),
+            documento: c.documento || null, numeroDoc: reg.numeroDoc || null, nossoNumero: reg.nosso || null, valor: r2(reg.valor), vencimento: dataUTC(venc), competencia: mesDe(venc),
+            emissao: c.emissao ? dataUTC(c.emissao) : null, previsao: false, rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [], forma: "IMPORTACAO", formaPagamento: "BOLETO",
+            chaveImport: chave, criadoPorNome: quem || null,
+            observacao: `CRIADA PELO RETORNO ${f.sequencia || f.arquivo} · NF ${c.nf} (${c.fonte})${c.valorNf ? ` · VALOR DA NF ${c.valorNf.toFixed(2).replace(".", ",")}` : ""}`,
+          } });
+          id = nova.id; r.criadas = (r.criadas || 0) + 1;
+          r.linhas.push(`${nova.titulo}: conta a receber criada (${c.parceiro})`);
+        }
+      }
+      if (!id) continue;
       const { acao } = acaoDe(reg);
       const t = await prisma.finTitulo.findUnique({ where: { id } });
       if (!t || t.tipo !== "RECEBER" || t.status === "CANCELADO") throw new Error("conta não encontrada");
