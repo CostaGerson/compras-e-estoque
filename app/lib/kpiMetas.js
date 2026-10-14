@@ -41,7 +41,7 @@ export async function metasDoAno(ano) {
   for (const y of passados) rels[y] = await relatorio(y).catch(() => null);
   const mesDe = (m) => kMes.find((x) => x.mes === m) || {};
 
-  const naturezas = NATUREZAS.map((n) => {
+  let naturezas = NATUREZAS.map((n) => {
     const anual = num(kAno?.[n.ano]);
     let meses = [...Array(12)].map((_, i) => num(mesDe(i + 1)[n.mes]));
     // como está hoje: mês sem meta própria = ano ÷ 12; peças vendidas e produzidas herdam a meta de peças faturadas (regra antiga do KPI)
@@ -80,6 +80,11 @@ export async function metasDoAno(ano) {
     };
     return { k: n.k, grupo: n.grupo, rotulo: n.rotulo, un: n.un, anual: anual ?? (soma != null ? (n.un === "pc" ? Math.round(soma) : r2(soma)) : null), anualGravado: anual != null, meses, historico };
   });
+  // v221 — vendas R$ sem histórico próprio: a distribuição histórica usa o faturamento realizado (mesma unidade, R$)
+  const nv = naturezas.find((x) => x.k === "vendasValor"), nf = naturezas.find((x) => x.k === "faturamentoValor");
+  for (const j of ["total", "dois", "um"]) {
+    if (!nv.historico[j].medias && nf.historico[j].medias) nv.historico[j] = { ...nf.historico[j], fonte: "faturamento realizado" };
+  }
   // v216 — ticket em uso: a meta de ticket; sem ela, faturamento ÷ peças do ano
   const tkMeta = num(kAno?.metaTicketMedio);
   const fA = num(kAno?.metaFaturamento), pA = num(kAno?.metaPecasFaturadas);
@@ -104,10 +109,10 @@ async function receitaJaneiro(a) {
 }
 
 // v216 — grava pela regra de coerência: entra vendas (peças) + ticket; o resto é calculado (lib/kpiMetasCalc.js)
-export async function salvarCoerente(ano, vendasPecasMeses, ticket, margem, quem) {
+export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem) {
   const a = Number(ano);
   const rj = await receitaJaneiro(a);
-  const d = derivarMetas(vendasPecasMeses, ticket, rj.valor);
+  const d = derivarMetas(vendasValorMeses, ticket, rj.valor);
   const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
   metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
   const r = await salvarMetas(a, metas, margem, quem, ticket);

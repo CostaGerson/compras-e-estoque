@@ -90,7 +90,7 @@ function CardNatureza({ n, set, original, ticket }) {
 
   return (
     <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${mexido ? C.accent : C.line}` }}>
-      <div className="flex flex-wrap items-end gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex-1 min-w-[180px]">
           <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>{n.grupo.toUpperCase()}</div>
           <div className="font-bold" style={{ color: C.navy }}>{n.rotulo}</div>
@@ -99,12 +99,18 @@ function CardNatureza({ n, set, original, ticket }) {
           <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta do ano{n.un === "R$" ? " (R$)" : " (peças)"}</div>
           <Campo un={n.un} valor={n.anual} onCommit={mudarAnual} grande />
         </label>
-        {ticket != null && (
+        {ticket != null && n.un === "pc" && (
           <label className="block" style={{ width: 200 }}>
             <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>ou em R$ (÷ ticket)</div>
             <Campo un="R$" valor={n.anual == null ? null : r2(n.anual * ticket)} onCommit={(v) => mudarAnual(v == null ? null : v / ticket)} grande />
           </label>
         )}
+        {ticket ? n.un === "R$" && (
+          <label className="block" style={{ width: 200 }}>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>ou em peças (× ticket)</div>
+            <Campo un="pc" valor={n.anual == null ? null : Math.round(n.anual / ticket)} onCommit={(v) => mudarAnual(v == null ? null : v * ticket)} grande />
+          </label>
+        ) : null}
         {mexido && <button onClick={() => { setHist(false); set({ ...original, travados: new Set(), pesos: original.meses }); }} title="Voltar ao que está gravado"
           className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs" style={{ color: C.sub }}><RotateCcw size={13} /> desfazer</button>}
       </div>
@@ -114,7 +120,7 @@ function CardNatureza({ n, set, original, ticket }) {
           <History size={14} style={{ color: C.blue }} />
           <span style={{ color: C.navy }}>Usar distribuição histórica:</span>
           <select value={jan} onChange={(e) => setJan(e.target.value)} className="rounded px-2 py-1 text-xs" style={{ border: `1px solid ${C.line}`, background: "#fff" }}>
-            {JANELAS.map(([k, t]) => <option key={k} value={k} disabled={!n.historico?.[k]?.medias}>{t}{n.historico?.[k]?.anos?.length ? ` (${n.historico[k].anos.slice().sort().join(", ")})` : " — sem dado"}</option>)}
+            {JANELAS.map(([k, t]) => <option key={k} value={k} disabled={!n.historico?.[k]?.medias}>{t}{n.historico?.[k]?.anos?.length ? ` (${n.historico[k].anos.slice().sort().join(", ")}${n.historico[k].fonte ? ` · ${n.historico[k].fonte}` : ""})` : " — sem dado"}</option>)}
           </select>
           <button onClick={usarHist} disabled={!H?.medias} className="px-3 py-1 rounded font-semibold text-white" style={{ background: H?.medias ? C.blue : C.sub }}>Aplicar</button>
           {mult != null && <span style={{ color: C.sub }}>multiplicador sobre a média histórica: <b style={{ color: C.navy }}>{mult.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}×</b></span>}
@@ -134,7 +140,7 @@ function CardNatureza({ n, set, original, ticket }) {
               </div>
               <Campo un={n.un} valor={n.meses[i]} onCommit={(v) => mudarMes(i, v)}
                 estilo={trav ? { borderColor: C.navy, fontWeight: 700 } : sug ? { borderColor: C.accent, color: C.accent, background: C.accentSoft } : {}} />
-              {ticket != null && n.meses[i] != null && <div className="text-[10px] text-right mt-0.5" style={{ color: C.navy }}>R$ {fmt("R$", n.meses[i] * ticket)}</div>}
+              {ticket ? n.meses[i] != null && <div className="text-[10px] text-right mt-0.5" style={{ color: C.navy }}>{n.un === "pc" ? `R$ ${fmt("R$", n.meses[i] * ticket)}` : `${fmt("pc", n.meses[i] / ticket)} peças`}</div> : null}
               {n.fonte && n.historico?.[n.fonte]?.medias && <div className="text-[10px] text-right" style={{ color: C.sub }}>hist. {fmt(n.un, n.historico[n.fonte].medias[i])}</div>}
             </label>
           );
@@ -152,7 +158,7 @@ function CardNatureza({ n, set, original, ticket }) {
 export default function MetasPagina({ user, anoInicial }) {
   const [ano, setAno] = useState(anoInicial || new Date().getFullYear());
   const [orig, setOrig] = useState(null);
-  const [vend, setVend] = useState(null);   // vendas (peças): a meta que você define
+  const [vend, setVend] = useState(null);   // v221: vendas (R$) — a meta que você define
   const [margem, setMargem] = useState(null);
   const [ticket, setTicket] = useState(null);
   const [erro, setErro] = useState("");
@@ -169,9 +175,15 @@ export default function MetasPagina({ user, anoInicial }) {
   useEffect(() => { carregarMatriz(); }, []);
 
   const montar = (d) => {
-    const v = d.naturezas.find((n) => n.k === "vendasPecas");
+    let v = d.naturezas.find((n) => n.k === "vendasValor");
+    // sem meta de vendas em R$ gravada: parte das peças × ticket
+    if (v.meses.every((x) => x == null) && d.ticket) {
+      const p = d.naturezas.find((n) => n.k === "vendasPecas");
+      const meses = p.meses.map((x) => (x == null ? null : r2(x * d.ticket)));
+      v = { ...v, meses, anual: meses.some((x) => x != null) ? r2(meses.reduce((s2, x) => s2 + (x || 0), 0)) : null };
+    }
     setOrig({ ...d, vend: v });
-    setVend({ ...v, rotulo: "Vendas (peças)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
+    setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
   };
@@ -183,7 +195,7 @@ export default function MetasPagina({ user, anoInicial }) {
   const salvar = async () => {
     setSalvando(true); setErro(""); setAviso("");
     try {
-      montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasPecas: { anual: vend.anual, meses: vend.meses } },
+      montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
         margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket) }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
       carregarMatriz();
@@ -205,9 +217,9 @@ export default function MetasPagina({ user, anoInicial }) {
     } catch { return null; }
   })();
   const LINHAS = [
-    ["vendasValor", "Vendas (R$)", "R$", "peças vendidas × ticket"],
+    ["vendasPecas", "Vendas (peças)", "pc", "vendas R$ ÷ ticket"],
     ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "= peças vendidas do mês"],
-    ["faturamentoValor", "Faturamento (R$)", "R$", "peças faturadas × ticket"],
+    ["faturamentoValor", "Faturamento (R$)", "R$", "= vendas R$ do mês"],
     ["receitaValor", "Receita (R$)", "R$", `= faturamento do mês anterior · JAN: ${orig?.receitaJan?.fonte || "—"}`],
   ];
 
@@ -220,7 +232,7 @@ export default function MetasPagina({ user, anoInicial }) {
           <button onClick={() => setAno(ano + 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
         <div className="text-xs flex-1" style={{ color: C.sub }}>
-          Você define a meta de <b>vendas (peças)</b> e o <b>ticket médio</b>; faturamento e receita saem daí. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
+          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
         </div>
         {vend && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar metas
@@ -233,7 +245,7 @@ export default function MetasPagina({ user, anoInicial }) {
         <div className="flex flex-wrap gap-4 items-start">
         <div className="flex-1" style={{ minWidth: 320 }}>
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
-            <div className="rounded-xl p-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-[150px]">
                 <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>META QUE VOCÊ DEFINE</div>
                 <div className="font-bold" style={{ color: C.navy }}>Ticket médio (R$ por peça)</div>
@@ -251,7 +263,7 @@ export default function MetasPagina({ user, anoInicial }) {
                 <Campo un="R$" valor={ticket} onCommit={setTicket} grande />
               </label>
             </div>
-            <div className="rounded-xl p-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-[150px]">
                 <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>RESULTADO</div>
                 <div className="font-bold" style={{ color: C.navy }}>Margem de contribuição</div>

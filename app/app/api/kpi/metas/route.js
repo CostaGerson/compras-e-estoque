@@ -32,8 +32,8 @@ export async function POST(req) {
   const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
   const tk = "ticket" in b ? (b.ticket === "" || b.ticket == null ? null : Number(String(b.ticket).replace(/\./g, "").replace(",", "."))) : undefined;
   const tkOk = tk === undefined || (tk !== null && isNaN(tk)) ? null : tk;
-  // v216 — regra de coerência: só vendas (peças) e ticket entram; o resto é calculado
-  if (!b.metas?.vendasPecas?.meses) return Response.json({ error: "Informe a meta de vendas (peças)." }, { status: 400 });
+  // v221 — regra de coerência: só vendas (R$) e ticket entram; o resto é calculado
+  if (!b.metas?.vendasValor?.meses) return Response.json({ error: "Informe a meta de vendas (R$)." }, { status: 400 });
   if (tkOk == null) return Response.json({ error: "Informe o ticket médio: sem ele não dá para calcular vendas, faturamento e receita em R$." }, { status: 400 });
-  return Response.json(await salvarCoerente(Number(b.ano), b.metas.vendasPecas.meses, tkOk, "margem" in b ? fracao(b.margem) : undefined, quem));
+  return Response.json(await salvarCoerente(Number(b.ano), b.metas.vendasValor.meses, tkOk, "margem" in b ? fracao(b.margem) : undefined, quem));
 }
