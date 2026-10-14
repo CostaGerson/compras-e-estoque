@@ -580,6 +580,26 @@ function Secao({ titulo, children }) {
 const corMom = (v) => (v === null || v === undefined ? C.sub : v >= 1 ? C.green : C.red);
 const mon = (v, master) => (v === null || v === undefined ? "—" : master ? brl(v) : "•••••");
 
+// v223 — YoY do mês, acumulado YoY, atingido × meta do mês e acumulado × meta
+function indicadores(linhas, atual, anterior, meta) {
+  let aA = 0, aP = 0, aM = 0, temP = false, temM = false;
+  const meses = linhas.map((l) => {
+    const a = atual(l), p = anterior(l), m = meta(l);
+    if (a == null) return { yoy: null, acYoy: null, ating: null, acAting: null };
+    aA += a; if (p != null) { aP += p; temP = true; } if (m != null) { aM += m; temM = true; }
+    return { yoy: p ? a / p : null, acYoy: temP && aP ? aA / aP : null, ating: m ? a / m : null, acAting: temM && aM ? aA / aM : null };
+  });
+  const tri = [0, 1, 2, 3].map((t) => {
+    const ls = linhas.slice(t * 3, t * 3 + 3).filter((l) => atual(l) != null);
+    const sa = ls.reduce((x, l) => x + atual(l), 0), sm = ls.reduce((x, l) => x + (meta(l) || 0), 0);
+    return { ating: ls.length && sm ? sa / sm : null };
+  });
+  return { meses, tri };
+}
+const xFmt = (v) => (v == null ? "—" : `${v.toFixed(2)}x`);
+const pctFmt = (v) => (v == null ? "—" : `${(v * 100).toFixed(0)}%`);
+const metaMesGestao = (mensal, anual) => (mensal != null ? mensal : anual != null ? anual / 12 : null);
+
 function LinhaTrimestre({ cols }) {
   return (
     <tr style={{ background: C.panel2, borderTop: `1px solid ${C.line}` }}>
@@ -589,11 +609,12 @@ function LinhaTrimestre({ cols }) {
 }
 
 function TabelaVendas({ d, master, onEditar }) {
+  const ind = indicadores(d.linhas, (l) => l.vendas.atual, (l) => l.vendas.anterior, (l) => metaMesGestao(l.metaVendasValor, d.metas.vendas));
   return (
     <Secao titulo={`VENDAS ${d.ano} — PEDIDOS LANÇADOS NO MÊS`}>
       <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 760 }}>
         <thead><tr style={{ background: C.panel2 }}>
-          <Th>Mês</Th><Th dir>{d.anoAnterior}</Th><Th dir>{d.ano}</Th><Th dir>Peças</Th><Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Meta do mês</Th><Th></Th>
+          <Th>Mês</Th><Th dir>{d.anoAnterior}</Th><Th dir>{d.ano}</Th><Th dir>Peças</Th><Th dir>YoY mês</Th><Th dir>Acumulado YoY</Th><Th dir>Meta do mês</Th><Th dir>Atingido × meta</Th><Th dir>Acumulado × meta</Th><Th></Th>
         </tr></thead>
         <tbody>
           {d.linhas.map((l, i) => (
@@ -603,29 +624,31 @@ function TabelaVendas({ d, master, onEditar }) {
                 <Td dir cor={C.sub}>{mon(l.vendas.anterior, master)}</Td>
                 <Td dir forte>{mon(l.vendas.atual, master)}</Td>
                 <Td dir>{l.vendas.pecas == null ? "—" : inteiro(l.vendas.pecas)}</Td>
-                <Td dir cor={corMom(l.vendas.mom)}>{l.vendas.mom == null ? "—" : `${l.vendas.mom.toFixed(2)}x`}</Td>
-                <Td dir cor={corMom(l.vendas.acumulado)}>{l.vendas.acumulado == null ? "—" : `${l.vendas.acumulado.toFixed(2)}x`}</Td>
-                <Td dir cor={C.sub}>{mon(l.metaVendasValor, master)}</Td>
+                <Td dir cor={corMom(ind.meses[i].yoy)}>{xFmt(ind.meses[i].yoy)}</Td>
+                <Td dir cor={corMom(ind.meses[i].acYoy)}>{xFmt(ind.meses[i].acYoy)}</Td>
+                <Td dir cor={C.sub}>{mon(metaMesGestao(l.metaVendasValor, d.metas.vendas), master)}</Td>
+                <Td dir cor={corMom(ind.meses[i].ating)}>{pctFmt(ind.meses[i].ating)}</Td>
+                <Td dir cor={corMom(ind.meses[i].acAting)}>{pctFmt(ind.meses[i].acAting)}</Td>
                 <td className="px-2"><button onClick={() => onEditar(l.mes)} title="Lançar/corrigir" style={{ color: C.sub }}><Pencil size={13} /></button></td>
               </tr>
               {i % 3 === 2 && (() => { const t = d.trimestres[(i - 2) / 3]; return (
-                <LinhaTrimestre cols={[t.nome, mon(t.vendas.anterior, master), mon(t.vendas.atual, master), "", t.vendas.mom ? `${t.vendas.mom.toFixed(2)}x` : "—", "", "", ""]} />
+                <LinhaTrimestre cols={[t.nome, mon(t.vendas.anterior, master), mon(t.vendas.atual, master), "", t.vendas.mom ? `${t.vendas.mom.toFixed(2)}x` : "—", "", "", pctFmt(ind.tri[(i - 2) / 3].ating), "", ""]} />
               ); })()}
             </React.Fragment>
           ))}
           {!!d.semNota?.vendas && (
             <tr style={{ borderTop: `1px solid ${C.line}` }}>
               <Td cor={C.sub}>SEM NOTA</Td><Td dir></Td><Td dir cor={C.sub}>{mon(d.semNota.vendas, master)}</Td>
-              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
             </tr>
           )}
           <tr style={{ borderTop: `2px solid ${C.line}` }}>
-            <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{mon(d.totais.vendas, master)}</Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+            <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{mon(d.totais.vendas, master)}</Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
           <tr>
             <Td cor={C.sub}>MÉDIA MENSAL<span style={{ fontWeight: 400 }}> · {mesesTxt(d.mediaMensal.bases?.vendas || 0)}</span></Td>
             <Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.vendas, master)}</Td>
-            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
         </tbody>
       </table>
@@ -634,12 +657,13 @@ function TabelaVendas({ d, master, onEditar }) {
 }
 
 function TabelaFaturamento({ d, master, onEditar }) {
+  const ind = indicadores(d.linhas, (l) => l.faturamento.atual, (l) => l.faturamento.anterior, (l) => metaMesGestao(l.faturamento.metaValor, d.metas.faturamento));
   return (
     <Secao titulo={`FATURAMENTO ${d.ano} — NOTAS EMITIDAS`}>
       <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 980 }}>
         <thead><tr style={{ background: C.panel2 }}>
           <Th>Mês</Th><Th dir>{d.anoAnterior}</Th><Th dir>{d.ano}</Th><Th dir>Meta R$</Th><Th dir>Meta peças</Th>
-          <Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Peças faturadas (= produzidas)</Th>
+          <Th dir>YoY mês</Th><Th dir>Acumulado YoY</Th><Th dir>Atingido × meta</Th><Th dir>Acumulado × meta</Th><Th dir>Peças faturadas (= produzidas)</Th>
           <Th></Th>
         </tr></thead>
         <tbody>
@@ -653,15 +677,17 @@ function TabelaFaturamento({ d, master, onEditar }) {
                   <Td dir forte cor={pMeta == null ? C.text : pMeta >= 1 ? C.green : C.text}>{mon(l.faturamento.atual, master)}</Td>
                   <Td dir cor={C.sub}>{mon(l.faturamento.metaValor, master)}</Td>
                   <Td dir cor={C.sub}>{l.faturamento.metaPecas == null ? "—" : inteiro(l.faturamento.metaPecas)}</Td>
-                  <Td dir cor={corMom(l.faturamento.mom)}>{l.faturamento.mom == null ? "—" : `${l.faturamento.mom.toFixed(2)}x`}</Td>
-                  <Td dir cor={corMom(l.faturamento.acumulado)}>{l.faturamento.acumulado == null ? "—" : `${l.faturamento.acumulado.toFixed(2)}x`}</Td>
+                  <Td dir cor={corMom(ind.meses[i].yoy)}>{xFmt(ind.meses[i].yoy)}</Td>
+                  <Td dir cor={corMom(ind.meses[i].acYoy)}>{xFmt(ind.meses[i].acYoy)}</Td>
+                  <Td dir cor={corMom(ind.meses[i].ating)}>{pctFmt(ind.meses[i].ating)}</Td>
+                  <Td dir cor={corMom(ind.meses[i].acAting)}>{pctFmt(ind.meses[i].acAting)}</Td>
                   <Td dir>{l.faturamento.pecas == null ? "—" : inteiro(l.faturamento.pecas)}</Td>
                   <td className="px-2"><button onClick={() => onEditar(l.mes)} title="Lançar/corrigir" style={{ color: C.sub }}><Pencil size={13} /></button></td>
                 </tr>
                 {i % 3 === 2 && (() => { const t = d.trimestres[(i - 2) / 3]; return (
                   <LinhaTrimestre cols={[t.nome, mon(t.faturamento.anterior, master), mon(t.faturamento.atual, master),
                     mon(t.faturamento.metaValor, master), inteiro(t.faturamento.metaPecas),
-                    t.faturamento.mom ? `${t.faturamento.mom.toFixed(2)}x` : "—", "", inteiro(t.faturamento.pecas), ""]} />
+                    t.faturamento.mom ? `${t.faturamento.mom.toFixed(2)}x` : "—", "", pctFmt(ind.tri[(i - 2) / 3].ating), "", inteiro(t.faturamento.pecas), ""]} />
                 ); })()}
               </React.Fragment>
             );
@@ -669,24 +695,24 @@ function TabelaFaturamento({ d, master, onEditar }) {
           {!!d.semNota?.faturamento && (
             <tr style={{ borderTop: `1px solid ${C.line}` }}>
               <Td cor={C.sub}>SEM NOTA</Td><Td dir></Td><Td dir cor={C.sub}>{mon(d.semNota.faturamento, master)}</Td>
-              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
             </tr>
           )}
           <tr style={{ borderTop: `2px solid ${C.line}` }}>
             <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{mon(d.totais.faturamento, master)}</Td>
-            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
+            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
             <Td dir forte>{inteiro(d.totais.pecasFaturadas)}</Td><td />
           </tr>
           <tr>
             <Td cor={C.sub}>MÉDIA MENSAL<span style={{ fontWeight: 400 }}> · {mesesTxt(d.mediaMensal.bases?.faturamento || 0)}</span></Td>
             <Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.faturamento, master)}</Td>
-            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
+            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
             <Td dir cor={C.sub}>{d.mediaMensal.pecasFaturadas == null ? "—" : inteiro(d.mediaMensal.pecasFaturadas)}</Td>
 <td />
           </tr>
           <tr>
             <Td cor={C.sub}>TICKET MÉDIO</Td><Td dir></Td><Td dir forte>{master ? `R$ ${brl(d.ticketMedio)}` : "•••••"}</Td>
-            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
         </tbody>
       </table>
@@ -695,6 +721,7 @@ function TabelaFaturamento({ d, master, onEditar }) {
 }
 
 function TabelaReceita({ d, master, onEditar }) {
+  const ind = indicadores(d.linhas, (l) => l.receita.total, (l) => l.receita.anterior, (l) => metaMesGestao(l.metaReceitaValor, d.metas.receita));
   return (
     <Secao titulo={`RECEITA ${d.ano} — COBRANÇAS RECEBIDAS, POR CANAL`}>
       <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 900 }}>
@@ -706,16 +733,20 @@ function TabelaReceita({ d, master, onEditar }) {
               {s}
             </th>
           ))}
-          <Th dir>Total {d.ano}</Th><Th dir>Total {d.anoAnterior}</Th><Th dir>PoP</Th><Th></Th>
+          <Th dir>Total {d.ano}</Th><Th dir>Total {d.anoAnterior}</Th><Th dir>YoY mês</Th><Th dir>Acumulado YoY</Th><Th dir>Meta do mês</Th><Th dir>Atingido × meta</Th><Th dir>Acumulado × meta</Th><Th></Th>
         </tr></thead>
         <tbody>
-          {d.linhas.map((l) => (
+          {d.linhas.map((l, i) => (
             <tr key={l.mes} style={{ borderTop: `1px solid ${C.line}` }}>
               <Td forte>{l.nome}</Td>
               {d.segmentos.map((s) => <Td key={s} dir cor={l.receita.segmentos[s] ? C.text : C.sub}>{l.receita.segmentos[s] ? mon(l.receita.segmentos[s], master) : "—"}</Td>)}
               <Td dir forte>{mon(l.receita.total, master)}</Td>
               <Td dir cor={C.sub}>{mon(l.receita.anterior, master)}</Td>
-              <Td dir cor={corMom(l.receita.pop)}>{l.receita.pop == null ? "—" : `${l.receita.pop.toFixed(2)}x`}</Td>
+              <Td dir cor={corMom(ind.meses[i].yoy)}>{xFmt(ind.meses[i].yoy)}</Td>
+              <Td dir cor={corMom(ind.meses[i].acYoy)}>{xFmt(ind.meses[i].acYoy)}</Td>
+              <Td dir cor={C.sub}>{mon(metaMesGestao(l.metaReceitaValor, d.metas.receita), master)}</Td>
+              <Td dir cor={corMom(ind.meses[i].ating)}>{pctFmt(ind.meses[i].ating)}</Td>
+              <Td dir cor={corMom(ind.meses[i].acAting)}>{pctFmt(ind.meses[i].acAting)}</Td>
               <td className="px-2"><button onClick={() => onEditar(l.mes)} title="Lançar/corrigir" style={{ color: C.sub }}><Pencil size={13} /></button></td>
             </tr>
           ))}
@@ -724,7 +755,7 @@ function TabelaReceita({ d, master, onEditar }) {
             {d.segmentos.map((s) => (
               <Td key={s} dir forte>{mon(d.linhas.reduce((acc, l) => acc + (l.receita.segmentos[s] || 0), 0), master)}</Td>
             ))}
-            <Td dir forte>{mon(d.totais.receita, master)}</Td><Td dir></Td><Td dir></Td><td />
+            <Td dir forte>{mon(d.totais.receita, master)}</Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
         </tbody>
       </table>

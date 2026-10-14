@@ -506,7 +506,8 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
           {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão. Resultados do ano pela meta do ano; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
           <Kv k={`Meta de faturamento (mês${mg ? ` · ${mg.nomeMes}` : ""})`} v={curto(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
           <Kv k={`Meta de faturamento (ano${mg ? " · Gestão" : ""})`} v={curto(calc.metaFatAnual)} extra={<Dif a={calc.metaFatAnual} o={calcOf?.metaFatAnual} />} />
-          <Kv k="Ticket médio utilizado" v={moeda(pr?.ticketMedio)} extra={<span className="text-[10px]" style={{ color: C.sub }}>{mg ? mg.fonteTicket : "do cenário"} · {int(pr?.metaPecas)} peças/mês em média</span>} />
+          <Kv k="Peças produzidas (mês)" v={`${int(pr?.metaPecas)} peças`} extra={<span className="text-[10px]" style={{ color: C.sub }}>média do ano para este resultado{mg && Number(pr?.ticketMedio) ? ` · ${mg.nomeMes}: ${int(calc.metaMensal / Number(pr.ticketMedio))} peças` : ""}</span>} />
+          <Kv k="Ticket médio utilizado" v={moeda(pr?.ticketMedio)} extra={<span className="text-[10px]" style={{ color: C.sub }}>{mg ? mg.fonteTicket : "do cenário"}</span>} />
           <Kv k="Meta por dia útil" v={curto(calc.metaDia)} />
           <Kv k="Balanço meta x custo operacional" v={brlN(calc.balanco, 2)} cor={calc.balanco >= 1 ? C.green : C.red}
             extra={<span className="text-[10px]" style={{ color: C.sub }}>a operação se paga com {int(calc.pecasCobrem)} peças/mês</span>} />
