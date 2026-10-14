@@ -12,14 +12,18 @@ export async function GET(req) {
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   const ano = sp.get("ano");
   const competencia = sp.get("competencia");
-  const anual = /^\d{4}$/.test(ano || "");
+  // v210 — período livre (identificação do ano com datas além do ano): ?de=AAAA-MM-DD&ate=AAAA-MM-DD
+  const okD = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
+  const faixa = okD(sp.get("de")) && okD(sp.get("ate")) ? { de: sp.get("de").slice(0, 7), ate: sp.get("ate").slice(0, 7) } : null;
+  const anual = /^\d{4}$/.test(ano || "") || !!faixa;
   if (!anual && !competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
   await renomearContas().catch(() => null);                             // nomes de conta combinados com o Igor
   const cartaoBB = await limparCartaoBBdeDividas().catch(() => null);   // cartão BB fora de dívidas (uma vez)
 
   // filtro de competência: um mês ou o ano inteiro
-  const ondeComp = anual ? { startsWith: `${ano}-` } : competencia;
+  const ondeComp = faixa ? { gte: faixa.de < faixa.ate ? faixa.de : faixa.ate, lte: faixa.de < faixa.ate ? faixa.ate : faixa.de }
+    : anual ? { startsWith: `${ano}-` } : competencia;
   if (anual) {
     const meses = await prisma.finLancamento.findMany({
       where: { competencia: ondeComp }, distinct: ["competencia"], select: { competencia: true },
@@ -53,7 +57,7 @@ export async function GET(req) {
     lancamentos: ls.map(lancOut),
     contas: contas.map((c) => ({ ...c, grupoDre: grupoDe[c.id] || null })),
     saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura,
-    ...(anual ? { anual: true, ano: Number(ano) } : {}),
+    ...(anual ? { anual: true, ano: Number(ano) || null, faixa } : {}),
     ...(cartaoBB && !cartaoBB.jaFeito && cartaoBB.ok ? { ajusteCartaoBB: cartaoBB } : {}),
   });
 }

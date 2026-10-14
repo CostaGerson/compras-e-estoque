@@ -98,7 +98,8 @@ export default function Financeiro({ user }) {
         <AnaliseMensal user={user} ano={ano} setAno={setAno}
           abrir={(comp) => ir({ v: "mes", comp, aba: ger ? "dre" : "importacao" })}
           abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })}
-          abrirAlav={() => ir({ v: "alavancagem" })} />
+          abrirAlav={() => ir({ v: "alavancagem" })}
+          abrirIdent={(a) => ir({ v: "identAno", ano: a })} />
       )}
       {tela.v === "identAno" && (
         <Identificacao key={`ano-${tela.ano}-${tela.grupoDre || ""}`} user={user} comp={`${tela.ano}-01`}
@@ -468,7 +469,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
 }
 
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
-function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
+function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirIdent }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
   const ger = gerencial(user);
@@ -486,6 +487,8 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav }) {
           <div className="px-4 py-2 font-bold text-lg">{ano}</div>
           <button onClick={() => setAno(ano + 1)} disabled={ano >= new Date().getFullYear()} className="px-3 py-2 font-bold" style={{ color: C.sub, opacity: ano >= new Date().getFullYear() ? 0.3 : 1 }}>›</button>
         </div>
+        {abrirIdent && <button onClick={() => abrirIdent(ano)} title={`Identificação de todos os lançamentos de ${ano} (dá para mudar as datas além do ano)`}
+          className="flex items-center justify-center rounded-lg font-bold text-lg" style={{ width: 42, height: 42, background: C.navy, color: "#fff" }}>I</button>}
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
       </div>
       {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}
@@ -1961,17 +1964,30 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
   const [ord, setOrd] = useState({ k: "data", dir: 1 });
   const ordenarPor = (k) => setOrd((o) => (o.k === k ? { k, dir: -o.dir } : { k, dir: 1 }));
 
+  // v210 — identificação do ano: se o período sair do ano, carrega os meses do período (de/ate)
+  const periodoRef = useRef(periodo); periodoRef.current = periodo;
+  const [carregado, setCarregado] = useState(null);   // { de: AAAA-MM, ate: AAAA-MM } já carregado
   const carregar = async () => {
     setErro("");
     try {
-      const q = anual ? `ano=${ano}` : `competencia=${comp}`;
+      const pe = periodoRef.current || {};
+      const fora = anual && pe.de && pe.ate && (pe.de.slice(0, 4) !== String(ano) || pe.ate.slice(0, 4) !== String(ano));
+      const q = fora ? `de=${pe.de}&ate=${pe.ate}` : anual ? `ano=${ano}` : `competencia=${comp}`;
+      if (anual) setCarregado(fora ? { de: pe.de.slice(0, 7), ate: pe.ate.slice(0, 7) } : { de: `${ano}-01`, ate: `${ano}-12` });
       const r = await fetch(`/api/fin/lancamentos?u=${user.id}&${q}`);
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Erro ao carregar.");
       setDados(d);
     } catch (e) { setErro(e.message); }
   };
-  useEffect(() => { setDados(null); setSel(new Set()); setPeriodo(periodoPadrao(comp, ano)); carregar(); }, [comp, ano]);
+  useEffect(() => { setDados(null); setSel(new Set()); const pd = periodoPadrao(comp, ano); periodoRef.current = pd; setPeriodo(pd); carregar(); }, [comp, ano]);
+  // período fora dos meses carregados → busca de novo (com uma pequena espera enquanto digita)
+  useEffect(() => {
+    if (!anual || !carregado || !/^\d{4}-\d{2}-\d{2}$/.test(periodo.de || "") || !/^\d{4}-\d{2}-\d{2}$/.test(periodo.ate || "")) return;
+    if (periodo.de.slice(0, 7) >= carregado.de && periodo.ate.slice(0, 7) <= carregado.ate) return;
+    const t = setTimeout(() => carregar(), 600);
+    return () => clearTimeout(t);
+  }, [periodo.de, periodo.ate]);
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(""), 5000); return () => clearTimeout(t); }, [aviso]);
 
   const contasById = useMemo(() => Object.fromEntries((dados?.contas || []).map((c) => [c.id, c])), [dados]);
