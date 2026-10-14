@@ -2135,8 +2135,8 @@ function PrestadorPicker({ lista, valor, onEscolher, onNovo }) {
 const semAcC = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 
 /* ---------------- conferir valores das recorrências ---------------- */
-// A conferência do mês é a guia Recorrentes vista mês a mês: o valor que ela mostra é o
-// da recorrência, e o que você confirmar aqui volta para lá e desce para o contas a pagar.
+// v211 — conferência do mês: mostra o valor da recorrência; o que mudar aqui é ajuste só desta conta
+// (regra: Matriz ⇄ Recorrentes se falam; contas a pagar não volta para elas).
 function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose }) {
   const recPorId = useMemo(() => Object.fromEntries(recorrencias.map((r) => [r.id, r])), [recorrencias]);
   const [l, setL] = useState(itens.map((t) => {
@@ -2151,9 +2151,7 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
       const mudou = Math.abs(t.novo - t.base) > 0.009;
       await api(`/api/fin/titulos/${t.id}`, "PATCH", {
         usuarioId: user.id, acao: "confirmar", valor: t.novo,
-        // mudou o valor? a recorrência é a base de dados: ela e os meses seguintes acompanham,
-        // a não ser que você diga que é exceção só deste mês
-        aplicarFuturos: mudou && !t.soEsteMes,
+        aplicarFuturos: false,   // v211 — contas a pagar não mexe na Matriz nem nas Recorrentes
       });
       setL((x) => x.map((y) => (y.id === t.id ? { ...y, feito: true } : y)));
     } catch (e) { setErro(e.message); }
@@ -2170,9 +2168,9 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
         <BtnP onClick={onClose}>Fechar</BtnP>
       </>}>
       <div className="text-xs mb-3" style={{ color: C.sub }}>
-        O valor que aparece aqui é o da guia <b>Recorrentes</b> — é ela que manda. Confirme se continua igual
-        ou digite o novo: a recorrência e os meses seguintes ainda não conferidos acompanham, e o contas a pagar
-        deste mês é atualizado. Marque <b>só este mês</b> quando for exceção.
+        O valor que aparece aqui é o da guia <b>Recorrentes</b> (espelho da Matriz). Confirme se continua igual
+        ou digite o valor deste mês: a mudança vale <b>só para esta conta</b>. Para mudar os próximos meses,
+        altere na Matriz de custos ou na guia Recorrentes.
       </div>
       {desatualizados > 0 && (
         <div className="p-2 mb-3 rounded text-xs flex items-start gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>
@@ -2203,14 +2201,10 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
                 {difLancado && <div style={{ color: C.yellow }}>lançado: {moeda(lancado)}</div>}
               </td>
               <td className="px-2 py-2">{t.feito ? <b>{moeda(t.novo)}</b> : <Valor value={t.novo} onChange={(v) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, novo: v } : y)))} />}</td>
-              <td className="px-2 py-2">{!t.feito && mudou && t.rec && (
-                <label className="flex items-center gap-1 whitespace-nowrap" title="Não muda a recorrência nem os meses seguintes">
-                  <input type="checkbox" checked={t.soEsteMes} onChange={(e) => setL((x) => x.map((y) => (y.id === t.id ? { ...y, soEsteMes: e.target.checked } : y)))} /> só este mês
-                </label>
-              )}</td>
+              <td className="px-2 py-2">{!t.feito && mudou && t.rec && <span className="whitespace-nowrap" style={{ color: C.sub }}>só esta conta</span>}</td>
               <td className="px-2 py-2 text-right">{t.feito ? <span style={{ color: C.green }} className="font-semibold">✓ conferido</span>
                 : <button onClick={() => confirmar(t)} className="px-3 py-1 rounded-lg font-semibold text-white whitespace-nowrap" style={{ background: C.accent }}>
-                    {mudou ? (t.soEsteMes ? "Só este mês" : "Salvar na recorrência") : "Confirmar"}
+                    {mudou ? "Salvar nesta conta" : "Confirmar"}
                   </button>}</td>
             </tr>
           );

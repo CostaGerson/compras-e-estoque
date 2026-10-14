@@ -462,7 +462,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
         await prisma.finTitulo.update({
           where: { id },
           data: {
-            valor, previsao: false, valorConfirmado: true, atualizadoPorNome: quem || null,
+            valor, previsao: false, valorConfirmado: true, pontual: true, atualizadoPorNome: quem || null,   // v212: valor do documento não volta pela Matriz
             ...(Array.isArray(it.rateio) && it.rateio.length ? { rateio: it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) } : {}),
             ...(it.vencimento ? { vencimento: dataUTC(it.vencimento) } : {}),
             ...(it.tipo === "IFOOD" && it.pix ? { observacao: [t.observacao, `IFOOD · PIX COPIA E COLA: ${String(it.pix).trim()}`].filter(Boolean).join(" · ").slice(0, 1000) } : {}),

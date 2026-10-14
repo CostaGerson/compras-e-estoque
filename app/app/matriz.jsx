@@ -256,7 +256,7 @@ export default function MatrizCustos({ user }) {
         ))}
       </div>
 
-      {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao}
+      {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao} mg={doc.oficial ? dados.metasGestao : null}
         setPr={(k, v) => muda("producao", (x) => ({ ...x, [k]: v }))} />}
       {aba === "pessoal" && <Pessoal dados={dados} calc={calc} muda={muda} cenario={!doc.oficial} />}
       {aba === "vidaVegetativa" && <Lista titulo="Vida vegetativa" sub="Custos fixos do imóvel e da estrutura." itens={dados.vidaVegetativa} set={(f) => muda("vidaVegetativa", f)} cdb />}
@@ -264,7 +264,7 @@ export default function MatrizCustos({ user }) {
       {aba === "administracao" && <Lista titulo="Administração" sub="Contribuições, serviços, assinaturas e eventos." itens={dados.administracao} set={(f) => muda("administracao", f)} cdb />}
       {aba === "sistemas" && <Lista titulo="Sistemas especializados" sub="Softwares de produção e gestão." itens={dados.sistemas} set={(f) => muda("sistemas", f)} cdb />}
       {aba === "dividas" && <Lista titulo="Dívidas" sub={dados.notas?.dividas || "Parcelas mensais de dívidas e empréstimos."} itens={dados.dividas} set={(f) => muda("dividas", f)} />}
-      {aba === "producao" && <Producao dados={dados} calc={calc} muda={muda} />}
+      {aba === "producao" && <Producao dados={dados} calc={calc} muda={muda} mg={doc.oficial ? dados.metasGestao : null} />}
       {aba === "parametros" && <Parametros dados={dados} muda={muda} />}
 
       {modal === "versoes" && <Versoes user={user} doc={doc} sujo={sujo} onClose={() => setModal(null)} onRestaurado={async () => { setModal(null); await abrir(doc.id); }} />}
@@ -281,7 +281,7 @@ function BtnSec({ onClick, Ico, t, cor }) {
 }
 
 /* ---------------- PAINEL ---------------- */
-function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr }) {
+function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg }) {
   const b = calc.blocos;
   const linhaBloco = [
     ["vidaVegetativa", "Vida vegetativa", Leaf, b.vidaVegetativa],
@@ -364,8 +364,11 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr }) {
 
         {/* metas e resultado */}
         <Cartao titulo="Metas e resultado">
+          {mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão · mês da análise {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
           <Kv k="Meta de faturamento (mês)" v={moeda(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
-          <Kv k="Meta de faturamento (ano)" v={moeda(calc.metaFatAnual)} />
+          {mg?.fatAno != null
+            ? <Kv k="Meta de faturamento (ano · Gestão)" v={moeda(mg.fatAno)} extra={<span className="text-[10px]" style={{ color: C.sub }}>no ritmo da meta do mês: {moeda(calc.metaFatAnual)}</span>} />
+            : <Kv k="Meta de faturamento (ano)" v={moeda(calc.metaFatAnual)} />}
           <Kv k="Meta por dia útil" v={moeda(calc.metaDia)} />
           <Kv k="Balanço meta x custo operacional" v={brlN(calc.balanco, 3)} cor={calc.balanco >= 1 ? C.green : C.red}
             extra={<span className="text-[10px]" style={{ color: C.sub }}>a operação se paga com {int(calc.pecasCobrem)} peças/mês</span>} />
@@ -739,7 +742,7 @@ function Linha({ t, children, dica }) {
 }
 
 /* ---------------- PRODUÇÃO ---------------- */
-function Producao({ dados, calc, muda }) {
+function Producao({ dados, calc, muda, mg }) {
   const pr = dados.producao;
   const s = (k, v) => muda("producao", (x) => ({ ...x, [k]: v }));
   return (
@@ -758,9 +761,16 @@ function Producao({ dados, calc, muda }) {
           <Linha t="Razão custo logístico / peça" dica={pr.razaoLogObs}><NumInput value={pr.razaoLog} onChange={(v) => s("razaoLog", v)} /></Linha>
         </Cartao>
         <Cartao titulo="Metas">
+          {mg ? <>
+            <div className="text-[11px] py-1" style={{ color: C.sub }}>Vêm do botão METAS da Gestão ({mg.nomeMes}). Para mudar, altere lá ou simule num cenário.</div>
+            <Linha t="Ticket médio" dica="meta de faturamento ÷ meta de peças do mês"><b>{moeda(pr.ticketMedio)}</b></Linha>
+            <Linha t="Meta de peças faturadas (mês)"><b>{int(pr.metaPecas)}</b></Linha>
+            <Linha t="Margem de contribuição">{mg.margem != null ? <b>{pct(pr.margemContribuicao)}</b> : <NumInput tipo="pct" value={pr.margemContribuicao} onChange={(v) => s("margemContribuicao", v)} width={90} />}</Linha>
+          </> : <>
           <Linha t="Ticket médio (semestre)"><NumInput value={pr.ticketMedio} onChange={(v) => s("ticketMedio", v)} /></Linha>
           <Linha t="Meta de peças faturadas (mês)"><NumInput tipo="num" casas={0} value={pr.metaPecas} onChange={(v) => s("metaPecas", v)} /></Linha>
           <Linha t="Margem de contribuição"><NumInput tipo="pct" value={pr.margemContribuicao} onChange={(v) => s("margemContribuicao", v)} width={90} /></Linha>
+          </>}
           <Linha t="Meta de faturamento (mês)"><b>{moeda(calc.metaMensal)}</b></Linha>
           <Linha t="Breakeven (peças/mês)"><b>{int(calc.breakevenPecas)}</b></Linha>
         </Cartao>

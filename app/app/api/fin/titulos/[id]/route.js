@@ -65,9 +65,10 @@ export async function PATCH(req, { params }) {
     const v = r2(b.valor ?? t.valor);
     if (!(v >= 0)) return Response.json({ error: "Valor inválido." }, { status: 400 });
     data = { valor: v, valorConfirmado: true };
+    b.aplicarFuturos = false;   // v211 — regra: o contas a pagar não mexe na Matriz nem nas Recorrentes (ajuste só desta conta)
     // v192 — conta da Matriz: "aplicar aos próximos" grava na Matriz (custo único) e o espelho leva aos meses seguintes
     const rec0 = b.aplicarFuturos && t.recorrenciaId ? await prisma.finRecorrencia.findUnique({ where: { id: t.recorrenciaId }, select: { chaveOrigem: true } }) : null;
-    if (rec0 && /^(MATRIZ|NORT|CARTAO)\|/.test(String(rec0.chaveOrigem || ""))) {
+    if (rec0 && /^(MATRIZ|NORT)\|/.test(String(rec0.chaveOrigem || ""))) {
       const { alterarItemMatriz } = await import("@/lib/finRecorrentes");
       const res = await alterarItemMatriz(rec0.chaveOrigem, { valor: v }, nomeU(u));
       if (!res.ok) return Response.json({ error: res.erro }, { status: 400 });

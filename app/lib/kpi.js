@@ -125,13 +125,32 @@ export function calendario(ano, hoje = new Date()) {
   return { decorridos: hoje.getMonth() + 1, restantes: Math.max(1, Math.round(dias / 30)), fechado: false };
 }
 
+// v212 — receita realizada vem da DRE (lançamentos do extrato nas contas do grupo Receita).
+// Mês sem lançamento no financeiro (ex.: anos antigos) usa a receita lançada à mão no KPI.
+export async function receitaDaDre(ano) {
+  const { mapaDeContas } = await import("@/lib/finDre");
+  const ids = (await mapaDeContas()).filter((c) => c.grupo === "RECEITA").map((c) => c.id);
+  const where = { competencia: { startsWith: `${ano}-` }, desmembrado: false, substituido: false };
+  const [todos, rec] = await Promise.all([
+    prisma.finLancamento.groupBy({ by: ["competencia"], where, _count: { _all: true } }),
+    ids.length ? prisma.finLancamento.groupBy({ by: ["competencia"], where: { ...where, contaId: { in: ids } }, _sum: { valor: true } }) : [],
+  ]);
+  const o = {};
+  for (const t of todos) {
+    const x = rec.find((y) => y.competencia === t.competencia);
+    o[Number(t.competencia.slice(5, 7))] = Math.round(Number(x?._sum?.valor || 0) * 100) / 100;
+  }
+  return o;
+}
+
 async function dadosDoAno(ano) {
-  const [meses, receitas, metaAno] = await Promise.all([
+  const [meses, receitas, metaAno, dre] = await Promise.all([
     prisma.kpiMes.findMany({ where: { ano }, orderBy: { mes: "asc" } }),
     prisma.kpiReceita.findMany({ where: { ano }, orderBy: [{ mes: "asc" }, { segmento: "asc" }] }),
     prisma.kpiAno.findUnique({ where: { ano } }),
+    receitaDaDre(ano).catch(() => ({})),
   ]);
-  return { meses, receitas, metaAno };
+  return { meses, receitas, metaAno, dre };
 }
 
 // Relatório completo do ano, no formato da planilha (com o ano anterior ao lado).
@@ -158,7 +177,8 @@ export async function relatorio(ano) {
     acVendas += vAtual || 0; acVendasAnt += vAnt || 0;
     acFat += fAtual || 0; acFatAnt += fAnt || 0;
     const rc = RC[mes] || {}, ra = RA[mes] || {};
-    const rcTot = soma(Object.values(rc)), raTot = soma(Object.values(ra));
+    const rcMan = soma(Object.values(rc)), raMan = soma(Object.values(ra));
+    const rcTot = cur.dre[mes] ?? rcMan, raTot = ant.dre[mes] ?? raMan;   // v212: realizado = DRE
     return {
       mes, nome,
       vendas: { atual: vAtual, anterior: vAnt, pecas: n(c.vendasPecas), mom: div(vAtual, vAnt), acumulado: div(acVendas, acVendasAnt) },
@@ -174,7 +194,8 @@ export async function relatorio(ano) {
         metaValor: n(c.metaFaturamentoValor), metaPecas: n(c.metaFaturamentoPecas),
         mom: div(fAtual, fAnt), acumulado: div(acFat, acFatAnt),
       },
-      receita: { segmentos: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot) },
+      receita: { segmentos: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot),
+        fonte: cur.dre[mes] != null ? "DRE" : rcMan ? "MANUAL" : null, manual: rcMan || null },
       metaVendasValor: n(c.metaVendasValor), metaReceitaValor: n(c.metaReceitaValor),
       observacao: c.observacao || null,
     };
@@ -293,7 +314,7 @@ export async function painel(ano, mes) {
       chave: "receitaValor", rotulo: "Receita", unidade: "R$",
       valor: l.receita.total, meta: metaMes(l.metaReceitaValor, r.metas.receita),
       serie: serie((x) => x.receita.total), metaSerie: serie((x) => metaMes(x.metaReceitaValor, r.metas.receita)),
-      fonte: "Lançamento manual — virá da baixa das cobranças recebidas",
+      fonte: l.receita.fonte === "MANUAL" ? "Lançamento manual (mês ainda sem DRE)" : "DRE da análise financeira (contas do grupo Receita)",
     },
   ];
 

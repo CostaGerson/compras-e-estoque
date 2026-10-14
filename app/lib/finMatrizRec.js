@@ -164,10 +164,7 @@ export function propostasDaMatriz(dados) {
     obs: `Provisões do pessoal ${r2(calc.cdbPessoal)} + ${calc.cdbItens.map((i) => i.natureza).join(", ")}`,
   });
 
-  // faturas de cartão (valor do mês informado na conferência)
-  for (const b of ["BRADESCO", "BB", "ITAÚ", "CAIXA"]) {
-    add({ chave: `CARTAO|${N(b)}`, grupo: "Cartões", titulo: `FATURA CARTÃO ${b}`, parceiro: b === "BB" ? "BANCO DO BRASIL" : b === "CAIXA" ? "CAIXA ECONÔMICA FEDERAL" : b, valor: 0, dia: 10,
-      rateio: [{ codigo: "3000000", pct: 100 }], obs: "Os itens da fatura são identificados na análise mensal." });
-  }
+  // v212 — faturas de cartão NÃO são da Matriz: são recorrências próprias de valor zero (CARTAO|…, já cadastradas),
+  // o valor do mês é lançado direto no contas a pagar
   return { propostas: out, totalMatriz: calc.custoNegocio };
 }

@@ -15,6 +15,7 @@ import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
 import Transmissao from "./transmissao";
 import Uploads from "./uploads";
+import ConferenciaIntegracao from "./conferencia";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -65,8 +66,9 @@ export default function Financeiro({ user }) {
   const [ano, setAno] = useState(new Date().getFullYear());
   const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
   const migalhas = [{ t: "Financeiro", go: () => ir({ v: "dash" }) }];
-  if (["meses", "mes", "identAno"].includes(tela.v)) migalhas.push({ t: `Análise financeira ${tela.v === "mes" ? tela.comp.slice(0, 4) : tela.v === "identAno" ? tela.ano : ano}`, go: () => ir({ v: "meses" }) });
+  if (["meses", "mes", "identAno", "conferencia"].includes(tela.v)) migalhas.push({ t: `Análise financeira ${tela.v === "mes" ? tela.comp.slice(0, 4) : ["identAno", "conferencia"].includes(tela.v) ? tela.ano : ano}`, go: () => ir({ v: "meses" }) });
   if (tela.v === "mes") migalhas.push({ t: nomeComp(tela.comp) });
+  if (tela.v === "conferencia") migalhas.push({ t: `Conferência de integração ${tela.ano}` });
   if (tela.v === "identAno") migalhas.push({ t: `Identificação ${tela.ano}${tela.nomeGrupoDre ? ` · ${tela.nomeGrupoDre}` : ""}` });
   if (["dados", "contas", "regras", "senhas"].includes(tela.v)) migalhas.push({ t: "Dados financeiros", go: () => ir({ v: "dados" }) });
   if (tela.v === "contas") migalhas.push({ t: "Plano de contas" });
@@ -99,12 +101,14 @@ export default function Financeiro({ user }) {
           abrir={(comp) => ir({ v: "mes", comp, aba: ger ? "dre" : "importacao" })}
           abrirGrupo={(grupoDre, nomeGrupoDre) => ir({ v: "identAno", ano, grupoDre, nomeGrupoDre })}
           abrirAlav={() => ir({ v: "alavancagem" })}
-          abrirIdent={(a) => ir({ v: "identAno", ano: a })} />
+          abrirIdent={(a) => ir({ v: "identAno", ano: a })}
+          abrirConferencia={ger ? (a) => ir({ v: "conferencia", ano: a }) : null} />
       )}
       {tela.v === "identAno" && (
         <Identificacao key={`ano-${tela.ano}-${tela.grupoDre || ""}`} user={user} comp={`${tela.ano}-01`}
           ano={tela.ano} grupoDre={tela.grupoDre} nomeGrupoDre={tela.nomeGrupoDre} />
       )}
+      {tela.v === "conferencia" && ger && <ConferenciaIntegracao user={user} ano={tela.ano} />}
       {tela.v === "mes" && <MesFinanceiro user={user} tela={tela} setTela={setTela} />}
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
@@ -469,7 +473,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
 }
 
 /* ---------------- ANÁLISE MENSAL (cards do ano) ---------------- */
-function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirIdent }) {
+function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirIdent, abrirConferencia }) {
   const [rk, setRk] = useState(0);
   const [d, erro] = useResumo(user, ano, rk);
   const ger = gerencial(user);
@@ -489,6 +493,8 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirI
         </div>
         {abrirIdent && <button onClick={() => abrirIdent(ano)} title={`Identificação de todos os lançamentos de ${ano} (dá para mudar as datas além do ano)`}
           className="flex items-center justify-center rounded-lg font-bold text-lg" style={{ width: 42, height: 42, background: C.navy, color: "#fff" }}>I</button>}
+        {abrirConferencia && <button onClick={() => abrirConferencia(ano)} title="Conferência de integração: o mesmo número em telas diferentes (Gestão, Matriz, Recebimentos, DRE, Alavancagem…)"
+          className="flex items-center gap-1.5 px-3 rounded-lg text-sm font-semibold" style={{ height: 42, border: `1px solid ${C.line}`, background: C.panel, color: C.navy }}><ShieldCheck size={15} /> Conferência</button>}
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
       </div>
       {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}

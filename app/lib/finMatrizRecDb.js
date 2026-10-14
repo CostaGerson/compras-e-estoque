@@ -4,7 +4,7 @@ import { garantirContas } from "@/lib/fin";
 import { MATRIZ_SEED } from "@/lib/matrizSeed";
 import { propostasDaMatriz } from "@/lib/finMatrizRec";
 import { validarRateio, gerarRecorrencias, r2, mesAtual, vencNoMes, ajustaFds, contaSabado, ehFolha } from "@/lib/finTitulos";
-const ESPELHO = /^(MATRIZ|NORT|CARTAO)\|/;   // v192: recorrências que espelham a Matriz de custos
+const ESPELHO = /^(MATRIZ|NORT)\|/;   // v192: recorrências que espelham a Matriz de custos (v212: cartão não é da Matriz)
 const SEM_PARCEIRO = (p) => !p || /^A DEFINIR$/i.test(String(p).trim());
 import { ehGuia, guiasComValor } from "@/lib/finGuias";
 
@@ -77,7 +77,7 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
         const rec = await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
         // v192 — as contas em aberto deste mês em diante espelham a Matriz (nome, fornecedor, valor, rateio e vencimento),
         // menos as alteradas pontualmente no contas a pagar
-        const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", pontual: false, vencimentoOriginal: null } });
+        const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: p.recorrenciaId, competencia: { gte: mesAtual() }, status: "ABERTO", pontual: false, valorConfirmado: false, vencimentoOriginal: null } });   // v212: corrigida/conferida/reprogramada fica como está
         for (const t of tits) {
           await prisma.finTitulo.update({ where: { id: t.id }, data: {
             titulo: rec.titulo, parceiro: rec.parceiro, ...(up.valor !== undefined ? { valor: up.valor } : {}), ...(up.rateio ? { rateio: up.rateio } : {}),
@@ -90,7 +90,7 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
   }
   for (const id of encerrar.map(Number)) {
     if (!r.obsoletas.some((o) => o.id === id)) continue;
-    await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, status: "ABERTO", pontual: false, competencia: { gte: mesAtual() } } });
+    await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, status: "ABERTO", pontual: false, valorConfirmado: false, vencimentoOriginal: null, competencia: { gte: mesAtual() } } });
     await prisma.finTitulo.updateMany({ where: { recorrenciaId: id }, data: { recorrenciaId: null } });   // pagas e pontuais ficam no histórico
     await prisma.finRecorrencia.delete({ where: { id } }).catch(() => {});
     encerradas++;
@@ -106,14 +106,35 @@ export async function sincronizarMatriz(quem) {
   if (sincronizando) return sincronizando;
   sincronizando = (async () => {
     await marcarPontuaisAntigos().catch(() => null);
+    await restaurarValoresDocumento().catch(() => null);   // v212
     await fornecedoresParaMatriz().catch(() => null);
     const m = await montarMatrizRec();
     if (m.error) return m;
+    const realinhadas = await realinharTitulos().catch(() => 0);   // v211
     const novas = m.propostas.filter((p) => !p.jaExiste), mud = m.propostas.filter((p) => p.mudou);
-    if (!novas.length && !mud.length && !m.obsoletas.length) return { ok: true, criadas: 0, atualizadas: 0, encerradas: 0 };
+    if (!novas.length && !mud.length && !m.obsoletas.length) return { ok: true, criadas: 0, atualizadas: 0, encerradas: 0, realinhadas };
     return aplicarMatrizRec({ quem: quem || "MATRIZ DE CUSTOS", chaves: "TODAS", atualizar: mud.map((p) => p.chave), encerrar: m.obsoletas.map((o) => o.id) });
   })();
   try { return await sincronizando; } finally { sincronizando = null; }
+}
+// v211 — regra: Matriz ⇄ Recorrentes se falam; o contas a pagar só recebe. Conta em aberto deste mês em diante,
+// não alterada à mão (pontual) e não reprogramada, que ficou com nome/fornecedor/valor diferente da recorrência espelho é realinhada.
+export async function realinharTitulos() {
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { not: null }, ativo: true } });
+  let n = 0;
+  for (const r of recs) {
+    // só custos únicos (folha/guias/NORT/cartão recebem o valor real do documento e não entram aqui)
+    if (!/^MATRIZ\|(vidaVegetativa|logistica|administracao|sistemas|dividas)\|./.test(r.chaveOrigem)) continue;
+    const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: r.id, competencia: { gte: mesAtual() }, status: "ABERTO", pontual: false, valorConfirmado: false, vencimentoOriginal: null } });
+    for (const t of tits) {
+      const up = {};
+      if (Math.abs(Number(t.valor) - Number(r.valor)) > 0.009) up.valor = r.valor;
+      if (t.titulo !== r.titulo) up.titulo = r.titulo;
+      if (r.parceiro && t.parceiro !== r.parceiro) up.parceiro = r.parceiro;
+      if (Object.keys(up).length) { await prisma.finTitulo.update({ where: { id: t.id }, data: up }); n++; }
+    }
+  }
+  return n;
 }
 // v193 — uma vez: o fornecedor já informado nas recorrências vai para o item da Matriz que ainda não tem fornecedor
 const CHAVE_FORN = "AJUSTE|fornecedores-matriz-v193";
@@ -148,6 +169,25 @@ async function marcarPontuaisAntigos() {
   const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: { not: null }, status: "ABERTO", competencia: { gte: mesAtual() } }, select: { id: true, recorrenciaId: true, valor: true, valorConfirmado: true, vencimentoOriginal: true } });
   const ids = tits.filter((t) => t.vencimentoOriginal || (t.valorConfirmado && Math.abs(Number(t.valor) - (val.get(t.recorrenciaId) ?? Number(t.valor))) > 0.009)).map((t) => t.id);
   if (ids.length) await prisma.finTitulo.updateMany({ where: { id: { in: ids } }, data: { pontual: true } });
+}
+
+// v212 — uma vez: conta conferida por documento (folha, guia, recibo) que a Matriz sobrescreveu volta ao valor do documento
+// (o valor fica gravado no fim da observação "… · R$ 1234,56"); toda conta conferida passa a ser ajuste pontual.
+const CHAVE_RESTAURA = "AJUSTE|restaura-valores-documento-v212";
+export async function restaurarValoresDocumento() {
+  if (await prisma.finConfig.findUnique({ where: { chave: CHAVE_RESTAURA } }).catch(() => null)) return null;
+  const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: { not: null }, status: "ABERTO", valorConfirmado: true, pontual: false },
+    select: { id: true, titulo: true, competencia: true, valor: true, observacao: true } });
+  const log = [];
+  for (const t of tits) {
+    const ms = [...String(t.observacao || "").matchAll(/· R\$ (\d+,\d{2})(?= ·|$)/g)];
+    const doc = ms.length ? r2(Number(ms[ms.length - 1][1].replace(",", "."))) : null;
+    const up = { pontual: true };
+    if (doc != null && doc > 0 && Math.abs(doc - Number(t.valor)) > 0.009) { up.valor = doc; log.push({ id: t.id, titulo: t.titulo, comp: t.competencia, de: Number(t.valor), para: doc }); }
+    await prisma.finTitulo.update({ where: { id: t.id }, data: up });
+  }
+  await prisma.finConfig.create({ data: { chave: CHAVE_RESTAURA, valor: JSON.stringify({ em: new Date().toISOString(), conferidas: tits.length, restauradas: log }).slice(0, 20000) } });
+  return log;
 }
 
 // Pró-labore lançado à mão / importado (sem recorrência) no mesmo mês da previsão do sócio:

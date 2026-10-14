@@ -18,6 +18,8 @@ export async function GET(req, { params }) {
       critica = (await freelancerXFolha(somaMes(mesAtual(), -1))).critica;
     } catch { critica = null; }
   }
+  // v212 — a oficial puxa as metas do botão METAS da Gestão (mês da análise)
+  if (m.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); m.dados = await dadosComMetas(m.dados); }
   return Response.json({ ...m, critica });
 }
 
@@ -35,6 +37,7 @@ export async function PUT(req, { params }) {
   await prisma.finMatrizVersao.create({ data: { matrizId: id, dados: atual.dados, usuarioNome: atual.atualizadoPor, resumo: "antes de: " + String(b.resumo || "alteração").slice(0, 300) } });
   const velhas = await prisma.finMatrizVersao.findMany({ where: { matrizId: id }, orderBy: { createdAt: "desc" }, skip: MAX_VERSOES, select: { id: true } });
   if (velhas.length) await prisma.finMatrizVersao.deleteMany({ where: { id: { in: velhas.map((v) => v.id) } } });
+  if (atual.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); b.dados = await dadosComMetas(b.dados); }   // v212
   const m = await prisma.finMatriz.update({ where: { id }, data: { dados: b.dados, atualizadoPor: nomeU(u) } });
   // v192 — a oficial é a base das recorrências: o contas a pagar espelha na hora
   let contas = null;

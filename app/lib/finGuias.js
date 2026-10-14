@@ -37,7 +37,7 @@ export async function registrarValorGuia(tituloId, quem) {
   await prisma.finConfig.upsert({ where: { chave: FLAG(r.chaveOrigem) }, create: { chave: FLAG(r.chaveOrigem), valor: reg }, update: { valor: reg } });
   await prisma.finRecorrencia.update({ where: { id: r.id }, data: { valor } });
   const n = await prisma.finTitulo.updateMany({
-    where: { recorrenciaId: r.id, competencia: { gt: t.competencia }, status: "ABERTO", valorConfirmado: false },
+    where: { recorrenciaId: r.id, competencia: { gt: t.competencia }, status: "ABERTO", valorConfirmado: false, pontual: false },
     data: { valor },
   });
   return { chave: r.chaveOrigem, valor, futuros: n.count };

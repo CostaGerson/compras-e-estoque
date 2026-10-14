@@ -72,7 +72,7 @@ export async function listar() {
         valorMatriz, divergente, diferenca: divergente ? r2(valor - valorMatriz) : null,
         podeAtualizarMatriz: divergente && origemEditavel(r.chaveOrigem),
         titulosAbertos: nAbertos[r.id] || 0,
-        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem) && !/^IMPOSTO\|/.test(String(r.chaveOrigem || "")) && !vistada,   // v200: impostos sobre vendas têm regra própria   // v194: recorrente lançada à mão (não vem da Matriz)
+        foraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem) && !/^(IMPOSTO|CARTAO)\|/.test(String(r.chaveOrigem || "")) && !vistada,   // v200: impostos sobre vendas têm regra própria   // v194: recorrente lançada à mão (não vem da Matriz)
         extraMatriz: r.tipo === "PAGAR" && !ehEspelho(r.chaveOrigem),
         vistada, vistoEm: r.vistoEm, vistoPor: r.vistoPor,
       };
@@ -80,7 +80,7 @@ export async function listar() {
   };
 }
 
-export const ehEspelho = (chave) => /^(MATRIZ|NORT|CARTAO)\|/.test(String(chave || ""));
+export const ehEspelho = (chave) => /^(MATRIZ|NORT)\|/.test(String(chave || ""));   // v212: cartão fora
 
 // v192 — escreve nome, fornecedor, valor, dia, periodicidade e ativo no item da Matriz oficial (itens de custo único)
 export async function alterarItemMatriz(chaveOrigem, campos, quem) {
@@ -172,7 +172,7 @@ export async function atualizar(id, campos, { atualizarMatriz, propagarTitulos =
     if (d.valor !== undefined) up.valor = d.valor;
     if (d.formaPagamento !== undefined) up.formaPagamento = d.formaPagamento;
     const res = await prisma.finTitulo.updateMany({
-      where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } },
+      where: { recorrenciaId: r.id, status: "ABERTO", valorConfirmado: false, pontual: false, competencia: { gte: mesAtual() } },
       data: up,
     });
     titulos = res.count;
@@ -201,7 +201,7 @@ export async function vistar(id, valor, { quem } = {}) {
       if (!res.ok) return res;
     } else if (!ehEspelho(r.chaveOrigem) || ehGuia(r.chaveOrigem)) {
       await prisma.finRecorrencia.update({ where: { id: r.id }, data: { valor: novo } });
-      const u = await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, status: "ABERTO", pontual: false, competencia: { gte: mesAtual() } }, data: { valor: novo } });
+      const u = await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, status: "ABERTO", pontual: false, valorConfirmado: false, competencia: { gte: mesAtual() } }, data: { valor: novo } });
       titulos = u.count;
       if (ehGuia(r.chaveOrigem)) {   // a guia passa a valer este valor (a Matriz não sobrescreve)
         const reg = JSON.stringify({ comp: mesAtual(), valor: novo, quem: quem || null, em: new Date().toISOString(), visto: true });
