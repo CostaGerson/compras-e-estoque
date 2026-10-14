@@ -13,20 +13,33 @@ export async function usuarioAtivo(id) {
   return u && u.ativo ? u : null;
 }
 
-export async function criar(u, { texto, tela }) {
+export const LIMITE_ANEXO = 10 * 1024 * 1024, MAX_ANEXOS = 10;
+export async function criar(u, { texto, tela, anexos }) {
   const t = String(texto || "").trim();
   if (t.length < 10) return { error: "Descreva a melhoria com um pouco mais de detalhe (mínimo 10 caracteres)." };
-  const s = await prisma.sugestao.create({ data: { usuarioId: u.id, usuarioNome: nome(u), setor: u.setor, tela: String(tela || "").slice(0, 80) || null, texto: t.slice(0, 4000) } });
+  const arqs = (Array.isArray(anexos) ? anexos : []).filter((a) => a?.conteudo && a?.nome);
+  if (arqs.length > MAX_ANEXOS) return { error: `No máximo ${MAX_ANEXOS} anexos por sugestão.` };
+  for (const a of arqs) if (Math.floor(String(a.conteudo).length * 3 / 4) > LIMITE_ANEXO) return { error: `${a.nome}: maior que 10 MB.` };
+  const s = await prisma.sugestao.create({ data: { usuarioId: u.id, usuarioNome: nome(u), setor: u.setor, tela: String(tela || "").slice(0, 80) || null, texto: t.slice(0, 4000),
+    anexos: { create: arqs.map((a) => ({ nome: String(a.nome).slice(0, 200), mime: a.mime || null, tamanho: Math.floor(String(a.conteudo).length * 3 / 4), conteudo: String(a.conteudo) })) } } });
   // avisa os masters na caixa de entrada
   const masters = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }] }, select: { id: true } });
   const para = masters.filter((m) => m.id !== u.id);
-  if (para.length) await prisma.mensagem.createMany({ data: para.map((m) => ({ deId: u.id, paraId: m.id, texto: `💡 SUGESTÃO DE MELHORIA #${s.id} de ${nome(u)}${s.tela ? ` (tela ${s.tela})` : ""}: ${t.slice(0, 600)} — veja em Desenvolvimento.` })) });
+  if (para.length) await prisma.mensagem.createMany({ data: para.map((m) => ({ deId: u.id, paraId: m.id, texto: `💡 SUGESTÃO DE MELHORIA #${s.id} de ${nome(u)}${s.tela ? ` (tela ${s.tela})` : ""}: ${t.slice(0, 600)}${arqs.length ? ` · ${arqs.length} anexo(s)` : ""} — veja em Desenvolvimento.` })) });
   return { ok: true, sugestao: s };
 }
 
 export async function listar(u) {
   const where = ehMaster(u) ? {} : { usuarioId: u.id };
-  return prisma.sugestao.findMany({ where, orderBy: [{ createdAt: "desc" }], take: 500 });
+  return prisma.sugestao.findMany({ where, orderBy: [{ createdAt: "desc" }], take: 500,
+    include: { anexos: { select: { id: true, nome: true, mime: true, tamanho: true }, orderBy: { id: "asc" } } } });
+}
+
+// arquivo de um anexo — só o autor da sugestão ou o master
+export async function anexo(u, id) {
+  const a = await prisma.sugestaoAnexo.findUnique({ where: { id: Number(id) || 0 }, include: { sugestao: { select: { usuarioId: true } } } });
+  if (!a || (!ehMaster(u) && a.sugestao.usuarioId !== u.id)) return null;
+  return a;
 }
 
 // acao: ANALISE | ACATAR | RECUSAR | REABRIR

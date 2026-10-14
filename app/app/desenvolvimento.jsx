@@ -4,7 +4,29 @@
 //  · Desenvolvimento (só o master): julgar cada sugestão — acatar (depois que a alteração subiu) ou recusar com motivo.
 //    O autor recebe mensagem do sistema e e-mail.
 import React, { useState, useEffect } from "react";
-import { Lightbulb, X, Send, Loader2, CheckCircle2, XCircle, Clock, RotateCcw, Search, Eye } from "lucide-react";
+import { Lightbulb, X, Send, Loader2, CheckCircle2, XCircle, Clock, RotateCcw, Search, Eye, Paperclip, FileText, Upload } from "lucide-react";
+
+// v206 — anexos da sugestão: arrastar arquivos ou colar print (Ctrl+V)
+const MAX_MB = 10, MAX_ARQ = 10;
+const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(f); });
+const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round((n || 0) / 1024))} KB`);
+const urlAnexo = (user, a, baixar) => `/api/sugestoes?u=${user.id}&anexo=${a.id}${baixar ? "&baixar=1" : ""}`;
+export function AnexosSugestao({ user, anexos }) {
+  if (!anexos?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {anexos.map((a) => /^image\//.test(a.mime || "") ? (
+        <a key={a.id} href={urlAnexo(user, a)} target="_blank" rel="noreferrer" title={a.nome}>
+          <img src={urlAnexo(user, a)} alt={a.nome} className="rounded-lg object-cover" style={{ width: 120, height: 80, border: `1px solid ${C.line}` }} />
+        </a>
+      ) : (
+        <a key={a.id} href={urlAnexo(user, a)} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: C.panel2, color: C.navy }}>
+          <FileText size={13} /> {a.nome} <span style={{ color: C.sub }}>· {kb(a.tamanho)}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085",
@@ -61,7 +83,23 @@ export function SugestaoBotao({ user, tela }) {
 
 function SugestaoModal({ user, tela, onClose }) {
   const [texto, setTexto] = useState("");
+  const [arqs, setArqs] = useState([]);        // [{ nome, mime, tamanho, url (dataURL) }]
+  const [sobre, setSobre] = useState(0);
   const [st, setSt] = useState(null);          // null | "enviando" | { ok, msg }
+  const adicionar = async (files) => {
+    const novos = [];
+    for (const f of [...(files || [])]) {
+      if (f.size > MAX_MB * 1048576) { setSt({ ok: false, msg: `${f.name}: maior que ${MAX_MB} MB.` }); continue; }
+      const nome = f.name && f.name !== "image.png" ? f.name : `print-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+      novos.push({ nome, mime: f.type || "application/octet-stream", tamanho: f.size, url: await readB64(f) });
+    }
+    setArqs((a) => { const l = [...a, ...novos]; if (l.length > MAX_ARQ) setSt({ ok: false, msg: `No máximo ${MAX_ARQ} anexos.` }); return l.slice(0, MAX_ARQ); });
+  };
+  const colar = (e) => {
+    const fs = [...(e.clipboardData?.items || [])].filter((i) => i.kind === "file").map((i) => i.getAsFile()).filter(Boolean);
+    if (fs.length) { e.preventDefault(); adicionar(fs); }
+  };
+  const ev = (f) => (e) => { e.preventDefault(); e.stopPropagation(); f(e); };
   const [minhas, setMinhas] = useState(null);
   const [verMinhas, setVerMinhas] = useState(false);
   const carregar = () => api(`/api/sugestoes?u=${user.id}`).then((j) => setMinhas(j.sugestoes.filter((s) => s.usuarioId === user.id))).catch(() => setMinhas([]));
@@ -69,9 +107,9 @@ function SugestaoModal({ user, tela, onClose }) {
   const enviar = async () => {
     setSt("enviando");
     try {
-      await api("/api/sugestoes", "POST", { usuarioId: user.id, texto, tela });
+      await api("/api/sugestoes", "POST", { usuarioId: user.id, texto, tela, anexos: arqs.map((a) => ({ nome: a.nome, mime: a.mime, conteudo: a.url.split(",")[1] || "" })) });
       setSt({ ok: true, msg: "Sugestão enviada! Você recebe uma mensagem e um e-mail quando ela for analisada." });
-      setTexto(""); carregar();
+      setTexto(""); setArqs([]); carregar();
     } catch (e) { setSt({ ok: false, msg: e.message }); }
   };
   return (
@@ -92,10 +130,34 @@ function SugestaoModal({ user, tela, onClose }) {
             Descreva o que você gostaria que o sistema fizesse melhor: o que acontece hoje, o que deveria acontecer e onde.
             {tela ? <> Você está em <b style={{ color: C.text }}>{tela}</b>.</> : null}
           </p>
-          <textarea value={texto} onChange={(e) => setTexto(e.target.value)} autoFocus rows={8} maxLength={4000}
-            placeholder="Ex.: na tela de contas a pagar, poder filtrar pelo fornecedor e exportar a lista em Excel…"
-            className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff", resize: "vertical" }} />
-          <div className="text-[11px] text-right" style={{ color: C.sub }}>{texto.length}/4000</div>
+          <div onDragEnter={ev(() => setSobre((n) => n + 1))} onDragOver={ev(() => {})} onDragLeave={ev(() => setSobre((n) => Math.max(0, n - 1)))}
+            onDrop={ev((e) => { setSobre(0); adicionar(e.dataTransfer?.files); })} className="relative rounded-lg"
+            style={{ outline: sobre ? `2px dashed ${C.accent}` : "none", outlineOffset: 2 }}>
+            <textarea value={texto} onChange={(e) => setTexto(e.target.value)} onPaste={colar} autoFocus rows={8} maxLength={4000}
+              placeholder="Ex.: na tela de contas a pagar, poder filtrar pelo fornecedor e exportar a lista em Excel… (cole um print com Ctrl+V ou arraste arquivos aqui)"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, color: C.text, background: sobre ? C.accentSoft : "#fff", resize: "vertical" }} />
+            {sobre > 0 && <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-sm font-semibold" style={{ color: C.accent }}><Upload size={18} className="mr-1.5" /> Solte para anexar</div>}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <label className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: C.blue }}>
+              <Paperclip size={13} /> Anexar arquivo
+              <input type="file" multiple className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} />
+            </label>
+            <span className="text-[11px]" style={{ color: C.sub }}>ou arraste aqui · print: Print Screen e Ctrl+V na caixa de texto · até {MAX_ARQ} arquivos de {MAX_MB} MB</span>
+            <span className="text-[11px] ml-auto" style={{ color: C.sub }}>{texto.length}/4000</span>
+          </div>
+          {arqs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {arqs.map((a, i) => (
+                <div key={i} className="relative rounded-lg overflow-hidden flex items-center" style={{ border: `1px solid ${C.line}`, background: C.panel2 }} title={a.nome}>
+                  {/^image\//.test(a.mime) ? <img src={a.url} alt={a.nome} className="object-cover" style={{ width: 110, height: 72 }} />
+                    : <div className="flex items-center gap-1 px-2 py-2 text-xs" style={{ color: C.navy, maxWidth: 200 }}><FileText size={13} /><span className="truncate">{a.nome}</span></div>}
+                  <button onClick={() => setArqs((l) => l.filter((_, k) => k !== i))} title="Tirar" className="absolute top-0.5 right-0.5 rounded-full flex items-center justify-center"
+                    style={{ width: 18, height: 18, background: "rgba(0,30,65,.7)", color: "#fff" }}><X size={11} /></button>
+                </div>
+              ))}
+            </div>
+          )}
           {st && st !== "enviando" && <div className="text-sm mt-2 px-3 py-2 rounded-lg" style={{ background: st.ok ? C.greenSoft : C.redSoft, color: st.ok ? C.green : C.red }}>{st.msg}</div>}
         </>
       ) : (
@@ -106,6 +168,7 @@ function SugestaoModal({ user, tela, onClose }) {
             <div key={s.id} className="rounded-lg p-3" style={{ border: `1px solid ${C.line}` }}>
               <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold" style={{ color: C.sub }}>#{s.id}</span><Chip status={s.status} /><span className="text-[11px] ml-auto" style={{ color: C.sub }}>{dataHora(s.createdAt)}</span></div>
               <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{s.texto}</div>
+              <AnexosSugestao user={user} anexos={s.anexos} />
               {s.resposta && <div className="text-xs mt-2 px-2 py-1.5 rounded" style={{ background: s.status === "RECUSADA" ? C.redSoft : C.greenSoft, color: s.status === "RECUSADA" ? C.red : C.green }}>{s.status === "RECUSADA" ? "Motivo" : "Observação"}: {s.resposta}</div>}
             </div>
           ))}
@@ -169,6 +232,7 @@ export default function Desenvolvimento({ user }) {
               <span className="text-[11px] ml-auto" style={{ color: C.sub }}>{dataHora(s.createdAt)}</span>
             </div>
             <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{s.texto}</div>
+            <AnexosSugestao user={user} anexos={s.anexos} />
             {s.resposta && <div className="text-xs mt-2 px-2 py-1.5 rounded" style={{ background: s.status === "RECUSADA" ? C.redSoft : C.greenSoft, color: s.status === "RECUSADA" ? C.red : C.green }}>
               {s.status === "RECUSADA" ? "Motivo da recusa" : "Observação"}: {s.resposta}</div>}
             {s.respondidoEm && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{s.status === "ACATADA" ? "Acatada" : "Recusada"} por {s.respondidoPor} em {dataHora(s.respondidoEm)}</div>}

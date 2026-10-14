@@ -1560,9 +1560,24 @@ model Sugestao {
   respondidoEm  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  anexos        SugestaoAnexo[]
 
   @@index([usuarioId])
   @@index([status])
+}
+
+// v206 — arquivos e prints anexados à sugestão (arrastar ou Ctrl+V) — base64 no Postgres
+model SugestaoAnexo {
+  id         Int      @id @default(autoincrement())
+  sugestaoId Int
+  sugestao   Sugestao @relation(fields: [sugestaoId], references: [id], onDelete: Cascade)
+  nome       String
+  mime       String?
+  tamanho    Int      @default(0)
+  conteudo   String
+  createdAt  DateTime @default(now())
+
+  @@index([sugestaoId])
 }
 
 // v169 — RH › Plano de férias (individuais e coletivas). Dias de férias saem da assiduidade/pontualidade.
