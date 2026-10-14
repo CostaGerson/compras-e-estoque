@@ -2,6 +2,7 @@
 // As metas daqui vão para o campo META dos KPIs e para a Matriz oficial (lib/matrizMetas.js).
 import { prisma } from "@/lib/prisma";
 import { relatorio, anosDisponiveis } from "@/lib/kpi";
+import { derivarMetas } from "@/lib/kpiMetasCalc";
 
 // natureza → onde fica a meta do ano (KpiAno), a do mês (KpiMes) e o realizado (linha do relatório)
 export const NATUREZAS = [
@@ -49,7 +50,11 @@ export async function metasDoAno(ano) {
     if (herda) {
       const pf = NATUREZAS.find((x) => x.k === "faturamentoPecas");
       alvo = num(kAno?.[pf.ano]);
-      const proprios = [...Array(12)].map((_, i) => num(mesDe(i + 1)[pf.mes]));
+      // v216: vendas (peças) parte da distribuição mês a mês já digitada (peças produzidas), senão a de peças faturadas
+      const prod = [...Array(12)].map((_, i) => num(mesDe(i + 1).metaPecasProduzidas));
+      const usaProd = n.k === "vendasPecas" && prod.some((x) => x != null);
+      if (usaProd && prod.every((x) => x != null)) alvo = prod.reduce((s2, x) => s2 + x, 0);
+      const proprios = usaProd ? prod : [...Array(12)].map((_, i) => num(mesDe(i + 1)[pf.mes]));
       derivado = proprios.map((x) => x == null);
       meses = proprios.map((x) => x ?? (alvo != null ? alvo / 12 : null));
     } else {
@@ -75,7 +80,43 @@ export async function metasDoAno(ano) {
     };
     return { k: n.k, grupo: n.grupo, rotulo: n.rotulo, un: n.un, anual: anual ?? (soma != null ? (n.un === "pc" ? Math.round(soma) : r2(soma)) : null), anualGravado: anual != null, meses, historico };
   });
-  return { ano: a, margem: num(kAno?.metaMargem), ticket: num(kAno?.metaTicketMedio), naturezas };
+  // v216 — ticket em uso: a meta de ticket; sem ela, faturamento ÷ peças do ano
+  const tkMeta = num(kAno?.metaTicketMedio);
+  const fA = num(kAno?.metaFaturamento), pA = num(kAno?.metaPecasFaturadas);
+  const ticket = tkMeta ?? (fA != null && pA ? Math.round((fA / pA) * 100) / 100 : null);
+  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, receitaJan: await receitaJaneiro(a), naturezas };
+}
+
+// receita de JAN = faturamento de DEZ do ano anterior (meta do mês; sem ela, meta do ano ÷ 12; sem meta, o realizado)
+async function receitaJaneiro(a) {
+  const [kA, kD] = await Promise.all([
+    prisma.kpiAno.findUnique({ where: { ano: a - 1 } }).catch(() => null),
+    prisma.kpiMes.findUnique({ where: { ano_mes: { ano: a - 1, mes: 12 } } }).catch(() => null),
+  ]);
+  if (kD?.metaFaturamentoValor != null) return { valor: Number(kD.metaFaturamentoValor), fonte: `meta de faturamento DEZ/${a - 1}` };
+  if (kA?.metaFaturamento != null) return { valor: r2(Number(kA.metaFaturamento) / 12), fonte: `meta de faturamento ${a - 1} ÷ 12` };
+  if (kD?.faturamentoValor != null) return { valor: Number(kD.faturamentoValor), fonte: `faturamento realizado DEZ/${a - 1}` };
+  return { valor: null, fonte: `sem faturamento de DEZ/${a - 1}` };
+}
+
+// v216 — grava pela regra de coerência: entra vendas (peças) + ticket; o resto é calculado (lib/kpiMetasCalc.js)
+export async function salvarCoerente(ano, vendasPecasMeses, ticket, margem, quem) {
+  const a = Number(ano);
+  const rj = await receitaJaneiro(a);
+  const d = derivarMetas(vendasPecasMeses, ticket, rj.valor);
+  const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
+  metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
+  const r = await salvarMetas(a, metas, margem, quem, ticket);
+  // a receita de JAN do ano seguinte acompanha o faturamento de DEZ deste ano
+  const prox = await prisma.kpiAno.findUnique({ where: { ano: a + 1 } }).catch(() => null);
+  const dez = d.faturamentoValor.meses[11];
+  if (prox && dez != null) {
+    const jan = await prisma.kpiMes.findUnique({ where: { ano_mes: { ano: a + 1, mes: 1 } } }).catch(() => null);
+    const antes = jan?.metaReceitaValor != null ? Number(jan.metaReceitaValor) : 0;
+    await prisma.kpiMes.upsert({ where: { ano_mes: { ano: a + 1, mes: 1 } }, create: { ano: a + 1, mes: 1, metaReceitaValor: dez }, update: { metaReceitaValor: dez } });
+    if (prox.metaReceita != null) await prisma.kpiAno.update({ where: { ano: a + 1 }, data: { metaReceita: r2(Number(prox.metaReceita) - antes + dez) } });
+  }
+  return r;
 }
 
 // grava: { k: { anual, meses[12] } } e margem (fração)

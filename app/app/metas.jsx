@@ -4,6 +4,7 @@
 // Mês alterado à mão fica travado; os demais recebem a sugestão para fechar a meta do ano.
 import React, { useState, useEffect, useRef } from "react";
 import { Lock, Unlock, Save, Loader2, History, RotateCcw, Target } from "lucide-react";
+import { derivarMetas } from "@/lib/kpiMetasCalc";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -56,7 +57,7 @@ function Campo({ un, valor, onCommit, estilo, titulo, grande }) {
   );
 }
 
-function CardNatureza({ n, set, original }) {
+function CardNatureza({ n, set, original, ticket }) {
   const [hist, setHist] = useState(false);   // mostra a opção de distribuição histórica (depois de mexer na meta do ano)
   const [jan, setJan] = useState("total");
   const total = n.meses.reduce((s, x) => s + (Number(x) || 0), 0);
@@ -95,6 +96,12 @@ function CardNatureza({ n, set, original }) {
           <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta do ano{n.un === "R$" ? " (R$)" : " (peças)"}</div>
           <Campo un={n.un} valor={n.anual} onCommit={mudarAnual} grande />
         </label>
+        {ticket != null && (
+          <label className="block" style={{ width: 200 }}>
+            <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>ou em R$ (÷ ticket)</div>
+            <Campo un="R$" valor={n.anual == null ? null : r2(n.anual * ticket)} onCommit={(v) => mudarAnual(v == null ? null : v / ticket)} grande />
+          </label>
+        )}
         {mexido && <button onClick={() => { setHist(false); set({ ...original, travados: new Set(), pesos: original.meses }); }} title="Voltar ao que está gravado"
           className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs" style={{ color: C.sub }}><RotateCcw size={13} /> desfazer</button>}
       </div>
@@ -124,7 +131,8 @@ function CardNatureza({ n, set, original }) {
               </div>
               <Campo un={n.un} valor={n.meses[i]} onCommit={(v) => mudarMes(i, v)}
                 estilo={trav ? { borderColor: C.navy, fontWeight: 700 } : sug ? { borderColor: C.accent, color: C.accent, background: C.accentSoft } : {}} />
-              {n.fonte && n.historico?.[n.fonte]?.medias && <div className="text-[10px] text-right mt-0.5" style={{ color: C.sub }}>hist. {fmt(n.un, n.historico[n.fonte].medias[i])}</div>}
+              {ticket != null && n.meses[i] != null && <div className="text-[10px] text-right mt-0.5" style={{ color: C.navy }}>R$ {fmt("R$", n.meses[i] * ticket)}</div>}
+              {n.fonte && n.historico?.[n.fonte]?.medias && <div className="text-[10px] text-right" style={{ color: C.sub }}>hist. {fmt(n.un, n.historico[n.fonte].medias[i])}</div>}
             </label>
           );
         })}
@@ -141,7 +149,7 @@ function CardNatureza({ n, set, original }) {
 export default function MetasPagina({ user, anoInicial }) {
   const [ano, setAno] = useState(anoInicial || new Date().getFullYear());
   const [orig, setOrig] = useState(null);
-  const [nats, setNats] = useState(null);
+  const [vend, setVend] = useState(null);   // vendas (peças): a meta que você define
   const [margem, setMargem] = useState(null);
   const [ticket, setTicket] = useState(null);
   const [erro, setErro] = useState("");
@@ -149,25 +157,33 @@ export default function MetasPagina({ user, anoInicial }) {
   const [salvando, setSalvando] = useState(false);
 
   const montar = (d) => {
-    setOrig(d);
-    setNats(d.naturezas.map((n) => ({ ...n, travados: new Set(), pesos: n.meses })));
+    const v = d.naturezas.find((n) => n.k === "vendasPecas");
+    setOrig({ ...d, vend: v });
+    setVend({ ...v, rotulo: "Vendas (peças)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
   };
   useEffect(() => {
-    setNats(null); setErro("");
+    setVend(null); setErro("");
     api(`/api/kpi/metas?u=${user.id}&ano=${ano}`).then(montar).catch((e) => setErro(e.message));
   }, [ano]);
 
   const salvar = async () => {
     setSalvando(true); setErro(""); setAviso("");
     try {
-      const metas = Object.fromEntries(nats.map((n) => [n.k, { anual: n.anual, meses: n.meses }]));
-      montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas, margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket) }));
+      montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasPecas: { anual: vend.anual, meses: vend.meses } },
+        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket) }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
     } catch (e) { setErro(e.message); }
     setSalvando(false);
   };
+  const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor) : null;
+  const LINHAS = [
+    ["vendasValor", "Vendas (R$)", "R$", "peças vendidas × ticket"],
+    ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "= peças vendidas do mês"],
+    ["faturamentoValor", "Faturamento (R$)", "R$", "peças faturadas × ticket"],
+    ["receitaValor", "Receita (R$)", "R$", `= faturamento do mês anterior · JAN: ${orig?.receitaJan?.fonte || "—"}`],
+  ];
 
   return (
     <div>
@@ -178,51 +194,63 @@ export default function MetasPagina({ user, anoInicial }) {
           <button onClick={() => setAno(ano + 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
         <div className="text-xs flex-1" style={{ color: C.sub }}>
-          Mude a meta do ano e os meses se ajustam mantendo a proporção (ou use a distribuição histórica). Mês alterado à mão fica fixo e os outros recebem a sugestão para fechar o ano.
+          Você define a meta de <b>vendas (peças)</b> e o <b>ticket médio</b>; faturamento e receita saem daí. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
         </div>
-        {nats && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
+        {vend && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar metas
         </button>}
       </div>
       {erro && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {aviso && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
-      {!nats && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
-      {nats && (
+      {!vend && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
+      {vend && (
         <>
-          <div className="rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex-1 min-w-[180px]">
-              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>RESULTADO</div>
-              <div className="font-bold" style={{ color: C.navy }}>Margem de contribuição</div>
-            </div>
-            <label className="block" style={{ width: 200 }}>
-              <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
-              <Campo un="R$" valor={margem} onCommit={setMargem} grande />
-            </label>
-          </div>
-          {(() => {
-            const f = nats.find((n) => n.k === "faturamentoValor"), p = nats.find((n) => n.k === "faturamentoPecas");
-            const impl = f?.anual && p?.anual ? f.anual / p.anual : null;
-            const dif = impl != null && ticket != null && Math.abs(impl - ticket) >= 0.01;
-            return (
-              <div className="rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="flex-1 min-w-[180px]">
-                  <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>FATURAMENTO</div>
-                  <div className="font-bold" style={{ color: C.navy }}>Ticket médio (R$ por peça)</div>
-                  {impl != null && <div className="text-xs mt-1" style={{ color: dif ? C.yellow : C.sub }}>
-                    Implícito nas metas do ano (faturamento ÷ peças faturadas): <b>R$ {fmt("R$", impl)}</b>
-                    {dif && <> · <button onClick={() => setTicket(r2(impl))} className="font-semibold underline" style={{ color: C.accent }}>usar este</button></>}
-                  </div>}
-                </div>
-                <label className="block" style={{ width: 200 }}>
-                  <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta do ano (R$)</div>
-                  <Campo un="R$" valor={ticket} onCommit={setTicket} grande />
-                </label>
+          <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            <div className="rounded-xl p-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-[150px]">
+                <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>META QUE VOCÊ DEFINE</div>
+                <div className="font-bold" style={{ color: C.navy }}>Ticket médio (R$ por peça)</div>
+                {!orig.ticketGravado && orig.ticket != null && <div className="text-[11px]" style={{ color: C.sub }}>sugerido: faturamento ÷ peças das metas atuais</div>}
               </div>
-            );
-          })()}
-          {nats.map((n, i) => (
-            <CardNatureza key={n.k} n={n} original={orig.naturezas[i]} set={(x) => setNats((l) => l.map((y, k) => (k === i ? x : y)))} />
-          ))}
+              <label className="block" style={{ width: 160 }}>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>R$</div>
+                <Campo un="R$" valor={ticket} onCommit={setTicket} grande />
+              </label>
+            </div>
+            <div className="rounded-xl p-4 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-[150px]">
+                <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>RESULTADO</div>
+                <div className="font-bold" style={{ color: C.navy }}>Margem de contribuição</div>
+              </div>
+              <label className="block" style={{ width: 160 }}>
+                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
+                <Campo un="R$" valor={margem} onCommit={setMargem} grande />
+              </label>
+            </div>
+          </div>
+
+          <CardNatureza n={vend} original={orig.vend} set={setVend} ticket={ticket} />
+
+          <div className="rounded-xl mb-4 overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="px-4 pt-3 pb-1">
+              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CALCULADAS (COERENTES COM VENDAS E TICKET)</div>
+              <div className="text-xs" style={{ color: C.sub }}>Não se editam aqui: mudam quando você muda vendas ou o ticket.</div>
+            </div>
+            <table className="w-full text-xs">
+              <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+                <th className="text-left px-3 py-2">Meta</th>
+                {MESES.map((m) => <th key={m} className="text-right px-2 py-2 font-semibold">{m}</th>)}
+                <th className="text-right px-3 py-2 font-bold" style={{ color: C.navy }}>ANO</th>
+              </tr></thead>
+              <tbody>{LINHAS.map(([k, t, un, ajuda]) => (
+                <tr key={k} style={{ borderBottom: `1px solid ${C.line}` }}>
+                  <td className="px-3 py-2 whitespace-nowrap"><div className="font-semibold" style={{ color: C.navy }}>{t}</div><div className="text-[10px]" style={{ color: C.sub }}>{ajuda}</div></td>
+                  {der[k].meses.map((v, i) => <td key={i} className="text-right px-2 py-2 tabular-nums">{v == null ? "—" : fmt(un, v)}</td>)}
+                  <td className="text-right px-3 py-2 tabular-nums font-bold">{der[k].anual == null ? "—" : fmt(un, der[k].anual)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

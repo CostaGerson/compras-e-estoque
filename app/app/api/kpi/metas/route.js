@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioAtivo, ehMaster, negadoKpi as negado, garantirKpis } from "@/lib/kpi";
-import { metasDoAno, salvarMetas } from "@/lib/kpiMetas";
+import { metasDoAno, salvarCoerente } from "@/lib/kpiMetas";
 
 const anoValido = (a) => Number.isInteger(Number(a)) && Number(a) >= 2000 && Number(a) <= 2100;
 const fracao = (v) => {
@@ -31,5 +31,9 @@ export async function POST(req) {
   if (!anoValido(b.ano)) return Response.json({ error: "Ano inválido." }, { status: 400 });
   const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
   const tk = "ticket" in b ? (b.ticket === "" || b.ticket == null ? null : Number(String(b.ticket).replace(/\./g, "").replace(",", "."))) : undefined;
-  return Response.json(await salvarMetas(Number(b.ano), b.metas || {}, "margem" in b ? fracao(b.margem) : undefined, quem, tk === undefined || (tk !== null && isNaN(tk)) ? undefined : tk));
+  const tkOk = tk === undefined || (tk !== null && isNaN(tk)) ? null : tk;
+  // v216 — regra de coerência: só vendas (peças) e ticket entram; o resto é calculado
+  if (!b.metas?.vendasPecas?.meses) return Response.json({ error: "Informe a meta de vendas (peças)." }, { status: 400 });
+  if (tkOk == null) return Response.json({ error: "Informe o ticket médio: sem ele não dá para calcular vendas, faturamento e receita em R$." }, { status: 400 });
+  return Response.json(await salvarCoerente(Number(b.ano), b.metas.vendasPecas.meses, tkOk, "margem" in b ? fracao(b.margem) : undefined, quem));
 }

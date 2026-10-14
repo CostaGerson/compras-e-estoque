@@ -31,7 +31,7 @@ export function kpisDoTipo(u) {
   if (gerencial(u)) return null;   // todos
   const t = tipoDe(u);
   if (t === "COMERCIAL") return ["vendasValor", "vendasPecas", "faturamentoValor", "ticketMedio"];
-  if (t === "PRODUCAO") return ["pecasProduzidas", "vendasPecas"];
+  if (t === "PRODUCAO") return ["pecasFaturadas", "vendasPecas"];
   return [];
 }
 export const negadoKpi = (msg = "Acesso negado.") => Response.json({ error: msg }, { status: 403 });
@@ -184,11 +184,8 @@ export async function relatorio(ano) {
       vendas: { atual: vAtual, anterior: vAnt, pecas: n(c.vendasPecas), mom: div(vAtual, vAnt), acumulado: div(acVendas, acVendasAnt) },
       // Enquanto o chão de fábrica não existe, as peças produzidas são as mesmas da planilha
       // ("Peças Faturadas"). Assim que o mês tiver número próprio, ele manda.
-      producao: {
-        pecas: n(c.pecasProduzidas) ?? n(c.pecasFaturadas),
-        proprio: n(c.pecasProduzidas) !== null,
-        meta: n(c.metaPecasProduzidas) ?? n(c.metaFaturamentoPecas),
-      },
+      // v216 — peças produzidas = peças faturadas (um indicador só)
+      producao: { pecas: n(c.pecasFaturadas), proprio: false, meta: n(c.metaFaturamentoPecas) },
       faturamento: {
         atual: fAtual, anterior: fAnt, pecas: n(c.pecasFaturadas), pecasAnterior: n(a.pecasFaturadas),
         metaValor: n(c.metaFaturamentoValor), metaPecas: n(c.metaFaturamentoPecas),
@@ -318,13 +315,10 @@ export async function painel(ano, mes) {
       fonte: "Faturamento ÷ peças faturadas do mês",
     },
     {
-      chave: "pecasProduzidas", rotulo: "Peças produzidas", unidade: "peças",
-      valor: l.producao.pecas, meta: metaMes(l.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas),
-      serie: serie((x) => x.producao.pecas), metaSerie: serie((x) => metaMes(x.producao.meta, r.metas.pecasProduzidas ?? r.metas.pecasFaturadas)),
-      derivado: !l.producao.proprio && l.producao.pecas !== null,
-      fonte: l.producao.proprio
-        ? "Lançamento manual — virá do chão de fábrica"
-        : "Mesmo número das peças faturadas (a planilha não separa) — virá do chão de fábrica",
+      chave: "pecasFaturadas", rotulo: "Peças faturadas", unidade: "peças",
+      valor: l.faturamento.pecas, meta: metaMes(l.faturamento.metaPecas, r.metas.pecasFaturadas),
+      serie: serie((x) => x.faturamento.pecas), metaSerie: serie((x) => metaMes(x.faturamento.metaPecas, r.metas.pecasFaturadas)),
+      fonte: "Lançamento manual (peças produzidas = faturadas) — virá das NFs de saída",
     },
     {
       chave: "receitaValor", rotulo: "Receita", unidade: "R$",

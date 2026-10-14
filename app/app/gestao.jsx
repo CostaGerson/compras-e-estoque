@@ -635,9 +635,7 @@ function TabelaFaturamento({ d, master, onEditar }) {
       <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 980 }}>
         <thead><tr style={{ background: C.panel2 }}>
           <Th>Mês</Th><Th dir>{d.anoAnterior}</Th><Th dir>{d.ano}</Th><Th dir>Meta R$</Th><Th dir>Meta peças</Th>
-          <Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Peças faturadas</Th>
-          <th className="px-2 py-2 font-semibold text-right whitespace-nowrap" style={{ color: C.sub }}
-            title="Enquanto o chão de fábrica não existe, repete as peças faturadas; o mês com número próprio lançado manda.">Produzidas</th>
+          <Th dir>MoM</Th><Th dir>Acumulado</Th><Th dir>Peças faturadas (= produzidas)</Th>
           <Th></Th>
         </tr></thead>
         <tbody>
@@ -654,13 +652,12 @@ function TabelaFaturamento({ d, master, onEditar }) {
                   <Td dir cor={corMom(l.faturamento.mom)}>{l.faturamento.mom == null ? "—" : `${l.faturamento.mom.toFixed(2)}x`}</Td>
                   <Td dir cor={corMom(l.faturamento.acumulado)}>{l.faturamento.acumulado == null ? "—" : `${l.faturamento.acumulado.toFixed(2)}x`}</Td>
                   <Td dir>{l.faturamento.pecas == null ? "—" : inteiro(l.faturamento.pecas)}</Td>
-                  <Td dir>{l.producao.pecas == null ? "—" : inteiro(l.producao.pecas)}</Td>
                   <td className="px-2"><button onClick={() => onEditar(l.mes)} title="Lançar/corrigir" style={{ color: C.sub }}><Pencil size={13} /></button></td>
                 </tr>
                 {i % 3 === 2 && (() => { const t = d.trimestres[(i - 2) / 3]; return (
                   <LinhaTrimestre cols={[t.nome, mon(t.faturamento.anterior, master), mon(t.faturamento.atual, master),
                     mon(t.faturamento.metaValor, master), inteiro(t.faturamento.metaPecas),
-                    t.faturamento.mom ? `${t.faturamento.mom.toFixed(2)}x` : "—", "", inteiro(t.faturamento.pecas), "", ""]} />
+                    t.faturamento.mom ? `${t.faturamento.mom.toFixed(2)}x` : "—", "", inteiro(t.faturamento.pecas), ""]} />
                 ); })()}
               </React.Fragment>
             );
@@ -668,24 +665,24 @@ function TabelaFaturamento({ d, master, onEditar }) {
           {!!d.semNota?.faturamento && (
             <tr style={{ borderTop: `1px solid ${C.line}` }}>
               <Td cor={C.sub}>SEM NOTA</Td><Td dir></Td><Td dir cor={C.sub}>{mon(d.semNota.faturamento, master)}</Td>
-              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+              <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
             </tr>
           )}
           <tr style={{ borderTop: `2px solid ${C.line}` }}>
             <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{mon(d.totais.faturamento, master)}</Td>
             <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
-            <Td dir forte>{inteiro(d.totais.pecasFaturadas)}</Td><Td dir forte>{inteiro(d.totais.pecasProduzidas)}</Td><td />
+            <Td dir forte>{inteiro(d.totais.pecasFaturadas)}</Td><td />
           </tr>
           <tr>
             <Td cor={C.sub}>MÉDIA MENSAL<span style={{ fontWeight: 400 }}> · {mesesTxt(d.mediaMensal.bases?.faturamento || 0)}</span></Td>
             <Td dir></Td><Td dir cor={C.sub}>{mon(d.mediaMensal.faturamento, master)}</Td>
             <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td>
             <Td dir cor={C.sub}>{d.mediaMensal.pecasFaturadas == null ? "—" : inteiro(d.mediaMensal.pecasFaturadas)}</Td>
-            <Td dir cor={C.sub}>{d.mediaMensal.pecasProduzidas == null ? "—" : inteiro(d.mediaMensal.pecasProduzidas)}</Td><td />
+<td />
           </tr>
           <tr>
             <Td cor={C.sub}>TICKET MÉDIO</Td><Td dir></Td><Td dir forte>{master ? `R$ ${brl(d.ticketMedio)}` : "•••••"}</Td>
-            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
+            <Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><Td dir></Td><td />
           </tr>
         </tbody>
       </table>
@@ -744,11 +741,9 @@ const Campo = ({ rotulo, valor, onChange, dica }) => (
 function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
   const l = d.linhas[mes - 1];
   const ini = {
-    vendasValor: l.vendas.atual, vendasPecas: l.vendas.pecas, pecasProduzidas: l.producao.pecas,
+    vendasValor: l.vendas.atual, vendasPecas: l.vendas.pecas,
     faturamentoValor: l.faturamento.atual, pecasFaturadas: l.faturamento.pecas,
-    metaVendasValor: l.metaVendasValor, metaFaturamentoValor: l.faturamento.metaValor,
-    metaFaturamentoPecas: l.faturamento.metaPecas, metaPecasProduzidas: l.producao.meta,
-    metaReceitaValor: l.metaReceitaValor, observacao: l.observacao || "",
+    observacao: l.observacao || "",
   };
   const [f, setF] = useState(() => Object.fromEntries(Object.entries(ini).map(([k, v]) => [k, v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : v])));
   const [rec, setRec] = useState(() => {
@@ -784,19 +779,11 @@ function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
         <Campo rotulo="Vendas (R$)" valor={f.vendasValor} onChange={set("vendasValor")} />
         <Campo rotulo="Vendas (peças)" valor={f.vendasPecas} onChange={set("vendasPecas")} />
-        <Campo rotulo="Peças produzidas" valor={f.pecasProduzidas} onChange={set("pecasProduzidas")} />
         <Campo rotulo="Faturamento (R$)" valor={f.faturamentoValor} onChange={set("faturamentoValor")} />
         <Campo rotulo="Peças faturadas" valor={f.pecasFaturadas} onChange={set("pecasFaturadas")} />
       </div>
 
-      <div className="text-xs font-bold tracking-wider mt-5 mb-2" style={{ color: C.navy }}>METAS DO MÊS</div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-        <Campo rotulo="Meta de vendas (R$)" valor={f.metaVendasValor} onChange={set("metaVendasValor")} dica="usa a do ano ÷ 12" />
-        <Campo rotulo="Meta de faturamento (R$)" valor={f.metaFaturamentoValor} onChange={set("metaFaturamentoValor")} />
-        <Campo rotulo="Meta de peças" valor={f.metaFaturamentoPecas} onChange={set("metaFaturamentoPecas")} />
-        <Campo rotulo="Meta de produção (peças)" valor={f.metaPecasProduzidas} onChange={set("metaPecasProduzidas")} dica="usa a do ano ÷ 12" />
-        <Campo rotulo="Meta de receita (R$)" valor={f.metaReceitaValor} onChange={set("metaReceitaValor")} dica="usa a do ano ÷ 12" />
-      </div>
+      <div className="text-xs mt-4 p-2 rounded" style={{ background: C.panel2, color: C.sub }}>As metas do mês são definidas na página <b>Metas</b> (vendas e ticket → faturamento e receita).</div>
 
       <div className="text-xs font-bold tracking-wider mt-5 mb-2" style={{ color: C.navy }}>RECEITA POR CANAL (R$)</div>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
