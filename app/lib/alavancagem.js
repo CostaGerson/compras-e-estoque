@@ -273,7 +273,7 @@ export function parcelaPrice(capital, taxaPct, meses) {
 // ---------------- parcelamentos de tributo que sempre existem (preenchidos depois) ----------------
 export const TRIBUTOS_EM_BRANCO = [
   // v199: os federais saíram (a negociação de out/2026 entrou com os números reais)
-  { grupo: "ESTADUAL", descricao: "PARCELAMENTO ESTADUAL 1", valor: 0, exigivel: true, parcelado: true },
+  // v202: o estadual também saiu (parcelamento ICMS 62.084931500-29 entrou com os números reais)
 ];
 // Cria os que faltarem (por descrição). Roda em toda abertura — não duplica e não mexe nos existentes.
 export async function garantirTributosEmBranco() {
