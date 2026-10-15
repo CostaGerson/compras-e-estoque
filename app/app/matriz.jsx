@@ -527,18 +527,17 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
     ...(calc.projecao ? [{ k: "Resultado", sub: "lucro + investimento + NORT (DRE)", m: curto(calc.mesResultadoR), a: curto(calc.anoResultadoR), c: cor(calc.anoResultadoR), cm: cor(calc.mesResultadoR),
       da: <Dif a={calc.anoResultadoR} o={calcOf?.anoResultadoR} /> }] : []),
   ];
+  // v246 — só balanço e breakeven (sem rolagem no card); a explicação do fechamento vai no título da coluna ANO*
   const blocos = [
-    ["Ticket médio", moeda(pr?.ticketMedio), mg ? mg.fonteTicket : "do cenário"],
-    ["Meta por dia útil", curto(calc.metaDia), null],
     ["Balanço meta × custo", brlN(calc.balanco, 2), `se paga com ${int(calc.pecasCobrem)} pç/mês`, calc.balanco >= 1 ? C.green : C.red],
     ["Breakeven", `${int(calc.breakevenPecas)} pç/mês`, "lucro real zera"],
   ];
   return (
     <Cartao titulo="Metas e resultado" cheio={cheio}>
-      {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
+      {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; ano = realizado + metas batidas. Para testar outra meta, use um cenário.</div>}
       <div>
         <div className="grid text-[10px] font-bold tracking-wider pb-1" style={{ gridTemplateColumns: "1fr 92px 92px", color: C.sub }}>
-          <span></span><span className="text-right" title={calc.projecao?.media ? "Média mensal do ano (ano ÷ 12)" : "Mês da análise"}>{calc.projecao?.media ? "MÉDIA/MÊS" : "MÊS"}</span><span className="text-right" title={calc.projecao ? "Meses fechados: realizado (DRE). Meses em aberto: simulação com a meta." : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
+          <span></span><span className="text-right" title={calc.projecao?.media ? "Média mensal do ano (ano ÷ 12)" : "Mês da análise"}>{calc.projecao?.media ? "MÉDIA/MÊS" : "MÊS"}</span><span className="text-right" title={calc.projecao ? `Fechamento do ano: ${calc.projecao.nReal} mês(es) realizado(s) (lucro e resultado da DRE) + ${calc.projecao.nSim} simulado(s) com a meta batida. Mês simulado: resultado = lucro (sem investimento/NORT previstos).` : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
         </div>
         {linhas.map((l) => (
           <div key={l.k} className="grid items-start py-1.5 text-[13px]" style={{ gridTemplateColumns: "1fr 92px 92px", borderTop: `1px solid ${C.line}` }}>
@@ -548,10 +547,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
           </div>
         ))}
       </div>
-      {calc.projecao && <div className="text-[10px] mt-1 leading-snug" style={{ color: C.sub }}>
-        * Fechamento do ano: <b style={{ color: C.text }}>{calc.projecao.nReal} {calc.projecao.nReal === 1 ? "mês realizado" : "meses realizados"}</b> (lucro e resultado da DRE) + {calc.projecao.nSim} simulado(s) com a meta{mg ? "" : calc.projecao.porMes ? " de cada mês (simulação da Capacidade)" : " deste cenário (peças × ticket)"}. Mês simulado: resultado = lucro (sem investimento/NORT previstos).
-        {calc.projecao.semDre.length > 0 && <span style={{ color: C.yellow }}> Mês fechado sem DRE ({calc.projecao.semDre.map((m) => ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"][m - 1]).join(", ")}) entrou simulado.</span>}
-      </div>}
+      {calc.projecao?.semDre?.length > 0 && <div className="text-[10px] mt-1" style={{ color: C.yellow }}>Mês fechado sem DRE ({calc.projecao.semDre.map((m) => ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"][m - 1]).join(", ")}) entrou simulado.</div>}
       <div className="grid grid-cols-2 gap-1.5 mt-2">
         {blocos.map(([t, v, sub, c]) => (
           <div key={t} className="rounded-lg px-2.5 py-1.5" style={{ background: C.panel2 }}>

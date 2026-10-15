@@ -135,7 +135,7 @@ export function calcularMatriz(d) {
     const somaK = (k) => meses.reduce((a, x) => a + x[k], 0);
     const atual = meses[(n(fch.mes) || 1) - 1] || meses[0];
     // v244 — cenário (sem metas da Gestão): coluna MÊS = média mensal do ano (ano ÷ 12); oficial: o mês da análise
-    const media = !mg;
+    const media = true;   // v246: sempre média mensal do ano (ano ÷ 12) — oficial e cenários coerentes
     projecao = { porMes: !!fch.porMes, media, meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), pcsAno: somaK("pcs"),
       cenMes: media ? somaK("cen") / 12 : atual.cen, realMes: media ? somaK("real") / 12 : atual.real, resMes: media ? somaK("res") / 12 : atual.res,
       nReal: meses.filter((x) => x.tipo === "REALIZADO").length, nSim: meses.filter((x) => x.tipo !== "REALIZADO").length,

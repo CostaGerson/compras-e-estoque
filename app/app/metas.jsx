@@ -10,6 +10,7 @@ import { calcularMatriz } from "@/lib/matriz";
 import { aplicarMetas } from "@/lib/matrizMetasCalc";
 import { CardMetasResultado } from "./matriz";
 import CapacidadeMensal from "./capacidadeMensal";
+import { planoMensal } from "@/lib/capacidadeMensal";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -208,6 +209,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     } catch { setMatriz(null); }
   };
   useEffect(() => { carregarMatriz(); }, []);
+  // v246 — capacidade da equipe (histórico de 3 meses) para os cenários A e B da meta, ao vivo
+  const [cap, setCap] = useState(null);
+  useEffect(() => { setCap(null); fetch(`/api/kpi/capacidade?u=${user.id}&meses=3&ano=${ano}`).then((r) => r.json()).then((d) => setCap(d.error ? null : d)).catch(() => setCap(null)); }, [ano]);
 
   const montar = (d) => {
     // v241 — a meta que você define é o FATURAMENTO (R$); sem ela gravada, vendas R$ ou peças faturadas × ticket
@@ -309,15 +313,23 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               const F = orig.freelancer || {};
               const p = (v) => `${fmt("R$", v * 100)}%`;
               const nomeC = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
-              const sug = F.media3?.pct ?? F.ultimo?.pct ?? null;
-              const usar = sug != null && Math.abs(sug * 100 - (freela ?? -1)) >= 0.01 ? [`usar ${p(sug)}`, () => setFreela(r2(sug * 100))] : null;
+              // v246 — cenários da Capacidade para a meta desta tela (período em aberto inteiro)
+              const per = cap && der ? (() => {
+                const pm = der.faturamentoPecas.meses.map((x) => Number(x) || 0), fe = orig.fechados || [];
+                const A = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe, semContratar: true }).periodo;
+                const B = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe }).periodo;
+                return A.meses ? { A, B } : null;
+              })() : null;
+              const usar = (v) => (v != null && Math.abs(v * 100 - (freela ?? -1)) >= 0.01 ? [`usar ${p(v)}`, () => setFreela(r2(v * 100))] : null);
               return (
-                <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub="no custo de mão de obra (folha + freelancer)" campo="Meta (%)" valor={freela} onCommit={setFreela}>
-                  {F.ultimo && <Linha k={`Atual · ${nomeC(F.ultimo.comp)}`} v={p(F.ultimo.pct)} acao={F.media3 ? null : usar} />}
-                  {F.media3 && <Linha k={`Média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} acao={usar} />}
-                  {!F.ultimo && !F.media3 && <div style={{ color: C.sub }}>Sem análise de folha × freelancer nos últimos meses.</div>}
+                <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub="cenários da capacidade para esta meta (período em aberto)" campo="Meta (%)" valor={freela} onCommit={setFreela}>
+                  {per ? <>
+                    <Linha k={`A · manter equipe (até ${per.A.picoFreeDia} free/dia)`} v={p(per.A.pct)} acao={usar(per.A.pct)} />
+                    <Linha k={`B · recomendado (+${per.B.contratar}${per.B.demitir ? ` −${per.B.demitir}` : ""} pessoas)`} v={p(per.B.pct)} acao={usar(per.B.pct)} />
+                  </> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
+                  {F.media3 && <Linha k={`Real · média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} />}
                   {freelaInicial != null && <div className="font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
-                  {irCapacidade && <button onClick={irCapacidade} className="font-semibold underline text-left" style={{ color: C.blue }}>Analisar capacidade para a meta</button>}
+                  {irCapacidade && <button onClick={irCapacidade} className="font-semibold underline text-left" style={{ color: C.blue }}>Detalhar capacidade →</button>}
                 </CardMeta>
               );
             })()}
@@ -356,7 +368,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           </div>
         </>
       )}
-      {vend && <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} fechados={orig?.fechados || []} />}
+      {vend && <CapacidadeMensal user={user} ano={ano} cap={cap} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} fechados={orig?.fechados || []} />}
     </div>
   );
 }
