@@ -155,7 +155,7 @@ function CardNatureza({ n, set, original, ticket }) {
   );
 }
 
-export default function MetasPagina({ user, anoInicial }) {
+export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacidade }) {
   const [ano, setAno] = useState(anoInicial || new Date().getFullYear());
   const [orig, setOrig] = useState(null);
   const [vend, setVend] = useState(null);   // v221: vendas (R$) — a meta que você define
@@ -186,7 +186,7 @@ export default function MetasPagina({ user, anoInicial }) {
     setOrig({ ...d, vend: v });
     setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
-    setFreela(d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
+    setFreela(freelaInicial != null && !d.__salvo ? freelaInicial : d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
   };
   useEffect(() => {
@@ -197,8 +197,8 @@ export default function MetasPagina({ user, anoInicial }) {
   const salvar = async () => {
     setSalvando(true); setErro(""); setAviso("");
     try {
-      montar(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
-        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket), freelancer: freela == null ? "" : String(freela) }));
+      montar(Object.assign(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
+        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket), freelancer: freela == null ? "" : String(freela) }), { __salvo: true }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
       carregarMatriz();
     } catch (e) { setErro(e.message); }
@@ -245,7 +245,7 @@ export default function MetasPagina({ user, anoInicial }) {
       {aviso && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {!vend && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {vend && (
-        <div className="flex flex-wrap gap-4 items-start">
+        <div className="flex flex-wrap gap-4 items-stretch">
         <div className="flex-1" style={{ minWidth: 320 }}>
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
             <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -293,6 +293,8 @@ export default function MetasPagina({ user, anoInicial }) {
                       {sug != null && Math.abs(sug * 100 - (freela ?? -1)) >= 0.01 && <> · <button onClick={() => setFreela(r2(sug * 100))} className="font-semibold underline" style={{ color: C.accent }}>usar {p(sug)}</button></>}
                     </div>}
                     {!F.ultimo && !F.media3 && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem análise de folha × freelancer nos últimos meses.</div>}
+                    {irCapacidade && <button onClick={irCapacidade} className="text-[11px] font-semibold mt-1 underline" style={{ color: C.blue }}>analisar capacidade para a meta (quanto gastar / contratar)</button>}
+                    {freelaInicial != null && <div className="text-[11px] mt-1 font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
                   </div>
                   <label className="block" style={{ width: 160 }}>
                     <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
@@ -305,7 +307,7 @@ export default function MetasPagina({ user, anoInicial }) {
 
           <CardNatureza n={vend} original={orig.vend} set={setVend} ticket={ticket} />
 
-          <div className="rounded-xl mb-4 overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="px-4 pt-3 pb-1">
               <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CALCULADAS (COERENTES COM VENDAS E TICKET)</div>
               <div className="text-xs" style={{ color: C.sub }}>Não se editam aqui: mudam quando você muda vendas ou o ticket.</div>
@@ -327,8 +329,8 @@ export default function MetasPagina({ user, anoInicial }) {
           </div>
         </div>
         {vivo && (
-          <div className="sticky top-2" style={{ width: 380, maxWidth: "100%" }}>
-            <CardMetasResultado calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
+          <div className="flex flex-col" style={{ width: 380, maxWidth: "100%" }}>
+            <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
               nota="Matriz oficial ao vivo com as metas desta tela (antes de salvar). A comparação é com as metas gravadas." />
           </div>
         )}

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import MetasPagina from "./metas";
+import Capacidade from "./capacidade";
 import {
   Target, Factory, Receipt, Wallet, BarChart3, History, ArrowLeft, Pencil, Save, X,
   Upload, Loader2, ChevronLeft, ChevronRight, ChevronDown, Grid3x3,
@@ -57,19 +58,20 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
           </button>
           <button onClick={voltar} className="hover:underline" style={{ color: C.sub }}>Gestão</button>
           <ChevronRight size={14} style={{ color: C.sub }} />
-          <span>{tela.v === "metas" ? `Metas de ${tela.ano}` : `Relatório de KPIs ${tela.ano}`}</span>
+          <span>{tela.v === "metas" ? `Metas de ${tela.ano}` : tela.v === "capacidade" ? "Capacidade × freelancer" : `Relatório de KPIs ${tela.ano}`}</span>
         </div>
       )}
       {tela.v === "painel"
-        ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
-        : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}`} user={user} anoInicial={tela.ano} />
+        ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
+        : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} irCapacidade={() => setTela({ v: "capacidade" })} />
+        : tela.v === "capacidade" ? <Capacidade user={user} usarNaMeta={(p) => setTela({ v: "metas", ano: new Date().getFullYear(), freela: Math.round(p * 10000) / 100, t: Date.now() })} />
         : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} abrirMetas={(ano) => setTela({ v: "metas", ano })} />}
     </div>
   );
 }
 
 /* ---------------- PAINEL (tela inicial da Gestão) ---------------- */
-function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz }) {
+function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abrirCapacidade }) {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1);
@@ -110,6 +112,10 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz }) {
           </div>
         )}
         <div className="flex-1" />
+        {d?.podeEditar && abrirCapacidade && (
+          <button onClick={abrirCapacidade} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}
+            title="Capacidade × freelancer: quanto gastar e quantos contratar para a meta"><Factory size={15} /> Capacidade</button>
+        )}
         {irMatriz && (
           <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}
             title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>

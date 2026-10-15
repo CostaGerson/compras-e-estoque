@@ -493,7 +493,7 @@ function Pizza({ fatias, total, ir }) {
 
 
 // v219 — card "Metas e resultado" (também aparece na página de Metas da Gestão, com o impacto ao vivo)
-export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota }) {
+export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio }) {
   const Dif = ({ a, o, tipo = "moeda", inverso }) => {
     if (!calcOf || o == null) return null;
     const d = a - o;
@@ -502,7 +502,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
     return <span className="text-[10px] font-semibold" style={{ color: bom ? C.green : C.red }}>{d > 0 ? "+" : ""}{tipo === "pct" ? pct(d) : tipo === "int" ? int(d) : curto(d)} vs {rotuloRef}</span>;
   };
   return (
-        <Cartao titulo="Metas e resultado">
+        <Cartao titulo="Metas e resultado" cheio={cheio}>
           {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão. Resultados do ano pela meta do ano; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
           <Kv k={`Meta de faturamento (mês${mg ? ` · ${mg.nomeMes}` : ""})`} v={curto(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
           <Kv k={`Meta de faturamento (ano${mg ? " · Gestão" : ""})`} v={curto(calc.metaFatAnual)} extra={<Dif a={calc.metaFatAnual} o={calcOf?.metaFatAnual} />} />
@@ -519,11 +519,12 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
   );
 }
 
-function Cartao({ titulo, children, Ico }) {
+function Cartao({ titulo, children, Ico, cheio }) {
+  // cheio (v227): ocupa a altura toda e distribui as linhas (alinha com o card ao lado)
   return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+    <div className={`rounded-xl p-4 ${cheio ? "h-full flex flex-col" : ""}`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="font-bold mb-3 flex items-center gap-1.5" style={{ color: C.navy }}>{Ico && <Ico size={16} style={{ color: C.accent }} />}{titulo}</div>
-      {children}
+      {cheio ? <div className="flex-1 flex flex-col justify-between">{children}</div> : children}
     </div>
   );
 }
