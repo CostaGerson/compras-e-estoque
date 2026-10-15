@@ -11,6 +11,7 @@ import { aplicarMetas } from "@/lib/matrizMetasCalc";
 import { CardMetasResultado } from "./matriz";
 import CapacidadeMensal from "./capacidadeMensal";
 import { planoMensal } from "@/lib/capacidadeMensal";
+import { aplicarContratados } from "@/lib/capacidadeHipoteticos";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -252,6 +253,18 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
   };
   // v234 — meses fechados: as peças da meta ficam como gravadas (o ticket só vale para os meses em aberto)
   const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor, orig?.realizado) : null;
+  // v246/v248 — cenários da Capacidade para a meta desta tela (período em aberto inteiro)
+  const per = cap && der && orig ? (() => {
+    try {
+      const pm = der.faturamentoPecas.meses.map((x) => Number(x) || 0), fe = orig.fechados || [];
+      const A = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe, semContratar: true }).periodo;
+      const B = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe }).periodo;
+      return A.meses ? { A, B } : null;
+    } catch { return null; }
+  })() : null;
+  // v248 — meta de freelancer = % de um cenário → o card Metas e resultado usa o custo dele (B: + contratados e despesas por pessoa)
+  const igual = (v) => v != null && freela != null && Math.abs(r2(v * 100) - freela) < 0.01;
+  const cenSel = per ? (igual(per.B.pct) && per.B.contratar ? "B" : igual(per.A.pct) ? "A" : null) : null;
   // v219 — impacto ao vivo na Matriz oficial: metas da tela (ainda não gravadas) × metas gravadas
   const vivo = (() => {
     if (!matriz || !der) return null;
@@ -264,8 +277,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         pctFreelancer: freela != null ? freela / 100 : null,
         // v239 — fechamento do ano ao vivo: meses fechados = realizado (DRE, vindo da oficial); abertos = metas desta tela
         ...(matriz.metasGestao?.realizado && ano === matriz.metasGestao?.ano ? { mes: mesI + 1, fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses } : { realizado: null, fatMeses: null }) };
-      const dv = aplicarMetas(matriz, mg);
-      return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg };
+      const dv = JSON.parse(JSON.stringify(aplicarMetas(matriz, mg)));
+      const hip = cenSel === "B" ? aplicarContratados(dv, per.B.picoContratados, { salarios: cap?.salarios || {}, cenario: "B" }) : null;
+      return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg, hip };
     } catch { return null; }
   })();
   const LINHAS = [
@@ -313,20 +327,24 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               const F = orig.freelancer || {};
               const p = (v) => `${fmt("R$", v * 100)}%`;
               const nomeC = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
-              // v246 — cenários da Capacidade para a meta desta tela (período em aberto inteiro)
-              const per = cap && der ? (() => {
-                const pm = der.faturamentoPecas.meses.map((x) => Number(x) || 0), fe = orig.fechados || [];
-                const A = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe, semContratar: true }).periodo;
-                const B = planoMensal({ setores: cap.setores, pecasMes: pm, ano, fechados: fe }).periodo;
-                return A.meses ? { A, B } : null;
-              })() : null;
-              const usar = (v) => (v != null && Math.abs(v * 100 - (freela ?? -1)) >= 0.01 ? [`usar ${p(v)}`, () => setFreela(r2(v * 100))] : null);
               return (
                 <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub="cenários da capacidade para esta meta (período em aberto)" campo="Meta (%)" valor={freela} onCommit={setFreela}>
-                  {per ? <>
-                    <Linha k={`A · manter equipe (até ${per.A.picoFreeDia} free/dia)`} v={p(per.A.pct)} acao={usar(per.A.pct)} />
-                    <Linha k={`B · recomendado (+${per.B.contratar}${per.B.demitir ? ` −${per.B.demitir}` : ""} pessoas)`} v={p(per.B.pct)} acao={usar(per.B.pct)} />
-                  </> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
+                  {per ? <div className="grid grid-cols-2 gap-2">
+                    {[["A", per.A, C.yellow, C.yellowSoft, `manter equipe (até ${per.A.picoFreeDia} free/dia)`],
+                      ["B", per.B, C.green, C.greenSoft, `recomendado (+${per.B.contratar}${per.B.demitir ? ` −${per.B.demitir}` : ""} pessoas)`]].map(([k, X, cor, soft, desc]) => {
+                      const on = cenSel === k;
+                      return (
+                        <button key={k} type="button" onClick={() => X.pct != null && setFreela(r2(X.pct * 100))} title={`Usar ${p(X.pct)} de freelancer${k === "B" ? " — Metas e resultado passa a somar a folha dos contratados e as despesas por pessoa" : ""}`}
+                          className="rounded-lg px-2.5 py-2 text-left transition" style={{ background: on ? soft : C.panel, border: `${on ? 2 : 1}px solid ${cor}` }}>
+                          <div className="flex items-baseline justify-between gap-1">
+                            <span className="font-bold text-[13px]" style={{ color: cor }}>Simulação {k}</span>
+                            <b className="tabular-nums text-[13px]" style={{ color: C.navy }}>{p(X.pct)}</b>
+                          </div>
+                          <div className="text-[10.5px] leading-snug mt-0.5" style={{ color: C.sub }}>{desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
                   {F.media3 && <Linha k={`Real · média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} />}
                   {freelaInicial != null && <div className="font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
                   {irCapacidade && <button onClick={irCapacidade} className="font-semibold underline text-left" style={{ color: C.blue }}>Detalhar capacidade →</button>}
@@ -340,7 +358,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           <div className="relative min-h-[420px]">
             <div className="xl:absolute xl:inset-0 xl:overflow-y-auto h-full">
               <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
-                nota="Matriz oficial ao vivo com as metas desta tela, comparada com as gravadas." />
+                nota={vivo.hip?.criados.length ? `Matriz oficial ao vivo com as metas desta tela + Simulação B: ${vivo.hip.criados.length} contratações hipotéticas (folha e despesas por pessoa), comparada com as gravadas.` : "Matriz oficial ao vivo com as metas desta tela, comparada com as gravadas."} />
             </div>
           </div>
         )}
