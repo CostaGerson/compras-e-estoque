@@ -5,9 +5,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Lock, Unlock, Save, Loader2, History, RotateCcw, Target } from "lucide-react";
 import { derivarMetas } from "@/lib/kpiMetasCalc";
+import { numBR } from "@/lib/numBR";
 import { calcularMatriz } from "@/lib/matriz";
 import { aplicarMetas } from "@/lib/matrizMetasCalc";
 import { CardMetasResultado } from "./matriz";
+import CapacidadeMensal from "./capacidadeMensal";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -26,7 +28,7 @@ const api = async (url, method, body) => {
 const r2 = (v) => Math.round(Number(v) * 100) / 100;
 const arred = (un, v) => (un === "pc" ? Math.round(v) : r2(v));
 const fmt = (un, v) => (v == null || v === "" ? "" : un === "pc" ? Math.round(Number(v)).toLocaleString("pt-BR") : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const ler = (t) => { const s = String(t ?? "").trim(); if (!s) return null; const x = Number(s.replace(/\./g, "").replace(",", ".")); return isNaN(x) ? null : x; };
+const ler = (t) => numBR(String(t ?? "").trim());   // v230.1
 
 // distribui o que falta da meta do ano entre os meses livres, na proporção dos pesos
 export function redistribuir(un, anual, meses, travados, pesos) {
@@ -198,7 +200,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     setSalvando(true); setErro(""); setAviso("");
     try {
       montar(Object.assign(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
-        margem: margem == null ? "" : String(margem), ticket: ticket == null ? "" : String(ticket), freelancer: freela == null ? "" : String(freela) }), { __salvo: true }));
+        margem: margem == null ? "" : margem, ticket: ticket == null ? "" : ticket, freelancer: freela == null ? "" : freela }), { __salvo: true }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
       carregarMatriz();
     } catch (e) { setErro(e.message); }
@@ -327,6 +329,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               ))}</tbody>
             </table>
           </div>
+          <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} />
         </div>
         {vivo && (
           <div className="flex flex-col" style={{ width: 380, maxWidth: "100%" }}>

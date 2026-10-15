@@ -1,15 +1,12 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+import { numBR } from "@/lib/numBR";
 import { prisma } from "@/lib/prisma";
 import { garantirKpis, relatorio, anosDisponiveis, SEGMENTOS_PADRAO, usuarioAtivo, ehMaster, negadoKpi as negado } from "@/lib/kpi";
 
 const anoValido = (a) => Number.isInteger(Number(a)) && Number(a) >= 2000 && Number(a) <= 2100;
 const mesValido = (m) => Number.isInteger(Number(m)) && Number(m) >= 1 && Number(m) <= 12;
-const dec = (v) => {
-  if (v === "" || v === null || v === undefined) return null;
-  const x = Number(String(v).replace(/\./g, "").replace(",", "."));
-  return isNaN(x) ? null : x;
-};
+const dec = (v) => numBR(v);   // v230.1: não engole o decimal
 const int = (v) => { const x = dec(v); return x === null ? null : Math.round(x); };
 
 // GET ?u=&ano=  → relatório do ano (com o ano anterior ao lado)

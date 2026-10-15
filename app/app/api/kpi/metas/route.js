@@ -2,12 +2,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioAtivo, ehMaster, negadoKpi as negado, garantirKpis } from "@/lib/kpi";
 import { metasDoAno, salvarCoerente } from "@/lib/kpiMetas";
+import { numBR } from "@/lib/numBR";
 
 const anoValido = (a) => Number.isInteger(Number(a)) && Number(a) >= 2000 && Number(a) <= 2100;
 const fracao = (v) => {
   if (v === "" || v == null) return null;
-  const x = Number(String(v).replace("%", "").replace(/\./g, "").replace(",", "."));
-  if (isNaN(x)) return null;
+  const x = numBR(v);
+  if (x == null) return null;
   return x > 1 ? x / 100 : x;
 };
 
@@ -30,7 +31,7 @@ export async function POST(req) {
   if (!ehMaster(u)) return negado("Só o financeiro altera metas.");
   if (!anoValido(b.ano)) return Response.json({ error: "Ano inválido." }, { status: 400 });
   const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
-  const tk = "ticket" in b ? (b.ticket === "" || b.ticket == null ? null : Number(String(b.ticket).replace(/\./g, "").replace(",", "."))) : undefined;
+  const tk = "ticket" in b ? (b.ticket === "" || b.ticket == null ? null : (numBR(b.ticket) ?? NaN)) : undefined;
   const tkOk = tk === undefined || (tk !== null && isNaN(tk)) ? null : tk;
   // v221 — regra de coerência: só vendas (R$) e ticket entram; o resto é calculado
   if (!b.metas?.vendasValor?.meses) return Response.json({ error: "Informe a meta de vendas (R$)." }, { status: 400 });
