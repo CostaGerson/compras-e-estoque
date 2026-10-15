@@ -210,22 +210,23 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
   useEffect(() => { carregarMatriz(); }, []);
 
   const montar = (d) => {
-    let v = d.naturezas.find((n) => n.k === "vendasValor");
-    // sem meta de vendas em R$ gravada: parte das peças × ticket
+    // v241 — a meta que você define é o FATURAMENTO (R$); sem ela gravada, vendas R$ ou peças faturadas × ticket
+    let v = d.naturezas.find((n) => n.k === "faturamentoValor");
+    if (v.meses.every((x) => x == null)) { const vv = d.naturezas.find((n) => n.k === "vendasValor"); if (vv.meses.some((x) => x != null)) v = { ...vv, k: "faturamentoValor", historico: v.historico }; }
     if (v.meses.every((x) => x == null) && d.ticket) {
-      const p = d.naturezas.find((n) => n.k === "vendasPecas");
+      const p = d.naturezas.find((n) => n.k === "faturamentoPecas");
       const meses = p.meses.map((x) => (x == null ? null : r2(x * d.ticket)));
       v = { ...v, meses, anual: meses.some((x) => x != null) ? r2(meses.reduce((s2, x) => s2 + (x || 0), 0)) : null };
     }
     const fechados = d.fechados || Array(12).fill(false);
     const trav = new Set(fechados.map((f, i) => (f ? i : -1)).filter((i) => i >= 0));
-    // v236 — mês fechado entra com o REALIZADO (vendas R$ do KPI); a meta do ano que falta vai para os meses em aberto
-    const rv = d.realizado?.vendasValor || [];
+    // v236/v241 — mês fechado entra com o REALIZADO (faturamento R$ do KPI); a meta do ano que falta vai para os meses em aberto
+    const rv = d.realizado?.faturamentoValor || [];
     const comReal = v.meses.map((x, i) => (fechados[i] && rv[i] != null ? r2(rv[i]) : x));
     const base = { ...v, meses: comReal };
     const ajust = base.anual != null && trav.size ? redistribuir("R$", base.anual, comReal, trav, v.meses) : comReal;
     setOrig({ ...d, vend: base });
-    setVend({ ...base, meses: ajust, rotulo: "Vendas (R$)", grupo: "Meta que você define", fechados, travados: trav, pesos: v.meses });
+    setVend({ ...base, meses: ajust, rotulo: "Faturamento (R$)", grupo: "Meta que você define", fechados, travados: trav, pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setFreela(freelaInicial != null && !d.__salvo ? freelaInicial : d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
@@ -238,7 +239,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
   const salvar = async () => {
     setSalvando(true); setErro(""); setAviso("");
     try {
-      montar(Object.assign(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { vendasValor: { anual: vend.anual, meses: vend.meses } },
+      montar(Object.assign(await api("/api/kpi/metas", "POST", { usuarioId: user.id, ano, metas: { faturamentoValor: { anual: vend.anual, meses: vend.meses } },
         margem: margem == null ? "" : margem, ticket: ticket == null ? "" : ticket, freelancer: freela == null ? "" : freela }), { __salvo: true }));
       setAviso("Metas gravadas. Já valem nos KPIs e na Matriz de custos.");
       carregarMatriz();
@@ -264,9 +265,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     } catch { return null; }
   })();
   const LINHAS = [
-    ["vendasPecas", "Vendas (peças)", "pc", "vendas R$ ÷ ticket"],
-    ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "= peças vendidas do mês"],
-    ["faturamentoValor", "Faturamento (R$)", "R$", "= vendas R$ do mês"],
+    ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "faturamento R$ ÷ ticket · fechado: realizado"],
+    ["vendasValor", "Vendas (R$)", "R$", "= faturamento do mês · fechado: realizado"],
+    ["vendasPecas", "Vendas (peças)", "pc", "= peças faturadas · fechado: realizado"],
     ["receitaValor", "Receita (R$)", "R$", `= faturamento do mês anterior · JAN: ${orig?.receitaJan?.fonte || "—"}`],
   ];
 
@@ -279,7 +280,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           <button onClick={() => setAno(ano + 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
         <div className="text-xs flex-1" style={{ color: C.sub }}>
-          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Meses já fechados no KPI entram com o realizado e ficam travados. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
+          Você define a meta de <b>faturamento (R$)</b> e o <b>ticket médio</b>; peças, vendas e receita saem daí. Meses já fechados no KPI entram com o realizado e ficam travados. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
         </div>
         {vend && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar metas
@@ -335,8 +336,8 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
 
           <div className="rounded-xl overflow-x-auto mt-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="px-4 pt-3 pb-1">
-              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CALCULADAS (COERENTES COM VENDAS E TICKET)</div>
-              <div className="text-xs" style={{ color: C.sub }}>Não se editam aqui: mudam quando você muda vendas ou o ticket.</div>
+              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CALCULADAS (COERENTES COM FATURAMENTO E TICKET)</div>
+              <div className="text-xs" style={{ color: C.sub }}>Não se editam aqui: mudam quando você muda o faturamento ou o ticket.</div>
             </div>
             <table className="w-full text-xs">
               <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>

@@ -143,7 +143,7 @@ async function receitaJaneiro(a) {
 }
 
 // v216 — grava pela regra de coerência: entra vendas (peças) + ticket; o resto é calculado (lib/kpiMetasCalc.js)
-export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem, pctFreelancer) {
+export async function salvarCoerente(ano, faturamentoMeses, ticket, margem, quem, pctFreelancer) {
   const a = Number(ano);
   const rj = await receitaJaneiro(a);
   // v234 — mês fechado mantém a meta gravada (vendas R$ e peças), qualquer que seja o que veio da tela
@@ -152,8 +152,9 @@ export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem
   const rel = await relatorio(a).catch(() => null);
   const fech = await mesesFechados(a, rel);
   const real = realizadoDosFechados(rel, fech);
-  const vv = [...Array(12)].map((_, i) => (fech[i] && real.vendasValor[i] != null ? real.vendasValor[i] : vendasValorMeses?.[i] ?? null));
-  const d = derivarMetas(vv, ticket, rj.valor, real);
+  // v241 — base = faturamento R$ (mês fechado = faturamento realizado)
+  const fb = [...Array(12)].map((_, i) => (fech[i] && real.faturamentoValor[i] != null ? real.faturamentoValor[i] : faturamentoMeses?.[i] ?? null));
+  const d = derivarMetas(fb, ticket, rj.valor, real);
   const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
   metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
   const r = await salvarMetas(a, metas, margem, quem, ticket, pctFreelancer, new Set(fech.map((f, i) => (f ? i : -1)).filter((i) => i >= 0)));

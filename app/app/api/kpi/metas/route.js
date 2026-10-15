@@ -34,8 +34,10 @@ export async function POST(req) {
   const tk = "ticket" in b ? (b.ticket === "" || b.ticket == null ? null : (numBR(b.ticket) ?? NaN)) : undefined;
   const tkOk = tk === undefined || (tk !== null && isNaN(tk)) ? null : tk;
   // v221 — regra de coerência: só vendas (R$) e ticket entram; o resto é calculado
-  if (!b.metas?.vendasValor?.meses) return Response.json({ error: "Informe a meta de vendas (R$)." }, { status: 400 });
+  // v241 — a meta que se define é o faturamento (R$); vendasValor fica aceito por compatibilidade
+  const base = b.metas?.faturamentoValor?.meses || b.metas?.vendasValor?.meses;
+  if (!base) return Response.json({ error: "Informe a meta de faturamento (R$)." }, { status: 400 });
   if (tkOk == null) return Response.json({ error: "Informe o ticket médio: sem ele não dá para calcular vendas, faturamento e receita em R$." }, { status: 400 });
-  return Response.json(await salvarCoerente(Number(b.ano), b.metas.vendasValor.meses, tkOk, "margem" in b ? fracao(b.margem) : undefined, quem,
+  return Response.json(await salvarCoerente(Number(b.ano), base, tkOk, "margem" in b ? fracao(b.margem) : undefined, quem,
     "freelancer" in b ? fracao(b.freelancer) : undefined));
 }
