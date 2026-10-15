@@ -516,7 +516,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
   const cor = (v) => (v >= 0 ? C.green : C.red);
   const linhas = [
     { k: "Faturamento", sub: calc.projecao
-        ? `ano: realizado ${curto(calc.projecao.meses.filter((x) => x.tipo !== "SIMULADO").reduce((t, x) => t + x.fat, 0))} + metas ${curto(calc.projecao.meses.filter((x) => x.tipo === "SIMULADO").reduce((t, x) => t + x.fat, 0))}`
+        ? `ano: realizado ${curto(calc.projecao.meses.filter((x) => x.tipo !== "SIMULADO").reduce((t, x) => t + x.fat, 0))} + ${mg?.historico ? "previsão" : "metas"} ${curto(calc.projecao.meses.filter((x) => x.tipo === "SIMULADO").reduce((t, x) => t + x.fat, 0))}`
         : mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.mesFat ?? calc.metaMensal), a: curto(calc.fatAnoProj ?? calc.metaFatAnual),
       dm: <Dif a={calc.mesFat ?? calc.metaMensal} o={calcOf ? calcOf.mesFat ?? calcOf.metaMensal : null} />, da: <Dif a={calc.fatAnoProj ?? calc.metaFatAnual} o={calcOf ? calcOf.fatAnoProj ?? calcOf.metaFatAnual : null} /> },
     { k: "Peças", sub: "faturadas = produzidas", m: int(pcsMes), a: int(pcsAno) },
@@ -533,11 +533,11 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
     ["Breakeven", `${int(calc.breakevenPecas)} pç/mês`, "lucro real zera"],
   ];
   return (
-    <Cartao titulo="Metas e resultado" cheio={cheio}>
+    <Cartao titulo={mg?.historico ? "Histórico e previsão" : "Metas e resultado"} cheio={cheio}>
       {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; ano = realizado + metas batidas. Para testar outra meta, use um cenário.</div>}
       <div>
         <div className="grid text-[10px] font-bold tracking-wider pb-1" style={{ gridTemplateColumns: "1fr 92px 92px", color: C.sub }}>
-          <span></span><span className="text-right" title={calc.projecao?.media ? "Média mensal do ano (ano ÷ 12)" : "Mês da análise"}>{calc.projecao?.media ? "MÉDIA/MÊS" : "MÊS"}</span><span className="text-right" title={calc.projecao ? `Fechamento do ano: ${calc.projecao.nReal} mês(es) realizado(s) (lucro e resultado da DRE) + ${calc.projecao.nSim} simulado(s) com a meta batida. Mês simulado: resultado = lucro (sem investimento/NORT previstos).` : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
+          <span></span><span className="text-right" title={calc.projecao?.media ? "Média mensal do ano (ano ÷ 12)" : "Mês da análise"}>{calc.projecao?.media ? "MÉDIA/MÊS" : "MÊS"}</span><span className="text-right" title={calc.projecao ? `Fechamento do ano: ${calc.projecao.nReal} mês(es) realizado(s) (lucro e resultado da DRE) + ${calc.projecao.nSim} ${mg?.historico ? "previsto(s) pela média dos meses apurados" : "simulado(s) com a meta batida"}. Mês simulado: resultado = lucro (sem investimento/NORT previstos).` : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
         </div>
         {linhas.map((l) => (
           <div key={l.k} className="grid items-start py-1.5 text-[13px]" style={{ gridTemplateColumns: "1fr 92px 92px", borderTop: `1px solid ${C.line}` }}>
@@ -856,7 +856,7 @@ function Producao({ dados, calc, muda, mg }) {
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
         <Cartao titulo="Custo por peça (semestre)">
           <Linha t="Custo produção / peça" dica={pr.custoPecaObs}><NumInput value={pr.custoPeca} onChange={(v) => s("custoPeca", v)} /></Linha>
-          <Linha t="Razão interna" dica={mg?.pctFreelancer != null ? `1 − ${pct(calc.pctFreelancer)} de freelancer (meta da página Metas)` : pr.razaoInternaAuto ? `Calculada: 1 − ${pct(calc.pctFreelancer)} de freelancer (tabelas abaixo)` : `Valor manual (${pct(calc.pctFreelancer)} de freelancer)`}>
+          <Linha t="Razão interna" dica={mg?.pctFreelancer != null ? `1 − ${pct(calc.pctFreelancer)} de freelancer (${mg.historico ? `realizado ${mg.periodo}` : "meta da página Metas"})` : pr.razaoInternaAuto ? `Calculada: 1 − ${pct(calc.pctFreelancer)} de freelancer (tabelas abaixo)` : `Valor manual (${pct(calc.pctFreelancer)} de freelancer)`}>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={!!pr.razaoInternaAuto} onChange={(e) => s("razaoInternaAuto", e.target.checked)} /> automática</label>
               {pr.razaoInternaAuto ? <span className="font-semibold">{pct(calc.razaoInterna)}</span> : <NumInput tipo="pct" value={pr.razaoInternaManual} onChange={(v) => s("razaoInternaManual", v)} width={90} />}
@@ -866,8 +866,13 @@ function Producao({ dados, calc, muda, mg }) {
           <Linha t="Custo logístico / peça"><NumInput value={pr.custoLogPeca} onChange={(v) => s("custoLogPeca", v)} /></Linha>
           <Linha t="Razão custo logístico / peça" dica={pr.razaoLogObs}><NumInput value={pr.razaoLog} onChange={(v) => s("razaoLog", v)} /></Linha>
         </Cartao>
-        <Cartao titulo="Metas">
-          {mg ? <>
+        <Cartao titulo={mg?.historico ? "Histórico" : "Metas"}>
+          {mg?.historico ? <>
+            <div className="text-[11px] py-1" style={{ color: C.sub }}>Oficial = histórico realizado ({mg.periodo}); meses em aberto pela média dos apurados. Metas ficam nas simulações.</div>
+            <Linha t="Ticket médio" dica={mg.fonteTicket}><b>{moeda(pr.ticketMedio)}</b></Linha>
+            <Linha t="Peças faturadas (média do mês)" dica="realizado + previsão do ano ÷ 12"><b>{int(pr.metaPecas)}</b></Linha>
+            <Linha t="Margem de contribuição"><NumInput tipo="pct" value={pr.margemContribuicao} onChange={(v) => s("margemContribuicao", v)} width={90} /></Linha>
+          </> : mg ? <>
             <div className="text-[11px] py-1" style={{ color: C.sub }}>Vêm do botão METAS da Gestão ({mg.nomeMes}). Para mudar, altere lá ou simule num cenário.</div>
             <Linha t="Ticket médio" dica={mg.fonteTicket}><b>{moeda(pr.ticketMedio)}</b></Linha>
             <Linha t="Meta de peças faturadas (média do mês)" dica="meta de peças do ano ÷ 12"><b>{int(pr.metaPecas)}</b></Linha>
@@ -884,7 +889,7 @@ function Producao({ dados, calc, muda, mg }) {
       <TabelaFreelancer titulo="Expedição · Pessoal x Freelancer" tab={dados.freelancer.expedicao} set={(f) => muda("freelancer", (x) => ({ ...x, expedicao: f(x.expedicao) }))} />
       <TabelaFreelancer titulo="Corte · Pessoal x Freelancer" tab={dados.freelancer.corte} set={(f) => muda("freelancer", (x) => ({ ...x, corte: f(x.corte) }))} />
       <div className="text-xs" style={{ color: C.sub }}>{mg?.pctFreelancer != null
-        ? <>Freelancer pela meta da página Metas (Gestão): <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}. As tabelas acima ficam como referência.</>
+        ? <>Freelancer {mg.historico ? `realizado (${mg.periodo}, folha × freelancer)` : "pela meta da página Metas (Gestão)"}: <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}. As tabelas acima ficam como referência.</>
         : !pr.razaoInternaAuto
           ? <>Razão interna manual {pct(calc.razaoInterna)} → <b>{pct(calc.pctFreelancer)}</b> de freelancer{dados?.simulacaoCapacidade ? ` (Simulação ${dados.simulacaoCapacidade.cenario} da Capacidade)` : ""}. Tabelas acima (referência): {pct(calc.pctFreelancerTabela)}.</>
           : <>Freelancer geral (expedição + corte): <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}.</>}</div>

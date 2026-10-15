@@ -32,7 +32,12 @@ export async function POST(req) {
   if (!base) return Response.json({ error: "Matriz de origem não encontrada." }, { status: 404 });
   // v217 — cópia da oficial já leva as metas da Gestão (como a oficial mostra)
   let dados = base.dados;
-  if (base.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); dados = await dadosComMetas(dados).catch(() => dados); }
+  if (base.oficial) {
+    const { dadosComMetas } = await import("@/lib/matrizMetas"); dados = await dadosComMetas(dados).catch(() => dados);
+    // v249 — a oficial é histórico; o cenário leva as METAS (inclusive o % de freelancer como razão interna)
+    const mg = dados.metasGestao;
+    if (mg && !mg.historico && mg.pctFreelancer != null) dados = { ...dados, producao: { ...dados.producao, razaoInternaAuto: false, razaoInternaManual: Math.round((1 - Number(mg.pctFreelancer)) * 10000) / 10000 } };
+  }
   const m = await prisma.finMatriz.create({
     data: { nome: String(b.nome || `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`).toUpperCase(), oficial: false, dados, atualizadoPor: nomeU(u) },
   });

@@ -51,6 +51,45 @@ export async function metasDaGestao(hoje = new Date()) {
     ticket, fonteTicket, margem, pctFreelancer, ...(proj || {}) };
 }
 
+// v249 — FECHAMENTO: a Matriz OFICIAL não usa metas — mostra o histórico do ano.
+//   meses fechados = realizado (KPI + DRE); meses em aberto = previsão pela média dos meses apurados
+//   ticket médio = faturamento ÷ peças realizados no ano; % freelancer = folha × freelancer realizado no ano (meses fechados)
+//   metas ficam nas SIMULAÇÕES (cenários) e na tela de Metas
+export async function historicoDoAno(hoje = new Date()) {
+  const ano = hoje.getFullYear(), mes = hoje.getMonth() + 1;
+  const proj = await projecaoDoAno(ano).catch(() => null);
+  if (!proj) return null;
+  const fe = proj.fechados || [];
+  const idx = fe.map((f, i) => (f && proj.fatMeses[i] != null ? i : -1)).filter((i) => i >= 0);
+  if (!idx.length) return null;
+  const fatF = idx.reduce((t, i) => t + (Number(proj.fatMeses[i]) || 0), 0);
+  const pcsF = idx.reduce((t, i) => t + (Number(proj.pcsMeses[i]) || 0), 0);
+  const fatMed = fatF / idx.length, pcsMed = pcsF / idx.length;
+  const ticket = pcsF ? fatF / pcsF : null;
+  const fatMeses = proj.fatMeses.map((x, i) => (fe[i] ? x : fatMed));
+  const pcsMeses = proj.pcsMeses.map((x, i) => (fe[i] ? x : pcsMed));
+  const fatAno = fatMeses.reduce((t, x) => t + (Number(x) || 0), 0), pcsAno = pcsMeses.reduce((t, x) => t + (Number(x) || 0), 0);
+  // % de freelancer realizado no ano: Σ freelancer ÷ Σ (folha + freelancer) dos meses fechados
+  let pctFreelancer = null;
+  try {
+    const { freelancerXFolha } = await import("@/lib/rhPainel");
+    let fr = 0, cu = 0;
+    for (const i of idx) { const r = await freelancerXFolha(`${ano}-${String(i + 1).padStart(2, "0")}`).catch(() => null); if (r?.total?.custo) { fr += r.total.freelancer; cu += r.total.custo; } }
+    if (cu) pctFreelancer = Math.round((fr / cu) * 10000) / 10000;
+  } catch { pctFreelancer = null; }
+  const ult = idx[idx.length - 1];
+  const periodo = `${MESES[idx[0]]}–${MESES[ult]}/${ano}`;
+  return { historico: true, ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, periodo, nFechados: idx.length,
+    fatAno, fatMes: fatMed, pcsAno, pcsMes: Math.round(pcsMed), pcsMedia: pcsAno / 12,
+    ticket, fonteTicket: `realizado ${periodo}: faturamento ÷ peças`, margem: null, pctFreelancer,
+    ...proj, fatMeses, pcsMeses };
+}
+export async function dadosHistoricos(dados, hoje = new Date()) {
+  const h = await historicoDoAno(hoje).catch(() => null);
+  if (!h) { const { metasGestao, ...resto } = dados || {}; return resto; }
+  return aplicarMetas(dados, h);
+}
+
 export { aplicarMetas } from "@/lib/matrizMetasCalc";
 import { aplicarMetas } from "@/lib/matrizMetasCalc";
 

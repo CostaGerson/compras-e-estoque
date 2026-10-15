@@ -19,7 +19,8 @@ export async function GET(req, { params }) {
     } catch { critica = null; }
   }
   // v212 — a oficial puxa as metas do botão METAS da Gestão (mês da análise)
-  if (m.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); m.dados = await dadosComMetas(m.dados); }
+  // v249 — a oficial é o HISTÓRICO do ano (realizado + previsão pela média); metas só nas simulações
+  if (m.oficial) { const { dadosHistoricos } = await import("@/lib/matrizMetas"); m.dados = await dadosHistoricos(m.dados); }
   return Response.json({ ...m, critica });
 }
 
@@ -37,7 +38,7 @@ export async function PUT(req, { params }) {
   await prisma.finMatrizVersao.create({ data: { matrizId: id, dados: atual.dados, usuarioNome: atual.atualizadoPor, resumo: "antes de: " + String(b.resumo || "alteração").slice(0, 300) } });
   const velhas = await prisma.finMatrizVersao.findMany({ where: { matrizId: id }, orderBy: { createdAt: "desc" }, skip: MAX_VERSOES, select: { id: true } });
   if (velhas.length) await prisma.finMatrizVersao.deleteMany({ where: { id: { in: velhas.map((v) => v.id) } } });
-  if (atual.oficial) { const { dadosComMetas } = await import("@/lib/matrizMetas"); b.dados = await dadosComMetas(b.dados); }   // v212
+  if (atual.oficial) { const { dadosHistoricos } = await import("@/lib/matrizMetas"); b.dados = await dadosHistoricos(b.dados); }   // v249
   const m = await prisma.finMatriz.update({ where: { id }, data: { dados: b.dados, atualizadoPor: nomeU(u) } });
   // v192 — a oficial é a base das recorrências: o contas a pagar espelha na hora
   let contas = null;

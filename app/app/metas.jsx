@@ -271,7 +271,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     try {
       const hoje = new Date(), mesI = ano === hoje.getFullYear() ? hoje.getMonth() : 0;
       const pcsAno = der.faturamentoPecas.anual;
-      const mg = { ...(matriz.metasGestao || {}), ano, nomeMes: `${MESES[mesI]}/${ano}`,
+      const mg = { ...(matriz.metasGestao || {}), historico: false, ano, nomeMes: `${MESES[mesI]}/${ano}`,
         fatAno: der.faturamentoValor.anual, fatMes: der.faturamentoValor.meses[mesI], pcsAno, pcsMedia: pcsAno ? pcsAno / 12 : null,
         ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null,
         pctFreelancer: freela != null ? freela / 100 : null,
@@ -357,8 +357,8 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         {vivo && (
           <div className="relative min-h-[420px]">
             <div className="xl:absolute xl:inset-0 xl:overflow-y-auto h-full">
-              <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
-                nota={vivo.hip?.criados.length ? `Matriz oficial ao vivo com as metas desta tela + Simulação B: ${vivo.hip.criados.length} contratações hipotéticas (folha e despesas por pessoa), comparada com as gravadas.` : "Matriz oficial ao vivo com as metas desta tela, comparada com as gravadas."} />
+              <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="oficial"
+                nota={vivo.hip?.criados.length ? `Simulação das metas desta tela + Simulação B: ${vivo.hip.criados.length} contratações hipotéticas (folha e despesas por pessoa), comparada com a oficial (histórico).` : `Simulação das metas desta tela${cenSel === "A" ? " (Simulação A)" : ""}, comparada com a oficial (histórico realizado).`} />
             </div>
           </div>
         )}
