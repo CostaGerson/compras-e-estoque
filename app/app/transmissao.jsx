@@ -7,13 +7,13 @@ import { Upload, Loader2, CheckCircle2, AlertTriangle, Send, FileText, X, Play, 
 import { unzipSync } from "fflate";
 import { gerencial, temAlguma } from "@/lib/acesso";
 import { DESTINOS } from "@/lib/finTransmissaoDestinos";
-import { DocumentoModal, PosicaoModal, AntecipacaoModal, RetornoModal, CoresContas as C } from "./contas";
+import { DocumentoModal, PosicaoModal, AntecipacaoModal, RetornoModal, RemessaModal, CoresContas as C } from "./contas";
 import { ImportarNfs } from "./adm";
 import { ImportarPonto } from "./rhPainel";
 import RescisaoModal from "./rhRescisao";
 import OsKmModal from "./osKm";   // v209
 
-const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "ANTECIPACAO", "POSICAO", "HISTORICO", "OS", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
+const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "REMESSA", "ANTECIPACAO", "POSICAO", "HISTORICO", "OS", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
 const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const readU8 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(new Uint8Array(fr.result)); fr.readAsArrayBuffer(f); });
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
@@ -221,6 +221,7 @@ export default function Transmissao({ user, Historico, onMudou }) {
 
       {aberto?.destino === "DOCUMENTO" && <DocumentoModal user={user} contas={contas} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "NF" && <ImportarNfs user={user} iniciais={files} onClose={() => fechar(aberto)} onFim={(m) => salvo(aberto, m)} />}
+      {aberto?.destino === "REMESSA" && <RemessaModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "RETORNO" && <RetornoModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "ANTECIPACAO" && <AntecipacaoModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "POSICAO" && <PosicaoModal user={user} contas={contas} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}

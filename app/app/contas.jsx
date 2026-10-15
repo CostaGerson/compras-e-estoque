@@ -589,6 +589,16 @@ export function MarcaR({ t }) {
     style={{ width: 15, height: 15, background: C.roxoSoft, color: C.roxo, border: `1px solid ${C.roxo}66` }}>R</span>;
 }
 
+/* v231 — boleto: nº da remessa; registrado pelo retorno (nº e data) */
+export function MarcaRemessa({ t }) {
+  if (!t?.remessa && !t?.registradoEm) return null;
+  const reg = !!t.registradoEm;
+  const dica = [t.remessa && `Remessa nº ${t.remessa}${t.remessaEm ? ` (${dBR(t.remessaEm)})` : ""}`, reg && `Título registrado — retorno nº ${t.registradoRetorno || "—"} em ${dBR(t.registradoEm)}`].filter(Boolean).join("\n");
+  return <span title={dica} className="shrink-0 px-1.5 rounded text-[9px] font-bold whitespace-nowrap"
+    style={reg ? { background: C.greenSoft, color: C.green } : { background: C.blueSoft, color: C.blue }}>
+    {reg ? `REG · RET ${t.registradoRetorno || "—"} · ${dBR(t.registradoEm).slice(0, 5)}` : `REM ${t.remessa}`}</span>;
+}
+
 /* ---------------- tabela ---------------- */
 // valor usado para ordenar cada coluna
 const chaveOrdem = (t, col, contasPorId) => {
@@ -652,6 +662,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
                         <MarcaA t={t} user={user} />{t.recorrenciaId && <Repeat size={12} className="shrink-0" style={{ color: C.roxo }} title="Recorrente" />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
+                        <MarcaRemessa t={t} />
                       </div>
                       {/* v191 — uma linha só: crítica > OBS > documento/observação (o resto aparece ao abrir a conta) */}
                       {t.critica ? <div className="font-semibold flex items-center gap-1 truncate" style={{ color: C.red }}><AlertTriangle size={11} className="shrink-0" /><span className="truncate">{t.critica}</span></div>
@@ -1348,6 +1359,106 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
   );
 }
 
+/* ---------------- v231: remessa de cobrança CNAB 400 (Bradesco) ---------------- */
+const SIT_REM = {
+  OK: ["No sistema", C.green, C.greenSoft], DIVERGE: ["Diverge", C.yellow, C.yellowSoft], CRITICA: ["Crítica: não consta", C.red, C.redSoft],
+};
+export function RemessaModal({ user, onClose, onSalvo, iniciais }) {
+  const [arqs, setArqs] = useState([]);
+  const [a, setA] = useState(null);
+  const [filtro, setFiltro] = useState("TODOS");
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const ler = async (fs) => {
+    const lista = [...(fs || [])];
+    if (!lista.length) return;
+    setErro(""); setSt("Lendo a remessa…");
+    try {
+      const arquivos = [];
+      for (const f of lista) arquivos.push({ nome: f.name, conteudo: await readB64(f) });
+      const r = await api("/api/fin/remessa", "POST", { usuarioId: user.id, acao: "analisar", arquivos });
+      setArqs(arquivos); setA(r);
+      if (r.arquivos.some((f) => f.itens.some((x) => x.situacao === "CRITICA"))) setFiltro("CRITICA");
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
+  const itens = a ? a.arquivos.flatMap((f) => f.itens) : [];
+  const conta = (k) => itens.filter((x) => x.situacao === k).length;
+  const vis = itens.filter((x) => filtro === "TODOS" || x.situacao === filtro);
+  const aplicar = async () => {
+    setSt("Cadastrando…"); setErro("");
+    try {
+      const r = await api("/api/fin/remessa", "POST", { usuarioId: user.id, acao: "aplicar", arquivos: arqs });
+      onSalvo(`Remessa ${r.remessas.map((x) => x.sequencia).join(", ")} cadastrada: ${r.marcadas} boleto(s) marcados nas contas a receber${r.divergentes ? `, ${r.divergentes} com divergência` : ""}${r.criticas ? ` · ${r.criticas} CRÍTICA(S): boleto não consta no sistema (${r.remessas.flatMap((x) => x.criticas.map((c) => c.numeroDoc)).join(", ")})` : ""}.${r.erros.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Cadastrar remessa de cobrança (Bradesco)" icone={FileCode2} onClose={onClose} largura={1180}
+      rodape={a ? <>
+        <span className="text-xs mr-auto" style={{ color: conta("CRITICA") ? C.red : C.sub }}>
+          {itens.length} boleto(s) · {conta("OK") + conta("DIVERGE")} no sistema{conta("CRITICA") ? ` · ${conta("CRITICA")} crítica(s) — não constam no sistema` : ""}
+        </span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={aplicar} disabled={!!st}>{st && <Loader2 size={14} className="animate-spin" />} Cadastrar remessa</BtnP>
+      </> : null}>
+      {!a && (
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
+          <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o(s) arquivo(s) de <b>remessa de cobrança CNAB 400</b> do Bradesco (.REM).</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Cada boleto da remessa é procurado no contas a receber. O que não existe no sistema vira CRÍTICA. Os que existem passam a mostrar o nº da remessa; quando o retorno confirmar a entrada, mostram "registrado", o nº do retorno e a data.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher arquivos"}</BtnP>
+          <input ref={ref} type="file" multiple accept=".rem,.REM,.txt" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste os arquivos para cá</div>
+        </Soltar>
+      )}
+      {a && (
+        <>
+          <div className="text-xs mb-2 space-y-0.5" style={{ color: C.sub }}>
+            {a.arquivos.map((f) => (
+              <div key={f.arquivo}><b style={{ color: C.navy }}>{f.arquivo}</b> · remessa nº {f.sequencia || "—"} de {dBR(f.dataArquivo)} · {f.itens.length} boleto(s) · {moeda(f.valor)}
+                {f.jaProcessado && <span className="ml-2 font-semibold" style={{ color: C.yellow }}>já cadastrada em {dBR(String(f.jaProcessado).slice(0, 10))} — reenviar é seguro</span>}</div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {[["TODOS", "Todos", itens.length], ...Object.keys(SIT_REM).filter((k) => conta(k)).map((k) => [k, SIT_REM[k][0], conta(k)])].map(([k, t, q]) => (
+              <button key={k} onClick={() => setFiltro(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={filtro === k ? { background: C.navy, color: "#fff" } : { background: (SIT_REM[k] || [])[2] || C.panel2, color: (SIT_REM[k] || [])[1] || C.text }}>{t} · {q}</button>
+            ))}
+          </div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "58vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["Situação", "Nº título / nosso nº", "Pagador", "Vencimento", "Valor", "Conta a receber", "Observação"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>{vis.map((x) => {
+                const [t0, c0, bg0] = SIT_REM[x.situacao] || [x.situacao, C.sub, C.panel2];
+                return (
+                  <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}`, background: x.situacao === "CRITICA" ? C.redSoft : undefined }}>
+                    <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: c0, background: bg0 }}>{t0}</span>
+                      {x.ocorrencia !== "01" && <div className="mt-0.5" style={{ color: C.sub }}>{x.ocorrencia} · {x.nomeOcorrencia}</div>}</td>
+                    <td className="px-2 py-1.5"><div className="font-semibold" style={{ color: C.navy }}>{x.numeroDoc || x.controle || "—"}</div><div style={{ color: C.sub }}>{x.nosso}</div></td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 220 }}><div className="truncate" title={x.parceiro}>{x.parceiro}</div><div style={{ color: C.sub }}>{fmtDoc(x.documento)}</div></td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{dBR(x.vencimento)}</td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap font-bold">{brl(x.valor)}</td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 280 }}>
+                      {x.alvo ? <><div className="font-semibold truncate" title={x.alvo.titulo}>{x.alvo.titulo}</div><div className="truncate" style={{ color: C.sub }}>{x.alvo.parceiro} · venc. {dBR(x.alvo.vencimento)} · {brl(x.alvo.valor)} · {x.alvo.status}{x.alvo.registrado ? " · registrado" : ""}</div></>
+                        : <span className="font-semibold" style={{ color: C.red }}>não consta no sistema</span>}
+                    </td>
+                    <td className="px-2 py-1.5" style={{ maxWidth: 260, color: x.situacao === "CRITICA" ? C.red : x.situacao === "DIVERGE" ? C.yellow : C.green }}>{x.aviso || "Pronto: recebe o nº da remessa"}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {erro && <div className="mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+    </Modal>
+  );
+}
+
 /* ---------------- ações em lote ---------------- */
 function LoteModal({ acao, P, itens, onClose, onOk }) {
   const [dt, setDt] = useState(hojeISO());
@@ -1540,6 +1651,8 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           {item.formaPagamento && <div><span style={{ color: C.sub }}>Forma:</span> {FORMAS_PGTO[item.formaPagamento] || item.formaPagamento}</div>}
           {item.nossoNumero && <div><span style={{ color: C.sub }}>Nosso nº:</span> {item.nossoNumero}</div>}
           {item.cobranca && <div><span style={{ color: C.sub }}>Cobrança:</span> {item.cobranca}</div>}
+          {item.remessa && <div><span style={{ color: C.sub }}>Remessa:</span> nº {item.remessa}{item.remessaEm ? ` · ${dBR(item.remessaEm)}` : ""}</div>}
+          {item.registradoEm && <div><span style={{ color: C.sub }}>Título registrado:</span> <b style={{ color: C.green }}>retorno nº {item.registradoRetorno || "—"} · {dBR(item.registradoEm)}</b></div>}
           {ehAntecipado(item) && <div><span style={{ color: C.sub }}>Antecipado:</span> {dBR(item.antecipadoEm || item.dataPagamento)}{item.liquidadoEm ? ` · liquidado ${dBR(item.liquidadoEm)}` : " · aguarda o cliente"}</div>}
           {item.vencimentoOriginal && <div><span style={{ color: C.sub }}>Venc. original:</span> {dBR(item.vencimentoOriginal)}</div>}
           {(item.rateio || []).length > 1 && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: C.sub }}>Rateio:</span> {item.rateio.map((r) => { const c = (d?.contas || []).find((x) => x.id === r.contaId); return `${c ? `${c.codigo} ${c.nome}` : "?"} (${brl(r.pct)}%)`; }).join(" · ")}</div>}

@@ -41,6 +41,10 @@ const ehRetornoCnab = (txt) => {
   const h = String(txt || "").split(/\r?\n/).find((l) => l.trim());
   return !!h && h[0] === "0" && /RETORNO/.test(h.slice(0, 20));
 };
+const ehRemessaCnab = (txt) => {   // v231
+  const h = String(txt || "").split(/\r?\n/).find((l) => l.trim());
+  return !!h && h[0] === "0" && /REMESSA/.test(h.slice(0, 20));
+};
 const ehNfXml = (txt) => /<(nfeProc|NFe|procNFe|CompNfse|Nfse|NFSe|cteProc)[\s>]/i.test(txt);
 export const ehDanfe = (t) => /DANFE|DOCUMENTO\s+AUXILIAR\s+DA\s+NOTA\s+FISCAL/i.test(t)
   || (/NFS-?e|NOTA\s+FISCAL\s+(?:ELETR[ÔO]NICA\s+)?DE\s+SERVI[ÇC]OS?/i.test(t) && /PRESTADOR/i.test(t) && /TOMADOR/i.test(t));
@@ -78,6 +82,7 @@ export function identificar(nome, buf, pdf = null, dica = null) {
   }
   if (["ret", "txt", "cnab", "rem"].includes(e) || /^cb\d+/i.test(nome)) {
     if (ehRetornoCnab(txt)) return r("RETORNO");
+    if (ehRemessaCnab(txt)) { const n = Number(String(txt).slice(110, 117).replace(/\D/g, "") || 0); return r("REMESSA", { detalhe: n ? `remessa nº ${n}` : null }); }
     const sp = lerSped(txt);
     if (sp) return r("SPED", { competencia: sp.competencia, detalhe: sp.competencia });
     try { const h = lerHistorico(txt); if (h?.itens?.length) return r("HISTORICO", { detalhe: `${h.itens.length} lançamento(s)` }); } catch { /* segue */ }

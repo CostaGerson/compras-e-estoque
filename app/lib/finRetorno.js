@@ -122,13 +122,11 @@ function acaoDe(r) {
   return { acao: "CRITICA", aviso: `${nome} (ocorrência ${r.ocorrencia})${mot ? ` — ${mot}` : ""}. A conta NÃO foi baixada — confira.` };
 }
 
-export async function analisarRetornos(arquivos) {
-  const lidos = arquivos.map((a) => ({ ...lerRetorno(a.nome, a.conteudo), hash: hashTexto(a.conteudo) }));
-  const ja = await prisma.finRetorno.findMany({ where: { hash: { in: lidos.map((x) => x.hash) } }, select: { hash: true, createdAt: true } });
-  const jaPor = Object.fromEntries(ja.map((x) => [x.hash, x.createdAt]));
+// v231 — casador de contas a receber (usado pelo retorno e pela remessa): seu número → NF + parcela → nosso número
+export async function montarCasador() {
   const tits = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true, remessa: true, registradoEm: true },
   });
   const porDoc = new Map(), porNosso = new Map(), porNf = new Map();
   const add = (m, k, t) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(t); };
@@ -138,16 +136,7 @@ export async function analisarRetornos(arquivos) {
     const nf = nfDaConta(t); if (nf) add(porNf, nf.nf, { t, ...nf });
   }
   const prefere = (l) => (l || []).slice().sort((a, b) => (a.status === "ABERTO" ? 0 : 1) - (b.status === "ABERTO" ? 0 : 1))[0] || null;
-  // NFs de saída sem conta a receber (Movimento fiscal só registrado, ou XML enviado na contabilidade)
-  const [fiscais, saidas] = await Promise.all([
-    prisma.fiscalNota.findMany({ where: { tipo: "SAIDA" }, select: { numero: true, parceiro: true, documento: true, emissao: true, valor: true, acao: true, empresa: true } }).catch(() => []),
-    prisma.finNfSaida.findMany({ select: { numero: true, destNome: true, destCnpj: true, emissao: true, valor: true } }).catch(() => []),
-  ]);
-  const nfInfo = new Map();
-  for (const n of saidas) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.destNome, documento: String(n.destCnpj || "").replace(/\D/g, "") || null, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), fonte: "NF DE SAÍDA (CONTABILIDADE)" });
-  for (const n of fiscais) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.parceiro, documento: n.documento, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), empresa: n.empresa, fonte: n.acao === "REGISTRADA" ? "MOVIMENTO FISCAL (SÓ REGISTRO, SEM CONTA)" : "MOVIMENTO FISCAL" });
-  // casamento: seu número exato → NF + parcela → nosso número (só se nº e valor não contradizem)
-  function casar(r) {
+  return function casar(r) {
     const porN = prefere(porDoc.get(normDoc(r.numeroDoc))) || prefere(porDoc.get(normDoc(r.controle)));
     if (porN) return { t: porN, por: "NUMERO" };
     const sn = nfDoSeuNumero(r.numeroDoc);
@@ -170,7 +159,27 @@ export async function analisarRetornos(arquivos) {
       return { t: null, recusado: `Nosso número igual ao de "${t.titulo}" (${Number(t.valor).toFixed(2).replace(".", ",")}), mas o nº do título ou o valor não batem — não casei.` };
     }
     return { t: null };
-  }
+  };
+}
+
+// NFs de saída sem conta a receber (Movimento fiscal só registrado, ou XML enviado na contabilidade)
+export async function nfsDeSaida() {
+  const [fiscais, saidas] = await Promise.all([
+    prisma.fiscalNota.findMany({ where: { tipo: "SAIDA" }, select: { numero: true, parceiro: true, documento: true, emissao: true, valor: true, acao: true, empresa: true } }).catch(() => []),
+    prisma.finNfSaida.findMany({ select: { numero: true, destNome: true, destCnpj: true, emissao: true, valor: true } }).catch(() => []),
+  ]);
+  const nfInfo = new Map();
+  for (const n of saidas) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.destNome, documento: String(n.destCnpj || "").replace(/\D/g, "") || null, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), fonte: "NF DE SAÍDA (CONTABILIDADE)" });
+  for (const n of fiscais) nfInfo.set(String(n.numero).replace(/^0+/, ""), { numero: String(n.numero).replace(/^0+/, ""), parceiro: n.parceiro, documento: n.documento, emissao: n.emissao?.toISOString().slice(0, 10), valor: Number(n.valor), empresa: n.empresa, fonte: n.acao === "REGISTRADA" ? "MOVIMENTO FISCAL (SÓ REGISTRO, SEM CONTA)" : "MOVIMENTO FISCAL" });
+  return nfInfo;
+}
+
+export async function analisarRetornos(arquivos) {
+  const lidos = arquivos.map((a) => ({ ...lerRetorno(a.nome, a.conteudo), hash: hashTexto(a.conteudo) }));
+  const ja = await prisma.finRetorno.findMany({ where: { hash: { in: lidos.map((x) => x.hash) } }, select: { hash: true, createdAt: true } });
+  const jaPor = Object.fromEntries(ja.map((x) => [x.hash, x.createdAt]));
+  const casar = await montarCasador();
+  const nfInfo = await nfsDeSaida();
   const out = lidos.map((f) => ({
     arquivo: f.arquivo, sequencia: f.sequencia, dataArquivo: f.dataArquivo, empresa: f.empresa, tarifa: f.tarifa, hash: f.hash,
     jaProcessado: jaPor[f.hash] || null,
@@ -194,7 +203,7 @@ export async function analisarRetornos(arquivos) {
         else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = "Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação."; }
         else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
         else if (acao === "CRITICA" && !["ABERTO", "EXECUCAO"].includes(t.status)) { situacao = "JA_BAIXADA"; msg = `${aviso} (conta já ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} no sistema — sem crítica)`; }
-        else if (acao === "REGISTRAR" && t.cobranca) { situacao = "JA_REGISTRADA"; }
+        else if (acao === "REGISTRAR" && t.registradoEm) { situacao = "JA_REGISTRADA"; }   // v231: falta o nº/data do retorno → registra
       }
       return {
         k: `${f.arquivo}#${r.seq}`, arquivo: f.arquivo, ...r, acao, nomeOcorrencia: OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`,
@@ -259,8 +268,10 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
       if (!t || t.tipo !== "RECEBER" || t.status === "CANCELADO") throw new Error("conta não encontrada");
       const nosso = t.nossoNumero || reg.nosso || null;
       if (acao === "REGISTRAR") {
-        if (t.status === "ABERTO" && !t.cobranca) {
-          await prisma.finTitulo.update({ where: { id }, data: { cobranca: "REGISTRADO", nossoNumero: nosso, formaPagamento: t.formaPagamento || "BOLETO", atualizadoPorNome: quem || null } });
+        // v231 — título registrado: guarda o nº do retorno e a data da confirmação
+        if (!t.registradoEm) {
+          await prisma.finTitulo.update({ where: { id }, data: { cobranca: t.cobranca || "REGISTRADO", nossoNumero: nosso, formaPagamento: t.formaPagamento || "BOLETO",
+            registradoRetorno: f.sequencia || f.arquivo, registradoEm: dataUTC(reg.dataOcorrencia || f.dataArquivo), atualizadoPorNome: quem || null } });
           r.registradas++;
         }
         continue;

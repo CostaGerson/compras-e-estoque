@@ -861,6 +861,10 @@ model FinTitulo {
   pontual          Boolean   @default(false)    // v192: recorrência alterada só neste mês (a Matriz não mexe mais nela)
   nossoNumero      String?                      // v127: nosso número do boleto (retorno CNAB)
   cobranca         String?                      // v127: REGISTRADO | LIQUIDADO | DESCONTADO (retorno do banco)
+  remessa          String?                      // v231: nº da remessa CNAB que levou o boleto ao banco
+  remessaEm        DateTime? @db.Date
+  registradoRetorno String?                     // v231: nº do retorno que confirmou o registro (ocorrência 02)
+  registradoEm     DateTime? @db.Date
   // v175.2 — boleto que será antecipado: valor = líquido estimado (custo dos contratos anteriores); confirma quando o contrato subir
   antecipacaoPrevista Boolean @default(false)
   valorBruto       Decimal?  @db.Decimal(14, 2)   // valor de face do boleto
@@ -1015,6 +1019,20 @@ model FinRetorno {
   hash          String   @unique
   conteudo      String   // base64
   resumo        Json?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+}
+
+// v231: arquivos de remessa de cobrança (CNAB 400) transmitidos — confere se cada boleto existe no sistema
+model FinRemessa {
+  id            Int      @id @default(autoincrement())
+  banco         String   @default("237")
+  sequencia     String?  // nº sequencial da remessa (cabeçalho, posições 111–117)
+  nome          String
+  dataArquivo   DateTime? @db.Date
+  hash          String   @unique
+  conteudo      String   // base64
+  resumo        Json?    // { registros, valor, casados, criticas: [{ numeroDoc, nosso, parceiro, valor, vencimento, motivo }] }
   criadoPorNome String?
   createdAt     DateTime @default(now())
 }
