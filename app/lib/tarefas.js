@@ -39,6 +39,7 @@ export async function gerarOcorrencias(ate) {
     await prisma.tarefa.createMany({ skipDuplicates: true, data: datas.map((d) => ({
       titulo: s.titulo, descricao: s.descricao, setor: s.setor, responsavelId: s.responsavelId, responsavelNome: s.responsavelNome,
       criadoPorId: s.criadoPorId, criadoPorNome: s.criadoPorNome, prazo: dUTC(d), tipo: "ROTINA", publica: s.publica, serieId: s.id,
+      hora: s.hora, horaFim: s.horaFim, natureza: s.natureza, projetoId: s.projetoId,
       subtarefas: (s.subtarefas || []).map((x) => ({ texto: x.texto, feita: false })), dependencias: [],
     })) });
   }
@@ -51,17 +52,19 @@ const resumo = (t, abertas = {}) => ({
   serieId: t.serieId, recorrencia: t.recorrencia || null, subtarefas: t.subtarefas || [], dependencias: t.dependencias || [],
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
+  hora: t.hora || null, horaFim: t.horaFim || null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null,
 });
 
-export async function listar(u, { de, ate, escopo, incluirConcluidas = true }) {
+export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await gerarOcorrencias(ate);
   const where = { modelo: false, status: { not: "CANCELADA" } };
+  if (projetoId) where.projetoId = Number(projetoId);
   if (de || ate) where.prazo = { ...(de ? { gte: dUTC(de) } : {}), ...(ate ? { lte: dUTC(ate) } : {}) };
   if (!incluirConcluidas) where.status = { notIn: ["CANCELADA", "CONCLUIDA"] };
   if (escopo === "minhas") where.responsavelId = u.id;
   else if (escopo === "criadas") where.AND = [{ criadoPorId: u.id }, { OR: [{ publica: true }, { responsavelId: u.id }] }];
   else where.OR = [{ publica: true }, { responsavelId: u.id }];
-  const l = await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { id: "asc" }], take: 3000, include: { _count: { select: { arquivos: true } } } });
+  const l = await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 3000, include: { _count: { select: { arquivos: true } } } });
   return enriquecer(l, u);
 }
 
@@ -107,7 +110,13 @@ function limpar(b) {
     publica: b.publica !== false,
     subtarefas: (Array.isArray(b.subtarefas) ? b.subtarefas : []).map((x) => ({ texto: String(x.texto || "").trim().slice(0, 300), feita: !!x.feita })).filter((x) => x.texto),
     dependencias: [...new Set((Array.isArray(b.dependencias) ? b.dependencias : []).map(Number).filter(Boolean))],
+    hora: /^\d{2}:\d{2}$/.test(b.hora || "") ? b.hora : null,
+    horaFim: /^\d{2}:\d{2}$/.test(b.horaFim || "") ? b.horaFim : null,
+    natureza: b.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL",
+    projetoId: Number(b.projetoId) || null,
   };
+  if (t.hora && t.horaFim && t.horaFim <= t.hora) t.horaFim = null;
+  if (!t.hora) t.horaFim = null;
   return t;
 }
 
@@ -121,8 +130,15 @@ async function validarDeps(ids, proprioId) {
   return null;
 }
 
+// v226 — demanda atribuída por outra pessoa é funcional e pública; pessoal é sempre privada
+function regraNatureza(t, criadorId) {
+  if (t.responsavelId && criadorId && t.responsavelId !== criadorId) { t.natureza = "FUNCIONAL"; t.publica = true; }
+  if (t.natureza === "PESSOAL") t.publica = false;
+  return t;
+}
+
 export async function criar(b, u) {
-  const t = limpar(b);
+  const t = regraNatureza(limpar(b), u.id);
   if (!t.titulo) return { error: "Escreva a demanda." };
   if (!t.setor) return { error: "Escolha o setor." };
   if (!t.responsavelId) return { error: "Escolha o colaborador." };
@@ -148,7 +164,7 @@ export async function editar(id, b, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
   if (!x || !podeVer(x, u)) return { error: "Demanda não encontrada." };
   if (!podeEditar(x, u)) return { error: "Só quem criou, o responsável ou o master editam." };
-  const t = limpar({ ...x, prazo: iso(x.prazo), ...b });
+  const t = regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId);
   if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
   const e = await validarDeps(t.dependencias, x.id); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
@@ -157,7 +173,8 @@ export async function editar(id, b, u) {
   const up = await prisma.tarefa.update({ where: { id: x.id }, data });
   // alterar também as próximas da série (e a própria série)
   if (x.serieId && b.aplicarSerie) {
-    const comuns = { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica, ...(resp ? { responsavelNome: nome(resp) } : {}) };
+    const comuns = { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
+      hora: data.hora, horaFim: data.horaFim, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) };
     await prisma.tarefa.update({ where: { id: x.serieId }, data: { ...comuns, subtarefas: data.subtarefas.map((s) => ({ texto: s.texto, feita: false })) } });
     await prisma.tarefa.updateMany({ where: { serieId: x.serieId, prazo: { gt: x.prazo }, status: "ABERTA" }, data: comuns });
   }
@@ -323,3 +340,33 @@ export async function usuariosParaTarefa() {
 }
 
 export { SETORES_TAREFA, NOME_SETOR_TAREFA };
+
+
+// ---------- v226: projetos ----------
+const CORES_PROJETO = ["#4573D2", "#5DA283", "#E8384F", "#FD612C", "#F1BD6C", "#9E47FF", "#4ECBC4", "#E362E3", "#8D84E8", "#FC979A", "#AECF55", "#6D6E6F"];
+export { CORES_PROJETO };
+export async function listarProjetos(u) {
+  const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true, OR: [{ publico: true }, { donoId: u.id }] }, orderBy: { nome: "asc" } });
+  const n = await prisma.tarefa.groupBy({ by: ["projetoId"], where: { projetoId: { in: l.map((p) => p.id) }, modelo: false, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, _count: { _all: true } }).catch(() => []);
+  return l.map((p) => ({ id: p.id, nome: p.nome, cor: p.cor, publico: p.publico, donoId: p.donoId, donoNome: p.donoNome, abertas: n.find((x) => x.projetoId === p.id)?._count?._all || 0, podeEditar: p.donoId === u.id || ehMaster(u) }));
+}
+export async function salvarProjeto(b, u) {
+  const nomeP = String(b.nome || "").trim().slice(0, 80);
+  if (!nomeP) return { error: "Dê um nome ao projeto." };
+  const cor = /^#[0-9A-Fa-f]{6}$/.test(b.cor || "") ? b.cor : CORES_PROJETO[0];
+  if (b.id) {
+    const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(b.id) } });
+    if (!p) return { error: "Projeto não encontrado." };
+    if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto altera." };
+    return { ok: true, projeto: await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { nome: nomeP, cor, publico: b.publico !== false } }) };
+  }
+  return { ok: true, projeto: await prisma.tarefaProjeto.create({ data: { nome: nomeP, cor, publico: b.publico !== false, donoId: u.id, donoNome: nome(u) } }) };
+}
+export async function excluirProjeto(id, u) {
+  const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(id) || 0 } });
+  if (!p) return { ok: true };
+  if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto exclui." };
+  await prisma.tarefa.updateMany({ where: { projetoId: p.id }, data: { projetoId: null } });
+  await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { ativo: false } });
+  return { ok: true };
+}

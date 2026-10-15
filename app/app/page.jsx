@@ -78,10 +78,7 @@ const GESTAO_TODOS = [...TODOS, ...PROD, ...OFICINAS, "COMERCIAL", "LOGISTICA", 
 const MENU = [
   { key: "desenvolvimento", label: "Desenvolvimento", icon: Lightbulb, perfis: ["FINANCEIRO"], desc: "Sugestões de melhoria enviadas pelos usuários: acatar ou recusar" },
   { key: "gestao", label: "Gestão", icon: Compass, perfis: GESTAO_TODOS, desc: "KPIs do mês contra a meta e relatório do ano" },
-  // v171 — Agenda é tela e grupo: Tarefas aparece embaixo dela no menu lateral só depois de clicar em Agenda
-  { key: "agenda", label: "Agenda", icon: IcoAgenda, pagina: true, perfis: [...GESTAO_TODOS, "RH"], desc: "Suas demandas no mês e na semana", filhos: [
-    { key: "tarefas", label: "Tarefas", icon: ListTodo, perfis: [...GESTAO_TODOS, "RH"], desc: "Demandas entre os setores: quem faz o quê, prazos, rotinas e quem está trabalhando em quê" },
-  ] },
+  // v226 — Agenda saiu do menu lateral: abre pelo ícone de calendário ao lado da foto (topo); Tarefas é um botão dentro da Agenda
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
@@ -266,18 +263,18 @@ export default function Home() {
                     className={`hover:underline ${i < caminho.length - 1 ? "font-normal" : "font-semibold"}`}
                     style={{ color: i < caminho.length - 1 ? C.sub : C.text }}>{n.label}</button>
                 </React.Fragment>
-              )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : "")}
+              )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : view === "agenda" ? "Agenda" : view === "tarefas" ? "Tarefas" : "")}
             </div>
           </div>
           <div className="flex items-center gap-3">
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
-              onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
+              onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} />
           </div>
         </header>
 
         <div className="flex-1 overflow-auto p-6">
-          <div key={`${view}-${resetTick}`} style={{ display: "contents" }}>
+          <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} />}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? () => { setFinInicial({ v: "matriz", t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
@@ -520,7 +517,7 @@ function Badge({ n }) {
   );
 }
 
-function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens }) {
+function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens, onIrAgenda, agendaAtiva }) {
   const [naoVistos, setNaoVistos] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
@@ -549,6 +546,9 @@ function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onI
       <button onClick={onIrMensagens} title="Mensagens" style={{ position: "relative", color: naoLidas ? C.accent : C.sub }}>
         <Inbox size={20} /><Badge n={naoLidas} />
       </button>
+      {onIrAgenda && <button onClick={onIrAgenda} title="Agenda" className="flex items-center justify-center rounded-lg" style={{ width: 34, height: 34, background: agendaAtiva ? "#EAF0FB" : "transparent", color: agendaAtiva ? "#4573D2" : C.sub }}>
+        <IcoAgenda size={20} />
+      </button>}
       <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2">
         <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={34} />
         <div className="text-left leading-tight hidden md:block">

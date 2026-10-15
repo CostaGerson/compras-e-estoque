@@ -5,3 +5,26 @@
 
 html, body { padding: 0; margin: 0; background: #F5F6F8; font-family: 'Montserrat', system-ui, sans-serif; }
 * { box-sizing: border-box; }
+
+/* v226 — movimento: troca de tela, guias, janelas e cliques */
+@keyframes ce-entrar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ce-modal { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes ce-fundo { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ce-gaveta { from { opacity: .4; transform: translateX(48px); } to { opacity: 1; transform: none; } }
+@keyframes ce-dir { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes ce-esq { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.anim-entrar { animation: ce-entrar .22s ease-out both; }
+.anim-modal { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) both; }
+.anim-fundo { animation: ce-fundo .18s ease-out both; }
+.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) both; }
+.anim-dir { animation: ce-dir .24s ease-out both; }
+.anim-esq { animation: ce-esq .24s ease-out both; }
+/* janelas que não usam as classes acima (overlays fixos do sistema) também entram com movimento */
+.fixed.inset-0.z-50 { animation: ce-fundo .18s ease-out both; }
+.fixed.inset-0.z-50 > div { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) both; }
+.fixed.inset-0.z-50.anim-fundo > div.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) both; }
+button { transition: transform .12s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+button:active:not(:disabled) { transform: scale(.97); }
+.card-asana { transition: transform .15s ease, box-shadow .15s ease; }
+.card-asana:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(30,31,33,.15); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

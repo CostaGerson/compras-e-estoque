@@ -1629,6 +1629,10 @@ model Tarefa {
   retorno          String?
   concluidaEm      DateTime?
   concluidaPorNome String?
+  hora             String?                       // v226: "HH:MM" (opcional)
+  horaFim          String?                       // v226: "HH:MM" (opcional)
+  natureza         String    @default("FUNCIONAL") // v226: FUNCIONAL | PESSOAL (pessoal é sempre privada)
+  projetoId        Int?                          // v226: TarefaProjeto
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   arquivos         TarefaArquivo[]
@@ -1638,6 +1642,19 @@ model Tarefa {
   @@index([responsavelId])
   @@index([prazo])
   @@index([status])
+}
+
+// v226 — projetos da agenda (cada um com uma cor; a tarefa do projeto ganha o quadradinho da cor)
+model TarefaProjeto {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  cor       String   @default("#4573D2")
+  donoId    Int
+  donoNome  String?
+  publico   Boolean  @default(true)            // privado: só o dono vê
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TarefaArquivo {
