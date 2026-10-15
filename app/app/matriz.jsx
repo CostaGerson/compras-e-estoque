@@ -509,7 +509,9 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
   const pcsAno = mg?.pcsAno ?? (tk ? calc.metaFatAnual / tk : (pr?.metaPecas || 0) * 12);
   const cor = (v) => (v >= 0 ? C.green : C.red);
   const linhas = [
-    { k: "Faturamento", sub: mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.metaMensal), a: curto(calc.fatAnoProj ?? calc.metaFatAnual),
+    { k: "Faturamento", sub: calc.projecao
+        ? `ano: realizado ${curto(calc.projecao.meses.filter((x) => x.tipo !== "SIMULADO").reduce((t, x) => t + x.fat, 0))} + metas ${curto(calc.projecao.meses.filter((x) => x.tipo === "SIMULADO").reduce((t, x) => t + x.fat, 0))}`
+        : mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.metaMensal), a: curto(calc.fatAnoProj ?? calc.metaFatAnual),
       dm: <Dif a={calc.metaMensal} o={calcOf?.metaMensal} />, da: <Dif a={calc.fatAnoProj ?? calc.metaFatAnual} o={calcOf ? calcOf.fatAnoProj ?? calcOf.metaFatAnual : null} /> },
     { k: "Peças", sub: "faturadas = produzidas", m: int(pcsMes), a: int(pcsAno) },
     { k: "Lucro no cenário", sub: `${pct(calc.anoCenario)} do faturamento do ano`, m: curto(calc.mesCenarioR), a: curto(calc.anoCenarioR), c: cor(calc.anoCenarioR), cm: cor(calc.mesCenarioR),
