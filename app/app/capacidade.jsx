@@ -16,8 +16,9 @@ const um = (v) => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { maxim
 const pc = (v) => (v == null ? "—" : `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`);
 const MES = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 const nomeC = (c) => `${MES[Number(c.slice(5, 7)) - 1]}/${c.slice(2, 4)}`;
-const Th = ({ children, dir, cor }) => <th className={`px-2.5 py-2 text-[11px] font-semibold whitespace-nowrap ${dir ? "text-right" : "text-left"}`} style={{ color: cor || C.sub }}>{children}</th>;
-const Td = ({ children, dir, forte, cor }) => <td className={`px-2.5 py-2 whitespace-nowrap tabular-nums ${dir ? "text-right" : ""}`} style={{ fontWeight: forte ? 700 : 400, color: cor || C.text }}>{children}</td>;
+// v232: colunas de número centralizadas (título e dado); sep = linha que separa os grupos A e B
+const Th = ({ children, dir, cor, sep }) => <th className={`px-2.5 py-2 text-[11px] font-semibold whitespace-nowrap ${dir ? "text-center" : "text-left"}`} style={{ color: cor || C.sub, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</th>;
+const Td = ({ children, dir, forte, cor, sep }) => <td className={`px-2.5 py-2 whitespace-nowrap tabular-nums ${dir ? "text-center" : ""}`} style={{ fontWeight: forte ? 700 : 400, color: cor || C.text, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</td>;
 
 export default function Capacidade({ user, usarNaMeta }) {
   const [meses, setMeses] = useState(6);
@@ -103,33 +104,33 @@ export default function Capacidade({ user, usarNaMeta }) {
             </div>
             <table className="w-full text-xs">
               <thead>
-                <tr><th colSpan={7} className="px-2.5 pt-1 text-left text-[10px] font-bold tracking-wider" style={{ color: C.sub }}>HISTÓRICO (média)</th>
-                  <th colSpan={4} className="px-2.5 pt-1 text-left text-[10px] font-bold tracking-wider" style={{ color: C.yellow, borderLeft: `1px solid ${C.line}` }}>A · MANTER A EQUIPE</th>
-                  <th colSpan={4} className="px-2.5 pt-1 text-left text-[10px] font-bold tracking-wider" style={{ color: C.green, borderLeft: `1px solid ${C.line}` }}>B · RECOMENDADO</th></tr>
+                <tr><th colSpan={7} className="px-2.5 pt-1 text-center text-[10px] font-bold tracking-wider" style={{ color: C.sub }}>HISTÓRICO (média)</th>
+                  <th colSpan={4} className="px-2.5 pt-1 text-center text-[10px] font-bold tracking-wider" style={{ color: C.yellow, borderLeft: `1px solid ${C.line}` }}>A · MANTER A EQUIPE</th>
+                  <th colSpan={4} className="px-2.5 pt-1 text-center text-[10px] font-bold tracking-wider" style={{ color: C.green, borderLeft: `1px solid ${C.line}` }}>B · RECOMENDADO</th></tr>
                 <tr style={{ borderBottom: `1px solid ${C.line}` }}>
                   <Th>Setor</Th><Th dir>Diária (R$)</Th><Th dir>Pessoas</Th><Th dir>Freelancer/mês</Th><Th dir>Diárias/mês</Th><Th dir>Freelancers/dia</Th><Th dir>Peças/trab.</Th>
-                  <Th dir cor={C.yellow}>Precisa (trab.)</Th><Th dir cor={C.yellow}>Freelancers/dia</Th><Th dir cor={C.yellow}>Freelancer/mês</Th><Th dir cor={C.yellow}>% free</Th>
-                  <Th dir cor={C.green}>Contratar</Th><Th dir cor={C.green}>Freelancers/dia</Th><Th dir cor={C.green}>Folha + free</Th><Th dir cor={C.green}>% free</Th>
+                  <Th dir sep cor={C.yellow}>Precisa (trab.)</Th><Th dir cor={C.yellow}>Freelancers/dia</Th><Th dir cor={C.yellow}>Freelancer/mês</Th><Th dir cor={C.yellow}>% free</Th>
+                  <Th dir sep cor={C.green}>Contratar</Th><Th dir cor={C.green}>Freelancers/dia</Th><Th dir cor={C.green}>Folha + free</Th><Th dir cor={C.green}>% free</Th>
                 </tr>
               </thead>
               <tbody>
                 {d.setores.map((s) => (
                   <tr key={s.setor} style={{ borderBottom: `1px solid ${C.line}` }}>
                     <Td forte>{s.setor}{s.jaPrecisa && <div className="text-[10px] font-semibold" style={{ color: C.red }}>já acima de 1/dia em {s.mesesAcima1} meses</div>}</Td>
-                    <td className="px-2.5 py-1.5 text-right">
+                    <td className="px-2.5 py-1.5 text-center">
                       <input value={diarias[s.setor] ?? ""} onChange={(e) => { setDiarias((x) => ({ ...x, [s.setor]: e.target.value })); setMexeu(true); }} placeholder="informe"
                         className="rounded px-1.5 py-1 text-xs text-right" style={{ width: 80, border: `1px solid ${s.semDiaria ? C.yellow : C.line}`, background: s.semDiaria ? C.yellowSoft : "#fff" }} />
                     </td>
                     <Td dir>{um(s.pessoas)}</Td><Td dir>{brl(s.freelancer)}</Td><Td dir>{s.semDiaria ? "—" : int(s.diariasMes)}</Td><Td dir forte>{s.semDiaria ? "—" : um(s.freeDia)}</Td><Td dir>{s.semDiaria ? "—" : `${int(s.porTrab)} pç`}</Td>
-                    <Td dir cor={C.yellow}>{s.A ? um(s.A.necessarios) : "—"}</Td><Td dir forte cor={C.yellow}>{s.A ? um(s.A.freeDia) : "—"}</Td><Td dir cor={C.yellow}>{s.A ? brl(s.A.freelancer) : "—"}</Td><Td dir cor={C.yellow}>{s.A ? pc(s.A.pct) : "—"}</Td>
-                    <Td dir forte cor={C.green}>{s.B ? (s.B.contratar ? `+${s.B.contratar}` : "0") : "—"}</Td><Td dir cor={C.green}>{s.B ? um(s.B.freeDia) : "—"}</Td>
+                    <Td dir sep cor={C.yellow}>{s.A ? um(s.A.necessarios) : "—"}</Td><Td dir forte cor={C.yellow}>{s.A ? um(s.A.freeDia) : "—"}</Td><Td dir cor={C.yellow}>{s.A ? brl(s.A.freelancer) : "—"}</Td><Td dir cor={C.yellow}>{s.A ? pc(s.A.pct) : "—"}</Td>
+                    <Td dir sep forte cor={C.green}>{s.B ? (s.B.contratar ? `+${s.B.contratar}` : "0") : "—"}</Td><Td dir cor={C.green}>{s.B ? um(s.B.freeDia) : "—"}</Td>
                     <Td dir cor={C.green}>{s.B ? (s.B.semCustoPessoa ? "sem custo na Matriz" : brl(s.B.custo)) : "—"}</Td><Td dir cor={C.green}>{s.B ? pc(s.B.pct) : "—"}</Td>
                   </tr>
                 ))}
                 <tr style={{ background: C.panel2 }}>
                   <Td forte>TOTAL</Td><Td dir></Td><Td dir forte>{um(T.pessoas)}</Td><Td dir forte>{brl(T.freelancer)}</Td><Td dir></Td><Td dir forte>{um(T.freeDia)}</Td><Td dir></Td>
-                  <Td dir></Td><Td dir forte cor={C.yellow}>{T.A ? um(T.A.freeDia) : "—"}</Td><Td dir forte cor={C.yellow}>{T.A ? brl(T.A.freelancer) : "—"}</Td><Td dir forte cor={C.yellow}>{T.A ? pc(T.A.pct) : "—"}</Td>
-                  <Td dir forte cor={C.green}>{T.B ? `+${T.B.contratar}` : "—"}</Td><Td dir forte cor={C.green}>{T.B ? um(T.B.freeDia) : "—"}</Td><Td dir forte cor={C.green}>{T.B ? brl(T.B.custo) : "—"}</Td><Td dir forte cor={C.green}>{T.B ? pc(T.B.pct) : "—"}</Td>
+                  <Td dir sep></Td><Td dir forte cor={C.yellow}>{T.A ? um(T.A.freeDia) : "—"}</Td><Td dir forte cor={C.yellow}>{T.A ? brl(T.A.freelancer) : "—"}</Td><Td dir forte cor={C.yellow}>{T.A ? pc(T.A.pct) : "—"}</Td>
+                  <Td dir sep forte cor={C.green}>{T.B ? `+${T.B.contratar}` : "—"}</Td><Td dir forte cor={C.green}>{T.B ? um(T.B.freeDia) : "—"}</Td><Td dir forte cor={C.green}>{T.B ? brl(T.B.custo) : "—"}</Td><Td dir forte cor={C.green}>{T.B ? pc(T.B.pct) : "—"}</Td>
                 </tr>
               </tbody>
             </table>

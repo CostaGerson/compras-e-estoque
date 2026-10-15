@@ -42,16 +42,16 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
     </div>
   );
 
-  // recomendações em texto
-  const recs = [];
-  for (const l of plano.linhas) for (let m = 0; m < 12; m++) {
-    const x = l.meses[m];
-    if (x.contratar) {
-      let fim = m + 1; while (fim < 12 && !l.meses[fim].demitir) fim++;
-      recs.push({ t: "c", txt: `${l.setor}: contratar ${x.contratar} em ${MESES[m]}`, sub: fim < 12 ? `necessidade passa de 1 freelancer/dia por mais de um mês; sobra a partir de ${MESES[fim]}` : "necessidade sustentada até o fim do ano" });
-    }
-    if (x.demitir) recs.push({ t: "d", txt: `${l.setor}: desligar ${x.demitir} em ${MESES[m]}`, sub: `fim do pico — equipe sobra ≥ 1 por 2 meses (só contratados no plano; considere contrato de experiência e custo de rescisão)` });
-  }
+  // v232 — recomendações agrupadas por setor (um card pequeno por setor)
+  const recs = plano.linhas.map((l) => {
+    const ev = [];
+    l.meses.forEach((x, m) => {
+      if (x.contratar) ev.push({ t: "c", n: x.contratar, mes: MESES[m] });
+      if (x.demitir) ev.push({ t: "d", n: x.demitir, mes: MESES[m] });
+    });
+    const pico = Math.max(...l.meses.map((x) => x.equipe));
+    return { setor: l.setor, ev, base: l.base, pico, fim: l.meses[11].equipe };
+  }).filter((r) => r.ev.length);
   const pctMeta = metaFreela != null ? metaFreela / 100 : null;
 
   return (
@@ -123,12 +123,30 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
 
       <div className="px-4 py-3 grid gap-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
         {!recs.length && <div className="text-xs flex items-center gap-2" style={{ color: C.green }}><Users size={14} /> A equipe atual + freelancer dá conta da meta o ano todo — nenhuma contratação recomendada.</div>}
-        {recs.map((r, i) => (
-          <div key={i} className="text-xs flex items-start gap-2">
-            {r.t === "c" ? <UserPlus size={14} style={{ color: C.green, marginTop: 1 }} /> : <UserMinus size={14} style={{ color: C.red, marginTop: 1 }} />}
-            <div><b style={{ color: r.t === "c" ? C.green : C.red }}>{r.txt}</b> <span style={{ color: C.sub }}>— {r.sub}</span></div>
+        {recs.length > 0 && <>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))" }}>
+            {recs.map((r) => (
+              <div key={r.setor} className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-bold" style={{ color: C.navy }}>{r.setor}</span>
+                  <span className="text-[10px] tabular-nums" style={{ color: C.sub }} title="equipe hoje → maior equipe no ano → equipe em DEZ">{r.base} → {r.pico} → {r.fim}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {r.ev.map((e, i) => (
+                    <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums"
+                      style={e.t === "c" ? { background: C.greenSoft, color: C.green } : { background: C.redSoft, color: C.red }}
+                      title={e.t === "c" ? `Contratar ${e.n} em ${e.mes}` : `Desligar ${e.n} em ${e.mes}`}>
+                      {e.t === "c" ? <UserPlus size={10} /> : <UserMinus size={10} />}{e.t === "c" ? "+" : "−"}{e.n} {e.mes}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+          <div className="text-[10px]" style={{ color: C.sub }}>
+            <b style={{ color: C.green }}>+ contratar</b>: necessidade acima de 1 freelancer/dia por mais de um mês · <b style={{ color: C.red }}>− desligar</b>: fim do pico, sobra ≥ 1 pessoa por 2 meses (só quem foi contratado no plano — considere contrato de experiência e custo de rescisão) · números: equipe hoje → pico → DEZ.
+          </div>
+        </>}
         {semDiaria.length > 0 && <div className="text-[11px]" style={{ color: C.yellow }}>
           Fora da conta (sem diária): {semDiaria.join(", ")}. {irCapacidade && <button onClick={irCapacidade} className="underline font-semibold" style={{ color: C.blue }}>preencher</button>}
         </div>}

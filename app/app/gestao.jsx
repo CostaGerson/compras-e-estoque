@@ -126,6 +126,12 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
             <Target size={15} /> Metas de {ano}
           </button>
         )}
+        {abrirRelatorio && (
+          <button onClick={() => abrirRelatorio(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }} title="Relatório de KPIs do ano">
+            <BarChart3 size={15} /> KPIs de {ano}
+          </button>
+        )}
       </div>
 
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -566,10 +572,10 @@ function ResumoAno({ d, master }) {
 }
 
 const Th = ({ children, dir }) => (
-  <th className={`px-2 py-2 font-semibold whitespace-nowrap ${dir ? "text-right" : "text-left"}`} style={{ color: C.sub }}>{children}</th>
+  <th className={`px-2 py-2 font-semibold whitespace-nowrap ${dir ? "text-center" : "text-left"}`} style={{ color: C.sub }}>{children}</th>
 );
 const Td = ({ children, dir, forte, cor }) => (
-  <td className={`px-2 py-1.5 whitespace-nowrap tabular-nums ${dir ? "text-right" : "text-left"}`}
+  <td className={`px-2 py-1.5 whitespace-nowrap tabular-nums ${dir ? "text-center" : "text-left"}`}
     style={{ color: cor || C.text, fontWeight: forte ? 600 : 400 }}>{children}</td>
 );
 function Secao({ titulo, children }) {
@@ -734,7 +740,7 @@ function TabelaReceita({ d, master, onEditar }) {
         <thead><tr style={{ background: C.panel2 }}>
           <Th>Mês</Th>
           {d.segmentos.map((s, i) => (
-            <th key={s} className="px-2 py-2 font-semibold text-right whitespace-nowrap" style={{ color: C.sub }}>
+            <th key={s} className="px-2 py-2 font-semibold text-center whitespace-nowrap" style={{ color: C.sub }}>
               <span className="inline-block rounded mr-1 align-middle" style={{ width: 8, height: 8, background: CORES_SEG[i % CORES_SEG.length] }} />
               {s}
             </th>
