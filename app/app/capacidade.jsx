@@ -28,8 +28,9 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
   const hoje = new Date();
   const [meses, setMeses] = useState(6);
   const [ano, setAno] = useState(hoje.getFullYear());   // v234: período de trabalho (só meses em aberto)
-  const [mes, setMes] = useState(null);
-  const [alvo, setAlvo] = useState("");
+  // v243 — a análise é do PERÍODO EM ABERTO inteiro: meta = peças de todos os meses em aberto (sem escolher mês)
+  const [total, setTotal] = useState("");
+  const [alvo, setAlvo] = useState("");      // média mensal do período (vai para a tabela por setor)
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [diarias, setDiarias] = useState({});
@@ -39,18 +40,20 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
   const [sim, setSim] = useState(null);       // v234: simulação criada na Matriz
   const [criando, setCriando] = useState("");
   const brlTxt = (v) => (v ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
-  const carregar = async (a = alvo, m = mes, y = ano) => {
+  const abertosDe = (r) => (r?.fechados || Array(12).fill(false)).map((f, i) => (f ? -1 : i)).filter((i) => i >= 0);
+  const metaPeriodo = (r) => abertosDe(r).reduce((t, i) => t + (Number(r?.metaMesesPecas?.[i]) || 0), 0);
+  const carregar = async (tot = total, y = ano) => {
     setErro("");
     try {
-      const r = await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}${a ? `&alvo=${a}` : ""}`).then((x) => x.json());
+      const base = await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}`).then((x) => x.json());
+      if (base.error) throw new Error(base.error);
+      const n = abertosDe(base).length || 1;
+      const t = Number(tot) || metaPeriodo(base) || (base.metaMetas || base.total?.pecas || 0) * n;
+      setTotal(t ? String(Math.round(t)) : "");
+      const a = t ? Math.round(t / n) : "";
+      setAlvo(a ? String(a) : "");
+      const r = a ? await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}&alvo=${a}`).then((x) => x.json()) : base;
       if (r.error) throw new Error(r.error);
-      // primeiro mês em aberto do ano (mês fechado no KPI não se mexe mais)
-      let mm = m;
-      if (!mm || r.fechados?.[mm - 1]) { const k = (r.fechados || []).findIndex((f) => !f); mm = k >= 0 ? k + 1 : 12; setMes(mm); }
-      if (!a) {
-        const pad = r.metaMesesPecas?.[mm - 1] || r.metaMetas || r.total?.pecas;
-        if (pad) { setAlvo(String(pad)); return carregar(String(pad), mm, y); }
-      }
       setD(r);
       setDiarias(Object.fromEntries(r.setores.map((s) => [s.setor, s.diaria ? String(s.diaria).replace(".", ",") : ""])));
       setSalarios(Object.fromEntries(r.setores.map((s) => [s.setor, brlTxt(s.salarioPrevisto)])));
@@ -58,12 +61,8 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
     } catch (e) { setErro(e.message); }
   };
   useEffect(() => { setD(null); carregar(); }, [meses]);
-  const trocarPeriodo = (y, m) => {
-    setAno(y); setMes(m); setSim(null);
-    const pad = d && y === d.anoMetas ? d.metaMesesPecas?.[m - 1] : null;
-    setAlvo(pad ? String(pad) : "");
-    carregar(pad ? String(pad) : "", m, y);
-  };
+  const trocarAno = (y) => { setAno(y); setSim(null); setTotal(""); carregar("", y); };
+  const mes = d ? (abertosDe(d)[0] ?? 11) + 1 : null;   // 1º mês em aberto (referência da simulação)
   const salvarDiarias = async () => {
     setSalvando(true);
     try {
@@ -87,17 +86,17 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
   const T = d?.total;
   // v242 — viabilidade no PERÍODO EM ABERTO inteiro: peças de cada mês (fechados = realizado; abertos = Metas escaladas pela meta digitada)
   const per = (() => {
-    const a = Number(alvo) || 0;
-    if (!d || !a || !mes) return null;
+    const tot = Number(total) || 0;
+    if (!d || !tot) return null;
     const fech = d.fechados || [];
     const dist = d.metaMesesPecas || [];
-    const ref = Number(dist[mes - 1]) || 0;
-    const temDist = dist.some((x) => x != null) && ref > 0;
-    const fator = temDist ? a / ref : 1;
-    const pecasMes = Array.from({ length: 12 }, (_, i) => (fech[i] ? Number(dist[i]) || 0 : temDist ? Math.round((Number(dist[i]) || 0) * fator) : a));
+    const ab = abertosDe(d), ref = metaPeriodo(d);
+    const temDist = ref > 0;
+    const fator = temDist ? tot / ref : 1;
+    const pecasMes = Array.from({ length: 12 }, (_, i) => (fech[i] ? Number(dist[i]) || 0 : temDist ? Math.round((Number(dist[i]) || 0) * fator) : Math.round(tot / (ab.length || 1))));
     const nota = temDist
-      ? `Simulação a partir de ${MES_LONGO[mes - 1]}/${d.anoMetas}: ${int(a)} peças no mês (${fator >= 1 ? "+" : ""}${((fator - 1) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as Metas) aplicado aos meses em aberto; meses fechados como estão.`
-      : `Simulação: ${int(a)} peças em cada mês em aberto (sem distribuição mensal nas Metas de ${d.anoMetas}).`;
+      ? `Período em aberto (${ab.length} ${ab.length === 1 ? "mês" : "meses"}): ${int(tot)} peças${Math.abs(fator - 1) > 0.0005 ? ` (${fator >= 1 ? "+" : ""}${((fator - 1) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as Metas)` : " — as Metas"}, distribuídas como nas Metas; meses fechados com o realizado.`
+      : `Período em aberto: ${int(tot)} peças divididas igualmente (sem distribuição mensal nas Metas de ${d.anoMetas}).`;
     const A = planoMensal({ setores: d.setores, pecasMes, ano: d.anoMetas, fechados: fech, semContratar: true }).periodo;
     const B = planoMensal({ setores: d.setores, pecasMes, ano: d.anoMetas, fechados: fech }).periodo;
     const abertos = fech.map((f, i) => (f ? null : MES_LONGO[i].slice(0, 3).toUpperCase())).filter(Boolean);
@@ -117,18 +116,14 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
           </select>
         </label>
         <label className="text-xs" style={{ color: C.sub }}>Ano
-          <select value={ano} onChange={(e) => trocarPeriodo(Number(e.target.value), null)} className="block mt-1 rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }}>
+          <select value={ano} onChange={(e) => trocarAno(Number(e.target.value))} className="block mt-1 rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }}>
             {[hoje.getFullYear(), hoje.getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </label>
-        <label className="text-xs" style={{ color: C.sub }}>Mês (em aberto)
-          <select value={mes || ""} onChange={(e) => trocarPeriodo(ano, Number(e.target.value))} className="block mt-1 rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }}>
-            {MES_LONGO.map((nm, i) => <option key={i} value={i + 1} disabled={!!d?.fechados?.[i] && d?.anoMetas === ano}>{nm}{d?.fechados?.[i] && d?.anoMetas === ano ? " (fechado)" : ""}</option>)}
-          </select>
-        </label>
-        <label className="text-xs" style={{ color: C.sub }}>Meta de peças/mês
-          <input value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))} onBlur={() => { setSim(null); carregar(); }} onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
-            className="block mt-1 rounded-lg px-2 py-1.5 text-sm text-right font-bold" style={{ border: `1px solid ${C.line}`, width: 130 }} />
+        <label className="text-xs" style={{ color: C.sub }}>Meta de peças · período em aberto{d ? ` (${abertosDe(d).map((i) => MES_LONGO[i].slice(0, 3).toUpperCase()).join(", ")})` : ""}
+          <input value={total} onChange={(e) => setTotal(e.target.value.replace(/\D/g, ""))} onBlur={() => { setSim(null); carregar(); }} onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+            className="block mt-1 rounded-lg px-2 py-1.5 text-sm text-right font-bold" style={{ border: `1px solid ${C.line}`, width: 160 }} />
+          {d && metaPeriodo(d) > 0 && Number(total) !== metaPeriodo(d) && <button type="button" onClick={() => { setSim(null); carregar(String(metaPeriodo(d))); }} className="block mt-0.5 text-[10px] underline" style={{ color: C.accent }}>voltar às Metas ({int(metaPeriodo(d))})</button>}
         </label>
       </div>
       {erro && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -177,7 +172,7 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
           {/* por setor */}
           <div className="rounded-xl overflow-x-auto mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="px-4 pt-3 pb-1 flex items-center gap-3">
-              <div className="font-bold text-sm flex-1" style={{ color: C.navy }}>Por setor</div>
+              <div className="font-bold text-sm flex-1" style={{ color: C.navy }}>Por setor <span className="text-xs font-normal" style={{ color: C.sub }}>· mês médio do período em aberto ({int(Number(alvo) || 0)} peças/mês) — o mês a mês fica no quadro abaixo</span></div>
               {mexeu && <button onClick={salvarDiarias} disabled={salvando} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
                 {salvando ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Salvar diárias/salários e recalcular</button>}
             </div>
