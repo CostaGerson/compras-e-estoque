@@ -167,7 +167,7 @@ function CardNatureza({ n, set, original, ticket }) {
             <label key={m} className="block">
               <div className="flex items-center text-[11px] font-semibold mb-1" style={{ color: C.sub }}>
                 <span className="flex-1">{m}</span>
-                {fechado ? <span title="Mês fechado: realizado lançado no KPI — a meta não muda mais" className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color: C.sub }}><Lock size={10} /> FECHADO</span>
+                {fechado ? <span title="Mês fechado: entra o realizado do KPI (a meta mensal gravada continua no KPI para o atingido × meta)" className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color: C.sub }}><Lock size={10} /> REALIZADO</span>
                   : trav ? <button type="button" onClick={() => soltar(i)} title="Valor fixado por você — clique para soltar e receber a sugestão" style={{ color: C.navy }}><Lock size={11} /></button>
                   : sug ? <span style={{ color: C.accent, fontSize: 10 }}>sugestão</span> : null}
               </div>
@@ -182,7 +182,7 @@ function CardNatureza({ n, set, original, ticket }) {
       <div className="flex flex-wrap gap-4 mt-3 text-xs" style={{ color: C.sub }}>
         <span>Soma dos meses: <b style={{ color: C.text }}>{fmt(n.un, total)}</b></span>
         {dif !== 0 && n.anual != null && <span style={{ color: C.red }}>diferença para a meta do ano: <b>{fmt(n.un, dif)}</b> {n.travados.size === 12 ? "(todos os meses fixados — solte um em aberto para fechar)" : ""}</span>}
-        {fech.some(Boolean) && <span><Lock size={10} className="inline" /> {fech.filter(Boolean).length} mês(es) fechado(s) no KPI — só os meses em aberto se ajustam à meta do ano</span>}
+        {fech.some(Boolean) && <span><Lock size={10} className="inline" /> {fech.filter(Boolean).length} mês(es) fechado(s) com o realizado do KPI — o que falta da meta do ano vai para os meses em aberto</span>}
         {[...n.travados].filter((i) => !fech[i]).length > 0 && <span><Lock size={10} className="inline" /> {[...n.travados].filter((i) => !fech[i]).length} mês(es) fixado(s) por você</span>}
       </div>
     </div>
@@ -218,8 +218,14 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
       v = { ...v, meses, anual: meses.some((x) => x != null) ? r2(meses.reduce((s2, x) => s2 + (x || 0), 0)) : null };
     }
     const fechados = d.fechados || Array(12).fill(false);
-    setOrig({ ...d, vend: v });
-    setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", fechados, travados: new Set(fechados.map((f, i) => (f ? i : -1)).filter((i) => i >= 0)), pesos: v.meses });
+    const trav = new Set(fechados.map((f, i) => (f ? i : -1)).filter((i) => i >= 0));
+    // v236 — mês fechado entra com o REALIZADO (vendas R$ do KPI); a meta do ano que falta vai para os meses em aberto
+    const rv = d.realizado?.vendasValor || [];
+    const comReal = v.meses.map((x, i) => (fechados[i] && rv[i] != null ? r2(rv[i]) : x));
+    const base = { ...v, meses: comReal };
+    const ajust = base.anual != null && trav.size ? redistribuir("R$", base.anual, comReal, trav, v.meses) : comReal;
+    setOrig({ ...d, vend: base });
+    setVend({ ...base, meses: ajust, rotulo: "Vendas (R$)", grupo: "Meta que você define", fechados, travados: trav, pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setFreela(freelaInicial != null && !d.__salvo ? freelaInicial : d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
@@ -240,8 +246,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     setSalvando(false);
   };
   // v234 — meses fechados: as peças da meta ficam como gravadas (o ticket só vale para os meses em aberto)
-  const pecasFixas = orig ? (orig.fechados || []).map((f, i) => (f ? orig.naturezas.find((x) => x.k === "faturamentoPecas")?.meses?.[i] ?? null : null)) : null;
-  const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor, pecasFixas) : null;
+  const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor, orig?.realizado) : null;
   // v219 — impacto ao vivo na Matriz oficial: metas da tela (ainda não gravadas) × metas gravadas
   const vivo = (() => {
     if (!matriz || !der) return null;
@@ -272,7 +277,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           <button onClick={() => setAno(ano + 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
         <div className="text-xs flex-1" style={{ color: C.sub }}>
-          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Meses já fechados no KPI ficam travados. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
+          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Meses já fechados no KPI entram com o realizado e ficam travados. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
         </div>
         {vend && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar metas

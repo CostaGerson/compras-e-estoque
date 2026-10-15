@@ -19,7 +19,8 @@ export const CHAVE_DIARIAS = "CAPACIDADE|DIARIAS";
 
 import { diasUteis, feriados } from "@/lib/diasUteis";
 import { lerSalarios, custoContratacao } from "@/lib/capacidadeSimulacao";
-import { mesesFechados } from "@/lib/kpiMetas";
+import { mesesFechados, realizadoDosFechados } from "@/lib/kpiMetas";
+import { relatorio } from "@/lib/kpi";
 export { diasUteis, feriados };
 
 export async function lerDiarias() {
@@ -112,6 +113,10 @@ export async function analisarCapacidade({ meses = 6, alvo = null, ano: anoRef =
   // v231.2 — distribuição mês a mês das Metas (peças faturadas) para a capacidade mensal da simulação
   const km = await prisma.kpiMes.findMany({ where: { ano }, select: { mes: true, metaFaturamentoPecas: true } }).catch(() => []);
   const metaMesesPecas = Array.from({ length: 12 }, (_, i) => { const k = km.find((x) => x.mes === i + 1); return k?.metaFaturamentoPecas ?? null; });
-  const fechados = await mesesFechados(ano).catch(() => Array(12).fill(false));
+  const rel = await relatorio(ano).catch(() => null);
+  const fechados = await mesesFechados(ano, rel).catch(() => Array(12).fill(false));
+  // v236 — mês fechado usa as peças realizadas (faturadas) no lugar da meta
+  const real = realizadoDosFechados(rel, fechados);
+  real.faturamentoPecas.forEach((v, i) => { if (fechados[i] && v != null) metaMesesPecas[i] = v; });
   return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, metaMesesPecas, anoMetas: ano, fechados, diarias, salarios, setores, total };
 }

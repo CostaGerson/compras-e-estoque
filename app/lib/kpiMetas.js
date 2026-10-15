@@ -37,6 +37,16 @@ export async function mesesFechados(ano, rel) {
   return r.linhas.map((l) => tem(l.vendas?.atual) || tem(l.faturamento?.atual) || tem(l.faturamento?.pecas));
 }
 
+// v236 — mês fechado entra com o REALIZADO do KPI (vendas R$, peças vendidas, peças e R$ faturados)
+export function realizadoDosFechados(rel, fechados) {
+  const z = (f) => (rel?.linhas || []).map((l, i) => (fechados[i] ? f(l) ?? null : null));
+  const nn = (v) => (v == null ? null : Number(v));
+  return {
+    vendasValor: z((l) => nn(l.vendas?.atual)), vendasPecas: z((l) => nn(l.vendas?.pecas ?? l.faturamento?.pecas)),
+    faturamentoPecas: z((l) => nn(l.faturamento?.pecas ?? l.vendas?.pecas)), faturamentoValor: z((l) => nn(l.faturamento?.atual ?? l.vendas?.atual)),
+  };
+}
+
 export async function metasDoAno(ano) {
   const a = Number(ano);
   const [kAno, kMes, anos] = await Promise.all([
@@ -102,7 +112,8 @@ export async function metasDoAno(ano) {
   const tkReal = (r) => (r && r.ticketMedio != null ? { valor: Math.round(r.ticketMedio * 100) / 100, meses: r.mediaMensal?.bases?.faturamento || 0 } : null);
   const ticketRealizado = { atual: tkReal(rAtual), anterior: tkReal(rels[a - 1] || null) };
   const fechados = await mesesFechados(a, rAtual);
-  return { ano: a, fechados, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a),
+  const realizado = realizadoDosFechados(rAtual, fechados);
+  return { ano: a, fechados, realizado, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a),
     freelancer: { meta: num(kAno?.metaPctFreelancer), ...(await sugestaoFreelancer().catch(() => ({}))) }, naturezas };
 }
 
@@ -136,15 +147,16 @@ export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem
   const a = Number(ano);
   const rj = await receitaJaneiro(a);
   // v234 — mês fechado mantém a meta gravada (vendas R$ e peças), qualquer que seja o que veio da tela
-  const fech = await mesesFechados(a);
-  const gravados = await prisma.kpiMes.findMany({ where: { ano: a } });
-  const g = (m) => gravados.find((x) => x.mes === m) || {};
-  const vv = [...Array(12)].map((_, i) => (fech[i] && g(i + 1).metaVendasValor != null ? Number(g(i + 1).metaVendasValor) : vendasValorMeses?.[i] ?? null));
-  const pf = [...Array(12)].map((_, i) => (fech[i] && g(i + 1).metaFaturamentoPecas != null ? Number(g(i + 1).metaFaturamentoPecas) : null));
-  const d = derivarMetas(vv, ticket, rj.valor, pf);
+  // v236 — mês fechado entra com o REALIZADO do KPI (a meta do ano fecha com o que já aconteceu);
+  //        a meta mensal gravada do mês fechado não é regravada (o atingido × meta do passado continua valendo)
+  const rel = await relatorio(a).catch(() => null);
+  const fech = await mesesFechados(a, rel);
+  const real = realizadoDosFechados(rel, fech);
+  const vv = [...Array(12)].map((_, i) => (fech[i] && real.vendasValor[i] != null ? real.vendasValor[i] : vendasValorMeses?.[i] ?? null));
+  const d = derivarMetas(vv, ticket, rj.valor, real);
   const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
   metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
-  const r = await salvarMetas(a, metas, margem, quem, ticket, pctFreelancer);
+  const r = await salvarMetas(a, metas, margem, quem, ticket, pctFreelancer, new Set(fech.map((f, i) => (f ? i : -1)).filter((i) => i >= 0)));
   // a receita de JAN do ano seguinte acompanha o faturamento de DEZ deste ano
   const prox = await prisma.kpiAno.findUnique({ where: { ano: a + 1 } }).catch(() => null);
   const dez = d.faturamentoValor.meses[11];
@@ -158,7 +170,7 @@ export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem
 }
 
 // grava: { k: { anual, meses[12] } } e margem (fração)
-export async function salvarMetas(ano, metas, margem, quem, ticket, pctFreelancer) {
+export async function salvarMetas(ano, metas, margem, quem, ticket, pctFreelancer, pular = new Set()) {
   const a = Number(ano);
   const dAno = {};
   if (margem !== undefined) dAno.metaMargem = margem;
@@ -178,6 +190,7 @@ export async function salvarMetas(ano, metas, margem, quem, ticket, pctFreelance
   await prisma.kpiAno.upsert({ where: { ano: a }, create: { ano: a, ...dAno }, update: dAno });
   for (let i = 0; i < 12; i++) {
     if (!Object.keys(porMes[i]).length) continue;
+    if (pular.has(i)) continue;   // v236: mês fechado — a meta mensal gravada não muda (o realizado entra só na conta do ano)
     const data = { ...porMes[i], atualizadoPorNome: quem || null };
     await prisma.kpiMes.upsert({ where: { ano_mes: { ano: a, mes: i + 1 } }, create: { ano: a, mes: i + 1, ...data }, update: data });
   }
