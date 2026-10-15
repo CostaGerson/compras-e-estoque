@@ -260,6 +260,8 @@ function BaixarAtrasadas({ user, contas, onClose, onFeito }) {
   const [just, setJust] = useState("");
   const [data, setData] = useState(hojeISO());
   const [arq, setArq] = useState(null);
+  const [sobre, setSobre] = useState(false);
+  const inpRef = useRef(null);
   const [st, setSt] = useState(false);
   const [erro, setErro] = useState("");
   const pode = !!arq || just.trim().length >= 3;
@@ -280,8 +282,16 @@ function BaixarAtrasadas({ user, contas, onClose, onFeito }) {
       </div>
       <Campo l="Justificativa (obrigatória sem arquivo)"><textarea value={just} onChange={(e) => setJust(e.target.value)} rows={3} placeholder="Ex.: recebido em dinheiro; pago por depósito identificado no extrato de 10/10…" className="w-full rounded-lg px-2 py-2 text-sm" style={inpS} /></Campo>
       <div className="mt-3"><Campo l="Arquivo (obrigatório sem justificativa)">
-        <input type="file" onChange={(e) => setArq(e.target.files?.[0] || null)} className="text-sm" />
-        {arq && <div className="text-xs mt-1" style={{ color: C.sub }}>{arq.name} · {(arq.size / 1024).toFixed(0)} KB</div>}
+        <input ref={inpRef} type="file" className="hidden" onChange={(e) => { setArq(e.target.files?.[0] || null); e.target.value = ""; }} />
+        <div onClick={() => inpRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setSobre(true); }} onDragLeave={() => setSobre(false)}
+          onDrop={(e) => { e.preventDefault(); setSobre(false); const f = e.dataTransfer.files?.[0]; if (f) setArq(f); }}
+          className="rounded-lg px-3 py-4 text-sm text-center cursor-pointer flex items-center justify-center gap-2"
+          style={{ border: `2px dashed ${sobre ? C.green : C.line}`, background: sobre ? C.greenSoft : C.panel2, color: arq ? C.text : C.sub }}>
+          {arq ? <><Paperclip size={15} /> <b>{arq.name}</b> · {(arq.size / 1024).toFixed(0)} KB
+              <button type="button" onClick={(e) => { e.stopPropagation(); setArq(null); }} title="Tirar o arquivo" style={{ color: C.red }}><X size={14} /></button></>
+            : <><Upload size={15} /> Arraste o arquivo aqui ou clique para escolher</>}
+        </div>
       </Campo></div>
       <div className="mt-3 w-48"><Campo l="Data do recebimento"><input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full rounded-lg px-2 py-2 text-sm" style={inpS} /></Campo></div>
       {!pode && <div className="mt-2 text-xs" style={{ color: C.sub }}>Escreva a justificativa ou anexe um arquivo para liberar a baixa.</div>}
