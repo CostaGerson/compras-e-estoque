@@ -108,6 +108,33 @@ export function calcularMatriz(d) {
   const breakevenPecas = divBe > 0 ? custoNegocio / divBe : 0;
   const metaMensal = mg?.fatMes != null ? n(mg.fatMes) : metaFatAnual / 12;
 
+  // v239 — FECHAMENTO DO ANO (oficial com metas da Gestão): meses fechados = lucro realizado da DRE;
+  //        meses em aberto = simulação da Matriz com a meta do mês (faturamento × margem − custo adm + ganho/perda de escala)
+  // v240 — cenário: usa o realizado da oficial (d.fechamento) e simula os meses em aberto com a própria meta (peças × ticket)
+  const fch = mg?.fatMeses && Array.isArray(mg.realizado) ? mg
+    : d.fechamento?.realizado ? { ...d.fechamento, fatMeses: d.fechamento.fatMeses.map((f, i) => (d.fechamento.fechados?.[i] ? f : n(pr.metaPecas) * n(pr.ticketMedio))),
+      pcsMeses: (d.fechamento.pcsMeses || []).map((p, i) => (d.fechamento.fechados?.[i] ? p : n(pr.metaPecas))) } : null;
+  let projecao = null;
+  if (fch) {
+    const tk = n(pr.ticketMedio), mc = n(pr.margemContribuicao);
+    const simMes = (f, p) => {
+      const pc = p != null ? n(p) : tk ? n(f) / tk : 0;
+      const cen = n(f) * mc - custoAdministrativo;
+      return { cen, real: cen + (pecasCobrem ? pc / pecasCobrem - 1 : 0) * operacaoPrecificada };
+    };
+    const meses = fch.fatMeses.map((f, i) => {
+      const r = fch.realizado[i];
+      if (r) return { mes: i + 1, tipo: "REALIZADO", fat: n(f), cen: n(r.lucro), real: n(r.lucro), res: n(r.resultado ?? r.lucro) };
+      const s = simMes(f, fch.pcsMeses?.[i]);
+      return { mes: i + 1, tipo: fch.fechados?.[i] ? "FECHADO_SEM_DRE" : "SIMULADO", fat: n(f), ...s, res: s.real };   // simulado: sem investimento/NORT previstos
+    });
+    const somaK = (k) => meses.reduce((a, x) => a + x[k], 0);
+    const atual = meses[(n(fch.mes) || 1) - 1] || meses[0];
+    projecao = { meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), cenMes: atual.cen, realMes: atual.real, resMes: atual.res,
+      nReal: meses.filter((x) => x.tipo === "REALIZADO").length, nSim: meses.filter((x) => x.tipo !== "REALIZADO").length,
+      semDre: meses.filter((x) => x.tipo === "FECHADO_SEM_DRE").map((x) => x.mes) };
+  }
+
   // RESERVA CDB: provisões do pessoal + itens marcados
   const marcados = [...(d.vidaVegetativa || []), ...(d.logistica || []), ...(d.administracao || []), ...(d.sistemas || [])].filter((i) => i.cdb && i.ativo !== false);
   const cdbPessoal = soma(pessoas, (p) => p.c.provisoes);
@@ -121,7 +148,13 @@ export function calcularMatriz(d) {
     operacaoPrecificada, custoAdministrativo,
     pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno,
     metaFatAnual, metaMensal, metaDia: metaMensal / dias, pecasCobrem, balanco,
-    lucroCenario, lucroCenarioR, lucroReal, lucroRealR, breakevenPecas,
+    lucroCenario, lucroCenarioR, lucroReal, lucroRealR, breakevenPecas, projecao,
+    // v239 — com projeção: o ano = realizado + simulado (o resultado "puro" da Matriz continua acima)
+    anoCenarioR: projecao ? projecao.cenAno : lucroCenarioR, anoRealR: projecao ? projecao.realAno : lucroRealR,
+    anoCenario: projecao && (mg ? metaFatAnual : projecao.fatAno) ? projecao.cenAno / (mg ? metaFatAnual : projecao.fatAno) : lucroCenario,
+    anoReal: projecao && (mg ? metaFatAnual : projecao.fatAno) ? projecao.realAno / (mg ? metaFatAnual : projecao.fatAno) : lucroReal,
+    anoResultadoR: projecao ? projecao.resAno : null, mesResultadoR: projecao ? projecao.resMes : null, fatAnoProj: projecao ? (mg ? metaFatAnual : projecao.fatAno) : metaFatAnual,
+    mesCenarioR: projecao ? projecao.cenMes : lucroCenarioR / 12, mesRealR: projecao ? projecao.realMes : lucroRealR / 12,
     cdb, cdbPessoal, cdbItens: marcados, headcount: pessoas.length,
   };
 }

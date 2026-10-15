@@ -5,6 +5,29 @@ import { prisma } from "@/lib/prisma";
 const num = (v) => (v == null || v === "" ? null : Number(v));
 const MESES = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 
+// meses do ano: faturamento e peças (realizado nos fechados, meta nos abertos) e o resultado realizado da DRE
+export async function projecaoDoAno(ano) {
+  const { relatorio } = await import("@/lib/kpi");
+  const { mesesFechados, realizadoDosFechados } = await import("@/lib/kpiMetas");
+  const { dre } = await import("@/lib/finDre");
+  const [rel, kms] = await Promise.all([relatorio(ano).catch(() => null), prisma.kpiMes.findMany({ where: { ano } })]);
+  const fech = await mesesFechados(ano, rel);
+  const real = realizadoDosFechados(rel, fech);
+  const km = (m) => kms.find((x) => x.mes === m) || {};
+  const fatMeses = [], pcsMeses = [], realizado = [];
+  for (let i = 0; i < 12; i++) {
+    fatMeses.push(fech[i] && real.faturamentoValor[i] != null ? real.faturamentoValor[i] : num(km(i + 1).metaFaturamentoValor));
+    pcsMeses.push(fech[i] && real.faturamentoPecas[i] != null ? real.faturamentoPecas[i] : num(km(i + 1).metaFaturamentoPecas));
+    let r = null;
+    if (fech[i]) {
+      const d = await dre(`${ano}-${String(i + 1).padStart(2, "0")}`).catch(() => null);
+      if (d && d.lancamentos > 0) r = { receita: d.operacao.receita, lucro: d.operacao.lucro, resultado: d.operacao.resultado, margem: d.operacao.margem };
+    }
+    realizado.push(r);
+  }
+  return { fechados: fech, fatMeses, pcsMeses, realizado };
+}
+
 export async function metasDaGestao(hoje = new Date()) {
   const ano = hoje.getFullYear(), mes = hoje.getMonth() + 1;
   const [ka, km] = await Promise.all([
@@ -22,8 +45,10 @@ export async function metasDaGestao(hoje = new Date()) {
   const ticket = ticketMeta ?? (fatAno != null && pcsAno ? fatAno / pcsAno : fatMes != null && pecas ? fatMes / pecas : null);
   const fonteTicket = ticketMeta != null ? "meta de ticket médio (METAS)" : fatAno != null && pcsAno ? "meta de faturamento ÷ meta de peças do ano" : "meta de faturamento ÷ meta de peças do mês";
   const pcsMedia = pcsAno ? pcsAno / 12 : fatAno != null && ticket ? fatAno / 12 / ticket : pecas;
+  // v239 — fechamento do ano: meses fechados com o REALIZADO (KPI + DRE), meses em aberto com a meta (simulados na Matriz)
+  const proj = await projecaoDoAno(ano).catch(() => null);
   return { ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, fatAno, fatMes, pcsAno, pcsMes: pecas, pcsMedia,
-    ticket, fonteTicket, margem, pctFreelancer };
+    ticket, fonteTicket, margem, pctFreelancer, ...(proj || {}) };
 }
 
 export { aplicarMetas } from "@/lib/matrizMetasCalc";

@@ -256,7 +256,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
       const mg = { ...(matriz.metasGestao || {}), ano, nomeMes: `${MESES[mesI]}/${ano}`,
         fatAno: der.faturamentoValor.anual, fatMes: der.faturamentoValor.meses[mesI], pcsAno, pcsMedia: pcsAno ? pcsAno / 12 : null,
         ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null,
-        pctFreelancer: freela != null ? freela / 100 : null };
+        pctFreelancer: freela != null ? freela / 100 : null,
+        // v239 — fechamento do ano ao vivo: meses fechados = realizado (DRE, vindo da oficial); abertos = metas desta tela
+        ...(matriz.metasGestao?.realizado && ano === matriz.metasGestao?.ano ? { mes: mesI + 1, fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses } : { realizado: null, fatMeses: null }) };
       const dv = aplicarMetas(matriz, mg);
       return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg };
     } catch { return null; }
