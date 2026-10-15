@@ -499,20 +499,47 @@ function AvatarMini({ foto, nome, size = 22 }) {
 const corCard = (t) => t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
-function CardAgenda({ t, proj, foto, onClick, onDragStart }) {
+function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu }) {
+  // v228 — card do tamanho fixo do Asana: título cortado numa linha; no hover o conteúdo desliza e aparece o check
   const [bg, bd] = corCard(t);
   const feita = t.status === "CONCLUIDA";
   return (
-    <div draggable={t.podeEditar} onDragStart={onDragStart} onClick={onClick} title={`${t.titulo}${t.recorrenciaTexto ? ` · ${t.recorrenciaTexto}` : ""}`}
-      className="card-asana anim-entrar rounded-lg px-2 py-1.5 flex items-center gap-1.5 cursor-pointer text-[12px]"
-      style={{ background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: feita ? 0.55 : 1 }}>
-      <AvatarMini foto={foto} nome={t.responsavelNome} />
-      <span className="flex-1 min-w-0 leading-tight" style={{ textDecoration: feita ? "line-through" : "none" }}>
-        {t.hora && <b className="mr-1">{horaTxt(t)}</b>}{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
-      </span>
-      {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
-      {t.natureza === "PESSOAL" && <Lock size={10} className="shrink-0" style={{ color: A.sub }} />}
-      {proj && <span className="shrink-0 rounded-[3px]" title={proj.nome} style={{ width: 11, height: 11, background: proj.cor, boxShadow: "0 0 0 1.5px #fff" }} />}
+    <div draggable={t.podeEditar} onDragStart={onDragStart} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu?.(e.clientX, e.clientY); }}
+      title={`${t.titulo}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
+      className="card-asana group relative rounded-md flex items-center overflow-hidden cursor-pointer select-none shrink-0"
+      style={{ height: 36, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: feita ? 0.6 : 1 }}>
+      <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"}
+        className={`absolute left-1.5 flex items-center justify-center rounded-full ${feita ? "" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"}`}
+        style={{ width: 18, height: 18, border: `1.5px solid ${feita ? "#5DA283" : "#6D6E6F"}`, background: feita ? "#5DA283" : "rgba(255,255,255,.7)", transition: "all .18s ease" }}>
+        <svg width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 6.2l2.2 2.2 4.8-4.9" fill="none" stroke={feita ? "#fff" : "#6D6E6F"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <div className={`flex items-center gap-1.5 min-w-0 flex-1 pl-2 pr-1 ${feita ? "translate-x-5" : "group-hover:translate-x-5"}`} style={{ transition: "transform .18s ease" }}>
+        <AvatarMini foto={foto} nome={t.responsavelNome} size={20} />
+        <span className="truncate text-[12.5px] leading-none" style={{ textDecoration: feita ? "line-through" : "none" }}>
+          {t.hora && <b className="mr-1">{t.hora}</b>}{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 pr-2 shrink-0">
+        {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.yellow }} />}
+        {t.natureza === "PESSOAL" && <Lock size={10} style={{ color: A.sub }} />}
+        {proj && <span className="rounded-[3px]" title={proj.nome} style={{ width: 11, height: 11, background: proj.cor }} />}
+      </div>
+    </div>
+  );
+}
+
+// menu do botão direito sobre o card
+function MenuCard({ x, y, t, onClose, onAbrir, onConcluir, onExcluir }) {
+  useEffect(() => { const f = () => onClose(); window.addEventListener("click", f); window.addEventListener("scroll", f, true); return () => { window.removeEventListener("click", f); window.removeEventListener("scroll", f, true); }; }, []);
+  const feita = t.status === "CONCLUIDA";
+  const It = ({ cor, children, onClick }) => <button onClick={(e) => { e.stopPropagation(); onClose(); onClick(); }} className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50" style={{ color: cor || A.texto }}>{children}</button>;
+  return (
+    <div className="fixed z-[60] rounded-lg shadow-xl py-1 anim-modal" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
+      style={{ left: Math.min(x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 200), top: Math.min(y, (typeof window !== "undefined" ? window.innerHeight : 800) - 140), width: 190, background: "#fff", border: `1px solid ${A.linha}` }}>
+      <div className="px-3 py-1.5 text-[11px] truncate" style={{ color: A.sub }}>{t.titulo}</div>
+      <It onClick={onAbrir}><FileText size={14} /> Abrir</It>
+      <It onClick={onConcluir} cor={feita ? A.texto : "#3F8A5F"}><CheckCircle2 size={14} /> {feita ? "Reabrir" : "Concluir"}</It>
+      <It onClick={onExcluir} cor={C.red}><Trash2 size={14} /> Excluir</It>
     </div>
   );
 }
@@ -558,6 +585,7 @@ export function Agenda({ user }) {
   const [arrastando, setArrastando] = useState(null);
   const [sobre, setSobre] = useState(null);
   const [dir, setDir] = useState(0);                 // direção da navegação (animação)
+  const [menuCard, setMenuCard] = useState(null);    // { x, y, t } — botão direito
   const H = hojeISO();
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
   const dias = useMemo(() => {
@@ -585,6 +613,13 @@ export function Agenda({ user }) {
     try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: { prazo: dia } }); carregar(); } catch (e) { alert(e.message); }
   };
   const proj = projetoId ? P[projetoId] : null;
+  const alternarConcluida = async (t) => {
+    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: t.status === "CONCLUIDA" ? "reabrir" : "concluir", retorno: "" }); carregar(); } catch (e) { alert(e.message); }
+  };
+  const excluirTarefa = async (t) => {
+    if (!confirm(`Excluir "${t.titulo}"?`)) return;
+    try { await api(`/api/tarefas/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { alert(e.message); }
+  };
   const Aba = ({ k, t, atual, set }) => (
     <button onClick={() => set(k)} className="relative px-3 py-1.5 text-sm font-semibold rounded-md"
       style={{ color: atual === k ? A.azul : A.texto, background: atual === k ? A.azulSoft : "transparent", transition: "all .18s" }}>{t}</button>
@@ -662,7 +697,8 @@ export function Agenda({ user }) {
                           background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : fora ? "#B7B3B3" : A.texto, padding: "0 6px" }}>{Number(dia.slice(8))}</span>
                       </div>
                       {(modo === "mes" ? l.slice(0, 4) : l).map((t) => (
-                        <CardAgenda key={t.id} t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onDragStart={() => setArrastando(t)} />
+                        <CardAgenda key={t.id} t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onDragStart={() => setArrastando(t)}
+                          onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
                       ))}
                       {modo === "mes" && l.length > 4 && <button onClick={() => { setModo("semana"); setRef(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - 4} mais</button>}
                       <button onClick={() => novaNoDia(dia)} className={`text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 ${modo === "mes" ? "opacity-0 group-hover/dia:opacity-100" : ""}`} style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
@@ -678,6 +714,7 @@ export function Agenda({ user }) {
       </div>
       {form && <TarefaForm user={user} inicial={form} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} />}
+      {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}
       {projForm && <ProjetoForm user={user} inicial={projForm} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
     </div>
   );
