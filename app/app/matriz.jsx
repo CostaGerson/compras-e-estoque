@@ -493,30 +493,59 @@ function Pizza({ fatias, total, ir }) {
 
 
 // v219 — card "Metas e resultado" (também aparece na página de Metas da Gestão, com o impacto ao vivo)
-export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio, compacto }) {
-  const Kv = (p) => <KvBase {...p} compacto={compacto} />;   // v232: compacto = linhas mais baixas (cabe ao lado das metas)
+// v238 — resultados de MÊS e ANO lado a lado (uma linha por indicador) + números únicos em blocos pequenos
+export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio }) {
   const Dif = ({ a, o, tipo = "moeda", inverso }) => {
-    if (!calcOf || o == null) return null;
+    if (!calcOf || o == null || a == null) return null;
     const d = a - o;
-    if (Math.abs(d) < 0.005) return <span className="text-[10px]" style={{ color: C.sub }}>= {rotuloRef}</span>;
+    if (Math.abs(d) < 0.005) return <div className="text-[9px]" style={{ color: C.sub }}>= {rotuloRef}</div>;
     const bom = inverso ? d < 0 : d > 0;
-    return <span className="text-[10px] font-semibold" style={{ color: bom ? C.green : C.red }}>{d > 0 ? "+" : ""}{tipo === "pct" ? pct(d) : tipo === "int" ? int(d) : curto(d)} vs {rotuloRef}</span>;
+    return <div className="text-[9px] font-semibold" style={{ color: bom ? C.green : C.red }}>{d > 0 ? "+" : ""}{tipo === "pct" ? pct(d) : tipo === "int" ? int(d) : curto(d)}</div>;
   };
+  const tk = Number(pr?.ticketMedio) || 0;
+  const pcsMes = mg && tk ? calc.metaMensal / tk : pr?.metaPecas;
+  const pcsAno = mg?.pcsAno ?? (tk ? calc.metaFatAnual / tk : (pr?.metaPecas || 0) * 12);
+  const cor = (v) => (v >= 0 ? C.green : C.red);
+  const linhas = [
+    { k: "Faturamento", sub: mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.metaMensal), a: curto(calc.metaFatAnual),
+      dm: <Dif a={calc.metaMensal} o={calcOf?.metaMensal} />, da: <Dif a={calc.metaFatAnual} o={calcOf?.metaFatAnual} /> },
+    { k: "Peças", sub: "faturadas = produzidas", m: int(pcsMes), a: int(pcsAno) },
+    { k: "Lucro no cenário", sub: `${pct(calc.lucroCenario)} do faturamento`, m: curto(calc.lucroCenarioR / 12), a: curto(calc.lucroCenarioR), c: cor(calc.lucroCenario),
+      da: <Dif a={calc.lucroCenario} o={calcOf?.lucroCenario} tipo="pct" /> },
+    { k: "Lucro real", sub: `${pct(calc.lucroReal)} do faturamento`, m: curto(calc.lucroRealR / 12), a: curto(calc.lucroRealR), c: cor(calc.lucroReal),
+      da: <Dif a={calc.lucroReal} o={calcOf?.lucroReal} tipo="pct" /> },
+  ];
+  const blocos = [
+    ["Ticket médio", moeda(pr?.ticketMedio), mg ? mg.fonteTicket : "do cenário"],
+    ["Meta por dia útil", curto(calc.metaDia), null],
+    ["Balanço meta × custo", brlN(calc.balanco, 2), `se paga com ${int(calc.pecasCobrem)} pç/mês`, calc.balanco >= 1 ? C.green : C.red],
+    ["Breakeven", `${int(calc.breakevenPecas)} pç/mês`, "lucro real zera"],
+  ];
   return (
-        <Cartao titulo="Metas e resultado" cheio={cheio}>
-          {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão. Resultados do ano pela meta do ano; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
-          <Kv k={`Meta de faturamento (mês${mg ? ` · ${mg.nomeMes}` : ""})`} v={curto(calc.metaMensal)} extra={<Dif a={calc.metaMensal} o={calcOf?.metaMensal} />} />
-          <Kv k={`Meta de faturamento (ano${mg ? " · Gestão" : ""})`} v={curto(calc.metaFatAnual)} extra={<Dif a={calc.metaFatAnual} o={calcOf?.metaFatAnual} />} />
-          <Kv k="Peças produzidas (mês)" v={`${int(pr?.metaPecas)} peças`} extra={<span className="text-[10px]" style={{ color: C.sub }}>média do ano para este resultado{mg && Number(pr?.ticketMedio) ? ` · ${mg.nomeMes}: ${int(calc.metaMensal / Number(pr.ticketMedio))} peças` : ""}</span>} />
-          <Kv k="Ticket médio utilizado" v={moeda(pr?.ticketMedio)} extra={<span className="text-[10px]" style={{ color: C.sub }}>{mg ? mg.fonteTicket : "do cenário"}</span>} />
-          <Kv k="Meta por dia útil" v={curto(calc.metaDia)} />
-          <Kv k="Balanço meta x custo operacional" v={brlN(calc.balanco, 2)} cor={calc.balanco >= 1 ? C.green : C.red}
-            extra={<span className="text-[10px]" style={{ color: C.sub }}>a operação se paga com {int(calc.pecasCobrem)} peças/mês</span>} />
-          <Kv k="Lucro líquido no cenário" v={`${pct(calc.lucroCenario)} · ${curto(calc.lucroCenarioR)}/ano`} cor={calc.lucroCenario >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroCenario} o={calcOf?.lucroCenario} tipo="pct" />} />
-          <Kv k="Lucro líquido real" v={`${pct(calc.lucroReal)} · ${curto(calc.lucroRealR)}/ano`} cor={calc.lucroReal >= 0 ? C.green : C.red} extra={<Dif a={calc.lucroReal} o={calcOf?.lucroReal} tipo="pct" />} />
-          <Kv k="Breakeven (peças faturadas/mês)" v={int(calc.breakevenPecas)} extra={<span className="text-[10px]" style={{ color: C.sub }}>lucro real zera nessa meta</span>} />
-        </Cartao>
-
+    <Cartao titulo="Metas e resultado" cheio={cheio}>
+      {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
+      <div>
+        <div className="grid text-[10px] font-bold tracking-wider pb-1" style={{ gridTemplateColumns: "1fr 92px 92px", color: C.sub }}>
+          <span></span><span className="text-right">MÊS</span><span className="text-right">ANO</span>
+        </div>
+        {linhas.map((l) => (
+          <div key={l.k} className="grid items-start py-1.5 text-[13px]" style={{ gridTemplateColumns: "1fr 92px 92px", borderTop: `1px solid ${C.line}` }}>
+            <div className="min-w-0"><div className="truncate">{l.k}</div><div className="text-[10px] truncate" style={{ color: C.sub }}>{l.sub}</div></div>
+            <div className="text-right font-semibold whitespace-nowrap tabular-nums" style={{ color: l.c || C.text }}>{l.m}{l.dm}</div>
+            <div className="text-right font-semibold whitespace-nowrap tabular-nums" style={{ color: l.c || C.text }}>{l.a}{l.da}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 mt-2">
+        {blocos.map(([t, v, sub, c]) => (
+          <div key={t} className="rounded-lg px-2.5 py-1.5" style={{ background: C.panel2 }}>
+            <div className="text-[10px] font-semibold" style={{ color: C.sub }}>{t}</div>
+            <div className="text-[13px] font-bold tabular-nums" style={{ color: c || C.navy }}>{v}</div>
+            {sub && <div className="text-[9px] truncate" style={{ color: C.sub }} title={sub}>{sub}</div>}
+          </div>
+        ))}
+      </div>
+    </Cartao>
   );
 }
 

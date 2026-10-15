@@ -324,7 +324,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         {vivo && (
           <div className="relative min-h-[420px]">
             <div className="xl:absolute xl:inset-0 xl:overflow-y-auto h-full">
-              <CardMetasResultado cheio compacto calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
+              <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
                 nota="Matriz oficial ao vivo com as metas desta tela, comparada com as gravadas." />
             </div>
           </div>

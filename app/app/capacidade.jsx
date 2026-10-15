@@ -148,7 +148,8 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
                 <b style={{ color: C.green }}>{sim.nome}</b> criada na Matriz de custos (cópia da oficial) com {pc(sim.pct)} de freelancer
                 {sim.contratados ? <> e <b>{sim.contratados} funcionário(s) hipotético(s)</b>: {Object.entries(sim.criados.reduce((o, c) => ({ ...o, [c.setor]: (o[c.setor] || 0) + 1 }), {})).map(([k, v]) => `${v} em ${k}`).join(", ")}
                   {sim.criados.some((c) => !c.previsto) && <span style={{ color: C.yellow }}> · setor sem salário previsto usou o salário médio do setor</span>}</> : null}.
-                A oficial e as metas não mudaram.
+                {sim.escaladas?.length ? <> Despesas por pessoa ajustadas ao novo quadro: {sim.escaladas.map((e) => e.natureza).join(", ")}.</> : null}
+                {" "}A oficial e as metas não mudaram.
               </div>
               {irMatriz && <button onClick={() => irMatriz(sim.id)} className="px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: C.navy }}>Abrir na Matriz</button>}
               {usarNaMeta && <button onClick={() => usarNaMeta(sim.pct)} className="px-3 py-1.5 rounded-lg font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Levar % para Metas (sem salvar)</button>}

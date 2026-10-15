@@ -40,7 +40,7 @@ export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
         demitir = Math.min(H - base, Math.max(1, menor));
         H -= demitir;
       }
-      const freeDia = Math.max(0, nec[m] - H);
+      const freeDia = Math.max(0, Math.ceil(nec[m] - H - 0.01));   // v237: freelancer sempre arredondado para cima
       // v234 — quem entra no plano custa o salário previsto do setor (com encargos da Matriz); sem ele, o custo médio do setor
       const folha = base * (s.custoPessoa || 0) + Math.max(0, H - base) * (s.custoContratacao || s.custoPessoa || 0);
       const freelancer = freeDia * du[m] * s.diaria;
@@ -52,7 +52,7 @@ export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
   const total = comps.map((c, m) => {
     const t = { comp: c, diasUteis: du[m], contratar: 0, demitir: 0, freeDia: 0, folha: 0, freelancer: 0, equipe: 0 };
     for (const l of linhas) { const x = l.meses[m]; t.contratar += x.contratar; t.demitir += x.demitir; t.freeDia += x.freeDia; t.folha += x.folha; t.freelancer += x.freelancer; t.equipe += x.equipe; }
-    t.freeDia = r1(t.freeDia); t.pct = t.folha + t.freelancer > 0 ? t.freelancer / (t.folha + t.freelancer) : null;
+    t.freeDia = Math.round(t.freeDia); t.pct = t.folha + t.freelancer > 0 ? t.freelancer / (t.folha + t.freelancer) : null;
     return t;
   });
   const ano_ = { folha: total.reduce((a, t) => a + t.folha, 0), freelancer: total.reduce((a, t) => a + t.freelancer, 0), contratar: total.reduce((a, t) => a + t.contratar, 0), demitir: total.reduce((a, t) => a + t.demitir, 0) };

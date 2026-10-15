@@ -14,6 +14,8 @@ import { mesAtual, somaMes } from "@/lib/finTitulos";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
+// v237 — freelancer é gente: quantidade sempre arredondada para cima (tolerância de 0,01 para ruído de conta)
+export const teto = (v) => Math.max(0, Math.ceil((Number(v) || 0) - 0.01));
 const pct = (free, folha) => (free + folha > 0 ? Math.round((free / (free + folha)) * 10000) / 10000 : null);
 export const CHAVE_DIARIAS = "CAPACIDADE|DIARIAS";
 
@@ -76,31 +78,33 @@ export async function analisarCapacidade({ meses = 6, alvo = null, ano: anoRef =
     // produtividade: peças ÷ (equipe + freelancers por dia), somando os meses
     const trab = s.meses.reduce((a, m) => a + m.pessoas + m.freeDia, 0);
     const porTrab = trab ? s.meses.reduce((a, m) => a + m.pecas, 0) / trab : null;
-    Object.assign(linha, { freeDia: r1(freeDia), diariasMes: Math.round(free / diaria), equipeEq: r1(pessoas + freeDia), porTrab: porTrab ? Math.round(porTrab) : null, mesesAcima1,
+    Object.assign(linha, { freeDia: teto(freeDia), freeDiaMedio: r1(freeDia), diariasMes: Math.round(free / diaria), equipeEq: r1(pessoas + freeDia), porTrab: porTrab ? Math.round(porTrab) : null, mesesAcima1,
       jaPrecisa: mesesAcima1 >= 2 || (k === 1 && mesesAcima1 === 1) });
     if (meta && porTrab) {
       const nec = meta / porTrab;
       const extra = Math.max(0, nec - pessoas);
       // A — manter a equipe: tudo o que falta em freelancer
-      const freeA = extra * duMedio * diaria;
-      linha.A = { necessarios: r1(nec), freeDia: r1(extra), diarias: Math.round(extra * duMedio), freelancer: r2(freeA), folha: r2(folha), pct: pct(freeA, folha), custo: r2(folha + freeA) };
+      const qA = teto(extra);
+      const freeA = qA * duMedio * diaria;
+      linha.A = { necessarios: r1(nec), freeDia: qA, diarias: Math.round(qA * duMedio), freelancer: r2(freeA), folha: r2(folha), pct: pct(freeA, folha), custo: r2(folha + freeA) };
       // B — recomendado: acima de 1 freelancer por dia útil vira contratação
       const contratar = extra > 1 ? Math.floor(extra + 0.01) : 0;
       const resto = Math.max(0, extra - contratar);
       const folhaB = custoPessoa != null ? folha + contratar * (custoContr ?? custoPessoa) : folha;
-      const freeB = resto * duMedio * diaria;
-      linha.B = { contratar, freeDia: r1(resto), diarias: Math.round(resto * duMedio), freelancer: r2(freeB), folha: r2(folhaB), pct: pct(freeB, folhaB), custo: r2(folhaB + freeB), semCustoPessoa: custoPessoa == null && contratar > 0 };
+      const qB = teto(resto);
+      const freeB = qB * duMedio * diaria;
+      linha.B = { contratar, freeDia: qB, diarias: Math.round(qB * duMedio), freelancer: r2(freeB), folha: r2(folhaB), pct: pct(freeB, folhaB), custo: r2(folhaB + freeB), semCustoPessoa: custoPessoa == null && contratar > 0 };
     }
     return linha;
   }).sort((a, b) => b.folha + b.freelancer - (a.folha + a.freelancer));
 
   const soma = (k, sub) => r2(setores.reduce((s, l) => s + (sub ? l[sub]?.[k] || 0 : l[k] || 0), 0));
-  const total = { folha: soma("folha"), freelancer: soma("freelancer"), pessoas: r1(setores.reduce((s, l) => s + l.pessoas, 0)), freeDia: r1(setores.reduce((s, l) => s + (l.freeDia || 0), 0)),
+  const total = { folha: soma("folha"), freelancer: soma("freelancer"), pessoas: r1(setores.reduce((s, l) => s + l.pessoas, 0)), freeDia: setores.reduce((s, l) => s + (l.freeDia || 0), 0),
     pecas: usados.length ? Math.round(usados.reduce((s, m) => s + m.pecas, 0) / usados.length) : 0, semDiaria: setores.filter((l) => l.semDiaria).map((l) => l.setor) };
   total.pct = pct(total.freelancer, total.folha);
   if (meta) {
     for (const c of ["A", "B"]) {
-      total[c] = { folha: soma("folha", c), freelancer: soma("freelancer", c), freeDia: r1(setores.reduce((s, l) => s + (l[c]?.freeDia || 0), 0)), diarias: setores.reduce((s, l) => s + (l[c]?.diarias || 0), 0) };
+      total[c] = { folha: soma("folha", c), freelancer: soma("freelancer", c), freeDia: setores.reduce((s, l) => s + (l[c]?.freeDia || 0), 0), diarias: setores.reduce((s, l) => s + (l[c]?.diarias || 0), 0) };
       // setor sem diária entra com o que tem hoje (não dá para projetar)
       for (const l of setores.filter((x) => x.semDiaria)) { total[c].folha = r2(total[c].folha + l.folha); total[c].freelancer = r2(total[c].freelancer + l.freelancer); }
       total[c].pct = pct(total[c].freelancer, total[c].folha); total[c].custo = r2(total[c].folha + total[c].freelancer);

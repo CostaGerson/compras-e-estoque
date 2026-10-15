@@ -10,6 +10,21 @@ const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const media = (l) => (l.length ? l.reduce((s, x) => s + x, 0) / l.length : 0);
 export const SETOR_DEPTO = { CORTE: "COR", COSTURA: "COS", SILK: "SIL", BORDADO: "BOR", "EXPEDIÇÃO": "EXP", "LOGÍSTICA": "LOG" };
 export const CHAVE_SALARIOS = "CAPACIDADE|SALARIOS";
+// v238 — despesas que crescem com o número de pessoas (proporcional ao headcount)
+export const POR_PESSOA = /(INSUMO|PADARIA|CONFRATERNIZ|ÁGUA|AGUA|ENERGIA|KIT NATALINO|SEGURO VIDA|PCMSO)/i;
+export function escalarPorPessoa(dados, antes, depois, cenario) {
+  if (!antes || depois === antes) return [];
+  const f = depois / antes, mudou = [];
+  for (const bloco of ["vidaVegetativa", "logistica", "administracao", "sistemas"]) {
+    dados[bloco] = (dados[bloco] || []).map((i) => {
+      if (i.ativo === false || !POR_PESSOA.test(String(i.natureza || ""))) return i;
+      const novo = r2((Number(i.valor) || 0) * f);
+      mudou.push({ natureza: i.natureza, de: Number(i.valor) || 0, para: novo });
+      return { ...i, valor: novo, obs: [i.obs, `Simulação ${cenario}: × ${f.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} (${antes} → ${depois} pessoas)`].filter(Boolean).join(" · ") };
+    });
+  }
+  return mudou;
+}
 
 // médias dos funcionários CLT ativos da Matriz (valores digitados e regras por funcionário)
 export function mediasPessoal(dados) {
@@ -83,10 +98,14 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem }) {
       }
     }
   }
+  // v238 — insumos, padaria, confraternização, água, energia… acompanham o número de pessoas
+  const ativos = (l) => (l || []).filter((p) => p.ativo !== false).length;
+  const escaladas = criados.length ? escalarPorPessoa(dados, ativos(base.pessoal), ativos(dados.pessoal), cenario) : [];
   const data = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const ref = ano && mes ? ` · REF ${String(mes).padStart(2, "0")}/${ano}` : "";
-  const nome = `SIMULAÇÃO ${cenario} · ${data}${ref}`;
+  const pcs = analise.meta ? ` · ${Math.round(analise.meta).toLocaleString("pt-BR")} PÇ/MÊS` : "";
+  const nome = `SIMULAÇÃO ${cenario} · ${data}${ref}${pcs}`;
   dados.simulacaoCapacidade = { cenario, meta: analise.meta, pctFreelancer: T.pct, contratados: criados.length, ano: ano || null, mes: mes || null, criadoEm: new Date().toISOString() };
   const m = await prisma.finMatriz.create({ data: { nome, oficial: false, dados, atualizadoPor: quem || "CAPACIDADE" } });
-  return { id: m.id, nome, contratados: criados.length, criados, pct: T.pct };
+  return { id: m.id, nome, contratados: criados.length, criados, pct: T.pct, escaladas };
 }
