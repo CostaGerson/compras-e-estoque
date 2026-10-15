@@ -118,7 +118,7 @@ const ABAS = [
 ];
 
 /* ============================================================ */
-export default function MatrizCustos({ user, irMetas }) {
+export default function MatrizCustos({ user, irMetas, abrirId }) {
   const [lista, setLista] = useState(null);
   const [atualId, setAtualId] = useState(null);
   const [doc, setDoc] = useState(null);       // registro salvo
@@ -146,7 +146,7 @@ export default function MatrizCustos({ user, irMetas }) {
   };
   useEffect(() => {
     carregarLista().then(async (l) => {
-      const of = l.find((x) => x.oficial) || l[0];
+      const of = (abrirId && l.find((x) => x.id === abrirId)) || l.find((x) => x.oficial) || l[0];   // v234: abre a simulação recém-criada
       if (of) await abrir(of.id);
     }).catch((e) => setErro(e.message));
   }, []);
@@ -659,7 +659,7 @@ function Pessoal({ dados, calc, muda, cenario }) {
                     <tr key={p.id} style={{ borderTop: `1px solid ${C.line}`, opacity: off ? 0.45 : 1 }} className="hover:bg-gray-50">
                       <td className="px-3 py-1.5 sticky left-0" style={{ background: C.panel, minWidth: 200 }}>
                         <button onClick={() => setEdit(p)} className="text-left">
-                          <div className="font-semibold" style={{ color: C.navy }}>{p.nome || <i style={{ color: C.yellow }}>VAGA</i>}{off && " (desligado)"}</div>
+                          <div className="font-semibold" style={{ color: C.navy }}>{p.nome || <i style={{ color: C.yellow }}>VAGA</i>}{off && " (desligado)"}{p.hipotetico && <span className="ml-1.5 px-1.5 rounded text-[9px] font-bold align-middle" style={{ background: C.yellowSoft || "#FFF6DD", color: C.yellow }} title={p.obs || ""}>HIPOTÉTICO</span>}</div>
                           <div style={{ color: C.sub }}>{p.cargo}{p.adiantamento && <span className="ml-1 px-1 rounded text-[9px] font-semibold" style={{ background: C.blueSoft, color: C.blue }} title="Recebe adiantamento salarial (40% do salário base) no dia 20, abatido da folha do dia 5">ADIANT.</span>}</div>
                         </button>
                       </td>

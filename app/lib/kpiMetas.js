@@ -29,6 +29,14 @@ function medias(porAno, anos) {
   return m.map((x) => r2(x ?? media));
 }
 
+// v234 — mês fechado = realizado preenchido no KPI (vendas, faturamento ou peças): a meta dele não muda mais
+export async function mesesFechados(ano, rel) {
+  const r = rel || (await relatorio(Number(ano)).catch(() => null));
+  if (!r) return Array(12).fill(false);
+  const tem = (v) => v != null && Number(v) > 0;
+  return r.linhas.map((l) => tem(l.vendas?.atual) || tem(l.faturamento?.atual) || tem(l.faturamento?.pecas));
+}
+
 export async function metasDoAno(ano) {
   const a = Number(ano);
   const [kAno, kMes, anos] = await Promise.all([
@@ -93,7 +101,8 @@ export async function metasDoAno(ano) {
   const rAtual = await relatorio(a).catch(() => null);
   const tkReal = (r) => (r && r.ticketMedio != null ? { valor: Math.round(r.ticketMedio * 100) / 100, meses: r.mediaMensal?.bases?.faturamento || 0 } : null);
   const ticketRealizado = { atual: tkReal(rAtual), anterior: tkReal(rels[a - 1] || null) };
-  return { ano: a, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a),
+  const fechados = await mesesFechados(a, rAtual);
+  return { ano: a, fechados, margem: num(kAno?.metaMargem), ticket, ticketGravado: tkMeta != null, ticketRealizado, receitaJan: await receitaJaneiro(a),
     freelancer: { meta: num(kAno?.metaPctFreelancer), ...(await sugestaoFreelancer().catch(() => ({}))) }, naturezas };
 }
 
@@ -126,7 +135,13 @@ async function receitaJaneiro(a) {
 export async function salvarCoerente(ano, vendasValorMeses, ticket, margem, quem, pctFreelancer) {
   const a = Number(ano);
   const rj = await receitaJaneiro(a);
-  const d = derivarMetas(vendasValorMeses, ticket, rj.valor);
+  // v234 — mês fechado mantém a meta gravada (vendas R$ e peças), qualquer que seja o que veio da tela
+  const fech = await mesesFechados(a);
+  const gravados = await prisma.kpiMes.findMany({ where: { ano: a } });
+  const g = (m) => gravados.find((x) => x.mes === m) || {};
+  const vv = [...Array(12)].map((_, i) => (fech[i] && g(i + 1).metaVendasValor != null ? Number(g(i + 1).metaVendasValor) : vendasValorMeses?.[i] ?? null));
+  const pf = [...Array(12)].map((_, i) => (fech[i] && g(i + 1).metaFaturamentoPecas != null ? Number(g(i + 1).metaFaturamentoPecas) : null));
+  const d = derivarMetas(vv, ticket, rj.valor, pf);
   const metas = Object.fromEntries(["vendasPecas", "vendasValor", "faturamentoPecas", "faturamentoValor", "receitaValor"].map((k) => [k, d[k]]));
   metas.pecasProduzidas = { anual: null, meses: Array(12).fill(null) };   // produzidas = faturadas: a meta própria sai
   const r = await salvarMetas(a, metas, margem, quem, ticket, pctFreelancer);

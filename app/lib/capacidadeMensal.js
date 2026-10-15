@@ -10,7 +10,8 @@ import { diasUteis } from "@/lib/diasUteis";
 
 const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 
-export function planoMensal({ setores, pecasMes, ano }) {
+// v234 — fechados[m]: mês já realizado no KPI — só mostra; contratar/desligar só nos meses em aberto
+export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
   const comps = Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, "0")}`);
   const du = comps.map(diasUteis);
   const linhas = [];
@@ -24,7 +25,7 @@ export function planoMensal({ setores, pecasMes, ano }) {
       let contratar = 0, demitir = 0;
       // contratação: necessidade extra > 1 neste mês e no seguinte (com a equipe de agora)
       const ext = (k) => (k < 12 ? nec[k] - H : 0);
-      if (ext(m) > 1 && ext(m + 1) > 1) {
+      if (!fechados[m] && ext(m) > 1 && ext(m + 1) > 1) {
         // contrata o que se mantém pelo período (menor necessidade inteira enquanto passar de 1)
         let k = m, menor = Infinity;
         while (k < 12 && ext(k) > 1) { menor = Math.min(menor, Math.floor(ext(k) + 0.01)); k++; }
@@ -33,16 +34,17 @@ export function planoMensal({ setores, pecasMes, ano }) {
       }
       // demissão: sobra ≥ 1 neste mês e no seguinte, só entre os contratados no plano
       const sobra = (k) => (k < 12 ? H - nec[k] : H - nec[11]);
-      if (!contratar && H > base && sobra(m) >= 1 && sobra(m + 1) >= 1) {
+      if (!fechados[m] && !contratar && H > base && sobra(m) >= 1 && sobra(m + 1) >= 1) {
         let k = m, menor = Infinity;
         while (k < 12 && sobra(k) >= 1) { menor = Math.min(menor, Math.floor(sobra(k) + 0.01)); k++; }
         demitir = Math.min(H - base, Math.max(1, menor));
         H -= demitir;
       }
       const freeDia = Math.max(0, nec[m] - H);
-      const folha = H * (s.custoPessoa || 0);
+      // v234 — quem entra no plano custa o salário previsto do setor (com encargos da Matriz); sem ele, o custo médio do setor
+      const folha = base * (s.custoPessoa || 0) + Math.max(0, H - base) * (s.custoContratacao || s.custoPessoa || 0);
       const freelancer = freeDia * du[m] * s.diaria;
-      meses.push({ comp: comps[m], necessarios: r1(nec[m]), equipe: H, contratar, demitir, freeDia: r1(freeDia), diarias: Math.round(freeDia * du[m]),
+      meses.push({ fechado: !!fechados[m], comp: comps[m], necessarios: r1(nec[m]), equipe: H, contratar, demitir, freeDia: r1(freeDia), diarias: Math.round(freeDia * du[m]),
         folha: Math.round(folha), freelancer: Math.round(freelancer), ociosos: r1(Math.max(0, H - nec[m])) });
     }
     linhas.push({ setor: s.setor, base, porTrab: s.porTrab, diaria: s.diaria, meses });

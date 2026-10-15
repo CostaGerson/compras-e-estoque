@@ -47,18 +47,18 @@ export function redistribuir(un, anual, meses, travados, pesos) {
   return novo;
 }
 
-function Campo({ un, valor, onCommit, estilo, titulo, grande }) {
+function Campo({ un, valor, onCommit, estilo, titulo, grande, travado }) {
   const [t, setT] = useState(fmt(un, valor));
   const foco = useRef(false);
   useEffect(() => { if (!foco.current) setT(fmt(un, valor)); }, [valor, un]);
   return (
-    <input value={t} title={titulo} inputMode="decimal"
+    <input value={t} title={titulo} inputMode="decimal" disabled={travado} readOnly={travado}
       onFocus={(e) => { foco.current = true; e.target.select(); }}
       onChange={(e) => setT(e.target.value)}
       onBlur={() => { foco.current = false; const v = ler(t); if ((v ?? null) !== (valor ?? null)) onCommit(v); else setT(fmt(un, valor)); }}
       onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
       className={`w-full rounded-lg px-2 py-1.5 text-right tabular-nums outline-none ${grande ? "text-base font-bold" : "text-sm"}`}
-      style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text, ...estilo }} />
+      style={{ border: `1px solid ${C.line}`, background: travado ? C.panel2 : C.panel, color: travado ? C.sub : C.text, cursor: travado ? "not-allowed" : undefined, ...estilo }} />
   );
 }
 
@@ -111,7 +111,9 @@ function CardNatureza({ n, set, original, ticket }) {
     const meses = [...n.meses]; meses[i] = v == null ? 0 : arred(n.un, v);
     set({ ...n, travados: trav, meses: redistribuir(n.un, n.anual, meses, trav, n.pesos) });
   };
+  const fech = n.fechados || [];
   const soltar = (i) => {
+    if (fech[i]) return;   // v234: mês fechado no KPI não solta
     const trav = new Set(n.travados); trav.delete(i);
     set({ ...n, travados: trav, meses: redistribuir(n.un, n.anual, n.meses, trav, n.pesos) });
   };
@@ -140,7 +142,7 @@ function CardNatureza({ n, set, original, ticket }) {
             <Campo un="pc" valor={n.anual == null ? null : Math.round(n.anual / ticket)} onCommit={(v) => mudarAnual(v == null ? null : v * ticket)} grande />
           </label>
         ) : null}
-        {mexido && <button onClick={() => { setHist(false); set({ ...original, travados: new Set(), pesos: original.meses }); }} title="Voltar ao que está gravado"
+        {mexido && <button onClick={() => { setHist(false); set({ ...original, fechados: fech, travados: new Set(fech.map((f, i) => (f ? i : -1)).filter((i) => i >= 0)), pesos: original.meses }); }} title="Voltar ao que está gravado"
           className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs" style={{ color: C.sub }}><RotateCcw size={13} /> desfazer</button>}
       </div>
 
@@ -158,16 +160,18 @@ function CardNatureza({ n, set, original, ticket }) {
 
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))" }}>
         {MESES.map((m, i) => {
-          const trav = n.travados.has(i);
-          const sug = !trav && mexido && Number(n.meses[i]) !== Number(original.meses[i]);
+          const fechado = !!fech[i];
+          const trav = n.travados.has(i) && !fechado;
+          const sug = !trav && !fechado && mexido && Number(n.meses[i]) !== Number(original.meses[i]);
           return (
             <label key={m} className="block">
               <div className="flex items-center text-[11px] font-semibold mb-1" style={{ color: C.sub }}>
                 <span className="flex-1">{m}</span>
-                {trav ? <button type="button" onClick={() => soltar(i)} title="Valor fixado por você — clique para soltar e receber a sugestão" style={{ color: C.navy }}><Lock size={11} /></button>
+                {fechado ? <span title="Mês fechado: realizado lançado no KPI — a meta não muda mais" className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color: C.sub }}><Lock size={10} /> FECHADO</span>
+                  : trav ? <button type="button" onClick={() => soltar(i)} title="Valor fixado por você — clique para soltar e receber a sugestão" style={{ color: C.navy }}><Lock size={11} /></button>
                   : sug ? <span style={{ color: C.accent, fontSize: 10 }}>sugestão</span> : null}
               </div>
-              <Campo un={n.un} valor={n.meses[i]} onCommit={(v) => mudarMes(i, v)}
+              <Campo un={n.un} valor={n.meses[i]} onCommit={(v) => mudarMes(i, v)} travado={fechado}
                 estilo={trav ? { borderColor: C.navy, fontWeight: 700 } : sug ? { borderColor: C.accent, color: C.accent, background: C.accentSoft } : {}} />
               {ticket ? n.meses[i] != null && <div className="text-[10px] text-right mt-0.5" style={{ color: C.navy }}>{n.un === "pc" ? `R$ ${fmt("R$", n.meses[i] * ticket)}` : `${fmt("pc", n.meses[i] / ticket)} peças`}</div> : null}
               {n.fonte && n.historico?.[n.fonte]?.medias && <div className="text-[10px] text-right" style={{ color: C.sub }}>hist. {fmt(n.un, n.historico[n.fonte].medias[i])}</div>}
@@ -177,8 +181,9 @@ function CardNatureza({ n, set, original, ticket }) {
       </div>
       <div className="flex flex-wrap gap-4 mt-3 text-xs" style={{ color: C.sub }}>
         <span>Soma dos meses: <b style={{ color: C.text }}>{fmt(n.un, total)}</b></span>
-        {dif !== 0 && n.anual != null && <span style={{ color: C.red }}>diferença para a meta do ano: <b>{fmt(n.un, dif)}</b> {n.travados.size === 12 ? "(todos os meses fixados — solte um para fechar)" : ""}</span>}
-        {n.travados.size > 0 && <span><Lock size={10} className="inline" /> {n.travados.size} mês(es) fixado(s) por você</span>}
+        {dif !== 0 && n.anual != null && <span style={{ color: C.red }}>diferença para a meta do ano: <b>{fmt(n.un, dif)}</b> {n.travados.size === 12 ? "(todos os meses fixados — solte um em aberto para fechar)" : ""}</span>}
+        {fech.some(Boolean) && <span><Lock size={10} className="inline" /> {fech.filter(Boolean).length} mês(es) fechado(s) no KPI — só os meses em aberto se ajustam à meta do ano</span>}
+        {[...n.travados].filter((i) => !fech[i]).length > 0 && <span><Lock size={10} className="inline" /> {[...n.travados].filter((i) => !fech[i]).length} mês(es) fixado(s) por você</span>}
       </div>
     </div>
   );
@@ -212,8 +217,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
       const meses = p.meses.map((x) => (x == null ? null : r2(x * d.ticket)));
       v = { ...v, meses, anual: meses.some((x) => x != null) ? r2(meses.reduce((s2, x) => s2 + (x || 0), 0)) : null };
     }
+    const fechados = d.fechados || Array(12).fill(false);
     setOrig({ ...d, vend: v });
-    setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", travados: new Set(), pesos: v.meses });
+    setVend({ ...v, rotulo: "Vendas (R$)", grupo: "Meta que você define", fechados, travados: new Set(fechados.map((f, i) => (f ? i : -1)).filter((i) => i >= 0)), pesos: v.meses });
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setFreela(freelaInicial != null && !d.__salvo ? freelaInicial : d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
@@ -233,7 +239,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     } catch (e) { setErro(e.message); }
     setSalvando(false);
   };
-  const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor) : null;
+  // v234 — meses fechados: as peças da meta ficam como gravadas (o ticket só vale para os meses em aberto)
+  const pecasFixas = orig ? (orig.fechados || []).map((f, i) => (f ? orig.naturezas.find((x) => x.k === "faturamentoPecas")?.meses?.[i] ?? null : null)) : null;
+  const der = vend ? derivarMetas(vend.meses, ticket, orig?.receitaJan?.valor, pecasFixas) : null;
   // v219 — impacto ao vivo na Matriz oficial: metas da tela (ainda não gravadas) × metas gravadas
   const vivo = (() => {
     if (!matriz || !der) return null;
@@ -264,7 +272,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           <button onClick={() => setAno(ano + 1)} className="px-3 py-2 font-bold" style={{ color: C.sub }}>›</button>
         </div>
         <div className="text-xs flex-1" style={{ color: C.sub }}>
-          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
+          Você define a meta de <b>vendas (R$)</b> e o <b>ticket médio</b>; peças, faturamento e receita saem daí. Meses já fechados no KPI ficam travados. Mude a meta do ano e os meses se ajustam (ou use a distribuição histórica); mês alterado à mão fica fixo e os outros recebem a sugestão.
         </div>
         {vend && <button onClick={salvar} disabled={salvando} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.6 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar metas
@@ -340,7 +348,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           </div>
         </>
       )}
-      {vend && <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} />}
+      {vend && <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} fechados={orig?.fechados || []} />}
     </div>
   );
 }

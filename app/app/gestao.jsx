@@ -64,7 +64,7 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
       {tela.v === "painel"
         ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
         : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} irCapacidade={() => setTela({ v: "capacidade" })} />
-        : tela.v === "capacidade" ? <Capacidade user={user} usarNaMeta={(p) => setTela({ v: "metas", ano: new Date().getFullYear(), freela: Math.round(p * 10000) / 100, t: Date.now() })} />
+        : tela.v === "capacidade" ? <Capacidade user={user} irMatriz={irMatriz} usarNaMeta={(p) => setTela({ v: "metas", ano: new Date().getFullYear(), freela: Math.round(p * 10000) / 100, t: Date.now() })} />
         : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} abrirMetas={(ano) => setTela({ v: "metas", ano })} />}
     </div>
   );

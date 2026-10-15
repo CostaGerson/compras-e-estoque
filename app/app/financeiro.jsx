@@ -113,7 +113,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
       {tela.v === "contas" && <PlanoContas user={user} />}
       {tela.v === "regras" && <Regras user={user} comp={mesAnterior()} />}
       {tela.v === "senhas" && <Senhas user={user} />}
-      {tela.v === "matriz" && ger && <MatrizCustos user={user} irMetas={irMetas} />}
+      {tela.v === "matriz" && ger && <MatrizCustos user={user} irMetas={irMetas} abrirId={telaInicial?.id || null} />}
       {tela.v === "pagrec" && <ContasPagarReceber user={user} />}
       {tela.v === "alavancagem" && ger && <Alavancagem user={user} master aba="dividas" />}
       {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}

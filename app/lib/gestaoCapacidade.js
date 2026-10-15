@@ -18,6 +18,8 @@ const pct = (free, folha) => (free + folha > 0 ? Math.round((free / (free + folh
 export const CHAVE_DIARIAS = "CAPACIDADE|DIARIAS";
 
 import { diasUteis, feriados } from "@/lib/diasUteis";
+import { lerSalarios, custoContratacao } from "@/lib/capacidadeSimulacao";
+import { mesesFechados } from "@/lib/kpiMetas";
 export { diasUteis, feriados };
 
 export async function lerDiarias() {
@@ -30,12 +32,13 @@ export async function salvarDiarias(d) {
   return limpo;
 }
 
-export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
+export async function analisarCapacidade({ meses = 6, alvo = null, ano: anoRef = null } = {}) {
   const n = Math.min(24, Math.max(1, Number(meses) || 6));
   const comps = Array.from({ length: n }, (_, k) => somaMes(mesAtual(), -(k + 1))).reverse();   // meses fechados
-  const [kpis, diarias] = await Promise.all([
+  const [kpis, diarias, salarios, ofm] = await Promise.all([
     prisma.kpiMes.findMany({ where: { OR: comps.map((c) => ({ ano: Number(c.slice(0, 4)), mes: Number(c.slice(5, 7)) })) } }),
-    lerDiarias(),
+    lerDiarias(), lerSalarios(),
+    prisma.finMatriz.findFirst({ where: { oficial: true } }).catch(() => null),
   ]);
   const pecasDe = (c) => { const k = kpis.find((x) => x.ano === Number(c.slice(0, 4)) && x.mes === Number(c.slice(5, 7))); return k?.pecasFaturadas ?? null; };
 
@@ -62,7 +65,10 @@ export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
     const media = (f) => s.meses.reduce((a, m) => a + f(m), 0) / k;
     const folha = media((m) => m.folha), free = media((m) => m.freelancer), pessoas = r1(media((m) => m.pessoas)), pecas = media((m) => m.pecas);
     const custoPessoa = pessoas ? folha / pessoas : null;
-    const linha = { setor: s.setor, meses: k, diaria, folha: r2(folha), freelancer: r2(free), pessoas, pecas: Math.round(pecas), pct: pct(free, folha), custoPessoa: custoPessoa != null ? r2(custoPessoa) : null };
+    // v234 — contratação: salário previsto do setor com as regras da Matriz (sem ele, salário médio do setor)
+    const cc = custoContratacao(ofm?.dados, s.setor, salarios[s.setor]);
+    const custoContr = cc?.custo ?? custoPessoa;
+    const linha = { setor: s.setor, meses: k, diaria, salarioPrevisto: salarios[s.setor] || null, salarioBase: cc?.salario ?? null, custoContratacao: custoContr != null ? r2(custoContr) : null, folha: r2(folha), freelancer: r2(free), pessoas, pecas: Math.round(pecas), pct: pct(free, folha), custoPessoa: custoPessoa != null ? r2(custoPessoa) : null };
     if (!diaria) return { ...linha, semDiaria: true };
     const freeDia = media((m) => m.freeDia);
     const mesesAcima1 = s.meses.filter((m) => m.freeDia > 1).length;
@@ -80,7 +86,7 @@ export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
       // B — recomendado: acima de 1 freelancer por dia útil vira contratação
       const contratar = extra > 1 ? Math.floor(extra + 0.01) : 0;
       const resto = Math.max(0, extra - contratar);
-      const folhaB = custoPessoa != null ? (pessoas + contratar) * custoPessoa : folha;
+      const folhaB = custoPessoa != null ? folha + contratar * (custoContr ?? custoPessoa) : folha;
       const freeB = resto * duMedio * diaria;
       linha.B = { contratar, freeDia: r1(resto), diarias: Math.round(resto * duMedio), freelancer: r2(freeB), folha: r2(folhaB), pct: pct(freeB, folhaB), custo: r2(folhaB + freeB), semCustoPessoa: custoPessoa == null && contratar > 0 };
     }
@@ -100,11 +106,12 @@ export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
     }
     total.B.contratar = setores.reduce((s, l) => s + (l.B?.contratar || 0), 0);
   }
-  const ano = new Date().getFullYear();
+  const ano = Number(anoRef) || new Date().getFullYear();
   const ka = await prisma.kpiAno.findUnique({ where: { ano } }).catch(() => null);
   const metaMetas = ka?.metaPecasFaturadas ? Math.round(Number(ka.metaPecasFaturadas) / 12) : null;
   // v231.2 — distribuição mês a mês das Metas (peças faturadas) para a capacidade mensal da simulação
   const km = await prisma.kpiMes.findMany({ where: { ano }, select: { mes: true, metaFaturamentoPecas: true } }).catch(() => []);
   const metaMesesPecas = Array.from({ length: 12 }, (_, i) => { const k = km.find((x) => x.mes === i + 1); return k?.metaFaturamentoPecas ?? null; });
-  return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, metaMesesPecas, anoMetas: ano, diarias, setores, total };
+  const fechados = await mesesFechados(ano).catch(() => Array(12).fill(false));
+  return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, metaMesesPecas, anoMetas: ano, fechados, diarias, salarios, setores, total };
 }
