@@ -3,6 +3,7 @@
 // mantendo a equipe (A) e o recomendado (B: acima de 1 freelancer por dia útil, contrata)
 import React, { useState, useEffect } from "react";
 import CapacidadeMensal from "./capacidadeMensal";
+import { planoMensal } from "@/lib/capacidadeMensal";
 import { Loader2, Users2, Factory, ArrowRight, Info, Save, AlertTriangle } from "lucide-react";
 
 const C = {
@@ -77,13 +78,31 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
     setCriando(cenario); setErro(""); setSim(null);
     try {
       const r = await fetch("/api/kpi/capacidade", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuarioId: user.id, acao: "simular", cenario, meses, alvo, ano, mes }) }).then((x) => x.json());
+        body: JSON.stringify({ usuarioId: user.id, acao: "simular", cenario, meses, alvo, ano, mes, pecasMes: per?.pecasMes, pct: per?.[cenario]?.pct }) }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
       setSim(r);
     } catch (e) { setErro(e.message); }
     setCriando("");
   };
   const T = d?.total;
+  // v242 — viabilidade no PERÍODO EM ABERTO inteiro: peças de cada mês (fechados = realizado; abertos = Metas escaladas pela meta digitada)
+  const per = (() => {
+    const a = Number(alvo) || 0;
+    if (!d || !a || !mes) return null;
+    const fech = d.fechados || [];
+    const dist = d.metaMesesPecas || [];
+    const ref = Number(dist[mes - 1]) || 0;
+    const temDist = dist.some((x) => x != null) && ref > 0;
+    const fator = temDist ? a / ref : 1;
+    const pecasMes = Array.from({ length: 12 }, (_, i) => (fech[i] ? Number(dist[i]) || 0 : temDist ? Math.round((Number(dist[i]) || 0) * fator) : a));
+    const nota = temDist
+      ? `Simulação a partir de ${MES_LONGO[mes - 1]}/${d.anoMetas}: ${int(a)} peças no mês (${fator >= 1 ? "+" : ""}${((fator - 1) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as Metas) aplicado aos meses em aberto; meses fechados como estão.`
+      : `Simulação: ${int(a)} peças em cada mês em aberto (sem distribuição mensal nas Metas de ${d.anoMetas}).`;
+    const A = planoMensal({ setores: d.setores, pecasMes, ano: d.anoMetas, fechados: fech, semContratar: true }).periodo;
+    const B = planoMensal({ setores: d.setores, pecasMes, ano: d.anoMetas, fechados: fech }).periodo;
+    const abertos = fech.map((f, i) => (f ? null : MES_LONGO[i].slice(0, 3).toUpperCase())).filter(Boolean);
+    return { pecasMes, fech, nota, A, B, abertos, pecasPeriodo: pecasMes.reduce((t, x, i) => t + (fech[i] ? 0 : x), 0) };
+  })();
 
   return (
     <div>
@@ -126,18 +145,18 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
               <div className="text-xs mt-1" style={{ color: C.sub }}>{um(T.pessoas)} pessoas na folha + <b style={{ color: C.text }}>{um(T.freeDia)} freelancers/dia</b></div>
               <div className="text-xs" style={{ color: C.sub }}>Folha {curto(T.folha)} · freelancer {curto(T.freelancer)} · {pc(T.pct)} freelancer</div>
             </div>
-            {T.A && <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.yellow}` }}>
-              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.yellow }}>A · MANTER A EQUIPE</div>
-              <div className="text-2xl font-bold mt-1" style={{ color: C.navy }}>{um(T.A.freeDia)} <span className="text-sm font-semibold">freelancers/dia</span></div>
-              <div className="text-xs mt-1" style={{ color: C.sub }}>{int(T.A.diarias)} diárias/mês · {curto(T.A.freelancer)} de freelancer · custo de MO {curto(T.A.custo)}/mês</div>
-              <div className="flex items-center gap-2 mt-2"><b className="text-lg" style={{ color: C.yellow }}>{pc(T.A.pct)}</b><span className="text-xs" style={{ color: C.sub }}>de freelancer</span>
+            {per && <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.yellow}` }}>
+              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.yellow }}>A · MANTER A EQUIPE · {per.abertos[0]}–{per.abertos[per.abertos.length - 1]} ({per.A.meses} {per.A.meses === 1 ? "mês" : "meses"})</div>
+              <div className="text-2xl font-bold mt-1" style={{ color: C.navy }}>até {int(per.A.picoFreeDia)} <span className="text-sm font-semibold">freelancers/dia</span></div>
+              <div className="text-xs mt-1" style={{ color: C.sub }}>{int(per.A.diarias)} diárias no período · freelancer {curto(per.A.freelancer)} · custo de MO {curto(per.A.custo)} no período</div>
+              <div className="flex items-center gap-2 mt-2"><b className="text-lg" style={{ color: C.yellow }}>{pc(per.A.pct)}</b><span className="text-xs" style={{ color: C.sub }}>de freelancer</span>
                 <button onClick={() => criarSimulacao("A")} disabled={!!criando} className="ml-auto text-xs font-semibold flex items-center gap-1" style={{ color: C.accent }}>{criando === "A" ? <Loader2 size={12} className="animate-spin" /> : null} levar para Metas · cria Simulação A <ArrowRight size={12} /></button></div>
             </div>}
-            {T.B && <div className="rounded-xl p-4" style={{ background: C.panel, border: `2px solid ${C.green}` }}>
-              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.green }}>B · RECOMENDADO</div>
-              <div className="text-2xl font-bold mt-1" style={{ color: C.navy }}>+{T.B.contratar} <span className="text-sm font-semibold">contratações</span> <span className="text-sm font-semibold" style={{ color: C.sub }}>+ {um(T.B.freeDia)} freelancers/dia</span></div>
-              <div className="text-xs mt-1" style={{ color: C.sub }}>Folha {curto(T.B.folha)} · freelancer {curto(T.B.freelancer)} · custo de MO {curto(T.B.custo)}/mês ({T.B.custo <= T.A.custo ? "" : "+"}{curto(T.B.custo - T.A.custo)} vs A)</div>
-              <div className="flex items-center gap-2 mt-2"><b className="text-lg" style={{ color: C.green }}>{pc(T.B.pct)}</b><span className="text-xs" style={{ color: C.sub }}>de freelancer</span>
+            {per && <div className="rounded-xl p-4" style={{ background: C.panel, border: `2px solid ${C.green}` }}>
+              <div className="text-[11px] font-bold tracking-wider" style={{ color: C.green }}>B · RECOMENDADO · {per.abertos[0]}–{per.abertos[per.abertos.length - 1]}</div>
+              <div className="text-2xl font-bold mt-1" style={{ color: C.navy }}>+{per.B.contratar} <span className="text-sm font-semibold">contratações</span>{per.B.demitir ? <span className="text-sm font-semibold" style={{ color: C.red }}> −{per.B.demitir} desligamentos</span> : null} <span className="text-sm font-semibold" style={{ color: C.sub }}>+ até {int(per.B.picoFreeDia)} free/dia</span></div>
+              <div className="text-xs mt-1" style={{ color: C.sub }}>Folha {curto(per.B.folha)} · freelancer {curto(per.B.freelancer)} · custo de MO {curto(per.B.custo)} no período ({per.B.custo <= per.A.custo ? "" : "+"}{curto(per.B.custo - per.A.custo)} vs A)</div>
+              <div className="flex items-center gap-2 mt-2"><b className="text-lg" style={{ color: C.green }}>{pc(per.B.pct)}</b><span className="text-xs" style={{ color: C.sub }}>de freelancer</span>
                 <button onClick={() => criarSimulacao("B")} disabled={!!criando} className="ml-auto text-xs font-semibold flex items-center gap-1" style={{ color: C.accent }}>{criando === "B" ? <Loader2 size={12} className="animate-spin" /> : null} levar para Metas · cria Simulação B <ArrowRight size={12} /></button></div>
             </div>}
           </div>
@@ -203,20 +222,7 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
 
           {/* v234 — capacidade mês a mês: meses fechados ficam como estão; os em aberto seguem a sazonalidade das Metas,
                escalados para que o mês escolhido tenha a meta digitada */}
-          {(() => {
-            const a = Number(alvo) || 0;
-            if (!a || !mes) return null;
-            const fech = d.fechados || [];
-            const dist = d.metaMesesPecas || [];
-            const ref = Number(dist[mes - 1]) || 0;
-            const temDist = dist.some((x) => x != null) && ref > 0;
-            const fator = temDist ? a / ref : 1;
-            const pecasMes = dist.map((x, i) => (fech[i] ? Number(x) || 0 : temDist ? Math.round((Number(x) || 0) * fator) : a));
-            const nota = temDist
-              ? `Simulação a partir de ${MES_LONGO[mes - 1]}/${d.anoMetas}: ${int(a)} peças no mês (${fator >= 1 ? "+" : ""}${((fator - 1) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as Metas) aplicado aos meses em aberto; meses fechados como estão.`
-              : `Simulação: ${int(a)} peças em cada mês em aberto (sem distribuição mensal nas Metas de ${d.anoMetas}).`;
-            return <div className="mb-4"><CapacidadeMensal user={user} ano={d.anoMetas} cap={d} pecasMes={pecasMes} nota={nota} fechados={fech} /></div>;
-          })()}
+          {per && <div className="mb-4"><CapacidadeMensal user={user} ano={d.anoMetas} cap={d} pecasMes={per.pecasMes} nota={per.nota} fechados={per.fech} /></div>}
           {/* meses usados */}
           <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="font-bold text-sm mb-2 flex items-center gap-1.5" style={{ color: C.navy }}><Users2 size={15} style={{ color: C.accent }} /> Meses da base</div>

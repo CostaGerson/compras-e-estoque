@@ -165,7 +165,12 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
   // v215 — cenário simula com os próprios números (ignora as metas da Gestão)
   // v240 — cenário também fecha o ano: meses fechados com o realizado (DRE) que vem da oficial
   const fechOf = oficialDados?.metasGestao?.realizado ? oficialDados.metasGestao : null;
-  const calc = useMemo(() => (dados ? calcularMatriz(doc?.oficial ? dados : { ...dados, metasGestao: null, fechamento: fechOf }) : null), [dados, doc, fechOf]);
+  // v242 — simulação com metas mês a mês (Capacidade): usa as metas dela e o realizado mais recente da oficial
+  const fechCen = dados?.fechamento?.porMes
+    ? { ...dados.fechamento, ...(fechOf ? { realizado: fechOf.realizado, fechados: fechOf.fechados, mes: fechOf.mes,
+        fatMeses: dados.fechamento.fatMeses.map((f, i) => (fechOf.fechados?.[i] ? fechOf.fatMeses?.[i] ?? f : f)) } : {}) }
+    : fechOf;
+  const calc = useMemo(() => (dados ? calcularMatriz(doc?.oficial ? dados : { ...dados, metasGestao: null, fechamento: fechCen }) : null), [dados, doc, fechCen]);
   const calcOf = useMemo(() => (oficialDados && doc && !doc.oficial ? calcularMatriz(oficialDados) : null), [oficialDados, doc]);
   // v217 — o que a oficial tem e este cenário não (itens novos, dívidas e parcelamentos reais)
   const difOf = useMemo(() => (dados && oficialDados && doc && !doc.oficial ? compararComOficial(dados, oficialDados) : null), [dados, oficialDados, doc]);
@@ -543,7 +548,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
         ))}
       </div>
       {calc.projecao && <div className="text-[10px] mt-1 leading-snug" style={{ color: C.sub }}>
-        * Fechamento do ano: <b style={{ color: C.text }}>{calc.projecao.nReal} {calc.projecao.nReal === 1 ? "mês realizado" : "meses realizados"}</b> (lucro e resultado da DRE) + {calc.projecao.nSim} simulado(s) com a meta{mg ? "" : " deste cenário (peças × ticket)"}. Mês simulado: resultado = lucro (sem investimento/NORT previstos).
+        * Fechamento do ano: <b style={{ color: C.text }}>{calc.projecao.nReal} {calc.projecao.nReal === 1 ? "mês realizado" : "meses realizados"}</b> (lucro e resultado da DRE) + {calc.projecao.nSim} simulado(s) com a meta{mg ? "" : calc.projecao.porMes ? " de cada mês (simulação da Capacidade)" : " deste cenário (peças × ticket)"}. Mês simulado: resultado = lucro (sem investimento/NORT previstos).
         {calc.projecao.semDre.length > 0 && <span style={{ color: C.yellow }}> Mês fechado sem DRE ({calc.projecao.semDre.map((m) => ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"][m - 1]).join(", ")}) entrou simulado.</span>}
       </div>}
       <div className="grid grid-cols-2 gap-1.5 mt-2">

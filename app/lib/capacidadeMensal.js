@@ -11,7 +11,8 @@ import { diasUteis } from "@/lib/diasUteis";
 const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 
 // v234 — fechados[m]: mês já realizado no KPI — só mostra; contratar/desligar só nos meses em aberto
-export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
+// v242 — semContratar: cenário A (manter a equipe: tudo o que falta vira freelancer, mês a mês)
+export function planoMensal({ setores, pecasMes, ano, fechados = [], semContratar = false }) {
   const comps = Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, "0")}`);
   const du = comps.map(diasUteis);
   const linhas = [];
@@ -25,7 +26,7 @@ export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
       let contratar = 0, demitir = 0;
       // contratação: necessidade extra > 1 neste mês e no seguinte (com a equipe de agora)
       const ext = (k) => (k < 12 ? nec[k] - H : 0);
-      if (!fechados[m] && ext(m) > 1 && ext(m + 1) > 1) {
+      if (!semContratar && !fechados[m] && ext(m) > 1 && ext(m + 1) > 1) {
         // contrata o que se mantém pelo período (menor necessidade inteira enquanto passar de 1)
         let k = m, menor = Infinity;
         while (k < 12 && ext(k) > 1) { menor = Math.min(menor, Math.floor(ext(k) + 0.01)); k++; }
@@ -57,5 +58,13 @@ export function planoMensal({ setores, pecasMes, ano, fechados = [] }) {
   });
   const ano_ = { folha: total.reduce((a, t) => a + t.folha, 0), freelancer: total.reduce((a, t) => a + t.freelancer, 0), contratar: total.reduce((a, t) => a + t.contratar, 0), demitir: total.reduce((a, t) => a + t.demitir, 0) };
   ano_.pct = ano_.folha + ano_.freelancer > 0 ? ano_.freelancer / (ano_.folha + ano_.freelancer) : null;
-  return { linhas, total, ano: ano_ };
+  // v242 — período em aberto (o que dá para mexer): totais, pico de freelancers/dia e quadro contratado no pico por setor
+  const ab = total.filter((_, m) => !fechados[m]);
+  const periodo = { meses: ab.length, folha: ab.reduce((a, t) => a + t.folha, 0), freelancer: ab.reduce((a, t) => a + t.freelancer, 0),
+    contratar: ab.reduce((a, t) => a + t.contratar, 0), demitir: ab.reduce((a, t) => a + t.demitir, 0),
+    picoFreeDia: ab.reduce((a, t) => Math.max(a, t.freeDia), 0), diarias: linhas.reduce((a, l) => a + l.meses.filter((x) => !x.fechado).reduce((b, x) => b + x.diarias, 0), 0),
+    picoContratados: Object.fromEntries(linhas.map((l) => [l.setor, Math.max(0, ...l.meses.filter((x) => !x.fechado).map((x) => x.equipe - l.base))])) };
+  periodo.custo = periodo.folha + periodo.freelancer;
+  periodo.pct = periodo.custo > 0 ? periodo.freelancer / periodo.custo : null;
+  return { linhas, total, ano: ano_, periodo };
 }

@@ -112,6 +112,7 @@ export function calcularMatriz(d) {
   //        meses em aberto = simulação da Matriz com a meta do mês (faturamento × margem − custo adm + ganho/perda de escala)
   // v240 — cenário: usa o realizado da oficial (d.fechamento) e simula os meses em aberto com a própria meta (peças × ticket)
   const fch = mg?.fatMeses && Array.isArray(mg.realizado) ? mg
+    : d.fechamento?.porMes ? d.fechamento   // v242: simulação da Capacidade — meta de cada mês em aberto + realizado
     : d.fechamento?.realizado ? { ...d.fechamento, fatMeses: d.fechamento.fatMeses.map((f, i) => (d.fechamento.fechados?.[i] ? f : n(pr.metaPecas) * n(pr.ticketMedio))),
       pcsMeses: (d.fechamento.pcsMeses || []).map((p, i) => (d.fechamento.fechados?.[i] ? p : n(pr.metaPecas))) } : null;
   let projecao = null;
@@ -130,7 +131,7 @@ export function calcularMatriz(d) {
     });
     const somaK = (k) => meses.reduce((a, x) => a + x[k], 0);
     const atual = meses[(n(fch.mes) || 1) - 1] || meses[0];
-    projecao = { meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), cenMes: atual.cen, realMes: atual.real, resMes: atual.res,
+    projecao = { porMes: !!fch.porMes, meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), cenMes: atual.cen, realMes: atual.real, resMes: atual.res,
       nReal: meses.filter((x) => x.tipo === "REALIZADO").length, nSim: meses.filter((x) => x.tipo !== "REALIZADO").length,
       semDre: meses.filter((x) => x.tipo === "FECHADO_SEM_DRE").map((x) => x.mes) };
   }

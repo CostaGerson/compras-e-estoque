@@ -5,6 +5,7 @@
 //      e os valores digitados (VT, VR, plano de saúde, assistência) são a média dos funcionários da companhia
 import { prisma } from "@/lib/prisma";
 import { calcFuncionario } from "@/lib/matriz";
+import { planoMensal } from "@/lib/capacidadeMensal";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const media = (l) => (l.length ? l.reduce((s, x) => s + x, 0) / l.length : 0);
@@ -70,9 +71,13 @@ export async function salvarSalarios(d) {
 }
 
 // analise = resultado de analisarCapacidade (com a meta); cenario "A" | "B"
-export async function criarSimulacao({ analise, cenario, ano, mes, quem }) {
-  const T = analise?.total?.[cenario];
-  if (!T) throw new Error("Informe a meta de peças: sem ela não há cenário para levar.");
+// v242 — pecasMes: peças de cada mês (fechados = realizado; abertos = meta) → viabilidade e ano inteiro na simulação
+export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMes }) {
+  const T0 = analise?.total?.[cenario];
+  if (!T0) throw new Error("Informe a meta de peças: sem ela não há cenário para levar.");
+  const temPeriodo = Array.isArray(pecasMes) && pecasMes.length === 12;
+  const plano = temPeriodo ? planoMensal({ setores: analise.setores, pecasMes: pecasMes.map((x) => Number(x) || 0), ano: analise.anoMetas, fechados: analise.fechados || [], semContratar: cenario === "A" }) : null;
+  const T = plano ? { ...T0, pct: plano.periodo.pct ?? T0.pct } : T0;
   const of = await prisma.finMatriz.findFirst({ where: { oficial: true } });
   if (!of) throw new Error("Matriz oficial não encontrada.");
   const { dadosComMetas } = await import("@/lib/matrizMetas");
@@ -88,7 +93,8 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem }) {
     const salarios = await lerSalarios();
     const medias = mediasPessoal(dados);
     for (const s of analise.setores) {
-      const n = s.B?.contratar || 0, depto = SETOR_DEPTO[s.setor];
+      // v242 — com o período: quem o plano mês a mês mantém no pico (contratados ainda não desligados); sem ele, o do mês de referência
+      const n = plano ? plano.periodo.picoContratados[s.setor] || 0 : s.B?.contratar || 0, depto = SETOR_DEPTO[s.setor];
       if (!n || !depto) continue;
       const sal = Number(salarios[s.setor]) || salarioMedioDepto(dados, depto) || medias.salario;
       for (let i = 1; i <= n; i++) {
@@ -98,12 +104,23 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem }) {
       }
     }
   }
+  // v242 — o ANO da simulação: meses fechados = realizado (vem da oficial na tela); meses em aberto = meta de cada mês (peças × ticket)
+  if (temPeriodo) {
+    const tk = Number(pr.ticketMedio) || 0;
+    const mgO = base.metasGestao || {};
+    const fech = analise.fechados || mgO.fechados || [];
+    dados.fechamento = { porMes: true, mes: mgO.mes || null, fechados: fech, realizado: mgO.realizado || [],
+      fatMeses: pecasMes.map((p, i) => (fech[i] ? mgO.fatMeses?.[i] ?? (Number(p) || 0) * tk : (Number(p) || 0) * tk)),
+      pcsMeses: pecasMes.map((p) => Number(p) || 0) };
+    const abertos = pecasMes.filter((_, i) => !fech[i]);
+    if (abertos.length) pr.metaPecas = Math.round(abertos.reduce((t, x) => t + (Number(x) || 0), 0) / abertos.length);   // média do período em aberto
+  }
   // v238 — insumos, padaria, confraternização, água, energia… acompanham o número de pessoas
   const ativos = (l) => (l || []).filter((p) => p.ativo !== false).length;
   const escaladas = criados.length ? escalarPorPessoa(dados, ativos(base.pessoal), ativos(dados.pessoal), cenario) : [];
   const data = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const ref = ano && mes ? ` · REF ${String(mes).padStart(2, "0")}/${ano}` : "";
-  const pcs = analise.meta ? ` · ${Math.round(analise.meta).toLocaleString("pt-BR")} PÇ/MÊS` : "";
+  const pcs = pr.metaPecas ? ` · ${Math.round(pr.metaPecas).toLocaleString("pt-BR")} PÇ/MÊS${temPeriodo ? " (MÉDIA DO PERÍODO EM ABERTO)" : ""}` : "";
   const nome = `SIMULAÇÃO ${cenario} · ${data}${ref}${pcs}`;
   dados.simulacaoCapacidade = { cenario, meta: analise.meta, pctFreelancer: T.pct, contratados: criados.length, ano: ano || null, mes: mes || null, criadoEm: new Date().toISOString() };
   const m = await prisma.finMatriz.create({ data: { nome, oficial: false, dados, atualizadoPor: quem || "CAPACIDADE" } });
