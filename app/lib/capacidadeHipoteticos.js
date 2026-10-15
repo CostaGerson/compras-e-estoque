@@ -14,7 +14,8 @@ export function escalarPorPessoa(dados, antes, depois, cenario) {
       if (i.ativo === false || !POR_PESSOA.test(String(i.natureza || ""))) return i;
       const novo = r2((Number(i.valor) || 0) * f);
       mudou.push({ natureza: i.natureza, de: Number(i.valor) || 0, para: novo });
-      return { ...i, valor: novo, obs: [i.obs, `Simulação ${cenario}: × ${f.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} (${antes} → ${depois} pessoas)`].filter(Boolean).join(" · ") };
+      const p1 = (x) => Number(x).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+      return { ...i, valor: novo, obs: [i.obs, `Simulação ${cenario}: × ${f.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} (${p1(antes)} → ${p1(depois)} pessoas/dia, CLT + freelancers)`].filter(Boolean).join(" · ") };
     });
   }
   return mudou;
@@ -55,7 +56,8 @@ export function custoContratacao(dados, setor, salarioPrevisto) {
 
 // v248 — põe na matriz (MUTA dados) os contratados do cenário: n por setor (pico do plano), com o salário previsto
 //   e escala as despesas por pessoa. salarios = { SETOR: valor } (previsto); sem ele, média do depto / companhia
-export function aplicarContratados(dados, contratados, { salarios = {}, cenario = "B", inicio = null } = {}) {
+// v253 — freeAntes / freeDepois: freelancers por dia (histórico × simulação) — também são pessoas: água, energia, padaria, insumos…
+export function aplicarContratados(dados, contratados, { salarios = {}, cenario = "B", inicio = null, freeAntes = 0, freeDepois = 0 } = {}) {
   const ativos = (l) => (l || []).filter((p) => p.ativo !== false).length;
   const antes = ativos(dados.pessoal);
   const medias = mediasPessoal(dados);
@@ -69,6 +71,7 @@ export function aplicarContratados(dados, contratados, { salarios = {}, cenario 
       criados.push({ setor, salario: sal, previsto: !!Number(salarios[setor]) });
     }
   }
-  const escaladas = criados.length ? escalarPorPessoa(dados, antes, ativos(dados.pessoal), cenario) : [];
-  return { criados, escaladas };
+  const pAntes = antes + (Number(freeAntes) || 0), pDepois = ativos(dados.pessoal) + (Number(freeDepois) || 0);
+  const escaladas = Math.abs(pDepois - pAntes) > 0.05 ? escalarPorPessoa(dados, pAntes, pDepois, cenario) : [];
+  return { criados, escaladas, pAntes, pDepois };
 }

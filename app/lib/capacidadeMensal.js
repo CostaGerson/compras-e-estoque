@@ -64,6 +64,9 @@ export function planoMensal({ setores, pecasMes, ano, fechados = [], semContrata
     contratar: ab.reduce((a, t) => a + t.contratar, 0), demitir: ab.reduce((a, t) => a + t.demitir, 0),
     picoFreeDia: ab.reduce((a, t) => Math.max(a, t.freeDia), 0), diarias: linhas.reduce((a, l) => a + l.meses.filter((x) => !x.fechado).reduce((b, x) => b + x.diarias, 0), 0),
     picoContratados: Object.fromEntries(linhas.map((l) => [l.setor, Math.max(0, ...l.meses.filter((x) => !x.fechado).map((x) => x.equipe - l.base))])) };
+  // v253 — freelancers por dia útil, em média, no período (entram na conta das despesas por pessoa)
+  periodo.diasUteis = ab.reduce((a, t) => a + t.diasUteis, 0);
+  periodo.freeDiaMedio = periodo.diasUteis ? periodo.diarias / periodo.diasUteis : 0;
   periodo.custo = periodo.folha + periodo.freelancer;
   periodo.pct = periodo.custo > 0 ? periodo.freelancer / periodo.custo : null;
   return { linhas, total, ano: ano_, periodo };

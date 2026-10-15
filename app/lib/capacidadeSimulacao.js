@@ -44,10 +44,13 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
   pr.razaoInternaManual = Math.round((1 - (T.pct || 0)) * 10000) / 10000;   // % de freelancer do cenário
   const inicio = ano && mes ? `${ano}-${String(mes).padStart(2, "0")}-01` : null;
   let criados = [], escaladas = [];
-  if (cenario === "B") {
+  {
+    // v253 — A e B: as despesas por pessoa acompanham CLT + freelancers/dia (histórico → simulação)
+    const freeAntes = Number(analise.total?.freeDia) || 0;
+    const freeDepois = plano ? plano.periodo.freeDiaMedio : Number(T0.freeDia) || 0;
     // v242 — com o período: quem o plano mês a mês mantém no pico (contratados ainda não desligados); sem ele, o do mês de referência
-    const n = Object.fromEntries(analise.setores.map((s) => [s.setor, plano ? plano.periodo.picoContratados[s.setor] || 0 : s.B?.contratar || 0]));
-    ({ criados, escaladas } = aplicarContratados(dados, n, { salarios: await lerSalarios(), cenario, inicio }));   // v238/v248: + despesas por pessoa
+    const n = cenario === "B" ? Object.fromEntries(analise.setores.map((s) => [s.setor, plano ? plano.periodo.picoContratados[s.setor] || 0 : s.B?.contratar || 0])) : {};
+    ({ criados, escaladas } = aplicarContratados(dados, n, { salarios: await lerSalarios(), cenario, inicio, freeAntes, freeDepois }));   // v238/v248: + despesas por pessoa
   }
   // v242 — o ANO da simulação: meses fechados = realizado (vem da oficial na tela); meses em aberto = meta de cada mês (peças × ticket)
   if (temPeriodo) {

@@ -288,7 +288,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         ...(matriz.metasGestao?.realizado && ano === matriz.metasGestao?.ano ? { mes: mesI + 1, fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses }
           : { mes: 1, fechados: Array(12).fill(false), realizado: Array(12).fill(null), fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses }) };
       const dv = JSON.parse(JSON.stringify(aplicarMetas(matriz, mg)));
-      const hip = cenSel === "B" ? aplicarContratados(dv, per.B.picoContratados, { salarios: cap?.salarios || {}, cenario: "B" }) : null;
+      // v253 — A e B: despesas por pessoa com CLT + freelancers/dia (histórico da capacidade → cenário)
+      const hip = cenSel ? aplicarContratados(dv, cenSel === "B" ? per.B.picoContratados : {}, { salarios: cap?.salarios || {}, cenario: cenSel,
+        freeAntes: Number(cap?.total?.freeDia) || 0, freeDepois: per[cenSel].freeDiaMedio || 0 }) : null;
       return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg, hip };
     } catch { return null; }
   })();
@@ -397,7 +399,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
           <div className="relative min-h-[420px]">
             <div className="xl:absolute xl:inset-0 xl:overflow-y-auto h-full">
               <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="oficial"
-                nota={vivo.hip?.criados.length ? `Simulação das metas desta tela + Simulação B: ${vivo.hip.criados.length} contratações hipotéticas (folha e despesas por pessoa), comparada com a oficial (histórico).` : `Simulação das metas desta tela${cenSel === "A" ? " (Simulação A)" : ""}, comparada com a oficial (histórico realizado).`} />
+                nota={`Simulação das metas desta tela${cenSel ? ` + Simulação ${cenSel}` : ""}${vivo.hip?.criados.length ? `: ${vivo.hip.criados.length} contratações hipotéticas` : ""}${vivo.hip?.escaladas?.length ? ` · despesas por pessoa ${Math.round(vivo.hip.pAntes)} → ${Math.round(vivo.hip.pDepois)} pessoas/dia (CLT + freelancers)` : ""}, comparada com a oficial (histórico).`} />
             </div>
           </div>
         )}
