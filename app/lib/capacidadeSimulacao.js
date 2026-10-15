@@ -24,7 +24,8 @@ export async function salvarSalarios(d) {
 
 // analise = resultado de analisarCapacidade (com a meta); cenario "A" | "B"
 // v242 — pecasMes: peças de cada mês (fechados = realizado; abertos = meta) → viabilidade e ano inteiro na simulação
-export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMes }) {
+// v250 — metas: { ticket, margem } da tela de Metas (ainda não gravadas) — prevalecem sobre as gravadas
+export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMes, metas }) {
   const T0 = analise?.total?.[cenario];
   if (!T0) throw new Error("Informe a meta de peças: sem ela não há cenário para levar.");
   const temPeriodo = Array.isArray(pecasMes) && pecasMes.length === 12;
@@ -37,6 +38,8 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
   const dados = JSON.parse(JSON.stringify(base));
   const pr = (dados.producao ||= {});
   if (analise.meta) pr.metaPecas = analise.meta;
+  if (Number(metas?.ticket) > 0) pr.ticketMedio = Number(metas.ticket);
+  if (metas?.margem != null && metas.margem !== "" && Number.isFinite(Number(metas.margem))) pr.margemContribuicao = Number(metas.margem);
   pr.razaoInternaAuto = false;
   pr.razaoInternaManual = Math.round((1 - (T.pct || 0)) * 10000) / 10000;   // % de freelancer do cenário
   const inicio = ano && mes ? `${ano}-${String(mes).padStart(2, "0")}-01` : null;

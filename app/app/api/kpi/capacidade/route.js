@@ -24,7 +24,7 @@ export async function POST(req) {
     if (b.acao === "simular") {
       if (!["A", "B"].includes(b.cenario)) return Response.json({ error: "Cenário inválido." }, { status: 400 });
       const analise = await analisarCapacidade({ meses: b.meses, alvo: b.alvo, ano: b.ano });
-      return Response.json(await criarSimulacao({ analise, cenario: b.cenario, ano: b.ano, mes: b.mes, quem: nomeU(u), pecasMes: b.pecasMes }));
+      return Response.json(await criarSimulacao({ analise, cenario: b.cenario, ano: b.ano, mes: b.mes, quem: nomeU(u), pecasMes: b.pecasMes, metas: b.metas }));
     }
     const out = {};
     if (b.diarias) out.diarias = await salvarDiarias(b.diarias);

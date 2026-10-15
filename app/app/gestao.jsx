@@ -63,8 +63,11 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
       )}
       {tela.v === "painel"
         ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
-        : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} irCapacidade={() => setTela({ v: "capacidade" })} />
-        : tela.v === "capacidade" ? <Capacidade user={user} irMatriz={irMatriz} usarNaMeta={(p) => setTela({ v: "metas", ano: new Date().getFullYear(), freela: Math.round(p * 10000) / 100, t: Date.now() })} />
+        : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} rascunho={tela.rascunho} irMatriz={irMatriz}
+            irCapacidade={(mt) => setTela({ v: "capacidade", metas: mt || null })} />
+        : tela.v === "capacidade" ? <Capacidade user={user} irMatriz={irMatriz} metasTela={tela.metas}
+            voltarMetas={tela.metas ? () => setTela({ v: "metas", ano: tela.metas.ano, rascunho: tela.metas.rascunho, t: Date.now() }) : null}
+            usarNaMeta={(p) => setTela({ v: "metas", ano: tela.metas?.ano || new Date().getFullYear(), rascunho: tela.metas?.rascunho, freela: Math.round(p * 10000) / 100, t: Date.now() })} />
         : <Relatorio key={tela.ano} user={user} master={master} money={money} anoInicial={tela.ano} abrirMetas={(ano) => setTela({ v: "metas", ano })} />}
     </div>
   );

@@ -3,7 +3,7 @@
 // Meta anual nova → redistribui os meses mantendo a proporção atual, ou pela distribuição histórica.
 // Mês alterado à mão fica travado; os demais recebem a sugestão para fechar a meta do ano.
 import React, { useState, useEffect, useRef } from "react";
-import { Lock, Unlock, Save, Loader2, History, RotateCcw, Target } from "lucide-react";
+import { Lock, Unlock, Save, Loader2, History, RotateCcw, Target, Plus, ArrowRight } from "lucide-react";
 import { derivarMetas } from "@/lib/kpiMetasCalc";
 import { numBR } from "@/lib/numBR";
 import { calcularMatriz } from "@/lib/matriz";
@@ -191,7 +191,10 @@ function CardNatureza({ n, set, original, ticket }) {
   );
 }
 
-export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacidade }) {
+export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacidade, irMatriz, rascunho }) {
+  const usouRasc = useRef(false);   // v250: volta da Capacidade com as metas da tela (não gravadas)
+  const [sim, setSim] = useState(null);
+  const [criando, setCriando] = useState("");
   const [ano, setAno] = useState(anoInicial || new Date().getFullYear());
   const [orig, setOrig] = useState(null);
   const [vend, setVend] = useState(null);   // v221: vendas (R$) — a meta que você define
@@ -235,6 +238,11 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
     setMargem(d.margem != null ? r2(d.margem * 100) : null);
     setFreela(freelaInicial != null && !d.__salvo ? freelaInicial : d.freelancer?.meta != null ? r2(d.freelancer.meta * 100) : null);
     setTicket(d.ticket != null ? r2(d.ticket) : null);
+    if (rascunho && !d.__salvo && !usouRasc.current && Number(rascunho.ano) === Number(ano)) {
+      usouRasc.current = true;
+      setVend(rascunho.vend); setTicket(rascunho.ticket); setMargem(rascunho.margem);
+      if (freelaInicial == null) setFreela(rascunho.freela);
+    }
   };
   useEffect(() => {
     setVend(null); setErro("");
@@ -282,6 +290,21 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
       return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg, hip };
     } catch { return null; }
   })();
+  // v250 — metas DESTA TELA (mesmo sem gravar) → Capacidade e Simulação A/B na Matriz
+  const metasTela = () => (der ? { ano, pecasMes: der.faturamentoPecas.meses.map((x) => Number(x) || 0), ticket, margem: margem != null ? margem / 100 : null,
+    rascunho: { ano, vend, ticket, margem, freela } } : null);
+  const criarSim = async (cenario) => {
+    const mt = metasTela(); if (!mt) return;
+    setCriando(cenario); setErro(""); setSim(null);
+    try {
+      const fe = orig?.fechados || [], ab = mt.pecasMes.map((_, i) => i).filter((i) => !fe[i]);
+      const alvo = ab.length ? Math.round(ab.reduce((t, i) => t + mt.pecasMes[i], 0) / ab.length) : Math.round(mt.pecasMes.reduce((t, x) => t + x, 0) / 12);
+      const r = await api("/api/kpi/capacidade", "POST", { usuarioId: user.id, acao: "simular", cenario, meses: 3, ano, mes: (ab[0] ?? 11) + 1, alvo,
+        pecasMes: mt.pecasMes, metas: { ticket: mt.ticket, margem: mt.margem } });
+      setSim(r);
+    } catch (e) { setErro(e.message); }
+    setCriando("");
+  };
   const LINHAS = [
     ["faturamentoPecas", "Peças faturadas (= produzidas)", "pc", "faturamento R$ ÷ ticket · fechado: realizado"],
     ["vendasValor", "Vendas (R$)", "R$", "= faturamento do mês · fechado: realizado"],
@@ -305,6 +328,11 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         </button>}
       </div>
       {erro && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {sim && <div className="p-3 rounded mb-4 text-sm flex flex-wrap items-center gap-3 anim-entrar" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+        <span className="flex-1" style={{ color: C.text }}>Criada na Matriz: <b>{sim.nome}</b>{sim.contratados ? ` · ${sim.contratados} contratação(ões) hipotética(s)` : ""} — com as metas desta tela.</span>
+        {irMatriz && <button onClick={() => irMatriz(sim.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: C.green }}>Abrir na Matriz <ArrowRight size={14} /></button>}
+        <button onClick={() => setSim(null)} className="text-xs underline" style={{ color: C.sub }}>fechar</button>
+      </div>}
       {aviso && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {!vend && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {vend && (
@@ -347,7 +375,16 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
                   </div> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
                   {F.media3 && <Linha k={`Real · média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} />}
                   {freelaInicial != null && <div className="font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
-                  {irCapacidade && <button onClick={irCapacidade} className="font-semibold underline text-left" style={{ color: C.blue }}>Detalhar capacidade →</button>}
+                  {per && <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px]" style={{ color: C.sub }}>Criar na Matriz:</span>
+                    {[["A", C.yellow], ["B", C.green]].map(([k, cor]) => (
+                      <button key={k} type="button" onClick={() => criarSim(k)} disabled={!!criando} title={`Cria a Simulação ${k} na Matriz com as metas desta tela (mesmo sem salvar)`}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-white" style={{ background: cor, opacity: criando && criando !== k ? 0.5 : 1 }}>
+                        {criando === k ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />} Simulação {k}
+                      </button>
+                    ))}
+                  </div>}
+                  {irCapacidade && <button onClick={() => irCapacidade(metasTela())} className="font-semibold underline text-left" style={{ color: C.blue }}>Analisar capacidade (com estas metas) →</button>}
                 </CardMeta>
               );
             })()}

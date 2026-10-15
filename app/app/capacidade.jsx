@@ -24,10 +24,11 @@ const Td = ({ children, dir, forte, cor, sep }) => <td className={`px-2.5 py-2 w
 const MES_LONGO = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const lerNum = (t) => { const x = Number(String(t ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 
-export default function Capacidade({ user, usarNaMeta, irMatriz }) {
+// v250 — metasTela: { ano, pecasMes, ticket, margem } vindas da tela de Metas (mesmo sem gravar) — a análise abre com elas
+export default function Capacidade({ user, usarNaMeta, irMatriz, metasTela, voltarMetas }) {
   const hoje = new Date();
   const [meses, setMeses] = useState(3);   // v244: histórico padrão = últimos 3 meses
-  const [ano, setAno] = useState(hoje.getFullYear());   // v234: período de trabalho (só meses em aberto)
+  const [ano, setAno] = useState(Number(metasTela?.ano) || hoje.getFullYear());   // v234: período de trabalho (só meses em aberto)
   // v243 — a análise é do PERÍODO EM ABERTO inteiro: meta = peças de todos os meses em aberto (sem escolher mês)
   const [total, setTotal] = useState("");
   const [alvo, setAlvo] = useState("");      // média mensal do período (vai para a tabela por setor)
@@ -42,17 +43,20 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
   const brlTxt = (v) => (v ? Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
   const abertosDe = (r) => (r?.fechados || Array(12).fill(false)).map((f, i) => (f ? -1 : i)).filter((i) => i >= 0);
   const metaPeriodo = (r) => abertosDe(r).reduce((t, i) => t + (Number(r?.metaMesesPecas?.[i]) || 0), 0);
+  // meses em aberto com as peças da tela de Metas (fechados continuam com o realizado)
+  const comTela = (r, y) => (metasTela?.pecasMes && r && !r.error && Number(metasTela.ano) === Number(y)
+    ? { ...r, metaMesesPecas: Array.from({ length: 12 }, (_, i) => ((r.fechados || [])[i] ? r.metaMesesPecas?.[i] : Number(metasTela.pecasMes[i]) || 0)) } : r);
   const carregar = async (tot = total, y = ano) => {
     setErro("");
     try {
-      const base = await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}`).then((x) => x.json());
+      const base = comTela(await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}`).then((x) => x.json()), y);
       if (base.error) throw new Error(base.error);
       const n = abertosDe(base).length || 1;
       const t = Number(tot) || metaPeriodo(base) || (base.metaMetas || base.total?.pecas || 0) * n;
       setTotal(t ? String(Math.round(t)) : "");
       const a = t ? Math.round(t / n) : "";
       setAlvo(a ? String(a) : "");
-      const r = a ? await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}&alvo=${a}`).then((x) => x.json()) : base;
+      const r = a ? comTela(await fetch(`/api/kpi/capacidade?u=${user.id}&meses=${meses}&ano=${y}&alvo=${a}`).then((x) => x.json()), y) : base;
       if (r.error) throw new Error(r.error);
       setD(r);
       setDiarias(Object.fromEntries(r.setores.map((s) => [s.setor, s.diaria ? String(s.diaria).replace(".", ",") : ""])));
@@ -77,7 +81,8 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
     setCriando(cenario); setErro(""); setSim(null);
     try {
       const r = await fetch("/api/kpi/capacidade", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuarioId: user.id, acao: "simular", cenario, meses, alvo, ano, mes, pecasMes: per?.pecasMes, pct: per?.[cenario]?.pct }) }).then((x) => x.json());
+        body: JSON.stringify({ usuarioId: user.id, acao: "simular", cenario, meses, alvo, ano, mes, pecasMes: per?.pecasMes, pct: per?.[cenario]?.pct,
+          metas: metasTela && Number(metasTela.ano) === Number(ano) ? { ticket: metasTela.ticket, margem: metasTela.margem } : undefined }) }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
       setSim(r);
     } catch (e) { setErro(e.message); }
@@ -126,6 +131,10 @@ export default function Capacidade({ user, usarNaMeta, irMatriz }) {
           {d && metaPeriodo(d) > 0 && Number(total) !== metaPeriodo(d) && <button type="button" onClick={() => { setSim(null); carregar(String(metaPeriodo(d))); }} className="block mt-0.5 text-[10px] underline" style={{ color: C.accent }}>voltar às Metas ({int(metaPeriodo(d))})</button>}
         </label>
       </div>
+      {metasTela && <div className="p-2.5 rounded-lg mb-3 text-xs flex flex-wrap items-center gap-2" style={{ background: C.blueSoft, color: C.navy }}>
+        <Info size={14} style={{ color: C.blue }} /> <span className="flex-1">Análise com as <b>metas da tela de Metas</b> ({metasTela.ano}{metasTela.ticket ? ` · ticket R$ ${brl(metasTela.ticket)}` : ""}) — mesmo sem salvar. As simulações criadas aqui levam essas metas.</span>
+        {voltarMetas && <button onClick={voltarMetas} className="font-semibold underline" style={{ color: C.blue }}>← voltar às Metas</button>}
+      </div>}
       {erro && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Analisando…</div>}
       {d && (
