@@ -113,10 +113,21 @@ export function calcularMatriz(d) {
   // v239 — FECHAMENTO DO ANO (oficial com metas da Gestão): meses fechados = lucro realizado da DRE;
   //        meses em aberto = simulação da Matriz com a meta do mês (faturamento × margem − custo adm + ganho/perda de escala)
   // v240 — cenário: usa o realizado da oficial (d.fechamento) e simula os meses em aberto com a própria meta (peças × ticket)
-  const fch = mg?.fatMeses && Array.isArray(mg.realizado) ? mg
-    : d.fechamento?.porMes ? d.fechamento   // v242: simulação da Capacidade — meta de cada mês em aberto + realizado
-    : d.fechamento?.realizado ? { ...d.fechamento, fatMeses: d.fechamento.fatMeses.map((f, i) => (d.fechamento.fechados?.[i] ? f : n(pr.metaPecas) * n(pr.ticketMedio))),
-      pcsMeses: (d.fechamento.pcsMeses || []).map((p, i) => (d.fechamento.fechados?.[i] ? p : n(pr.metaPecas))) } : null;
+  // v247 — cenário: "peças faturadas (mês)" = MÉDIA DO ANO. Meses em aberto se ajustam para que (realizado + abertos) ÷ 12 = essa média
+  //        (simulação da Capacidade: mantém a distribuição de cada mês, escalada; demais cenários: divide igual entre os abertos)
+  const fechCen = (() => {
+    const f = d.fechamento;
+    if (!f?.realizado && !f?.porMes) return null;
+    const fe = f.fechados || [], tk0 = n(pr.ticketMedio);
+    const pcsF = (f.pcsMeses || []).map((p, i) => (fe[i] ? (p != null ? n(p) : tk0 ? n(f.fatMeses?.[i]) / tk0 : 0) : null));
+    const fechSum = pcsF.reduce((t, x) => t + (x || 0), 0), nAb = fe.filter((x, i) => !x && i < 12).length || Array(12).fill(0).filter((_, i) => !fe[i]).length;
+    const resto = Math.max(0, n(pr.metaPecas) * 12 - fechSum);
+    const baseAb = f.porMes ? (f.pcsMeses || []).reduce((t, p, i) => t + (fe[i] ? 0 : n(p)), 0) : 0;
+    const pcsMeses = Array.from({ length: 12 }, (_, i) => (fe[i] ? pcsF[i] : f.porMes && baseAb ? n(f.pcsMeses[i]) * resto / baseAb : nAb ? resto / nAb : 0));
+    const fatMeses = pcsMeses.map((p, i) => (fe[i] ? n(f.fatMeses?.[i]) : p * tk0));
+    return { ...f, pcsMeses, fatMeses };
+  })();
+  const fch = mg?.fatMeses && Array.isArray(mg.realizado) ? mg : fechCen;
   let projecao = null;
   if (fch) {
     const tk = n(pr.ticketMedio), mc = n(pr.margemContribuicao);

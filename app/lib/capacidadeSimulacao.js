@@ -113,14 +113,14 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
       fatMeses: pecasMes.map((p, i) => (fech[i] ? mgO.fatMeses?.[i] ?? (Number(p) || 0) * tk : (Number(p) || 0) * tk)),
       pcsMeses: pecasMes.map((p) => Number(p) || 0) };
     const abertos = pecasMes.filter((_, i) => !fech[i]);
-    if (abertos.length) pr.metaPecas = Math.round(abertos.reduce((t, x) => t + (Number(x) || 0), 0) / abertos.length);   // média do período em aberto
+    pr.metaPecas = Math.round(pecasMes.reduce((t, x) => t + (Number(x) || 0), 0) / 12);   // v247: média do ANO (realizado + metas)
   }
   // v238 — insumos, padaria, confraternização, água, energia… acompanham o número de pessoas
   const ativos = (l) => (l || []).filter((p) => p.ativo !== false).length;
   const escaladas = criados.length ? escalarPorPessoa(dados, ativos(base.pessoal), ativos(dados.pessoal), cenario) : [];
   const data = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const ref = ano && mes ? ` · REF ${String(mes).padStart(2, "0")}/${ano}` : "";
-  const pcs = pr.metaPecas ? ` · ${Math.round(pr.metaPecas).toLocaleString("pt-BR")} PÇ/MÊS${temPeriodo ? " (MÉDIA DO PERÍODO EM ABERTO)" : ""}` : "";
+  const pcs = pr.metaPecas ? ` · ${Math.round(pr.metaPecas).toLocaleString("pt-BR")} PÇ/MÊS${temPeriodo ? " (MÉDIA DO ANO)" : ""}` : "";
   const nome = `SIMULAÇÃO ${cenario} · ${data}${ref}${pcs}`;
   dados.simulacaoCapacidade = { cenario, meta: analise.meta, pctFreelancer: T.pct, contratados: criados.length, ano: ano || null, mes: mes || null, criadoEm: new Date().toISOString() };
   const m = await prisma.finMatriz.create({ data: { nome, oficial: false, dados, atualizadoPor: quem || "CAPACIDADE" } });
