@@ -88,6 +88,8 @@ export function calcularMatriz(d) {
   const mgF = d.metasGestao?.pctFreelancer;
   const pctFreelancer = mgF != null ? n(mgF) : totGeral ? totFree / totGeral : 0;           // L3
   const razaoInterna = mgF != null || pr.razaoInternaAuto ? 1 - pctFreelancer : n(pr.razaoInternaManual);
+  // v245 — razão interna manual (ex.: simulação da Capacidade): o % de freelancer exibido é o complemento dela, não o da tabela
+  const pctFreelancerUsado = mgF != null || pr.razaoInternaAuto ? pctFreelancer : 1 - razaoInterna;
   const razaoProd = n(pr.custoPeca) * razaoInterna;                   // E29
   const razaoLog = n(pr.razaoLog);                                    // E31
   const custoPecaInterno = razaoProd + razaoLog;
@@ -151,7 +153,7 @@ export function calcularMatriz(d) {
     blocos: { vidaVegetativa, pessoal: totPessoal, logistica, administracao, sistemas, dividas },
     custoOperacao, custoOperacaoDia: custoOperacao / dias, custoNegocio, custoNegocioDia: custoNegocio / dias,
     operacaoPrecificada, custoAdministrativo,
-    pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno,
+    pctFreelancer: pctFreelancerUsado, pctFreelancerTabela: pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno,
     metaFatAnual, metaMensal, metaDia: metaMensal / dias, pecasCobrem, balanco,
     lucroCenario, lucroCenarioR, lucroReal, lucroRealR, breakevenPecas, projecao,
     // v239 — com projeção: o ano = realizado + simulado (o resultado "puro" da Matriz continua acima)
