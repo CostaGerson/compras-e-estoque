@@ -2,6 +2,7 @@
 // v229 — Capacidade × freelancer pela diária de cada área: quantos freelancers por dia a meta exige
 // mantendo a equipe (A) e o recomendado (B: acima de 1 freelancer por dia útil, contrata)
 import React, { useState, useEffect } from "react";
+import CapacidadeMensal from "./capacidadeMensal";
 import { Loader2, Users2, Factory, ArrowRight, Info, Save, AlertTriangle } from "lucide-react";
 
 const C = {
@@ -134,6 +135,19 @@ export default function Capacidade({ user, usarNaMeta }) {
             </table>
           </div>
 
+          {/* v231.2 — capacidade mês a mês da simulação: a distribuição das Metas ajustada para a média digitada */}
+          {(() => {
+            const a = Number(alvo) || 0;
+            if (!a) return null;
+            const dist = d.metaMesesPecas || [];
+            const soma = dist.reduce((s, x) => s + (x || 0), 0);
+            const temDist = soma > 0 && dist.every((x) => x != null);
+            const pecasMes = temDist ? dist.map((x) => Math.round((x * a * 12) / soma)) : Array(12).fill(a);
+            const nota = temDist
+              ? `Simulação: ${int(a)} peças/mês em média, distribuídas pela sazonalidade das Metas de ${d.anoMetas} (${int(a * 12)} no ano).`
+              : `Simulação: ${int(a)} peças em todos os meses (sem distribuição mensal nas Metas de ${d.anoMetas}).`;
+            return <div className="mb-4"><CapacidadeMensal user={user} ano={d.anoMetas} cap={d} pecasMes={pecasMes} nota={nota} /></div>;
+          })()}
           {/* meses usados */}
           <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="font-bold text-sm mb-2 flex items-center gap-1.5" style={{ color: C.navy }}><Users2 size={15} style={{ color: C.accent }} /> Meses da base</div>

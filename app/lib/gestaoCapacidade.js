@@ -103,5 +103,8 @@ export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
   const ano = new Date().getFullYear();
   const ka = await prisma.kpiAno.findUnique({ where: { ano } }).catch(() => null);
   const metaMetas = ka?.metaPecasFaturadas ? Math.round(Number(ka.metaPecasFaturadas) / 12) : null;
-  return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, diarias, setores, total };
+  // v231.2 — distribuição mês a mês das Metas (peças faturadas) para a capacidade mensal da simulação
+  const km = await prisma.kpiMes.findMany({ where: { ano }, select: { mes: true, metaFaturamentoPecas: true } }).catch(() => []);
+  const metaMesesPecas = Array.from({ length: 12 }, (_, i) => { const k = km.find((x) => x.mes === i + 1); return k?.metaFaturamentoPecas ?? null; });
+  return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, metaMesesPecas, anoMetas: ano, diarias, setores, total };
 }

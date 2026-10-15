@@ -329,7 +329,6 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               ))}</tbody>
             </table>
           </div>
-          <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} />
         </div>
         {vivo && (
           <div className="flex flex-col" style={{ width: 380, maxWidth: "100%" }}>
@@ -339,6 +338,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         )}
         </div>
       )}
+      {vend && <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} />}
     </div>
   );
 }

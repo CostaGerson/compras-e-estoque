@@ -13,16 +13,18 @@ html, body { padding: 0; margin: 0; background: #F5F6F8; font-family: 'Montserra
 @keyframes ce-gaveta { from { opacity: .4; transform: translateX(48px); } to { opacity: 1; transform: none; } }
 @keyframes ce-dir { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes ce-esq { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
-.anim-entrar { animation: ce-entrar .22s ease-out both; }
-.anim-modal { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) both; }
-.anim-fundo { animation: ce-fundo .18s ease-out both; }
-.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) both; }
-.anim-dir { animation: ce-dir .24s ease-out both; }
-.anim-esq { animation: ce-esq .24s ease-out both; }
+.anim-entrar { animation: ce-entrar .22s ease-out backwards; }
+.anim-modal { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) backwards; }
+.anim-fundo { animation: ce-fundo .18s ease-out backwards; }
+.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) backwards; }
+.anim-dir { animation: ce-dir .24s ease-out backwards; }
+.anim-esq { animation: ce-esq .24s ease-out backwards; }
+/* v231.1 — "backwards" (e não "both"): animação de transform que fica preenchida depois de terminar faz o navegador
+   tratar o elemento como "contêiner" das janelas fixas dentro dele (a janela ia para o meio da página longa) */
 /* janelas que não usam as classes acima (overlays fixos do sistema) também entram com movimento */
-.fixed.inset-0.z-50 { animation: ce-fundo .18s ease-out both; }
-.fixed.inset-0.z-50 > div { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) both; }
-.fixed.inset-0.z-50.anim-fundo > div.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) both; }
+.fixed.inset-0.z-50 { animation: ce-fundo .18s ease-out backwards; }
+.fixed.inset-0.z-50 > div { animation: ce-modal .2s cubic-bezier(.2,.8,.2,1) backwards; }
+.fixed.inset-0.z-50.anim-fundo > div.anim-gaveta { animation: ce-gaveta .24s cubic-bezier(.2,.8,.2,1) backwards; }
 button { transition: transform .12s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, opacity .18s ease; }
 button:active:not(:disabled) { transform: scale(.97); }
 .card-asana { transition: transform .15s ease, box-shadow .15s ease; }

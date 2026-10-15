@@ -19,10 +19,12 @@ const rs = (v) => {
 };
 const pc = (v) => (v == null ? "—" : `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
 
-export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCapacidade }) {
-  const [cap, setCap] = useState(null);
+export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCapacidade, cap: capPronto, nota }) {
+  const [cap, setCap] = useState(capPronto || null);
+  useEffect(() => { if (capPronto) setCap(capPronto); }, [capPronto]);
   const [erro, setErro] = useState("");
   useEffect(() => {
+    if (capPronto) return;
     fetch(`/api/kpi/capacidade?u=${user.id}&meses=6`).then((r) => r.json())
       .then((d) => (d.error ? setErro(d.error) : setCap(d))).catch((e) => setErro(e.message));
   }, []);
@@ -60,6 +62,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
           <div className="text-xs" style={{ color: C.sub }}>
             Peças faturadas da meta ÷ peças por trabalhador do histórico ({cap.usados} {cap.usados === 1 ? "mês" : "meses"}). Contrata quando passa de 1 freelancer/dia por 2+ meses; desliga quando sobra ≥ 1 por 2+ meses. Dias úteis sem sábados e feriados.
           </div>
+          {nota && <div className="text-xs mt-0.5" style={{ color: C.text }}>{nota}</div>}
           <div className="text-[11px] font-semibold mt-1" style={{ color: C.accent }}>Só análise — nada aqui altera metas ou Matriz.</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
