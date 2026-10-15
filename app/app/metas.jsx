@@ -284,7 +284,9 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
         ticket, fonteTicket: "ticket médio das Metas", margem: margem != null ? margem / 100 : matriz.metasGestao?.margem ?? null,
         pctFreelancer: freela != null ? freela / 100 : null,
         // v239 — fechamento do ano ao vivo: meses fechados = realizado (DRE, vindo da oficial); abertos = metas desta tela
-        ...(matriz.metasGestao?.realizado && ano === matriz.metasGestao?.ano ? { mes: mesI + 1, fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses } : { realizado: null, fatMeses: null }) };
+        // v251 — outro ano (sem realizado na oficial): o ano inteiro é a meta desta tela (média do ano, não o mês 1)
+        ...(matriz.metasGestao?.realizado && ano === matriz.metasGestao?.ano ? { mes: mesI + 1, fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses }
+          : { mes: 1, fechados: Array(12).fill(false), realizado: Array(12).fill(null), fatMeses: der.faturamentoValor.meses, pcsMeses: der.faturamentoPecas.meses }) };
       const dv = JSON.parse(JSON.stringify(aplicarMetas(matriz, mg)));
       const hip = cenSel === "B" ? aplicarContratados(dv, per.B.picoContratados, { salarios: cap?.salarios || {}, cenario: "B" }) : null;
       return { calc: calcularMatriz(dv), calcOf: calcularMatriz(matriz), pr: dv.producao, mg, hip };

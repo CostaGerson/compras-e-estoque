@@ -53,8 +53,9 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
   if (temPeriodo) {
     const tk = Number(pr.ticketMedio) || 0;
     const mgO = base.metasGestao || {};
-    const fech = analise.fechados || mgO.fechados || [];
-    dados.fechamento = { porMes: true, mes: mgO.mes || null, fechados: fech, realizado: mgO.realizado || [],
+    const anoSim = Number(ano || analise.anoMetas) || null, mesmoAno = !anoSim || Number(mgO.ano) === anoSim;   // v251: realizado só do mesmo ano
+    const fech = analise.fechados || (mesmoAno ? mgO.fechados : null) || Array(12).fill(false);
+    dados.fechamento = { porMes: true, ano: anoSim, mes: mesmoAno ? mgO.mes || null : 1, fechados: fech, realizado: mesmoAno ? mgO.realizado || [] : Array(12).fill(null),
       fatMeses: pecasMes.map((p, i) => (fech[i] ? mgO.fatMeses?.[i] ?? (Number(p) || 0) * tk : (Number(p) || 0) * tk)),
       pcsMeses: pecasMes.map((p) => Number(p) || 0) };
     const abertos = pecasMes.filter((_, i) => !fech[i]);

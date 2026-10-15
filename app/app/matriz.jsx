@@ -167,7 +167,7 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
   const fechOf = oficialDados?.metasGestao?.realizado ? oficialDados.metasGestao : null;
   // v242 — simulação com metas mês a mês (Capacidade): usa as metas dela e o realizado mais recente da oficial
   const fechCen = dados?.fechamento?.porMes
-    ? { ...dados.fechamento, ...(fechOf ? { realizado: fechOf.realizado, fechados: fechOf.fechados, mes: fechOf.mes,
+    ? { ...dados.fechamento, ...(fechOf && (!dados.fechamento.ano || Number(dados.fechamento.ano) === Number(fechOf.ano)) ? { realizado: fechOf.realizado, fechados: fechOf.fechados, mes: fechOf.mes,
         fatMeses: dados.fechamento.fatMeses.map((f, i) => (fechOf.fechados?.[i] ? fechOf.fatMeses?.[i] ?? f : f)) } : {}) }
     : fechOf;
   const calc = useMemo(() => (dados ? calcularMatriz(doc?.oficial ? dados : { ...dados, metasGestao: null, fechamento: fechCen }) : null), [dados, doc, fechCen]);
