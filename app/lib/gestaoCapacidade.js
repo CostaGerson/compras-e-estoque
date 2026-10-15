@@ -1,80 +1,127 @@
-// v227 — Capacidade × freelancer (Gestão): quanto de mão de obra cada setor precisa para a meta de peças.
-// Base: histórico recente da análise folha × freelancer (folha = Matriz; freelancer = DRE/extrato ou contas da semana)
-// e as peças faturadas (= produzidas/expedidas) dos KPIs.
-// Modelo (por setor, médias mensais da janela):
-//   custo de mão de obra por peça = (folha + freelancer) ÷ peças
-//   capacidade interna (peças/mês) = peças × folha ÷ (folha + freelancer)   — a parte que a equipe própria entrega
-//   peças por pessoa = capacidade interna ÷ pessoas · custo por pessoa = folha ÷ pessoas
-//   A) sem aumentar a equipe: freelancer = custo por peça × meta − folha
-//   B) mínimo de freelancer: pessoas para cobrir a meta × (1 − folga); o resto vira freelancer
+// v229 — Capacidade × freelancer (Gestão), pela diária do freelancer de cada área.
+// Por setor e mês (meses fechados com peças lançadas nos KPIs; peças produzidas = faturadas):
+//   diárias de freelancer = gasto com freelancer ÷ diária da área
+//   freelancers por dia   = diárias ÷ dias úteis do mês (seg a sex)
+//   equipe equivalente    = pessoas da Matriz + freelancers por dia
+//   peças por trabalhador = peças do mês ÷ equipe equivalente
+// Meta Y: trabalhadores necessários = Y ÷ peças por trabalhador; o que passa da equipe atual é a necessidade extra.
+//   A) manter a equipe: a necessidade extra vira freelancer (por dia) × dias úteis × diária
+//   B) recomendado: necessidade acima de 1 freelancer por dia (o mês útil inteiro) vira contratação — risco
+//      trabalhista acima da economia do freelancer; a fração restante (< 1 por dia) continua freelancer
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 const pct = (free, folha) => (free + folha > 0 ? Math.round((free / (free + folha)) * 10000) / 10000 : null);
+export const CHAVE_DIARIAS = "CAPACIDADE|DIARIAS";
 
-export async function analisarCapacidade({ meses = 6, alvo = null, folga = 0.05 } = {}) {
+// v229.1 — dias úteis de AAAA-MM: segunda a sexta, sem feriados nacionais (fixos + Carnaval, Sexta-feira Santa e Corpus Christi)
+const FIXOS = ["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"];
+function pascoa(ano) {   // algoritmo de Meeus
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return Date.UTC(ano, mes - 1, dia);
+}
+export function feriados(ano) {
+  const p = pascoa(ano), dia = (n) => new Date(p + n * 86400000).toISOString().slice(5, 10);
+  return new Set([...FIXOS, dia(-48), dia(-47), dia(-2), dia(60)]);   // carnaval (seg e ter), sexta-feira santa, corpus christi
+}
+export function diasUteis(comp) {
+  const [a, m] = comp.split("-").map(Number);
+  const n = new Date(Date.UTC(a, m, 0)).getUTCDate(), F = feriados(a);
+  let d = 0;
+  for (let i = 1; i <= n; i++) {
+    const dt = new Date(Date.UTC(a, m - 1, i)), w = dt.getUTCDay();
+    if (w > 0 && w < 6 && !F.has(dt.toISOString().slice(5, 10))) d++;
+  }
+  return d;
+}
+
+export async function lerDiarias() {
+  const c = await prisma.finConfig.findUnique({ where: { chave: CHAVE_DIARIAS } }).catch(() => null);
+  try { return JSON.parse(c?.valor || "{}") || {}; } catch { return {}; }
+}
+export async function salvarDiarias(d) {
+  const limpo = Object.fromEntries(Object.entries(d || {}).map(([k, v]) => [String(k).toUpperCase(), r2(String(v).replace(",", "."))]).filter(([, v]) => v > 0));
+  await prisma.finConfig.upsert({ where: { chave: CHAVE_DIARIAS }, create: { chave: CHAVE_DIARIAS, valor: JSON.stringify(limpo) }, update: { valor: JSON.stringify(limpo) } });
+  return limpo;
+}
+
+export async function analisarCapacidade({ meses = 6, alvo = null } = {}) {
   const n = Math.min(24, Math.max(1, Number(meses) || 6));
   const comps = Array.from({ length: n }, (_, k) => somaMes(mesAtual(), -(k + 1))).reverse();   // meses fechados
-  const kpis = await prisma.kpiMes.findMany({ where: { OR: comps.map((c) => ({ ano: Number(c.slice(0, 4)), mes: Number(c.slice(5, 7)) })) } });
+  const [kpis, diarias] = await Promise.all([
+    prisma.kpiMes.findMany({ where: { OR: comps.map((c) => ({ ano: Number(c.slice(0, 4)), mes: Number(c.slice(5, 7)) })) } }),
+    lerDiarias(),
+  ]);
   const pecasDe = (c) => { const k = kpis.find((x) => x.ano === Number(c.slice(0, 4)) && x.mes === Number(c.slice(5, 7))); return k?.pecasFaturadas ?? null; };
 
   const mesesOk = [], porSetor = {};
   for (const c of comps) {
-    const pecas = pecasDe(c);
+    const pecas = pecasDe(c), du = diasUteis(c);
     const fx = await freelancerXFolha(c).catch(() => null);
     const free = fx ? fx.linhas.reduce((s, l) => s + l.freelancer, 0) + (fx.semSetor || 0) : 0;
-    mesesOk.push({ comp: c, pecas, folha: r2(fx?.total?.folha || 0), freelancer: r2(free), usado: !!(pecas && fx) });
+    mesesOk.push({ comp: c, pecas, diasUteis: du, folha: r2(fx?.total?.folha || 0), freelancer: r2(free), usado: !!(pecas && fx) });
     if (!pecas || !fx) continue;
     for (const l of fx.linhas) {
-      const s = (porSetor[l.setor] ||= { setor: l.setor, folha: 0, freelancer: 0, pessoas: 0, pecas: 0, n: 0 });
-      s.folha += l.folha; s.freelancer += l.freelancer; s.pessoas += l.pessoas; s.pecas += pecas; s.n++;
+      const s = (porSetor[l.setor] ||= { setor: l.setor, meses: [] });
+      const diaria = diarias[l.setor] || null;
+      const freeDia = diaria ? l.freelancer / diaria / du : null;   // freelancers por dia útil
+      s.meses.push({ comp: c, pecas, du, folha: l.folha, freelancer: l.freelancer, pessoas: l.pessoas, freeDia });
     }
   }
   const usados = mesesOk.filter((m) => m.usado);
-  const pecasMedia = usados.length ? usados.reduce((s, m) => s + m.pecas, 0) / usados.length : 0;
   const meta = Number(alvo) > 0 ? Number(alvo) : null;
-  const f = Math.min(0.9, Math.max(0, Number(folga) || 0));
+  const duMedio = usados.length ? usados.reduce((s, m) => s + m.diasUteis, 0) / usados.length : 21;
 
   const setores = Object.values(porSetor).map((s) => {
-    const folha = s.folha / s.n, free = s.freelancer / s.n, pecas = s.pecas / s.n, pessoas = Math.round((s.pessoas / s.n) * 10) / 10;
-    const custoPeca = pecas ? (folha + free) / pecas : 0;
-    const capInterna = folha + free > 0 ? pecas * folha / (folha + free) : 0;
-    const porPessoa = pessoas ? capInterna / pessoas : null;
+    const k = s.meses.length, diaria = diarias[s.setor] || null;
+    const media = (f) => s.meses.reduce((a, m) => a + f(m), 0) / k;
+    const folha = media((m) => m.folha), free = media((m) => m.freelancer), pessoas = r1(media((m) => m.pessoas)), pecas = media((m) => m.pecas);
     const custoPessoa = pessoas ? folha / pessoas : null;
-    const linha = { setor: s.setor, meses: s.n, folha: r2(folha), freelancer: r2(free), pessoas, pecas: Math.round(pecas), pct: pct(free, folha),
-      custoPeca: r2(custoPeca), capInterna: Math.round(capInterna), porPessoa: porPessoa != null ? Math.round(porPessoa) : null, custoPessoa: custoPessoa != null ? r2(custoPessoa) : null };
-    if (meta) {
-      // A — equipe atual: o que passar da capacidade interna vai para freelancer
-      const freeA = Math.max(0, custoPeca * meta - folha);
-      linha.A = { folha: r2(folha), freelancer: r2(freeA), pessoas, pct: pct(freeA, folha), variacaoFree: r2(freeA - free) };
-      // B — mínimo de freelancer: contrata para cobrir (1 − folga) da meta
-      if (porPessoa && porPessoa > 0) {
-        const nec = Math.ceil((meta * (1 - f)) / porPessoa);
-        const novas = Math.max(0, nec - Math.ceil(pessoas));
-        const pessoasB = pessoas + novas;
-        const folhaB = pessoasB * custoPessoa;
-        const freeB = Math.max(0, meta - pessoasB * porPessoa) * custoPeca;
-        linha.B = { pessoas: pessoasB, contratar: novas, folha: r2(folhaB), freelancer: r2(freeB), pct: pct(freeB, folhaB), custoTotal: r2(folhaB + freeB), custoA: r2(folha + freeA) };
-      } else {
-        linha.B = { pessoas: 0, contratar: null, folha: 0, freelancer: r2(freeA), pct: pct(freeA, 0), custoTotal: r2(freeA), custoA: r2(folha + freeA), semEquipe: true };
-      }
+    const linha = { setor: s.setor, meses: k, diaria, folha: r2(folha), freelancer: r2(free), pessoas, pecas: Math.round(pecas), pct: pct(free, folha), custoPessoa: custoPessoa != null ? r2(custoPessoa) : null };
+    if (!diaria) return { ...linha, semDiaria: true };
+    const freeDia = media((m) => m.freeDia);
+    const mesesAcima1 = s.meses.filter((m) => m.freeDia > 1).length;
+    // produtividade: peças ÷ (equipe + freelancers por dia), somando os meses
+    const trab = s.meses.reduce((a, m) => a + m.pessoas + m.freeDia, 0);
+    const porTrab = trab ? s.meses.reduce((a, m) => a + m.pecas, 0) / trab : null;
+    Object.assign(linha, { freeDia: r1(freeDia), diariasMes: Math.round(free / diaria), equipeEq: r1(pessoas + freeDia), porTrab: porTrab ? Math.round(porTrab) : null, mesesAcima1,
+      jaPrecisa: mesesAcima1 >= 2 || (k === 1 && mesesAcima1 === 1) });
+    if (meta && porTrab) {
+      const nec = meta / porTrab;
+      const extra = Math.max(0, nec - pessoas);
+      // A — manter a equipe: tudo o que falta em freelancer
+      const freeA = extra * duMedio * diaria;
+      linha.A = { necessarios: r1(nec), freeDia: r1(extra), diarias: Math.round(extra * duMedio), freelancer: r2(freeA), folha: r2(folha), pct: pct(freeA, folha), custo: r2(folha + freeA) };
+      // B — recomendado: acima de 1 freelancer por dia útil vira contratação
+      const contratar = extra > 1 ? Math.floor(extra + 0.01) : 0;
+      const resto = Math.max(0, extra - contratar);
+      const folhaB = custoPessoa != null ? (pessoas + contratar) * custoPessoa : folha;
+      const freeB = resto * duMedio * diaria;
+      linha.B = { contratar, freeDia: r1(resto), diarias: Math.round(resto * duMedio), freelancer: r2(freeB), folha: r2(folhaB), pct: pct(freeB, folhaB), custo: r2(folhaB + freeB), semCustoPessoa: custoPessoa == null && contratar > 0 };
     }
     return linha;
   }).sort((a, b) => b.folha + b.freelancer - (a.folha + a.freelancer));
 
   const soma = (k, sub) => r2(setores.reduce((s, l) => s + (sub ? l[sub]?.[k] || 0 : l[k] || 0), 0));
-  const total = { folha: soma("folha"), freelancer: soma("freelancer"), pessoas: Math.round(setores.reduce((s, l) => s + l.pessoas, 0) * 10) / 10, pecas: Math.round(pecasMedia) };
+  const total = { folha: soma("folha"), freelancer: soma("freelancer"), pessoas: r1(setores.reduce((s, l) => s + l.pessoas, 0)), freeDia: r1(setores.reduce((s, l) => s + (l.freeDia || 0), 0)),
+    pecas: usados.length ? Math.round(usados.reduce((s, m) => s + m.pecas, 0) / usados.length) : 0, semDiaria: setores.filter((l) => l.semDiaria).map((l) => l.setor) };
   total.pct = pct(total.freelancer, total.folha);
   if (meta) {
-    total.A = { folha: soma("folha", "A"), freelancer: soma("freelancer", "A") }; total.A.pct = pct(total.A.freelancer, total.A.folha);
-    total.B = { folha: soma("folha", "B"), freelancer: soma("freelancer", "B"), contratar: setores.reduce((s, l) => s + (l.B?.contratar || 0), 0) }; total.B.pct = pct(total.B.freelancer, total.B.folha);
-    total.A.custo = r2(total.A.folha + total.A.freelancer); total.B.custo = r2(total.B.folha + total.B.freelancer);
+    for (const c of ["A", "B"]) {
+      total[c] = { folha: soma("folha", c), freelancer: soma("freelancer", c), freeDia: r1(setores.reduce((s, l) => s + (l[c]?.freeDia || 0), 0)), diarias: setores.reduce((s, l) => s + (l[c]?.diarias || 0), 0) };
+      // setor sem diária entra com o que tem hoje (não dá para projetar)
+      for (const l of setores.filter((x) => x.semDiaria)) { total[c].folha = r2(total[c].folha + l.folha); total[c].freelancer = r2(total[c].freelancer + l.freelancer); }
+      total[c].pct = pct(total[c].freelancer, total[c].folha); total[c].custo = r2(total[c].folha + total[c].freelancer);
+    }
+    total.B.contratar = setores.reduce((s, l) => s + (l.B?.contratar || 0), 0);
   }
-  // meta padrão: a de peças da página Metas (ano ÷ 12)
   const ano = new Date().getFullYear();
   const ka = await prisma.kpiAno.findUnique({ where: { ano } }).catch(() => null);
   const metaMetas = ka?.metaPecasFaturadas ? Math.round(Number(ka.metaPecasFaturadas) / 12) : null;
-  return { janela: comps, meses: mesesOk, usados: usados.length, pecasMedia: Math.round(pecasMedia), meta, folga: f, metaMetas, metaFreelancerAtual: ka?.metaPctFreelancer != null ? Number(ka.metaPctFreelancer) : null, setores, total };
+  return { janela: comps, selecionados: n, meses: mesesOk, usados: usados.length, diasUteisMedio: r1(duMedio), meta, metaMetas, diarias, setores, total };
 }
