@@ -532,8 +532,57 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
     ["Balanço meta × custo", brlN(calc.balanco, 2), `se paga com ${int(calc.pecasCobrem)} pç/mês`, calc.balanco >= 1 ? C.green : C.red],
     ["Breakeven", `${int(calc.breakevenPecas)} pç/mês`, "lucro real zera"],
   ];
+  // v252 — botão METAS: faturamento mês a mês considerado no fechamento do ano (realizado + metas/previsão)
+  const [verMetas, setVerMetas] = useState(false);
+  const P = calc.projecao;
+  const rotTipo = (t) => (t === "REALIZADO" ? "Realizado" : t === "FECHADO_SEM_DRE" ? "Fechado s/ DRE" : mg?.historico ? "Previsão" : "Meta");
+  const corTipo = (t) => (t === "REALIZADO" ? C.navy : t === "FECHADO_SEM_DRE" ? C.yellow : C.accent);
+  const MM = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+  const botaoMetas = P ? <button type="button" onClick={() => setVerMetas(true)} className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: C.accent, border: `1px solid ${C.accent}`, background: C.accentSoft || "#FFF0E6" }}>{mg?.historico ? "Meses" : "Metas"}</button> : null;
   return (
-    <Cartao titulo={mg?.historico ? "Histórico e previsão" : "Metas e resultado"} cheio={cheio}>
+    <Cartao titulo={mg?.historico ? "Histórico e previsão" : "Metas e resultado"} cheio={cheio} acao={botaoMetas}>
+      {verMetas && P && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={() => setVerMetas(false)}>
+          <div className="rounded-xl p-4 w-full max-w-[640px] max-h-[90vh] overflow-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center mb-1">
+              <div className="font-bold flex-1" style={{ color: C.navy }}>{mg?.historico ? "Faturamento mês a mês (realizado + previsão)" : "Metas mensais de faturamento consideradas"}</div>
+              <button onClick={() => setVerMetas(false)} className="text-sm px-2" style={{ color: C.sub }}>✕</button>
+            </div>
+            <div className="text-[11px] mb-3" style={{ color: C.sub }}>{mg?.historico ? "Meses apurados com o realizado (KPI + DRE); em aberto, a média dos apurados." : "Meses fechados com o realizado (KPI + DRE); em aberto, a meta que a simulação precisa bater para o resultado do ano."} Mês simulado: resultado = lucro real.</div>
+            <table className="w-full text-[12px] tabular-nums">
+              <thead><tr style={{ color: C.sub }} className="text-[10px] font-bold tracking-wider">
+                <th className="text-left py-1">MÊS</th><th className="text-left">TIPO</th><th className="text-right">FATURAMENTO</th><th className="text-right">PEÇAS</th><th className="text-right">LUCRO REAL</th><th className="text-right">RESULTADO</th>
+              </tr></thead>
+              <tbody>
+                {P.meses.map((x) => (
+                  <tr key={x.mes} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="py-1.5 font-semibold">{MM[x.mes - 1]}</td>
+                    <td><span className="text-[10px] font-bold" style={{ color: corTipo(x.tipo) }}>{rotTipo(x.tipo)}</span></td>
+                    <td className="text-right font-semibold">{brlN(x.fat, 2)}</td>
+                    <td className="text-right">{int(x.pcs)}</td>
+                    <td className="text-right" style={{ color: x.real >= 0 ? C.green : C.red }}>{curto(x.real)}</td>
+                    <td className="text-right" style={{ color: x.res >= 0 ? C.green : C.red }}>{curto(x.res)}</td>
+                  </tr>
+                ))}
+                <tr className="font-bold" style={{ borderTop: `2px solid ${C.navy}` }}>
+                  <td className="py-1.5" colSpan={2}>ANO</td>
+                  <td className="text-right">{brlN(P.fatAno, 2)}</td>
+                  <td className="text-right">{int(P.pcsAno)}</td>
+                  <td className="text-right" style={{ color: P.realAno >= 0 ? C.green : C.red }}>{curto(P.realAno)}</td>
+                  <td className="text-right" style={{ color: P.resAno >= 0 ? C.green : C.red }}>{curto(P.resAno)}</td>
+                </tr>
+                <tr style={{ color: C.sub }}>
+                  <td className="py-1" colSpan={2}>MÉDIA/MÊS</td>
+                  <td className="text-right">{brlN(P.fatAno / 12, 2)}</td>
+                  <td className="text-right">{int(P.pcsAno / 12)}</td>
+                  <td className="text-right">{curto(P.realAno / 12)}</td>
+                  <td className="text-right">{curto(P.resAno / 12)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; ano = realizado + metas batidas. Para testar outra meta, use um cenário.</div>}
       <div>
         <div className="grid text-[10px] font-bold tracking-wider pb-1" style={{ gridTemplateColumns: "1fr 92px 92px", color: C.sub }}>
@@ -561,11 +610,11 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
   );
 }
 
-function Cartao({ titulo, children, Ico, cheio }) {
+function Cartao({ titulo, children, Ico, cheio, acao }) {
   // cheio (v227): ocupa a altura toda e distribui as linhas (alinha com o card ao lado)
   return (
     <div className={`rounded-xl p-4 ${cheio ? "h-full flex flex-col" : ""}`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="font-bold mb-3 flex items-center gap-1.5" style={{ color: C.navy }}>{Ico && <Ico size={16} style={{ color: C.accent }} />}{titulo}</div>
+      <div className="font-bold mb-3 flex items-center gap-1.5" style={{ color: C.navy }}>{Ico && <Ico size={16} style={{ color: C.accent }} />}<span className="flex-1">{titulo}</span>{acao}</div>
       {cheio ? <div className="flex-1 flex flex-col justify-between">{children}</div> : children}
     </div>
   );
