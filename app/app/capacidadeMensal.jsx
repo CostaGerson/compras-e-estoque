@@ -25,7 +25,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
   const [erro, setErro] = useState("");
   useEffect(() => {
     if (capPronto) return;
-    fetch(`/api/kpi/capacidade?u=${user.id}&meses=6`).then((r) => r.json())
+    fetch(`/api/kpi/capacidade?u=${user.id}&meses=3`).then((r) => r.json())
       .then((d) => (d.error ? setErro(d.error) : setCap(d))).catch((e) => setErro(e.message));
   }, []);
 

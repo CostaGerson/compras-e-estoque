@@ -125,13 +125,17 @@ export function calcularMatriz(d) {
     };
     const meses = fch.fatMeses.map((f, i) => {
       const r = fch.realizado[i];
-      if (r) return { mes: i + 1, tipo: "REALIZADO", fat: n(f), cen: n(r.lucro), real: n(r.lucro), res: n(r.resultado ?? r.lucro) };
+      const pcs = fch.pcsMeses?.[i] != null ? n(fch.pcsMeses[i]) : tk ? n(f) / tk : 0;
+      if (r) return { mes: i + 1, tipo: "REALIZADO", fat: n(f), pcs, cen: n(r.lucro), real: n(r.lucro), res: n(r.resultado ?? r.lucro) };
       const s = simMes(f, fch.pcsMeses?.[i]);
-      return { mes: i + 1, tipo: fch.fechados?.[i] ? "FECHADO_SEM_DRE" : "SIMULADO", fat: n(f), ...s, res: s.real };   // simulado: sem investimento/NORT previstos
+      return { mes: i + 1, tipo: fch.fechados?.[i] ? "FECHADO_SEM_DRE" : "SIMULADO", fat: n(f), pcs, ...s, res: s.real };   // simulado: sem investimento/NORT previstos
     });
     const somaK = (k) => meses.reduce((a, x) => a + x[k], 0);
     const atual = meses[(n(fch.mes) || 1) - 1] || meses[0];
-    projecao = { porMes: !!fch.porMes, meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), cenMes: atual.cen, realMes: atual.real, resMes: atual.res,
+    // v244 — cenário (sem metas da Gestão): coluna MÊS = média mensal do ano (ano ÷ 12); oficial: o mês da análise
+    const media = !mg;
+    projecao = { porMes: !!fch.porMes, media, meses, cenAno: somaK("cen"), realAno: somaK("real"), resAno: somaK("res"), fatAno: somaK("fat"), pcsAno: somaK("pcs"),
+      cenMes: media ? somaK("cen") / 12 : atual.cen, realMes: media ? somaK("real") / 12 : atual.real, resMes: media ? somaK("res") / 12 : atual.res,
       nReal: meses.filter((x) => x.tipo === "REALIZADO").length, nSim: meses.filter((x) => x.tipo !== "REALIZADO").length,
       semDre: meses.filter((x) => x.tipo === "FECHADO_SEM_DRE").map((x) => x.mes) };
   }
@@ -154,6 +158,7 @@ export function calcularMatriz(d) {
     anoCenarioR: projecao ? projecao.cenAno : lucroCenarioR, anoRealR: projecao ? projecao.realAno : lucroRealR,
     anoCenario: projecao && (mg ? metaFatAnual : projecao.fatAno) ? projecao.cenAno / (mg ? metaFatAnual : projecao.fatAno) : lucroCenario,
     anoReal: projecao && (mg ? metaFatAnual : projecao.fatAno) ? projecao.realAno / (mg ? metaFatAnual : projecao.fatAno) : lucroReal,
+    mesFat: projecao?.media ? projecao.fatAno / 12 : metaMensal, mesPcs: projecao?.media ? projecao.pcsAno / 12 : null, pcsAnoProj: projecao ? projecao.pcsAno : null,
     anoResultadoR: projecao ? projecao.resAno : null, mesResultadoR: projecao ? projecao.resMes : null, fatAnoProj: projecao ? (mg ? metaFatAnual : projecao.fatAno) : metaFatAnual,
     mesCenarioR: projecao ? projecao.cenMes : lucroCenarioR / 12, mesRealR: projecao ? projecao.realMes : lucroRealR / 12,
     cdb, cdbPessoal, cdbItens: marcados, headcount: pessoas.length,

@@ -35,8 +35,8 @@ export async function salvarDiarias(d) {
   return limpo;
 }
 
-export async function analisarCapacidade({ meses = 6, alvo = null, ano: anoRef = null } = {}) {
-  const n = Math.min(24, Math.max(1, Number(meses) || 6));
+export async function analisarCapacidade({ meses = 3, alvo = null, ano: anoRef = null } = {}) {
+  const n = Math.min(24, Math.max(1, Number(meses) || 3));
   const comps = Array.from({ length: n }, (_, k) => somaMes(mesAtual(), -(k + 1))).reverse();   // meses fechados
   const [kpis, diarias, salarios, ofm] = await Promise.all([
     prisma.kpiMes.findMany({ where: { OR: comps.map((c) => ({ ano: Number(c.slice(0, 4)), mes: Number(c.slice(5, 7)) })) } }),

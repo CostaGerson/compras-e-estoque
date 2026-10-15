@@ -510,14 +510,15 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
     return <div className="text-[9px] font-semibold" style={{ color: bom ? C.green : C.red }}>{d > 0 ? "+" : ""}{tipo === "pct" ? pct(d) : tipo === "int" ? int(d) : curto(d)}</div>;
   };
   const tk = Number(pr?.ticketMedio) || 0;
-  const pcsMes = mg && tk ? calc.metaMensal / tk : pr?.metaPecas;
-  const pcsAno = mg?.pcsAno ?? (tk ? calc.metaFatAnual / tk : (pr?.metaPecas || 0) * 12);
+  // v244 — com o fechamento do ano: peças do ano = realizado + metas; cenário mostra a média mensal do ano
+  const pcsMes = calc.mesPcs ?? (mg && tk ? calc.metaMensal / tk : pr?.metaPecas);
+  const pcsAno = calc.pcsAnoProj ?? mg?.pcsAno ?? (tk ? calc.metaFatAnual / tk : (pr?.metaPecas || 0) * 12);
   const cor = (v) => (v >= 0 ? C.green : C.red);
   const linhas = [
     { k: "Faturamento", sub: calc.projecao
         ? `ano: realizado ${curto(calc.projecao.meses.filter((x) => x.tipo !== "SIMULADO").reduce((t, x) => t + x.fat, 0))} + metas ${curto(calc.projecao.meses.filter((x) => x.tipo === "SIMULADO").reduce((t, x) => t + x.fat, 0))}`
-        : mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.metaMensal), a: curto(calc.fatAnoProj ?? calc.metaFatAnual),
-      dm: <Dif a={calc.metaMensal} o={calcOf?.metaMensal} />, da: <Dif a={calc.fatAnoProj ?? calc.metaFatAnual} o={calcOf ? calcOf.fatAnoProj ?? calcOf.metaFatAnual : null} /> },
+        : mg ? `mês: ${mg.nomeMes}` : "média do ano", m: curto(calc.mesFat ?? calc.metaMensal), a: curto(calc.fatAnoProj ?? calc.metaFatAnual),
+      dm: <Dif a={calc.mesFat ?? calc.metaMensal} o={calcOf ? calcOf.mesFat ?? calcOf.metaMensal : null} />, da: <Dif a={calc.fatAnoProj ?? calc.metaFatAnual} o={calcOf ? calcOf.fatAnoProj ?? calcOf.metaFatAnual : null} /> },
     { k: "Peças", sub: "faturadas = produzidas", m: int(pcsMes), a: int(pcsAno) },
     { k: "Lucro no cenário", sub: `${pct(calc.anoCenario)} do faturamento do ano`, m: curto(calc.mesCenarioR), a: curto(calc.anoCenarioR), c: cor(calc.anoCenarioR), cm: cor(calc.mesCenarioR),
       da: <Dif a={calc.anoCenario} o={calcOf?.anoCenario} tipo="pct" /> },
@@ -537,7 +538,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
       {nota !== undefined ? (nota && <div className="text-[11px] mb-1" style={{ color: C.sub }}>{nota}</div>) : mg && <div className="text-[11px] mb-1" style={{ color: C.sub }}>Metas do botão METAS da Gestão; o mês é {mg.nomeMes}. Para testar outra meta, use um cenário.</div>}
       <div>
         <div className="grid text-[10px] font-bold tracking-wider pb-1" style={{ gridTemplateColumns: "1fr 92px 92px", color: C.sub }}>
-          <span></span><span className="text-right">MÊS</span><span className="text-right" title={calc.projecao ? "Meses fechados: realizado (DRE). Meses em aberto: simulação com a meta." : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
+          <span></span><span className="text-right" title={calc.projecao?.media ? "Média mensal do ano (ano ÷ 12)" : "Mês da análise"}>{calc.projecao?.media ? "MÉDIA/MÊS" : "MÊS"}</span><span className="text-right" title={calc.projecao ? "Meses fechados: realizado (DRE). Meses em aberto: simulação com a meta." : ""}>{calc.projecao ? "ANO*" : "ANO"}</span>
         </div>
         {linhas.map((l) => (
           <div key={l.k} className="grid items-start py-1.5 text-[13px]" style={{ gridTemplateColumns: "1fr 92px 92px", borderTop: `1px solid ${C.line}` }}>

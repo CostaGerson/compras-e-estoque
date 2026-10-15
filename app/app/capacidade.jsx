@@ -26,7 +26,7 @@ const lerNum = (t) => { const x = Number(String(t ?? "").replace(/\./g, "").repl
 
 export default function Capacidade({ user, usarNaMeta, irMatriz }) {
   const hoje = new Date();
-  const [meses, setMeses] = useState(6);
+  const [meses, setMeses] = useState(3);   // v244: histórico padrão = últimos 3 meses
   const [ano, setAno] = useState(hoje.getFullYear());   // v234: período de trabalho (só meses em aberto)
   // v243 — a análise é do PERÍODO EM ABERTO inteiro: meta = peças de todos os meses em aberto (sem escolher mês)
   const [total, setTotal] = useState("");
