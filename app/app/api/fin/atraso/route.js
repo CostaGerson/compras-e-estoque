@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
-import { visaoAtraso, moverParaExecucao, reconhecerPerda, voltarParaCobranca, receberNaExecucao } from "@/lib/finAtraso";
+import { visaoAtraso, moverParaExecucao, reconhecerPerda, voltarParaCobranca, receberNaExecucao, baixarAtrasadas } from "@/lib/finAtraso";
 
 // GET ?u= → atrasadas (em cobrança), execuções e perdas
 export async function GET(req) {
@@ -21,6 +21,7 @@ export async function POST(req) {
   try {
     if (b.acao === "execucao") return Response.json(await moverParaExecucao(b.ids || [], { execucaoId: b.execucaoId, nova: b.nova }, quem));
     if (b.acao === "perda") return Response.json(await reconhecerPerda(b.ids || [], { justificativa: b.justificativa, data: b.data }, quem));
+    if (b.acao === "baixar") return Response.json(await baixarAtrasadas(b.ids || [], { data: b.data, justificativa: b.justificativa, arquivo: b.arquivo }, quem));   // v225
     if (b.acao === "voltar") return Response.json(await voltarParaCobranca(b.id, quem));
     if (b.acao === "receber") return Response.json(await receberNaExecucao(b.id, { data: b.data, valor: b.valor }, quem));
     return Response.json({ error: "Ação inválida." }, { status: 400 });

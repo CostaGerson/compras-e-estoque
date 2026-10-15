@@ -166,6 +166,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
           `Atrasados a receber${escolhidas.length ? " (selecionados)" : ""}${busca ? ` · busca "${busca}"` : ""}`, `atrasados-receber-${hojeISO()}.xlsx`)} />
         <BtnP cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={15} /> E-mail de cobrança</BtnP>
         <BtnP cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={15} /> Gerar card cobrança</BtnP>
+        <BtnP cor={C.green} disabled={!escolhidas.length} onClick={() => setModal("baixar")} title="Baixar como recebida (justificativa ou arquivo obrigatório)"><CheckCircle2 size={15} /> Baixar</BtnP>
         <BtnP cor={C.navy} disabled={!escolhidas.length} onClick={() => setModal("execucao")}><Gavel size={15} /> Mover para execução</BtnP>
         <BtnP cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={15} /> Reconhecer perda</BtnP>
       </div>
@@ -197,6 +198,8 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.movidas} conta(s) movida(s) para a execução.`); irExecucao(r.execucaoId); }} />}
       {modal === "card" && <CardCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
       {modal === "email" && <EmailCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
+      {modal === "baixar" && <BaixarAtrasadas user={user} contas={escolhidas}
+        onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.baixadas} conta(s) baixada(s) · ${moeda(r.valor)} recebido(s) em ${dBR(r.data)}.`); }} />}
       {modal === "perda" && <ReconhecerPerda user={user} contas={escolhidas}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.perdas} perda(s) reconhecida(s) · ${moeda(r.valor)} lançado(s) na DRE de ${nomeMes(r.competencia)}.`); }} />}
     </div>
@@ -246,6 +249,42 @@ function MoverExecucao({ user, contas, execucoes, execucaoFixa, onClose, onFeito
           <div className="col-span-2"><Campo l="Observação"><textarea value={n.observacao} onChange={set("observacao")} rows={2} className="w-full rounded-lg px-2 py-2 text-sm" style={inpS} /></Campo></div>
         </div>
       )}
+      {erro && <div className="mt-3 text-xs" style={{ color: C.red }}>{erro}</div>}
+    </Janela>
+  );
+}
+
+// v225 — baixa pela guia Atrasados: justificativa escrita ou arquivo (um dos dois é obrigatório)
+const lerB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
+function BaixarAtrasadas({ user, contas, onClose, onFeito }) {
+  const [just, setJust] = useState("");
+  const [data, setData] = useState(hojeISO());
+  const [arq, setArq] = useState(null);
+  const [st, setSt] = useState(false);
+  const [erro, setErro] = useState("");
+  const pode = !!arq || just.trim().length >= 3;
+  const ir = async () => {
+    setSt(true); setErro("");
+    try {
+      const arquivo = arq ? { nome: arq.name, mime: arq.type || null, conteudo: await lerB64(arq) } : null;
+      onFeito(await api("/api/fin/atraso", "POST", { usuarioId: user.id, acao: "baixar", ids: contas.map((t) => t.id), justificativa: just, data, arquivo }));
+    } catch (e) { setErro(e.message); setSt(false); }
+  };
+  return (
+    <Janela titulo={`Baixar ${contas.length} conta(s)`} onClose={onClose}
+      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP cor={C.green} onClick={ir} disabled={st || !pode}>{st && <Loader2 size={14} className="animate-spin" />} Baixar {contas.length > 1 ? `as ${contas.length}` : ""}</BtnP></>}>
+      <div className="text-xs mb-3 p-2.5 rounded-lg" style={{ background: C.greenSoft, color: C.green }}>
+        {contas.length} conta(s) · <b>{moeda(contas.reduce((s, t) => s + t.valor, 0))}</b>. Saem dos atrasados como recebidas.
+        {contas.length > 1 && " O arquivo é anexado em todas e a justificativa sai em todas."}
+      </div>
+      <Campo l="Justificativa (obrigatória sem arquivo)"><textarea value={just} onChange={(e) => setJust(e.target.value)} rows={3} placeholder="Ex.: recebido em dinheiro; pago por depósito identificado no extrato de 10/10…" className="w-full rounded-lg px-2 py-2 text-sm" style={inpS} /></Campo>
+      <div className="mt-3"><Campo l="Arquivo (obrigatório sem justificativa)">
+        <input type="file" onChange={(e) => setArq(e.target.files?.[0] || null)} className="text-sm" />
+        {arq && <div className="text-xs mt-1" style={{ color: C.sub }}>{arq.name} · {(arq.size / 1024).toFixed(0)} KB</div>}
+      </Campo></div>
+      <div className="mt-3 w-48"><Campo l="Data do recebimento"><input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full rounded-lg px-2 py-2 text-sm" style={inpS} /></Campo></div>
+      {!pode && <div className="mt-2 text-xs" style={{ color: C.sub }}>Escreva a justificativa ou anexe um arquivo para liberar a baixa.</div>}
       {erro && <div className="mt-3 text-xs" style={{ color: C.red }}>{erro}</div>}
     </Janela>
   );

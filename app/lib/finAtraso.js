@@ -251,3 +251,33 @@ export async function numerosPainel(competencia) {
     perdasTotal: r2(perdas.reduce((s, p) => s + Number(p.valor), 0)),
   };
 }
+
+
+// v225 — baixa pela guia Atrasados: exige justificativa escrita ou arquivo (comprovante).
+// Várias contas: o mesmo arquivo vai anexado em todas e a mesma justificativa sai em todas.
+export async function baixarAtrasadas(ids, { data, justificativa, arquivo }, quem) {
+  const just = String(justificativa || "").trim();
+  const temArq = !!(arquivo && arquivo.conteudo && arquivo.nome);
+  if (!just && !temArq) throw new Error("Para baixar, escreva a justificativa ou anexe um arquivo.");
+  if (temArq && Math.floor(arquivo.conteudo.length * 3 / 4) > 15 * 1024 * 1024) throw new Error("Arquivo maior que 15 MB.");
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(data || "") ? data : hojeISO();
+  const tits = await prisma.finTitulo.findMany({ where: { id: { in: (ids || []).map(Number) }, tipo: "RECEBER", status: "ABERTO" } });
+  if (!tits.length) throw new Error("Nenhuma conta em aberto entre as escolhidas.");
+  const hash = temArq ? createHash("sha256").update(Buffer.from(String(arquivo.conteudo), "base64")).digest("hex") : null;
+  const obsTxt = `BAIXA PELA GUIA ATRASADOS EM ${dBR(dUTC(dia))} POR ${quem || "—"}${just ? `: ${up(just)}` : ""}${temArq ? ` · ARQUIVO ${up(arquivo.nome)}` : ""}`;
+  let valor = 0;
+  for (const t of tits) {
+    const notas = Array.isArray(t.notas) ? [...t.notas] : [];
+    if (just) notas.push({ texto: `BAIXA: ${just}`.slice(0, 1000), por: quem || null, em: new Date().toISOString() });
+    await prisma.finTitulo.update({ where: { id: t.id }, data: {
+      status: "PAGO", dataPagamento: dUTC(dia), valorPago: Number(t.valor), previsao: false, valorConfirmado: true, notas,
+      observacao: [t.observacao, obsTxt].filter(Boolean).join(" · ").slice(0, 4000), atualizadoPorNome: quem || null,
+    } });
+    if (temArq && !(await prisma.finTituloAnexo.findFirst({ where: { tituloId: t.id, hash }, select: { id: true } }))) {
+      await prisma.finTituloAnexo.create({ data: { tituloId: t.id, nome: `BAIXA ${String(arquivo.nome)}`.slice(0, 200), mime: arquivo.mime || null,
+        tamanho: Math.floor(arquivo.conteudo.length * 3 / 4), conteudo: String(arquivo.conteudo), hash, criadoPorNome: quem || null } });
+    }
+    valor += Number(t.valor);
+  }
+  return { baixadas: tits.length, valor: r2(valor), data: dia };
+}
