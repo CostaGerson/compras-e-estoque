@@ -493,7 +493,8 @@ function Pizza({ fatias, total, ir }) {
 
 
 // v219 — card "Metas e resultado" (também aparece na página de Metas da Gestão, com o impacto ao vivo)
-export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio }) {
+export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio, compacto }) {
+  const Kv = (p) => <KvBase {...p} compacto={compacto} />;   // v232: compacto = linhas mais baixas (cabe ao lado das metas)
   const Dif = ({ a, o, tipo = "moeda", inverso }) => {
     if (!calcOf || o == null) return null;
     const d = a - o;
@@ -528,9 +529,10 @@ function Cartao({ titulo, children, Ico, cheio }) {
     </div>
   );
 }
-function Kv({ k, v, cor, extra }) {
+function Kv(p) { return <KvBase {...p} />; }
+function KvBase({ k, v, cor, extra, compacto }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+    <div className={`flex items-start justify-between gap-3 ${compacto ? "py-1 text-[13px] leading-snug" : "py-1.5 text-sm"}`} style={{ borderTop: `1px solid ${C.line}` }}>
       <div>{k}{extra && <div>{extra}</div>}</div>
       <div className="font-semibold text-right whitespace-nowrap" style={{ color: cor || C.text }}>{v}</div>
     </div>

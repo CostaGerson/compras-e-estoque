@@ -62,6 +62,33 @@ function Campo({ un, valor, onCommit, estilo, titulo, grande }) {
   );
 }
 
+// v232 — card de meta: cabeçalho, informações (rótulo à esquerda, valor à direita) e o campo sempre no rodapé
+function CardMeta({ rotulo, titulo, sub, campo, valor, onCommit, children }) {
+  return (
+    <div className="rounded-xl p-4 flex flex-col min-w-0" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>{rotulo}</div>
+      <div className="font-bold leading-tight mt-0.5" style={{ color: C.navy }}>{titulo}</div>
+      {sub && <div className="text-[11px] leading-snug" style={{ color: C.sub }}>{sub}</div>}
+      <div className="flex-1 flex flex-col gap-1 text-xs mt-2.5" style={{ color: C.text }}>{children}</div>
+      <div className="flex items-center justify-between gap-3 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+        <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: C.sub }}>{campo}</span>
+        <div style={{ width: 150 }}><Campo un="R$" valor={valor} onCommit={onCommit} grande /></div>
+      </div>
+    </div>
+  );
+}
+function Linha({ k, v, acao }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="truncate" style={{ color: C.sub }} title={k}>{k}</span>
+      <span className="whitespace-nowrap">
+        <b className="tabular-nums" style={{ color: C.text }}>{v}</b>
+        {acao && <button onClick={acao[1]} className="ml-2 font-semibold underline" style={{ color: C.accent }}>{acao[0]}</button>}
+      </span>
+    </div>
+  );
+}
+
 function CardNatureza({ n, set, original, ticket }) {
   const [hist, setHist] = useState(false);   // mostra a opção de distribuição histórica (depois de mexer na meta do ano)
   const [jan, setJan] = useState("total");
@@ -91,7 +118,7 @@ function CardNatureza({ n, set, original, ticket }) {
   const mexido = JSON.stringify([n.anual, n.meses]) !== JSON.stringify([original.anual, original.meses]);
 
   return (
-    <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${mexido ? C.accent : C.line}` }}>
+    <div className="rounded-xl p-4 flex-1" style={{ background: C.panel, border: `1px solid ${mexido ? C.accent : C.line}` }}>
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex-1 min-w-[180px]">
           <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>{n.grupo.toUpperCase()}</div>
@@ -247,69 +274,51 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
       {aviso && <div className="p-3 rounded mb-4 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {!vend && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
       {vend && (
-        <div className="flex flex-wrap gap-4 items-stretch">
-        <div className="flex-1" style={{ minWidth: 320 }}>
-          <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
-            <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="flex-1 min-w-[150px]">
-                <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>META QUE VOCÊ DEFINE</div>
-                <div className="font-bold" style={{ color: C.navy }}>Ticket médio (R$ por peça)</div>
-                {!orig.ticketGravado && orig.ticket != null && <div className="text-[11px]" style={{ color: C.sub }}>sugerido: faturamento ÷ peças das metas atuais</div>}
-                {orig.ticketRealizado?.atual && <div className="text-xs mt-1" style={{ color: C.text }}>
-                  Realizado em {ano} até agora: <b>R$ {fmt("R$", orig.ticketRealizado.atual.valor)}</b> <span style={{ color: C.sub }}>({orig.ticketRealizado.atual.meses} {orig.ticketRealizado.atual.meses === 1 ? "mês" : "meses"})</span>
-                  {Math.abs(orig.ticketRealizado.atual.valor - (ticket ?? 0)) >= 0.01 && <> · <button onClick={() => setTicket(orig.ticketRealizado.atual.valor)} className="font-semibold underline" style={{ color: C.accent }}>usar este</button></>}
-                </div>}
-                {orig.ticketRealizado?.anterior && <div className="text-[11px]" style={{ color: C.sub }}>
-                  Realizado em {ano - 1}: R$ {fmt("R$", orig.ticketRealizado.anterior.valor)}
-                </div>}
-              </div>
-              <label className="block" style={{ width: 160 }}>
-                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>R$</div>
-                <Campo un="R$" valor={ticket} onCommit={setTicket} grande />
-              </label>
-            </div>
-            <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="flex-1 min-w-[150px]">
-                <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>RESULTADO</div>
-                <div className="font-bold" style={{ color: C.navy }}>Margem de contribuição</div>
-              </div>
-              <label className="block" style={{ width: 160 }}>
-                <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
-                <Campo un="R$" valor={margem} onCommit={setMargem} grande />
-              </label>
-            </div>
+        <>
+        {/* v232 — linha de cima: 3 cards + vendas (esquerda) × Metas e resultado (direita), com a base alinhada */}
+        <div className="grid gap-4 items-stretch grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="flex flex-col gap-4 min-w-0">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            <CardMeta rotulo="META QUE VOCÊ DEFINE" titulo="Ticket médio" sub="R$ por peça" campo="R$" valor={ticket} onCommit={setTicket}>
+              {!orig.ticketGravado && orig.ticket != null && <div style={{ color: C.sub }}>Sugerido: faturamento ÷ peças das metas atuais.</div>}
+              {orig.ticketRealizado?.atual && <Linha k={`Realizado ${ano} (${orig.ticketRealizado.atual.meses} ${orig.ticketRealizado.atual.meses === 1 ? "mês" : "meses"})`}
+                v={`R$ ${fmt("R$", orig.ticketRealizado.atual.valor)}`}
+                acao={Math.abs(orig.ticketRealizado.atual.valor - (ticket ?? 0)) >= 0.01 ? ["usar este", () => setTicket(orig.ticketRealizado.atual.valor)] : null} />}
+              {orig.ticketRealizado?.anterior && <Linha k={`Realizado ${ano - 1}`} v={`R$ ${fmt("R$", orig.ticketRealizado.anterior.valor)}`} />}
+            </CardMeta>
+            <CardMeta rotulo="RESULTADO" titulo="Margem de contribuição" sub="sobre o faturamento" campo="Meta (%)" valor={margem} onCommit={setMargem}>
+              <div style={{ color: C.sub }}>Entra na Matriz de custos como meta de margem do ano.</div>
+            </CardMeta>
             {(() => {
               const F = orig.freelancer || {};
               const p = (v) => `${fmt("R$", v * 100)}%`;
               const nomeC = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
               const sug = F.media3?.pct ?? F.ultimo?.pct ?? null;
+              const usar = sug != null && Math.abs(sug * 100 - (freela ?? -1)) >= 0.01 ? [`usar ${p(sug)}`, () => setFreela(r2(sug * 100))] : null;
               return (
-                <div className="rounded-xl p-4 flex flex-wrap items-center gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                  <div className="flex-1 min-w-[150px]">
-                    <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>PRODUÇÃO</div>
-                    <div className="font-bold" style={{ color: C.navy }}>% de freelancer</div>
-                    <div className="text-[11px]" style={{ color: C.sub }}>no custo de mão de obra (folha + freelancer)</div>
-                    {(F.ultimo || F.media3) && <div className="text-xs mt-1" style={{ color: C.text }}>
-                      Atual (folha × freelancer): {F.ultimo && <><b>{p(F.ultimo.pct)}</b> em {nomeC(F.ultimo.comp)}</>}
-                      {F.media3 && <span style={{ color: C.sub }}> · média {F.media3.meses} {F.media3.meses === 1 ? "mês" : "meses"}: <b style={{ color: C.text }}>{p(F.media3.pct)}</b></span>}
-                      {sug != null && Math.abs(sug * 100 - (freela ?? -1)) >= 0.01 && <> · <button onClick={() => setFreela(r2(sug * 100))} className="font-semibold underline" style={{ color: C.accent }}>usar {p(sug)}</button></>}
-                    </div>}
-                    {!F.ultimo && !F.media3 && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem análise de folha × freelancer nos últimos meses.</div>}
-                    {irCapacidade && <button onClick={irCapacidade} className="text-[11px] font-semibold mt-1 underline" style={{ color: C.blue }}>analisar capacidade para a meta (quanto gastar / contratar)</button>}
-                    {freelaInicial != null && <div className="text-[11px] mt-1 font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
-                  </div>
-                  <label className="block" style={{ width: 160 }}>
-                    <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Meta (%)</div>
-                    <Campo un="R$" valor={freela} onCommit={setFreela} grande />
-                  </label>
-                </div>
+                <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub="no custo de mão de obra (folha + freelancer)" campo="Meta (%)" valor={freela} onCommit={setFreela}>
+                  {F.ultimo && <Linha k={`Atual · ${nomeC(F.ultimo.comp)}`} v={p(F.ultimo.pct)} acao={F.media3 ? null : usar} />}
+                  {F.media3 && <Linha k={`Média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} acao={usar} />}
+                  {!F.ultimo && !F.media3 && <div style={{ color: C.sub }}>Sem análise de folha × freelancer nos últimos meses.</div>}
+                  {freelaInicial != null && <div className="font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
+                  {irCapacidade && <button onClick={irCapacidade} className="font-semibold underline text-left" style={{ color: C.blue }}>Analisar capacidade para a meta</button>}
+                </CardMeta>
               );
             })()}
           </div>
-
           <CardNatureza n={vend} original={orig.vend} set={setVend} ticket={ticket} />
+        </div>
+        {vivo && (
+          <div className="relative min-h-[420px]">
+            <div className="xl:absolute xl:inset-0 xl:overflow-y-auto h-full">
+              <CardMetasResultado cheio compacto calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
+                nota="Matriz oficial ao vivo com as metas desta tela, comparada com as gravadas." />
+            </div>
+          </div>
+        )}
+        </div>
 
-          <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="rounded-xl overflow-x-auto mt-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="px-4 pt-3 pb-1">
               <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CALCULADAS (COERENTES COM VENDAS E TICKET)</div>
               <div className="text-xs" style={{ color: C.sub }}>Não se editam aqui: mudam quando você muda vendas ou o ticket.</div>
@@ -329,14 +338,7 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               ))}</tbody>
             </table>
           </div>
-        </div>
-        {vivo && (
-          <div className="flex flex-col" style={{ width: 380, maxWidth: "100%" }}>
-            <CardMetasResultado cheio calc={vivo.calc} calcOf={vivo.calcOf} pr={vivo.pr} mg={vivo.mg} rotuloRef="gravado"
-              nota="Matriz oficial ao vivo com as metas desta tela (antes de salvar). A comparação é com as metas gravadas." />
-          </div>
-        )}
-        </div>
+        </>
       )}
       {vend && <CapacidadeMensal user={user} ano={ano} pecasMes={der.faturamentoPecas.meses} metaFreela={freela} irCapacidade={irCapacidade} />}
     </div>
