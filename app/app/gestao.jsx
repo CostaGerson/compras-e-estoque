@@ -795,7 +795,7 @@ function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
   const [f, setF] = useState(() => Object.fromEntries(Object.entries(ini).map(([k, v]) => [k, v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : v])));
   const [rec, setRec] = useState(() => {
     const o = {};
-    d.segmentos.forEach((s) => (o[s] = l.receita.segmentos[s] != null ? String(l.receita.segmentos[s]).replace(".", ",") : ""));
+    d.segmentos.forEach((s) => { const m = l.receita.segmentosManual || l.receita.segmentos; o[s] = m[s] != null ? String(m[s]).replace(".", ",") : ""; });
     return o;
   });
   const [novoSeg, setNovoSeg] = useState("");

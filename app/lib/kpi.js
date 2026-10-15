@@ -127,20 +127,34 @@ export function calendario(ano, hoje = new Date()) {
 
 // v212 — receita realizada vem da DRE (lançamentos do extrato nas contas do grupo Receita).
 // Mês sem lançamento no financeiro (ex.: anos antigos) usa a receita lançada à mão no KPI.
+// v235 — canal de cada conta de receita da DRE (o que não é venda de canal vai para OUTROS)
+export const CANAL_CONTA = {
+  1111000: "B2B", 1112000: "B2B", 1116000: "B2B", 1118000: "B2B",   // uniformes, matéria-prima, facção, antecipação de duplicatas
+  1115000: "LICITAÇÕES", 1114000: "AGENCIADA", 1113000: "DIGITAL",
+  1121000: "PATRIMONIO", 1210000: "PATRIMONIO", 1220000: "PATRIMONIO",
+};
+// receita realizada do mês pela DRE (total e por canal); só meses com lançamentos importados
 export async function receitaDaDre(ano) {
   const { mapaDeContas } = await import("@/lib/finDre");
-  const ids = (await mapaDeContas()).filter((c) => c.grupo === "RECEITA").map((c) => c.id);
+  const contas = (await mapaDeContas()).filter((c) => c.grupo === "RECEITA");
+  const ids = contas.map((c) => c.id), codDe = Object.fromEntries(contas.map((c) => [c.id, Number(c.codigo)]));
   const where = { competencia: { startsWith: `${ano}-` }, desmembrado: false, substituido: false };
   const [todos, rec] = await Promise.all([
     prisma.finLancamento.groupBy({ by: ["competencia"], where, _count: { _all: true } }),
-    ids.length ? prisma.finLancamento.groupBy({ by: ["competencia"], where: { ...where, contaId: { in: ids } }, _sum: { valor: true } }) : [],
+    ids.length ? prisma.finLancamento.groupBy({ by: ["competencia", "contaId"], where: { ...where, contaId: { in: ids } }, _sum: { valor: true } }) : [],
   ]);
-  const o = {};
+  const tot = {}, canais = {};
+  const r2 = (v) => Math.round(v * 100) / 100;
   for (const t of todos) {
-    const x = rec.find((y) => y.competencia === t.competencia);
-    o[Number(t.competencia.slice(5, 7))] = Math.round(Number(x?._sum?.valor || 0) * 100) / 100;
+    const m = Number(t.competencia.slice(5, 7));
+    const ls = rec.filter((y) => y.competencia === t.competencia);
+    tot[m] = r2(ls.reduce((s, x) => s + Number(x._sum?.valor || 0), 0));
+    const c = {};
+    for (const x of ls) { const k = CANAL_CONTA[codDe[x.contaId]] || "OUTROS"; c[k] = r2((c[k] || 0) + Number(x._sum?.valor || 0)); }
+    for (const k of Object.keys(c)) if (!c[k]) delete c[k];
+    canais[m] = c;
   }
-  return o;
+  return { tot, canais };
 }
 
 async function dadosDoAno(ano) {
@@ -148,9 +162,9 @@ async function dadosDoAno(ano) {
     prisma.kpiMes.findMany({ where: { ano }, orderBy: { mes: "asc" } }),
     prisma.kpiReceita.findMany({ where: { ano }, orderBy: [{ mes: "asc" }, { segmento: "asc" }] }),
     prisma.kpiAno.findUnique({ where: { ano } }),
-    receitaDaDre(ano).catch(() => ({})),
+    receitaDaDre(ano).catch(() => ({ tot: {}, canais: {} })),
   ]);
-  return { meses, receitas, metaAno, dre };
+  return { meses, receitas, metaAno, dre: dre.tot || {}, dreCanais: dre.canais || {} };
 }
 
 // Relatório completo do ano, no formato da planilha (com o ano anterior ao lado).
@@ -164,9 +178,11 @@ export async function relatorio(ano) {
     ds.receitas.forEach((r) => { (m[r.mes] = m[r.mes] || {})[r.segmento] = Number(r.valor); });
     return m;
   };
+  // v235 — mês com DRE: a receita por canal vem da DRE (contas de receita); sem DRE, o lançamento manual
   const C = porMes(cur), A = porMes(ant), RC = recPorMes(cur), RA = recPorMes(ant);
 
-  const segmentos = [...new Set([...SEGMENTOS_PADRAO, ...cur.receitas.map((r) => r.segmento), ...ant.receitas.map((r) => r.segmento)])];
+  const dreSeg = [cur, ant].flatMap((ds) => Object.values(ds.dreCanais || {}).flatMap((c) => Object.keys(c)));
+  const segmentos = [...new Set([...SEGMENTOS_PADRAO, ...cur.receitas.map((r) => r.segmento), ...ant.receitas.map((r) => r.segmento), ...dreSeg])];
 
   let acVendas = 0, acVendasAnt = 0, acFat = 0, acFatAnt = 0;
   const linhas = MESES_NOME.map((nome, i) => {
@@ -191,7 +207,7 @@ export async function relatorio(ano) {
         metaValor: n(c.metaFaturamentoValor), metaPecas: n(c.metaFaturamentoPecas),
         mom: div(fAtual, fAnt), acumulado: div(acFat, acFatAnt),
       },
-      receita: { segmentos: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot),
+      receita: { segmentos: cur.dre[mes] != null ? cur.dreCanais[mes] || {} : rc, segmentosManual: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot),
         fonte: cur.dre[mes] != null ? "DRE" : rcMan ? "MANUAL" : null, manual: rcMan || null },
       metaVendasValor: n(c.metaVendasValor), metaReceitaValor: n(c.metaReceitaValor), metaVendasPecas: n(c.metaVendasPecas),
       observacao: c.observacao || null,
