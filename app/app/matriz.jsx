@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { calcularMatriz, calcFuncionario, calcFreelancer, DEPTOS, REGIMES, FORMULAS } from "@/lib/matriz";
 import { compararComOficial, trazerDaOficial } from "@/lib/matrizCenario";
+import CapacidadeSimulacao from "./capacidadeSim";
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -206,6 +207,7 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
   };
   // v270 — ajuste da simulação à capacidade real (escolha por simulação: equipe atual, A ou B)
   const [capSel, setCapSel] = useState("");
+  const [verCap, setVerCap] = useState(false);   // v274
   const [ajustando, setAjustando] = useState(false);
   const ajustarCapacidade = async () => {
     const c = capSel || dados?.simulacaoCapacidade?.cenario || "ATUAL";
@@ -337,7 +339,9 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
         ))}
       </div>
 
+      {verCap && <CapacidadeSimulacao user={user} dados={dados} onClose={() => setVerCap(false)} />}
       {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao} mg={doc.oficial ? dados.metasGestao : null}
+        extraAcao={!doc.oficial ? <button type="button" onClick={() => setVerCap(true)} className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: C.navy, border: `1px solid ${C.navy}`, background: "#fff" }}>Contratações</button> : null}
         setPr={(k, v) => muda("producao", (x) => ({ ...x, [k]: v }))} />}
       {aba === "pessoal" && <Pessoal dados={dados} calc={calc} muda={muda} cenario={!doc.oficial} />}
       {aba === "vidaVegetativa" && <Lista titulo="Vida vegetativa" sub="Custos fixos do imóvel e da estrutura." itens={dados.vidaVegetativa} set={(f) => muda("vidaVegetativa", f)} cdb />}
@@ -362,7 +366,7 @@ function BtnSec({ onClick, Ico, t, cor }) {
 }
 
 /* ---------------- PAINEL ---------------- */
-function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg }) {
+function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg, extraAcao }) {
   const b = calc.blocos;
   const linhaBloco = [
     ["vidaVegetativa", "Vida vegetativa", Leaf, b.vidaVegetativa],
@@ -443,7 +447,7 @@ function Painel({ calc, calcOf, ir, cenario, pr, prOf, setPr, mg }) {
         </Cartao>
 
         {/* metas e resultado */}
-        <CardMetasResultado calc={calc} calcOf={calcOf} pr={pr} mg={mg} />
+        <CardMetasResultado calc={calc} calcOf={calcOf} pr={pr} mg={mg} extraAcao={extraAcao} />
 
         {/* produção */}
         <Cartao titulo="Custo por peça">
@@ -528,7 +532,7 @@ function Pizza({ fatias, total, ir }) {
 
 // v219 — card "Metas e resultado" (também aparece na página de Metas da Gestão, com o impacto ao vivo)
 // v238 — resultados de MÊS e ANO lado a lado (uma linha por indicador) + números únicos em blocos pequenos
-export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio }) {
+export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial", nota, cheio, extraAcao }) {
   const Dif = ({ a, o, tipo = "moeda", inverso }) => {
     if (!calcOf || o == null || a == null) return null;
     const d = a - o;
@@ -567,7 +571,7 @@ export function CardMetasResultado({ calc, calcOf, pr, mg, rotuloRef = "oficial"
   const MM = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
   const botaoMetas = P ? <button type="button" onClick={() => setVerMetas(true)} className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: C.accent, border: `1px solid ${C.accent}`, background: C.accentSoft || "#FFF0E6" }}>{mg?.historico ? "Meses" : "Metas"}</button> : null;
   return (
-    <Cartao titulo={mg?.historico ? "Histórico e previsão" : "Metas e resultado"} cheio={cheio} acao={botaoMetas}>
+    <Cartao titulo={mg?.historico ? "Histórico e previsão" : "Metas e resultado"} cheio={cheio} acao={extraAcao ? <span className="flex items-center gap-1.5">{extraAcao}{botaoMetas}</span> : botaoMetas}>
       {verMetas && P && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={() => setVerMetas(false)}>
           <div className="rounded-xl p-4 w-full max-w-[640px] max-h-[90vh] overflow-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
