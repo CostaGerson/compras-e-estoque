@@ -174,7 +174,7 @@ export async function desfazerAntecipacao(id, quem) {
 }
 
 // antecipação registrada à mão (factoring Azul Capital, portal próprio ou Bradesco sem PDF)
-export async function registrarManual({ forma, data, contrato, ids, liquido, arquivo }, quem) {
+export async function registrarManual({ forma, data, contrato, ids, liquido, arquivo, juros, iof, tarifa, taxa }, quem) {
   if (!FORMAS_ANT[forma]) throw new Error("Escolha a forma de antecipação.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) throw new Error("Informe a data da antecipação.");
   const tits = await prisma.finTitulo.findMany({ where: { id: { in: (ids || []).map(Number) }, tipo: "RECEBER", status: "ABERTO" } });
@@ -182,12 +182,16 @@ export async function registrarManual({ forma, data, contrato, ids, liquido, arq
   const total = r2(tits.reduce((s, t) => s + Number(t.valor), 0));
   const liq = liquido != null && liquido !== "" ? r2(liquido) : total;
   if (liq > total + 0.01) throw new Error("O valor líquido é maior que a soma dos títulos.");
+  // v260 — juros, IOF e tarifa separados (comprovante); sem eles, todo o custo fica como juros
+  const vIof = r2(iof || 0), vTar = r2(tarifa || 0);
+  const vJur = juros != null && juros !== "" ? r2(juros) : r2(total - liq - vIof - vTar);
+  if (Math.abs(r2(total - liq) - r2(vJur + vIof + vTar)) > 0.05) throw new Error(`Juros + IOF + tarifa (${r2(vJur + vIof + vTar)}) não fecham com títulos − líquido (${r2(total - liq)}). Confira os títulos marcados.`);
   const { createHash } = await import("crypto");
   const num = String(contrato || "").trim().toUpperCase() || `${forma === "AZUL_CAPITAL" ? "AZUL" : forma === "PORTAL_PROPRIO" ? "PORTAL" : "BRAD"}-${data.replace(/-/g, "")}-${Math.round(liq * 100)}`;
   if (await prisma.finAntecipacao.findUnique({ where: { contrato: num }, select: { id: true } })) throw new Error(`Já existe o contrato ${num}.`);
   const b64 = arquivo?.conteudo ? String(arquivo.conteudo) : "";
   const a = await prisma.finAntecipacao.create({ data: {
-    forma, banco: forma === "BRADESCO" ? "237" : forma, contrato: num, data: dataUTC(data), valorOperacao: total, juros: r2(total - liq), iof: 0, tac: 0, tarifa: 0, valorLiquido: liq,
+    forma, banco: forma === "BRADESCO" ? "237" : forma, contrato: num, data: dataUTC(data), valorOperacao: total, juros: vJur, iof: vIof, tac: 0, tarifa: vTar, valorLiquido: liq, ...(taxa ? { taxa: String(taxa) } : {}),
     itens: tits.map((t, i) => ({ parcela: i + 1, vencimento: t.vencimento.toISOString().slice(0, 10), valor: Number(t.valor), seu: t.numeroDoc, sacado: t.parceiro, contaId: t.id })),
     nome: arquivo?.nome || `${num} (sem arquivo)`, hash: createHash("sha256").update(b64 || `MANUAL|${num}|${Date.now()}`).digest("hex"), conteudo: b64, criadoPorNome: quem || null,
   } });

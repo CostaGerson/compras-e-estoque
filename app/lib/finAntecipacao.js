@@ -315,3 +315,43 @@ export function liquidoEstimado(valor, dataAntecipacao, vencimentoBoleto, k) {
   const custo = r2(valor * dias * k.porValorDia + k.tarifaTitulo + k.tacContrato);
   return { liquido: r2(valor - custo), custo, dias };
 }
+
+
+// v260 — comprovante "Antecipação de Recebíveis - Duplicatas" (Bradesco Net Empresa): não traz a lista de títulos.
+// Lê os valores do contrato e sugere os títulos a receber em aberto, entre o 1º e o último vencimento, cuja soma bate com o valor da operação.
+export async function lerComprovanteAntecipacao(b64) {
+  const t = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
+  if (!/Antecipa[cç][aã]o de Receb[ií]veis/i.test(t) || !/Valor da Opera[cç][aã]o/i.test(t)) throw new Error("Não é um comprovante de antecipação de recebíveis do Bradesco.");
+  // o PDF sai com o valor ANTES do rótulo ("R$ 68,48 IOF:") ou depois ("IOF: R$ 68,48"), conforme a versão do Net Empresa
+  const inv = /\d,\d{2}\s*Valor da Opera[cç][aã]o/i.test(t);
+  const VAL = "R\\$\\s*([\\d.]+,\\d{2})", DAT = "(\\d{2}\\/\\d{2}\\/\\d{4})", TX = "([\\d.,]+%\\s*a\\.?m\\.?)";
+  const pega = (rot, pad) => { const m = t.match(new RegExp(inv ? `${pad}[^\\d%]{0,3}${rot}` : `${rot}\\s*${pad}`, "i")); return m ? m[1] : null; };
+  const v = (rot) => num(pega(rot, VAL));
+  const c = {
+    contrato: (t.match(/Documento:\s*(\d{6,})/i) || [])[1] || null,
+    data: dISO((t.match(/Data da Opera[cç][aã]o:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1]),
+    primeiro: dISO(pega("Data de vencimento do 1[oº°] T[ií]tulo:", DAT) || pega("do 1[oº°] T[ií]tulo:", DAT)),
+    ultimo: dISO(pega("Data de vencimento do [uú]ltimo T[ií]tulo:", DAT) || pega("do [uú]ltimo T[ií]tulo:", DAT)),
+    valorOperacao: v("Valor da Opera[cç][aã]o:"), iof: v("IOF:"), tarifa: v("Tarifa:"), juros: v("Valor dos juros:"), valorLiquido: v("Valor l[ií]quido:"),
+    taxa: (t.match(inv ? /([\d.,]+%\s*a\.?m\.?)[^:]{0,40}?Taxa de juros:/i : /Taxa de juros:\s*([\d.,]+%\s*a\.?m\.?)/i) || [])[1] || null,
+  };
+  if (!c.valorOperacao) throw new Error("Não achei o valor da operação no comprovante.");
+  let sugeridos = [], combinacoes = 0;
+  if (c.primeiro && c.ultimo) {
+    const tits = await prisma.finTitulo.findMany({
+      where: { tipo: "RECEBER", status: "ABERTO", antecipacaoId: null, vencimento: { gte: new Date(`${c.primeiro}T00:00:00Z`), lte: new Date(`${c.ultimo}T00:00:00Z`) } },
+      select: { id: true, valor: true, vencimento: true }, orderBy: [{ vencimento: "asc" }, { id: "asc" }],
+    });
+    const T = Math.round(c.valorOperacao * 100);
+    const it = tits.map((x) => ({ id: x.id, c: Math.round(Number(x.valor) * 100) })).filter((x) => x.c > 0 && x.c <= T);
+    if (it.length && it.length < 3000 && it.length * T <= 4e8) {
+      // soma exata (mochila 0/1): dp[s] = item que alcançou a soma s pela primeira vez; n[s] = nº de combinações (até 2)
+      const dp = new Int16Array(T + 1).fill(-1), n = new Uint8Array(T + 1); n[0] = 1;
+      it.forEach((x, i) => { for (let s = T; s >= x.c; s--) if (n[s - x.c]) { if (dp[s] === -1) dp[s] = i; n[s] = Math.min(2, n[s] + n[s - x.c]); } });
+      combinacoes = n[T];
+      // só marca sozinho quando a combinação é única; com várias, quem marca é a pessoa (nosso número da tela do banco)
+      if (combinacoes === 1) { let s = T; while (s > 0) { const i = dp[s]; sugeridos.push(it[i].id); s -= it[i].c; } }
+    }
+  }
+  return { ...c, sugeridos, combinacoes };
+}

@@ -264,6 +264,8 @@ function ManualModal({ user, onClose, onOk }) {
   const [data, setData] = useState(hojeISO());
   const [contrato, setContrato] = useState("");
   const [liquido, setLiquido] = useState("");
+  const [custos, setCustos] = useState({ juros: "", iof: "", tarifa: "", taxa: "" });   // v260
+  const [lido, setLido] = useState(null);
   const [arquivo, setArquivo] = useState(null);
   const [abertos, setAbertos] = useState(null);
   const [busca, setBusca] = useState("");
@@ -278,7 +280,18 @@ function ManualModal({ user, onClose, onOk }) {
   }, []);
   const vis = useMemo(() => {
     const n = busca.trim().toUpperCase();
-    return (abertos || []).filter((t) => !n || [t.titulo, t.parceiro, t.numeroDoc, brl(t.valor)].some((x) => String(x || "").toUpperCase().includes(n))).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+    // v260 — tabela colada da tela do banco (vencimento … valor por linha): acha cada título por vencimento + valor
+    const pares = [...n.matchAll(/(\d{2})\/(\d{2})\/(\d{4})\D[^]*?(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => ({ v: `${m[3]}-${m[2]}-${m[1]}`, c: Math.round(lerNum(m[4]) * 100) }));
+    if (pares.length) {
+      const usados = new Set();
+      return pares.map((p) => (abertos || []).find((t) => !usados.has(t.id) && t.vencimento === p.v && Math.round(t.valor * 100) === p.c && usados.add(t.id))).filter(Boolean)
+        .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+    }
+    // vários números colados (nossos números da tela do banco): mostra os títulos de qualquer um deles
+    const nums = n.split(/[\s,;]+/).filter(Boolean);
+    if (nums.length > 1 && nums.every((x) => /^\d+$/.test(x)))
+      return (abertos || []).filter((t) => nums.some((x) => String(t.nossoNumero || "").replace(/^0+/, "") === x.replace(/^0+/, "") || String(t.numeroDoc || "") === x)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+    return (abertos || []).filter((t) => !n || [t.titulo, t.parceiro, t.numeroDoc, t.nossoNumero, brl(t.valor)].some((x) => String(x || "").toUpperCase().includes(n))).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   }, [abertos, busca]);
   const escolhidos = (abertos || []).filter((t) => sel.has(t.id));
   const total = escolhidos.reduce((s, t) => s + t.valor, 0);
@@ -286,9 +299,23 @@ function ManualModal({ user, onClose, onOk }) {
     setSalvando(true); setErro("");
     try {
       const arq = arquivo ? { nome: arquivo.name, mime: arquivo.type || "application/pdf", conteudo: await readB64(arquivo) } : null;
-      const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "manual", forma, data, contrato, liquido: lerNum(liquido), ids: [...sel], arquivo: arq });
+      const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "manual", forma, data, contrato, liquido: lerNum(liquido), ids: [...sel], arquivo: arq,
+        juros: custos.juros === "" ? null : lerNum(custos.juros), iof: lerNum(custos.iof) || 0, tarifa: lerNum(custos.tarifa) || 0, taxa: custos.taxa || null });
       onOk(`Antecipação ${r.contrato} registrada: ${r.titulos} título(s), ${moeda(r.valor)} (líquido ${moeda(r.liquido)}).`);
     } catch (e) { setErro(e.message); setSalvando(false); }
+  };
+  // v260 — comprovante do Bradesco (Antecipação de Recebíveis): preenche os campos e marca os títulos cuja soma bate
+  const lerArquivo = async (f) => {
+    setArquivo(f || null); setLido(null);
+    if (!f || !/pdf/i.test(f.type || f.name)) return;
+    try {
+      const j = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "comprovante", arquivo: { nome: f.name, conteudo: await readB64(f) } });
+      const fmt = (v) => (v ? brl(v) : "");
+      setForma("BRADESCO"); if (j.data) setData(j.data); if (j.contrato) setContrato(j.contrato);
+      setLiquido(fmt(j.valorLiquido)); setCustos({ juros: fmt(j.juros), iof: fmt(j.iof), tarifa: fmt(j.tarifa), taxa: j.taxa || "" });
+      if (j.sugeridos?.length) setSel(new Set(j.sugeridos));
+      setLido(j);
+    } catch { /* não é comprovante: segue como anexo */ }
   };
   return (
     <Modal titulo="Registrar antecipação" onClose={onClose} largura={860}
@@ -308,12 +335,28 @@ function ManualModal({ user, onClose, onOk }) {
         <label className="text-xs" style={{ color: C.sub }}>Líquido recebido (opcional)
           <input value={liquido} onChange={(e) => setLiquido(e.target.value)} placeholder={brl(total)} className="block w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Contrato / borderô (PDF, opcional)
-          <input type="file" accept=".pdf,image/*" onChange={(e) => setArquivo(e.target.files?.[0] || null)} className="block w-full text-xs mt-1" /></label>
+          <input type="file" accept=".pdf,image/*" onChange={(e) => lerArquivo(e.target.files?.[0] || null)} className="block w-full text-xs mt-1" /></label>
+        {[["juros", "Juros"], ["iof", "IOF"], ["tarifa", "Tarifa"]].map(([k, t]) => (
+          <label key={k} className="text-xs" style={{ color: C.sub }}>{t} (opcional)
+            <input value={custos[k]} onChange={(e) => setCustos((x) => ({ ...x, [k]: e.target.value }))} placeholder={k === "juros" ? "títulos − líquido" : "0,00"} className="block w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
+        ))}
       </div>
+      {lido && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: lido.sugeridos?.length ? C.greenSoft : C.yellowSoft || C.redSoft, color: lido.sugeridos?.length ? C.green : C.navy }}>
+          Comprovante lido: operação {moeda(lido.valorOperacao)} · líquido {moeda(lido.valorLiquido)} · vencimentos de {dBR(lido.primeiro)} a {dBR(lido.ultimo)}.{" "}
+          {lido.sugeridos?.length ? <>Marquei os {lido.sugeridos.length} único(s) título(s) que somam exatamente o valor da operação — confira antes de salvar.</>
+            : lido.combinacoes > 1 ? <>Há mais de uma combinação de títulos com essa soma: cole na busca os <b>nossos números</b> da tela do banco e clique em "Marcar os encontrados".</>
+            : <>Não achei títulos em aberto que somem o valor da operação: marque à mão.</>}
+          {sel.size > 0 && Math.abs(total - lido.valorOperacao) > 0.009 && <b> Marcados: {moeda(total)} (diferença {moeda(total - lido.valorOperacao)}).</b>}
+        </div>
+      )}
       <div className="relative mb-2">
         <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, cliente, NF ou valor…" className="w-full rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={inpS} />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, cliente, NF ou valor — ou cole a tabela de títulos do banco (vencimento e valor)…" className="w-full rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={inpS} />
       </div>
+      {busca.trim() && vis.length > 0 && (
+        <button onClick={() => setSel((x) => new Set([...x, ...vis.map((t) => t.id)]))} className="mb-2 text-xs font-semibold underline" style={{ color: C.accent }}>Marcar os {vis.length} encontrados</button>
+      )}
       {erro && <div className="mb-2 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!abertos ? <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando títulos em aberto…</div> : (
         <div className="rounded-lg overflow-y-auto" style={{ border: `1px solid ${C.line}`, maxHeight: 340 }}>
