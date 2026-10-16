@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { analiseCorte, lerPlanilhaCorte, gravarAnalises, SETORES_ANALISE, SETORES_MANUAIS } from "@/lib/opAnalise";
+import { analiseCorte, lerPlanilhaCorte, lerPlanilhaPers, gravarAnalises, SETORES_ANALISE, SETORES_MANUAIS, SETORES_GRADE } from "@/lib/opAnalise";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -29,8 +29,8 @@ export async function POST(req) {
     if (b.acao === "importar") {
       if (SETORES_MANUAIS.includes(setor)) return Response.json({ error: "Esta análise é preenchida à mão." }, { status: 400 });
       const buf = Buffer.from(String(b.conteudo || ""), "base64");
-      const r = lerPlanilhaCorte(buf, b.nome, b.competencia, setor);
-      if (!r.analises.length || !r.analises.some((a) => a.total > 0)) return Response.json({ error: "Não achei peças na planilha (esperava a aba Conferência ou a linha ITEM/QTDE)." }, { status: 400 });
+      const r = SETORES_GRADE.includes(setor) ? lerPlanilhaPers(buf, b.nome, b.competencia, setor) : lerPlanilhaCorte(buf, b.nome, b.competencia, setor);
+      if (!r.analises.length || !r.analises.some((a) => a.total > 0)) return Response.json({ error: "Não achei peças internas na planilha (esperava a aba Conferência ou a linha ITEM/QTDE)." }, { status: 400 });
       const out = await gravarAnalises(setor, r.analises, { nome: b.nome, quem: nomeU(u), historico: r.tipo === "HISTORICO" });
       const e = out.find((x) => x.erro);
       if (e) return Response.json({ error: e.erro }, { status: 400 });

@@ -48,10 +48,11 @@ const TXT = {
   // v254 — preenchidas à mão: folha do mês, freelancers e peças feitas internamente
   COSTURA: { titulo: "Análise da costura", Ico: Shirt, de: "da costura", manual: true, dentro: "costurar dentro",
     ajuda: <>Preencha a folha do mês, os freelancers e as peças <b>costuradas internamente</b> por tipo. Valor de mercado = preço da facção por peça (para comparar com terceirizar).</> },
-  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", manual: true, dentro: "estampar dentro",
-    ajuda: <>Preencha a folha do mês, os freelancers e as peças <b>estampadas internamente</b>, por peça e número de cores. Valor de mercado = preço do silk terceirizado por peça em cada nº de cores.</> },
-  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", manual: true, dentro: "bordar dentro",
-    ajuda: <>Preencha a folha do mês, os freelancers e as peças <b>bordadas internamente</b>, por peça e milheiro de pontos. Valor de mercado = preço do bordado terceirizado por peça em cada milheiro.</> },
+  // v255 — silk e bordado importam a exportação do sistema de produção; folha e freelancers à mão
+  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", unids: "Cores aplicadas (cor × peça)",
+    ajuda: <>Importe a exportação do sistema de produção (<i>analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo. As peças internas vão para a grade por nº de cores (7 ou mais entram em 6+); as terceirizadas ficam separadas. Depois preencha a folha e os freelancers do mês.</> },
+  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", unids: "Milheiros bordados (milheiro × peça)",
+    ajuda: <>Importe a exportação do sistema de produção (<i>analise-bordado_…xlsx</i>) ou preencha à mão as peças <b>bordadas internamente</b>, por peça e milheiro de pontos. Depois preencha a folha e os freelancers do mês.</> },
 };
 
 // v254 — Personalização: silk e bordado (DTF e sublimação depois)
@@ -192,7 +193,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <>
           {/* cenário interno × estimado */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-            <Kpi t={T.manual ? "Peças feitas internamente" : "Peças processadas"} v={int(c.pecas)} sub={d.analise.semCategoria ? `${int(d.analise.semCategoria)} sem categoria fora da análise` : d.analise.arquivoNome || ""} />
+            <Kpi t={T.manual || d.grade ? "Peças feitas internamente" : "Peças processadas"} v={int(c.pecas)} sub={d.analise.semCategoria ? `${int(d.analise.semCategoria)} sem categoria fora da análise` : d.analise.arquivoNome || ""} />
             <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}`} />
             <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} />
             <Kpi t="Custo estimado / peça" v={brl(c.estimado)} sub={f.custoMeta !== "" && f.custoMeta != null ? "meta fixa" : `custo total ÷ ${int(c.pecasEstimadas)} peças estimadas`} />
@@ -225,6 +226,18 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                 <tr><td className="py-1">Custo interno do mês</td><td className="text-right">{brl(c.custoTotal)}</td></tr>
                 <tr><td className="py-1 font-semibold">{c.economiaTerc >= 0 ? "Economia de" : "Sobrecusto de"} {T.dentro || "cortar dentro"}</td>
                   <td className="text-right font-bold" style={{ color: c.economiaTerc >= 0 ? C.green : C.red }}>{brl(Math.abs(c.economiaTerc))}</td></tr>
+                {c.extra && <>
+                  {c.unidades > 0 && <>
+                    <tr style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">{T.unids}</td><td className="text-right tabular-nums">{int(c.unidades)}</td></tr>
+                    <tr><td className="py-1">Custo interno por {T.unid}</td><td className="text-right tabular-nums font-semibold">{brl(c.custoUnid)}</td></tr>
+                    {c.extra.mercadoUnit != null && <tr><td className="py-1">Mercado por {T.unid}</td><td className="text-right tabular-nums">{brl(c.extra.mercadoUnit)}</td></tr>}
+                  </>}
+                  {c.extra.tinta != null && <tr><td className="py-1">Tinta estimada <span style={{ color: C.sub }}>({brl(c.extra.tintaUnit)}/{T.unid} · material, fora do custo do setor)</span></td><td className="text-right tabular-nums">{brl(c.extra.tinta)}</td></tr>}
+                  {c.extra.terceirizado?.pecas > 0 && (
+                    <tr style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">Terceirizado no mês <span style={{ color: C.sub }}>({int(c.extra.terceirizado.pecas)} pç · {Object.keys(c.extra.terceirizado.fornecedores || {}).join(", ")})</span></td>
+                      <td className="text-right tabular-nums font-semibold">{c.extra.terceirizado.valor != null ? brl(c.extra.terceirizado.valor) : "—"}</td></tr>)}
+                  {c.extra.terceirizado?.pecas > 0 && <tr><td className="py-1">% feito dentro <span style={{ color: C.sub }}>(peças)</span></td><td className="text-right tabular-nums">{pct(c.pecas / (c.pecas + c.extra.terceirizado.pecas))}</td></tr>}
+                </>}
               </tbody></table>
             </div>
           </div>
@@ -317,10 +330,11 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               </button>
               {verDet && (
                 <div className="overflow-auto px-4 pb-3" style={{ maxHeight: 400 }}>
-                  <table className="w-full text-xs"><thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Produto", "Categoria", "Qtde", "Concluído"].map((h) => <th key={h} className="text-left py-1 font-semibold">{h}</th>)}</tr></thead>
+                  <table className="w-full text-xs"><thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Produto", "Categoria", "Qtde", ...(d.grade ? [d.grade.titulo, "Origem"] : []), "Concluído"].map((h) => <th key={h} className="text-left py-1 font-semibold">{h}</th>)}</tr></thead>
                     <tbody>{d.analise.detalhe.map((l, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.line}`, color: l.categoria === "SEM_CATEGORIA" ? C.yellow : C.text }}>
-                        <td className="py-1">{l.pedido}</td><td>{l.cliente}</td><td>{l.produto}</td><td>{l.categoria === "SEM_CATEGORIA" ? "sem categoria" : d.categorias.find((x) => x.k === l.categoria)?.n}</td><td className="text-right pr-2">{int(l.qtde)}</td><td>{l.concluido}</td>
+                        <td className="py-1">{l.pedido}</td><td>{l.cliente}</td><td>{l.produto}</td><td>{l.categoria === "SEM_CATEGORIA" ? "sem categoria" : (d.grade ? d.grade.pecas : d.categorias).find((x) => x.k === l.categoria)?.n}</td><td className="text-right pr-2">{int(l.qtde)}</td>
+                        {d.grade && <><td className="text-right pr-2">{l.nivel}</td><td style={{ color: /terceir/i.test(l.origem || "") ? C.sub : C.text }}>{l.origem}</td></>}<td>{l.concluido}</td>
                       </tr>))}</tbody></table>
                 </div>
               )}

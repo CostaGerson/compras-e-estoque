@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
+import { tipoDaPeca } from "@/lib/finOsKm";
 
 export const SETORES_OP = {
   CORTE: { nome: "Corte", setorFolha: "CORTE" },
@@ -48,7 +49,8 @@ export const NIVEIS_OP = {
 const gradeCats = (setor) => PECAS_PERS.flatMap(([k, n]) => NIVEIS_OP[setor].niveis.map(([nk, nn]) => [`${k}__${nk}`, `${n} · ${nn}`, 0]));
 export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, COSTURA: CATEGORIAS_COSTURA, SILK: gradeCats("SILK"), BORDADO: gradeCats("BORDADO"), EXPEDICAO: CATEGORIAS_EXPEDICAO };
 export const SETORES_ANALISE = Object.keys(CATEGORIAS_OP);
-export const SETORES_MANUAIS = ["COSTURA", "SILK", "BORDADO"];   // sem importação de planilha: preenchidos à mão
+export const SETORES_MANUAIS = ["COSTURA"];   // sem importação de planilha: preenchida à mão
+export const SETORES_GRADE = Object.keys(NIVEIS_OP);
 const catsDe = (setor) => CATEGORIAS_OP[setor] || CATEGORIAS_CORTE;
 const nivelDe = (k) => String(k).split("__")[1] || null;
 // grade: valor de mercado por nível (coluna); demais: por categoria
@@ -109,6 +111,68 @@ export function lerPlanilhaCorte(buf, nome = "", compPadrao = null, setor = "COR
   return { tipo: "MES", analises: [lerAbaAnalise(wb.Sheets[aba], competencia, false, setor)] };
 }
 
+// v255 — silk/bordado: exportação do sistema de produção "analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx"
+// aba de resumo (CUSTO DE MERCADO / CUSTO DE TINTA por cor·peça, TERCEIRIZADO) + aba Conferência
+// (PEDIDO, CLIENTE, PRODUTO, PEÇAS, CORES, CORES×PEÇAS, ORIGEM, CONCLUÍDO EM). Bordado: coluna PONTOS ou MILHEIRO no lugar de CORES.
+const tipoPers = (prod) => (/AVENTAL/.test(sa(prod)) ? "AVENTAL" : tipoDaPeca(prod));
+export function lerPlanilhaPers(buf, nome = "", compPadrao = null, setor = "SILK") {
+  const wb = XLSX.read(buf, { type: "buffer" });
+  const m = String(nome).match(/(\d{4})-(\d{2})-\d{2}/);
+  const competencia = m ? `${m[1]}-${m[2]}` : compPadrao;
+  const conf = wb.SheetNames.find((n) => sa(n) === "CONFERENCIA");
+  if (!conf) throw new Error("Não achei a aba Conferência na planilha.");
+  // resumo: rótulo na coluna A, valor na B
+  const resumo = {};
+  for (const n of wb.SheetNames.filter((x) => x !== conf)) {
+    for (const r of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null, raw: true })) if (r?.[0] && typeof r[1] === "number") resumo[sa(r[0])] = r[1];
+  }
+  const doResumo = (pref) => { const k = Object.keys(resumo).find((x) => x.startsWith(pref)); return k != null ? resumo[k] : null; };
+  const mercadoUnit = doResumo("CUSTO_DE_MERCADO");
+  const tintaUnit = doResumo("CUSTO_DE_TINTA_POR");
+  const pref = setor === "BORDADO" ? "M" : "C", max = setor === "BORDADO" ? 10 : 6;
+  const qtds = {}, detalhe = [], somaNivel = {}, pecasNivel = {};
+  let semCategoria = 0, unidades = 0, unidSemCat = 0;
+  const terc = { pecas: 0, unidades: 0, fornecedores: {} };
+  for (const l of XLSX.utils.sheet_to_json(wb.Sheets[conf], { defval: null })) {
+    const g = (...ks) => { for (const k of ks) { const c = Object.keys(l).find((x) => sa(x) === k); if (c != null && l[c] != null && l[c] !== "") return l[c]; } return null; };
+    const pecas = Number(g("PECAS", "QTDE")) || 0;
+    if (!pecas) continue;
+    let nivel = setor === "BORDADO"
+      ? (g("MILHEIRO") != null ? Number(g("MILHEIRO")) : Math.ceil((Number(g("PONTOS")) || 0) / 1000))
+      : Number(g("CORES")) || 0;
+    nivel = Math.max(1, Math.round(nivel || 1));
+    const unid = Number(g("CORES_PECAS", "CORESXPECAS", "CORES_X_PECAS")) || nivel * pecas;
+    const origem = String(g("ORIGEM") || "Interno");
+    const ehTerc = /TERCEIR/i.test(sa(origem));
+    const cat = tipoPers(g("PRODUTO"));
+    detalhe.push({ pedido: String(g("PEDIDO") || ""), cliente: g("CLIENTE"), produto: g("PRODUTO"), categoria: cat || "SEM_CATEGORIA", qtde: pecas, nivel, unidades: unid, origem, concluido: g("CONCLUIDO_EM") });
+    if (ehTerc) {
+      terc.pecas += pecas; terc.unidades += unid;
+      const forn = origem.split("·")[1]?.trim() || "—";
+      terc.fornecedores[forn] = (terc.fornecedores[forn] || 0) + pecas;
+      continue;
+    }
+    if (!cat) { semCategoria += pecas; unidSemCat += unid; continue; }
+    const col = `${pref}${Math.min(nivel, max)}`;
+    qtds[`${cat}__${col}`] = (qtds[`${cat}__${col}`] || 0) + pecas;
+    somaNivel[col] = (somaNivel[col] || 0) + nivel * pecas; pecasNivel[col] = (pecasNivel[col] || 0) + pecas;
+    unidades += unid;
+  }
+  // valor de mercado por nível = nível médio da coluna × mercado por cor·peça (a última coluna junta "6 ou mais")
+  let mercado = null;
+  if (mercadoUnit) {
+    mercado = {};
+    for (let i = 1; i <= max; i++) { const c = `${pref}${i}`; const med = pecasNivel[c] ? somaNivel[c] / pecasNivel[c] : i; mercado[c] = r2(med * mercadoUnit); }
+  }
+  const valorTercPlan = resumo.TERCEIRIZADO ?? null;   // valor pago a terceiros no mês (≠ "TERCEIRIZADO ESTIMADO")
+  const extra = {
+    unidades, unidSemCat, mercadoUnit, tintaUnit, tinta: tintaUnit != null ? r2(unidades * tintaUnit) : null,
+    terceirizado: { pecas: terc.pecas, unidades: terc.unidades, fornecedores: terc.fornecedores,
+      valor: valorTercPlan != null ? r2(valorTercPlan) : mercadoUnit ? r2(terc.unidades * mercadoUnit) : null },
+  };
+  return { tipo: "MES", analises: [{ competencia, qtds, detalhe, semCategoria, total: Object.values(qtds).reduce((a, b) => a + b, 0), mercado, extra }] };
+}
+
 // aba no formato da análise: linha ITEM (categorias) + QTDE; à direita PESSOAL/FREELANCERS/PEÇAS ESTIMADAS/CUSTO ESTIMADO
 function lerAbaAnalise(sh, competencia, historico, setor = "CORTE") {
   const rows = XLSX.utils.sheet_to_json(sh, { header: 1, defval: null, raw: true });
@@ -155,6 +219,7 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
       qtds: a.qtds, detalhe: a.detalhe || undefined, semCategoria: a.semCategoria || 0, arquivoNome: nome || null, atualizadoPorNome: quem || null,
       ...(a.pecasEstimadas ? { pecasEstimadas: a.pecasEstimadas } : {}),
       ...(a.mercado ? { mercado: a.mercado } : {}),
+      ...(a.extra ? { extra: a.extra } : {}),
       ...(a.pessoalManual !== undefined ? { pessoalManual: a.pessoalManual, freelancerManual: a.freelancerManual } : {}),
       ...(a.custoMeta !== undefined ? { custoMeta: a.custoMeta } : {}),
       ...(a.meta ? { meta: a.meta } : {}), ...(a.causas ? { causas: a.causas } : {}), ...(a.providencias ? { providencias: a.providencias } : {}),
@@ -185,6 +250,8 @@ export function calcularCorte(a, pessoal, freelancer) {
     sobrecusto: estimado ? incorrido / estimado - 1 : 0,
     impacto: r2((estimado - incorrido) * pecas),
     terceirizado, mediaTerc, economiaTerc: r2(terceirizado - custoTotal),
+    // v255 — silk/bordado importados: custo por unidade (cor×peça) e terceirizado do mês
+    ...(a.extra?.unidades ? { unidades: a.extra.unidades, custoUnid: custoTotal / a.extra.unidades, extra: a.extra } : a.extra ? { extra: a.extra } : {}),
     categorias: cats.map((c) => ({ ...c, concentracao: pecas ? c.qtd / pecas : 0, fator: mediaTerc ? c.mercado / mediaTerc : 0, valorInterno: mediaTerc ? (c.mercado / mediaTerc) * incorrido : 0 })),
     // v254 — grade (silk/bordado): totais por nível e por peça
     ...(NIVEIS_OP[a.setor] ? {

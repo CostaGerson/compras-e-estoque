@@ -1719,6 +1719,7 @@ model OpAnalise {
   meta              String?
   causas            String?
   providencias      String?
+  extra             Json?    // v255 — silk/bordado importados: unidades (cor×peça), terceirizado do mês, mercado e tinta por unidade
   atualizadoPorNome String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
