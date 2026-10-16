@@ -315,3 +315,33 @@ export async function analiseCorte(competencia, setor = "CORTE") {
   return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, setor, categorias: catsDe(setor).map(([k, n]) => ({ k, n })),
     manual: SETORES_MANUAIS.includes(setor), grade: NIVEIS_OP[setor] ? { ...NIVEIS_OP[setor], pecas: PECAS_PERS.map(([k, n]) => ({ k, n })) } : null };
 }
+
+// v264 — resumo da tela de Análises operacionais: quanto volta para a operação por peça, na média dos últimos 3 meses com registro.
+// Volta = valor de mercado × quantidade (silk: R$ 0,80 × cores). Corte e expedição: ÷ peças do próprio setor (todas passam por eles).
+// Costura e personalização: ÷ peças da produção (expedidas nos mesmos meses) — só parte das peças passa por elas, então o valor por peça é baixo.
+export async function resumoVolta(ate = null) {
+  const todos = await prisma.opAnalise.findMany({ orderBy: { competencia: "desc" } });
+  const porSetor = (setores) => todos.filter((a) => setores.includes(a.setor) && (!ate || a.competencia <= ate));
+  const calcMes = (lista) => {
+    const meses = {};
+    for (const a of lista) {
+      const c = calcularCorte(a, 0, 0);
+      if (!c.pecas) continue;
+      const m = (meses[a.competencia] ||= { volta: 0, pecas: 0 });
+      m.volta += c.terceirizado; m.pecas += c.pecas;
+    }
+    return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, 3);
+  };
+  const expedido = Object.fromEntries(porSetor(["EXPEDICAO"]).map((a) => [a.competencia, calcularCorte(a, 0, 0).pecas]));
+  const grupo = (chave, setores, base) => {
+    const ms = calcMes(porSetor(setores));
+    const volta = ms.reduce((s, [, v]) => s + v.volta, 0), pecas = ms.reduce((s, [, v]) => s + v.pecas, 0);
+    const pecasProducao = ms.reduce((s, [k]) => s + (expedido[k] || 0), 0);
+    const porPecaSetor = pecas ? volta / pecas : 0;
+    const porPecaProducao = pecasProducao ? volta / pecasProducao : 0;
+    return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao,
+      base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
+  };
+  const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
+  return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total: g.reduce((s, x) => s + (x.valor || 0), 0) };
+}

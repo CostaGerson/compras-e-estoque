@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { analiseCorte, lerPlanilhaCorte, lerPlanilhaPers, gravarAnalises, SETORES_ANALISE, SETORES_MANUAIS, SETORES_GRADE } from "@/lib/opAnalise";
+import { analiseCorte, lerPlanilhaCorte, lerPlanilhaPers, gravarAnalises, resumoVolta, SETORES_ANALISE, SETORES_MANUAIS, SETORES_GRADE } from "@/lib/opAnalise";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -11,6 +11,7 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const comp = /^\d{4}-\d{2}$/.test(sp.get("competencia") || "") ? sp.get("competencia") : null;
+  if (sp.get("acao") === "resumo") return Response.json(await resumoVolta(comp));   // v264 — tela de Análises operacionais
   const setor = sp.get("setor") || "CORTE";
   if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
   return Response.json(await analiseCorte(comp, setor));

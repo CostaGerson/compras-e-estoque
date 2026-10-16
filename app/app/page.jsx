@@ -275,7 +275,7 @@ export default function Home() {
 
         <div className="flex-1 overflow-auto p-6">
           <div key={`${view}-${resetTick}`} className="anim-entrar">
-          {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} />}
+          {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
@@ -347,7 +347,30 @@ function MenuArvore({ itens, view, caminho, ir, nivel = 0 }) {
 }
 
 /* ===== Tela de um grupo: cards das subabas ===== */
-function CardsGrupo({ grupo, ir }) {
+// v264 — Análises operacionais: quanto volta para a operação por peça (média dos últimos 3 meses com registro)
+const SETOR_DO_CARD = { anCorte: "CORTE", anPersonalizacao: "PERSONALIZACAO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO" };
+const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const brlV = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function VoltaCard({ r }) {
+  if (!r || !r.meses?.length) return <div className="mt-3 pt-3 text-[11px]" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>Volta para a operação: sem análise registrada.</div>;
+  const meses = r.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ");
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+      <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Volta para a operação / peça</div>
+      <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
+      <div className="text-[11px]" style={{ color: C.sub }}>
+        {r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
+          : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
+      </div>
+    </div>
+  );
+}
+function CardsGrupo({ grupo, ir, user }) {
+  const [volta, setVolta] = useState(null);
+  useEffect(() => {
+    if (grupo.key !== "analisesOp" || !user?.id) return;
+    fetch(`/api/producao/analises?u=${user.id}&acao=resumo`).then((r) => (r.ok ? r.json() : null)).then(setVolta).catch(() => setVolta(null));
+  }, [grupo.key, user?.id]);
   const Ico = grupo.icon;
   return (
     <div>
@@ -358,6 +381,18 @@ function CardsGrupo({ grupo, ir }) {
           <div className="text-xs" style={{ color: C.sub }}>{grupo.desc}</div>
         </div>
       </div>
+      {volta && (
+        <div className="rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-1" style={{ background: C.sidebar, color: "#fff" }}>
+          <div>
+            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Total que volta para a operação por peça produzida</div>
+            <div className="text-2xl font-bold tabular-nums">{brlV(volta.total)}</div>
+          </div>
+          <div className="text-xs flex-1" style={{ color: C.sidebarSub, minWidth: 240 }}>
+            Soma das etapas, média dos últimos 3 meses com registro. Volta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
+            Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
+          </div>
+        </div>
+      )}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
           const I = f.icon;
@@ -367,6 +402,7 @@ function CardsGrupo({ grupo, ir }) {
               <I size={24} style={{ color: C.accent }} />
               <div className="text-base font-bold mt-2">{f.label}</div>
               <div className="text-xs mt-1" style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
+              {volta && SETOR_DO_CARD[f.key] && <VoltaCard r={volta.setores?.[SETOR_DO_CARD[f.key]]} />}
               {f.filhos && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {f.filhos.map((x) => (
