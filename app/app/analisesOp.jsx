@@ -199,7 +199,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Volta/pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ref = x.mediaTerc; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
                 <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
@@ -239,7 +239,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
             <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} sub={c.mediaTerc ? `mercado ${brl(c.mediaTerc)} / peça` : "preencha o valor de mercado"} />
             {G && <Kpi t={`Custo incorrido / ${T.cor}`} v={brl(c.custoUnid)} cor={c.custoUnid <= c.mercadoUnid ? C.green : C.red} sub={`${int(c.unidades)} ${T.cores} · mercado ${brl(c.mercadoUnid)}`} />}
               {/* v262 — costura/silk/bordado: o valor de mercado é o que se cobra da operação; é o que volta para o setor */}
-              {T.volta && <Kpi t="Volta para a operação" v={brl(c.terceirizado)} cor={C.navy}
+              {T.volta && <Kpi t="Contribuição bruta à operação" v={brl(c.terceirizado)} cor={C.navy}
                 sub={`${brl(c.mediaTerc)} por peça${G && c.unidades ? ` · ${brl(c.mercadoUnid)} por ${T.cor}` : ""} — ${T.volta}`} />}
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
           </div>
@@ -266,8 +266,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>
               <table className="w-full text-xs"><tbody>
-                <tr><td className="py-1">{T.volta ? <>Volta para a operação <span style={{ color: "inherit", opacity: .7 }}>({T.volta})</span></> : "Custo se terceirizado (valor de mercado × peças)"}</td><td className="text-right font-semibold">{brl(c.terceirizado)}</td></tr>
-                <tr><td className="py-1">{T.volta ? "Volta por peça" : "Média da peça terceirizada"}</td><td className="text-right">{brl(c.mediaTerc)}</td></tr>
+                <tr><td className="py-1">{T.volta ? <>Contribuição bruta à operação <span style={{ color: "inherit", opacity: .7 }}>({T.volta})</span></> : "Custo se terceirizado (valor de mercado × peças)"}</td><td className="text-right font-semibold">{brl(c.terceirizado)}</td></tr>
+                <tr><td className="py-1">{T.volta ? "Contribuição bruta por peça" : "Média da peça terceirizada"}</td><td className="text-right">{brl(c.mediaTerc)}</td></tr>
                 <tr><td className="py-1">Custo interno do mês</td><td className="text-right">{brl(c.custoTotal)}</td></tr>
                 <tr><td className="py-1 font-semibold">{c.economiaTerc >= 0 ? "Economia de" : "Sobrecusto de"} {T.dentro || "cortar dentro"}</td>
                   <td className="text-right font-bold" style={{ color: c.economiaTerc >= 0 ? C.green : C.red }}>{brl(Math.abs(c.economiaTerc))}</td></tr>

@@ -352,11 +352,11 @@ const SETOR_DO_CARD = { anCorte: "CORTE", anPersonalizacao: "PERSONALIZACAO", an
 const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const brlV = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function VoltaCard({ r }) {
-  if (!r || !r.meses?.length) return <div className="mt-3 pt-3 text-[11px]" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>Volta para a operação: sem análise registrada.</div>;
+  if (!r || !r.meses?.length) return <div className="mt-auto pt-3 text-[11px] w-full" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>Contribuição bruta à operação: sem análise registrada.</div>;
   const meses = r.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ");
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
-      <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Volta para a operação / peça</div>
+    <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
+      <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Contribuição bruta à operação / peça</div>
       <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
       <div className="text-[11px]" style={{ color: C.sub }}>
         {r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
@@ -384,11 +384,11 @@ function CardsGrupo({ grupo, ir, user }) {
       {volta && (
         <div className="rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-1" style={{ background: C.sidebar, color: "#fff" }}>
           <div>
-            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Total que volta para a operação por peça produzida</div>
+            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
             <div className="text-2xl font-bold tabular-nums">{brlV(volta.total)}</div>
           </div>
           <div className="text-xs flex-1" style={{ color: C.sidebarSub, minWidth: 240 }}>
-            Soma das etapas, média dos últimos 3 meses com registro. Volta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
+            Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
             Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
           </div>
         </div>
@@ -397,11 +397,10 @@ function CardsGrupo({ grupo, ir, user }) {
         {grupo.filhos.map((f) => {
           const I = f.icon;
           return (
-            <button key={f.key} onClick={() => ir(f.key)} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg"
+            <button key={f.key} onClick={() => ir(f.key)} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg flex flex-col"
               style={f.filhos ? { background: C.sidebar, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}` }}>
-              <I size={24} style={{ color: C.accent }} />
-              <div className="text-base font-bold mt-2">{f.label}</div>
-              <div className="text-xs mt-1" style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
+              <div className="flex items-center gap-2"><I size={22} style={{ color: C.accent }} className="shrink-0" /><div className="text-base font-bold">{f.label}</div></div>
+              <div className="text-xs mt-1 mb-3" style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
               {volta && SETOR_DO_CARD[f.key] && <VoltaCard r={volta.setores?.[SETOR_DO_CARD[f.key]]} />}
               {f.filhos && (
                 <div className="flex flex-wrap gap-1 mt-3">
