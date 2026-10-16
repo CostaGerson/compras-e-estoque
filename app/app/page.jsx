@@ -419,7 +419,7 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
             <div className="text-xs font-semibold mt-1">bruta {brlV(volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers</div>
             <div className="text-[11px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
-              % freelancers = freelancers ÷ (folha + freelancers) dos setores produtivos
+              % freelancers oficial (o mesmo da Capacidade e da Matriz) = freelancers ÷ (folha + freelancers) de todos os setores
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
               folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers só do extrato identificado (os mesmos das análises).
             </div>

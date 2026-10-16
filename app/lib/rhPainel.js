@@ -112,6 +112,27 @@ export async function freelancerXFolha(comp) {
   return { competencia: comp, linhas, semSetor, total: tot, previsto, critica };
 }
 
+// v269 — % FREELANCER OFICIAL (uma regra só para Análises, Capacidade, Matriz e Metas):
+//   freelancers ÷ (folha + freelancers) de TODOS os setores de mão de obra (inclusive logística),
+//   folha pela Matriz, freelancers SÓ do extrato identificado (contas de freelancer, inclusive os sem setor),
+//   nos últimos 3 meses fechados (ou nos meses informados).
+export async function pctFreelancerOperacional(comps = null) {
+  const { mesAtual, somaMes } = await import("@/lib/finTitulos");
+  const meses = comps?.length ? comps : [3, 2, 1].map((k) => somaMes(mesAtual(), -k));
+  let folha = 0, freelancer = 0;
+  const porMes = [];
+  for (const c of meses) {
+    const f = await freelancerXFolha(c).catch(() => null);
+    if (!f) continue;
+    const fo = f.linhas.reduce((s, l) => s + (l.folha || 0), 0);
+    const fr = f.linhas.reduce((s, l) => s + (l.freeExtrato || 0), 0) + (f.semSetor || 0);
+    folha += fo; freelancer += fr; porMes.push({ comp: c, folha: r2(fo), freelancer: r2(fr) });
+  }
+  const pct = folha + freelancer ? freelancer / (folha + freelancer) : null;
+  return { meses, porMes, folha: r2(folha), freelancer: r2(freelancer), pct: pct != null ? Math.round(pct * 10000) / 10000 : null,
+    fonte: "folha (Matriz) × freelancers do extrato identificado, todos os setores" };
+}
+
 // ---------- painel ----------
 export async function painelRH(compPedida) {
   const comps = await competenciasComPonto();

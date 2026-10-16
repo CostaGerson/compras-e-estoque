@@ -125,8 +125,12 @@ async function sugestaoFreelancer() {
   const rs = [];
   for (const c of meses) { const r = await freelancerXFolha(c).catch(() => null); if (r?.total?.custo) rs.push({ comp: c, pct: r.total.pct / 100, freelancer: r.total.freelancer, custo: r.total.custo, previsto: r.previsto }); }
   const ult = rs[0] || null;
-  const media = rs.length ? rs.reduce((s2, x) => s2 + x.freelancer, 0) / rs.reduce((s2, x) => s2 + x.custo, 0) : null;
-  return { ultimo: ult ? { comp: ult.comp, pct: ult.pct } : null, media3: media != null ? { pct: Math.round(media * 10000) / 10000, meses: rs.length } : null,
+  // v269 — média de 3 meses = % freelancer oficial (extrato identificado, todos os setores)
+  const { pctFreelancerOperacional } = await import("@/lib/rhPainel");
+  const of = await pctFreelancerOperacional(meses).catch(() => null);
+  const media = of?.pct ?? (rs.length ? rs.reduce((s2, x) => s2 + x.freelancer, 0) / rs.reduce((s2, x) => s2 + x.custo, 0) : null);
+  const ultOf = ult ? await pctFreelancerOperacional([ult.comp]).catch(() => null) : null;
+  return { ultimo: ult ? { comp: ult.comp, pct: ultOf?.pct ?? ult.pct } : null, media3: media != null ? { pct: Math.round(media * 10000) / 10000, meses: rs.length } : null,
     tabelaMatriz: rs[0]?.previsto != null ? rs[0].previsto / 100 : null };
 }
 

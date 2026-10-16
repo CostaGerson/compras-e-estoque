@@ -905,7 +905,7 @@ function Producao({ dados, calc, muda, mg }) {
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
         <Cartao titulo="Custo por peça (semestre)">
           <Linha t="Custo produção / peça" dica={pr.custoPecaObs}><NumInput value={pr.custoPeca} onChange={(v) => s("custoPeca", v)} /></Linha>
-          <Linha t="Razão interna" dica={mg?.pctFreelancer != null ? `1 − ${pct(calc.pctFreelancer)} de freelancer (${mg.historico ? `realizado ${mg.periodo}` : "meta da página Metas"})` : pr.razaoInternaAuto ? `Calculada: 1 − ${pct(calc.pctFreelancer)} de freelancer (tabelas abaixo)` : `Valor manual (${pct(calc.pctFreelancer)} de freelancer)`}>
+          <Linha t="Razão interna" dica={mg?.pctFreelancer != null ? `1 − ${pct(calc.pctFreelancer)} de freelancer (${mg.historico ? `oficial: ${mg.periodoFree || "últimos 3 meses"}, folha × freelancers do extrato` : "meta da página Metas"})` : pr.razaoInternaAuto ? `Calculada: 1 − ${pct(calc.pctFreelancer)} de freelancer (tabelas abaixo)` : `Valor manual (${pct(calc.pctFreelancer)} de freelancer)`}>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={!!pr.razaoInternaAuto} onChange={(e) => s("razaoInternaAuto", e.target.checked)} /> automática</label>
               {pr.razaoInternaAuto ? <span className="font-semibold">{pct(calc.razaoInterna)}</span> : <NumInput tipo="pct" value={pr.razaoInternaManual} onChange={(v) => s("razaoInternaManual", v)} width={90} />}
@@ -938,7 +938,7 @@ function Producao({ dados, calc, muda, mg }) {
       <TabelaFreelancer titulo="Expedição · Pessoal x Freelancer" tab={dados.freelancer.expedicao} set={(f) => muda("freelancer", (x) => ({ ...x, expedicao: f(x.expedicao) }))} />
       <TabelaFreelancer titulo="Corte · Pessoal x Freelancer" tab={dados.freelancer.corte} set={(f) => muda("freelancer", (x) => ({ ...x, corte: f(x.corte) }))} />
       <div className="text-xs" style={{ color: C.sub }}>{mg?.pctFreelancer != null
-        ? <>Freelancer {mg.historico ? `realizado (${mg.periodo}, folha × freelancer)` : "pela meta da página Metas (Gestão)"}: <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}. As tabelas acima ficam como referência.</>
+        ? <>Freelancer {mg.historico ? `oficial (${mg.periodoFree || "últimos 3 meses fechados"}: folha da Matriz × freelancers do extrato identificado, todos os setores — o mesmo das Análises e da Capacidade)` : "pela meta da página Metas (Gestão)"}: <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}. As tabelas acima ficam como referência.</>
         : !pr.razaoInternaAuto
           ? <>Razão interna manual {pct(calc.razaoInterna)} → <b>{pct(calc.pctFreelancer)}</b> de freelancer{dados?.simulacaoCapacidade ? ` (Simulação ${dados.simulacaoCapacidade.cenario} da Capacidade)` : ""}. Tabelas acima (referência): {pct(calc.pctFreelancerTabela)}.</>
           : <>Freelancer geral (expedição + corte): <b>{pct(calc.pctFreelancer)}</b> → razão interna {pct(1 - calc.pctFreelancer)}.</>}</div>

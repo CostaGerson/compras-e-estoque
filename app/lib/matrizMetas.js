@@ -69,19 +69,19 @@ export async function historicoDoAno(hoje = new Date()) {
   const fatMeses = proj.fatMeses.map((x, i) => (fe[i] ? x : fatMed));
   const pcsMeses = proj.pcsMeses.map((x, i) => (fe[i] ? x : pcsMed));
   const fatAno = fatMeses.reduce((t, x) => t + (Number(x) || 0), 0), pcsAno = pcsMeses.reduce((t, x) => t + (Number(x) || 0), 0);
-  // % de freelancer realizado no ano: Σ freelancer ÷ Σ (folha + freelancer) dos meses fechados
-  let pctFreelancer = null;
+  // v269 — % freelancer OFICIAL: últimos 3 meses fechados, folha × freelancers do extrato identificado (igual Análises e Capacidade)
+  let pctFreelancer = null, periodoFree = null;
   try {
-    const { freelancerXFolha } = await import("@/lib/rhPainel");
-    let fr = 0, cu = 0;
-    for (const i of idx) { const r = await freelancerXFolha(`${ano}-${String(i + 1).padStart(2, "0")}`).catch(() => null); if (r?.total?.custo) { fr += r.total.freelancer; cu += r.total.custo; } }
-    if (cu) pctFreelancer = Math.round((fr / cu) * 10000) / 10000;
+    const { pctFreelancerOperacional } = await import("@/lib/rhPainel");
+    const pf = await pctFreelancerOperacional();
+    pctFreelancer = pf?.pct ?? null;
+    periodoFree = pf?.meses?.length ? pf.meses.map((c) => MESES[Number(c.slice(5, 7)) - 1]).join(", ") : null;
   } catch { pctFreelancer = null; }
   const ult = idx[idx.length - 1];
   const periodo = `${MESES[idx[0]]}–${MESES[ult]}/${ano}`;
   return { historico: true, ano, mes, nomeMes: `${MESES[mes - 1]}/${ano}`, periodo, nFechados: idx.length,
     fatAno, fatMes: fatMed, pcsAno, pcsMes: Math.round(pcsMed), pcsMedia: pcsAno / 12,
-    ticket, fonteTicket: `realizado ${periodo}: faturamento ÷ peças`, margem: null, pctFreelancer,
+    ticket, fonteTicket: `realizado ${periodo}: faturamento ÷ peças`, margem: null, pctFreelancer, periodoFree,
     ...proj, fatMeses, pcsMeses };
 }
 export async function dadosHistoricos(dados, hoje = new Date()) {

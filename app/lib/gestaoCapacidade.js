@@ -9,7 +9,7 @@
 //   B) recomendado: necessidade acima de 1 freelancer por dia (o mês útil inteiro) vira contratação — risco
 //      trabalhista acima da economia do freelancer; a fração restante (< 1 por dia) continua freelancer
 import { prisma } from "@/lib/prisma";
-import { freelancerXFolha } from "@/lib/rhPainel";
+import { freelancerXFolha, pctFreelancerOperacional } from "@/lib/rhPainel";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -49,14 +49,16 @@ export async function analisarCapacidade({ meses = 3, alvo = null, ano: anoRef =
   for (const c of comps) {
     const pecas = pecasDe(c), du = diasUteis(c);
     const fx = await freelancerXFolha(c).catch(() => null);
-    const free = fx ? fx.linhas.reduce((s, l) => s + l.freelancer, 0) + (fx.semSetor || 0) : 0;
+    // v269 — freelancers só do extrato identificado (regra oficial)
+    const free = fx ? fx.linhas.reduce((s, l) => s + (l.freeExtrato || 0), 0) + (fx.semSetor || 0) : 0;
     mesesOk.push({ comp: c, pecas, diasUteis: du, folha: r2(fx?.total?.folha || 0), freelancer: r2(free), usado: !!(pecas && fx) });
     if (!pecas || !fx) continue;
     for (const l of fx.linhas) {
       const s = (porSetor[l.setor] ||= { setor: l.setor, meses: [] });
       const diaria = diarias[l.setor] || null;
-      const freeDia = diaria ? l.freelancer / diaria / du : null;   // freelancers por dia útil
-      s.meses.push({ comp: c, pecas, du, folha: l.folha, freelancer: l.freelancer, pessoas: l.pessoas, freeDia });
+      const fl = l.freeExtrato || 0;
+      const freeDia = diaria ? fl / diaria / du : null;   // freelancers por dia útil
+      s.meses.push({ comp: c, pecas, du, folha: l.folha, freelancer: fl, pessoas: l.pessoas, freeDia });
     }
   }
   const usados = mesesOk.filter((m) => m.usado);
@@ -101,7 +103,11 @@ export async function analisarCapacidade({ meses = 3, alvo = null, ano: anoRef =
   const soma = (k, sub) => r2(setores.reduce((s, l) => s + (sub ? l[sub]?.[k] || 0 : l[k] || 0), 0));
   const total = { folha: soma("folha"), freelancer: soma("freelancer"), pessoas: r1(setores.reduce((s, l) => s + l.pessoas, 0)), freeDia: setores.reduce((s, l) => s + (l.freeDia || 0), 0),
     pecas: usados.length ? Math.round(usados.reduce((s, m) => s + m.pecas, 0) / usados.length) : 0, semDiaria: setores.filter((l) => l.semDiaria).map((l) => l.setor) };
-  total.pct = pct(total.freelancer, total.folha);
+  // v269 — freelancers sem setor (extrato) entram no total; o % é o oficial dos mesmos meses
+  const semSetorMedio = usados.length ? mesesOk.filter((m) => m.usado).reduce((s, m) => s + m.freelancer, 0) / usados.length - total.freelancer : 0;
+  if (semSetorMedio > 0.005) total.freelancer = r2(total.freelancer + semSetorMedio);
+  const oficial = await pctFreelancerOperacional(usados.map((m) => m.comp)).catch(() => null);
+  total.pct = oficial?.pct ?? pct(total.freelancer, total.folha);
   if (meta) {
     for (const c of ["A", "B"]) {
       total[c] = { folha: soma("folha", c), freelancer: soma("freelancer", c), freeDia: setores.reduce((s, l) => s + (l[c]?.freeDia || 0), 0), diarias: setores.reduce((s, l) => s + (l[c]?.diarias || 0), 0) };
