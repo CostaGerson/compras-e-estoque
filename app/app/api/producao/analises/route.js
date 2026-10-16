@@ -30,7 +30,13 @@ export async function POST(req) {
       if (SETORES_MANUAIS.includes(setor)) return Response.json({ error: "Esta análise é preenchida à mão." }, { status: 400 });
       const buf = Buffer.from(String(b.conteudo || ""), "base64");
       const r = SETORES_GRADE.includes(setor) ? lerPlanilhaPers(buf, b.nome, b.competencia, setor) : lerPlanilhaCorte(buf, b.nome, b.competencia, setor);
-      if (!r.analises.length || !r.analises.some((a) => a.total > 0)) return Response.json({ error: "Não achei peças internas na planilha (esperava a aba Conferência ou a linha ITEM/QTDE)." }, { status: 400 });
+      if (!r.analises.length || !r.analises.some((a) => a.total > 0)) {
+        // v263 — diz o que foi lido, para achar a causa sem adivinhar
+        let abas = "";
+        try { const XLSX = await import("xlsx"); const wb = XLSX.read(buf, { type: "buffer" }); abas = wb.SheetNames.map((n) => `${n} (${XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1 }).length} linhas)`).join(", "); } catch (e) { abas = `não abriu: ${e.message}`; }
+        console.log("[analises] importação sem peças", { setor, nome: b.nome, bytes: buf.length, abas, analises: r.analises.map((a) => ({ c: a.competencia, t: a.total, sc: a.semCategoria })) });
+        return Response.json({ error: `Não achei peças internas na planilha (esperava a aba Conferência ou a linha ITEM/QTDE). Lido: setor ${setor} · ${buf.length} bytes · abas: ${abas || "nenhuma"} · ${r.analises.map((a) => `${a.competencia}: ${a.total} pç${a.semCategoria ? ` (${a.semCategoria} sem categoria)` : ""}`).join("; ") || "nenhum mês"}.` }, { status: 400 });
+      }
       const out = await gravarAnalises(setor, r.analises, { nome: b.nome, quem: nomeU(u), historico: r.tipo === "HISTORICO" });
       const e = out.find((x) => x.erro);
       if (e) return Response.json({ error: e.erro }, { status: 400 });
