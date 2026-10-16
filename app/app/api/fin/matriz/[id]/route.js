@@ -55,6 +55,7 @@ export async function POST(req, { params }) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioGerencial(b.usuarioId);
   if (!u) return negadoGerencial();
+  if (b.acao === "freelancers") return ajustarFreelancers(b, u, Number(params.id));
   if (b.acao !== "capacidade") return Response.json({ error: "Ação inválida." }, { status: 400 });
   if (!["ATUAL", "A", "B"].includes(b.cenario)) return Response.json({ error: "Escolha: equipe atual, A ou B." }, { status: 400 });
   const id = Number(params.id);
@@ -80,6 +81,39 @@ export async function POST(req, { params }) {
     await prisma.finMatriz.update({ where: { id }, data: { dados: r.dados, atualizadoPor: nomeU(u) } });
     return Response.json({ ok: true, cenario: b.cenario, pct: r.pct, contratados: r.criados.length, alvo });
   } catch (e) { return Response.json({ error: e.message || "Erro ao ajustar." }, { status: 400 }); }
+}
+
+// v275 — POST { acao: "freelancers", ajustes: { SETOR: freelancersDia } } → grava os freelancers/dia escolhidos
+//   e o % freelancer recalculado (razão interna manual = 1 − %) na simulação
+async function ajustarFreelancers(b, u, id) {
+  const atual = await prisma.finMatriz.findUnique({ where: { id } });
+  if (!atual) return Response.json({ error: "Matriz não encontrada." }, { status: 404 });
+  if (atual.oficial) return Response.json({ error: "A oficial é o histórico real: ajuste numa simulação." }, { status: 400 });
+  try {
+    const d = JSON.parse(JSON.stringify(atual.dados || {})), pr = d.producao || (d.producao = {});
+    const f = d.fechamento;
+    const pecasMes = Array.isArray(f?.pcsMeses) && f.pcsMeses.length === 12 ? f.pcsMeses.map((x) => Number(x) || 0) : [];
+    const fech = f?.fechados || [];
+    const abertos = pecasMes.filter((_, i) => !fech[i]);
+    const alvo = Math.round(abertos.length ? abertos.reduce((t, x) => t + x, 0) / abertos.length : Number(pr.metaPecas) || 0);
+    if (!alvo) return Response.json({ error: "A simulação não tem meta de peças." }, { status: 400 });
+    const ano = Number(f?.ano || d.simulacaoCapacidade?.ano) || new Date().getFullYear();
+    const { analisarCapacidade } = await import("@/lib/gestaoCapacidade");
+    const { calcularAjuste } = await import("@/lib/capAjuste");
+    const cap = await analisarCapacidade({ meses: 3, alvo, ano });
+    const cen = d.simulacaoCapacidade?.cenario || "ATUAL";
+    const ajustes = {};
+    for (const [k, v] of Object.entries(b.ajustes || {})) ajustes[k] = Math.max(0, Math.round(Number(v) || 0));
+    const r = calcularAjuste(cap, cen, ajustes);
+    if (d.metasGestao) delete d.metasGestao.pctFreelancer;   // o % ajustado é o que vale nesta simulação
+    pr.razaoInternaAuto = false;
+    pr.razaoInternaManual = Math.round((1 - r.pct) * 10000) / 10000;
+    d.simulacaoCapacidade = { ...(d.simulacaoCapacidade || { cenario: cen }), pctFreelancer: r.pct, freeDiaAjustado: ajustes,
+      freelancerMes: r.freelancer, ajustadoEm: new Date().toISOString() };
+    await prisma.finMatrizVersao.create({ data: { matrizId: id, dados: atual.dados, usuarioNome: atual.atualizadoPor, resumo: "antes de: ajustar freelancers/dia" } });
+    await prisma.finMatriz.update({ where: { id }, data: { dados: d, atualizadoPor: nomeU(u) } });
+    return Response.json({ ok: true, pct: r.pct, freelancer: r.freelancer });
+  } catch (e) { return Response.json({ error: e.message || "Erro ao salvar." }, { status: 400 }); }
 }
 
 // PATCH { usuarioId, nome } → renomeia

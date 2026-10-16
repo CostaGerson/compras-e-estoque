@@ -339,7 +339,11 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
         ))}
       </div>
 
-      {verCap && <CapacidadeSimulacao user={user} dados={dados} onClose={() => setVerCap(false)} />}
+      {verCap && <CapacidadeSimulacao user={user} dados={doc?.dados || dados} matrizId={doc?.oficial ? null : doc?.id} sujo={sujo} onClose={() => setVerCap(false)}
+        onSalvo={async (r) => {
+          setVerCap(false); await abrir(doc.id);
+          setAviso(`Freelancers/dia salvos na simulação · ${(r.pct * 100).toFixed(2).replace(".", ",")}% de freelancer (razão interna ${((1 - r.pct) * 100).toFixed(2).replace(".", ",")}%).`);
+        }} />}
       {aba === "painel" && <Painel calc={calc} calcOf={calcOf} ir={setAba} cenario={!doc.oficial} pr={dados.producao} prOf={oficialDados?.producao} mg={doc.oficial ? dados.metasGestao : null}
         extraAcao={!doc.oficial ? <button type="button" onClick={() => setVerCap(true)} className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ color: C.navy, border: `1px solid ${C.navy}`, background: "#fff" }}>Contratações</button> : null}
         setPr={(k, v) => muda("producao", (x) => ({ ...x, [k]: v }))} />}
