@@ -74,12 +74,21 @@ export async function GET(req) {
     select: { id: true, recorrenciaId: true, competencia: true, status: true, vencimento: true, valor: true } }) : [];
   const situacaoRec = (r) => recTit.filter((t) => t.recorrenciaId === r.id).sort((a, b) => a.competencia.localeCompare(b.competencia))
     .map((t) => ({ id: t.id, competencia: t.competencia, status: t.status, vencimento: t.vencimento.toISOString().slice(0, 10), valor: Number(t.valor) }));
+  // v273 — conta da semana com baixas parciais: em aberto aparece só o SALDO (valor − itens já pagos)
+  const semAb = [...titulos, ...atrasados, ...(periodo || [])].filter((t) => t.status === "ABERTO" && String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id);
+  const pagosSem = semAb.length ? await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: [...new Set(semAb)] }, pago: true }, _sum: { valor: true } }).catch(() => []) : [];
+  const pagoDe = Object.fromEntries(pagosSem.map((g) => [g.tituloId, Number(g._sum.valor || 0)]));
+  const saida = (t) => {
+    const o = tituloOut(t), p = pagoDe[t.id];
+    return p > 0 && t.status === "ABERTO" ? { ...o, valorTotal: o.valor, pagoParcial: Math.round(p * 100) / 100, valor: Math.round((o.valor - p) * 100) / 100 } : o;
+  };
+  const vencPago = atrasados.reduce((s0, t) => s0 + (pagoDe[t.id] || 0), 0);
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
-    periodo: periodo ? periodo.map(tituloOut) : null,
+    periodo: periodo ? periodo.map(saida) : null,
     semConta: semConta.map(tituloOut), comCritica: comCritica.map(tituloOut),
-    vencidoTotal: Number(vencTot._sum.valor || 0), vencidoTotalQtd: vencTot._count || 0,
-    titulos: titulos.map(tituloOut), atrasados: atrasados.map(tituloOut), criticas: criticas.map(tituloOut),
+    vencidoTotal: Number(vencTot._sum.valor || 0) - vencPago, vencidoTotalQtd: vencTot._count || 0,
+    titulos: titulos.map(saida), atrasados: atrasados.map(saida), criticas: criticas.map(tituloOut),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
   });
 }

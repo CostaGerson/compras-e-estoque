@@ -681,6 +681,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                   </td>
                   <td className="px-3 py-2 text-right font-bold whitespace-nowrap">
                     {brl(t.valor)}
+                    {t.pagoParcial > 0 && <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)} de {brl(t.valorTotal)}</div>}
                     {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
                       : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
                   </td>
@@ -1949,7 +1950,9 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
   return (
     <Modal titulo={`${d.titulo.nome} · sexta ${sexta}`} icone={CalendarClock} onClose={onClose} largura={1040}
       rodape={<>
-        <span className="mr-auto font-bold" style={{ color: C.navy }}>Total da semana {moeda(d.total)}</span>
+        <span className="mr-auto font-bold" style={{ color: C.navy }}>
+          {d.pago > 0 ? <>Em aberto {moeda(d.saldo)} <span className="font-normal text-xs" style={{ color: C.sub }}>· pago {moeda(d.pago)} de {moeda(d.total)}</span></> : <>Total da semana {moeda(d.total)}</>}
+        </span>
         <BtnP onClick={onClose}>Fechar</BtnP>
       </>}>
       {erro && <div className="p-2 mb-3 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}

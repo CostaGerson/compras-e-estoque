@@ -224,7 +224,8 @@ export async function recalcular(tituloId) {
 }
 
 export async function listarItens(tituloId) {
-  const itens = await prisma.finSemanaItem.findMany({ where: { tituloId: Number(tituloId) }, orderBy: [{ grupo: "asc" }, { nome: "asc" }] });
+  // v273 — em aberto primeiro, pagos embaixo
+  const itens = await prisma.finSemanaItem.findMany({ where: { tituloId: Number(tituloId) }, orderBy: [{ pago: "asc" }, { grupo: "asc" }, { nome: "asc" }, { id: "asc" }] });
   return itens.map((i) => ({
     ...i,
     valor: Number(i.valor),
@@ -356,6 +357,8 @@ export async function abrirSemana(tituloId) {
     grupoDescreve: GRUPO_DESCREVE,
     catalogos, itens, prestadores,
     total: r2(itens.reduce((s, i) => s + i.valor, 0)),
+    pago: r2(itens.filter((i) => i.pago).reduce((s, i) => s + i.valor, 0)),   // v273
+    saldo: r2(itens.filter((i) => !i.pago).reduce((s, i) => s + i.valor, 0)),
     porGrupo,
   };
 }
