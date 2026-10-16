@@ -362,6 +362,11 @@ function VoltaCard({ r }) {
         {r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
           : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
       </div>
+      {r.porMes?.length > 0 && (
+        <div className="mt-1 text-[10px] tabular-nums" style={{ color: C.sub }}>
+          {r.porMes.map((m) => `${MES_CURTO[Number(m.comp.slice(5, 7)) - 1]} ${(r.base === "SETOR" ? m.setor : m.producao ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join(" · ")}
+        </div>
+      )}
     </div>
   );
 }

@@ -334,13 +334,18 @@ export async function resumoVolta(ate = null) {
     return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, 3);
   };
   const expedido = Object.fromEntries(porSetor(["EXPEDICAO"]).map((a) => [a.competencia, calcularCorte(a, 0, 0).pecas]));
+  // v276 — média de 3 meses = média SIMPLES dos valores por peça de cada mês (cada mês pesa igual, como nas tabelas),
+  //   não a soma ÷ soma (que dava mais peso aos meses de volume alto)
   const grupo = (chave, setores, base) => {
     const ms = calcMes(porSetor(setores));
     const volta = ms.reduce((s, [, v]) => s + v.volta, 0), pecas = ms.reduce((s, [, v]) => s + v.pecas, 0);
     const pecasProducao = ms.reduce((s, [k]) => s + (expedido[k] || 0), 0);
-    const porPecaSetor = pecas ? volta / pecas : 0;
-    const porPecaProducao = pecasProducao ? volta / pecasProducao : 0;
-    return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao,
+    const porMes = ms.map(([k, v]) => ({ comp: k, volta: r2(v.volta), pecas: v.pecas, expedido: expedido[k] || 0,
+      setor: v.pecas ? v.volta / v.pecas : 0, producao: expedido[k] ? v.volta / expedido[k] : null })).sort((a, b) => a.comp.localeCompare(b.comp));
+    const media = (arr) => (arr.length ? arr.reduce((t, x) => t + x, 0) / arr.length : 0);
+    const porPecaSetor = media(porMes.map((m) => m.setor));
+    const porPecaProducao = media(porMes.filter((m) => m.producao != null).map((m) => m.producao));
+    return { chave, meses: porMes.map((m) => m.comp), porMes, volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao,
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
