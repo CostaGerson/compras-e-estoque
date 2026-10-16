@@ -39,7 +39,7 @@ export async function POST(req) {
     if (b.acao === "salvar") {
       if (!/^\d{4}-\d{2}$/.test(b.competencia || "")) return Response.json({ error: "Mês inválido." }, { status: 400 });
       const c = b.campos || {};
-      const num = (v) => (v === "" || v == null ? null : Number(String(v).replace(",", ".")));
+      const num = (v) => { if (v === "" || v == null) return null; const t = String(v).trim(); const n = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); return Number.isFinite(n) ? n : null; };
       const data = {};
       for (const k of ["pecasEstimadas", "custoMeta", "pessoalManual", "freelancerManual"]) if (k in c) data[k] = num(c[k]);
       if (data.pecasEstimadas == null && "pecasEstimadas" in c) data.pecasEstimadas = 13000;

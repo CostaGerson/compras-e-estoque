@@ -11,6 +11,9 @@ const brl = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFract
 const n2 = (v, d = 2) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v, d = 1) => `${n2((Number(v) || 0) * 100, d)}%`;
 const int = (v) => (Number(v) || 0).toLocaleString("pt-BR");
+const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const numBR = (v) => { const t = String(v ?? "").trim(); return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); };
+const editado = (v, auto) => v !== "" && v != null && Math.abs(numBR(v) - r2(auto)) >= 0.01;
 const mesAnterior = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
 async function api(url, method = "GET", body) {
@@ -90,7 +93,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
       const a = j.analise;
       setF(a ? {
         qtds: { ...(a.qtds || {}) }, mercado: { ...(j.calc ? Object.fromEntries((j.calc.colunas || j.calc.categorias).map((x) => [x.k, x.mercado])) : {}) },
-        pecasEstimadas: a.pecasEstimadas ?? 13000, custoMeta: a.custoMeta ?? "", pessoalManual: a.pessoalManual ?? "", freelancerManual: a.freelancerManual ?? "",
+        pecasEstimadas: a.pecasEstimadas ?? 13000, custoMeta: a.custoMeta ?? "", // v256 — pessoal e freelancers vêm preenchidos com o valor do sistema e podem ser alterados
+        pessoalManual: a.pessoalManual ?? r2(j.auto?.pessoal), freelancerManual: a.freelancerManual ?? r2(j.auto?.freelancer),
         meta: a.meta || "", causas: a.causas || "", providencias: a.providencias || "",
       } : null);
     } catch (e) { setErro(e.message); }
@@ -114,7 +118,9 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   };
   const salvar = async () => {
     setSt("Salvando…"); setErro("");
-    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos: f }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
+    // igual ao do sistema = continua automático (acompanha a Matriz/extrato); diferente = fica o valor digitado
+    const campos = { ...f, pessoalManual: editado(f.pessoalManual, d?.auto?.pessoal) ? f.pessoalManual : "", freelancerManual: editado(f.freelancerManual, d?.auto?.freelancer) ? f.freelancerManual : "" };
+    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
     catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -205,18 +211,21 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Custo do setor no mês</div>
               <table className="w-full text-xs"><tbody>
-                <tr><td className="py-1">Pessoal (custo total da folha · Matriz)</td><td className="text-right">{brl(d.auto?.pessoal)}</td>
-                  <td className="text-right pl-2"><input value={f.pessoalManual} onChange={(e) => s("pessoalManual")(e.target.value)} placeholder="usar Matriz" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
-                <tr><td className="py-1">Freelancers {T.de} <span style={{ color: C.sub }}>({String(d.auto?.fonteFree || "—").toLowerCase()})</span></td><td className="text-right">{brl(d.auto?.freelancer)}</td>
-                  <td className="text-right pl-2"><input value={f.freelancerManual} onChange={(e) => s("freelancerManual")(e.target.value)} placeholder="usar sistema" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
-                {f.freelancerManual !== "" && f.freelancerManual != null && Math.abs(Number(String(f.freelancerManual).replace(",", ".")) - (d.auto?.freelancer || 0)) >= 1 && (
-                  <tr><td colSpan={3} className="py-1 text-[11px] font-semibold" style={{ color: C.yellow }}>
-                    Conflito: informado {brl(Number(String(f.freelancerManual).replace(",", ".")))} × registrado no sistema {brl(d.auto?.freelancer)} — vale o informado.
-                  </td></tr>)}
+                {[["pessoalManual", "Pessoal (custo total da folha)", d.auto?.pessoal, "Matriz"],
+                  ["freelancerManual", `Freelancers ${T.de}`, d.auto?.freelancer, String(d.auto?.fonteFree || "—").toLowerCase()]].map(([k, rot, auto, fonte]) => {
+                  const ed = editado(f[k], auto);
+                  return (
+                    <tr key={k}><td className="py-1">{rot}
+                        <div className="text-[10px]" style={{ color: ed ? C.yellow : C.sub }}>
+                          {ed ? <>alterado · sistema {brl(auto)} ({fonte}) <button onClick={() => s(k)(r2(auto))} className="underline font-semibold" style={{ color: C.accent }}>voltar ao do sistema</button></> : <>do sistema ({fonte})</>}
+                        </div></td>
+                      <td />
+                      <td className="text-right pl-2"><input value={f[k]} onChange={(e) => s(k)(e.target.value)} className={inp} style={{ ...inpS, width: 110, borderColor: ed ? C.yellow : C.line }} /></td></tr>);
+                })}
                 <tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
               </tbody></table>
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>{T.manual && <b>Preencha a folha e os freelancers do mês. </b>}Vazio = automático: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Preencha só para corrigir um mês antigo.</div>
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>Pessoal e freelancers já vêm preenchidos com o do sistema: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Altere se precisar e salve; sem alteração, o valor continua acompanhando o sistema.</div>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>
