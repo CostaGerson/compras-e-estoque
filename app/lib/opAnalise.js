@@ -37,6 +37,7 @@ export const CATEGORIAS_COSTURA = [
   ...COM_SEM("MOLETOM_NORMAL", "Moletom normal"), ...COM_SEM("MOLETOM_COLEGIAL", "Moletom colegial"),
   ["JAQUETA", "Jaqueta", 0], ["CAMISA_SOCIAL", "Camisa social", 0], ["JALECO_OPERACIONAL", "Jaleco operacional", 0],
   ["CALCA_OPERACIONAL", "Calça operacional", 0], ["CALCA_JEANS", "Calça jeans", 0], ["CALCA_SOCIAL", "Calça social", 0], ["AVENTAL", "Avental", 0],
+  ["TOUCA", "Touca / máscara", 0],
 ];
 // v254 — personalização: grade peça × nível. Silk = nº de cores (1 a 6); bordado = milheiro de pontos (1 a 10 mil).
 // Peças = as mesmas do corte/expedição. O valor de mercado é por nível (coluna), igual para todas as peças.
