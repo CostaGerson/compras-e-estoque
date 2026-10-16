@@ -21,6 +21,8 @@ export async function GET(req, { params }) {
   // v212 — a oficial puxa as metas do botão METAS da Gestão (mês da análise)
   // v249 — a oficial é o HISTÓRICO do ano (realizado + previsão pela média); metas só nas simulações
   if (m.oficial) { const { dadosHistoricos } = await import("@/lib/matrizMetas"); m.dados = await dadosHistoricos(m.dados); }
+  // v270 — oficial e simulações: contribuição bruta por peça e % freelancer da realidade atual (Análises operacionais)
+  { const { comOperacaoReal } = await import("@/lib/matrizReal"); m.dados = await comOperacaoReal(m.dados); }
   return Response.json({ ...m, critica });
 }
 
@@ -44,6 +46,40 @@ export async function PUT(req, { params }) {
   let contas = null;
   if (atual.oficial) { const { sincronizarMatriz } = await import("@/lib/finMatrizRecDb"); contas = await sincronizarMatriz(nomeU(u)).catch((e) => ({ erro: e.message })); }
   return Response.json({ ok: true, updatedAt: m.updatedAt, atualizadoPor: m.atualizadoPor, contas });
+}
+
+// v270 — POST { usuarioId, acao: "capacidade", cenario: "ATUAL" | "A" | "B" } → refaz a simulação a partir da oficial
+//   com a meta, o ticket, a margem e as peças mês a mês DESTA simulação, ajustada à capacidade real:
+//   ATUAL = equipe e % freelancer de hoje · A = a necessidade extra vira freelancer · B = acima de 1 freelancer/dia vira contratação
+export async function POST(req, { params }) {
+  const b = await req.json().catch(() => ({}));
+  const u = await usuarioGerencial(b.usuarioId);
+  if (!u) return negadoGerencial();
+  if (b.acao !== "capacidade") return Response.json({ error: "Ação inválida." }, { status: 400 });
+  if (!["ATUAL", "A", "B"].includes(b.cenario)) return Response.json({ error: "Escolha: equipe atual, A ou B." }, { status: 400 });
+  const id = Number(params.id);
+  const atual = await prisma.finMatriz.findUnique({ where: { id } });
+  if (!atual) return Response.json({ error: "Matriz não encontrada." }, { status: 404 });
+  if (atual.oficial) return Response.json({ error: "A oficial é o histórico real: ajuste a capacidade numa simulação." }, { status: 400 });
+  try {
+    const d = atual.dados || {}, pr = d.producao || {};
+    const f = d.fechamento;
+    const pecasMes = Array.isArray(f?.pcsMeses) && f.pcsMeses.length === 12 ? f.pcsMeses.map((x) => Number(x) || 0) : null;
+    const fech = f?.fechados || [];
+    const abertos = pecasMes ? pecasMes.filter((_, i) => !fech[i]) : [];
+    const alvo = Math.round(abertos.length ? abertos.reduce((t, x) => t + x, 0) / abertos.length : Number(pr.metaPecas) || 0);
+    if (!alvo) return Response.json({ error: "Informe a meta de peças da simulação antes de ajustar à capacidade." }, { status: 400 });
+    const { analisarCapacidade } = await import("@/lib/gestaoCapacidade");
+    const { montarSimulacao } = await import("@/lib/capacidadeSimulacao");
+    const ano = Number(f?.ano || d.simulacaoCapacidade?.ano) || new Date().getFullYear();
+    const analise = await analisarCapacidade({ meses: 3, alvo, ano });
+    const r = await montarSimulacao({ analise, cenario: b.cenario, ano, mes: d.simulacaoCapacidade?.mes || null, pecasMes,
+      metas: { ticket: pr.ticketMedio, margem: pr.margemContribuicao } });
+    if (!pecasMes) r.dados.producao.metaPecas = Number(pr.metaPecas) || alvo;
+    await prisma.finMatrizVersao.create({ data: { matrizId: id, dados: atual.dados, usuarioNome: atual.atualizadoPor, resumo: `antes de: ajustar à capacidade (${b.cenario})` } });
+    await prisma.finMatriz.update({ where: { id }, data: { dados: r.dados, atualizadoPor: nomeU(u) } });
+    return Response.json({ ok: true, cenario: b.cenario, pct: r.pct, contratados: r.criados.length, alvo });
+  } catch (e) { return Response.json({ error: e.message || "Erro ao ajustar." }, { status: 400 }); }
 }
 
 // PATCH { usuarioId, nome } → renomeia

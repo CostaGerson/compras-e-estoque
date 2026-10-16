@@ -25,11 +25,18 @@ export async function salvarSalarios(d) {
 // analise = resultado de analisarCapacidade (com a meta); cenario "A" | "B"
 // v242 — pecasMes: peças de cada mês (fechados = realizado; abertos = meta) → viabilidade e ano inteiro na simulação
 // v250 — metas: { ticket, margem } da tela de Metas (ainda não gravadas) — prevalecem sobre as gravadas
+// v270 — montarSimulacao: monta os dados (sem gravar). cenario "A" | "B" | "ATUAL" (equipe e % de freelancer de hoje)
 export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMes, metas }) {
-  const T0 = analise?.total?.[cenario];
+  const r = await montarSimulacao({ analise, cenario, ano, mes, pecasMes, metas });
+  const m = await prisma.finMatriz.create({ data: { nome: r.nome, oficial: false, dados: r.dados, atualizadoPor: quem || "CAPACIDADE" } });
+  return { id: m.id, nome: r.nome, contratados: r.criados.length, criados: r.criados, pct: r.pct, escaladas: r.escaladas };
+}
+export async function montarSimulacao({ analise, cenario, ano, mes, pecasMes, metas }) {
+  const atual = cenario === "ATUAL";
+  const T0 = atual ? { pct: null, freeDia: analise?.total?.freeDia } : analise?.total?.[cenario];
   if (!T0) throw new Error("Informe a meta de peças: sem ela não há cenário para levar.");
   const temPeriodo = Array.isArray(pecasMes) && pecasMes.length === 12;
-  const plano = temPeriodo ? planoMensal({ setores: analise.setores, pecasMes: pecasMes.map((x) => Number(x) || 0), ano: analise.anoMetas, fechados: analise.fechados || [], semContratar: cenario === "A" }) : null;
+  const plano = temPeriodo && !atual ? planoMensal({ setores: analise.setores, pecasMes: pecasMes.map((x) => Number(x) || 0), ano: analise.anoMetas, fechados: analise.fechados || [], semContratar: cenario === "A" }) : null;
   const T = plano ? { ...T0, pct: plano.periodo.pct ?? T0.pct } : T0;
   const of = await prisma.finMatriz.findFirst({ where: { oficial: true } });
   if (!of) throw new Error("Matriz oficial não encontrada.");
@@ -40,11 +47,15 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
   if (analise.meta) pr.metaPecas = analise.meta;
   if (Number(metas?.ticket) > 0) pr.ticketMedio = Number(metas.ticket);
   if (metas?.margem != null && metas.margem !== "" && Number.isFinite(Number(metas.margem))) pr.margemContribuicao = Number(metas.margem);
-  pr.razaoInternaAuto = false;
-  pr.razaoInternaManual = Math.round((1 - (T.pct || 0)) * 10000) / 10000;   // % de freelancer do cenário
+  if (atual) pr.razaoInternaAuto = true;   // v270 — % de freelancer oficial de hoje (Análises/Capacidade/Matriz)
+  else {
+    pr.razaoInternaAuto = false;
+    pr.razaoInternaManual = Math.round((1 - (T.pct || 0)) * 10000) / 10000;   // % de freelancer do cenário
+  }
+  pr.custoPecaAuto = true;   // v270 — custo interno por peça = contribuição bruta das Análises
   const inicio = ano && mes ? `${ano}-${String(mes).padStart(2, "0")}-01` : null;
   let criados = [], escaladas = [];
-  {
+  if (!atual) {
     // v253 — A e B: as despesas por pessoa acompanham CLT + freelancers/dia (histórico → simulação)
     const freeAntes = Number(analise.total?.freeDia) || 0;
     const freeDepois = plano ? plano.periodo.freeDiaMedio : Number(T0.freeDia) || 0;
@@ -69,6 +80,5 @@ export async function criarSimulacao({ analise, cenario, ano, mes, quem, pecasMe
   const pcs = pr.metaPecas ? ` · ${Math.round(pr.metaPecas).toLocaleString("pt-BR")} PÇ/MÊS${temPeriodo ? " (MÉDIA DO ANO)" : ""}` : "";
   const nome = `SIMULAÇÃO ${cenario} · ${data}${ref}${pcs}`;
   dados.simulacaoCapacidade = { cenario, meta: analise.meta, pctFreelancer: T.pct, contratados: criados.length, ano: ano || null, mes: mes || null, criadoEm: new Date().toISOString() };
-  const m = await prisma.finMatriz.create({ data: { nome, oficial: false, dados, atualizadoPor: quem || "CAPACIDADE" } });
-  return { id: m.id, nome, contratados: criados.length, criados, pct: T.pct, escaladas };
+  return { dados, nome, criados, pct: T.pct, escaladas };
 }

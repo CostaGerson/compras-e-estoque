@@ -204,6 +204,22 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
     if (sujo && !confirm("Há alterações não salvas. Trocar mesmo assim (elas serão perdidas)?")) return;
     await abrir(Number(id)).catch((e) => setErro(e.message));
   };
+  // v270 — ajuste da simulação à capacidade real (escolha por simulação: equipe atual, A ou B)
+  const [capSel, setCapSel] = useState("");
+  const [ajustando, setAjustando] = useState(false);
+  const ajustarCapacidade = async () => {
+    const c = capSel || dados?.simulacaoCapacidade?.cenario || "ATUAL";
+    const nomes = { ATUAL: "equipe de hoje e % de freelancer atual", A: "A (a necessidade extra vira freelancer)", B: "B (acima de 1 freelancer/dia vira contratação)" };
+    if (sujo && !confirm("Há alterações não salvas: o ajuste parte do que está gravado. Continuar?")) return;
+    if (!confirm(`Ajustar "${doc.nome}" à capacidade real — ${nomes[c]}?\n\nA simulação é refeita a partir da OFICIAL, mantendo a meta de peças (mês a mês), o ticket e a margem desta simulação. Edições manuais de pessoal e despesas desta simulação são substituídas (a versão anterior fica no Histórico).`)) return;
+    setAjustando(true); setErro("");
+    try {
+      const r = await api(`/api/fin/matriz/${doc.id}`, "POST", { usuarioId: user.id, acao: "capacidade", cenario: c });
+      await abrir(doc.id); setCapSel("");
+      setAviso(`Simulação ajustada (${c === "ATUAL" ? "equipe de hoje" : `cenário ${c}`}) para ${Number(r.alvo).toLocaleString("pt-BR")} pç/mês${r.pct != null ? ` · ${(r.pct * 100).toFixed(2).replace(".", ",")}% de freelancer` : ""}${r.contratados ? ` · ${r.contratados} contratação(ões) hipotética(s)` : ""}.`);
+    } catch (e) { setErro(e.message); }
+    setAjustando(false);
+  };
   const novoCenario = async () => {
     // v217 — por padrão o cenário nasce da OFICIAL (com tudo: dívidas, parcelamentos, pessoal e metas da Gestão)
     const of = (lista || []).find((x) => x.oficial);
@@ -261,6 +277,17 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
         <span className="text-xs" style={{ color: C.sub }}>Atualizada {dataHora(doc.updatedAt)}{doc.atualizadoPor ? ` · ${doc.atualizadoPor}` : ""}</span>
         <div className="flex-1" />
         <BtnSec onClick={novoCenario} Ico={Copy} t="Novo cenário" />
+        {!doc.oficial && (
+          <span className="flex items-center gap-1 text-xs" style={{ color: C.sub }} title="Ajusta a simulação à capacidade real de entrega de peças (Capacidade × freelancer, últimos 3 meses)">
+            Capacidade:
+            <select value={capSel || dados?.simulacaoCapacidade?.cenario || "ATUAL"} onChange={(e) => setCapSel(e.target.value)} className="rounded-lg px-1.5 py-1 text-xs outline-none" style={{ border: `1px solid ${C.line}` }}>
+              <option value="ATUAL">Equipe de hoje · % freelancer atual</option>
+              <option value="A">A · a necessidade extra vira freelancer</option>
+              <option value="B">B · acima de 1 freelancer/dia vira contratação</option>
+            </select>
+            <button onClick={ajustarCapacidade} disabled={!!ajustando} className="px-2 py-1 rounded-lg font-semibold text-white" style={{ background: C.blue }}>{ajustando ? "Ajustando…" : "Aplicar"}</button>
+          </span>
+        )}
         {!doc.oficial && <BtnSec onClick={resetar} Ico={RotateCcw} t="Resetar p/ oficial" />}
         {!doc.oficial && <BtnSec onClick={renomear} Ico={Pencil} t="Renomear" />}
         {!doc.oficial && <BtnSec onClick={apagar} Ico={Trash2} t="Apagar" cor={C.red} />}
@@ -904,7 +931,15 @@ function Producao({ dados, calc, muda, mg }) {
     <div className="space-y-5">
       <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
         <Cartao titulo="Custo por peça (semestre)">
-          <Linha t="Custo produção / peça" dica={pr.custoPecaObs}><NumInput value={pr.custoPeca} onChange={(v) => s("custoPeca", v)} /></Linha>
+          {/* v270 — custo interno por peça = contribuição bruta das Análises operacionais (realidade atual) */}
+          <Linha t="Custo produção / peça" dica={calc.custoPecaAuto
+            ? `contribuição bruta das Análises operacionais (corte + personalização + costura + expedição, média de 3 meses${dados.operacaoReal?.meses?.length ? `: ${dados.operacaoReal.meses.map((m) => m.slice(5, 7) + "/" + m.slice(2, 4)).join(", ")}` : ""})`
+            : pr.custoPecaObs}>
+            <div className="flex items-center gap-2">
+              {dados.operacaoReal?.bruta > 0 && <label className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={pr.custoPecaAuto !== false} onChange={(e) => s("custoPecaAuto", e.target.checked)} /> das Análises</label>}
+              {calc.custoPecaAuto ? <span className="font-semibold">{moeda(calc.custoPeca)}</span> : <NumInput value={pr.custoPeca} onChange={(v) => s("custoPeca", v)} />}
+            </div>
+          </Linha>
           <Linha t="Razão interna" dica={mg?.pctFreelancer != null ? `1 − ${pct(calc.pctFreelancer)} de freelancer (${mg.historico ? `oficial: ${mg.periodoFree || "últimos 3 meses"}, folha × freelancers do extrato` : "meta da página Metas"})` : pr.razaoInternaAuto ? `Calculada: 1 − ${pct(calc.pctFreelancer)} de freelancer (tabelas abaixo)` : `Valor manual (${pct(calc.pctFreelancer)} de freelancer)`}>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={!!pr.razaoInternaAuto} onChange={(e) => s("razaoInternaAuto", e.target.checked)} /> automática</label>

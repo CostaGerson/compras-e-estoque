@@ -49,7 +49,8 @@ export async function conferencia(ano = new Date().getFullYear(), hoje = new Dat
   if (matrizOf?.dados) {
     try {
       const { dadosComMetas } = await import("@/lib/matrizMetas");
-      const dd = await dadosComMetas(matrizOf.dados, hoje);
+      const { comOperacaoReal } = await import("@/lib/matrizReal");   // v270
+      const dd = await comOperacaoReal(await dadosComMetas(matrizOf.dados, hoje));
       M = calcularMatriz(dd); pr = dd.producao || {};
     } catch { M = null; }
   }

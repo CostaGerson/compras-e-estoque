@@ -86,11 +86,17 @@ export function calcularMatriz(d) {
   const totGeral = fe.tot.custo + fc.tot.custo, totFree = fe.tot.freelancer + fc.tot.freelancer;
   // v224 — na oficial, o % de freelancer é a meta da página Metas (Gestão); sem ela, a tabela Pessoal x Freelancer
   const mgF = d.metasGestao?.pctFreelancer;
-  const pctFreelancer = mgF != null ? n(mgF) : totGeral ? totFree / totGeral : 0;           // L3
+  // v270 — realidade atual (Análises operacionais): % freelancer oficial e contribuição bruta por peça
+  const op = d.operacaoReal || null;
+  const pctOficial = op?.pctFree != null ? n(op.pctFree) : null;
+  const pctFreelancer = mgF != null ? n(mgF) : pctOficial != null ? pctOficial : totGeral ? totFree / totGeral : 0;           // L3
   const razaoInterna = mgF != null || pr.razaoInternaAuto ? 1 - pctFreelancer : n(pr.razaoInternaManual);
   // v245 — razão interna manual (ex.: simulação da Capacidade): o % de freelancer exibido é o complemento dela, não o da tabela
   const pctFreelancerUsado = mgF != null || pr.razaoInternaAuto ? pctFreelancer : 1 - razaoInterna;
-  const razaoProd = n(pr.custoPeca) * razaoInterna;                   // E29
+  // v270 — custo interno por peça = contribuição bruta das Análises (corte + personalização + costura + expedição, média 3 meses)
+  const custoPecaAuto = pr.custoPecaAuto !== false && n(op?.bruta) > 0;
+  const custoPeca = custoPecaAuto ? n(op.bruta) : n(pr.custoPeca);
+  const razaoProd = custoPeca * razaoInterna;                         // E29
   const razaoLog = n(pr.razaoLog);                                    // E31
   const custoPecaInterno = razaoProd + razaoLog;
 
@@ -164,7 +170,7 @@ export function calcularMatriz(d) {
     blocos: { vidaVegetativa, pessoal: totPessoal, logistica, administracao, sistemas, dividas },
     custoOperacao, custoOperacaoDia: custoOperacao / dias, custoNegocio, custoNegocioDia: custoNegocio / dias,
     operacaoPrecificada, custoAdministrativo,
-    pctFreelancer: pctFreelancerUsado, pctFreelancerTabela: pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno,
+    pctFreelancer: pctFreelancerUsado, pctFreelancerTabela: pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno, custoPeca, custoPecaAuto, pctOficial,
     metaFatAnual, metaMensal, metaDia: metaMensal / dias, pecasCobrem, balanco,
     lucroCenario, lucroCenarioR, lucroReal, lucroRealR, breakevenPecas, projecao,
     // v239 — com projeção: o ano = realizado + simulado (o resultado "puro" da Matriz continua acima)

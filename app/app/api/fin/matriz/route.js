@@ -36,7 +36,8 @@ export async function POST(req) {
     const { dadosComMetas } = await import("@/lib/matrizMetas"); dados = await dadosComMetas(dados).catch(() => dados);
     // v249 — a oficial é histórico; o cenário leva as METAS (inclusive o % de freelancer como razão interna)
     const mg = dados.metasGestao;
-    if (mg && !mg.historico && mg.pctFreelancer != null) dados = { ...dados, producao: { ...dados.producao, razaoInternaAuto: false, razaoInternaManual: Math.round((1 - Number(mg.pctFreelancer)) * 10000) / 10000 } };
+    // v270 — o cenário nasce com a realidade de hoje: % freelancer oficial e custo por peça das Análises (ajuste A/B na própria simulação)
+    dados = { ...dados, producao: { ...dados.producao, razaoInternaAuto: true, custoPecaAuto: true }, simulacaoCapacidade: { cenario: "ATUAL", criadoEm: new Date().toISOString() } };
   }
   const m = await prisma.finMatriz.create({
     data: { nome: String(b.nome || `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`).toUpperCase(), oficial: false, dados, atualizadoPor: nomeU(u) },
