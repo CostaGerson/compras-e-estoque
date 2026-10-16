@@ -381,18 +381,6 @@ function CardsGrupo({ grupo, ir, user }) {
           <div className="text-xs" style={{ color: C.sub }}>{grupo.desc}</div>
         </div>
       </div>
-      {volta && (
-        <div className="rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-1" style={{ background: C.sidebar, color: "#fff" }}>
-          <div>
-            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
-            <div className="text-2xl font-bold tabular-nums">{brlV(volta.total)}</div>
-          </div>
-          <div className="text-xs flex-1" style={{ color: C.sidebarSub, minWidth: 240 }}>
-            Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
-            Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
-          </div>
-        </div>
-      )}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
           const I = f.icon;
@@ -413,6 +401,17 @@ function CardsGrupo({ grupo, ir, user }) {
             </button>
           );
         })}
+        {/* v266 — total ao lado do último card de setor */}
+        {volta && (
+          <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.sidebar, color: "#fff" }}>
+            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
+            <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
+            <div className="text-[11px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
+              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
+              Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
