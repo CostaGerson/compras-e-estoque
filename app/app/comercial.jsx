@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
 } from "lucide-react";
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -44,9 +44,9 @@ function calcVolta(params, tipo, e = {}, over = {}) {
   const perTec = (p) => (p ? (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0) : 0);
   const v = {
     corte: Number(pg("PECA", e.item, "corte")) || 0,
-    silk: e.silk?.interno ? perTec(e.silk) : 0,
-    bordado: e.bordado?.interno ? perTec(e.bordado) : 0,
-    sublimacao: e.sublimacao?.interno ? perTec(e.sublimacao) : 0,
+    silk: (e.silk?.interno ? perTec(e.silk) : 0) + persPorTecnica(e, params, true).silk,
+    bordado: (e.bordado?.interno ? perTec(e.bordado) : 0) + persPorTecnica(e, params, true).bordado,
+    sublimacao: (e.sublimacao?.interno ? perTec(e.sublimacao) : 0) + persPorTecnica(e, params, true).sublimacao,
     costura: e.faccaoInterna ? num(e.faccao) : 0,
     acabamento: Number(tipo === "MALHA" ? pg("PECA", e.item, "exped") : pg("PECA", e.item, "acab")) || 0,
     logistica: cg("LOGISTICA_BASE"),
@@ -130,6 +130,28 @@ export default function Comercial({ user, master }) {
    FPP — Ficha de Precificação de Produtos
    ============================================================ */
 const POS = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
+// v272 — personalização por aplicação: local + método (silk cobra R$/cor das Análises; os demais, valor digitado)
+const LOCAIS_PERS = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."]];
+const METODOS_PERS = [["SILK", "Silk", true], ["BORDADO", "Bordado", true], ["DTF", "DTF", false], ["SUBLIMACAO", "Sublimação", false]];
+const TEC_DO_METODO = { SILK: "silk", DTF: "silk", BORDADO: "bordado", SUBLIMACAO: "sublimacao" };
+const nomeLocal = (k) => (LOCAIS_PERS.find((x) => x[0] === k) || [k, k])[1];
+const nomeMetodo = (k) => (METODOS_PERS.find((x) => x[0] === k) || [k, k])[1];
+const silkPorCorDe = (params) => Number(params?.OPERACIONAL?.silkPorCor) || 0.8;
+// valor por peça de uma aplicação
+function valorAplicacao(a, params) {
+  if (!a) return 0;
+  return a.metodo === "SILK" ? (Number(a.cores) || 0) * silkPorCorDe(params) : num(a.valor);
+}
+// soma por técnica (silk/bordado/sublimação), só internas ou todas
+function persPorTecnica(e, params, soInternas) {
+  const out = { silk: 0, bordado: 0, sublimacao: 0 };
+  for (const a of Array.isArray(e?.personalizacoes) ? e.personalizacoes : []) {
+    if (soInternas && !a.interno) continue;
+    const t = TEC_DO_METODO[a.metodo] || "silk";
+    out[t] += valorAplicacao(a, params);
+  }
+  return out;
+}
 
 // Condições de pagamento -> parcelas {frac, dias, tipo}. tipo boleto = incide juros de título.
 const COND_PAGTO = {
@@ -190,6 +212,7 @@ function fichaVazia(tipo) {
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
+    personalizacoes: [], arteTotal: "", faccaoTipo: "",   // v272
     freteVolume: "", embExt: "", embInt: "SIMPLES",
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "",
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
@@ -299,7 +322,8 @@ function Fpp({ user, master }) {
 
     // Personalização (arte rateada ÷ qtde + posições por peça)
     const perTec = (p) => (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0);
-    const personalizacao = perTec(f.silk) + perTec(f.bordado) + perTec(f.sublimacao);
+    const pn = persPorTecnica(f, params, false);
+    const personalizacao = perTec(f.silk) + perTec(f.bordado) + perTec(f.sublimacao) + pn.silk + pn.bordado + pn.sublimacao + num(f.arteTotal) / qt;
 
     // Logística
     const pcsPorVolume = pget("EMB_EXT", f.embExt, "und") * volProp || 1;
@@ -491,17 +515,38 @@ function Fpp({ user, master }) {
                 <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                 <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                 <div>
-                  <Inp label="Facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
+                  {/* v272 — costura: o tipo de peça cobra o valor terceirizado registrado na análise da costura */}
+                  {(params?.OPERACIONAL?.costura || []).length > 0 && (
+                    <select value={f.faccaoTipo || ""} onChange={(e) => {
+                      const c = (params.OPERACIONAL.costura || []).find((x) => x.k === e.target.value);
+                      setF((s0) => ({ ...s0, faccaoTipo: e.target.value, faccao: c ? String(c.valor).replace(".", ",") : s0.faccao }));
+                    }} className="w-full mb-1 px-2 py-1.5 rounded text-xs" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+                      <option value="">Costura · tipo de peça…</option>
+                      {params.OPERACIONAL.costura.map((c) => <option key={c.k} value={c.k}>{c.n} · {brl(c.valor)}</option>)}
+                    </select>
+                  )}
+                  <Inp label="Costura / facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
                   <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: f.faccaoInterna ? C.accent : C.sub }}>
                     <Toggle on={!!f.faccaoInterna} onChange={(v) => set("faccaoInterna", v)} /> Processo interno
                   </div>
                 </div>
               </div>
+              {params?.OPERACIONAL?.meses?.length > 0 && (
+                <div className="text-[11px] mt-2" style={{ color: C.sub }}>
+                  Corte, {tipo === "MALHA" ? "expedição" : "acabamento"} e costura: média das Análises operacionais de {params.OPERACIONAL.meses.map((m) => m.slice(5, 7) + "/" + m.slice(2, 4)).join(", ")} (valor bruto por tipo de peça). Atualiza sozinho a cada mês completo novo.
+                </div>
+              )}
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
             </Card>
 
             <Card title="Personalização">
-              {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].map(([tec, lbl]) => (
+              {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
+              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                <Inp label="Arte / tela (R$ total, rateado)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} />
+              </div>
+              {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
+              {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
                 <div key={tec} className="mb-3">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="text-xs font-semibold" style={{ color: C.text }}>{lbl}</div>
@@ -939,6 +984,7 @@ async function imprimirFicha(f, master) {
     const p = e[tec] || {}; const pos = POS2.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
     if (pos.length || Number(p.arte) > 0) pp.push(`${lbl}${pos.length ? " (" + pos.join(", ") + ")" : ""}`);
   }
+  for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : []) pp.push(`${nomeMetodo(a.metodo)}${a.metodo === "SILK" ? ` ${a.cores || 1} cor(es)` : ""} (${nomeLocal(a.local)})`);
   row("Personalização", pp.join(" · ") || "—");
   y += 2;
 
@@ -1366,6 +1412,10 @@ function detalhesItem(f) {
     const pos = POS.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
     if (pos.length) parts.push(`${lbl} ${pos.join(" / ")}`);
   }
+  // v272 — aplicações novas agrupadas por método
+  const porMet = {};
+  for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : []) (porMet[a.metodo] ||= []).push(`${nomeLocal(a.local).toUpperCase()}${a.metodo === "SILK" ? ` ${a.cores || 1}C` : ""}`);
+  for (const [m, l] of Object.entries(porMet)) parts.push(`${nomeMetodo(m).toUpperCase()} ${l.join(" / ")}`);
   return parts.join(" · ");
 }
 
@@ -1548,6 +1598,50 @@ function ProposalModal({ fichas, onClose }) {
 }
 
 /* ---------- pequenos componentes ---------- */
+// v272 — lista de aplicações de personalização da FPP
+function PersAplicacoes({ lista, onChange, params }) {
+  const pc = silkPorCorDe(params);
+  const add = () => onChange([...lista, { local: "PEITO_E", metodo: "SILK", cores: 1, valor: "", interno: true }]);
+  const mud = (i, k, v) => onChange(lista.map((a, j) => {
+    if (j !== i) return a;
+    const n = { ...a, [k]: v };
+    if (k === "metodo") n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
+    return n;
+  }));
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  return (
+    <div>
+      {lista.map((a, i) => (
+        <div key={i} className="flex flex-wrap items-end gap-2 mb-2 p-2 rounded" style={{ background: C.panel2 }}>
+          <label className="text-[11px]" style={{ color: C.sub }}>Local
+            <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="block px-2 py-1.5 rounded text-xs" style={sel}>
+              {LOCAIS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+            </select></label>
+          <label className="text-[11px]" style={{ color: C.sub }}>Método
+            <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="block px-2 py-1.5 rounded text-xs" style={sel}>
+              {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+            </select></label>
+          {a.metodo === "SILK" ? (
+            <label className="text-[11px]" style={{ color: C.sub }}>Cores
+              <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="block px-2 py-1.5 rounded text-xs" style={sel}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
+              </select></label>
+          ) : (
+            <label className="text-[11px]" style={{ color: C.sub }}>Valor (R$/peça)
+              <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel} /></label>
+          )}
+          <div className="text-xs font-semibold pb-1.5" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>
+          <div className="flex items-center gap-1 text-[11px] pb-1.5" style={{ color: a.interno ? C.accent : C.sub }}><Toggle on={!!a.interno} onChange={(v) => mud(i, "interno", v)} /> interno</div>
+          <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="ml-auto pb-1.5" style={{ color: C.sub }} title="Remover"><Trash2 size={13} /></button>
+        </div>
+      ))}
+      <button type="button" onClick={add} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>
+        <Plus size={13} /> Aplicação
+      </button>
+    </div>
+  );
+}
+
 function Card({ title, children }) {
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4">
