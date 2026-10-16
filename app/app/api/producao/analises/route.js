@@ -41,7 +41,7 @@ export async function POST(req) {
       const c = b.campos || {};
       const num = (v) => { if (v === "" || v == null) return null; const t = String(v).trim(); const n = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); return Number.isFinite(n) ? n : null; };
       const data = {};
-      for (const k of ["pecasEstimadas", "custoMeta", "pessoalManual", "freelancerManual"]) if (k in c) data[k] = num(c[k]);
+      for (const k of ["pecasEstimadas", "custoMeta", "pessoalManual", "freelancerManual", "insumoManual"]) if (k in c) data[k] = num(c[k]);
       if (data.pecasEstimadas == null && "pecasEstimadas" in c) data.pecasEstimadas = 13000;
       for (const k of ["meta", "causas", "providencias"]) if (k in c) data[k] = c[k] ? String(c[k]).trim().toUpperCase() : null;
       if (c.mercado) data.mercado = Object.fromEntries(Object.entries(c.mercado).map(([k, v]) => [k, Number(v) || 0]));

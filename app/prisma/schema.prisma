@@ -1719,6 +1719,7 @@ model OpAnalise {
   meta              String?
   causas            String?
   providencias      String?
+  insumoManual      Float?   // v257 — insumo do mês (tinta/linha) informado à mão; vazio = estimado pela planilha
   extra             Json?    // v255 — silk/bordado importados: unidades (cor×peça), terceirizado do mês, mercado e tinta por unidade
   atualizadoPorNome String?
   createdAt         DateTime @default(now())

@@ -52,9 +52,9 @@ const TXT = {
   COSTURA: { titulo: "Análise da costura", Ico: Shirt, de: "da costura", manual: true, dentro: "costurar dentro",
     ajuda: <>Preencha a folha do mês, os freelancers e as peças <b>costuradas internamente</b> por tipo. Valor de mercado = preço da facção por peça (para comparar com terceirizar).</> },
   // v255 — silk e bordado importam a exportação do sistema de produção; folha e freelancers à mão
-  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", unids: "Cores aplicadas (cor × peça)",
+  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", cor: "cor", cores: "cores aplicadas", insumo: "tinta", unids: "Cores aplicadas (cor × peça)",
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo. As peças internas vão para a grade por nº de cores (7 ou mais entram em 6+); as terceirizadas ficam separadas. Depois preencha a folha e os freelancers do mês.</> },
-  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", unids: "Milheiros bordados (milheiro × peça)",
+  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", cor: "milheiro", cores: "milheiros bordados", insumo: "linha e entretela", unids: "Milheiros bordados (milheiro × peça)",
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-bordado_…xlsx</i>) ou preencha à mão as peças <b>bordadas internamente</b>, por peça e milheiro de pontos. Depois preencha a folha e os freelancers do mês.</> },
 };
 
@@ -95,6 +95,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         qtds: { ...(a.qtds || {}) }, mercado: { ...(j.calc ? Object.fromEntries((j.calc.colunas || j.calc.categorias).map((x) => [x.k, x.mercado])) : {}) },
         pecasEstimadas: a.pecasEstimadas ?? 13000, custoMeta: a.custoMeta ?? "", // v256 — pessoal e freelancers vêm preenchidos com o valor do sistema e podem ser alterados
         pessoalManual: a.pessoalManual ?? r2(j.auto?.pessoal), freelancerManual: a.freelancerManual ?? r2(j.auto?.freelancer),
+        insumoManual: a.insumoManual ?? r2(j.auto?.insumo),
         meta: a.meta || "", causas: a.causas || "", providencias: a.providencias || "",
       } : null);
     } catch (e) { setErro(e.message); }
@@ -119,7 +120,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const salvar = async () => {
     setSt("Salvando…"); setErro("");
     // igual ao do sistema = continua automático (acompanha a Matriz/extrato); diferente = fica o valor digitado
-    const campos = { ...f, pessoalManual: editado(f.pessoalManual, d?.auto?.pessoal) ? f.pessoalManual : "", freelancerManual: editado(f.freelancerManual, d?.auto?.freelancer) ? f.freelancerManual : "" };
+    const campos = { ...f, pessoalManual: editado(f.pessoalManual, d?.auto?.pessoal) ? f.pessoalManual : "", freelancerManual: editado(f.freelancerManual, d?.auto?.freelancer) ? f.freelancerManual : "",
+      insumoManual: d?.grade && editado(f.insumoManual, d?.auto?.insumo) ? f.insumoManual : "" };
     try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
     catch (e) { setErro(e.message); }
     setSt("");
@@ -135,7 +137,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
 
   const c = d?.calc;
   const meses = [...new Set([...(d?.competencias || []), comp].filter(Boolean))].sort().reverse();
-  const bom = c && c.incorrido <= c.estimado;
+  const G = !!d?.grade;   // v257 — silk/bordado: sem peças estimadas; compara com o mercado e mostra o custo por cor/milheiro
+  const bom = c && (G ? c.incorrido <= c.mediaTerc : c.incorrido <= c.estimado);
 
   return (
     <div>
@@ -166,8 +169,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", "Custo do setor", "Incorrido/pç", "Estimado/pç", "Resultado", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
-            <tbody>{d.serie.map((x) => { const ok = x.incorrido <= x.estimado; const sel = x.competencia === comp; return (
+            <thead><tr style={{ color: C.sub }}>{(G ? ["Mês", "Peças", "Pessoal", "Freelancers", "Insumos", "Custo do setor", "Incorrido/pç", `Incorrido/${T.cor}`, "Mercado/pç", "Retorno", ""] : ["Mês", "Peças", "Pessoal", "Freelancers", "Custo do setor", "Incorrido/pç", "Estimado/pç", "Resultado", ""]).map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <tbody>{d.serie.map((x) => { const ref = G ? x.mediaTerc : x.estimado; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
                 <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
                 <td className="text-right tabular-nums">{int(x.pecas)}</td>
@@ -176,16 +179,20 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                   {brl(x.freelancer)}{x.fonteFree === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}
                   {Math.abs(x.difFree) >= 1 && <div className="text-[10px] font-semibold" style={{ color: C.yellow }}>sistema {brl(x.freeSistema)} ({x.difFree > 0 ? "+" : "−"}{brl(Math.abs(x.difFree))})</div>}
                 </td>
+                {G && <td className="text-right tabular-nums">{x.insumo ? brl(x.insumo) : "—"}</td>}
                 <td className="text-right tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
                 <td className="text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
-                <td className="text-right tabular-nums" style={{ color: C.sub }}>{x.estimado ? brl(x.estimado) : "—"}</td>
-                <td className="text-right tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : ok ? C.green : C.red }}>{x.incorrido && x.estimado ? `${((x.incorrido / x.estimado - 1) * 100).toFixed(1).replace(".", ",")}%` : "—"}</td>
+                {G && <td className="text-right tabular-nums font-semibold">{x.custoUnid ? brl(x.custoUnid) : "—"}</td>}
+                <td className="text-right tabular-nums" style={{ color: C.sub }}>{ref ? brl(ref) : "—"}</td>
+                {G
+                  ? <td className="text-right tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : x.retornoPct >= 0 ? C.green : C.red }}>{x.mediaTerc && x.incorrido ? pct(x.retornoPct) : "—"}</td>
+                  : <td className="text-right tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : ok ? C.green : C.red }}>{x.incorrido && x.estimado ? `${((x.incorrido / x.estimado - 1) * 100).toFixed(1).replace(".", ",")}%` : "—"}</td>}
                 <td className="w-28 pl-2"><div className="h-2.5 rounded relative" style={{ background: C.panel2 }}>
-                  <div className="h-2.5 rounded" style={{ width: `${Math.min(100, (x.incorrido / Math.max(...d.serie.map((y) => Math.max(y.incorrido, y.estimado)), 0.01)) * 100)}%`, background: ok ? C.green : C.red }} />
+                  <div className="h-2.5 rounded" style={{ width: `${Math.min(100, (x.incorrido / Math.max(...d.serie.map((y) => Math.max(y.incorrido, G ? y.mediaTerc : y.estimado)), 0.01)) * 100)}%`, background: ok ? C.green : C.red }} />
                 </div></td>
               </tr>); })}</tbody>
           </table>
-          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Clique no mês para abrir. ·P = valor da planilha (meses antigos); sem ·P = sistema (Matriz e freelancers identificados). Em amarelo, o freelancer que o sistema registrou quando difere da planilha — vale o da planilha. Resultado = incorrido ÷ estimado − 1.</div>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Clique no mês para abrir. ·P = valor da planilha (meses antigos); sem ·P = sistema (Matriz e freelancers identificados). Em amarelo, o freelancer que o sistema registrou quando difere da planilha — vale o da planilha. {G ? "Retorno = (terceirizado − custo do setor) ÷ terceirizado." : "Resultado = incorrido ÷ estimado − 1."}</div>
         </div>
       )}
 
@@ -200,11 +207,16 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
           {/* cenário interno × estimado */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             <Kpi t={T.manual || d.grade ? "Peças feitas internamente" : "Peças processadas"} v={int(c.pecas)} sub={d.analise.semCategoria ? `${int(d.analise.semCategoria)} sem categoria fora da análise` : d.analise.arquivoNome || ""} />
-            <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}`} />
-            <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} />
+            <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}${G ? ` + insumos ${brl(c.insumo)}` : ""}`} />
+            <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} sub={G ? `mercado ${brl(c.mediaTerc)} / peça` : ""} />
+            {G ? <>
+              <Kpi t={`Custo incorrido / ${T.cor}`} v={brl(c.custoUnid)} cor={c.custoUnid <= c.mercadoUnid ? C.green : C.red} sub={`${int(c.unidades)} ${T.cores} · mercado ${brl(c.mercadoUnid)}`} />
+              <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
+            </> : <>
             <Kpi t="Custo estimado / peça" v={brl(c.estimado)} sub={f.custoMeta !== "" && f.custoMeta != null ? "meta fixa" : `custo total ÷ ${int(c.pecasEstimadas)} peças estimadas`} />
             <Kpi t="Sobrecusto × meta" v={pct(c.sobrecusto)} cor={c.sobrecusto > 0 ? C.red : C.green} sub={`resultado ${pct(c.resultado)}`} />
             <Kpi t="Impacto no resultado" v={brl(c.impacto)} cor={c.impacto < 0 ? C.red : C.green} sub="(estimado − incorrido) × peças" />
+            </>}
           </div>
 
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
@@ -212,7 +224,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Custo do setor no mês</div>
               <table className="w-full text-xs"><tbody>
                 {[["pessoalManual", "Pessoal (custo total da folha)", d.auto?.pessoal, "Matriz"],
-                  ["freelancerManual", `Freelancers ${T.de}`, d.auto?.freelancer, String(d.auto?.fonteFree || "—").toLowerCase()]].map(([k, rot, auto, fonte]) => {
+                  ["freelancerManual", `Freelancers ${T.de}`, d.auto?.freelancer, String(d.auto?.fonteFree || "—").toLowerCase()],
+                  ...(G ? [["insumoManual", `Insumos (${T.insumo})`, d.auto?.insumo, c.extra?.tintaUnit != null ? `planilha: ${brl(c.extra.tintaUnit)}/${T.unid}` : "planilha"]] : [])].map(([k, rot, auto, fonte]) => {
                   const ed = editado(f[k], auto);
                   return (
                     <tr key={k}><td className="py-1">{rot}
@@ -222,10 +235,10 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                       <td />
                       <td className="text-right pl-2"><input value={f[k]} onChange={(e) => s(k)(e.target.value)} className={inp} style={{ ...inpS, width: 110, borderColor: ed ? C.yellow : C.line }} /></td></tr>);
                 })}
-                <tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
-                <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
+                {!G && <><tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
+                <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr></>}
               </tbody></table>
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>Pessoal e freelancers já vêm preenchidos com o do sistema: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Altere se precisar e salve; sem alteração, o valor continua acompanhando o sistema.</div>
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>{G && <>Insumos vêm da planilha importada (custo por {T.unid} × {T.cores}) e entram no custo do setor. </>}Pessoal e freelancers já vêm preenchidos com o do sistema: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Altere se precisar e salve; sem alteração, o valor continua acompanhando o sistema.</div>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>
@@ -238,11 +251,9 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                 {c.extra && <>
                   {c.unidades > 0 && <>
                     <tr style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">{T.unids}</td><td className="text-right tabular-nums">{int(c.unidades)}</td></tr>
-                    <tr><td className="py-1">Custo interno por {T.unid}</td><td className="text-right tabular-nums font-semibold">{brl(c.custoUnid)}</td></tr>
                     {c.extra.mercadoUnit != null && <tr><td className="py-1">Mercado por {T.unid}</td><td className="text-right tabular-nums">{brl(c.extra.mercadoUnit)}</td></tr>}
                   </>}
-                  {c.extra.tinta != null && <tr><td className="py-1">Tinta estimada <span style={{ color: C.sub }}>({brl(c.extra.tintaUnit)}/{T.unid} · material, fora do custo do setor)</span></td><td className="text-right tabular-nums">{brl(c.extra.tinta)}</td></tr>}
-                  {c.extra.terceirizado?.pecas > 0 && (
+                                    {c.extra.terceirizado?.pecas > 0 && (
                     <tr style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">Terceirizado no mês <span style={{ color: C.sub }}>({int(c.extra.terceirizado.pecas)} pç · {Object.keys(c.extra.terceirizado.fornecedores || {}).join(", ")})</span></td>
                       <td className="text-right tabular-nums font-semibold">{c.extra.terceirizado.valor != null ? brl(c.extra.terceirizado.valor) : "—"}</td></tr>)}
                   {c.extra.terceirizado?.pecas > 0 && <tr><td className="py-1">% feito dentro <span style={{ color: C.sub }}>(peças)</span></td><td className="text-right tabular-nums">{pct(c.pecas / (c.pecas + c.extra.terceirizado.pecas))}</td></tr>}

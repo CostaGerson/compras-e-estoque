@@ -235,23 +235,32 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
 }
 
 // ---------------- cálculo (mesma mecânica da planilha) ----------------
+// insumo estimado: o da planilha importada, ou unidades × custo por unidade (quando a planilha trouxe)
+export const insumoAuto = (a, unidades) => a.extra?.tinta ?? (a.extra?.tintaUnit ? (unidades || 0) * a.extra.tintaUnit : 0);
 export function calcularCorte(a, pessoal, freelancer) {
   const merc = { ...mercadoPadrao(a.setor), ...(a.mercado || {}) };
   const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k] ?? merc[nivelDe(k)]) || 0 }));
   const pecas = cats.reduce((s, c) => s + c.qtd, 0);
-  const custoTotal = r2(pessoal + freelancer);
+  // v257 — silk/bordado: custo do setor = mão de obra (pessoal + freelancers) + insumo (tinta/linha)
+  const grade = !!NIVEIS_OP[a.setor];
+  const unidades = grade ? (a.extra?.unidades || cats.reduce((s, c) => s + c.qtd * (Number(String(nivelDe(c.k) || "").slice(1)) || 1), 0)) : 0;
+  const insumo = grade ? r2(a.insumoManual ?? insumoAuto(a, unidades)) : 0;
+  const maoDeObra = r2(pessoal + freelancer);
+  const custoTotal = r2(maoDeObra + insumo);
   const incorrido = pecas ? custoTotal / pecas : 0;                                   // custo incorrido por peça
   const estimado = a.custoMeta != null ? Number(a.custoMeta) : (a.pecasEstimadas ? custoTotal / a.pecasEstimadas : 0);   // custo estimado por peça
   const terceirizado = r2(cats.reduce((s, c) => s + c.qtd * c.mercado, 0));          // quanto custaria terceirizar
   const mediaTerc = pecas ? terceirizado / pecas : 0;
   return {
-    pessoal: r2(pessoal), freelancer: r2(freelancer), custoTotal, pecas, incorrido, pecasEstimadas: a.pecasEstimadas, estimado,
+    pessoal: r2(pessoal), freelancer: r2(freelancer), maoDeObra, insumo, grade, custoTotal, pecas, incorrido, pecasEstimadas: a.pecasEstimadas, estimado,
     resultado: estimado ? incorrido / estimado : 0,
     sobrecusto: estimado ? incorrido / estimado - 1 : 0,
     impacto: r2((estimado - incorrido) * pecas),
     terceirizado, mediaTerc, economiaTerc: r2(terceirizado - custoTotal),
+    retornoPct: terceirizado ? (terceirizado - custoTotal) / terceirizado : 0,          // v257 — retorno interno ÷ terceirizado
     // v255 — silk/bordado importados: custo por unidade (cor×peça) e terceirizado do mês
-    ...(a.extra?.unidades ? { unidades: a.extra.unidades, custoUnid: custoTotal / a.extra.unidades, extra: a.extra } : a.extra ? { extra: a.extra } : {}),
+    ...(grade ? { unidades, custoUnid: unidades ? custoTotal / unidades : 0, mercadoUnid: unidades ? terceirizado / unidades : 0 } : {}),
+    ...(a.extra ? { extra: a.extra } : {}),
     categorias: cats.map((c) => ({ ...c, concentracao: pecas ? c.qtd / pecas : 0, fator: mediaTerc ? c.mercado / mediaTerc : 0, valorInterno: mediaTerc ? (c.mercado / mediaTerc) * incorrido : 0 })),
     // v254 — grade (silk/bordado): totais por nível e por peça
     ...(NIVEIS_OP[a.setor] ? {
@@ -294,10 +303,12 @@ export async function analiseCorte(competencia, setor = "CORTE") {
     const c = calcularCorte(full, full.pessoalManual ?? au.pessoal, free);
     // v182.2 — confronto: freelancer da planilha/manual × o que o sistema identificou no mês
     serie.push({ competencia: x.competencia, pecas: c.pecas, incorrido: c.incorrido, custoTotal: c.custoTotal, estimado: c.estimado,
+      insumo: c.insumo, mediaTerc: c.mediaTerc, retornoPct: c.retornoPct, custoUnid: c.custoUnid,
       pessoal: full.pessoalManual ?? au.pessoal, fontePessoal: full.pessoalManual != null ? "PLANILHA" : "MATRIZ",
       freelancer: free, freeSistema: au.freelancer, fonteFree: full.freelancerManual != null ? "PLANILHA" : "SISTEMA",
       difFree: full.freelancerManual != null ? Math.round((full.freelancerManual - au.freelancer) * 100) / 100 : 0 });
   }
+  if (auto && a && NIVEIS_OP[setor]) auto.insumo = r2(insumoAuto(a, calc?.unidades));
   return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, setor, categorias: catsDe(setor).map(([k, n]) => ({ k, n })),
     manual: SETORES_MANUAIS.includes(setor), grade: NIVEIS_OP[setor] ? { ...NIVEIS_OP[setor], pecas: PECAS_PERS.map(([k, n]) => ({ k, n })) } : null };
 }
