@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { modeloFreelancers, importarFreelancers, abrirSemana, salvarItem, excluirItem, garantirSemanas, programacao, tituloDaData, sextaDaSemana, sextaAPartirDe, tipoDoGrupo } from "@/lib/finSemana";
+import { modeloFreelancers, importarFreelancers, abrirSemana, salvarItem, excluirItem, garantirSemanas, programacao, tituloDaData, sextaDaSemana, sextaAPartirDe, tipoDoGrupo, sugerirBaixaParcial, baixarItemManual, obsItem } from "@/lib/finSemana";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -49,6 +49,28 @@ export async function POST(req) {
     const r = await importarFreelancers(b.tituloId, b.conteudo, { quem: quemE(u), usuarioId: u.id, simular: !!b.simular });
     if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
     return Response.json({ ...r, ...(await abrirSemana(b.tituloId)) });
+  }
+  // v271 — comandos por conta interna (cada prestador): sugerir baixa parcial, baixar (inteira/parcial), desfazer, OBS
+  if (b.acao === "sugerir") {
+    const t = String(b.valor ?? "").trim().replace(/\s|R\$/g, "");
+    const r = await sugerirBaixaParcial(b.id, Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t));
+    return r.ok ? Response.json(r) : Response.json({ error: r.erro }, { status: 400 });
+  }
+  if (b.acao === "baixar") {
+    const r = await baixarItemManual({ itemId: b.id, data: b.data, pedidos: b.pedidos || null, dias: b.dias || null, observacao: b.observacao || null, quem: quemE(u) });
+    if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
+    return Response.json({ ...r, ...(await abrirSemana(b.tituloId)) });
+  }
+  if (b.acao === "desfazer") {
+    const { desfazerItem } = await import("@/lib/finBaixas");
+    const r = await desfazerItem(b.id);
+    if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
+    return Response.json({ ok: true, ...(await abrirSemana(b.tituloId)) });
+  }
+  if (b.acao === "obs") {
+    const r = await obsItem(b.id, b.observacao);
+    if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
+    return Response.json({ ok: true, ...(await abrirSemana(r.tituloId)) });
   }
   // v180 — só a justificativa do custo extra (diferença sobre as diárias)
   if (b.acao === "justificar") {

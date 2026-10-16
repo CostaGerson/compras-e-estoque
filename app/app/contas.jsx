@@ -1835,10 +1835,104 @@ const catCadastro = (d) => d.tipo === "FREELANCER"
       ...c, grupo: g, n: g === "FACCAO" ? `Facção · ${c.n}` : `Serviço · ${c.n}`,
     })));
 
+// v271 — baixa de UMA conta interna da semana: inteira ou parcial. Parcial: informe quanto pretende pagar e o sistema
+// sugere o máximo de pedidos inteiros (facção/serviço) ou dias inteiros (freelancer) que cabem no valor — dá para ajustar a seleção.
+function BaixaItemSemana({ user, tituloId, it, onClose, onFeito }) {
+  const [data, setData] = useState(hojeISO());
+  const [modo, setModo] = useState("INTEIRA");
+  const [valor, setValor] = useState("");
+  const [sug, setSug] = useState(null);
+  const [sel, setSel] = useState(() => new Set());
+  const [dias, setDias] = useState("");
+  const [obsTxt, setObsTxt] = useState("");
+  const [erro, setErro] = useState("");
+  const [st, setSt] = useState(false);
+  const free = it.grupo === "FREELANCER";
+  const sugerir = async () => {
+    setErro("");
+    try {
+      const r = await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "sugerir", id: it.id, valor });
+      setSug(r);
+      if (r.tipo === "PEDIDOS") setSel(new Set(r.pedidos.filter((p) => p.sugerido).map((p) => p.pedido)));
+      else setDias(String(r.dias));
+    } catch (e) { setErro(e.message); }
+  };
+  const totalSel = sug?.tipo === "PEDIDOS" ? sug.pedidos.filter((p) => sel.has(p.pedido)).reduce((t, p) => t + p.total, 0) : (Number(dias) || 0) * (sug?.diaria || (Number(it.diaria) || 0) + (Number(it.transporte) || 0));
+  const confirmar = async () => {
+    setSt(true); setErro("");
+    try {
+      const corpo = { usuarioId: user.id, acao: "baixar", id: it.id, tituloId, data, observacao: obsTxt };
+      if (modo === "PARCIAL") {
+        if (free) corpo.dias = Number(dias) || 0; else corpo.pedidos = [...sel];
+        if ((free && !(corpo.dias > 0)) || (!free && !corpo.pedidos.length)) throw new Error(free ? "Informe os dias a pagar." : "Escolha os pedidos a pagar.");
+      }
+      onFeito(await api("/api/fin/semana", "POST", corpo));
+    } catch (e) { setErro(e.message); setSt(false); }
+  };
+  const inpS = { border: `1px solid ${C.line}` };
+  return (
+    <Modal titulo={`Baixar · ${it.nome}`} icone={CheckCircle2} onClose={onClose} largura={620}
+      rodape={<><button onClick={onClose} className="px-3 py-2 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Cancelar</button>
+        <BtnP onClick={confirmar} disabled={st}>{st ? "Baixando…" : modo === "INTEIRA" ? `Baixar ${moeda(it.valor)}` : `Baixar ${moeda(totalSel)}`}</BtnP></>}>
+      {erro && <div className="p-2 mb-3 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      <div className="flex flex-wrap gap-3 mb-3 items-end">
+        <label className="text-xs" style={{ color: C.sub }}>Data do pagamento
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm" style={inpS} /></label>
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: C.panel2 }}>
+          {[["INTEIRA", `Inteira · ${moeda(it.valor)}`], ["PARCIAL", "Parcial"]].map(([k, t]) => (
+            <button key={k} onClick={() => setModo(k)} className="px-3 py-1.5 rounded-md text-xs font-semibold" style={{ background: modo === k ? C.panel : "transparent", color: modo === k ? C.accent : C.sub }}>{t}</button>
+          ))}
+        </div>
+      </div>
+      {modo === "PARCIAL" && (
+        <div className="rounded-lg p-3 mb-3" style={{ border: `1px solid ${C.line}` }}>
+          <div className="flex gap-2 items-end mb-2">
+            <label className="text-xs flex-1" style={{ color: C.sub }}>Quanto pretende pagar agora
+              <input value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className="block w-full rounded-lg px-2 py-1.5 text-sm" style={inpS} /></label>
+            <BtnP onClick={sugerir}>Sugerir</BtnP>
+          </div>
+          {sug && <div className="text-xs mb-2" style={{ color: C.sub }}>
+            Sugestão: {sug.tipo === "PEDIDOS" ? `${sug.pedidos.filter((p) => p.sugerido).length} pedido(s) inteiro(s)` : `${sug.dias} dia(s)`} = <b style={{ color: C.text }}>{moeda(sug.valor)}</b>{sug.sobra > 0 ? ` · sobra ${moeda(sug.sobra)} do valor informado` : ""}. Ajuste se quiser.
+          </div>}
+          {sug?.tipo === "PEDIDOS" && (
+            <div className="max-h-56 overflow-auto rounded" style={{ border: `1px solid ${C.line}` }}>
+              {sug.pedidos.map((p) => (
+                <label key={p.pedido} className="flex items-center gap-2 px-2 py-1 text-xs cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, background: sel.has(p.pedido) ? C.greenSoft : undefined }}>
+                  <input type="checkbox" checked={sel.has(p.pedido)} onChange={() => setSel((x) => { const n = new Set(x); n.has(p.pedido) ? n.delete(p.pedido) : n.add(p.pedido); return n; })} />
+                  <span className="flex-1">pedido {p.pedido}{p.linhas > 1 ? ` · ${p.linhas} linhas` : ""}</span>
+                  <b className="tabular-nums">{moeda(p.total)}</b>
+                </label>
+              ))}
+            </div>
+          )}
+          {free && sug && (
+            <label className="text-xs" style={{ color: C.sub }}>Dias a pagar (de {sug.diasTotal})
+              <input value={dias} onChange={(e) => setDias(e.target.value.replace(/\D/g, ""))} className="block rounded-lg px-2 py-1.5 text-sm w-24" style={inpS} /></label>
+          )}
+          {sug && <div className="text-xs mt-2">Selecionado: <b>{moeda(totalSel)}</b> · fica em aberto: <b>{moeda((it.valor || 0) - totalSel)}</b></div>}
+        </div>
+      )}
+      <label className="text-xs block" style={{ color: C.sub }}>OBS (opcional)
+        <input value={obsTxt} onChange={(e) => setObsTxt(e.target.value)} className="block w-full rounded-lg px-2 py-1.5 text-sm" style={inpS} /></label>
+      <div className="text-[11px] mt-2" style={{ color: C.sub }}>Na parcial, a parte paga vira um lançamento próprio (pago) e o saldo continua aberto nesta semana. Quando todos os lançamentos da semana estiverem pagos, a conta da semana fica paga.</div>
+    </Modal>
+  );
+}
+
 function SemanaModal({ user, tituloId, onClose, onMudou }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [edit, setEdit] = useState(null);   // { item? , grupo }
+  const [baixa, setBaixa] = useState(null); // v271 — item em baixa
+  const obs = async (it) => {
+    const t = prompt(`OBS de ${it.nome}:`, it.observacao || "");
+    if (t == null) return;
+    try { setD(await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "obs", id: it.id, observacao: t })); } catch (e) { setErro(e.message); }
+  };
+  const desfazer = async (it) => {
+    if (!confirm(`Desfazer a baixa de ${it.nome} (${moeda(it.valor)})?`)) return;
+    try { setD(await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "desfazer", id: it.id, tituloId })); onMudou && onMudou(); } catch (e) { setErro(e.message); }
+  };
   const carregar = () => api(`/api/fin/semana?u=${user.id}&titulo=${tituloId}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [tituloId]);
 
@@ -1916,8 +2010,14 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{moeda(it.valor)}</td>
                   <td className="px-2 whitespace-nowrap">
-                    <button onClick={() => setEdit({ item: it, grupo: it.grupo })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
-                    <button onClick={() => apagar(it)} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>
+                    {it.pago
+                      ? <button onClick={() => desfazer(it)} title="Desfazer a baixa" className="mr-2" style={{ color: C.sub }}><Undo2 size={13} /></button>
+                      : <>
+                          <button onClick={() => setBaixa(it)} title="Baixar (inteira ou parcial)" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={14} /></button>
+                          <button onClick={() => setEdit({ item: it, grupo: it.grupo })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
+                        </>}
+                    <button onClick={() => obs(it)} title="OBS" className="mr-2" style={{ color: it.observacao ? C.accent : C.sub }}><FileText size={13} /></button>
+                    {!it.pago && <button onClick={() => apagar(it)} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>}
                   </td>
                 </tr>
               ))}
@@ -1926,6 +2026,8 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
         </div>
       )}
 
+      {baixa && <BaixaItemSemana user={user} tituloId={tituloId} it={baixa} onClose={() => setBaixa(null)}
+        onFeito={(j) => { setBaixa(null); setD(j); onMudou && onMudou(); }} />}
       {edit && (
         <ItemSemanaModal user={user} tituloId={tituloId} grupo={edit.grupo} item={edit.item}
           tipoPrestador={d.tipo === "FREELANCER" ? "FREELANCER" : "TERCEIRIZADO"}

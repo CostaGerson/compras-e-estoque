@@ -456,3 +456,104 @@ export async function importarFreelancers(tituloId, b64, { quem, usuarioId, simu
   }
   return { ok: true, linhas: res, lancadas: res.filter((x) => x.ok).length, erros: res.filter((x) => !x.ok).length, total: r2(res.filter((x) => x.ok).reduce((s, x) => s + (x.valor || 0), 0)) };
 }
+
+// ---------------- v271 — comandos por conta interna (cada prestador da semana) ----------------
+// unidades da baixa parcial: facção/serviço = PEDIDOS inteiros (linhas do mesmo pedido juntas); freelancer = DIAS inteiros
+function unidadesDoItem(it) {
+  if (it.grupo === "FREELANCER") {
+    const dia = r2((Number(it.diaria) || 0) + (Number(it.transporte) || 0));
+    return { tipo: "DIAS", dia, dias: Number(it.dias) || 0 };
+  }
+  const ped = {};
+  (Array.isArray(it.linhas) ? it.linhas : []).forEach((l, i) => {
+    const k = String(l.pedido || `linha ${i + 1}`);
+    (ped[k] ||= { pedido: k, linhas: [], total: 0 }).linhas.push(i);
+    ped[k].total = r2(ped[k].total + (Number(l.qtd) || 0) * (Number(l.unitario) || 0));
+  });
+  return { tipo: "PEDIDOS", pedidos: Object.values(ped) };
+}
+
+// sugere a baixa parcial: o máximo de pedidos inteiros (ou dias) cujo total cabe no valor que se pretende pagar
+export async function sugerirBaixaParcial(itemId, valor) {
+  const it = await prisma.finSemanaItem.findUnique({ where: { id: Number(itemId) } });
+  if (!it) return { ok: false, erro: "Lançamento não encontrado." };
+  const alvo = r2(valor);
+  if (!(alvo > 0)) return { ok: false, erro: "Informe quanto pretende pagar." };
+  const u = unidadesDoItem(it);
+  if (u.tipo === "DIAS") {
+    const dias = u.dia > 0 ? Math.min(u.dias, Math.floor((alvo + 0.001) / u.dia)) : 0;
+    return { ok: true, tipo: "DIAS", dias, valor: r2(dias * u.dia), sobra: r2(alvo - dias * u.dia), diaria: u.dia, diasTotal: u.dias };
+  }
+  // mochila 0/1 (centavos): maior total ≤ valor; no empate, mais pedidos
+  const ps = u.pedidos;
+  const unid = alvo > 50000 ? 10 : 1;   // acima de R$ 50 mil, trabalha em dezenas de centavos
+  const T = Math.floor((alvo * 100) / unid);
+  const custo = ps.map((p) => Math.ceil(Math.round(p.total * 100) / unid));
+  const cnt = new Int16Array(T + 1).fill(-1); cnt[0] = 0;
+  const take = ps.map(() => new Uint8Array(T + 1));
+  ps.forEach((_, i) => {
+    const c = custo[i];
+    if (c <= 0 || c > T) return;
+    for (let x = T; x >= c; x--) if (cnt[x - c] >= 0 && cnt[x - c] + 1 > cnt[x]) { cnt[x] = cnt[x - c] + 1; take[i][x] = 1; }
+  });
+  let sm = T; while (sm > 0 && cnt[sm] < 0) sm--;
+  const escolha = [];
+  for (let i = ps.length - 1, x = sm; i >= 0 && x > 0; i--) if (take[i][x]) { escolha.push(i); x -= custo[i]; }
+  const somaMax = Math.round(escolha.reduce((t, i) => t + ps[i].total, 0) * 100);
+  return { ok: true, tipo: "PEDIDOS", valor: r2(somaMax / 100), sobra: r2(alvo - somaMax / 100),
+    pedidos: ps.map((p, i) => ({ pedido: p.pedido, total: p.total, linhas: p.linhas.length, sugerido: escolha.includes(i) })) };
+}
+
+async function fecharSemanaSePaga(tituloId, quem) {
+  const todos = await prisma.finSemanaItem.findMany({ where: { tituloId }, select: { pago: true, valor: true, dataPagamento: true } });
+  if (todos.length && todos.every((x) => x.pago)) {
+    const ult = todos.map((x) => x.dataPagamento).sort((a, b) => +b - +a)[0];
+    await prisma.finTitulo.update({ where: { id: tituloId }, data: { status: "PAGO", dataPagamento: ult, valorPago: r2(todos.reduce((s, x) => s + Number(x.valor), 0)), valorConfirmado: true, previsao: false, atualizadoPorNome: quem || null } });
+  }
+  return { pagos: todos.filter((x) => x.pago).length, total: todos.length };
+}
+
+// baixa manual de UMA conta interna: inteira, ou parcial (pedidos inteiros / dias) — a parte paga vira um lançamento próprio, pago
+export async function baixarItemManual({ itemId, data, pedidos = null, dias = null, observacao = null, quem }) {
+  const it = await prisma.finSemanaItem.findUnique({ where: { id: Number(itemId) } });
+  if (!it) return { ok: false, erro: "Lançamento não encontrado." };
+  if (it.pago) return { ok: false, erro: `${it.nome} já está pago.` };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) return { ok: false, erro: "Informe a data do pagamento." };
+  const obs = (extra) => [it.observacao, extra, observacao ? String(observacao).trim().toUpperCase() : null].filter(Boolean).join(" · ").slice(0, 500);
+  const quando = String(data).split("-").reverse().join("/");
+  const u = unidadesDoItem(it);
+  let parcial = false;
+  if (u.tipo === "PEDIDOS" && Array.isArray(pedidos) && pedidos.length && pedidos.length < u.pedidos.length) {
+    const sel = new Set(pedidos.map(String));
+    const idxPagos = new Set(u.pedidos.filter((p) => sel.has(p.pedido)).flatMap((p) => p.linhas));
+    const linhas = Array.isArray(it.linhas) ? it.linhas : [];
+    const pagas = linhas.filter((_, i) => idxPagos.has(i)), resto = linhas.filter((_, i) => !idxPagos.has(i));
+    if (!pagas.length) return { ok: false, erro: "Escolha ao menos um pedido." };
+    const { id: _id, createdAt, updatedAt, titulo, prestador, ...base } = it;
+    await prisma.finSemanaItem.create({ data: { ...base, linhas: pagas, valor: valorDoItem({ ...it, linhas: pagas }), pago: true, dataPagamento: dataUTC(data), lancamentoId: null,
+      observacao: obs(`BAIXA PARCIAL EM ${quando} · PEDIDO(S) ${[...sel].join(", ")}`), criadoPorNome: quem || it.criadoPorNome } });
+    await prisma.finSemanaItem.update({ where: { id: it.id }, data: { linhas: resto, valor: valorDoItem({ ...it, linhas: resto }),
+      observacao: obs(`SALDO APÓS BAIXA PARCIAL DE ${quando}`) } });
+    parcial = true;
+  } else if (u.tipo === "DIAS" && Number(dias) > 0 && Number(dias) < u.dias) {
+    const n = Math.floor(Number(dias));
+    const { id: _id, createdAt, updatedAt, titulo, prestador, ...base } = it;
+    await prisma.finSemanaItem.create({ data: { ...base, dias: n, custoExtra: 0, valor: valorDoItem({ ...it, dias: n, custoExtra: 0 }), pago: true, dataPagamento: dataUTC(data), lancamentoId: null,
+      observacao: obs(`BAIXA PARCIAL EM ${quando} · ${n} DIA(S)`), criadoPorNome: quem || it.criadoPorNome } });
+    const restoDias = u.dias - n;
+    await prisma.finSemanaItem.update({ where: { id: it.id }, data: { dias: restoDias, valor: valorDoItem({ ...it, dias: restoDias }),
+      observacao: obs(`SALDO APÓS BAIXA PARCIAL DE ${quando}`) } });
+    parcial = true;
+  } else {
+    await prisma.finSemanaItem.update({ where: { id: it.id }, data: { pago: true, dataPagamento: dataUTC(data), lancamentoId: null, observacao: obs(`PAGO EM ${quando} (BAIXA MANUAL)`) } });
+  }
+  await recalcular(it.tituloId);
+  const st = await fecharSemanaSePaga(it.tituloId, quem);
+  return { ok: true, parcial, ...st };
+}
+
+export async function obsItem(itemId, texto) {
+  const it = await prisma.finSemanaItem.update({ where: { id: Number(itemId) }, data: { observacao: String(texto || "").trim().toUpperCase() || null } }).catch(() => null);
+  if (!it) return { ok: false, erro: "Lançamento não encontrado." };
+  return { ok: true, tituloId: it.tituloId };
+}
