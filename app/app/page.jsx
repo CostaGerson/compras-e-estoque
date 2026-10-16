@@ -20,7 +20,7 @@ import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
-import AnaliseCorte, { EmConstrucaoOp } from "./analisesOp";
+import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
@@ -95,8 +95,8 @@ const MENU = [
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
     { key: "analisesOp", label: "Análises operacionais", icon: IcoAnalise, desc: "Custo por peça de cada setor: corte, personalização, costura e expedição", filhos: [
       { key: "anCorte", label: "Corte", icon: IcoCorte, desc: "Peças cortadas no mês, custo do setor (folha + freelancers) e comparação com a meta e com terceirizar" },
-      { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk, bordado, DTF e sublimação (em construção)" },
-      { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Em construção" },
+      { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por milheiro de pontos): folha, freelancers e peças feitas dentro" },
+      { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
@@ -291,8 +291,8 @@ export default function Home() {
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}
-          {view === "anPersonalizacao" && pode("anPersonalizacao") && <EmConstrucaoOp titulo="Análise de personalização (silk, bordado, DTF e sublimação)" />}
-          {view === "anCostura" && pode("anCostura") && <EmConstrucaoOp titulo="Análise de costura" />}
+          {view === "anPersonalizacao" && pode("anPersonalizacao") && <AnalisePersonalizacao user={user} />}
+          {view === "anCostura" && pode("anCostura") && <AnaliseCorte key="COSTURA" user={user} setor="COSTURA" />}
           {view === "anExpedicao" && pode("anExpedicao") && <AnaliseCorte key="EXPEDICAO" user={user} setor="EXPEDICAO" />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}

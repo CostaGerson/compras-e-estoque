@@ -8,6 +8,8 @@ export const SETORES_OP = {
   CORTE: { nome: "Corte", setorFolha: "CORTE" },
   PERSONALIZACAO: { nome: "Personalização", sub: "Silk, bordado, DTF e sublimação" },
   COSTURA: { nome: "Costura", setorFolha: "COSTURA" },
+  SILK: { nome: "Silk", setorFolha: "SILK" },
+  BORDADO: { nome: "Bordado", setorFolha: "BORDADO" },
   EXPEDICAO: { nome: "Expedição", setorFolha: "EXPEDIÇÃO" },
 };
 
@@ -24,10 +26,35 @@ export const CATEGORIAS_EXPEDICAO = [
   ["CAMISETA", "Camiseta", 1.5], ["POLO", "Polo", 2.7], ["MOLETOM", "Moletom", 1.5], ["JAQUETA", "Jaqueta", 1.5], ["CAMISA_SOCIAL", "Camisa social", 5.5],
   ["JALECO_OPERACIONAL", "Jaleco operacional", 1.5], ["CALCA_OPERACIONAL", "Calça operacional", 1.5], ["CALCA_JEANS", "Calça jeans", 2.1], ["CALCA_SOCIAL", "Calça social", 2.1],
 ];
-export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, EXPEDICAO: CATEGORIAS_EXPEDICAO };
+// v254 — costura: camiseta (MC/ML × com/sem faixa ou recorte), moletom (normal/colegial × com/sem), polo (comum/com recorte), demais normais.
+// Valor de mercado começa zerado: preencha com o preço da facção para ter o comparativo com terceirizar.
+const COM_SEM = (k, n) => [[`${k}_SEM`, `${n} sem faixa/recorte`, 0], [`${k}_COM`, `${n} com faixa/recorte`, 0]];
+export const CATEGORIAS_COSTURA = [
+  ["PILOTO", "Piloto", 0],
+  ...COM_SEM("CAMISETA_MC", "Camiseta MC"), ...COM_SEM("CAMISETA_ML", "Camiseta ML"),
+  ["POLO_COMUM", "Polo comum", 0], ["POLO_RECORTE", "Polo com recorte", 0],
+  ...COM_SEM("MOLETOM_NORMAL", "Moletom normal"), ...COM_SEM("MOLETOM_COLEGIAL", "Moletom colegial"),
+  ["JAQUETA", "Jaqueta", 0], ["CAMISA_SOCIAL", "Camisa social", 0], ["JALECO_OPERACIONAL", "Jaleco operacional", 0],
+  ["CALCA_OPERACIONAL", "Calça operacional", 0], ["CALCA_JEANS", "Calça jeans", 0], ["CALCA_SOCIAL", "Calça social", 0], ["AVENTAL", "Avental", 0],
+];
+// v254 — personalização: grade peça × nível. Silk = nº de cores (1 a 6); bordado = milheiro de pontos (1 a 10 mil).
+// Peças = as mesmas do corte/expedição. O valor de mercado é por nível (coluna), igual para todas as peças.
+export const PECAS_PERS = [["CAMISETA", "Camiseta"], ["POLO", "Polo"], ["MOLETOM", "Moletom"], ["JAQUETA", "Jaqueta"], ["CAMISA_SOCIAL", "Camisa social"],
+  ["JALECO_OPERACIONAL", "Jaleco operacional"], ["CALCA_OPERACIONAL", "Calça operacional"], ["CALCA_JEANS", "Calça jeans"], ["CALCA_SOCIAL", "Calça social"], ["AVENTAL", "Avental"]];
+export const NIVEIS_OP = {
+  SILK: { titulo: "Cores", niveis: [1, 2, 3, 4, 5, 6].map((i) => [`C${i}`, `${i} cor${i > 1 ? "es" : ""}`]) },
+  BORDADO: { titulo: "Milheiro de pontos", niveis: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => [`M${i}`, `${i} mil`]) },
+};
+const gradeCats = (setor) => PECAS_PERS.flatMap(([k, n]) => NIVEIS_OP[setor].niveis.map(([nk, nn]) => [`${k}__${nk}`, `${n} · ${nn}`, 0]));
+export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, COSTURA: CATEGORIAS_COSTURA, SILK: gradeCats("SILK"), BORDADO: gradeCats("BORDADO"), EXPEDICAO: CATEGORIAS_EXPEDICAO };
 export const SETORES_ANALISE = Object.keys(CATEGORIAS_OP);
+export const SETORES_MANUAIS = ["COSTURA", "SILK", "BORDADO"];   // sem importação de planilha: preenchidos à mão
 const catsDe = (setor) => CATEGORIAS_OP[setor] || CATEGORIAS_CORTE;
-export const mercadoPadrao = (setor) => Object.fromEntries(catsDe(setor).map(([k, , v]) => [k, v]));
+const nivelDe = (k) => String(k).split("__")[1] || null;
+// grade: valor de mercado por nível (coluna); demais: por categoria
+export const mercadoPadrao = (setor) => NIVEIS_OP[setor]
+  ? Object.fromEntries(NIVEIS_OP[setor].niveis.map(([k]) => [k, 0]))
+  : Object.fromEntries(catsDe(setor).map(([k, , v]) => [k, v]));
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
 const chaveCat = (t, setor = "CORTE") => { const k = sa(t); return catsDe(setor).some(([c]) => c === k) ? k : null; };
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -145,7 +172,7 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
 // ---------------- cálculo (mesma mecânica da planilha) ----------------
 export function calcularCorte(a, pessoal, freelancer) {
   const merc = { ...mercadoPadrao(a.setor), ...(a.mercado || {}) };
-  const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k]) || 0 }));
+  const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k] ?? merc[nivelDe(k)]) || 0 }));
   const pecas = cats.reduce((s, c) => s + c.qtd, 0);
   const custoTotal = r2(pessoal + freelancer);
   const incorrido = pecas ? custoTotal / pecas : 0;                                   // custo incorrido por peça
@@ -159,6 +186,18 @@ export function calcularCorte(a, pessoal, freelancer) {
     impacto: r2((estimado - incorrido) * pecas),
     terceirizado, mediaTerc, economiaTerc: r2(terceirizado - custoTotal),
     categorias: cats.map((c) => ({ ...c, concentracao: pecas ? c.qtd / pecas : 0, fator: mediaTerc ? c.mercado / mediaTerc : 0, valorInterno: mediaTerc ? (c.mercado / mediaTerc) * incorrido : 0 })),
+    // v254 — grade (silk/bordado): totais por nível e por peça
+    ...(NIVEIS_OP[a.setor] ? {
+      colunas: NIVEIS_OP[a.setor].niveis.map(([k, n]) => {
+        const qtd = cats.filter((c) => nivelDe(c.k) === k).reduce((s2, c) => s2 + c.qtd, 0);
+        const mercado = Number(merc[k]) || 0;
+        return { k, n, qtd, mercado, concentracao: pecas ? qtd / pecas : 0, fator: mediaTerc ? mercado / mediaTerc : 0, valorInterno: mediaTerc ? (mercado / mediaTerc) * incorrido : 0 };
+      }),
+      linhas: PECAS_PERS.map(([k, n]) => {
+        const qtd = cats.filter((c) => c.k.startsWith(`${k}__`)).reduce((s2, c) => s2 + c.qtd, 0);
+        return { k, n, qtd, concentracao: pecas ? qtd / pecas : 0 };
+      }),
+    } : {}),
   };
 }
 
@@ -192,5 +231,6 @@ export async function analiseCorte(competencia, setor = "CORTE") {
       freelancer: free, freeSistema: au.freelancer, fonteFree: full.freelancerManual != null ? "PLANILHA" : "SISTEMA",
       difFree: full.freelancerManual != null ? Math.round((full.freelancerManual - au.freelancer) * 100) / 100 : 0 });
   }
-  return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, setor, categorias: catsDe(setor).map(([k, n]) => ({ k, n })) };
+  return { competencias: lista.map((x) => x.competencia), analise: a, auto, calc, serie, setor, categorias: catsDe(setor).map(([k, n]) => ({ k, n })),
+    manual: SETORES_MANUAIS.includes(setor), grade: NIVEIS_OP[setor] ? { ...NIVEIS_OP[setor], pecas: PECAS_PERS.map(([k, n]) => ({ k, n })) } : null };
 }

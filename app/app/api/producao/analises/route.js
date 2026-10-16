@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { analiseCorte, lerPlanilhaCorte, gravarAnalises, SETORES_ANALISE } from "@/lib/opAnalise";
+import { analiseCorte, lerPlanilhaCorte, gravarAnalises, SETORES_ANALISE, SETORES_MANUAIS } from "@/lib/opAnalise";
 
 const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -27,6 +27,7 @@ export async function POST(req) {
   if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
   try {
     if (b.acao === "importar") {
+      if (SETORES_MANUAIS.includes(setor)) return Response.json({ error: "Esta análise é preenchida à mão." }, { status: 400 });
       const buf = Buffer.from(String(b.conteudo || ""), "base64");
       const r = lerPlanilhaCorte(buf, b.nome, b.competencia, setor);
       if (!r.analises.length || !r.analises.some((a) => a.total > 0)) return Response.json({ error: "Não achei peças na planilha (esperava a aba Conferência ou a linha ITEM/QTDE)." }, { status: 400 });
