@@ -412,6 +412,19 @@ function CardsGrupo({ grupo, ir, user }) {
             </div>
           </div>
         )}
+        {/* v267 — contribuição líquida: bruta × (1 − % freelancer da mão de obra operacional) */}
+        {volta && (
+          <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.accent, color: "#fff" }}>
+            <div className="text-[11px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
+            <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
+            <div className="text-xs font-semibold mt-1">bruta {brlV(volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers</div>
+            <div className="text-[11px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
+              % freelancers = freelancers ÷ (folha + freelancers) dos setores produtivos
+              {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
+              folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers identificados no extrato ou contas da semana.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

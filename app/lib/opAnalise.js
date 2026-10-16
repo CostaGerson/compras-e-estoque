@@ -343,5 +343,17 @@ export async function resumoVolta(ate = null) {
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
-  return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total: g.reduce((s, x) => s + (x.valor || 0), 0) };
+  const total = g.reduce((s, x) => s + (x.valor || 0), 0);
+  // v267 — contribuição líquida: bruta descontada do peso dos freelancers no custo de mão de obra operacional
+  // (% freelancer = freelancers ÷ (folha + freelancers) dos setores produtivos, nos mesmos meses do corte)
+  const mesesFree = g[0].meses.length ? g[0].meses : g.flatMap((x) => x.meses).filter((v, i, l) => l.indexOf(v) === i).sort().slice(-3);
+  let folha = 0, free = 0;
+  for (const m of mesesFree) {
+    const f = await freelancerXFolha(m).catch(() => null);
+    for (const l of f?.linhas || []) if (l.setor !== "LOGÍSTICA") { folha += l.folha || 0; free += l.freelancer || 0; }
+    free += f?.semSetor || 0;
+  }
+  const pctFree = folha + free ? free / (folha + free) : 0;
+  return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total,
+    freelancer: { meses: mesesFree, folha: r2(folha), freelancer: r2(free), pct: pctFree }, liquida: total * (1 - pctFree) };
 }
