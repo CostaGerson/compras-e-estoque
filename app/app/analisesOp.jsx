@@ -49,12 +49,12 @@ const TXT = {
   EXPEDICAO: { titulo: "Análise da expedição", Ico: PackageCheck, de: "da expedição", imp: "Importar planilha da expedição",
     ajuda: <>Peças expedidas por categoria no mês. Importe a planilha do ano (uma aba por mês) ou preencha as quantidades à mão; pessoal e freelancers vêm do sistema.</> },
   // v254 — preenchidas à mão: folha do mês, freelancers e peças feitas internamente
-  COSTURA: { titulo: "Análise da costura", Ico: Shirt, de: "da costura", manual: true, dentro: "costurar dentro",
+  COSTURA: { titulo: "Análise da costura", Ico: Shirt, de: "da costura", manual: true, volta: "valor de mercado de cada peça × peças costuradas", dentro: "costurar dentro",
     ajuda: <>Preencha a folha do mês, os freelancers e as peças <b>costuradas internamente</b> por tipo. Valor de mercado = preço da facção por peça (para comparar com terceirizar).</> },
   // v255 — silk e bordado importam a exportação do sistema de produção; folha e freelancers à mão
-  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", cor: "cor", cores: "cores aplicadas", insumo: "tinta", unids: "Cores aplicadas (cor × peça)",
+  SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", volta: "R$ 0,80 por cor × cores aplicadas", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", cor: "cor", cores: "cores aplicadas", insumo: "tinta", unids: "Cores aplicadas (cor × peça)",
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo. As peças internas vão para a grade por nº de cores (7 ou mais entram em 6+); as terceirizadas ficam separadas. Depois preencha a folha e os freelancers do mês.</> },
-  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", cor: "milheiro", cores: "milheiros bordados", insumo: "linha e entretela", unids: "Milheiros bordados (milheiro × peça)",
+  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", volta: "valor de mercado do milheiro × peças bordadas", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", cor: "milheiro", cores: "milheiros bordados", insumo: "linha e entretela", unids: "Milheiros bordados (milheiro × peça)",
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-bordado_…xlsx</i>) ou preencha à mão as peças <b>bordadas internamente</b>, por peça e milheiro de pontos. Depois preencha a folha e os freelancers do mês.</> },
 };
 
@@ -199,7 +199,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Volta/pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ref = x.mediaTerc; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
                 <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
@@ -238,6 +238,9 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
             <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}${G ? ` + insumos ${brl(c.insumo)}` : ""}`} />
             <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} sub={c.mediaTerc ? `mercado ${brl(c.mediaTerc)} / peça` : "preencha o valor de mercado"} />
             {G && <Kpi t={`Custo incorrido / ${T.cor}`} v={brl(c.custoUnid)} cor={c.custoUnid <= c.mercadoUnid ? C.green : C.red} sub={`${int(c.unidades)} ${T.cores} · mercado ${brl(c.mercadoUnid)}`} />}
+              {/* v262 — costura/silk/bordado: o valor de mercado é o que se cobra da operação; é o que volta para o setor */}
+              {T.volta && <Kpi t="Volta para a operação" v={brl(c.terceirizado)} cor={C.navy}
+                sub={`${brl(c.mediaTerc)} por peça${G && c.unidades ? ` · ${brl(c.mercadoUnid)} por ${T.cor}` : ""} — ${T.volta}`} />}
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
           </div>
 
@@ -263,8 +266,8 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>
               <table className="w-full text-xs"><tbody>
-                <tr><td className="py-1">Custo se terceirizado (valor de mercado × peças)</td><td className="text-right font-semibold">{brl(c.terceirizado)}</td></tr>
-                <tr><td className="py-1">Média da peça terceirizada</td><td className="text-right">{brl(c.mediaTerc)}</td></tr>
+                <tr><td className="py-1">{T.volta ? <>Volta para a operação <span style={{ color: "inherit", opacity: .7 }}>({T.volta})</span></> : "Custo se terceirizado (valor de mercado × peças)"}</td><td className="text-right font-semibold">{brl(c.terceirizado)}</td></tr>
+                <tr><td className="py-1">{T.volta ? "Volta por peça" : "Média da peça terceirizada"}</td><td className="text-right">{brl(c.mediaTerc)}</td></tr>
                 <tr><td className="py-1">Custo interno do mês</td><td className="text-right">{brl(c.custoTotal)}</td></tr>
                 <tr><td className="py-1 font-semibold">{c.economiaTerc >= 0 ? "Economia de" : "Sobrecusto de"} {T.dentro || "cortar dentro"}</td>
                   <td className="text-right font-bold" style={{ color: c.economiaTerc >= 0 ? C.green : C.red }}>{brl(Math.abs(c.economiaTerc))}</td></tr>

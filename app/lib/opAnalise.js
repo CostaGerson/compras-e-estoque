@@ -55,8 +55,10 @@ export const SETORES_GRADE = Object.keys(NIVEIS_OP);
 const catsDe = (setor) => CATEGORIAS_OP[setor] || CATEGORIAS_CORTE;
 const nivelDe = (k) => String(k).split("__")[1] || null;
 // grade: valor de mercado por nível (coluna); demais: por categoria
+// v262 — silk: cobra-se R$ 0,80 por cor (coluna de N cores = N × 0,80)
+export const SILK_POR_COR = 0.8;
 export const mercadoPadrao = (setor) => NIVEIS_OP[setor]
-  ? Object.fromEntries(NIVEIS_OP[setor].niveis.map(([k]) => [k, 0]))
+  ? Object.fromEntries(NIVEIS_OP[setor].niveis.map(([k], i) => [k, setor === "SILK" ? r2((i + 1) * SILK_POR_COR) : 0]))
   : Object.fromEntries(catsDe(setor).map(([k, , v]) => [k, v]));
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
 const chaveCat = (t, setor = "CORTE") => { const k = sa(t); return catsDe(setor).some(([c]) => c === k) ? k : null; };
