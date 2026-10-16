@@ -34,16 +34,14 @@ async function mediaPorCategoria(setor, meses, cats) {
   const rows = await prisma.opAnalise.findMany({ where: { setor, competencia: { in: meses } } });
   const out = {};
   for (const [k] of cats) {
-    // v276 — média simples do valor de cada mês (cada mês pesa igual)
-    const vals = [];
-    let ultimo = null;
+    let q = 0, v = 0, ultimo = null;
     for (const a of rows.sort((x, y) => x.competencia.localeCompare(y.competencia))) {
       const c = calcularCorte(a, 0, 0).categorias.find((x) => x.k === k);
       if (!c) continue;
       if (c.mercado) ultimo = c.mercado;
-      if (c.qtd > 0 && c.mercado > 0) vals.push(c.mercado);
+      q += c.qtd; v += c.qtd * c.mercado;
     }
-    const m = vals.length ? vals.reduce((t, x) => t + x, 0) / vals.length : ultimo;
+    const m = q ? v / q : ultimo;
     if (m != null && m > 0) out[k] = r4(m);
   }
   return out;
@@ -58,12 +56,12 @@ export async function mediasOperacionais() {
   ]);
   // silk: R$ por cor = contribuição bruta ÷ cores aplicadas (sem dado, R$ 0,80)
   const silks = await prisma.opAnalise.findMany({ where: { setor: "SILK", competencia: { in: meses } } });
-  const porCor = [];
-  for (const a of silks) { const c = calcularCorte(a, 0, 0); if (c.unidades) porCor.push(c.terceirizado / c.unidades); }
+  let vol = 0, cores = 0;
+  for (const a of silks) { const c = calcularCorte(a, 0, 0); vol += c.terceirizado; cores += c.unidades || 0; }
   return {
     meses, corte, expedicao,
     costura: CATEGORIAS_COSTURA.filter(([k]) => costura[k] > 0).map(([k, n]) => ({ k, n, valor: costura[k] })),
-    silkPorCor: porCor.length ? r4(porCor.reduce((t, x) => t + x, 0) / porCor.length) : SILK_POR_COR,
+    silkPorCor: cores ? r4(vol / cores) : SILK_POR_COR,
   };
 }
 
