@@ -353,3 +353,26 @@ export async function resumoVolta(ate = null) {
   return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total,
     freelancer: { meses: mesesFree, folha: r2(folha), freelancer: r2(free), pct: pctFree }, liquida: total * (1 - pctFree) };
 }
+
+// v278 — peças faturadas do KPI = peças da análise da expedição (fonte única). Grava só o que difere.
+export async function pecasExpedicao(ano = null) {
+  const rows = await prisma.opAnalise.findMany({ where: { setor: "EXPEDICAO", ...(ano ? { competencia: { startsWith: `${ano}-` } } : {}) } });
+  const out = {};
+  for (const a of rows) { const p = calcularCorte(a, 0, 0).pecas; if (p > 0) out[a.competencia] = p; }
+  return out;
+}
+export async function sincronizarPecasKpi(ano = null) {
+  const pe = await pecasExpedicao(ano);
+  const comps = Object.keys(pe);
+  if (!comps.length) return 0;
+  const kms = await prisma.kpiMes.findMany({ where: { OR: comps.map((c) => ({ ano: Number(c.slice(0, 4)), mes: Number(c.slice(5, 7)) })) } });
+  let n = 0;
+  for (const c of comps) {
+    const ano_ = Number(c.slice(0, 4)), mes = Number(c.slice(5, 7));
+    const k = kms.find((x) => x.ano === ano_ && x.mes === mes);
+    if (k && Number(k.pecasFaturadas) === pe[c]) continue;
+    await prisma.kpiMes.upsert({ where: { ano_mes: { ano: ano_, mes } }, create: { ano: ano_, mes, pecasFaturadas: pe[c] }, update: { pecasFaturadas: pe[c] } });
+    n++;
+  }
+  return n;
+}

@@ -141,6 +141,7 @@ export async function POST(req) {
       update: { ...campos, atualizadoPorNome: "IMPORTAÇÃO EXCEL" },
     });
   }
+  { const { sincronizarPecasKpi } = await import("@/lib/opAnalise"); await sincronizarPecasKpi().catch(() => null); }   // v278 — peças = expedição
   for (const r of rec) {
     await prisma.kpiReceita.upsert({
       where: { ano_mes_segmento: { ano: r.ano, mes: r.mes, segmento: r.segmento } },

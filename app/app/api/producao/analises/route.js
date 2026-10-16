@@ -42,6 +42,7 @@ export async function POST(req) {
       const e = out.find((x) => x.erro);
       if (e) return Response.json({ error: e.erro }, { status: 400 });
       { const { atualizarParamsFpp } = await import("@/lib/fppAnalises"); await atualizarParamsFpp().catch(() => null); }   // v272
+      if (setor === "EXPEDICAO") { const { sincronizarPecasKpi } = await import("@/lib/opAnalise"); await sincronizarPecasKpi().catch(() => null); }   // v278
       return Response.json({ ok: true, tipo: r.tipo, meses: out });
     }
     if (b.acao === "salvar") {
@@ -57,6 +58,7 @@ export async function POST(req) {
       data.atualizadoPorNome = nomeU(u);
       await prisma.opAnalise.upsert({ where: { setor_competencia: { setor, competencia: b.competencia } }, update: data, create: { setor, competencia: b.competencia, qtds: {}, ...data } });
       { const { atualizarParamsFpp } = await import("@/lib/fppAnalises"); await atualizarParamsFpp({ forcar: true }).catch(() => null); }   // v272 — FPP acompanha
+      if (setor === "EXPEDICAO") { const { sincronizarPecasKpi } = await import("@/lib/opAnalise"); await sincronizarPecasKpi().catch(() => null); }   // v278
       return Response.json({ ok: true, ...(await analiseCorte(b.competencia, setor)) });
     }
     if (b.acao === "excluir") {

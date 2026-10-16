@@ -38,6 +38,13 @@ export async function PUT(req) {
   for (const k of ["vendasPecas", "pecasProduzidas", "pecasFaturadas", "metaVendasPecas", "metaFaturamentoPecas", "metaPecasProduzidas"]) {
     if (k in c) data[k] = int(c[k]);
   }
+  // v278 — com análise da expedição no mês, as peças faturadas vêm dela (o lançamento manual é ignorado)
+  if ("pecasFaturadas" in data) {
+    const comp = `${b.ano}-${String(b.mes).padStart(2, "0")}`;
+    const { pecasExpedicao } = await import("@/lib/opAnalise");
+    const pe = await pecasExpedicao(Number(b.ano)).catch(() => ({}));
+    if (pe[comp]) data.pecasFaturadas = pe[comp];
+  }
   if ("observacao" in c) data.observacao = c.observacao ? String(c.observacao).toUpperCase() : null;
   data.atualizadoPorNome = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 

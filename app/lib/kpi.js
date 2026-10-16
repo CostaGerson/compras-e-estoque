@@ -158,6 +158,7 @@ export async function receitaDaDre(ano) {
 }
 
 async function dadosDoAno(ano) {
+  { const { sincronizarPecasKpi } = await import("@/lib/opAnalise"); await sincronizarPecasKpi(ano).catch(() => null); }   // v278 — peças = análise da expedição
   const [meses, receitas, metaAno, dre] = await Promise.all([
     prisma.kpiMes.findMany({ where: { ano }, orderBy: { mes: "asc" } }),
     prisma.kpiReceita.findMany({ where: { ano }, orderBy: [{ mes: "asc" }, { segmento: "asc" }] }),

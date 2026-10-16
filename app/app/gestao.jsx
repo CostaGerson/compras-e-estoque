@@ -832,6 +832,7 @@ function LancamentoModal({ user, d, mes, onClose, onSalvo }) {
         <Campo rotulo="Faturamento (R$)" valor={f.faturamentoValor} onChange={set("faturamentoValor")} />
         <Campo rotulo="Peças faturadas" valor={f.pecasFaturadas} onChange={set("pecasFaturadas")} />
       </div>
+      <div className="text-[10px] mt-1" style={{ color: C.sub }}>Peças faturadas: com análise da expedição no mês, vêm dela (o valor digitado é ignorado).</div>
 
       <div className="text-xs mt-4 p-2 rounded" style={{ background: C.panel2, color: C.sub }}>As metas do mês são definidas na página <b>Metas</b> (vendas e ticket → faturamento e receita).</div>
 
