@@ -284,7 +284,8 @@ export function calcularCorte(a, pessoal, freelancer) {
 export async function custoDoSetor(setor, competencia) {
   const f = await freelancerXFolha(competencia).catch(() => null);
   const l = f?.linhas?.find((x) => x.setor === SETORES_OP[setor]?.setorFolha);
-  return { pessoal: l?.folha || 0, freelancer: l?.freelancer || 0, fonteFree: l?.fonteFree || "—", pessoas: l?.pessoas || 0 };
+  // v268 — freelancers exclusivamente do extrato identificado (sem previsão pelas contas da semana)
+  return { pessoal: l?.folha || 0, freelancer: l?.freeExtrato || 0, fonteFree: l?.freeExtrato ? "EXTRATO IDENTIFICADO" : "nada identificado no extrato", pessoas: l?.pessoas || 0 };
 }
 
 export async function analiseCorte(competencia, setor = "CORTE") {
@@ -350,7 +351,7 @@ export async function resumoVolta(ate = null) {
   let folha = 0, free = 0;
   for (const m of mesesFree) {
     const f = await freelancerXFolha(m).catch(() => null);
-    for (const l of f?.linhas || []) if (l.setor !== "LOGÍSTICA") { folha += l.folha || 0; free += l.freelancer || 0; }
+    for (const l of f?.linhas || []) if (l.setor !== "LOGÍSTICA") { folha += l.folha || 0; free += l.freeExtrato || 0; }   // v268 — só extrato identificado
     free += f?.semSetor || 0;
   }
   const pctFree = folha + free ? free / (folha + free) : 0;

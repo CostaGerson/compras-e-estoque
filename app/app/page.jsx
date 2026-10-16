@@ -421,7 +421,7 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-[11px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
               % freelancers = freelancers ÷ (folha + freelancers) dos setores produtivos
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
-              folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers identificados no extrato ou contas da semana.
+              folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers só do extrato identificado (os mesmos das análises).
             </div>
           </div>
         )}

@@ -261,7 +261,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                       <td className="text-right pl-2"><input value={f[k]} onChange={(e) => sAuto(k, e.target.value)} className={inp} style={{ ...inpS, width: 110, borderColor: ed ? C.yellow : C.line }} /></td></tr>);
                 })}
               </tbody></table>
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>{G && <>Insumos vêm da planilha importada (custo por {T.unid} × {T.cores}) e entram no custo do setor. </>}Pessoal e freelancers já vêm preenchidos com o do sistema: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato ou nas contas da semana. Altere se precisar e salve; sem alteração, o valor continua acompanhando o sistema.</div>
+              <div className="text-[11px] mt-2" style={{ color: C.sub }}>{G && <>Insumos vêm da planilha importada (custo por {T.unid} × {T.cores}) e entram no custo do setor. </>}Pessoal e freelancers já vêm preenchidos com o do sistema: pessoal pela Matriz de custos (salário, encargos, benefícios e provisões dos funcionários {T.de}) e freelancers {T.de} identificados no extrato. Altere se precisar e salve; sem alteração, o valor continua acompanhando o sistema.</div>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Interno × terceirizado</div>

@@ -91,9 +91,9 @@ export async function freelancerXFolha(comp) {
     const free = lReal > 0 ? lReal : r2(freeSemana[s.k] || 0);
     // v173 — participação do freelancer no custo total de mão de obra do setor: free ÷ (folha + free)
     const custo = r2(folha + free);
-    return { setor: s.k, folha, pessoas: s.depto ? pessoasDepto[s.depto] || 0 : 0, freelancer: free, custo, fonteFolha: "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
+    return { setor: s.k, folha, pessoas: s.depto ? pessoasDepto[s.depto] || 0 : 0, freelancer: free, freeExtrato: lReal, custo, fonteFolha: "MATRIZ", fonteFree: lReal > 0 ? "EXTRATO" : free ? "CONTAS DA SEMANA" : "—",
       pct: custo > 0 ? Math.round((free / custo) * 1000) / 10 : 0 };
-  }).filter((l) => l.folha || l.freelancer);
+  }).filter((l) => l.folha || l.freelancer || l.freeExtrato);
   const semSetor = r2(porCod["2117100"] || 0);
   const tot = { folha: r2(linhas.reduce((a, l) => a + l.folha, 0)), freelancer: r2(linhas.reduce((a, l) => a + l.freelancer, 0) + semSetor) };
   tot.custo = r2(tot.folha + tot.freelancer);
