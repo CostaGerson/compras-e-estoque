@@ -82,16 +82,30 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [verDet, setVerDet] = useState(false);
+  const [atualizado, setAtualizado] = useState(null);
   const inpRef = useRef(null);
 
-  const carregar = async (c) => {
-    setErro("");
+  // v259 — campos que acompanham o sistema (Matriz, identificação do extrato/contas da semana, planilha) enquanto não forem alterados à mão
+  const AUTO = { pessoalManual: "pessoal", freelancerManual: "freelancer", insumoManual: "insumo" };
+  const carregar = async (c, { silencioso = false } = {}) => {
+    if (!silencioso) setErro("");
     try {
       const j = await api(`/api/producao/analises?u=${user.id}&setor=${setor}${c ? `&competencia=${c}` : ""}`);
       if (!c) { const ult = j.competencias[j.competencias.length - 1] || mesAnterior(); setComp(ult); return; }
-      setD(j);
+      setD(j); setAtualizado(new Date());
       const a = j.analise;
+      // recarga em segundo plano: mantém o que está sendo digitado e só renova os valores automáticos
+      if (silencioso && a) {
+        setF((x) => {
+          if (!x) return x;
+          const novo = { ...x };
+          for (const [k, ak] of Object.entries(AUTO)) if (!x._man?.[k]) novo[k] = r2(j.auto?.[ak]);
+          return novo;
+        });
+        return;
+      }
       setF(a ? {
+        _man: { pessoalManual: a.pessoalManual != null, freelancerManual: a.freelancerManual != null, insumoManual: a.insumoManual != null },
         qtds: { ...(a.qtds || {}) }, mercado: { ...(j.calc ? Object.fromEntries((j.calc.colunas || j.calc.categorias).map((x) => [x.k, x.mercado])) : {}) },
         pecasEstimadas: a.pecasEstimadas ?? 13000, custoMeta: a.custoMeta ?? "", // v256 — pessoal e freelancers vêm preenchidos com o valor do sistema e podem ser alterados
         pessoalManual: a.pessoalManual ?? r2(j.auto?.pessoal), freelancerManual: a.freelancerManual ?? r2(j.auto?.freelancer),
@@ -102,6 +116,14 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   };
   useEffect(() => { carregar(null); }, []);
   useEffect(() => { if (comp) carregar(comp); }, [comp]);
+  // v259 — ao voltar para a tela (ou a cada 2 min com ela aberta) relê o sistema: identificações novas entram na hora
+  const compRef = useRef(comp); compRef.current = comp;
+  useEffect(() => {
+    const rel = () => { if (compRef.current && document.visibilityState === "visible") carregar(compRef.current, { silencioso: true }); };
+    window.addEventListener("focus", rel); document.addEventListener("visibilitychange", rel);
+    const t = setInterval(rel, 120000);
+    return () => { window.removeEventListener("focus", rel); document.removeEventListener("visibilitychange", rel); clearInterval(t); };
+  }, []);
 
   const importar = async (files) => {
     const file = [...(files || [])][0];
@@ -119,10 +141,16 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   };
   const salvar = async () => {
     setSt("Salvando…"); setErro("");
-    // igual ao do sistema = continua automático (acompanha a Matriz/extrato); diferente = fica o valor digitado
-    const campos = { ...f, pessoalManual: editado(f.pessoalManual, d?.auto?.pessoal) ? f.pessoalManual : "", freelancerManual: editado(f.freelancerManual, d?.auto?.freelancer) ? f.freelancerManual : "",
-      insumoManual: d?.grade && editado(f.insumoManual, d?.auto?.insumo) ? f.insumoManual : "" };
-    try { const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos }); setD(j); setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500); }
+    // v259 — só grava como manual o campo que foi alterado à mão; os demais seguem o sistema (identificação do extrato, Matriz, planilha)
+    const { _man, ...resto } = f;
+    const campos = { ...resto };
+    for (const [k, ak] of Object.entries(AUTO)) campos[k] = _man?.[k] && editado(f[k], d?.auto?.[ak]) ? f[k] : "";
+    if (!d?.grade) campos.insumoManual = "";
+    try {
+      const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos }); setD(j); setAtualizado(new Date());
+      setF((x) => ({ ...x, _man: Object.fromEntries(Object.keys(AUTO).map((k) => [k, campos[k] !== ""])) }));
+      setAviso("Análise salva."); setTimeout(() => setAviso(""), 2500);
+    }
     catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -132,6 +160,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
     setSt("");
   };
   const s = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  const sAuto = (k, v, manual = true) => setF((x) => ({ ...x, [k]: v, _man: { ...(x._man || {}), [k]: manual } }));
   const sQ = (k, v) => setF((x) => ({ ...x, qtds: { ...x.qtds, [k]: v } }));
   const sM = (k, v) => setF((x) => ({ ...x, mercado: { ...x.mercado, [k]: v } }));
 
@@ -226,14 +255,14 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                 {[["pessoalManual", "Pessoal (custo total da folha)", d.auto?.pessoal, "Matriz"],
                   ["freelancerManual", `Freelancers ${T.de}`, d.auto?.freelancer, String(d.auto?.fonteFree || "—").toLowerCase()],
                   ...(G ? [["insumoManual", `Insumos (${T.insumo})`, d.auto?.insumo, c.extra?.tintaUnit != null ? `planilha: ${brl(c.extra.tintaUnit)}/${T.unid}` : "planilha"]] : [])].map(([k, rot, auto, fonte]) => {
-                  const ed = editado(f[k], auto);
+                  const ed = !!f._man?.[k] && editado(f[k], auto);
                   return (
                     <tr key={k}><td className="py-1">{rot}
                         <div className="text-[10px]" style={{ color: ed ? C.yellow : C.sub }}>
-                          {ed ? <>alterado · sistema {brl(auto)} ({fonte}) <button onClick={() => s(k)(r2(auto))} className="underline font-semibold" style={{ color: C.accent }}>voltar ao do sistema</button></> : <>do sistema ({fonte})</>}
+                          {ed ? <>alterado · sistema {brl(auto)} ({fonte}) <button onClick={() => sAuto(k, r2(auto), false)} className="underline font-semibold" style={{ color: C.accent }}>voltar ao do sistema</button></> : <>do sistema ({fonte}){atualizado ? ` · atualizado ${atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</>}
                         </div></td>
                       <td />
-                      <td className="text-right pl-2"><input value={f[k]} onChange={(e) => s(k)(e.target.value)} className={inp} style={{ ...inpS, width: 110, borderColor: ed ? C.yellow : C.line }} /></td></tr>);
+                      <td className="text-right pl-2"><input value={f[k]} onChange={(e) => sAuto(k, e.target.value)} className={inp} style={{ ...inpS, width: 110, borderColor: ed ? C.yellow : C.line }} /></td></tr>);
                 })}
                 {!G && <><tr><td className="py-1">Peças estimadas (meta do mês)</td><td /><td className="text-right pl-2"><input value={f.pecasEstimadas} onChange={(e) => s("pecasEstimadas")(e.target.value)} className={inp} style={{ ...inpS, width: 110 }} /></td></tr>
                 <tr><td className="py-1">Custo estimado por peça fixo <span style={{ color: C.sub }}>(opcional)</span></td><td /><td className="text-right pl-2"><input value={f.custoMeta} onChange={(e) => s("custoMeta")(e.target.value)} placeholder="custo ÷ estimadas" className={inp} style={{ ...inpS, width: 110 }} /></td></tr></>}
