@@ -362,8 +362,9 @@ function VoltaCard({ r }) {
     <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
       <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Contribuição bruta à operação / peça</div>
       <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
-      <div className="text-[11px]" style={{ color: C.sub }}>
-        {r.base === "LOGISTICA" ? <>custo realizado por peça expedida (DRE, sem frete entrega) · média de {r.meses.length} mês(es) ({meses})</>
+      {/* v281 — rodapé com altura fixa (3 linhas) para a linha e o valor ficarem na mesma altura em todos os cards */}
+      <div className="text-[11px] leading-4 overflow-hidden" style={{ color: C.sub, height: "3rem" }}>
+        {r.base === "LOGISTICA" ? <>custo realizado por peça (sem frete entrega) · média de {r.meses.length} mês(es) ({meses})</>
           : r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
           : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
       </div>
