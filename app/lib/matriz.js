@@ -97,7 +97,9 @@ export function calcularMatriz(d) {
   const custoPecaAuto = pr.custoPecaAuto !== false && n(op?.bruta) > 0;
   const custoPeca = custoPecaAuto ? n(op.bruta) : n(pr.custoPeca);
   const razaoProd = custoPeca * razaoInterna;                         // E29
-  const razaoLog = n(pr.razaoLog);                                    // E31
+  // v279 — logística: custo realizado por peça da análise da logística (DRE, sem frete entrega); manual se desmarcado
+  const razaoLogAuto = pr.razaoLogAuto !== false && n(op?.logistica) > 0;
+  const razaoLog = razaoLogAuto ? n(op.logistica) : n(pr.razaoLog);   // E31
   const custoPecaInterno = razaoProd + razaoLog;
 
   // METAS E RESULTADO
@@ -170,7 +172,7 @@ export function calcularMatriz(d) {
     blocos: { vidaVegetativa, pessoal: totPessoal, logistica, administracao, sistemas, dividas },
     custoOperacao, custoOperacaoDia: custoOperacao / dias, custoNegocio, custoNegocioDia: custoNegocio / dias,
     operacaoPrecificada, custoAdministrativo,
-    pctFreelancer: pctFreelancerUsado, pctFreelancerTabela: pctFreelancer, razaoInterna, razaoProd, razaoLog, custoPecaInterno, custoPeca, custoPecaAuto, pctOficial,
+    pctFreelancer: pctFreelancerUsado, pctFreelancerTabela: pctFreelancer, razaoInterna, razaoProd, razaoLog, razaoLogAuto, custoPecaInterno, custoPeca, custoPecaAuto, pctOficial,
     metaFatAnual, metaMensal, metaDia: metaMensal / dias, pecasCobrem, balanco,
     lucroCenario, lucroCenarioR, lucroReal, lucroRealR, breakevenPecas, projecao,
     // v239 — com projeção: o ano = realizado + simulado (o resultado "puro" da Matriz continua acima)

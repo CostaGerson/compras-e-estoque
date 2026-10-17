@@ -67,6 +67,7 @@ export async function mediasOperacionais() {
 
 // aplica nos parâmetros da FPP (com histórico) quando a janela de 3 meses muda
 export async function atualizarParamsFpp({ forcar = false } = {}) {
+  { const { atualizarLogisticaFpp } = await import("@/lib/opLogistica"); await atualizarLogisticaFpp().catch(() => null); }   // v279
   const m = await mediasOperacionais();
   if (!m.meses.length) return { ok: false, motivo: "sem mês completo nas análises" };
   const chave = m.meses.join(",");

@@ -21,6 +21,8 @@ import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
+import AnaliseLogistica from "./analiseLogistica";
+import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
@@ -98,6 +100,7 @@ const MENU = [
       { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por milheiro de pontos): folha, freelancers e peças feitas dentro" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
+      { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça pela DRE (pessoal + combustível, fretes e deslocamentos), sem o frete de entrega" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -137,7 +140,7 @@ const PODE = {
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   fme: (u) => tem(u, "fme"),
-  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u),
+  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
   rota: () => true,
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
@@ -294,6 +297,7 @@ export default function Home() {
           {view === "anPersonalizacao" && pode("anPersonalizacao") && <AnalisePersonalizacao user={user} />}
           {view === "anCostura" && pode("anCostura") && <AnaliseCorte key="COSTURA" user={user} setor="COSTURA" />}
           {view === "anExpedicao" && pode("anExpedicao") && <AnaliseCorte key="EXPEDICAO" user={user} setor="EXPEDICAO" />}
+          {view === "anLogistica" && pode("anLogistica") && <AnaliseLogistica user={user} />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
@@ -348,7 +352,7 @@ function MenuArvore({ itens, view, caminho, ir, nivel = 0 }) {
 
 /* ===== Tela de um grupo: cards das subabas ===== */
 // v264 — Análises operacionais: quanto volta para a operação por peça (média dos últimos 3 meses com registro)
-const SETOR_DO_CARD = { anCorte: "CORTE", anPersonalizacao: "PERSONALIZACAO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO" };
+const SETOR_DO_CARD = { anCorte: "CORTE", anPersonalizacao: "PERSONALIZACAO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO", anLogistica: "LOGISTICA" };
 const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const brlV = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function VoltaCard({ r }) {
@@ -359,7 +363,8 @@ function VoltaCard({ r }) {
       <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Contribuição bruta à operação / peça</div>
       <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
       <div className="text-[11px]" style={{ color: C.sub }}>
-        {r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
+        {r.base === "LOGISTICA" ? <>custo realizado por peça expedida (DRE, sem frete entrega) · média de {r.meses.length} mês(es) 100% identificado(s) ({meses})</>
+          : r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
           : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
       </div>
     </div>
@@ -407,7 +412,7 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
             <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
             <div className="text-[11px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
-              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores).
+              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = custo realizado (DRE, sem frete entrega).
               Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
             </div>
           </div>
@@ -417,7 +422,7 @@ function CardsGrupo({ grupo, ir, user }) {
           <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.accent, color: "#fff" }}>
             <div className="text-[11px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
             <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
-            <div className="text-xs font-semibold mt-1">bruta {brlV(volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers</div>
+            <div className="text-xs font-semibold mt-1">produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}</div>
             <div className="text-[11px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
               % freelancers oficial (o mesmo da Capacidade e da Matriz) = freelancers ÷ (folha + freelancers) de todos os setores
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:

@@ -956,7 +956,12 @@ function Producao({ dados, calc, muda, mg }) {
           </Linha>
           <Linha t="Razão custo prod. / operação precificada" dica="custo produção × razão interna"><b>{moeda(calc.razaoProd)}</b></Linha>
           <Linha t="Custo logístico / peça"><NumInput value={pr.custoLogPeca} onChange={(v) => s("custoLogPeca", v)} /></Linha>
-          <Linha t="Razão custo logístico / peça" dica={pr.razaoLogObs}><NumInput value={pr.razaoLog} onChange={(v) => s("razaoLog", v)} /></Linha>
+          <Linha t="Razão custo logístico / peça" dica={calc.razaoLogAuto ? `Análise da logística: custo realizado por peça (DRE, sem frete entrega)${dados.operacaoReal?.logMeses?.length ? ` · ${dados.operacaoReal.logMeses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")}` : ""}` : pr.razaoLogObs}>
+            <div className="flex items-center gap-2">
+              {dados.operacaoReal?.logistica > 0 && <label className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={pr.razaoLogAuto !== false} onChange={(e) => s("razaoLogAuto", e.target.checked)} /> da Logística</label>}
+              {calc.razaoLogAuto ? <span className="font-semibold">{moeda(calc.razaoLog)}</span> : <NumInput value={pr.razaoLog} onChange={(v) => s("razaoLog", v)} />}
+            </div>
+          </Linha>
         </Cartao>
         <Cartao titulo={mg?.historico ? "Histórico" : "Metas"}>
           {mg?.historico ? <>

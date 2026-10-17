@@ -12,6 +12,12 @@ export async function GET(req) {
   if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const comp = /^\d{4}-\d{2}$/.test(sp.get("competencia") || "") ? sp.get("competencia") : null;
   if (sp.get("acao") === "resumo") return Response.json(await resumoVolta(comp));   // v264 — tela de Análises operacionais
+  if (sp.get("setor") === "LOGISTICA") {   // v279 — análise da logística (DRE) + FPP acompanha
+    const { analiseLogistica, atualizarLogisticaFpp } = await import("@/lib/opLogistica");
+    const a = await analiseLogistica();
+    await atualizarLogisticaFpp(a.media).catch(() => null);
+    return Response.json(a);
+  }
   const setor = sp.get("setor") || "CORTE";
   if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
   return Response.json(await analiseCorte(comp, setor));

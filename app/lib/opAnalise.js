@@ -344,14 +344,21 @@ export async function resumoVolta(ate = null) {
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
-  const total = g.reduce((s, x) => s + (x.valor || 0), 0);
+  const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
+  // v279 — logística: custo realizado por peça (DRE, sem frete entrega), últimos 3 meses 100% identificados; sem freelancer, volta inteira
+  const { custoLogisticoPeca } = await import("@/lib/opLogistica");
+  const lg = await custoLogisticoPeca().catch(() => null);
+  const logistica = lg?.porPeca || 0;
+  g.push({ chave: "LOGISTICA", meses: lg?.meses || [], volta: lg?.custo || 0, pecas: lg?.pecas || 0, base: "LOGISTICA", valor: logistica,
+    freteEntregaPeca: lg?.freteEntregaPeca ?? null });
+  const total = producao + logistica;
   // v269 — % freelancer oficial (mesma regra da Capacidade e da Matriz): últimos 3 meses fechados
   const { pctFreelancerOperacional } = await import("@/lib/rhPainel");
   const pf = await pctFreelancerOperacional().catch(() => null);
   const mesesFree = pf?.meses || [], folha = pf?.folha || 0, free = pf?.freelancer || 0;
   const pctFree = pf?.pct || 0;
-  return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total,
-    freelancer: { meses: mesesFree, folha: r2(folha), freelancer: r2(free), pct: pctFree }, liquida: total * (1 - pctFree) };
+  return { setores: Object.fromEntries(g.map((x) => [x.chave, x])), total, producao, logistica,
+    freelancer: { meses: mesesFree, folha: r2(folha), freelancer: r2(free), pct: pctFree }, liquida: producao * (1 - pctFree) + logistica };
 }
 
 // v278 — peças faturadas do KPI = peças da análise da expedição (fonte única). Grava só o que difere.
