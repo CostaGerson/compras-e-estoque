@@ -2,7 +2,7 @@
 //   custo = pessoal de logística (custo total dos funcionários pela Matriz) + contas de logística da DRE + freelancer de logística;
 //   FRETE ENTREGA é só informativo (a FPP cobra o frete à parte, por volume) — fica fora do custo por peça.
 //   peças = peças da análise da expedição (as mesmas do KPI).
-//   Base de cálculo: últimos 3 meses encerrados e 100% identificados (todo lançamento do extrato com conta), média ponderada.
+//   Base de cálculo (v280, mesma regra dos outros setores): últimos 3 meses encerrados, média ponderada (custo ÷ peças).
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
@@ -70,7 +70,7 @@ export async function analiseLogistica() {
   const pecas = await pecasExp(comps);
   const meses = [];
   for (const c of comps) meses.push(await logisticaMes(c, { contas, pecas }));
-  const base = meses.filter((m) => m.encerrado && m.identificado && m.pecas > 0).slice(-3);
+  const base = meses.filter((m) => m.encerrado).slice(-3).filter((m) => m.pecas > 0);
   const soma = (f) => base.reduce((s, m) => s + f(m), 0);
   const pcs = soma((m) => m.pecas);
   const media = {
@@ -91,7 +91,7 @@ export async function custoLogisticoPeca() {
 // FPP: LOGISTICA_BASE (malha e plano) = custo logístico realizado por peça (sem frete entrega), com histórico
 export async function atualizarLogisticaFpp(media = null) {
   const m = media || await custoLogisticoPeca();
-  if (!m?.porPeca) return { ok: false, motivo: "sem mês identificado com peças" };
+  if (!m?.porPeca) return { ok: false, motivo: "sem peças nos últimos 3 meses" };
   const v = r2(m.porPeca);
   const quem = `SISTEMA · ANÁLISE DA LOGÍSTICA (${m.meses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")})`;
   const ps = await prisma.fppParam.findMany({ where: { grupo: "CONST", chave: "LOGISTICA_BASE" } });

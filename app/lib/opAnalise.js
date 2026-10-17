@@ -345,7 +345,7 @@ export async function resumoVolta(ate = null) {
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
   const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
-  // v279 — logística: custo realizado por peça (DRE, sem frete entrega), últimos 3 meses 100% identificados; sem freelancer, volta inteira
+  // v279 — logística: custo realizado por peça (DRE, sem frete entrega), últimos 3 meses encerrados; sem freelancer, volta inteira
   const { custoLogisticoPeca } = await import("@/lib/opLogistica");
   const lg = await custoLogisticoPeca().catch(() => null);
   const logistica = lg?.porPeca || 0;

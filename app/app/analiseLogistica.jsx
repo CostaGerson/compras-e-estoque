@@ -63,7 +63,7 @@ export default function AnaliseLogistica({ user }) {
 
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
         <Kpi t="Custo logístico realizado / peça" v={M.porPeca != null ? `R$ ${brl(M.porPeca)}` : "—"} cor={C.accent}
-          s={M.meses.length ? `média ponderada de ${M.meses.map(nomeMes).join(", ")} (meses 100% identificados) · vai para a Matriz e para a FPP (logística base)` : "nenhum mês encerrado e 100% identificado com peças"} />
+          s={M.meses.length ? `média ponderada de ${M.meses.map(nomeMes).join(", ")} (últimos 3 meses encerrados) · vai para a Matriz e para a FPP (logística base)` : "sem peças da expedição nos últimos 3 meses"} />
         <Kpi t="Custo do período" v={`R$ ${brl(M.custo)}`} s={`${int(M.pecas)} peças expedidas`} />
         <Kpi t="Frete entrega / peça (informativo)" v={M.freteEntregaPeca != null ? `R$ ${brl(M.freteEntregaPeca)}` : "—"} s="fora do custo: cobrado à parte na FPP" />
         <Kpi t="Retorno à operação / peça" v={M.porPeca != null ? `R$ ${brl(M.porPeca)}` : "—"} s="sem freelancer na logística: o custo realizado volta inteiro" />
@@ -106,7 +106,7 @@ export default function AnaliseLogistica({ user }) {
         </table>
       </div>
       <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Base de cálculo: últimos 3 meses encerrados, 100% identificados (todo lançamento do extrato com conta) e com peças na expedição.
+        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Base de cálculo: últimos 3 meses encerrados (a mesma regra dos outros setores); a coluna Identificação mostra se ainda há lançamento sem conta no mês.
         {conferir && nPlan > 0 && <> Linha de baixo (verde/vermelho) = valor da planilha; em vermelho, diferença acima de R$ 1,00.</>}
       </div>
 
