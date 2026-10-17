@@ -360,7 +360,7 @@ function VoltaCard({ r }) {
   const meses = r.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ");
   return (
     <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
-      <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>Contribuição bruta à operação / peça</div>
+      <div className="text-[11px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sub }} title="Contribuição bruta à operação por peça">Contrib. bruta à op./peça</div>
       <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
       {/* v281 — rodapé com altura fixa (3 linhas) para a linha e o valor ficarem na mesma altura em todos os cards */}
       <div className="text-[11px] leading-4 overflow-hidden" style={{ color: C.sub, height: "3rem" }}>
