@@ -16,6 +16,7 @@ import Alavancagem from "./alavancagem";
 import Transmissao from "./transmissao";
 import Uploads from "./uploads";
 import ConferenciaIntegracao from "./conferencia";
+import PedidosAndamento from "./pedidosAndamento";
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -79,6 +80,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
   if (tela.v === "alavancagem") migalhas.push({ t: "Alavancagem" });
   if (tela.v === "credito") migalhas.push({ t: "Posição de crédito" });
+  if (tela.v === "pedidos") migalhas.push({ t: "Pedidos em andamento" });
   if (tela.v === "transmissao") migalhas.push({ t: "Transmissão de arquivos" });
   return (
     <div>
@@ -118,6 +120,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
       {tela.v === "alavancagem" && ger && <Alavancagem user={user} master aba="dividas" />}
       {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}
       {tela.v === "dfc" && ger && <Dfc user={user} />}
+      {tela.v === "pedidos" && ger && <PedidosAndamento user={user} />}
     </div>
   );
 }
@@ -275,6 +278,7 @@ function FinDashboard({ user, ir }) {
           ["meses", CalendarRange, "Análise financeira", "Indicadores do ano, DRE do mês, importação e identificação"],
           ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
           ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
+          ["pedidos", FileStack, "Pedidos em andamento", "PV e PP: valor, condição, entrada e previsão de receitas"],
         ].map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
             <Ico size={26} style={{ color: C.accent }} />

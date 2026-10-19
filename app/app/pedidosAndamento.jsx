@@ -1,0 +1,290 @@
+"use client";
+// v316 — Pedidos em andamento: sobe PV + PP (KM Sistemas) e vê a previsão de receitas (entrada + parcelas após a NF), dentro e fora do mês
+import React, { useEffect, useRef, useState } from "react";
+import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2 } from "lucide-react";
+
+const C = {
+  panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
+  accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
+  yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
+};
+const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moeda = (v) => `R$ ${brl(v)}`;
+const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const nomeMes = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
+const curto = (c) => `${MESES[Number(c.slice(5, 7)) - 1].slice(0, 3).toLowerCase()}/${c.slice(2, 4)}`;
+const somaMes = (c, n) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+const lerB64 = (f) => new Promise((ok, nok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = nok; r.readAsDataURL(f); });
+
+export default function PedidosAndamento({ user }) {
+  const hoje = new Date();
+  const [comp, setComp] = useState(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`);
+  const [todos, setTodos] = useState(false);
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [aberto, setAberto] = useState(null);
+  const [filtro, setFiltro] = useState("");
+  const inp = useRef(null);
+
+  const carregar = () => fetch(`/api/fin/pedidos?u=${user.id}&competencia=${comp}${todos ? "&todos=1" : ""}`)
+    .then((r) => r.json().then((j) => (r.ok ? (setD(j), setErro("")) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
+  useEffect(() => { carregar(); }, [comp, todos]);
+
+  const enviar = async (files) => {
+    const lista = [...files].filter((f) => /\.pdf$/i.test(f.name));
+    if (!lista.length) return;
+    setEnviando(true); setResultado(null);
+    try {
+      const arquivos = [];
+      for (const f of lista) arquivos.push({ nome: f.name, base64: await lerB64(f) });
+      const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, arquivos }) });
+      const j = await r.json();
+      if (!r.ok) setErro(j.error || "Erro"); else { setResultado(j.resultado); carregar(); }
+    } catch (e) { setErro(e.message); }
+    setEnviando(false);
+  };
+  const salvar = async (id, dados) => {
+    const r = await fetch("/api/fin/pedidos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, id, ...dados }) });
+    const j = await r.json(); if (!r.ok) return alert(j.error || "Erro"); carregar();
+  };
+  const lancarEntrada = async (p) => {
+    const pend = p.previsao.parcelas.find((x) => x.pendente);
+    const venc = prompt(`Vencimento da entrada de ${moeda(pend?.valor)} (AAAA-MM-DD):`, p.emissao || "");
+    if (venc === null) return;
+    const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "entrada", id: p.id, vencimento: venc || undefined }) });
+    const j = await r.json(); if (!r.ok) return alert(j.error || "Erro"); carregar();
+  };
+  const excluir = async (p) => {
+    if (!confirm(`Excluir o pedido ${p.numero} (${p.cliente})?`)) return;
+    const r = await fetch(`/api/fin/pedidos?u=${user.id}&id=${p.id}`, { method: "DELETE" }); if (r.ok) carregar();
+  };
+
+  const R = d?.resumo;
+  const f = filtro.trim().toUpperCase();
+  const lista = (d?.pedidos || []).filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex items-center gap-1 rounded-lg px-1 py-1" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <button onClick={() => setComp(somaMes(comp, -1))} className="px-2 text-sm font-bold" style={{ color: C.navy }}>‹</button>
+          <span className="text-sm font-bold px-2" style={{ color: C.navy, minWidth: 130, textAlign: "center" }}>{nomeMes(comp)}</span>
+          <button onClick={() => setComp(somaMes(comp, 1))} className="px-2 text-sm font-bold" style={{ color: C.navy }}>›</button>
+        </div>
+        <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> mostrar faturados e cancelados</label>
+        <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar pedido, cliente, vendedor…" className="px-3 py-1.5 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, minWidth: 240 }} />
+        <div className="flex-1" />
+        <input ref={inp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
+        <button disabled={enviando} onClick={() => inp.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: enviando ? 0.5 : 1 }}>
+          {enviando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Subir PV e PP
+        </button>
+      </div>
+
+      <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); enviar(e.dataTransfer.files); }}
+        className="rounded-xl px-4 py-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.blueSoft, color: C.blue, border: `1px dashed ${C.blue}` }}>
+        <FileText size={14} /> Arraste aqui os PDFs do KM Sistemas: o <b>PV</b> (pedido de venda) traz valores e condição de pagamento; o <b>PP</b> (ordem de produção) traz os dados de produção. Os dois se juntam pelo nº do pedido.
+      </div>
+
+      {resultado && (
+        <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center justify-between mb-1"><b style={{ color: C.navy }}>Importação</b><button onClick={() => setResultado(null)}><X size={14} /></button></div>
+          {resultado.map((r, i) => (
+            <div key={i} className="flex items-center gap-2 py-0.5" style={{ color: r.erro ? C.red : C.text }}>
+              {r.erro ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} style={{ color: C.green }} />}
+              <span className="font-semibold">{r.nome}</span>
+              <span style={{ color: C.sub }}>{r.erro || `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.tipo === "PV" ? ` · ${moeda(r.total)}` : ` · ${r.itens} item(ns)`}${r.novo ? " · novo" : " · atualizado"}${r.semPv ? " · falta o PV" : ""}`}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {erro && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+
+      {R && (
+        <>
+          {/* painel de previsão de receitas */}
+          <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+            <Kpi t="Pedidos em andamento" v={moeda(R.totalAndamento)} s={`${R.qtdPedidos} pedido(s) · ${R.pecas.toLocaleString("pt-BR")} peças`} cor={C.navy} />
+            <Kpi t={`A receber em ${curto(comp)}`} v={moeda(R.noMes)} s="entradas a lançar + parcelas que vencem no mês" cor={C.green} />
+            <Kpi t="Fora do mês" v={moeda(R.foraMes)} s={`parcelas depois de ${curto(comp)}`} cor={C.blue} />
+            <Kpi t="Entradas já lançadas" v={moeda(R.entradasLancadas)} s="estão no contas a receber" cor={C.sub} />
+            <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
+            {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
+          </div>
+          {(R.qtdAtrasados || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida) > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3 text-xs">
+              {R.qtdAtrasados > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdAtrasados} pedido(s) com despacho vencido — previstos a partir de hoje</Aviso>}
+              {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
+              {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
+              {R.qtdNfSugerida > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
+            </div>
+          )}
+          {R.porMes.length > 0 && (
+            <div className="rounded-xl p-3 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="text-[11px] font-bold uppercase mb-2" style={{ color: C.navy }}>Previsão por mês</div>
+              <div className="flex flex-wrap gap-2">
+                {R.porMes.map((m) => (
+                  <button key={m.competencia} onClick={() => setComp(m.competencia)} className="rounded-lg px-3 py-1.5 text-left"
+                    style={{ background: m.competencia === comp ? C.accentSoft : C.panel2, border: `1px solid ${m.competencia === comp ? C.accent : C.line}` }}>
+                    <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>{curto(m.competencia)}</div>
+                    <div className="text-sm font-bold whitespace-nowrap tabular-nums" style={{ color: C.navy }}>{moeda(m.valor)}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* pedidos */}
+          <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: C.panel2, color: C.sub }}>
+                  {["", "Pedido", "Cliente", "Emissão", "Entrega", "Condição", "Peças", "Total", "Entrada", `No mês`, "Fora do mês", "Situação", ""].map((h, i) => (
+                    <th key={i} className="px-2 py-2 font-semibold whitespace-nowrap text-center">{h}</th>))}
+                </tr>
+              </thead>
+              <tbody>
+                {!lista.length && <tr><td colSpan={13} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhum pedido. Suba os PDFs de PV e PP.</td></tr>}
+                {lista.map((p) => <LinhaPedido key={p.id} p={p} aberto={aberto === p.id} onToggle={() => setAberto(aberto === p.id ? null : p.id)}
+                  user={user} salvar={salvar} lancarEntrada={lancarEntrada} excluir={excluir} comp={comp} />)}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>
+            Entrega = programação do Cronograma (quando integrado) ou DT despacho do PV. Parcelas = restante (total − entrada) dividido pelos prazos da condição, contados da entrega/NF.
+            Entrada já lançada no contas a receber sai da previsão (já conta no a receber); entrada ainda não lançada entra na previsão. Faturado sai da previsão: a partir daí valem as contas da NF.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir, comp }) {
+  const v = p.previsao;
+  const [ed, setEd] = useState(null);
+  const st = { ANDAMENTO: ["Em andamento", C.accent, C.accentSoft], FATURADO: ["Faturado", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2] }[p.status];
+  const td = "px-2 py-2 text-center whitespace-nowrap";
+  return (
+    <>
+      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: aberto ? C.panel2 : undefined }}>
+        <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
+        <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
+        <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}</td>
+        <td className={td}>{dBR(p.emissao)}</td>
+        <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : "DT despacho do PV"}>
+          {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
+        </td>
+        <td className={td} style={{ color: v.condicaoOk ? C.text : C.yellow }}>{p.condicao || "—"}</td>
+        <td className={`${td} tabular-nums`}>{(p.qtd || 0).toLocaleString("pt-BR")}</td>
+        <td className={`${td} tabular-nums font-semibold`}>{p.temPv ? brl(p.total) : <span style={{ color: C.yellow }}>falta PV</span>}</td>
+        <td className={`${td} tabular-nums`} style={{ color: v.entrada ? (v.entradaLancada + 0.01 >= v.entrada ? C.green : C.accent) : C.sub }}>
+          {v.entrada ? brl(v.entrada) : "—"}{v.entrada > 0 && <span className="text-[9px] ml-1">{v.entradaLancada + 0.01 >= v.entrada ? "lançada" : "a lançar"}</span>}
+        </td>
+        <td className={`${td} tabular-nums font-semibold`} style={{ color: p.noMes ? C.green : C.sub }}>{brl(p.noMes)}</td>
+        <td className={`${td} tabular-nums`} style={{ color: p.foraMes ? C.blue : C.sub }}>{brl(p.foraMes)}</td>
+        <td className={td}><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }}>{st[0]}{p.nfNumero ? ` · NF ${p.nfNumero}` : ""}</span>
+          {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}</td>
+        <td className={td} onClick={(e) => e.stopPropagation()}>
+          {p.temPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
+          {p.temPp && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PP`} target="_blank" className="font-semibold" style={{ color: C.accent }}>PP</a>}
+        </td>
+      </tr>
+      {aberto && (
+        <tr style={{ background: C.panel2 }}>
+          <td colSpan={13} className="px-4 pb-4 pt-1">
+            <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(320px, 1fr) minmax(320px, 1.4fr)" }}>
+              {/* financeiro */}
+              <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <b className="text-xs" style={{ color: C.navy }}>Previsão de recebimento</b>
+                  {!ed ? <button onClick={() => setEd({ condicao: p.condicao || "", entradaValor: p.entradaValor ?? "", despacho: p.despacho || "" })} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}><Pencil size={11} /> editar</button>
+                    : <span className="flex gap-2">
+                        <button onClick={() => { salvar(p.id, { condicao: ed.condicao, entradaValor: ed.entradaValor === "" ? null : Number(String(ed.entradaValor).replace(/\./g, "").replace(",", ".")), despacho: ed.despacho || null }); setEd(null); }} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.green }}><Save size={11} /> salvar</button>
+                        <button onClick={() => setEd(null)} className="text-[11px]" style={{ color: C.sub }}>cancelar</button></span>}
+                </div>
+                {ed ? (
+                  <div className="grid gap-2 mb-2 text-xs">
+                    <label>Condição de pagamento <input value={ed.condicao} onChange={(e) => setEd({ ...ed, condicao: e.target.value })} placeholder="EX.: 30/60/90 · ENTRADA 50% + 30 DIAS · A VISTA" className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}` }} /></label>
+                    <label>Valor da entrada (vazio = pela condição) <input value={ed.entradaValor} onChange={(e) => setEd({ ...ed, entradaValor: e.target.value })} className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}` }} /></label>
+                    <label>DT despacho <input type="date" value={ed.despacho} onChange={(e) => setEd({ ...ed, despacho: e.target.value })} className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}` }} /></label>
+                  </div>
+                ) : (
+                  <div className="text-[11px] mb-2" style={{ color: C.sub }}>
+                    {v.condicaoOk ? <>Condição <b>{p.condicao}</b>: {v.entradaPct > 0 ? `entrada de ${Math.round(v.entradaPct * 100)}% + ` : ""}{v.prazos.length ? `${v.prazos.join("/")} dias após a NF` : ""}</> : <span style={{ color: C.yellow }}>Condição não reconhecida — previsto à vista na entrega. Edite a condição.</span>}
+                    {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? " (despacho vencido: conta de hoje)" : ""}
+                  </div>
+                )}
+                <table className="w-full text-xs">
+                  <tbody>
+                    {v.entradaTitulos.map((t) => (
+                      <tr key={t.id} style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">Entrada lançada <span style={{ color: C.sub }}>· contas a receber · {t.status === "PAGO" ? "recebida" : "em aberto"}</span></td><td className="py-1 text-center">{dBR(t.vencimento)}</td><td className="py-1 text-right tabular-nums" style={{ color: C.sub }}>{brl(t.valor)}</td></tr>
+                    ))}
+                    {v.parcelas.map((x, i) => (
+                      <tr key={i} style={{ borderTop: `1px solid ${C.line}`, background: x.data.slice(0, 7) === comp ? C.greenSoft : undefined }}>
+                        <td className="py-1">{x.tipo === "ENTRADA" ? <span style={{ color: C.accent }}>Entrada a lançar</span> : `Parcela ${x.n}/${x.de} · ${x.dias} dias`}</td>
+                        <td className="py-1 text-center">{dBR(x.data)}</td>
+                        <td className="py-1 text-right tabular-nums font-semibold">{brl(x.valor)}</td>
+                      </tr>
+                    ))}
+                    {!v.parcelas.length && !v.entradaTitulos.length && <tr><td className="py-1" style={{ color: C.sub }}>Nada a prever.</td></tr>}
+                  </tbody>
+                </table>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {p.status === "ANDAMENTO" && v.parcelas.some((x) => x.pendente) && <Botao cor={C.accent} onClick={() => lancarEntrada(p)}><Receipt size={12} /> Lançar entrada no contas a receber</Botao>}
+                  {p.status === "ANDAMENTO" && <Botao cor={C.green} onClick={() => { const nf = prompt("Nº da NF do faturamento:", p.nfSugerida?.numero || ""); if (nf !== null) salvar(p.id, { status: "FATURADO", nfNumero: nf, faturadoEm: p.nfSugerida?.emissao }); }}><CheckCircle2 size={12} /> Marcar faturado{p.nfSugerida ? ` (NF ${p.nfSugerida.numero}?)` : ""}</Botao>}
+                  {p.status === "ANDAMENTO" && <Botao cor={C.sub} onClick={() => confirm(`Cancelar o pedido ${p.numero}?`) && salvar(p.id, { status: "CANCELADO" })}><X size={12} /> Cancelado</Botao>}
+                  {p.status !== "ANDAMENTO" && <Botao cor={C.navy} onClick={() => salvar(p.id, { status: "ANDAMENTO" })}><Undo2 size={12} /> Voltar para andamento</Botao>}
+                  <Botao cor={C.red} onClick={() => excluir(p)}><Trash2 size={12} /> Excluir</Botao>
+                </div>
+              </div>
+              {/* itens */}
+              <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <b className="text-xs" style={{ color: C.navy }}>Itens</b>
+                <table className="w-full text-xs mt-1">
+                  <thead><tr style={{ color: C.sub }}>{["Código", "Produto", "Grade", "Qtd", "Preço", "Total"].map((h) => <th key={h} className="py-1 font-semibold text-center">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(p.itens || []).map((it, i) => (
+                      <React.Fragment key={i}>
+                        <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                          <td className="py-1 text-center whitespace-nowrap" style={{ color: C.sub }}>{it.codigo || "—"}</td>
+                          <td className="py-1">{it.descricao}{it.op && <span style={{ color: C.sub }}> · OP {it.op}</span>}</td>
+                          <td className="py-1 text-center whitespace-nowrap" style={{ color: C.sub }}>{(it.grade || []).filter((g) => g.qtd).map((g) => `${g.tam} ${g.qtd}`).join(" · ")}</td>
+                          <td className="py-1 text-center tabular-nums">{it.qtd}</td>
+                          <td className="py-1 text-center tabular-nums">{it.preco != null ? brl(it.preco) : "—"}</td>
+                          <td className="py-1 text-center tabular-nums font-semibold">{it.total != null ? brl(it.total) : "—"}</td>
+                        </tr>
+                        {it.parametros?.length > 0 && (
+                          <tr><td></td><td colSpan={5} className="pb-1.5 text-[10px]" style={{ color: C.sub }}>
+                            {it.parametros.filter((x) => x.v).map((x) => <span key={x.t} className="mr-3"><b>{x.t}:</b> {x.v}</span>)}
+                          </td></tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+                {!p.temPp && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>Sem PP: suba a ordem de produção para ver os dados de produção.</div>}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function Kpi({ t, v, s, cor }) {
+  return (
+    <div className="rounded-xl px-3 py-2.5" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor}` }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wide truncate" style={{ color: C.sub }}>{t}</div>
+      <div className="font-bold whitespace-nowrap tabular-nums" style={{ color: cor, fontSize: "clamp(14px, 1.15vw, 18px)" }}>{v}</div>
+      {s && <div className="text-[10px]" style={{ color: C.sub }}>{s}</div>}
+    </div>
+  );
+}
+const Aviso = ({ cor, bg, children }) => <span className="flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold" style={{ color: cor, background: bg }}><AlertTriangle size={11} /> {children}</span>;
+const Botao = ({ cor, onClick, children }) => <button onClick={onClick} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold" style={{ color: cor, border: `1px solid ${cor}`, background: C.panel }}>{children}</button>;

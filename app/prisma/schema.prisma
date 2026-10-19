@@ -1727,3 +1727,40 @@ model OpAnalise {
 
   @@unique([setor, competencia])
 }
+
+// v316 — pedidos em andamento (PV + PP do KM Sistemas): base da previsão de receitas; a programação de entrega virá do Cronograma (Maycon)
+model PedidoVenda {
+  id            Int       @id @default(autoincrement())
+  numero        String    @unique
+  cliente       String
+  clienteCodigo String?
+  cnpj          String?
+  emissao       DateTime? @db.Date
+  despacho      DateTime? @db.Date          // DT despacho do PV
+  condicao      String?                     // texto do PV (editável)
+  entradaValor  Decimal?  @db.Decimal(14, 2) // sobrepõe a entrada calculada pela condição
+  vendedor      String?
+  tipoPedido    String?
+  oc            String?
+  freteTipo     String?
+  frete         Decimal?  @db.Decimal(14, 2)
+  total         Decimal   @db.Decimal(14, 2)
+  qtd           Int       @default(0)
+  itens         Json      @default("[]")    // PV: codigo, descricao, qtd, preco, total, grade · PP: op, parametros
+  status        String    @default("ANDAMENTO") // ANDAMENTO | FATURADO | CANCELADO
+  nfNumero      String?
+  faturadoEm    DateTime? @db.Date
+  entregaPrevista DateTime? @db.Date        // Cronograma (Maycon) — quando houver
+  cronoSituacao String?
+  cronoEtapa    String?
+  cronoEm       DateTime?
+  pvPdf         String?                     // base64
+  ppPdf         String?
+  obs           String?
+  criadoPorNome String?
+  atualizadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+}
