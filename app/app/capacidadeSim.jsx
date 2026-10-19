@@ -57,7 +57,7 @@ export default function CapacidadeSimulacao({ user, dados, matrizId, sujo, onClo
   const T = d?.total;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div className="rounded-xl p-4 w-full max-w-[1100px] max-h-[92vh] overflow-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+      <div className="rounded-xl p-4 w-full max-w-[1480px] max-h-[92vh] overflow-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start mb-2 gap-2">
           <div className="flex-1">
             <div className="font-bold" style={{ color: C.navy }}>Contratações e freelancers do período em aberto</div>
