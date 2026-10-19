@@ -54,7 +54,8 @@ export default function AnaliseLogistica({ user }) {
           <div className="text-lg font-bold" style={{ color: C.navy }}>Análise da logística</div>
           <div className="text-xs" style={{ color: C.sub }}>
             Tudo vem da DRE (extrato identificado), exceto o pessoal, que é o custo total dos funcionários da logística pela Matriz. Peças = análise da expedição (as mesmas do KPI).
-            O <b>frete entrega</b> aparece só para informação: a FPP cobra o frete à parte (por volume), então ele não entra no custo por peça.
+            A <b>folha de logística</b> volta para a operação (contribuição à operação = folha ÷ peças). Os <b>demais custos</b> (combustível, fretebras, freelancer…) não voltam: são o custo logístico cobrado na FPP (÷ peças).
+            O <b>frete entrega</b> aparece só para informação: a FPP cobra o frete à parte (por volume).
           </div>
         </div>
         {nPlan > 0 && <label className="flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: C.sub }}>
@@ -62,11 +63,12 @@ export default function AnaliseLogistica({ user }) {
       </div>
 
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-        <Kpi t="Custo logístico realizado / peça" v={M.porPeca != null ? `R$ ${brl(M.porPeca)}` : "—"} cor={C.accent}
-          s={M.meses.length ? `média ponderada de ${M.meses.map(nomeMes).join(", ")} (últimos 3 meses encerrados) · vai para a Matriz e para a FPP (logística base)` : "sem peças da expedição nos últimos 3 meses"} />
-        <Kpi t="Custo do período" v={`R$ ${brl(M.custo)}`} s={`${int(M.pecas)} peças expedidas`} />
+        <Kpi t="Contribuição à operação / peça" v={M.contribPeca != null ? `R$ ${brl(M.contribPeca)}` : "—"} cor={C.navy}
+          s={M.meses.length ? `folha de logística R$ ${brl(M.pessoal)} ÷ ${int(M.pecas)} peças · ${M.meses.map(nomeMes).join(", ")}` : "sem peças da expedição nos últimos 3 meses"} />
+        <Kpi t="Custo logístico na FPP / peça" v={M.fppPeca != null ? `R$ ${brl(M.fppPeca)}` : "—"} cor={C.accent}
+          s={`demais custos R$ ${brl(M.outros)} (sem folha e sem frete entrega) ÷ peças · vai para a FPP (logística base)`} />
+        <Kpi t="Custo total do período" v={`R$ ${brl(M.custo)}`} s={`R$ ${M.porPeca != null ? brl(M.porPeca) : "—"} por peça · ${int(M.pecas)} peças expedidas`} />
         <Kpi t="Frete entrega / peça (informativo)" v={M.freteEntregaPeca != null ? `R$ ${brl(M.freteEntregaPeca)}` : "—"} s="fora do custo: cobrado à parte na FPP" />
-        <Kpi t="Retorno à operação / peça" v={M.porPeca != null ? `R$ ${brl(M.porPeca)}` : "—"} s="sem freelancer na logística: o custo realizado volta inteiro" />
       </div>
 
       <div className="rounded-xl overflow-x-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
@@ -75,7 +77,7 @@ export default function AnaliseLogistica({ user }) {
             <tr style={{ borderBottom: `1px solid ${C.line}` }}>
               <Th>Mês</Th><Th>Identificação</Th><Th dir>Pessoal</Th>
               {custoCols.map((c) => <Th key={c.k} dir>{c.n}</Th>)}
-              <Th dir cor={C.navy}>Custo</Th><Th dir>Peças</Th><Th dir cor={C.accent} bg={C.soft}>Custo / peça</Th>
+              <Th dir cor={C.navy}>Custo</Th><Th dir>Peças</Th><Th dir cor={C.navy}>Folha / pç</Th><Th dir cor={C.accent} bg={C.soft}>FPP / pç</Th><Th dir>Total / pç</Th>
               {infoCols.map((c) => <Th key={c.k} dir cor="#98A2B3">{c.n}</Th>)}
               <Th dir cor="#98A2B3">Frete entr. / pç</Th>
             </tr>
@@ -96,7 +98,9 @@ export default function AnaliseLogistica({ user }) {
                   {custoCols.map((c) => <Cel key={c.k} v={m.valores[c.k]} pl={pl ? pl.valores[c.k] : undefined} />)}
                   <Cel v={m.custo} forte cor={C.navy} />
                   <Cel v={m.pecas} pl={pl?.pecas} peca />
-                  <td className="px-2 py-1 text-right tabular-nums font-bold" style={{ color: C.accent, background: C.soft }}>{m.porPeca != null ? brl(m.porPeca) : "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums font-semibold" style={{ color: C.navy }}>{m.contribPeca != null ? brl(m.contribPeca) : "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums font-bold" style={{ color: C.accent, background: C.soft }}>{m.fppPeca != null ? brl(m.fppPeca) : "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{m.porPeca != null ? brl(m.porPeca) : "—"}</td>
                   {infoCols.map((c) => <Cel key={c.k} v={m.valores[c.k]} pl={pl ? pl.valores[c.k] : undefined} cor="#98A2B3" />)}
                   <td className="px-2 py-1 text-right tabular-nums" style={{ color: "#98A2B3" }}>{m.freteEntregaPeca != null ? brl(m.freteEntregaPeca) : "—"}</td>
                 </tr>
@@ -106,7 +110,7 @@ export default function AnaliseLogistica({ user }) {
         </table>
       </div>
       <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Base de cálculo: últimos 3 meses encerrados (a mesma regra dos outros setores); a coluna Identificação mostra se ainda há lançamento sem conta no mês.
+        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Folha/pç = pessoal ÷ peças (volta à operação); FPP/pç = demais custos ÷ peças (cobrado na FPP). Base de cálculo: últimos 3 meses encerrados (a mesma regra dos outros setores); a coluna Identificação mostra se ainda há lançamento sem conta no mês.
         {conferir && nPlan > 0 && <> Linha de baixo (verde/vermelho) = valor da planilha; em vermelho, diferença acima de R$ 1,00.</>}
       </div>
 

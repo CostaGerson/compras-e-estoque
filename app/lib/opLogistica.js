@@ -2,6 +2,8 @@
 //   custo = pessoal de logística (custo total dos funcionários pela Matriz) + contas de logística da DRE + freelancer de logística;
 //   FRETE ENTREGA é só informativo (a FPP cobra o frete à parte, por volume) — fica fora do custo por peça.
 //   peças = peças da análise da expedição (as mesmas do KPI).
+//   v284 — divisão: a FOLHA de logística volta para a operação (contribuição à operação = folha ÷ peças);
+//   os demais custos (combustível, fretebras, freelancer…) não voltam e são o que a FPP cobra (sem folha e sem frete entrega) ÷ peças.
 //   Base de cálculo (v280, mesma regra dos outros setores): últimos 3 meses encerrados, média ponderada (custo ÷ peças).
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
@@ -50,9 +52,12 @@ export async function logisticaMes(comp, ctx = {}) {
   const custo = r2(pessoal + CONTAS_LOG.filter(([, , , entra]) => entra).reduce((s, [k]) => s + valores[k], 0));
   const nSem = semConta._count || 0;
   const identificado = total > 0 && nSem === 0;
+  const outros = r2(custo - pessoal);
   return {
-    comp, pessoal, valores, custo, pecas,
+    comp, pessoal, outros, valores, custo, pecas,
     porPeca: pecas ? custo / pecas : null,
+    contribPeca: pecas ? pessoal / pecas : null,      // volta para a operação
+    fppPeca: pecas ? outros / pecas : null,           // cobrado na FPP
     freteEntregaPeca: pecas ? valores.FRETE_ENTREGA / pecas : null,
     comFrete: r2(custo + valores.FRETE_ENTREGA),
     lancamentos: total, semConta: nSem, valorSemConta: r2(-(Number(semConta._sum?.valor) || 0)),
@@ -77,6 +82,9 @@ export async function analiseLogistica() {
     meses: base.map((m) => m.comp),
     custo: r2(soma((m) => m.custo)), pecas: pcs,
     porPeca: pcs ? soma((m) => m.custo) / pcs : null,
+    pessoal: r2(soma((m) => m.pessoal)), outros: r2(soma((m) => m.outros)),
+    contribPeca: pcs ? soma((m) => m.pessoal) / pcs : null,
+    fppPeca: pcs ? soma((m) => m.outros) / pcs : null,
     freteEntregaPeca: pcs ? soma((m) => m.valores.FRETE_ENTREGA) / pcs : null,
   };
   return { contas: CONTAS_LOG.map(([k, n, cods, entra]) => ({ k, n, cods, entra })), meses, media };
@@ -88,11 +96,11 @@ export async function custoLogisticoPeca() {
   return a.media;
 }
 
-// FPP: LOGISTICA_BASE (malha e plano) = custo logístico realizado por peça (sem frete entrega), com histórico
+// FPP: LOGISTICA_BASE (malha e plano) = custos de logística por peça SEM a folha e sem frete entrega (v284), com histórico
 export async function atualizarLogisticaFpp(media = null) {
   const m = media || await custoLogisticoPeca();
-  if (!m?.porPeca) return { ok: false, motivo: "sem peças nos últimos 3 meses" };
-  const v = r2(m.porPeca);
+  if (!m?.fppPeca) return { ok: false, motivo: "sem peças nos últimos 3 meses" };
+  const v = r2(m.fppPeca);
   const quem = `SISTEMA · ANÁLISE DA LOGÍSTICA (${m.meses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")})`;
   const ps = await prisma.fppParam.findMany({ where: { grupo: "CONST", chave: "LOGISTICA_BASE" } });
   let alterados = 0;

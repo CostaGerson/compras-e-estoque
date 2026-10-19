@@ -100,7 +100,7 @@ const MENU = [
       { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por milheiro de pontos): folha, freelancers e peças feitas dentro" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
-      { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça pela DRE (pessoal + combustível, fretes e deslocamentos), sem o frete de entrega" },
+      { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Folha de logística por peça (volta à operação) e demais custos da DRE por peça (vão para a FPP), sem o frete de entrega" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -360,11 +360,11 @@ function VoltaCard({ r }) {
   const meses = r.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ");
   return (
     <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
-      <div className="text-[11px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sub }} title="Contribuição bruta à operação por peça">Contrib. bruta à op./peça</div>
-      <div className="text-xl font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
+      <div className="text-[10px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sub }} title="Contribuição bruta à operação por peça">Contrib. bruta/peça</div>
+      <div className="text-lg font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
       {/* v281 — rodapé com altura fixa (3 linhas) para a linha e o valor ficarem na mesma altura em todos os cards */}
-      <div className="text-[11px] leading-4 overflow-hidden" style={{ color: C.sub, height: "3rem" }}>
-        {r.base === "LOGISTICA" ? <>custo realizado por peça (sem frete entrega) · média de {r.meses.length} mês(es) ({meses})</>
+      <div className="text-[10px] leading-[14px] overflow-hidden" style={{ color: C.sub, height: "3.5rem" }}>
+        {r.base === "LOGISTICA" ? <>folha de logística por peça · FPP {brlV(r.fppPeca)}/pç (demais custos) · média de {r.meses.length} mês(es) ({meses})</>
           : r.base === "SETOR" ? <>por peça operada · média de {r.meses.length} mês(es) ({meses})</>
           : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
       </div>
@@ -378,6 +378,7 @@ function CardsGrupo({ grupo, ir, user }) {
     fetch(`/api/producao/analises?u=${user.id}&acao=resumo`).then((r) => (r.ok ? r.json() : null)).then(setVolta).catch(() => setVolta(null));
   }, [grupo.key, user?.id]);
   const Ico = grupo.icon;
+  const an = grupo.key === "analisesOp";
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
@@ -387,14 +388,15 @@ function CardsGrupo({ grupo, ir, user }) {
           <div className="text-xs" style={{ color: C.sub }}>{grupo.desc}</div>
         </div>
       </div>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
+      {/* v284 — análises: 8 colunas compactas (5 setores + bruta + líquida + vaga do bordado) */}
+      <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
           const I = f.icon;
           return (
-            <button key={f.key} onClick={() => ir(f.key)} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg flex flex-col"
+            <button key={f.key} onClick={() => ir(f.key)} className={`text-left rounded-2xl ${an ? "p-3.5" : "p-5"} transition-shadow hover:shadow-lg flex flex-col min-w-0`}
               style={f.filhos ? { background: C.sidebar, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="flex items-center gap-2"><I size={22} style={{ color: C.accent }} className="shrink-0" /><div className="text-base font-bold">{f.label}</div></div>
-              <div className="text-xs mt-1 mb-3" style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
+              <div className="flex items-center gap-2 min-w-0"><I size={an ? 18 : 22} style={{ color: C.accent }} className="shrink-0" /><div className={`${an ? "text-sm" : "text-base"} font-bold truncate`}>{f.label}</div></div>
+              <div className={`${an ? "text-[10px] leading-[14px]" : "text-xs"} mt-1 mb-3`} style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
               {volta && SETOR_DO_CARD[f.key] && <VoltaCard r={volta.setores?.[SETOR_DO_CARD[f.key]]} />}
               {f.filhos && (
                 <div className="flex flex-wrap gap-1 mt-3">
@@ -409,22 +411,22 @@ function CardsGrupo({ grupo, ir, user }) {
         })}
         {/* v266 — total ao lado do último card de setor */}
         {volta && (
-          <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.sidebar, color: "#fff" }}>
-            <div className="text-[11px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
-            <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
-            <div className="text-[11px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
-              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = custo realizado (DRE, sem frete entrega).
+          <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.sidebar, color: "#fff" }}>
+            <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
+            <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
+            <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
+              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = folha de logística por peça (os demais custos vão para a FPP).
               Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
             </div>
           </div>
         )}
         {/* v267 — contribuição líquida: bruta × (1 − % freelancer da mão de obra operacional) */}
         {volta && (
-          <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.accent, color: "#fff" }}>
-            <div className="text-[11px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
-            <div className="text-3xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
-            <div className="text-xs font-semibold mt-1">produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}</div>
-            <div className="text-[11px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
+          <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.accent, color: "#fff" }}>
+            <div className="text-[10px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
+            <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
+            <div className="text-[11px] font-semibold mt-1">produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}</div>
+            <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
               % freelancers oficial (o mesmo da Capacidade e da Matriz) = freelancers ÷ (folha + freelancers) de todos os setores
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
               folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers só do extrato identificado (os mesmos das análises).

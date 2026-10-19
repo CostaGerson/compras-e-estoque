@@ -345,12 +345,13 @@ export async function resumoVolta(ate = null) {
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
   const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
-  // v279 — logística: custo realizado por peça (DRE, sem frete entrega), últimos 3 meses encerrados; sem freelancer, volta inteira
+  // v284 — logística: só a FOLHA de logística volta para a operação (folha ÷ peças, últimos 3 meses encerrados);
+  //   combustível, fretes etc. não voltam (são cobrados na FPP)
   const { custoLogisticoPeca } = await import("@/lib/opLogistica");
   const lg = await custoLogisticoPeca().catch(() => null);
-  const logistica = lg?.porPeca || 0;
-  g.push({ chave: "LOGISTICA", meses: lg?.meses || [], volta: lg?.custo || 0, pecas: lg?.pecas || 0, base: "LOGISTICA", valor: logistica,
-    freteEntregaPeca: lg?.freteEntregaPeca ?? null });
+  const logistica = lg?.contribPeca || 0;
+  g.push({ chave: "LOGISTICA", meses: lg?.meses || [], volta: lg?.pessoal || 0, pecas: lg?.pecas || 0, base: "LOGISTICA", valor: logistica,
+    fppPeca: lg?.fppPeca ?? null, freteEntregaPeca: lg?.freteEntregaPeca ?? null });
   const total = producao + logistica;
   // v269 — % freelancer oficial (mesma regra da Capacidade e da Matriz): últimos 3 meses fechados
   const { pctFreelancerOperacional } = await import("@/lib/rhPainel");
