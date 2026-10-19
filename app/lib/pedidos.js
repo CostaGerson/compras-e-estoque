@@ -59,6 +59,8 @@ export async function importarArquivos(arquivos, quem) {
       out.push({ nome: l.nome, tipo: "PP", numero: l.numero, cliente: l.cliente || atual?.cliente, itens: l.itens.length, novo: !atual, semPv: !atual?.pvPdf });
     }
   }
+  // v321 — relê o Cronograma para casar os pedidos novos na hora
+  try { await sincronizar({ forcar: true }); } catch {}
   // v320 — espelha no Lançar PP
   for (const n of [...new Set(out.filter((o) => o.numero).map((o) => o.numero))]) {
     try { await espelharPp(n); } catch (e) { out.push({ nome: `PP ${n}`, erro: `não espelhou no Lançar PP: ${e.message}` }); }

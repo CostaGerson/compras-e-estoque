@@ -67,6 +67,7 @@ export function normalizarItem(o) {
   return {
     itemCode: itemDe(o), pedido: pedidoDe(o),
     produto: String(pick(o, "produto", "descricao", "nome", "item") || ""),
+    cliente: String(pick(o, "cliente", "clienteNome", "razaoSocial") || ""),
     quantidade: Number(pick(o, "quantidade", "qtd", "qtde", "pecas")) || 0,
     entrega: dataDe(pick(o, "entrega", "dataEntrega", "prazoEntrega", "prazo", "entregaPrevista", "previsaoEntrega", "dataPrevista")),
     situacao: String(pick(o, "situacao", "status", "fase") || ""),
@@ -144,6 +145,12 @@ export async function sincronizar({ forcar = false } = {}) {
       }
       const nums = new Set(aqui.map((p) => soDig(p.numero)));
       res.semPedidoAqui = Object.keys(g).filter((n) => !nums.has(n)).length;
+      // v321 — pedidos em andamento no PCP que ainda não têm PV aqui (para saber o que falta subir)
+      res.pendentes = Object.values(g).filter((c) => !nums.has(c.pedido) && !c.concluido && c.itens.length)
+        .map((c) => ({ pedido: c.pedido, cliente: c.itens.find((i) => i.cliente)?.cliente || "", itens: c.itens.length,
+          pecas: c.itens.reduce((a, i) => a + (i.quantidade || 0), 0), entrega: c.entregaPrevista, prazo: c.prazo, situacao: c.situacao, etapa: c.etapa }))
+        .sort((a, b) => String(a.entrega || "9").localeCompare(String(b.entrega || "9")));
+      res.qtdPendentes = res.pendentes.length;
     } catch (e) { res.erro = e.message; }
     await prisma.finConfig.upsert({ where: { chave: K_SYNC }, create: { chave: K_SYNC, valor: JSON.stringify(res) }, update: { valor: JSON.stringify(res) } });
     return { ok: !res.erro, ...(await statusSync()) };

@@ -20,6 +20,7 @@ import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
+import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
@@ -1143,8 +1144,7 @@ function LancarPP({ user }) {
   const subirRef = React.useRef(subir); subirRef.current = subir;
   useEffect(() => {
     if (modo !== "lista") return;
-    const colar = (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); subirRef.current(fs); } };
-    window.addEventListener("paste", colar); return () => window.removeEventListener("paste", colar);
+    return ouvirColar((fs) => subirRef.current(fs), (m) => setResUp([{ nome: "Colar", erro: m }]));
   }, [modo]);
   const abrirPdf = (p, campo) => window.open(`/api/pp/${p.id}?arquivo=${campo}&_u=${user?.id}`, "_blank");
 
@@ -1166,7 +1166,7 @@ function LancarPP({ user }) {
           </button>}
         </div>
       </div>
-      {podeLancar && <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(e.dataTransfer.files); }}
+      {podeLancar && <div tabIndex={0} title="Clique aqui e aperte Ctrl+V" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(e.dataTransfer.files); }}
         className="rounded-lg px-4 py-2.5 mb-3 text-xs" style={{ border: `1px dashed ${C.line}`, color: C.sub, background: C.panel }}>
         Arraste ou cole (Ctrl+V) os PDFs do KM — PV (pedido de venda) e PP (ordem de produção), vários de uma vez. Os pedidos subidos no Financeiro também aparecem aqui.
       </div>}
