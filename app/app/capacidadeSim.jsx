@@ -52,8 +52,8 @@ export default function CapacidadeSimulacao({ user, dados, matrizId, sujo, onClo
     fetch(`/api/kpi/capacidade?u=${user.id}&meses=3&ano=${ano}&alvo=${alvo}`).then((r) => r.json())
       .then((j) => (j.error ? setErro(j.error) : setD(j))).catch((e) => setErro(e.message));
   }, []);
-  const Th = ({ children, dir, cor, sep }) => <th className={`px-2 py-1.5 font-semibold ${dir ? "text-right" : "text-left"}`} style={{ color: cor || C.sub, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</th>;
-  const Td = ({ children, dir, cor, forte, sep }) => <td className={`px-2 py-1.5 ${dir ? "text-right tabular-nums" : ""}`} style={{ color: cor || C.text, fontWeight: forte ? 700 : 400, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</td>;
+  const Th = ({ children, dir, cor, sep }) => <th className={`px-2 py-1.5 font-semibold align-bottom ${dir ? "text-center" : "text-left"}`} style={{ color: cor || C.sub, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</th>;
+  const Td = ({ children, dir, cor, forte, sep }) => <td className={`px-2 py-1.5 ${dir ? "text-center tabular-nums" : ""}`} style={{ color: cor || C.text, fontWeight: forte ? 700 : 400, borderLeft: sep ? `1px solid ${C.line}` : undefined }}>{children}</td>;
   const T = d?.total;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -96,7 +96,7 @@ export default function CapacidadeSimulacao({ user, dados, matrizId, sujo, onClo
                       {(() => { const x = R.setores.find((y) => y.setor === s.setor) || {}; return x.semDiaria
                         ? <><Td dir sep cor={C.sub}>—</Td><Td dir cor={C.sub}>{brl(x.freelancer)}</Td><Td dir /></>
                         : <><td className="px-2 py-1" style={{ borderLeft: `2px solid ${C.accent}`, background: "#FFF8F3" }}>
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-center gap-1">
                               <button onClick={() => mudar(s.setor, -1)} disabled={!x.freeDia} className="w-5 h-5 rounded flex items-center justify-center" style={{ background: C.panel2, color: C.text, opacity: x.freeDia ? 1 : .4 }}><Minus size={11} /></button>
                               <span className="w-6 text-center font-bold tabular-nums" style={{ color: x.freeDia !== x.base ? C.accent : C.text }}>{x.freeDia}</span>
                               <button onClick={() => mudar(s.setor, 1)} className="w-5 h-5 rounded flex items-center justify-center" style={{ background: C.panel2, color: C.text }}><Plus size={11} /></button>
