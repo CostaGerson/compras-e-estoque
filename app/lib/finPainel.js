@@ -23,12 +23,12 @@ export const BANCOS_PADRAO = [
 
 const PAINEL_VAZIO = {
   bancos: [], prioridade: [], quitacaoProvavel: [],
-  receberPrevisao: null, receberLitigio: null,
+  receberPrevisao: null,
   pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null,
   infoRelevante: "", salvos: [],
 };
 // Campos digitados (a tela e o salvar usam esta lista)
-export const CAMPOS_MANUAIS = ["receberPrevisao", "receberLitigio", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
+export const CAMPOS_MANUAIS = ["receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
 
 const SEL = { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, previsao: true,
   antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true };
@@ -70,7 +70,7 @@ async function posicao(M, hoje) {
       qtd: rl.length, qtdAntecipados: vt.length, qtdCobranca: cb.length, qtdExecucao: ex.length };
   };
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
-  const pagarAtras = pagarSemPrev.filter(vencido);
+  const pagarAtras = pagar.filter(vencido);   // v311 — atrasadas incluem previsões
   const pagarMes = pagar.filter(noMes);
   return {
     receber: {

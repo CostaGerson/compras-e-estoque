@@ -1163,6 +1163,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
    O painel da competência C é a previsão do MÊS SEGUINTE. Posição automática ao vivo das contas;
    prioridade (pagar) e quitação provável (receber) escolhidas nas listas de atrasados; cenários calculados;
    salvar guarda o painel datado; o painel seguinte compara previsto × realizado. */
+const compAnt = (c) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 2, 1)); return d.toISOString().slice(0, 7); };
 const nomeMesAno = (c) => (c ? `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}` : "");
 
 function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2 }) {
@@ -1275,8 +1276,8 @@ function PainelPrevisao({ user, comp, setComp }) {
       antecipandoCobrindo: mes - caixa.limiteTomado + n("antecipacaoDisp"), antecipandoSemCobrir: mes + n("antecipacaoDisp") } };
   }, [p, bancos, selPrior, selQuit, rasc]);
 
-  const abrirSalvo = async (idx) => {
-    const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&acao=salvo&idx=${idx}`); const j = await r.json();
+  const abrirSalvo = async (idx, c = comp) => {
+    const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${c}&acao=salvo&idx=${idx}`); const j = await r.json();
     if (r.ok) setModal({ tipo: "salvo", s: j }); else alert(j.error || "Erro");
   };
   const abrirComparacao = async () => {
@@ -1298,6 +1299,13 @@ function PainelPrevisao({ user, comp, setComp }) {
           <Link2 size={13} /> Campos com corrente vêm das contas a pagar e a receber (ao vivo). Os demais você preenche.
         </div>
         <div className="flex-1" />
+        {/* v311 — previsões salvas: a deste mês (último retrato) e a que o painel anterior fez para este mês */}
+        {p?.anteriorTemSalvo && <button onClick={() => abrirSalvo(-1, compAnt(comp))} title="Último painel salvo no mês anterior (o que previu este mês)"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}>
+          <Eye size={14} /> Previsão salva de {nomeMesAno(comp)}</button>}
+        {p?.salvos?.length > 0 && <button onClick={() => abrirSalvo(-1)} title="Último painel salvo nesta competência"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}>
+          <Eye size={14} /> Previsão salva de {nomeMesAno(p.mesPrevisto)}</button>}
         {p?.anteriorTemSalvo && <button onClick={abrirComparacao} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}>
           <ArrowLeftRight size={14} /> Previsto × realizado</button>}
         {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
@@ -1316,7 +1324,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s) · sem previsões`}
+              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
                 onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
               <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
               <CardAuto rotulo="A pagar · total em aberto" valor={P.totalSemPrevisao} cor={C.sub} sub="sem previsões" />
@@ -1324,49 +1332,28 @@ function PainelPrevisao({ user, comp, setComp }) {
                 onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
               <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
+              <CardAuto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
+                onClick={() => setModal({ tipo: "foraMes" })} />
               <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
                 sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
             </div>
-          </div>
-
-          {/* bancos */}
-          <div className={caixaBloco} style={caixaSt}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold" style={{ color: C.navy }}>Bancos</div>
-              <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
+            {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
+            <div className="text-[11px] font-bold uppercase mt-4 mb-2 flex items-center justify-between" style={{ color: C.navy }}>
+              <span>Bancos</span>
+              <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
-              <span className="flex-1">Banco</span><span style={{ width: 110, textAlign: "right" }}>Saldo</span><span style={{ width: 110, textAlign: "right" }}>Limite</span>
-              <span style={{ width: 110, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 100, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
-            </div>
-            {bancos.map((b, i) => {
-              const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
-              const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
-              const disp = Math.max(0, saldo) + Math.max(0, limite - tomado);
-              return (
-                <div key={i} className="flex items-center gap-2 py-1">
-                  <input value={b.nome || ""} onChange={(e) => setBanco(i, "nome", e.target.value.toUpperCase())} placeholder="BANCO"
-                    className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
-                  <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={110} negativo />
-                  <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={110} />
-                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={110} />
-                  <span className="text-sm font-semibold" style={{ width: 100, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
-                  <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
-                </div>
-              );
-            })}
-            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-              <Kpi rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
-              <Kpi rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
-              <Kpi rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
-              <Kpi rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+              {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
+                ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
+                <CardAuto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
+              ))}
             </div>
           </div>
 
           {/* contas atrasadas + prioridade */}
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas, em aberto, sem previsões).</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas e em aberto, inclusive previsões).</div>
             <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
             <div className="flex items-center justify-between mt-3 mb-1">
               <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Prioridade do mês <span className="font-semibold" style={{ color: C.red }}>{brl(calc.tP)}</span></div>
@@ -1378,11 +1365,10 @@ function PainelPrevisao({ user, comp, setComp }) {
           {/* contas a receber */}
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Previsão e litígio virão do sistema do Maycon (integração); por ora, digitados.</div>
-            {[["receberPrevisao", "Previsão (ainda sem título)"], ["receberLitigio", "Em litígio"]].map(([k, t]) => (
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>A previsão virá do sistema do Maycon (integração); por ora, digitada.</div>
+            {[["receberPrevisao", "Previsão (ainda sem título)"]].map(([k, t]) => (
               <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
             ))}
-            <button onClick={() => setModal({ tipo: "foraMes" })} className="w-full text-left"><LinhaVal rotulo="Fora do mês" sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)} (clique: virtual)`} valor={R.foraMes.real} cor={C.blue} /></button>
             <div className="flex items-center justify-between mt-3 mb-1">
               <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Quitação provável <span className="font-semibold" style={{ color: C.blue }}>{brl(calc.tQ)}</span></div>
               <button onClick={() => setModal({ tipo: "receberAtrasados" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
@@ -1445,6 +1431,42 @@ function PainelPrevisao({ user, comp, setComp }) {
       )}
 
       {/* janelas */}
+      {modal?.tipo === "bancos" && calc && (
+        <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={720}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco (negativo = cheque especial em uso).</div>
+              <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
+              <span className="flex-1">Banco</span><span style={{ width: 110, textAlign: "right" }}>Saldo</span><span style={{ width: 110, textAlign: "right" }}>Limite</span>
+              <span style={{ width: 110, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 100, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
+            </div>
+            {bancos.map((b, i) => {
+              const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
+              const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
+              const disp = Math.max(0, saldo) + Math.max(0, limite - tomado);
+              return (
+                <div key={i} className="flex items-center gap-2 py-1">
+                  <input value={b.nome || ""} onChange={(e) => setBanco(i, "nome", e.target.value.toUpperCase())} placeholder="BANCO"
+                    className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
+                  <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={110} negativo />
+                  <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={110} />
+                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={110} />
+                  <span className="text-sm font-semibold" style={{ width: 100, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
+                  <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
+                </div>
+              );
+            })}
+            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+              <Kpi rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
+              <Kpi rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
+              <Kpi rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
+            </div>
+            <div className="text-[11px] mt-2" style={{ color: C.sub }}>As alterações entram no painel ao fechar; use Salvar painel para gravar.</div>
+        </Modal>
+
+      )}
       {modal?.tipo === "receber" && <DetalheReceber titulo={modal.titulo} b={modal.b} onClose={() => setModal(null)} />}
       {modal?.tipo === "foraMes" && <DetalheReceber titulo={`A receber depois de ${nomeMesAno(p.mesPrevisto)}`} b={R.foraMes} onClose={() => setModal(null)} />}
       {modal?.tipo === "pagarAtrasadas" && (
