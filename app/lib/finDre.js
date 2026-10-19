@@ -121,10 +121,12 @@ export async function dre(competencia) {
   const nomeDe = Object.fromEntries(contas.map((c) => [c.id, `${c.codigo} · ${c.nome}`]));
 
   const porGrupo = {}, porConta = {};
-  let semConta = 0;
+  let semConta = 0, foraSemConc = 0;
+  const idConc = contas.find((c) => c.codigo === "3000000")?.id;
   for (const l of lanc) {
     const v = Number(l.valor);
     if (!l.contaId) { semConta += v; continue; }
+    if ((grupoDe[l.contaId] || "FORA") === "FORA" && l.contaId !== idConc) foraSemConc += v;
     const g = grupoDe[l.contaId] || "FORA";
     porGrupo[g] = r2((porGrupo[g] || 0) + v);
     (porConta[g] = porConta[g] || {});
@@ -168,7 +170,9 @@ export async function dre(competencia) {
     },
     detalhes: Object.fromEntries([...GRUPOS_OPERACAO, GRUPO_FORA].map((g) => [g.k, detalhe(g.k)])),
     externos, entradaExterna, pagamentoExterno, resultadoExterno,
-    saldoFinal: r2(saldoOperacao + resultadoExterno),
+    // v306 — saldo final = saldo inicial + resultado do caixa do mês: o sem conta e o "fora da DRE" (menos a conciliação) entram como linhas próprias
+    saldoFinal: r2(saldoOperacao + resultadoExterno + semConta + foraSemConc),
+    aIdentificar: r2(semConta), foraSemConc: r2(foraSemConc),
     fora: r2(porGrupo.FORA || 0),
     semConta: r2(semConta),
     lancamentos: lanc.length,

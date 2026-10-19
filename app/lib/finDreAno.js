@@ -148,7 +148,9 @@ export async function dreAno(ano, hoje = new Date()) {
       receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, nort, resultado,
       externo, saldoInicial, caixa: m.caixa, semConta: m.semConta, fora: m.fora,
       saldoOperacao: r2((saldoInicial || 0) + resultado),
-      saldoFinal: r2((saldoInicial || 0) + resultado + externo),
+      // v306 — saldo final = soma do caixa do mês: o que ainda não tem conta (e o "fora da DRE") entra como linha própria
+      aIdentificar: m.semConta, foraDre: m.fora,
+      saldoFinal: r2((saldoInicial || 0) + resultado + externo + m.semConta + m.fora),
       alavancagem: alav,
     });
   }
@@ -168,7 +170,8 @@ export async function dreAno(ano, hoje = new Date()) {
     saldoInicial: feitos[0]?.saldoInicial ?? null,
   };
   totais.saldoOperacao = r2((totais.saldoInicial || 0) + totais.resultado);
-  totais.saldoFinal = r2(totais.saldoOperacao + totais.externo);
+  totais.aIdentificar = totais.semConta;
+  totais.saldoFinal = r2(totais.saldoOperacao + totais.externo + totais.semConta + totais.fora);   // v306 — = saldo inicial + soma dos resultados dos meses
   totais.margemPct = receita ? totais.margem / receita : null;
   totais.ebitdaPct = receita ? totais.ebitda / receita : null;
   totais.lucroPct = receita ? totais.lucro / receita : null;

@@ -461,26 +461,30 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
               titulo="Empréstimo, factoring, capital social e mútuo — entrada menos pagamento"
               onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS", "Recursos externos")} />
+            {Math.abs(t.aIdentificar || 0) >= 0.01 && <Ind rotulo="A identificar" valor={t.aIdentificar} cor={C.accent}
+              titulo="Lançamentos ainda sem conta: já estão no saldo final; ao identificar, só mudam de linha na DRE" />}
             <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} forte />
             <Ind rotulo="Média mensal de receita" valor={t.mediaReceita} cor={C.blue} />
             <Ind rotulo="Alavancagem total" valor={a?.atual?.total} cor={C.red} forte
               titulo="Dívidas + tributos em aberto" onClick={abrirAlav} />
           </div>
-          {/* v301 — conciliação: soma dos resultados dos cards dos meses × saldo final da DRE */}
-          {t.caixa != null && (
-            <div className="rounded-xl px-4 py-2.5 mb-4 text-xs flex flex-wrap items-center gap-x-2 gap-y-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
-              <b style={{ color: C.navy }}>Caixa × DRE</b>
-              <span>soma dos resultados dos meses <b style={{ color: C.text }}>{moeda(t.caixa)}</b></span>
-              <span>− sem conta <b style={{ color: t.semConta ? C.accent : C.text }}>{moeda(t.semConta)}</b>
-                {/* v305 — de que meses vem o sem conta */}
-                {(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).length > 0 && <span className="ml-1">({(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).map((m) => `${nomeComp(m.competencia).split("/")[0].slice(0, 3).toLowerCase()} ${moeda(m.semConta)}`).join(" · ")})</span>}
-              </span>
-              <span>− fora da DRE <button onClick={() => ir("FORA", "Fora da DRE")} className="font-bold underline" style={{ color: t.fora ? C.accent : C.text }}>{moeda(t.fora)}</button></span>
-              {!!t.saldoInicial && <span>+ saldo inicial <b style={{ color: C.text }}>{moeda(t.saldoInicial)}</b></span>}
-              <span>= saldo final <b style={{ color: t.saldoFinal >= 0 ? C.green : C.red }}>{moeda(t.saldoFinal)}</b></span>
-              {Math.abs(r2c(t.caixa - t.semConta - t.fora + (t.saldoInicial || 0) - t.saldoFinal)) >= 0.01 && <span style={{ color: C.red }}>· diferença {moeda(t.caixa - t.semConta - t.fora + (t.saldoInicial || 0) - t.saldoFinal)}</span>}
-            </div>
-          )}
+          {/* v306 — prova: soma dos resultados dos meses (caixa) = saldo final; o sem conta é só uma linha à parte */}
+          {t.caixa != null && (() => {
+            const dif = r2c((t.saldoInicial || 0) + t.caixa - t.saldoFinal);
+            return (
+              <div className="rounded-xl px-4 py-2.5 mb-4 text-xs flex flex-wrap items-center gap-x-2 gap-y-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+                <b style={{ color: C.navy }}>Caixa × DRE</b>
+                <span>soma dos resultados dos meses <b style={{ color: C.text }}>{moeda(t.caixa)}</b></span>
+                {!!t.saldoInicial && <span>+ saldo inicial <b style={{ color: C.text }}>{moeda(t.saldoInicial)}</b></span>}
+                <span>= saldo final <b style={{ color: t.saldoFinal >= 0 ? C.green : C.red }}>{moeda(t.saldoFinal)}</b></span>
+                {Math.abs(dif) < 0.01 ? <span style={{ color: C.green }}>✓ fecha</span> : <span style={{ color: C.red }}>· diferença {moeda(dif)}</span>}
+                <span className="ml-2">· composição: operação {moeda(t.resultado)} + recursos externos {moeda(t.externo)}
+                  {Math.abs(t.semConta || 0) >= 0.01 && <> + a identificar <b style={{ color: C.accent }}>{moeda(t.semConta)}</b> ({(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).map((m) => `${nomeComp(m.competencia).split("/")[0].slice(0, 3).toLowerCase()} ${moeda(m.semConta)}`).join(" · ")})</>}
+                  {Math.abs(t.fora || 0) >= 0.01 && <> + fora da DRE <button onClick={() => ir("FORA", "Fora da DRE")} className="underline">{moeda(t.fora)}</button></>}
+                </span>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -1072,7 +1076,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
             <Kpi rotulo="Lucro líquido" valor={moeda(o.lucro)} cor={o.lucro >= 0 ? C.green : C.red}
               sub={o.lucroPct == null ? "" : `${(o.lucroPct * 100).toFixed(1)}% da receita`} />
             <Kpi rotulo="Saldo final do mês" valor={moeda(d.saldoFinal)} cor={d.saldoFinal >= 0 ? C.green : C.red}
-              sub="depois dos recursos externos" />
+              sub={Math.abs(d.aIdentificar || 0) >= 0.01 ? `inclui ${moeda(d.aIdentificar)} a identificar` : "depois dos recursos externos"} />
           </div>
 
           <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -1130,6 +1134,19 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
               <span style={{ width: 140, textAlign: "right" }}>{brl(d.pagamentoExterno)}</span>
               <span style={{ width: 140, textAlign: "right", color: corValor(d.resultadoExterno) }}>{brl(d.resultadoExterno)}</span>
             </div>
+            {/* v306 — o que ainda não tem conta entra aqui; ao identificar, só muda de linha (o saldo final não muda) */}
+            {Math.abs(d.aIdentificar || 0) >= 0.01 && (
+              <div className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold" style={{ borderTop: `1px solid ${C.line}`, color: C.accent }}>
+                <span className="flex-1">A identificar <span className="font-normal text-xs" style={{ color: C.sub }}>(lançamentos ainda sem conta — ao identificar, mudam de linha)</span></span>
+                <span style={{ width: 140, textAlign: "right" }}>{brl(d.aIdentificar)}</span>
+              </div>
+            )}
+            {Math.abs(d.foraSemConc || 0) >= 0.01 && (
+              <div className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>
+                <span className="flex-1">Fora da DRE <span className="font-normal text-xs">(transferências entre contas)</span></span>
+                <span style={{ width: 140, textAlign: "right" }}>{brl(d.foraSemConc)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.navy, color: "#fff" }}>
               <span className="flex-1 font-bold text-sm">Saldo final do mês</span>
               <span className="font-bold" style={{ fontSize: 16 }}>{moeda(d.saldoFinal)}</span>
