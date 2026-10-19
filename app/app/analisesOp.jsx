@@ -40,13 +40,49 @@ const Kpi = ({ t, v, sub, cor }) => (
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
   </div>
 );
-const KpiDestaque = ({ t, v, sub, cor }) => (
-  <div className="rounded-xl p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+const KpiDestaque = ({ t, v, sub, cor, onClick }) => (
+  <div onClick={onClick} title={onClick ? "Clique para ver o valor de cada item" : undefined} className={`rounded-xl p-3 ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
     <div className="text-[11px] font-semibold uppercase" style={{ color: cor }}>{t}</div>
     <div className="text-lg font-bold tabular-nums" style={{ color: cor }}>{v}</div>
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
   </div>
 );
+// v289 — composição da média: valor de cada item (tipo de peça) que formou o número do card
+function ComposicaoMedia({ d, onClose }) {
+  useEffect(() => { const f = (e) => e.key === "Escape" && onClose(); window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, []);
+  const qtd = d.itens.reduce((s, x) => s + x.qtd, 0), tot = d.itens.reduce((s, x) => s + (x.total ?? x.valor * x.qtd), 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.35)" }} onClick={onClose}>
+      <div className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-auto" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-2 mb-1">
+          <div className="flex-1">
+            <div className="text-[11px] font-semibold uppercase" style={{ color: d.cor }}>{d.titulo}</div>
+            <div className="text-xl font-bold tabular-nums" style={{ color: d.cor }}>{d.valor}</div>
+          </div>
+          <button onClick={onClose} className="text-sm px-2" style={{ color: C.sub }}>✕</button>
+        </div>
+        <div className="text-[11px] mb-3" style={{ color: C.sub }}>{d.explica}</div>
+        <table className="w-full text-sm">
+          <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+            {["Item", "Peças", "% das peças", "Valor / peça", "Total"].map((h, i) => <th key={h} className={`py-1.5 text-xs font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}
+          </tr></thead>
+          <tbody>{d.itens.map((x) => (
+            <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}` }}>
+              <td className="py-1.5">{x.n}</td>
+              <td className="text-right tabular-nums">{int(x.qtd)}</td>
+              <td className="text-right tabular-nums" style={{ color: C.sub }}>{qtd ? pct(x.qtd / qtd) : "—"}</td>
+              <td className="text-right tabular-nums font-semibold" style={{ color: d.cor }}>{brl(x.valor)}</td>
+              <td className="text-right tabular-nums">{brl(x.total ?? x.valor * x.qtd)}</td>
+            </tr>))}</tbody>
+          <tfoot><tr className="font-bold">
+            <td className="py-2">Média ponderada</td><td className="text-right tabular-nums">{int(qtd)}</td><td />
+            <td className="text-right tabular-nums" style={{ color: d.cor }}>{qtd ? brl(tot / qtd) : "—"}</td><td className="text-right tabular-nums">{brl(tot)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
 const inp = "rounded px-2 py-1 text-sm text-right tabular-nums";
 const inpS = { border: `1px solid ${C.line}`, background: "#fff", color: C.text };
 
@@ -125,6 +161,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   useEffect(() => { if (comp) carregar(comp); }, [comp]);
   // v285 — retorno à operação e valor cobrado na FPP do setor (média dos últimos 6 meses, a mesma das Análises e da FPP)
   const [rf, setRf] = useState(null);
+  const [det, setDet] = useState(null);   // v289 — composição do card
   const carregarRf = () => api(`/api/producao/analises?u=${user.id}&acao=retornoFpp`).then(setRf).catch(() => setRf(null));
   useEffect(() => { carregarRf(); }, []);
   useEffect(() => { if (aviso) carregarRf(); }, [aviso]);
@@ -263,15 +300,20 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
               {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 6 meses) */}
               {rf && <KpiDestaque t={`Retorno à operação / peça${chaveResumo === "PERSONALIZACAO" ? " (silk + bordado)" : ""}`} cor={C.navy}
+                onClick={rr?.base === "SETOR" && rr.categorias?.length ? () => setDet({ titulo: "Retorno à operação / peça", cor: C.navy, valor: brl(rr.valor), itens: rr.categorias,
+                  explica: `Custo real do setor (pessoal + freelancers) rateado por tipo de peça pelo peso de mercado · ${mesesTxt(rr.meses)}` }) : undefined}
                 v={rr?.meses?.length ? brl(rr.valor) : "—"}
                 sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "custo real por peça operada" : "mercado por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 6 meses"} />}
               {rf && <KpiDestaque t="Valor cobrado na FPP" cor={C.accent}
+                onClick={fs?.categorias?.length ? () => setDet({ titulo: "Valor cobrado na FPP", cor: C.accent, valor: `${brl(fs.porPeca)} / pç`, itens: fs.categorias,
+                  explica: `${["CORTE", "EXPEDICAO"].includes(setor) ? "Custo real do setor rateado por tipo de peça pelo peso de mercado" : "Valor de mercado por tipo de peça"} — é o valor de cada item nos parâmetros da FPP · ${mesesTxt(rf.fpp.meses)}` }) : undefined}
                 v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : setor === "BORDADO" ? "—" : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
                 sub={setor === "SILK" ? <>contribuição ÷ cores aplicadas · {mesesTxt(rf.fpp.meses)}</>
                   : setor === "BORDADO" ? "o bordado ainda não alimenta a FPP"
                   : fs?.categorias?.length ? <>{fs.categorias.slice(0, 3).map((x) => `${x.n.toLowerCase()} ${brl(x.valor)}`).join(" · ")}{fs.categorias.length > 3 ? ` · +${fs.categorias.length - 3}` : ""} · média ponderada {mesesTxt(rf.fpp.meses)}</>
                   : "sem mês completo (corte e expedição) para a FPP"} />}
           </div>
+          {det && <ComposicaoMedia d={det} onClose={() => setDet(null)} />}
 
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>

@@ -346,8 +346,13 @@ export async function resumoVolta(ate = null) {
       const real = SETORES_CUSTO_REAL.includes(a.setor);   // v288 — corte/expedição: custo real; demais: mercado × quantidade
       const c = real ? await calcularReal(a) : calcularCorte(a, 0, 0);
       if (!c.pecas) continue;
-      const m = (meses[a.competencia] ||= { volta: 0, pecas: 0 });
+      const m = (meses[a.competencia] ||= { volta: 0, pecas: 0, cats: {} });
       m.volta += real ? c.custoTotal : c.terceirizado; m.pecas += c.pecas;
+      for (const x of c.categorias || []) {   // v289 — composição por item (custo real rateado ou mercado)
+        if (!x.qtd) continue;
+        const it = (m.cats[x.k] ||= { k: x.k, n: x.n, q: 0, v: 0 });
+        it.q += x.qtd; it.v += x.qtd * (real ? x.valorInterno : x.mercado);
+      }
     }
     return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, JANELA_MESES);
   };
@@ -358,7 +363,10 @@ export async function resumoVolta(ate = null) {
     const pecasProducao = ms.reduce((s, [k]) => s + (expedido[k] || 0), 0);
     const porPecaSetor = pecas ? volta / pecas : 0;
     const porPecaProducao = pecasProducao ? volta / pecasProducao : 0;
-    return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao,
+    const cs = {};
+    for (const [, v] of ms) for (const it of Object.values(v.cats || {})) { const o = (cs[it.k] ||= { k: it.k, n: it.n, q: 0, v: 0 }); o.q += it.q; o.v += it.v; }
+    const categorias = Object.values(cs).filter((x) => x.q).map((x) => ({ k: x.k, n: x.n, qtd: x.q, valor: x.v / x.q, total: r2(x.v) })).sort((a, b) => b.qtd - a.qtd);
+    return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao, categorias,
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
   const g = await Promise.all([grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")]);

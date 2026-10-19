@@ -116,7 +116,7 @@ async function fppDoSetor(setor, meses, cats) {
     const p = (por[c.k] ||= { q: 0, v: 0 }); p.q += c.qtd; p.v += c.qtd * val;
   }
   return { porPeca: Q ? V / Q : null, pecas: Q,
-    categorias: cats.filter(([k]) => por[k]?.q).map(([k, n]) => ({ k, n, valor: r4(por[k].v / por[k].q), qtd: por[k].q })).sort((a, b) => b.qtd - a.qtd) };
+    categorias: cats.filter(([k]) => por[k]?.q).map(([k, n]) => ({ k, n, valor: r4(por[k].v / por[k].q), qtd: por[k].q, total: r2(por[k].v) })).sort((a, b) => b.qtd - a.qtd) };
 }
 export async function fppPorSetor() {
   const meses = await janelaFpp();
