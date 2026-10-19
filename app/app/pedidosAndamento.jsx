@@ -102,7 +102,7 @@ export default function PedidosAndamento({ user }) {
 
       <div tabIndex={0} title="Clique aqui e aperte Ctrl+V" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); enviar(e.dataTransfer.files); }}
         className="rounded-xl px-4 py-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.blueSoft, color: C.blue, border: `1px dashed ${C.blue}` }}>
-        <FileText size={14} /> Arraste ou cole (Ctrl+V) aqui os PDFs do KM Sistemas, vários de uma vez: o <b>PV</b> (pedido de venda) traz valores e condição de pagamento; o <b>PP</b> (ordem de produção) traz os dados de produção. Os dois se juntam pelo nº do pedido.
+        <FileText size={14} /> Arraste ou cole (Ctrl+V) aqui os PDFs do KM, vários de uma vez: o <b>PV</b> (valores e condição), o <b>PP</b> (produção) e o relatório <b>Posição Geral de Vendas</b> (condição e saldo a faturar de todos os pedidos de uma vez). Tudo se junta pelo nº do pedido.
       </div>
 
       {/* v317 — conexão com o Cronograma (Maycon) */}
@@ -157,7 +157,7 @@ export default function PedidosAndamento({ user }) {
             <div key={i} className="flex items-center gap-2 py-0.5" style={{ color: r.erro ? C.red : C.text }}>
               {r.erro ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} style={{ color: C.green }} />}
               <span className="font-semibold">{r.nome}</span>
-              <span style={{ color: C.sub }}>{r.erro || `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.tipo === "PV" ? ` · ${moeda(r.total)}` : ` · ${r.itens} item(ns)`}${r.novo ? " · novo" : " · atualizado"}${r.semPv ? " · falta o PV" : ""}`}</span>
+              <span style={{ color: C.sub }}>{r.erro || (r.tipo === "POSICAO" ? `Posição de Vendas · ${r.lidos} pedido(s) lidos · ${r.criados} novo(s), ${r.atualizados} atualizado(s) · saldo a faturar ${moeda(r.somaVle)}` : `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.tipo === "PV" ? ` · ${moeda(r.total)}` : ` · ${r.itens} item(ns)`}${r.novo ? " · novo" : " · atualizado"}${r.semPv ? " · falta o PV" : ""}`)}</span>
             </div>
           ))}
         </div>

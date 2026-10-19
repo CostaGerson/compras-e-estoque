@@ -10,7 +10,7 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
-  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 // v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
@@ -27,8 +27,12 @@ export async function importarArquivos(arquivos, quem) {
     } catch (e) { lidos.push({ nome: a.nome, erro: e.message }); }
   }
   const out = [];
-  // PV primeiro, para o PP encontrar o pedido já criado
-  for (const l of [...lidos].sort((a, b) => (a.tipo === "PV" ? -1 : 1) - (b.tipo === "PV" ? -1 : 1))) {
+  // v325 — relatorio "Posicao Geral de Vendas": importa todos os pedidos em massa
+  for (const l of lidos.filter((x) => x.tipo === "POSICAO")) {
+    try { out.push({ nome: l.nome, ...(await aplicarPosicaoVendas(l, quem)) }); } catch (e) { out.push({ nome: l.nome, erro: e.message }); }
+  }
+  // PV primeiro, para o PP encontrar o pedido ja criado
+  for (const l of [...lidos].filter((x) => x.tipo !== "POSICAO").sort((a, b) => (a.tipo === "PV" ? -1 : 1) - (b.tipo === "PV" ? -1 : 1))) {
     if (l.erro) { out.push({ nome: l.nome, erro: l.erro }); continue; }
     const atual = await prisma.pedidoVenda.findUnique({ where: { numero: l.numero } });
     const itensAtuais = Array.isArray(atual?.itens) ? atual.itens : [];
@@ -115,11 +119,48 @@ export async function espelharPp(numero) {
   return prisma.pp.update({ where: { id: pp.id }, data: { ...vazios, ...pdfs }, select: { id: true } });
 }
 
+// v325 — aplica o relatório de Posição de Vendas: cria os pendentes que faltam e atualiza o saldo a faturar de todos
+export async function aplicarPosicaoVendas(l, quem) {
+  const conf = { totalPedRelatorio: l.totalPed, totalVleRelatorio: l.totalVle, lidos: l.pedidos.length,
+    somaVle: r2(l.pedidos.reduce((s, p) => s + (p.vlEntregar || 0), 0)) };
+  const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, condicao: true, despacho: true, vendedor: true, pvPdf: true, fonte: true, cliente: true } })).map((x) => [x.numero, x]));
+  let criados = 0, atualizados = 0, pendentesNovos = 0;
+  for (const p of l.pedidos) {
+    const at = existentes[p.numero];
+    const interno = ehInterno(p.cliente, null);
+    const comum = { qtEntregar: Math.round(p.qtEntregar || 0), vlEntregar: r2(p.vlEntregar || 0), vendedor: p.vendedor || null, interno };
+    if (at) {
+      const temPv = !!at.pvPdf;
+      await prisma.pedidoVenda.update({ where: { id: at.id }, data: {
+        ...comum,
+        cliente: at.cliente && at.cliente !== "SEM CLIENTE" ? at.cliente : (p.cliente || at.cliente),
+        condicao: (temPv && at.condicao) ? at.condicao : (at.condicao || p.condicao || null),
+        despacho: at.despacho || (p.entrega ? dUTC(p.entrega) : null),
+        fonte: at.fonte && at.fonte.includes("RELATORIO") ? at.fonte : (at.fonte ? `${at.fonte}+RELATORIO` : (temPv ? "PV+RELATORIO" : "RELATORIO")),
+        atualizadoPorNome: quem,
+      } });
+      atualizados++;
+    } else if ((p.vlEntregar || 0) > 0.009) {
+      await prisma.pedidoVenda.create({ data: {
+        numero: p.numero, cliente: p.cliente || "SEM CLIENTE", emissao: p.emissao ? dUTC(p.emissao) : null,
+        despacho: p.entrega ? dUTC(p.entrega) : null, condicao: p.condicao || null,
+        total: r2(p.valor || 0), qtd: Math.round(p.qtd || 0), itens: [], status: "ANDAMENTO",
+        ...comum, fonte: "RELATORIO", criadoPorNome: quem,
+      } });
+      criados++; pendentesNovos++;
+    }
+  }
+  try { await sincronizar({ forcar: true }); } catch {}
+  return { tipo: "POSICAO", criados, atualizados, pendentesNovos, ...conf };
+}
+
 // ---------- previsão de um pedido ----------
 // entrada: lançada no contas a receber (fica de fora da previsão — já conta no a receber) ou pendente (entra na previsão);
 // restante: parcelas após o faturamento — data = entrega do Cronograma, senão DT despacho do PV; se já passou, conta a partir de hoje
 export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) {
-  const total = r2(p.total);
+  // v325 — quando veio da Posição de Vendas, a base é o saldo a faturar (Vl.à Entregar); senão, o total do pedido
+  const base$ = p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total);
+  const total = base$;
   const cond = lerCondicao(p.condicao);
   if (p.interno) return { interno: true, condicaoOk: true, entradaPct: 0, prazos: [], entrada: 0, entradaCalc: 0, entradaLancada: 0, entradaTitulos: [], restante: 0,
     base: iso(p.entregaPrevista) || iso(p.despacho), baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : "DESPACHO", atrasado: false, reprogramar: null, pronto: !!p.cronoConcluido, parcelas: [] };

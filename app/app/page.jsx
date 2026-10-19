@@ -1171,7 +1171,7 @@ function LancarPP({ user }) {
         Arraste ou cole (Ctrl+V) os PDFs do KM — PV (pedido de venda) e PP (ordem de produção), vários de uma vez. Os pedidos subidos no Financeiro também aparecem aqui.
       </div>}
       {resUp && <div className="rounded-lg px-4 py-2 mb-3 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        {resUp.map((r, i) => <div key={i} style={{ color: r.erro ? "#C33" : C.text }}>{r.erro ? "✗" : "✓"} <b>{r.nome}</b> {r.erro || `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.novo ? " · novo" : " · atualizado"}`}</div>)}
+        {resUp.map((r, i) => <div key={i} style={{ color: r.erro ? "#C33" : C.text }}>{r.erro ? "✗" : "✓"} <b>{r.nome}</b> {r.erro || (r.tipo === "POSICAO" ? `Posição de Vendas · ${r.lidos} lidos, ${r.criados} novo(s)` : `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.novo ? " · novo" : " · atualizado"}`)}</div>)}
         <button onClick={() => setResUp(null)} className="mt-1" style={{ color: C.sub }}>fechar</button>
       </div>}
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
