@@ -35,14 +35,14 @@ export function EmConstrucaoOp({ titulo, texto }) {
 
 const Kpi = ({ t, v, sub, cor }) => (
   <div className="rounded-xl p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-    <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
+    <div className="text-[11px] leading-4 font-semibold uppercase" title={typeof t === "string" ? t : undefined} style={{ height: "2rem", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", color: C.sub }}>{t}</div>
     <div className="text-lg font-bold tabular-nums" style={{ color: cor || C.navy }}>{v}</div>
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
   </div>
 );
 const KpiDestaque = ({ t, v, sub, cor, onClick }) => (
   <div onClick={onClick} title={onClick ? "Clique para ver o valor de cada item" : undefined} className={`rounded-xl p-3 ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-    <div className="text-[11px] font-semibold uppercase" style={{ color: cor }}>{t}</div>
+    <div className="text-[11px] leading-4 font-semibold uppercase" title={typeof t === "string" ? t : undefined} style={{ height: "2rem", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", color: cor }}>{t}</div>
     <div className="text-lg font-bold tabular-nums" style={{ color: cor }}>{v}</div>
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
   </div>
