@@ -99,7 +99,7 @@ const TXT = {
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo. As peças internas vão para a grade por nº de cores (7 ou mais entram em 6+); as terceirizadas ficam separadas. Depois preencha a folha e os freelancers do mês.</> },
   // v291 — bordado por PEÇA até termos o custo por bordado: valor de mercado = terceirizado médio da peça (tabela de preços)
   BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", volta: "valor terceirizado médio da peça × peças bordadas dentro", dentro: "bordar dentro", imp: "Importar planilha do bordado", insumo: "linha e entretela · DRE 2112700",
-    ajuda: <>Importe a planilha do bordado do mês (<i>bordados_mês.xlsx</i>, itens concluídos com <b>R$ / peça</b> da tabela de preços) — o mês vem das datas de conclusão. As peças feitas dentro entram por tipo, com o valor terceirizado médio de cada tipo; as de terceiros ficam só informativas. Pessoal = folha do bordado pela Matriz; insumo = DRE do mês (2112700), quando aparecer.</> },
+    ajuda: <>Importe a planilha do bordado do mês (<i>bordados_mês.xlsx</i>, itens concluídos com <b>R$ / peça</b> da tabela de preços) — o mês vem das datas de conclusão. Conta flat: todas as peças feitas dentro valem o mesmo — o valor terceirizado médio do mês (Σ valor da tabela ÷ peças), sem separar por tipo de peça; as de terceiros ficam só informativas. Pessoal = folha do bordado pela Matriz; insumo = DRE do mês (2112700), quando aparecer.</> },
 };
 
 // v254 — Personalização: silk e bordado (DTF e sublimação depois)

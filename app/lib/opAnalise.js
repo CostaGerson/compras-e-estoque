@@ -48,7 +48,8 @@ export const NIVEIS_OP = {
 };
 // v291 — bordado por PEÇA (até termos o custo por bordado/milheiro): peças bordadas dentro por tipo; valor de mercado = valor
 //   terceirizado médio da peça na tabela de preços (média ponderada das linhas do mês); custo = folha da Matriz + freelancers + insumo (DRE 2112700)
-export const CATEGORIAS_BORDADO = [...PECAS_PERS.map(([k, n]) => [k, n, 0]), ["OUTROS", "Outras peças", 0]];
+// v292 — conta FLAT: o bordado não muda por tipo de peça, então tudo vai numa categoria só (valor = terceirizado médio do mês)
+export const CATEGORIAS_BORDADO = [["PECA", "Peça bordada", 0]];
 export const CONTA_INSUMO_BORDADO = "2112700";
 const gradeCats = (setor) => PECAS_PERS.flatMap(([k, n]) => NIVEIS_OP[setor].niveis.map(([nk, nn]) => [`${k}__${nk}`, `${n} · ${nn}`, 0]));
 export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, COSTURA: CATEGORIAS_COSTURA, SILK: gradeCats("SILK"), BORDADO: CATEGORIAS_BORDADO, EXPEDICAO: CATEGORIAS_EXPEDICAO };
@@ -213,7 +214,7 @@ export function lerPlanilhaBordado(buf, nome = "", compPadrao = null) {
     const quem = String(r[cQuem] ?? "Interno").trim() || "Interno";
     const interno = sa(quem) === "INTERNO" || sa(quem) === "";
     const comp = dataISO(r[cConc]); if (comp) conta[comp] = (conta[comp] || 0) + 1;
-    const cat = tipoPers(prod) || "OUTROS";
+    const cat = "PECA";   // v292 — flat: sem separar por tipo de peça
     detalhe.push({ pedido: String(r[cPed] ?? ""), cliente: r[cCli], produto: prod, categoria: cat, qtde: pecas, preco: r2(preco), valor: r2(valor),
       origem: interno ? "Interno" : `Terceirizado · ${quem}`, bordado: cBord >= 0 ? r[cBord] : null, concluido: r[cConc] ?? null });
     if (!interno) { terc.pecas += pecas; terc.valor += valor; terc.fornecedores[quem] = (terc.fornecedores[quem] || 0) + pecas; continue; }
@@ -227,7 +228,7 @@ export function lerPlanilhaBordado(buf, nome = "", compPadrao = null) {
     const m = t.match(/(JANEIRO|FEVEREIRO|MARCO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)_(\d{4})/);
     competencia = m ? `${m[2]}-${String(MESES_N[m[1]]).padStart(2, "0")}` : compPadrao;
   }
-  const mercado = Object.fromEntries(Object.keys(qtds).map((k) => [k, Math.round((somaV[k] / qtds[k]) * 10000) / 10000]));
+  const mercado = Object.fromEntries(Object.keys(qtds).map((k) => [k, somaV[k] / qtds[k]]));
   const valorInterno = r2(Object.values(somaV).reduce((a, b) => a + b, 0));
   return { tipo: "MES", analises: [{ competencia, qtds, detalhe, semCategoria: 0, total: Object.values(qtds).reduce((a, b) => a + b, 0), mercado,
     extra: { valorTabela: valorInterno, terceirizado: { pecas: terc.pecas, valor: terc.valor ? r2(terc.valor) : null, fornecedores: terc.fornecedores } } }] };
