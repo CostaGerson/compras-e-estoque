@@ -1159,32 +1159,60 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
   );
 }
 
-/* ---------------- PAINEL DE PREVISÃO ---------------- */
-const CAMPOS_PAINEL_UI = [
-  { bloco: "Contas atrasadas", ajuda: "O total vem do contas a pagar; aqui você abre por natureza.", campos: [
-    ["atrasadoImpostos", "Impostos"], ["atrasadoMateriaPrima", "Matéria-prima"],
-    ["atrasadoPrestadores", "Prestadores"], ["atrasadoOutros", "Outros"], ["prioridadeMes", "Prioridade do mês"]] },
-  { bloco: "Contas a receber", ajuda: "Posição geral, mês vigente e atrasadas vêm do contas a receber.", campos: [
-    ["receberPrevisao", "Previsão (ainda sem título)"], ["receberLitigio", "Em litígio"],
-    ["receberQuitacaoProvavel", "Quitação provável"], ["receberForaMes", "Fora do mês"], ["atrasoProvavel", "Atraso provável"]] },
-  { bloco: "Carteira e caixa", campos: [
-    ["pedidosEntregar", "Pedidos a entregar"], ["pedidosAndamento", "Pedidos em andamento"],
-    ["recebimentoMes", "Recebimento no mês"], ["antecipacaoDisp", "Antecipação disponível"]] },
-  { bloco: "Cenários", ajuda: "O sistema sugere; o valor que você digitar manda.", campos: [
-    ["cenarioGeral", "Cenário geral"], ["cenarioMes", "Cenário do mês"],
-    ["cobrindoCheque", "Cobrindo o cheque"], ["semCobrir", "Sem cobrir"],
-    ["antecipandoCobrindo", "Antecipando e cobrindo"], ["antecipandoSemCobrir", "Antecipando sem cobrir"]] },
-];
+/* ---------------- PAINEL DE PREVISÃO (v310) ----------------
+   O painel da competência C é a previsão do MÊS SEGUINTE. Posição automática ao vivo das contas;
+   prioridade (pagar) e quitação provável (receber) escolhidas nas listas de atrasados; cenários calculados;
+   salvar guarda o painel datado; o painel seguinte compara previsto × realizado. */
+const nomeMesAno = (c) => (c ? `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}` : "");
 
-function Auto({ rotulo, valor, cor, sub }) {
+function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="rounded-lg px-3 py-2.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+    <Tag onClick={onClick} className={`text-left rounded-lg px-3 py-2.5 w-full ${onClick ? "transition-shadow hover:shadow-md" : ""}`} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
-        <Link2 size={11} /> {rotulo}
+        <Ico size={11} /> <span className="truncate">{rotulo}</span>{onClick && <Search size={10} className="ml-auto shrink-0" style={{ color: C.accent }} />}
       </div>
       <div className="font-bold text-base mt-0.5" style={{ color: cor || C.text }}>{moeda(valor)}</div>
       {sub && <div className="text-[10px]" style={{ color: C.sub }}>{sub}</div>}
+    </Tag>
+  );
+}
+function LinhaVal({ rotulo, valor, cor, forte, sub }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+      <span style={{ color: C.sub }}>{rotulo}{sub && <span className="text-[11px]"> · {sub}</span>}</span>
+      <span className={forte ? "font-bold" : "font-semibold"} style={{ color: cor || C.text }}>{moeda(valor)}</span>
     </div>
+  );
+}
+// lista de títulos com seleção opcional
+function ListaTitulos({ itens, sel, onToggle, vazio = "Nada aqui." }) {
+  if (!itens?.length) return <div className="text-sm py-2" style={{ color: C.sub }}>{vazio}</div>;
+  return (
+    <table className="w-full text-xs">
+      <thead><tr style={{ color: C.sub }}>{[onToggle ? "" : null, "Vencimento", "Título", "Parceiro", "Valor"].filter((x) => x !== null).map((h, i) => <th key={i} className={`py-1 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+      <tbody>{itens.map((t) => (
+        <tr key={t.id} style={{ borderTop: `1px solid ${C.line}`, background: sel?.has(t.id) ? C.accentSoft : undefined, cursor: onToggle ? "pointer" : "default" }} onClick={() => onToggle?.(t.id)}>
+          {onToggle && <td className="py-1.5 pr-2"><input type="checkbox" readOnly checked={!!sel?.has(t.id)} /></td>}
+          <td className="py-1.5 whitespace-nowrap">{dBR(t.vencimento)}</td>
+          <td className="py-1.5">{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
+          <td className="py-1.5" style={{ color: C.sub }}>{t.parceiro}</td>
+          <td className="py-1.5 text-right font-semibold tabular-nums">{brl(t.valor)}</td>
+        </tr>))}</tbody>
+    </table>
+  );
+}
+// detalhe de um card do receber: real, virtual (antecipados não liquidados) e atrasados por modalidade
+function DetalheReceber({ titulo, b, onClose }) {
+  return (
+    <Modal titulo={titulo} icone={Search} onClose={onClose} largura={520}>
+      <LinhaVal rotulo="Real" sub={`${b.qtd} título(s) em aberto, sem antecipados`} valor={b.real} cor={C.blue} forte />
+      <LinhaVal rotulo="Virtual" sub={`real + ${b.qtdAntecipados} antecipado(s) ainda não liquidado(s)`} valor={b.virtual} cor={C.blue} />
+      <LinhaVal rotulo="  · antecipados não liquidados" valor={b.antecipados} cor={C.sub} />
+      <div className="text-[11px] font-bold uppercase mt-3 mb-1" style={{ color: C.navy }}>Atrasados por modalidade</div>
+      <LinhaVal rotulo="Em cobrança" sub={`${b.qtdCobranca} título(s)`} valor={b.cobranca} cor={b.cobranca ? C.yellow : C.sub} />
+      <LinhaVal rotulo="Em execução" sub={`${b.qtdExecucao} título(s)`} valor={b.execucao} cor={b.execucao ? C.red : C.sub} />
+    </Modal>
   );
 }
 
@@ -1194,72 +1222,87 @@ function PainelPrevisao({ user, comp, setComp }) {
   const [rasc, setRasc] = useState({});
   const [salvando, setSalvando] = useState(false);
   const [ok, setOk] = useState("");
-
-  useEffect(() => {
-    setP(null); setErro(""); setRasc({}); setOk("");
-    fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}`)
-      .then((r) => r.json().then((j) => (r.ok ? setP(j) : setErro(j.error || "Erro"))))
-      .catch(() => setErro("Falha de conexão."));
-  }, [comp]);
+  const [modal, setModal] = useState(null);   // { tipo, ... }
+  const carregar = () => fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}`)
+    .then((r) => r.json().then((j) => (r.ok ? setP(j) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
+  useEffect(() => { setP(null); setErro(""); setRasc({}); setOk(""); setModal(null); carregar(); }, [comp]);
 
   const val = (k) => (k in rasc ? rasc[k] : p?.manual?.[k] ?? null);
   const set = (k) => (v) => { setRasc((r) => ({ ...r, [k]: v })); setOk(""); };
   const sujo = Object.keys(rasc).length > 0;
 
   const bancos = useMemo(() => (rasc.bancos !== undefined ? rasc.bancos : p?.bancos || []), [rasc.bancos, p]);
-  const setBanco = (i, k, v) => setRasc((r) => {
-    const l = (r.bancos !== undefined ? r.bancos : p?.bancos || []).map((b, j) => (j === i ? { ...b, [k]: v } : b));
-    return { ...r, bancos: l };
-  });
-  const addBanco = () => setRasc((r) => ({ ...r, bancos: [...(r.bancos !== undefined ? r.bancos : p?.bancos || []), { nome: "", saldo: 0, limite: 0, tomado: 0 }] }));
+  const setBanco = (i, k, v) => setRasc((r) => ({ ...r, bancos: (r.bancos !== undefined ? r.bancos : p?.bancos || []).map((b, j) => (j === i ? { ...b, [k]: v } : b)) }));
+  const addBanco = () => setRasc((r) => ({ ...r, bancos: [...(r.bancos !== undefined ? r.bancos : p?.bancos || []), { nome: "", saldo: 0, limite: 0, tomado: null }] }));
   const delBanco = (i) => setRasc((r) => ({ ...r, bancos: (r.bancos !== undefined ? r.bancos : p?.bancos || []).filter((_, j) => j !== i) }));
 
-  const salvar = async () => {
+  // seleções (prioridade a pagar e quitação provável a receber)
+  const selPrior = useMemo(() => new Set(val("prioridade") || []), [rasc.prioridade, p]);
+  const selQuit = useMemo(() => new Set(val("quitacaoProvavel") || []), [rasc.quitacaoProvavel, p]);
+  const alternar = (k, atual) => (id) => { const s = new Set(atual); s.has(id) ? s.delete(id) : s.add(id); set(k)([...s]); };
+
+  const salvar = async (retrato) => {
     setSalvando(true); setErro("");
     try {
-      const r = await fetch("/api/fin/painel", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuarioId: user.id, competencia: comp, dados: rasc }),
-      });
+      const r = await fetch("/api/fin/painel", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, dados: rasc, retrato }) });
       const j = await r.json();
-      if (r.ok) { setP(j); setRasc({}); setOk("Painel salvo."); }
+      if (r.ok) { setP(j); setRasc({}); setOk(retrato ? "Painel salvo e guardado com a data." : "Alterações gravadas."); }
       else setErro(j.error || "Erro ao salvar.");
     } catch { setErro("Falha de conexão."); }
     setSalvando(false);
   };
 
-  // os bancos digitados recalculam o caixa na tela antes de salvar
-  const caixa = useMemo(() => {
+  // tudo recalculado na tela com o que está sendo digitado (o servidor faz a mesma conta ao salvar)
+  const calc = useMemo(() => {
+    if (!p) return null;
     const l = bancos.map((b) => {
       const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
       const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
       return { saldo, limite, tomado, disponivel: Math.max(0, saldo) + Math.max(0, limite - tomado) };
     });
     const s = (f) => l.reduce((a, b) => a + b[f], 0);
-    return { saldoGeral: s("saldo"), limiteTotal: s("limite"), limiteTomado: s("tomado"), disponivelTotal: s("disponivel") };
-  }, [bancos]);
+    const caixa = { saldoGeral: s("saldo"), saldoPositivo: l.reduce((a, b) => a + Math.max(0, b.saldo), 0), limiteTotal: s("limite"), limiteTomado: s("tomado"), disponivelTotal: s("disponivel") };
+    const prior = (p.listas.pagarAtrasadas || []).filter((t) => selPrior.has(t.id));
+    const quit = (p.listas.receberAtrasados || []).filter((t) => selQuit.has(t.id));
+    const tP = prior.reduce((a, t) => a + t.valor, 0), tQ = quit.reduce((a, t) => a + t.valor, 0);
+    const n = (k) => Number(val(k)) || 0;
+    const R = p.pos.receber, P = p.pos.pagar;
+    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao;
+    const entradas = R.mes.real + tQ + n("recebimentoMes"), saidas = P.mes + tP;
+    const mes = caixa.saldoPositivo + entradas - saidas;
+    return { caixa, prior, quit, tP, tQ, entradas, saidas, cen: { geral, mes, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
+      antecipandoCobrindo: mes - caixa.limiteTomado + n("antecipacaoDisp"), antecipandoSemCobrir: mes + n("antecipacaoDisp") } };
+  }, [p, bancos, selPrior, selQuit, rasc]);
 
-  const a = p?.auto;
-  const somaAtraso = ["atrasadoImpostos", "atrasadoMateriaPrima", "atrasadoPrestadores", "atrasadoOutros"]
-    .reduce((s, k) => s + (Number(val(k)) || 0), 0);
-  const sugestao = p ? {
-    cenarioGeral: a.receberPosicaoGeral - a.contasPagarTotal + caixa.saldoGeral,
-    cenarioMes: a.receberMesVigente + caixa.disponivelTotal - a.contasPagarMes,
-    ...(a.receberEmExecucao ? { receberLitigio: a.receberEmExecucao } : {}),   // em litígio = contas em execução judicial
-  } : {};
+  const abrirSalvo = async (idx) => {
+    const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&acao=salvo&idx=${idx}`); const j = await r.json();
+    if (r.ok) setModal({ tipo: "salvo", s: j }); else alert(j.error || "Erro");
+  };
+  const abrirComparacao = async () => {
+    const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&acao=comparar`); const j = await r.json();
+    if (r.ok) setModal({ tipo: "comparar", c: j }); else alert(j.error || "Erro");
+  };
+
+  const caixaBloco = "rounded-xl p-4";
+  const caixaSt = { background: C.panel, border: `1px solid ${C.line}` };
+  const R = p?.pos?.receber, P = p?.pos?.pagar;
+  const Cn = calc?.cen;
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SeletorMes comp={comp} setComp={setComp} />
+        {p && <div className="text-sm font-bold px-3 py-1.5 rounded-lg" style={{ background: C.navy, color: "#fff" }}>Previsão de {nomeMesAno(p.mesPrevisto)}</div>}
         <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.blueSoft, color: C.blue }}>
-          <Link2 size={13} /> Os campos com corrente vêm das guias de contas. Os demais você preenche e o sistema guarda.
+          <Link2 size={13} /> Campos com corrente vêm das contas a pagar e a receber (ao vivo). Os demais você preenche.
         </div>
         <div className="flex-1" />
+        {p?.anteriorTemSalvo && <button onClick={abrirComparacao} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}>
+          <ArrowLeftRight size={14} /> Previsto × realizado</button>}
         {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
-        <button disabled={!sujo || salvando} onClick={salvar}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: C.accent, opacity: !sujo || salvando ? 0.45 : 1 }}>
+        <button disabled={salvando} onClick={() => salvar(true)} title="Grava e guarda este painel com a data de hoje"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.45 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar painel
         </button>
       </div>
@@ -1267,54 +1310,34 @@ function PainelPrevisao({ user, comp, setComp }) {
       {erro && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!p && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
 
-      {p && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))" }}>
-          {/* --- o que vem das contas --- */}
-          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática</div>
+      {p && calc && (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))" }}>
+          {/* posição automática */}
+          <div className={caixaBloco} style={caixaSt}>
+            <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-              <Auto rotulo="Contas atrasadas" valor={a.contasAtrasadas} cor={a.contasAtrasadas ? C.red : C.green} />
-              <Auto rotulo="A pagar no mês" valor={a.contasPagarMes} cor={C.text} />
-              <Auto rotulo="A pagar (total aberto)" valor={a.contasPagarTotal} cor={C.sub} />
-              <Auto rotulo="A receber · posição geral" valor={a.receberPosicaoGeral} cor={C.blue} />
-              <Auto rotulo="A receber no mês" valor={a.receberMesVigente} cor={C.blue} />
-              <Auto rotulo="A receber atrasado · em cobrança" valor={a.receberAtrasadas} cor={a.receberAtrasadas ? C.yellow : C.green} />
-              <Auto rotulo={`Em execução judicial${a.receberEmExecucaoQtd ? ` (${a.receberEmExecucaoQtd})` : ""}`} valor={a.receberEmExecucao || 0} cor={a.receberEmExecucao ? C.red : C.sub} />
-              <Auto rotulo="Perdas reconhecidas no mês" valor={a.perdasMes || 0} cor={a.perdasMes ? C.red : C.sub} />
-            </div>
-            {somaAtraso > 0 && Math.abs(somaAtraso - a.contasAtrasadas) > 1 && (
-              <div className="mt-3 text-xs rounded-lg px-3 py-2 flex items-start gap-1.5" style={{ background: C.yellowSoft, color: C.yellow }}>
-                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-                A abertura dos atrasados soma {brl(somaAtraso)}, mas o contas a pagar aponta {brl(a.contasAtrasadas)} —
-                diferença de {brl(somaAtraso - a.contasAtrasadas)}.
-              </div>
-            )}
-            <div className="mt-4 rounded-lg p-3" style={{ background: C.navy, color: "#fff" }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>Projeção do mês</div>
-              <div className="font-bold text-xl mt-0.5">
-                {moeda(caixa.disponivelTotal + (Number(val("recebimentoMes")) || a.receberMesVigente) - a.contasPagarMes)}
-              </div>
-              <div className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,.7)" }}>
-                disponível {brl(caixa.disponivelTotal)} + entra {brl(Number(val("recebimentoMes")) || a.receberMesVigente)} − sai {brl(a.contasPagarMes)}
-              </div>
+              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s) · sem previsões`}
+                onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
+              <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
+              <CardAuto rotulo="A pagar · total em aberto" valor={P.totalSemPrevisao} cor={C.sub} sub="sem previsões" />
+              <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
+                onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
+              <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
+                onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
+              <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
+                sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
             </div>
           </div>
 
-          {/* --- bancos --- */}
-          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          {/* bancos */}
+          <div className={caixaBloco} style={caixaSt}>
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-bold" style={{ color: C.navy }}>Bancos</div>
-              <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
-                <Plus size={13} /> Banco
-              </button>
+              <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
-              <span className="flex-1">Banco</span>
-              <span style={{ width: 110, textAlign: "right" }}>Saldo</span>
-              <span style={{ width: 110, textAlign: "right" }}>Limite</span>
-              <span style={{ width: 110, textAlign: "right" }}>Tomado</span>
-              <span style={{ width: 100, textAlign: "right" }}>Disponível</span>
-              <span style={{ width: 20 }} />
+              <span className="flex-1">Banco</span><span style={{ width: 110, textAlign: "right" }}>Saldo</span><span style={{ width: 110, textAlign: "right" }}>Limite</span>
+              <span style={{ width: 110, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 100, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
             </div>
             {bancos.map((b, i) => {
               const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
@@ -1326,60 +1349,185 @@ function PainelPrevisao({ user, comp, setComp }) {
                     className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
                   <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={110} negativo />
                   <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={110} />
-                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v ?? 0)} width={110} />
+                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={110} />
                   <span className="text-sm font-semibold" style={{ width: 100, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
                   <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
                 </div>
               );
             })}
-            {!bancos.length && <div className="text-sm py-3" style={{ color: C.sub }}>Nenhum banco lançado.</div>}
             <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-              <Kpi rotulo="Saldo geral" valor={moeda(caixa.saldoGeral)} cor={caixa.saldoGeral >= 0 ? C.green : C.red} />
-              <Kpi rotulo="Limite total" valor={moeda(caixa.limiteTotal)} cor={C.sub} />
-              <Kpi rotulo="Limite tomado" valor={moeda(caixa.limiteTomado)} cor={caixa.limiteTomado ? C.yellow : C.sub} />
-              <Kpi rotulo="Valor disponível" valor={moeda(caixa.disponivelTotal)} cor={C.blue} />
+              <Kpi rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
+              <Kpi rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
+              <Kpi rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
             </div>
           </div>
 
-          {/* --- blocos manuais --- */}
-          {CAMPOS_PAINEL_UI.map((b) => (
-            <div key={b.bloco} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="text-sm font-bold" style={{ color: C.navy }}>{b.bloco}</div>
-              {b.ajuda && <div className="text-xs mb-3 mt-0.5" style={{ color: C.sub }}>{b.ajuda}</div>}
-              <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-                {b.campos.map(([k, t]) => (
-                  <label key={k} className="flex items-center gap-2 justify-between">
-                    <span className="text-xs" style={{ color: C.sub }}>{t}</span>
-                    <div className="text-right">
-                      <ValorIn value={val(k)} onChange={set(k)} width={132} negativo />
-                      {sugestao[k] != null && val(k) == null && (
-                        <button onClick={() => set(k)(Math.round(sugestao[k] * 100) / 100)}
-                          className="block text-[10px] mt-0.5 w-full text-right" style={{ color: C.accent }}>
-                          usar {brl(sugestao[k])}
-                        </button>
-                      )}
-                    </div>
-                  </label>
-                ))}
-              </div>
+          {/* contas atrasadas + prioridade */}
+          <div className={caixaBloco} style={caixaSt}>
+            <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas, em aberto, sem previsões).</div>
+            <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
+            <div className="flex items-center justify-between mt-3 mb-1">
+              <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Prioridade do mês <span className="font-semibold" style={{ color: C.red }}>{brl(calc.tP)}</span></div>
+              <button onClick={() => setModal({ tipo: "prioridade" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
             </div>
-          ))}
+            <ListaTitulos itens={calc.prior} vazio="Nenhuma conta escolhida. Use + para selecionar as atrasadas que serão pagas no mês." />
+          </div>
 
-          {/* --- info relevante --- */}
-          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          {/* contas a receber */}
+          <div className={caixaBloco} style={caixaSt}>
+            <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Previsão e litígio virão do sistema do Maycon (integração); por ora, digitados.</div>
+            {[["receberPrevisao", "Previsão (ainda sem título)"], ["receberLitigio", "Em litígio"]].map(([k, t]) => (
+              <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
+            ))}
+            <button onClick={() => setModal({ tipo: "foraMes" })} className="w-full text-left"><LinhaVal rotulo="Fora do mês" sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)} (clique: virtual)`} valor={R.foraMes.real} cor={C.blue} /></button>
+            <div className="flex items-center justify-between mt-3 mb-1">
+              <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Quitação provável <span className="font-semibold" style={{ color: C.blue }}>{brl(calc.tQ)}</span></div>
+              <button onClick={() => setModal({ tipo: "receberAtrasados" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
+            </div>
+            <ListaTitulos itens={calc.quit} vazio="Nenhum atrasado escolhido. Selecione no card A receber atrasado os que devem entrar no mês." />
+          </div>
+
+          {/* previsões de entrega / recebimento */}
+          <div className={caixaBloco} style={caixaSt}>
+            <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos virão do sistema do Maycon (integração); antecipação disponível é digitada.</div>
+            {[["pedidosEntregar", "Pedidos a entregar"], ["recebimentoMes", "A receber no mês (entregas)"], ["pedidosAndamento", "Pedidos em andamento"], ["antecipacaoDisp", "Antecipação disponível"]].map(([k, t]) => (
+              <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
+            ))}
+          </div>
+
+          {/* cenários */}
+          <div className={caixaBloco} style={caixaSt}>
+            <div className="text-sm font-bold" style={{ color: C.navy }}>Cenários</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Calculados com tudo acima (passe o mouse para ver a conta).</div>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              {[
+                ["Cenário geral", Cn.geral, `a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`],
+                ["Cenário do mês", Cn.mes, `saldos positivos ${brl(calc.caixa.saldoPositivo)} + entradas ${brl(calc.entradas)} (a receber no mês + quitação provável + entregas) − saídas ${brl(calc.saidas)} (a pagar no mês + prioridade)`],
+                ["Cobrindo o cheque", Cn.cobrindo, `cenário do mês − cheque em uso ${brl(calc.caixa.limiteTomado)}`],
+                ["Sem cobrir", Cn.semCobrir, "cenário do mês, ignorando o cheque especial em uso"],
+                ["Antecipando e cobrindo", Cn.antecipandoCobrindo, `cobrindo o cheque + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
+                ["Antecipando sem cobrir", Cn.antecipandoSemCobrir, `sem cobrir + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
+              ].map(([t, v, f]) => (
+                <div key={t} title={f} className="rounded-lg px-3 py-2" style={{ background: t === "Cenário do mês" ? C.navy : C.panel2, border: `1px solid ${C.line}` }}>
+                  <div className="text-[10px] font-semibold uppercase" style={{ color: t === "Cenário do mês" ? "#9FB0C7" : C.sub }}>{t}</div>
+                  <div className="font-bold" style={{ color: t === "Cenário do mês" ? (v >= 0 ? "#6EE7A8" : "#FF8A80") : v >= 0 ? C.green : C.red }}>{moeda(v)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* informações relevantes */}
+          <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Informações relevantes</div>
-            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={7}
+            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={6}
               placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
               className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff", resize: "vertical" }} />
-            {p.atualizadoPorNome && (
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-                Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}
-              </div>
-            )}
+            {p.atualizadoPorNome && <div className="text-[11px] mt-2" style={{ color: C.sub }}>Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}{sujo ? " · alterações não salvas" : ""}</div>}
           </div>
+
+          {/* painéis salvos */}
+          {p.salvos?.length > 0 && (
+            <div className={caixaBloco} style={caixaSt}>
+              <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Painéis salvos</div>
+              {[...p.salvos].map((s, i) => ({ ...s, i })).reverse().map((s) => (
+                <button key={s.i} onClick={() => abrirSalvo(s.i)} className="w-full flex items-center justify-between py-1.5 text-sm text-left" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <span><b>{dataHora(s.em)}</b><span style={{ color: C.sub }}>{s.por ? ` · ${s.por}` : ""}</span></span>
+                  {s.cenarios && <span className="text-xs" style={{ color: C.sub }}>cenário do mês <b style={{ color: s.cenarios.mes >= 0 ? C.green : C.red }}>{brl(s.cenarios.mes)}</b></span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
+      {/* janelas */}
+      {modal?.tipo === "receber" && <DetalheReceber titulo={modal.titulo} b={modal.b} onClose={() => setModal(null)} />}
+      {modal?.tipo === "foraMes" && <DetalheReceber titulo={`A receber depois de ${nomeMesAno(p.mesPrevisto)}`} b={R.foraMes} onClose={() => setModal(null)} />}
+      {modal?.tipo === "pagarAtrasadas" && (
+        <Modal titulo="Contas a pagar atrasadas" icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
+          <ListaTitulos itens={p.listas.pagarAtrasadas} vazio="Nenhuma conta atrasada." />
+        </Modal>
+      )}
+      {modal?.tipo === "prioridade" && (
+        <Modal titulo="Prioridade do mês — escolha as atrasadas que serão pagas" icone={Plus} onClose={() => setModal(null)} largura={760}>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>Selecionadas: <b style={{ color: C.red }}>{brl(calc.tP)}</b> ({calc.prior.length}). Clique na linha para marcar ou desmarcar.</div>
+          <ListaTitulos itens={p.listas.pagarAtrasadas} sel={selPrior} onToggle={alternar("prioridade", selPrior)} vazio="Nenhuma conta atrasada." />
+        </Modal>
+      )}
+      {modal?.tipo === "receberAtrasados" && (
+        <Modal titulo="A receber atrasado — marque a quitação provável no mês" icone={Search} onClose={() => setModal(null)} largura={760}>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>Quitação provável: <b style={{ color: C.blue }}>{brl(calc.tQ)}</b> ({calc.quit.length}). Clique na linha para marcar ou desmarcar.</div>
+          {[["COBRANCA", "Em cobrança", R.atrasado.cobranca], ["EXECUCAO", "Em execução", R.atrasado.execucao]].map(([k, t, v]) => (
+            <div key={k} className="mb-3">
+              <div className="text-xs font-bold uppercase mb-1 flex justify-between" style={{ color: C.navy }}><span>{t}</span><span>{brl(v)}</span></div>
+              <ListaTitulos itens={p.listas.receberAtrasados.filter((x) => x.modalidade === k)} sel={selQuit} onToggle={alternar("quitacaoProvavel", selQuit)} vazio="Nenhum." />
+            </div>
+          ))}
+        </Modal>
+      )}
+      {modal?.tipo === "salvo" && <PainelSalvoModal s={modal.s} onClose={() => setModal(null)} />}
+      {modal?.tipo === "comparar" && <PrevistoRealizadoModal c={modal.c} onClose={() => setModal(null)} />}
     </div>
+  );
+}
+
+function PainelSalvoModal({ s, onClose }) {
+  const c = s.cenarios || {}, R = s.pos?.receber, P = s.pos?.pagar;
+  return (
+    <Modal titulo={`Painel salvo em ${dataHora(s.em)} · previsão de ${nomeMesAno(s.mesPrevisto)}`} icone={FileText} onClose={onClose} largura={720}>
+      {s.por && <div className="text-xs mb-2" style={{ color: C.sub }}>por {s.por}</div>}
+      <div className="text-[11px] font-bold uppercase mt-1" style={{ color: C.navy }}>Posição</div>
+      <LinhaVal rotulo="Contas atrasadas" valor={P?.atrasadas} cor={C.red} />
+      <LinhaVal rotulo="A pagar no mês" valor={P?.mes} />
+      <LinhaVal rotulo="A pagar · total sem previsões" valor={P?.totalSemPrevisao} />
+      <LinhaVal rotulo="A receber · posição geral (real)" valor={R?.geral?.real} cor={C.blue} />
+      <LinhaVal rotulo="A receber no mês (real)" valor={R?.mes?.real} cor={C.blue} />
+      <LinhaVal rotulo="A receber atrasado" valor={R?.atrasado?.total} cor={C.yellow} />
+      <LinhaVal rotulo="Prioridade do mês" sub={`${s.selecionados?.prioridade?.length || 0} conta(s)`} valor={s.selecionados?.totPrioridade} cor={C.red} />
+      <LinhaVal rotulo="Quitação provável" sub={`${s.selecionados?.quitacao?.length || 0} título(s)`} valor={s.selecionados?.totQuitacao} cor={C.blue} />
+      <LinhaVal rotulo="Saldo geral dos bancos" valor={s.caixa?.saldoGeral} />
+      <LinhaVal rotulo="Cheque em uso" valor={s.caixa?.limiteTomado} cor={C.yellow} />
+      <div className="text-[11px] font-bold uppercase mt-3" style={{ color: C.navy }}>Cenários</div>
+      {[["Geral", c.geral], ["Do mês", c.mes], ["Cobrindo o cheque", c.cobrindo], ["Sem cobrir", c.semCobrir], ["Antecipando e cobrindo", c.antecipandoCobrindo], ["Antecipando sem cobrir", c.antecipandoSemCobrir]].map(([t, v]) => (
+        <LinhaVal key={t} rotulo={t} valor={v} cor={v >= 0 ? C.green : C.red} forte={t === "Do mês"} />
+      ))}
+      {s.manual?.infoRelevante && <div className="text-xs mt-3 whitespace-pre-wrap p-2 rounded" style={{ background: C.panel2 }}>{s.manual.infoRelevante}</div>}
+    </Modal>
+  );
+}
+
+function PrevistoRealizadoModal({ c, onClose }) {
+  const s = c.salvo, r = c.realizado, cen = s.cenarios || {};
+  const L = ({ t, prev, real, sub }) => (
+    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+      <td className="py-1.5">{t}{sub && <div className="text-[10px]" style={{ color: C.sub }}>{sub}</div>}</td>
+      <td className="text-right tabular-nums">{prev == null ? "—" : brl(prev)}</td>
+      <td className="text-right tabular-nums font-semibold">{real == null ? "—" : brl(real)}</td>
+      <td className="text-right tabular-nums" style={{ color: prev != null && real != null ? (real - prev >= 0 ? C.green : C.red) : C.sub }}>{prev != null && real != null ? brl(real - prev) : "—"}</td>
+    </tr>
+  );
+  const rec = (s.pos?.receber?.mes?.real || 0) + (s.selecionados?.totQuitacao || 0) + (Number(s.manual?.recebimentoMes) || 0);
+  const pag = (s.pos?.pagar?.mes || 0) + (s.selecionados?.totPrioridade || 0);
+  return (
+    <Modal titulo={`Previsto × realizado · ${nomeMesAno(c.mes)}`} icone={ArrowLeftRight} onClose={onClose} largura={760}>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>Painel salvo em {dataHora(s.em)}{s.por ? ` por ${s.por}` : ""} × o que as contas pagas e recebidas mostram em {nomeMesAno(c.mes)}.</div>
+      <table className="w-full text-sm">
+        <thead><tr style={{ color: C.sub }} className="text-xs"><th className="text-left py-1">Item</th><th className="text-right">Previsto</th><th className="text-right">Realizado</th><th className="text-right">Diferença</th></tr></thead>
+        <tbody>
+          <L t="Entradas do mês" sub="previsto: a receber no mês + quitação provável + entregas · realizado: recebido no mês" prev={rec} real={r.recebidoNoMes} />
+          <L t="Saídas do mês" sub="previsto: a pagar no mês + prioridade · realizado: pago no mês" prev={pag} real={r.pagoNoMes} />
+          <L t="Resultado do mês" prev={rec - pag} real={r.resultadoNoMes} />
+          <L t="Quitação provável" sub={`${r.quitacao.qtdRealizado} de ${r.quitacao.qtd} título(s) recebidos`} prev={r.quitacao.previsto} real={r.quitacao.realizado} />
+          <L t="Prioridade do mês" sub={`${r.prioridade.qtdRealizado} de ${r.prioridade.qtd} conta(s) pagas`} prev={r.prioridade.previsto} real={r.prioridade.realizado} />
+          <L t="Cenário do mês × saldo dos bancos" sub={r.bancos ? "realizado: saldo geral dos bancos lançado no painel seguinte" : "preencha os bancos do painel seguinte para comparar"} prev={cen.mes} real={r.bancos ? r.bancos.saldoGeral : null} />
+        </tbody>
+      </table>
+      <div className="text-xs mt-3" style={{ color: C.sub }}>Contas do mês que estavam previstas: a receber {r.receberMes.realizados}/{r.receberMes.qtd} recebidas · a pagar {r.pagarMes.realizados}/{r.pagarMes.qtd} pagas.</div>
+    </Modal>
   );
 }
 

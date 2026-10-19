@@ -217,80 +217,8 @@ export const CAMPOS_PAINEL = [
   ] },
 ];
 
-export async function painel(competencia, hoje = new Date()) {
-  const [p, pagar, receber] = await Promise.all([
-    prisma.finMesPainel.findUnique({ where: { competencia } }),
-    prisma.finTitulo.findMany({ where: { tipo: "PAGAR", status: "ABERTO" }, select: { valor: true, vencimento: true, competencia: true } }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO" }, select: { valor: true, vencimento: true, competencia: true } }),
-  ]);
-  const soma = (l) => r2(l.reduce((s, t) => s + Number(t.valor), 0));
-  const vencido = (t) => new Date(t.vencimento) < hoje;
-
-  const auto = {
-    contasAtrasadas: soma(pagar.filter(vencido)),
-    contasPagarMes: soma(pagar.filter((t) => t.competencia === competencia)),
-    contasPagarTotal: soma(pagar),
-    receberPosicaoGeral: soma(receber),
-    receberMesVigente: soma(receber.filter((t) => t.competencia === competencia)),
-    receberAtrasadas: soma(receber.filter(vencido)),   // = em cobrança (execução e perda já saíram do aberto)
-  };
-  // v135: execuções judiciais e perdas reconhecidas
-  try { const { numerosPainel } = await import("@/lib/finAtraso"); Object.assign(auto, await numerosPainel(competencia)); }
-  catch { Object.assign(auto, { receberEmExecucao: 0, receberEmExecucaoQtd: 0, perdasMes: 0, perdasTotal: 0 }); }
-
-  const dados = { ...PAINEL_VAZIO, ...((p?.dados) || {}) };
-
-  // Cada banco: saldo (pode ser negativo = cheque usado), limite contratado e limite já tomado.
-  // Disponível = o que sobra de saldo positivo + o que ainda dá para tomar de limite.
-  const bancos = (dados.bancos || []).map((b, i) => {
-    const saldo = r2(b.saldo), limite = r2(b.limite);
-    const tomado = b.tomado == null ? r2(Math.max(0, -saldo)) : r2(b.tomado);
-    return {
-      id: b.id ?? i + 1, nome: String(b.nome || "").toUpperCase(),
-      saldo, limite, tomado, disponivel: r2(Math.max(0, saldo) + Math.max(0, limite - tomado)),
-    };
-  });
-  const saldoGeral = r2(bancos.reduce((s, b) => s + b.saldo, 0));
-  const limiteTotal = r2(bancos.reduce((s, b) => s + b.limite, 0));
-  const limiteTomado = r2(bancos.reduce((s, b) => s + b.tomado, 0));
-  const disponivelTotal = r2(bancos.reduce((s, b) => s + b.disponivel, 0));
-
-  // Cenários: o sistema sugere a conta, o usuário pode sobrescrever.
-  const atrasadoReceber = Number(dados.receberAtrasadasManual ?? auto.receberAtrasadas) || 0;
-  const sug = {
-    cenarioGeral: r2(auto.receberPosicaoGeral - auto.contasPagarTotal + saldoGeral),
-    cenarioMes: r2(auto.receberMesVigente + disponivelTotal - auto.contasPagarMes),
-  };
-
-  // projeção simples do mês: o que tenho + o que entra − o que sai
-  const entra = (dados.recebimentoMes ?? auto.receberMesVigente) || 0;
-  const projecao = r2(disponivelTotal + Number(entra) - auto.contasPagarMes);
-
-  return {
-    competencia,
-    saldoInicial: p?.saldoInicial != null ? Number(p.saldoInicial) : null,
-    auto,
-    manual: dados,
-    bancos,
-    caixa: { saldoGeral, limiteTotal, limiteTomado, disponivelTotal },
-    sugestao: sug,
-    atrasadoReceber,
-    projecao,
-    atualizadoPorNome: p?.atualizadoPorNome || null,
-    atualizadoEm: p?.updatedAt || null,
-  };
-}
-
-export async function salvarPainel(competencia, { saldoInicial, dados, quem }) {
-  const atual = await prisma.finMesPainel.findUnique({ where: { competencia } });
-  const novo = { ...((atual?.dados) || PAINEL_VAZIO), ...(dados || {}) };
-  await prisma.finMesPainel.upsert({
-    where: { competencia },
-    create: { competencia, saldoInicial: saldoInicial ?? null, dados: novo, atualizadoPorNome: quem },
-    update: { ...(saldoInicial !== undefined ? { saldoInicial } : {}), dados: novo, atualizadoPorNome: quem },
-  });
-  return painel(competencia);
-}
+// v310 — painel de previsão refeito em lib/finPainel.js (previsão do mês seguinte, seleções, cenários, retratos)
+export { painel, salvarPainel } from "@/lib/finPainel";
 
 export async function salvarMapa(contaId, grupo) {
   if (!TODOS_GRUPOS.some((g) => g.k === grupo)) return { ok: false, erro: "Grupo inválido." };
