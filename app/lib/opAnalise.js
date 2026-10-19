@@ -376,9 +376,10 @@ export async function resumoVolta(ate = null) {
   //   combustível, fretes etc. não voltam (são cobrados na FPP)
   const { custoLogisticoPeca } = await import("@/lib/opLogistica");
   const lg = await custoLogisticoPeca().catch(() => null);
-  const logistica = lg?.contribPeca || 0;
-  g.push({ chave: "LOGISTICA", meses: lg?.meses || [], volta: lg?.pessoal || 0, pecas: lg?.pecas || 0, base: "LOGISTICA", valor: logistica,
-    fppPeca: lg?.fppPeca ?? null, freteEntregaPeca: lg?.freteEntregaPeca ?? null });
+  // v290 — volta = valor cobrado na FPP (custo logístico inteiro por peça, sem frete entrega) × peças
+  const logistica = lg?.porPeca || 0;
+  g.push({ chave: "LOGISTICA", meses: lg?.meses || [], volta: lg?.custo || 0, pecas: lg?.pecas || 0, base: "LOGISTICA", valor: logistica,
+    fppPeca: lg?.porPeca ?? null, freteEntregaPeca: lg?.freteEntregaPeca ?? null });
   const total = producao + logistica;
   // v269 — % freelancer oficial (mesma regra da Capacidade e da Matriz): últimos 3 meses fechados
   const { pctFreelancerOperacional } = await import("@/lib/rhPainel");

@@ -100,7 +100,7 @@ const MENU = [
       { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por milheiro de pontos): folha, freelancers e peças feitas dentro" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
-      { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Folha de logística por peça (volta à operação) e demais custos da DRE por peça (vão para a FPP), sem o frete de entrega" },
+      { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -364,7 +364,7 @@ function VoltaCard({ r }) {
       <div className="text-lg font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
       {/* v281 — rodapé com altura fixa (3 linhas) para a linha e o valor ficarem na mesma altura em todos os cards */}
       <div className="text-[10px] leading-[14px] overflow-hidden" style={{ color: C.sub, height: "3.5rem" }}>
-        {r.base === "LOGISTICA" ? <>folha de logística por peça · FPP {brlV(r.fppPeca)}/pç (demais custos) · média de {r.meses.length} mês(es) ({meses})</>
+        {r.base === "LOGISTICA" ? <>cobrado na FPP por peça (folha + custos, sem frete entrega) · média de {r.meses.length} mês(es) ({meses})</>
           : r.base === "SETOR" ? <>custo real por peça operada · média de {r.meses.length} mês(es) ({meses})</>
           : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
       </div>
@@ -415,7 +415,7 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
             <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
             <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
-              Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura e personalização = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = folha de logística por peça (os demais custos vão para a FPP).
+              Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura e personalização = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = valor cobrado na FPP por peça (folha + custos, sem frete entrega).
               Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
             </div>
           </div>

@@ -2,8 +2,8 @@
 //   custo = pessoal de logística (custo total dos funcionários pela Matriz) + contas de logística da DRE + freelancer de logística;
 //   FRETE ENTREGA é só informativo (a FPP cobra o frete à parte, por volume) — fica fora do custo por peça.
 //   peças = peças da análise da expedição (as mesmas do KPI).
-//   v284 — divisão: a FOLHA de logística volta para a operação (contribuição à operação = folha ÷ peças);
-//   os demais custos (combustível, fretebras, freelancer…) não voltam e são o que a FPP cobra (sem folha e sem frete entrega) ÷ peças.
+//   v290 — a FPP cobra o custo logístico INTEIRO por peça (folha + demais custos), só sem o frete entrega;
+//   retorno à operação = valor cobrado na FPP × peças. Pessoal = folha da Matriz em todos os meses; o resto, DRE do mês.
 //   Base de cálculo (v280, mesma regra dos outros setores): últimos 6 meses encerrados (v286), média ponderada (custo ÷ peças).
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
@@ -98,11 +98,11 @@ export async function custoLogisticoPeca() {
   return a.media;
 }
 
-// FPP: LOGISTICA_BASE (malha e plano) = custos de logística por peça SEM a folha e sem frete entrega (v284), com histórico
+// FPP: LOGISTICA_BASE (malha e plano) = custo logístico por peça com a folha, sem frete entrega (v290), com histórico
 export async function atualizarLogisticaFpp(media = null) {
   const m = media || await custoLogisticoPeca();
-  if (!m?.fppPeca) return { ok: false, motivo: "sem peças nos últimos 6 meses" };
-  const v = r2(m.fppPeca);
+  if (!m?.porPeca) return { ok: false, motivo: "sem peças nos últimos 6 meses" };
+  const v = r2(m.porPeca);
   const quem = `SISTEMA · ANÁLISE DA LOGÍSTICA (${m.meses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")})`;
   const ps = await prisma.fppParam.findMany({ where: { grupo: "CONST", chave: "LOGISTICA_BASE" } });
   let alterados = 0;
