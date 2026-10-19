@@ -74,12 +74,18 @@ export function normalizarItem(o) {
   };
 }
 export function normalizarEtapa(o) {
+  const e = normalizarEtapa0(o);
+  return { ...e, fim: e.concluida && e.saida ? e.saida : e.planejadoFim };
+}
+function normalizarEtapa0(o) {
   return {
     itemCode: itemDe(o), pedido: pedidoDe(o),
     etapa: String(pick(o, "etapa", "setor", "nome") || ""), subetapa: String(pick(o, "subetapa", "tipo") || ""),
     inicio: dataDe(pick(o, "planejadoInicio", "inicioPlanejado", "inicio", "dataInicio")),
-    fim: dataDe(pick(o, "planejadoFim", "fimPlanejado", "fim", "dataFim", "previsaoFim")),
-    concluida: !!(pick(o, "concluida", "concluido", "concluidaEm", "concluidoEm", "fimReal", "saidaEm")),
+    // v318 — etapa concluída vale a data real de saída; aberta, o fim planejado
+    planejadoFim: dataDe(pick(o, "planejadoFim", "fimPlanejado", "fim", "dataFim", "previsaoFim")),
+    saida: dataDe(pick(o, "saidaEm", "fimReal", "concluidaEm", "concluidoEm")),
+    concluida: pick(o, "concluida", "concluido") === true || /^(true|1|sim)$/i.test(String(pick(o, "concluida", "concluido") ?? "")),
   };
 }
 
