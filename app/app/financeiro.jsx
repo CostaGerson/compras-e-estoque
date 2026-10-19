@@ -1185,11 +1185,16 @@ function LinhaVal({ rotulo, valor, cor, forte, sub }) {
   );
 }
 // lista de títulos com seleção opcional
-function ListaTitulos({ itens, sel, onToggle, vazio = "Nada aqui." }) {
+function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
   if (!itens?.length) return <div className="text-sm py-2" style={{ color: C.sub }}>{vazio}</div>;
+  const todos = !!onTodos && itens.every((t) => sel?.has(t.id));
   return (
     <table className="w-full text-xs">
-      <thead><tr style={{ color: C.sub }}>{[onToggle ? "" : null, "Vencimento", "Título", "Parceiro", "Valor"].filter((x) => x !== null).map((h, i) => <th key={i} className={`py-1 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+      <thead><tr style={{ color: C.sub }}>
+        {onToggle && <th className="py-1 pr-2 text-left">{onTodos && <input type="checkbox" checked={todos} title={todos ? "Desmarcar todos" : "Marcar todos"}
+          onChange={() => onTodos(itens.map((t) => t.id), !todos)} className="cursor-pointer" />}</th>}
+        {["Vencimento", "Título", "Parceiro", "Valor"].map((h, i) => <th key={i} className={`py-1 font-semibold ${h === "Valor" ? "text-right" : "text-left"}`}>{h}</th>)}
+      </tr></thead>
       <tbody>{itens.map((t) => (
         <tr key={t.id} style={{ borderTop: `1px solid ${C.line}`, background: sel?.has(t.id) ? C.accentSoft : undefined, cursor: onToggle ? "pointer" : "default" }} onClick={() => onToggle?.(t.id)}>
           {onToggle && <td className="py-1.5 pr-2"><input type="checkbox" readOnly checked={!!sel?.has(t.id)} /></td>}
@@ -1239,6 +1244,7 @@ function PainelPrevisao({ user, comp, setComp }) {
   const selPrior = useMemo(() => new Set(val("prioridade") || []), [rasc.prioridade, p]);
   const selQuit = useMemo(() => new Set(val("quitacaoProvavel") || []), [rasc.quitacaoProvavel, p]);
   const alternar = (k, atual) => (id) => { const s = new Set(atual); s.has(id) ? s.delete(id) : s.add(id); set(k)([...s]); };
+  const marcarTodos = (k, atual) => (ids, on) => { const s = new Set(atual); ids.forEach((id) => (on ? s.add(id) : s.delete(id))); set(k)([...s]); };   // v314
 
   const salvar = async (retrato) => {
     setSalvando(true); setErro("");
@@ -1483,7 +1489,7 @@ function PainelPrevisao({ user, comp, setComp }) {
       {modal?.tipo === "prioridade" && (
         <Modal titulo="Prioridade do mês — escolha as atrasadas que serão pagas" icone={Plus} onClose={() => setModal(null)} largura={760}>
           <div className="text-xs mb-2" style={{ color: C.sub }}>Selecionadas: <b style={{ color: C.red }}>{brl(calc.tP)}</b> ({calc.prior.length}). Clique na linha para marcar ou desmarcar.</div>
-          <ListaTitulos itens={p.listas.pagarAtrasadas} sel={selPrior} onToggle={alternar("prioridade", selPrior)} vazio="Nenhuma conta atrasada." />
+          <ListaTitulos itens={p.listas.pagarAtrasadas} sel={selPrior} onToggle={alternar("prioridade", selPrior)} onTodos={marcarTodos("prioridade", selPrior)} vazio="Nenhuma conta atrasada." />
         </Modal>
       )}
       {modal?.tipo === "receberAtrasados" && (
@@ -1492,7 +1498,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           {[["COBRANCA", "Em cobrança", R.atrasado.cobranca], ["EXECUCAO", "Em execução", R.atrasado.execucao]].map(([k, t, v]) => (
             <div key={k} className="mb-3">
               <div className="text-xs font-bold uppercase mb-1 flex justify-between" style={{ color: C.navy }}><span>{t}</span><span>{brl(v)}</span></div>
-              <ListaTitulos itens={p.listas.receberAtrasados.filter((x) => x.modalidade === k)} sel={selQuit} onToggle={alternar("quitacaoProvavel", selQuit)} vazio="Nenhum." />
+              <ListaTitulos itens={p.listas.receberAtrasados.filter((x) => x.modalidade === k)} sel={selQuit} onToggle={alternar("quitacaoProvavel", selQuit)} onTodos={marcarTodos("quitacaoProvavel", selQuit)} vazio="Nenhum." />
             </div>
           ))}
         </Modal>
