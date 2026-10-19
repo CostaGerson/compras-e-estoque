@@ -184,6 +184,7 @@ function useResumo(user, ano, rk = 0) {
   return [d, erro];
 }
 const moeda = (n) => "R$ " + brl(n);
+const r2c = (n) => Math.round((Number(n) || 0) * 100) / 100;   // v301
 
 function Kpi({ rotulo, valor, cor, sub, Ico }) {
   return (
@@ -465,6 +466,18 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="Alavancagem total" valor={a?.atual?.total} cor={C.red} forte
               titulo="Dívidas + tributos em aberto" onClick={abrirAlav} />
           </div>
+          {/* v301 — conciliação: soma dos resultados dos cards dos meses × saldo final da DRE */}
+          {t.caixa != null && (
+            <div className="rounded-xl px-4 py-2.5 mb-4 text-xs flex flex-wrap items-center gap-x-2 gap-y-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
+              <b style={{ color: C.navy }}>Caixa × DRE</b>
+              <span>soma dos resultados dos meses <b style={{ color: C.text }}>{moeda(t.caixa)}</b></span>
+              <span>− sem conta <b style={{ color: t.semConta ? C.accent : C.text }}>{moeda(t.semConta)}</b></span>
+              <span>− fora da DRE <button onClick={() => ir("FORA", "Fora da DRE")} className="font-bold underline" style={{ color: t.fora ? C.accent : C.text }}>{moeda(t.fora)}</button></span>
+              {!!t.saldoInicial && <span>+ saldo inicial <b style={{ color: C.text }}>{moeda(t.saldoInicial)}</b></span>}
+              <span>= saldo final <b style={{ color: t.saldoFinal >= 0 ? C.green : C.red }}>{moeda(t.saldoFinal)}</b></span>
+              {Math.abs(r2c(t.caixa - t.semConta - t.fora + (t.saldoInicial || 0) - t.saldoFinal)) >= 0.01 && <span style={{ color: C.red }}>· diferença {moeda(t.caixa - t.semConta - t.fora + (t.saldoInicial || 0) - t.saldoFinal)}</span>}
+            </div>
+          )}
         </>
       )}
 

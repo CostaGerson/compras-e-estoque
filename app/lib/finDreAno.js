@@ -105,13 +105,21 @@ export async function dreAno(ano, hoje = new Date()) {
     baixasPorContrato(),
   ]);
   const grupoDe = Object.fromEntries(contas.map((c) => [c.id, c.grupo]));
+  const idConc = contas.find((c) => c.codigo === "3000000")?.id;   // conciliação: fora também dos cards dos meses
   const saldoDe = Object.fromEntries(paineis.map((p) => [p.competencia, n(p.saldoInicial)]));
 
   // soma por mês e por grupo
   const porMes = {};
   for (const l of lanc) {
-    const m = (porMes[l.competencia] = porMes[l.competencia] || { n: 0, g: {} });
+    const m = (porMes[l.competencia] = porMes[l.competencia] || { n: 0, g: {}, caixa: 0, semConta: 0, fora: 0 });
     m.n++;
+    // v301 — conciliação caixa × DRE: o card do mês soma tudo (menos a conta de conciliação); a DRE tira o sem conta e o "fora"
+    const v = Number(l.valor);
+    if (l.contaId !== idConc || !idConc) {
+      m.caixa = r2(m.caixa + v);
+      if (!l.contaId) m.semConta = r2(m.semConta + v);
+      else if ((grupoDe[l.contaId] || "FORA") === "FORA") m.fora = r2(m.fora + v);
+    }
     const g = (l.contaId && grupoDe[l.contaId]) || "FORA";
     m.g[g] = r2((m.g[g] || 0) + Number(l.valor));
   }
@@ -138,7 +146,7 @@ export async function dreAno(ano, hoje = new Date()) {
     meses.push({
       competencia: comp, mes: i, lancado: true, lancamentos: m.n,
       receita, cmv, margem, adm, ebitda, impostos, lucro, investimento, nort, resultado,
-      externo, saldoInicial,
+      externo, saldoInicial, caixa: m.caixa, semConta: m.semConta, fora: m.fora,
       saldoOperacao: r2((saldoInicial || 0) + resultado),
       saldoFinal: r2((saldoInicial || 0) + resultado + externo),
       alavancagem: alav,
@@ -156,6 +164,7 @@ export async function dreAno(ano, hoje = new Date()) {
     receita, cmv: soma("cmv"), margem: soma("margem"), adm: soma("adm"), ebitda: soma("ebitda"),
     impostos: soma("impostos"), lucro: soma("lucro"), investimento: soma("investimento"), nort: soma("nort"),
     resultado: soma("resultado"), externo: soma("externo"),
+    caixa: soma("caixa"), semConta: soma("semConta"), fora: soma("fora"),
     saldoInicial: feitos[0]?.saldoInicial ?? null,
   };
   totais.saldoOperacao = r2((totais.saldoInicial || 0) + totais.resultado);
