@@ -123,7 +123,10 @@ export async function espelharPp(numero) {
 export async function aplicarPosicaoVendas(l, quem) {
   const conf = { totalPedRelatorio: l.totalPed, totalVleRelatorio: l.totalVle, lidos: l.pedidos.length,
     somaVle: r2(l.pedidos.reduce((s, p) => s + (p.vlEntregar || 0), 0)) };
-  const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, condicao: true, despacho: true, vendedor: true, pvPdf: true, fonte: true, cliente: true } })).map((x) => [x.numero, x]));
+  const nums = l.pedidos.map((p) => p.numero);
+  const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } },
+    select: { id: true, numero: true, condicao: true, despacho: true, vendedor: true, pvPdf: true, fonte: true, cliente: true } })).map((x) => [x.numero, x]));
+  const ops = [], novos = [];
   let criados = 0, atualizados = 0, pendentesNovos = 0;
   for (const p of l.pedidos) {
     const at = existentes[p.numero];
@@ -131,27 +134,45 @@ export async function aplicarPosicaoVendas(l, quem) {
     const comum = { qtEntregar: Math.round(p.qtEntregar || 0), vlEntregar: r2(p.vlEntregar || 0), vendedor: p.vendedor || null, interno };
     if (at) {
       const temPv = !!at.pvPdf;
-      await prisma.pedidoVenda.update({ where: { id: at.id }, data: {
+      ops.push(prisma.pedidoVenda.update({ where: { id: at.id }, data: {
         ...comum,
         cliente: at.cliente && at.cliente !== "SEM CLIENTE" ? at.cliente : (p.cliente || at.cliente),
         condicao: (temPv && at.condicao) ? at.condicao : (at.condicao || p.condicao || null),
         despacho: at.despacho || (p.entrega ? dUTC(p.entrega) : null),
         fonte: at.fonte && at.fonte.includes("RELATORIO") ? at.fonte : (at.fonte ? `${at.fonte}+RELATORIO` : (temPv ? "PV+RELATORIO" : "RELATORIO")),
         atualizadoPorNome: quem,
-      } });
+      } }));
       atualizados++;
-    } else if ((p.vlEntregar || 0) > 0.009) {
-      await prisma.pedidoVenda.create({ data: {
-        numero: p.numero, cliente: p.cliente || "SEM CLIENTE", emissao: p.emissao ? dUTC(p.emissao) : null,
+    } else {
+      const pendente = (p.vlEntregar || 0) > 0.009;
+      novos.push({ numero: p.numero, cliente: p.cliente || "SEM CLIENTE", emissao: p.emissao ? dUTC(p.emissao) : null,
         despacho: p.entrega ? dUTC(p.entrega) : null, condicao: p.condicao || null,
-        total: r2(p.valor || 0), qtd: Math.round(p.qtd || 0), itens: [], status: "ANDAMENTO",
-        ...comum, fonte: "RELATORIO", criadoPorNome: quem,
-      } });
-      criados++; pendentesNovos++;
+        total: r2(p.valor || 0), qtd: Math.round(p.qtd || 0), itens: [], status: pendente ? "ANDAMENTO" : "FATURADO",
+        ...comum, fonte: "RELATORIO", criadoPorNome: quem });
+      criados++; if (pendente) pendentesNovos++;
     }
   }
+  if (novos.length) for (let i = 0; i < novos.length; i += 500) await prisma.pedidoVenda.createMany({ data: novos.slice(i, i + 500), skipDuplicates: true });
+  for (let i = 0; i < ops.length; i += 100) await prisma.$transaction(ops.slice(i, i + 100));
+  // v326 — todo pedido deve constar no Lançar PP: cria uma casca de PP para quem ainda não tem
+  const espelhados = await espelharTodosPp(nums, quem);
   try { await sincronizar({ forcar: true }); } catch {}
-  return { tipo: "POSICAO", criados, atualizados, pendentesNovos, ...conf };
+  return { tipo: "POSICAO", criados, atualizados, pendentesNovos, ppCriados: espelhados, ...conf };
+}
+
+// cria em massa uma casca de PP (sem itens) para todo pedido que ainda não tem PP — o PV/PP preenchem depois
+async function espelharTodosPp(numeros, quem) {
+  const peds = await prisma.pedidoVenda.findMany({ where: { numero: { in: numeros } },
+    select: { numero: true, cliente: true, cnpj: true, oc: true, condicao: true, despacho: true, tipoPedido: true, vendedor: true, obs: true, total: true } });
+  const jaPp = new Set((await prisma.pp.findMany({ where: { numero: { in: numeros } }, select: { numero: true } })).map((x) => x.numero));
+  const novos = peds.filter((p) => p.numero && !jaPp.has(p.numero)).map((p) => ({
+    numero: p.numero, origem: "PEDIDOS", clienteNome: p.cliente || null,
+    clienteCnpj: p.cnpj ? String(p.cnpj).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : null,
+    oc: p.oc || null, condicaoPagamento: p.condicao || null, dtDespacho: dBRs(p.despacho), prazoEntrega: dBRs(p.despacho),
+    tipoPedido: p.tipoPedido || null, vendedor: p.vendedor || null, obs: p.obs || null, valorTotal: p.total ?? null,
+  }));
+  if (novos.length) for (let i = 0; i < novos.length; i += 500) await prisma.pp.createMany({ data: novos.slice(i, i + 500), skipDuplicates: true });
+  return novos.length;
 }
 
 // ---------- previsão de um pedido ----------
@@ -174,22 +195,26 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const pronto = !!p.cronoConcluido;
   const atrasado = !pronto && !!baseOrig && baseOrig < hoje;
   const reprogramar = atrasado ? (p.entregaPrevista ? "PCP" : "DESPACHO") : null;
-  const base = !baseOrig || atrasado || (pronto && baseOrig < hoje) ? hoje : baseOrig;
+  const base = !baseOrig || (pronto && baseOrig < hoje) ? hoje : baseOrig;
+  // v326 — cobrança antiga (entrega anterior a hoje e pedido não concluído) sai da previsão financeira
+  const desconsiderado = atrasado;
   const parcelas = [];
-  if (entrada > 0 && entradaLancada + 0.01 < entrada) {
-    const em = iso(p.emissao);
-    parcelas.push({ tipo: "ENTRADA", data: em && em > hoje ? em : hoje, valor: r2(entrada - entradaLancada), pendente: true });
-  }
-  const prazos = cond.prazos.length ? cond.prazos : (restante > 0 ? [0] : []);
-  if (restante > 0.009 && prazos.length) {
-    const cada = r2(restante / prazos.length);
-    prazos.forEach((d, i) => parcelas.push({ tipo: "PARCELA", n: i + 1, de: prazos.length, dias: d, data: somaDias(base, d),
-      valor: i === prazos.length - 1 ? r2(restante - cada * (prazos.length - 1)) : cada }));
+  if (!desconsiderado) {
+    if (entrada > 0 && entradaLancada + 0.01 < entrada) {
+      const em = iso(p.emissao);
+      parcelas.push({ tipo: "ENTRADA", data: em && em > hoje ? em : hoje, valor: r2(entrada - entradaLancada), pendente: true });
+    }
+    const prazos = cond.prazos.length ? cond.prazos : (restante > 0 ? [0] : []);
+    if (restante > 0.009 && prazos.length) {
+      const cada = r2(restante / prazos.length);
+      prazos.forEach((d, i) => parcelas.push({ tipo: "PARCELA", n: i + 1, de: prazos.length, dias: d, data: somaDias(base, d),
+        valor: i === prazos.length - 1 ? r2(restante - cada * (prazos.length - 1)) : cada }));
+    }
   }
   return {
     condicaoOk: cond.ok, entradaPct: cond.entradaPct, prazos: cond.prazos,
     entrada, entradaCalc, entradaLancada, entradaTitulos: lancadas.map((t) => ({ id: t.id, valor: r2(t.valor), vencimento: iso(t.vencimento), status: t.status })),
-    restante, base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE", atrasado, reprogramar, pronto, parcelas,
+    restante, base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE", atrasado, reprogramar, pronto, desconsiderado, parcelas,
   };
 }
 
