@@ -124,8 +124,11 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const entradaLancada = r2(lancadas.reduce((s, t) => s + Number(t.valor), 0));
   const restante = r2(total - Math.max(entrada, entradaLancada));
   const baseOrig = iso(p.entregaPrevista) || iso(p.despacho);
-  const atrasado = !!baseOrig && baseOrig < hoje;
-  const base = !baseOrig || atrasado ? hoje : baseOrig;
+  // v322 — vencido = data de entrega (programação do PCP ou DT despacho) já passou e o pedido não está concluído no PCP → pedir reprogramação
+  const pronto = !!p.cronoConcluido;
+  const atrasado = !pronto && !!baseOrig && baseOrig < hoje;
+  const reprogramar = atrasado ? (p.entregaPrevista ? "PCP" : "DESPACHO") : null;
+  const base = !baseOrig || atrasado || (pronto && baseOrig < hoje) ? hoje : baseOrig;
   const parcelas = [];
   if (entrada > 0 && entradaLancada + 0.01 < entrada) {
     const em = iso(p.emissao);
@@ -140,7 +143,7 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   return {
     condicaoOk: cond.ok, entradaPct: cond.entradaPct, prazos: cond.prazos,
     entrada, entradaCalc, entradaLancada, entradaTitulos: lancadas.map((t) => ({ id: t.id, valor: r2(t.valor), vencimento: iso(t.vencimento), status: t.status })),
-    restante, base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE", atrasado, parcelas,
+    restante, base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE", atrasado, reprogramar, pronto, parcelas,
   };
 }
 
@@ -192,6 +195,9 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     entradasPendentes: soma(and, (p) => p.previsao.parcelas.filter((x) => x.pendente).reduce((s, x) => s + x.valor, 0)),
     qtdEntradasPendentes: and.filter((p) => p.previsao.parcelas.some((x) => x.pendente)).length,
     qtdAtrasados: and.filter((p) => p.previsao.atrasado).length,
+    qtdReprogPcp: and.filter((p) => p.previsao.reprogramar === "PCP").length,
+    qtdReprogDespacho: and.filter((p) => p.previsao.reprogramar === "DESPACHO").length,
+    qtdProntos: and.filter((p) => p.previsao.pronto).length,
     qtdSemCondicao: and.filter((p) => !p.previsao.condicaoOk).length,
     qtdSemPv: and.filter((p) => !p.temPv).length,
     qtdNfSugerida: and.filter((p) => p.nfSugerida).length,

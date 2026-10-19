@@ -80,7 +80,8 @@ export default function PedidosAndamento({ user }) {
   const R = d?.resumo;
   const CR = d?.crono;
   const f = filtro.trim().toUpperCase();
-  const lista = (d?.pedidos || []).filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f));
+  const lista = (d?.pedidos || []).filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f))
+    .map((p, i) => [p, i]).sort((a, b) => (b[0].previsao.atrasado ? 1 : 0) - (a[0].previsao.atrasado ? 1 : 0) || a[1] - b[1]).map(([p]) => p);   // v322 — vencidos no topo
 
   return (
     <div>
@@ -125,7 +126,7 @@ export default function PedidosAndamento({ user }) {
           <table className="w-full">
             <thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Itens", "Peças", "Entrega prevista", "Prazo", "Situação"].map((h) => <th key={h} className="py-1 font-semibold text-center">{h}</th>)}</tr></thead>
             <tbody>{CR.pendentes.map((x) => (
-              <tr key={x.pedido} style={{ borderTop: `1px solid ${C.line}` }}>
+              <tr key={x.pedido} style={{ borderTop: `1px solid ${C.line}`, background: x.entrega && x.entrega < (R?.hoje || "") ? C.redSoft : undefined, color: x.entrega && x.entrega < (R?.hoje || "") ? C.red : undefined }} title={x.entrega && x.entrega < (R?.hoje || "") ? "Programação vencida — reprogramar no Cronograma" : undefined}>
                 <td className="py-1 text-center font-bold" style={{ color: C.navy }}>{x.pedido}</td><td className="py-1">{x.cliente}</td>
                 <td className="py-1 text-center">{x.itens}</td><td className="py-1 text-center tabular-nums">{(x.pecas || 0).toLocaleString("pt-BR")}</td>
                 <td className="py-1 text-center">{dBR(x.entrega)}</td><td className="py-1 text-center">{dBR(x.prazo)}</td>
@@ -176,9 +177,11 @@ export default function PedidosAndamento({ user }) {
             <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
             {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
-          {(R.qtdAtrasados || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
+          {(R.qtdAtrasados || R.qtdProntos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
-              {R.qtdAtrasados > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdAtrasados} pedido(s) com despacho vencido — previstos a partir de hoje</Aviso>}
+              {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida no Cronograma — reprogramar</Aviso>}
+              {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com despacho vencido e sem programação — programar no Cronograma</Aviso>}
+              {R.qtdProntos > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntos} concluído(s) no PCP — faturar</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
               {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
               {R.qtdSemCrono > 0 && CR?.temToken && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
@@ -233,10 +236,12 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: aberto ? C.panel2 : undefined }}>
+      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined }}>
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
-        <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}</td>
+        <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}
+          {v.reprogramar && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO CRONOGRAMA" : "DESPACHO VENCIDO — PROGRAMAR NO CRONOGRAMA"}</div>}
+          {v.pronto && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.green }}>✓ CONCLUÍDO NO PCP — FATURAR</div>}</td>
         <td className={td}>{dBR(p.emissao)}</td>
         <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? `programação do Cronograma${p.despacho ? ` · DT despacho do PV ${dBR(p.despacho)}` : ""}` : "DT despacho do PV"}>
           {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
@@ -278,7 +283,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                 ) : (
                   <div className="text-[11px] mb-2" style={{ color: C.sub }}>
                     {v.condicaoOk ? <>Condição <b>{p.condicao}</b>: {v.entradaPct > 0 ? `entrada de ${Math.round(v.entradaPct * 100)}% + ` : ""}{v.prazos.length ? `${v.prazos.join("/")} dias após a NF` : ""}</> : <span style={{ color: C.yellow }}>Condição não reconhecida — previsto à vista na entrega. Edite a condição.</span>}
-                    {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? " (despacho vencido: conta de hoje)" : ""}
+                    {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? ` (${v.reprogramar === "PCP" ? "programação" : "despacho"} vencido: previsão conta de hoje até reprogramar)` : ""}
                   </div>
                 )}
                 {p.obs && <div className="text-[11px] mb-2 px-2 py-1 rounded" style={{ background: C.yellowSoft, color: C.text }}><b>Obs. do pedido:</b> {p.obs}</div>}
