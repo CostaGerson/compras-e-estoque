@@ -1,10 +1,13 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioPP, negadoPP, ppParaUsuario } from "@/lib/pp";
+import { garantirPpTodos } from "@/lib/pedidos";
 
 export async function GET(req) {
   const u = await usuarioPP(req, "ve");
   if (!u) return negadoPP();
+  // v328 — todo pedido do sistema aparece no Lançar PP: cria as cascas que faltam
+  try { await garantirPpTodos([u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase()); } catch {}
   // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({
     orderBy: { createdAt: "desc" },

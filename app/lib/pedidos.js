@@ -161,6 +161,13 @@ export async function aplicarPosicaoVendas(l, quem) {
 }
 
 // cria em massa uma casca de PP (sem itens) para todo pedido que ainda não tem PP — o PV/PP preenchem depois
+// v328 — garante uma casca de PP para TODO pedido do sistema que ainda não tem (auto no Lançar PP)
+export async function garantirPpTodos(quem) {
+  const nums = (await prisma.pedidoVenda.findMany({ select: { numero: true } })).map((x) => x.numero).filter(Boolean);
+  if (!nums.length) return 0;
+  return espelharTodosPp(nums, quem || "SISTEMA");
+}
+
 async function espelharTodosPp(numeros, quem) {
   const peds = await prisma.pedidoVenda.findMany({ where: { numero: { in: numeros } },
     select: { numero: true, cliente: true, cnpj: true, oc: true, condicao: true, despacho: true, tipoPedido: true, vendedor: true, obs: true, total: true } });
