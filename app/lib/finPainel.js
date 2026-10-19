@@ -168,6 +168,16 @@ export async function salvarPainel(competencia, { saldoInicial, dados, quem, ret
   return painel(competencia);
 }
 
+// v313 — exclui um painel salvo (confere a data para não apagar outro)
+export async function excluirSalvo(competencia, idx, em) {
+  const p = await prisma.finMesPainel.findUnique({ where: { competencia } });
+  const l = [...(p?.dados?.salvos || [])];
+  if (!l[idx] || (em && l[idx].em !== em)) return false;
+  l.splice(idx, 1);
+  await prisma.finMesPainel.update({ where: { competencia }, data: { dados: { ...p.dados, salvos: l } } });
+  return true;
+}
+
 export async function painelSalvo(competencia, idx = -1) {
   const p = await prisma.finMesPainel.findUnique({ where: { competencia }, select: { dados: true } });
   const l = p?.dados?.salvos || [];

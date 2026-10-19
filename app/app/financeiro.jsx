@@ -1280,6 +1280,11 @@ function PainelPrevisao({ user, comp, setComp }) {
     const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${c}&acao=salvo&idx=${idx}`); const j = await r.json();
     if (r.ok) setModal({ tipo: "salvo", s: j }); else alert(j.error || "Erro");
   };
+  const excluirSalvo = async (s) => {
+    if (!confirm(`Excluir o painel salvo em ${dataHora(s.em)}?`)) return;
+    const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&idx=${s.i}&em=${encodeURIComponent(s.em)}`, { method: "DELETE" }); const j = await r.json();
+    if (r.ok) { setP(j); setOk("Painel salvo excluído."); } else alert(j.error || "Erro");
+  };
   const abrirComparacao = async () => {
     const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&acao=comparar`); const j = await r.json();
     if (r.ok) setModal({ tipo: "comparar", c: j }); else alert(j.error || "Erro");
@@ -1420,10 +1425,13 @@ function PainelPrevisao({ user, comp, setComp }) {
             <div className={caixaBloco} style={caixaSt}>
               <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Painéis salvos</div>
               {[...p.salvos].map((s, i) => ({ ...s, i })).reverse().map((s) => (
-                <button key={s.i} onClick={() => abrirSalvo(s.i)} className="w-full flex items-center justify-between py-1.5 text-sm text-left" style={{ borderTop: `1px solid ${C.line}` }}>
-                  <span><b>{dataHora(s.em)}</b><span style={{ color: C.sub }}>{s.por ? ` · ${s.por}` : ""}</span></span>
-                  {s.cenarios && <span className="text-xs" style={{ color: C.sub }}>cenário do mês <b style={{ color: s.cenarios.mes >= 0 ? C.green : C.red }}>{brl(s.cenarios.mes)}</b></span>}
-                </button>
+                <div key={s.i} className="flex items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <button onClick={() => abrirSalvo(s.i)} className="flex-1 flex items-center justify-between py-1.5 text-sm text-left">
+                    <span><b>{dataHora(s.em)}</b><span style={{ color: C.sub }}>{s.por ? ` · ${s.por}` : ""}</span></span>
+                    {s.cenarios && <span className="text-xs" style={{ color: C.sub }}>cenário do mês <b style={{ color: s.cenarios.mes >= 0 ? C.green : C.red }}>{brl(s.cenarios.mes)}</b></span>}
+                  </button>
+                  <button onClick={() => excluirSalvo(s)} title="Excluir este painel salvo" className="p-1 rounded hover:bg-red-50" style={{ color: C.red }}><Trash2 size={14} /></button>
+                </div>
               ))}
             </div>
           )}

@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { painel, salvarPainel, painelSalvo, previstoRealizado, mesSeguinte } from "@/lib/finPainel";
+import { painel, salvarPainel, painelSalvo, excluirSalvo, previstoRealizado, mesSeguinte } from "@/lib/finPainel";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const mesAnt = (c) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 2, 1)); return d.toISOString().slice(0, 7); };
@@ -23,6 +23,16 @@ export async function GET(req) {
     return r ? Response.json(r) : Response.json({ error: "O painel do mês anterior não foi salvo." }, { status: 404 });
   }
   return Response.json(await painel(comp));
+}
+
+// DELETE ?u=&competencia=&idx=&em= → exclui um painel salvo
+export async function DELETE(req) {
+  const q = new URL(req.url).searchParams;
+  if (!(await usuarioGerencial(q.get("u")))) return negadoGerencial();
+  const comp = q.get("competencia") || "";
+  if (!/^\d{4}-\d{2}$/.test(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+  const ok = await excluirSalvo(comp, Number(q.get("idx")), q.get("em") || null);
+  return ok ? Response.json({ ok: true, ...(await painel(comp)) }) : Response.json({ error: "Painel salvo não encontrado (recarregue a página)." }, { status: 404 });
 }
 
 // PUT { usuarioId, competencia, dados?, saldoInicial?, retrato? } → grava os campos (retrato = guarda o painel datado)
