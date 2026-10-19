@@ -64,7 +64,7 @@ export default function AnaliseLogistica({ user }) {
 
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
         <Kpi t="Contribuição à operação / peça" v={M.contribPeca != null ? `R$ ${brl(M.contribPeca)}` : "—"} cor={C.navy}
-          s={M.meses.length ? `folha de logística R$ ${brl(M.pessoal)} ÷ ${int(M.pecas)} peças · ${M.meses.map(nomeMes).join(", ")}` : "sem peças da expedição nos últimos 3 meses"} />
+          s={M.meses.length ? `folha de logística R$ ${brl(M.pessoal)} ÷ ${int(M.pecas)} peças · ${M.meses.map(nomeMes).join(", ")}` : "sem peças da expedição nos últimos 6 meses"} />
         <Kpi t="Custo logístico na FPP / peça" v={M.fppPeca != null ? `R$ ${brl(M.fppPeca)}` : "—"} cor={C.accent}
           s={`demais custos R$ ${brl(M.outros)} (sem folha e sem frete entrega) ÷ peças · vai para a FPP (logística base)`} />
         <Kpi t="Custo total do período" v={`R$ ${brl(M.custo)}`} s={`R$ ${M.porPeca != null ? brl(M.porPeca) : "—"} por peça · ${int(M.pecas)} peças expedidas`} />
@@ -110,7 +110,7 @@ export default function AnaliseLogistica({ user }) {
         </table>
       </div>
       <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Folha/pç = pessoal ÷ peças (volta à operação); FPP/pç = demais custos ÷ peças (cobrado na FPP). Base de cálculo: últimos 3 meses encerrados (a mesma regra dos outros setores); a coluna Identificação mostra se ainda há lançamento sem conta no mês.
+        Custo = pessoal + {custoCols.map((c) => c.n.toLowerCase()).join(" + ")}. Folha/pç = pessoal ÷ peças (volta à operação); FPP/pç = demais custos ÷ peças (cobrado na FPP). Base de cálculo: só os últimos 6 meses encerrados (a mesma regra dos outros setores); a coluna Identificação mostra se ainda há lançamento sem conta no mês.
         {conferir && nPlan > 0 && <> Linha de baixo (verde/vermelho) = valor da planilha; em vermelho, diferença acima de R$ 1,00.</>}
       </div>
 

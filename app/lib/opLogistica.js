@@ -4,11 +4,12 @@
 //   peças = peças da análise da expedição (as mesmas do KPI).
 //   v284 — divisão: a FOLHA de logística volta para a operação (contribuição à operação = folha ÷ peças);
 //   os demais custos (combustível, fretebras, freelancer…) não voltam e são o que a FPP cobra (sem folha e sem frete entrega) ÷ peças.
-//   Base de cálculo (v280, mesma regra dos outros setores): últimos 3 meses encerrados, média ponderada (custo ÷ peças).
+//   Base de cálculo (v280, mesma regra dos outros setores): últimos 6 meses encerrados (v286), média ponderada (custo ÷ peças).
 import { prisma } from "@/lib/prisma";
 import { freelancerXFolha } from "@/lib/rhPainel";
 import { mesAtual, somaMes } from "@/lib/finTitulos";
 import { PLANILHA_LOG } from "@/lib/logisticaPlanilha";
+import { JANELA_MESES } from "@/lib/opAnalise";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
@@ -69,13 +70,14 @@ export async function logisticaMes(comp, ctx = {}) {
 
 export async function analiseLogistica() {
   const fim = somaMes(mesAtual(), -1);
+  const ini = somaMes(mesAtual(), -JANELA_MESES);   // v286 — só os últimos 6 meses encerrados
   const comps = [];
-  for (let c = INICIO_LOG; c <= fim; c = somaMes(c, 1)) comps.push(c);
+  for (let c = ini > INICIO_LOG ? ini : INICIO_LOG; c <= fim; c = somaMes(c, 1)) comps.push(c);
   const contas = await prisma.finConta.findMany({ where: { codigo: { in: CODIGOS } }, select: { id: true, codigo: true } });
   const pecas = await pecasExp(comps);
   const meses = [];
   for (const c of comps) meses.push(await logisticaMes(c, { contas, pecas }));
-  const base = meses.filter((m) => m.encerrado).slice(-3).filter((m) => m.pecas > 0);
+  const base = meses.filter((m) => m.encerrado && m.pecas > 0);
   const soma = (f) => base.reduce((s, m) => s + f(m), 0);
   const pcs = soma((m) => m.pecas);
   const media = {
@@ -99,7 +101,7 @@ export async function custoLogisticoPeca() {
 // FPP: LOGISTICA_BASE (malha e plano) = custos de logística por peça SEM a folha e sem frete entrega (v284), com histórico
 export async function atualizarLogisticaFpp(media = null) {
   const m = media || await custoLogisticoPeca();
-  if (!m?.fppPeca) return { ok: false, motivo: "sem peças nos últimos 3 meses" };
+  if (!m?.fppPeca) return { ok: false, motivo: "sem peças nos últimos 6 meses" };
   const v = r2(m.fppPeca);
   const quem = `SISTEMA · ANÁLISE DA LOGÍSTICA (${m.meses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")})`;
   const ps = await prisma.fppParam.findMany({ where: { grupo: "CONST", chave: "LOGISTICA_BASE" } });

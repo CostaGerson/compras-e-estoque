@@ -288,8 +288,16 @@ export async function custoDoSetor(setor, competencia) {
   return { pessoal: l?.folha || 0, freelancer: l?.freeExtrato || 0, fonteFree: l?.freeExtrato ? "EXTRATO IDENTIFICADO" : "nada identificado no extrato", pessoas: l?.pessoas || 0 };
 }
 
+// v286 — só os últimos 6 meses importam para a precificação: as análises mostram e calculam apenas essa janela
+//   (6 meses encerrados; o mês corrente aparece em andamento, mas não entra nas médias)
+export const JANELA_MESES = 6;
+const mesHoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+const somaM = (c, n) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+export function janelaMeses() { const atual = mesHoje(); return { de: somaM(atual, -JANELA_MESES), ate: somaM(atual, -1), atual }; }
+
 export async function analiseCorte(competencia, setor = "CORTE") {
-  const lista = await prisma.opAnalise.findMany({ where: { setor }, orderBy: { competencia: "asc" }, select: { competencia: true, qtds: true } });
+  const J = janelaMeses();
+  const lista = await prisma.opAnalise.findMany({ where: { setor, competencia: { gte: J.de } }, orderBy: { competencia: "asc" }, select: { competencia: true, qtds: true } });
   const a = competencia ? await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia } } }) : null;
   const auto = competencia ? await custoDoSetor(setor, competencia) : null;
   let calc = null;
@@ -298,9 +306,9 @@ export async function analiseCorte(competencia, setor = "CORTE") {
     const free = a.freelancerManual != null ? a.freelancerManual : auto.freelancer;
     calc = calcularCorte(a, pessoal, free);
   }
-  // série do ano para o gráfico: custo incorrido por peça e peças
+  // série dos últimos 6 meses (v286; antes: do ano)
   const serie = [];
-  for (const x of lista.filter((y) => !competencia || y.competencia.slice(0, 4) === competencia.slice(0, 4))) {
+  for (const x of lista) {
     const full = await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia: x.competencia } } });
     const au = await custoDoSetor(setor, x.competencia);
     const free = full.freelancerManual ?? au.freelancer;
@@ -317,11 +325,13 @@ export async function analiseCorte(competencia, setor = "CORTE") {
     manual: SETORES_MANUAIS.includes(setor), grade: NIVEIS_OP[setor] ? { ...NIVEIS_OP[setor], pecas: PECAS_PERS.map(([k, n]) => ({ k, n })) } : null };
 }
 
-// v264 — resumo da tela de Análises operacionais: quanto volta para a operação por peça, na média dos últimos 3 meses com registro.
+// v264 — resumo da tela de Análises operacionais: quanto volta para a operação por peça.
+// v286 — média dos últimos 6 meses encerrados com registro (antes: 3 meses).
 // Volta = valor de mercado × quantidade (silk: R$ 0,80 × cores). Corte e expedição: ÷ peças do próprio setor (todas passam por eles).
 // Costura e personalização: ÷ peças da produção (expedidas nos mesmos meses) — só parte das peças passa por elas, então o valor por peça é baixo.
 export async function resumoVolta(ate = null) {
-  const todos = await prisma.opAnalise.findMany({ orderBy: { competencia: "desc" } });
+  const J = janelaMeses();
+  const todos = await prisma.opAnalise.findMany({ where: { competencia: { gte: J.de, lte: J.ate } }, orderBy: { competencia: "desc" } });
   const porSetor = (setores) => todos.filter((a) => setores.includes(a.setor) && (!ate || a.competencia <= ate));
   const calcMes = (lista) => {
     const meses = {};
@@ -331,7 +341,7 @@ export async function resumoVolta(ate = null) {
       const m = (meses[a.competencia] ||= { volta: 0, pecas: 0 });
       m.volta += c.terceirizado; m.pecas += c.pecas;
     }
-    return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, 3);
+    return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, JANELA_MESES);
   };
   const expedido = Object.fromEntries(porSetor(["EXPEDICAO"]).map((a) => [a.competencia, calcularCorte(a, 0, 0).pecas]));
   const grupo = (chave, setores, base) => {
@@ -345,7 +355,7 @@ export async function resumoVolta(ate = null) {
   };
   const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
   const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
-  // v284 — logística: só a FOLHA de logística volta para a operação (folha ÷ peças, últimos 3 meses encerrados);
+  // v284 — logística: só a FOLHA de logística volta para a operação (folha ÷ peças, últimos 6 meses encerrados — v286);
   //   combustível, fretes etc. não voltam (são cobrados na FPP)
   const { custoLogisticoPeca } = await import("@/lib/opLogistica");
   const lg = await custoLogisticoPeca().catch(() => null);

@@ -1,9 +1,9 @@
-// v272 — Parâmetros da FPP alimentados pelas Análises operacionais (média dos últimos 3 meses completos):
+// v272 — Parâmetros da FPP alimentados pelas Análises operacionais (média dos últimos meses completos — v286: janela de 6 meses):
 //   corte e expedição/acabamento por tipo de peça = valor bruto médio (valor de mercado ponderado pelas peças) de cada categoria;
 //   costura por tipo de peça = valor terceirizado registrado na análise da costura; silk = R$ por cor da análise do silk.
 // Mês completo = mês já encerrado com análise de CORTE e de EXPEDIÇÃO com peças. A cada mês novo completo os parâmetros são refeitos.
 import { prisma } from "@/lib/prisma";
-import { calcularCorte, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR } from "@/lib/opAnalise";
+import { calcularCorte, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR, janelaMeses, JANELA_MESES } from "@/lib/opAnalise";
 import { tipoDaPeca } from "@/lib/finOsKm";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -23,9 +23,10 @@ export function categoriaFpp(chave) {
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
 export async function janelaFpp() {
-  const rows = await prisma.opAnalise.findMany({ where: { setor: { in: ["CORTE", "EXPEDICAO"] }, competencia: { lt: mesAtualISO() } }, select: { setor: true, competencia: true, qtds: true } });
+  const J = janelaMeses();   // v286 — só os últimos 6 meses encerrados
+  const rows = await prisma.opAnalise.findMany({ where: { setor: { in: ["CORTE", "EXPEDICAO"] }, competencia: { gte: J.de, lte: J.ate } }, select: { setor: true, competencia: true, qtds: true } });
   const tem = (setor, c) => rows.some((r) => r.setor === setor && r.competencia === c && Object.values(r.qtds || {}).some((v) => Number(v) > 0));
-  const comps = [...new Set(rows.map((r) => r.competencia))].filter((c) => tem("CORTE", c) && tem("EXPEDICAO", c)).sort().slice(-3);
+  const comps = [...new Set(rows.map((r) => r.competencia))].filter((c) => tem("CORTE", c) && tem("EXPEDICAO", c)).sort().slice(-JANELA_MESES);
   return comps;
 }
 
@@ -65,7 +66,7 @@ export async function mediasOperacionais() {
   };
 }
 
-// aplica nos parâmetros da FPP (com histórico) quando a janela de 3 meses muda
+// aplica nos parâmetros da FPP (com histórico) quando a janela de meses muda
 export async function atualizarParamsFpp({ forcar = false } = {}) {
   { const { atualizarLogisticaFpp } = await import("@/lib/opLogistica"); await atualizarLogisticaFpp().catch(() => null); }   // v279
   const m = await mediasOperacionais();

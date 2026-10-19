@@ -415,7 +415,7 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
             <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
             <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
-              Soma das etapas, média dos últimos 3 meses com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = folha de logística por peça (os demais custos vão para a FPP).
+              Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = folha de logística por peça (os demais custos vão para a FPP).
               Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
             </div>
           </div>

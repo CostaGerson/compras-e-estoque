@@ -123,7 +123,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   };
   useEffect(() => { carregar(null); }, []);
   useEffect(() => { if (comp) carregar(comp); }, [comp]);
-  // v285 — retorno à operação e valor cobrado na FPP do setor (média dos últimos 3 meses, a mesma das Análises e da FPP)
+  // v285 — retorno à operação e valor cobrado na FPP do setor (média dos últimos 6 meses, a mesma das Análises e da FPP)
   const [rf, setRf] = useState(null);
   const carregarRf = () => api(`/api/producao/analises?u=${user.id}&acao=retornoFpp`).then(setRf).catch(() => setRf(null));
   useEffect(() => { carregarRf(); }, []);
@@ -177,6 +177,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const sM = (k, v) => setF((x) => ({ ...x, mercado: { ...x.mercado, [k]: v } }));
 
   const c = d?.calc;
+  const minMes = (() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 6); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; })();   // v286
   const meses = [...new Set([...(d?.competencias || []), comp].filter(Boolean))].sort().reverse();
   const G = !!d?.grade;   // v257 — silk/bordado: sem peças estimadas; compara com o mercado e mostra o custo por cor/milheiro
   // v261 — sem parâmetros estimados (peças estimadas / custo fixo): todas as análises comparam com o mercado (terceirizar)
@@ -195,7 +196,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <select value={comp || ""} onChange={(e) => setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS}>
           {meses.map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}
         </select>
-        <input type="month" value={comp || ""} onChange={(e) => e.target.value && setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS} title="Outro mês" />
+        <input type="month" min={minMes} value={comp || ""} onChange={(e) => e.target.value && e.target.value >= minMes && setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS} title="Outro mês" />
         <div className="flex-1" />
         {!T.manual && <>
           <input ref={inpRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { importar(e.target.files); e.target.value = ""; }} />
@@ -215,7 +216,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
       {/* v182.1 — resumo do ano: todos os meses importados */}
       {d?.serie?.length > 0 && (
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Ano {comp?.slice(0, 4)} · {d.serie.length} mês(es) com análise</div>
+          <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Últimos 6 meses · {d.serie.length} mês(es) com análise <span className="font-normal text-[11px]" style={{ color: C.sub }}>— só eles contam para a precificação; o mês corrente aparece, mas não entra nas médias</span></div>
           <table className="w-full text-xs">
             <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ref = x.mediaTerc; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
@@ -260,10 +261,10 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               {T.volta && <Kpi t="Contribuição bruta à operação" v={brl(c.terceirizado)} cor={C.navy}
                 sub={`${brl(c.mediaTerc)} por peça${G && c.unidades ? ` · ${brl(c.mercadoUnid)} por ${T.cor}` : ""} — ${T.volta}`} />}
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
-              {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 3 meses) */}
+              {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 6 meses) */}
               {rf && <KpiDestaque t={`Retorno à operação / peça${chaveResumo === "PERSONALIZACAO" ? " (silk + bordado)" : ""}`} cor={C.navy}
                 v={rr?.meses?.length ? brl(rr.valor) : "—"}
-                sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "por peça operada" : "por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 3 meses"} />}
+                sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "por peça operada" : "por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 6 meses"} />}
               {rf && <KpiDestaque t="Valor cobrado na FPP" cor={C.accent}
                 v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : setor === "BORDADO" ? "—" : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
                 sub={setor === "SILK" ? <>contribuição ÷ cores aplicadas · {mesesTxt(rf.fpp.meses)}</>
