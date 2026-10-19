@@ -38,6 +38,7 @@ export async function importarArquivos(arquivos, quem) {
         emissao: l.emissao ? dUTC(l.emissao) : null, despacho: l.despacho ? dUTC(l.despacho) : null,
         condicao: atual?.condicao && atual.condicao !== l.condicao && atual.pvPdf ? atual.condicao : (l.condicao || null),
         vendedor: l.vendedor || null, tipoPedido: l.tipoPedido || null, oc: l.oc || null, freteTipo: l.freteTipo || null, frete: l.frete ?? null,
+        obs: atual?.obs || l.obs || null,
         total: r2(l.total), qtd: Math.round(l.qtdTotal || itens.reduce((s, i) => s + (i.qtd || 0), 0)), itens, pvPdf: l.b64, atualizadoPorNome: quem,
       };
       if (atual) await prisma.pedidoVenda.update({ where: { id: atual.id }, data: dados });

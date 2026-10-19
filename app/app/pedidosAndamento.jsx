@@ -32,9 +32,15 @@ export default function PedidosAndamento({ user }) {
   const carregar = () => fetch(`/api/fin/pedidos?u=${user.id}&competencia=${comp}${todos ? "&todos=1" : ""}`)
     .then((r) => r.json().then((j) => (r.ok ? (setD(j), setErro("")) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
   useEffect(() => { carregar(); }, [comp, todos]);
+  // v319 — colar (Ctrl+V) PDFs copiados do Explorer/e-mail em qualquer lugar da tela
+  const enviarRef = useRef(null);
+  useEffect(() => {
+    const colar = (e) => { const fs = [...(e.clipboardData?.files || [])].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf"); if (fs.length) { e.preventDefault(); enviarRef.current?.(fs); } };
+    window.addEventListener("paste", colar); return () => window.removeEventListener("paste", colar);
+  }, []);
 
   const enviar = async (files) => {
-    const lista = [...files].filter((f) => /\.pdf$/i.test(f.name));
+    const lista = [...files].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
     if (!lista.length) return;
     setEnviando(true); setResultado(null);
     try {
@@ -46,6 +52,7 @@ export default function PedidosAndamento({ user }) {
     } catch (e) { setErro(e.message); }
     setEnviando(false);
   };
+  enviarRef.current = enviar;
   const salvar = async (id, dados) => {
     const r = await fetch("/api/fin/pedidos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, id, ...dados }) });
     const j = await r.json(); if (!r.ok) return alert(j.error || "Erro"); carregar();
@@ -93,7 +100,7 @@ export default function PedidosAndamento({ user }) {
 
       <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); enviar(e.dataTransfer.files); }}
         className="rounded-xl px-4 py-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.blueSoft, color: C.blue, border: `1px dashed ${C.blue}` }}>
-        <FileText size={14} /> Arraste aqui os PDFs do KM Sistemas: o <b>PV</b> (pedido de venda) traz valores e condição de pagamento; o <b>PP</b> (ordem de produção) traz os dados de produção. Os dois se juntam pelo nº do pedido.
+        <FileText size={14} /> Arraste ou cole (Ctrl+V) aqui os PDFs do KM Sistemas, vários de uma vez: o <b>PV</b> (pedido de venda) traz valores e condição de pagamento; o <b>PP</b> (ordem de produção) traz os dados de produção. Os dois se juntam pelo nº do pedido.
       </div>
 
       {/* v317 — conexão com o Cronograma (Maycon) */}
@@ -257,6 +264,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                     {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? " (despacho vencido: conta de hoje)" : ""}
                   </div>
                 )}
+                {p.obs && <div className="text-[11px] mb-2 px-2 py-1 rounded" style={{ background: C.yellowSoft, color: C.text }}><b>Obs. do pedido:</b> {p.obs}</div>}
                 <table className="w-full text-xs">
                   <tbody>
                     {v.entradaTitulos.map((t) => (

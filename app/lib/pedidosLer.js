@@ -60,8 +60,12 @@ export function lerPV(paginas) {
       if (/^Total Qtde:/i.test(s)) { const m = s.match(/Total Qtde:\s*([\d.,]+).*Produtos\s*([\d.,]+)/i); if (m) { out.qtdTotal = num(m[1]); out.totalProdutos = num(m[2]); } atual = null; continue; }
       if (/^Total Geral/i.test(col(l, 440, 9999))) { const m = col(l, 440, 9999).match(/([\d.]+,\d{2})/); if (m) out.total = num(m[1]); continue; }
       if (/^Frete$/i.test(col(l, 440, 520))) { const m = col(l, 520, 9999).match(/([\d.]+,\d{2})/); if (m) out.frete = num(m[1]); continue; }
-      if (/^[A-Z]{2}\.\d{2}\.\d{3}\.\d{3,}/.test(esq) && num(q) != null) {
-        atual = { codigo: esq.split(/\s+/)[0], descricao: desc.replace(new RegExp(`^${esq.split(/\s+/)[0].replace(/\./g, "\\.")}\\s*-\\s*`), "").replace(/\s*-\s*$/, ""), qtd: num(q), preco: num(pr), total: num(tot), grade: [] };
+      // v319 — código pelo texto da linha inteira (alguns PDFs vêm com letras soltas e o código passa da coluna)
+      const mc = col(l, 0, 400).replace(/\s+/g, " ").match(/^([A-Z]{2}\.\d{2}\.\d{3}\.\d{3,})\s*(.*)$/);
+      if (mc && num(q) != null) {
+        const cod = mc[1];
+        const resto = mc[2].replace(new RegExp(`^${cod.replace(/\./g, "\\.")}\\s*-?\\s*`), "").replace(/\s*-\s*$/, "").trim();
+        atual = { codigo: cod, descricao: resto, qtd: num(q), preco: num(pr), total: num(tot), grade: [] };
         out.itens.push(atual); tams = null; continue;
       }
       if (!atual) continue;
@@ -75,6 +79,12 @@ export function lerPV(paginas) {
       if (/^GRADE->$/i.test(s)) continue;
       if (desc && !q && !esq && !atual.grade.length) atual.descricao = `${atual.descricao} - ${desc}`.replace(/\s+-\s+-\s+/g, " - ");
     }
+  }
+  // observação do pedido (texto ao lado de "Obs.:")
+  const lo = p1.find((l) => /^Obs\.:/i.test(col(l, 0, 440)));
+  if (lo) {
+    const t = p1.filter((l) => Math.abs(l.y - lo.y) <= 8).map((l) => col(l, 0, 440).replace(/^Obs\.:\s*/i, "")).filter(Boolean).join(" ").trim();
+    if (t) out.obs = t.toUpperCase();
   }
   if (out.total == null) out.total = out.totalProdutos ?? out.itens.reduce((a, i) => a + (i.total || 0), 0);
   if (!out.numero) throw new Error("PV sem número de pedido.");
