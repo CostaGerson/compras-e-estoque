@@ -3,7 +3,11 @@
 //   costura por tipo de peça = valor terceirizado registrado na análise da costura; silk = R$ por cor da análise do silk.
 // Mês completo = mês já encerrado com análise de CORTE e de EXPEDIÇÃO com peças. A cada mês novo completo os parâmetros são refeitos.
 import { prisma } from "@/lib/prisma";
-import { calcularCorte, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR, janelaMeses, JANELA_MESES } from "@/lib/opAnalise";
+import { calcularCorte, calcularReal, SETORES_CUSTO_REAL, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR, janelaMeses, JANELA_MESES } from "@/lib/opAnalise";
+// v288 — corte e expedição: valor por tipo de peça = custo REAL do setor rateado pelo peso de mercado de cada tipo (valorInterno);
+//   costura: valor de mercado (terceirizado); silk: R$ por cor.
+const calcDe = async (a) => (SETORES_CUSTO_REAL.includes(a.setor) ? calcularReal(a) : calcularCorte(a, 0, 0));
+const valorDe = (a, c) => (SETORES_CUSTO_REAL.includes(a.setor) ? c.valorInterno : c.mercado);
 import { tipoDaPeca } from "@/lib/finOsKm";
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -33,14 +37,17 @@ export async function janelaFpp() {
 // média ponderada por peças do valor de mercado de cada categoria, nos meses da janela
 async function mediaPorCategoria(setor, meses, cats) {
   const rows = await prisma.opAnalise.findMany({ where: { setor, competencia: { in: meses } } });
+  const calcs = [];
+  for (const a of rows.sort((x, y) => x.competencia.localeCompare(y.competencia))) calcs.push([a, await calcDe(a)]);
   const out = {};
   for (const [k] of cats) {
     let q = 0, v = 0, ultimo = null;
-    for (const a of rows.sort((x, y) => x.competencia.localeCompare(y.competencia))) {
-      const c = calcularCorte(a, 0, 0).categorias.find((x) => x.k === k);
+    for (const [a, calc] of calcs) {
+      const c = calc.categorias.find((x) => x.k === k);
       if (!c) continue;
-      if (c.mercado) ultimo = c.mercado;
-      q += c.qtd; v += c.qtd * c.mercado;
+      const val = valorDe(a, c);
+      if (val) ultimo = val;
+      q += c.qtd; v += c.qtd * val;
     }
     const m = q ? v / q : ultimo;
     if (m != null && m > 0) out[k] = r4(m);
@@ -71,7 +78,7 @@ export async function atualizarParamsFpp({ forcar = false } = {}) {
   { const { atualizarLogisticaFpp } = await import("@/lib/opLogistica"); await atualizarLogisticaFpp().catch(() => null); }   // v279
   const m = await mediasOperacionais();
   if (!m.meses.length) return { ok: false, motivo: "sem mês completo nas análises" };
-  const chave = m.meses.join(",");
+  const chave = `v288|${m.meses.join(",")}`;   // v288 — regra nova (custo real no corte/expedição) força reaplicar uma vez
   const cfg = await prisma.finConfig.findUnique({ where: { chave: CHAVE_JANELA } }).catch(() => null);
   if (!forcar && cfg?.valor === chave) return { ok: true, janela: m.meses, alterados: 0, jaAplicado: true };
   const quem = `SISTEMA · ANÁLISES OPERACIONAIS (${m.meses.map((c) => c.slice(5, 7) + "/" + c.slice(2, 4)).join(", ")})`;
@@ -102,10 +109,11 @@ async function fppDoSetor(setor, meses, cats) {
   const rows = await prisma.opAnalise.findMany({ where: { setor, competencia: { in: meses } } });
   let Q = 0, V = 0;
   const por = {};
-  for (const a of rows) for (const c of calcularCorte(a, 0, 0).categorias || []) {
-    if (!c.qtd || !(c.mercado > 0)) continue;
-    Q += c.qtd; V += c.qtd * c.mercado;
-    const p = (por[c.k] ||= { q: 0, v: 0 }); p.q += c.qtd; p.v += c.qtd * c.mercado;
+  for (const a of rows) for (const c of (await calcDe(a)).categorias || []) {
+    const val = valorDe(a, c);
+    if (!c.qtd || !(val > 0)) continue;
+    Q += c.qtd; V += c.qtd * val;
+    const p = (por[c.k] ||= { q: 0, v: 0 }); p.q += c.qtd; p.v += c.qtd * val;
   }
   return { porPeca: Q ? V / Q : null, pecas: Q,
     categorias: cats.filter(([k]) => por[k]?.q).map(([k, n]) => ({ k, n, valor: r4(por[k].v / por[k].q), qtd: por[k].q })).sort((a, b) => b.qtd - a.qtd) };

@@ -264,7 +264,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 6 meses) */}
               {rf && <KpiDestaque t={`Retorno à operação / peça${chaveResumo === "PERSONALIZACAO" ? " (silk + bordado)" : ""}`} cor={C.navy}
                 v={rr?.meses?.length ? brl(rr.valor) : "—"}
-                sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "por peça operada" : "por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 6 meses"} />}
+                sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "custo real por peça operada" : "mercado por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 6 meses"} />}
               {rf && <KpiDestaque t="Valor cobrado na FPP" cor={C.accent}
                 v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : setor === "BORDADO" ? "—" : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
                 sub={setor === "SILK" ? <>contribuição ÷ cores aplicadas · {mesesTxt(rf.fpp.meses)}</>

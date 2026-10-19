@@ -280,6 +280,13 @@ export function calcularCorte(a, pessoal, freelancer) {
   };
 }
 
+// v288 — corte e expedição usam o custo REAL do setor (pessoal + freelancers do mês); costura e personalização, o valor de mercado
+export const SETORES_CUSTO_REAL = ["CORTE", "EXPEDICAO"];
+export async function calcularReal(a) {
+  const au = await custoDoSetor(a.setor, a.competencia).catch(() => ({ pessoal: 0, freelancer: 0 }));
+  return calcularCorte(a, a.pessoalManual ?? au.pessoal, a.freelancerManual ?? au.freelancer);
+}
+
 // pessoal (Matriz) e freelancers do setor no mês, identificados no sistema
 export async function custoDoSetor(setor, competencia) {
   const f = await freelancerXFolha(competencia).catch(() => null);
@@ -333,19 +340,20 @@ export async function resumoVolta(ate = null) {
   const J = janelaMeses();
   const todos = await prisma.opAnalise.findMany({ where: { competencia: { gte: J.de, lte: J.ate } }, orderBy: { competencia: "desc" } });
   const porSetor = (setores) => todos.filter((a) => setores.includes(a.setor) && (!ate || a.competencia <= ate));
-  const calcMes = (lista) => {
+  const calcMes = async (lista) => {
     const meses = {};
     for (const a of lista) {
-      const c = calcularCorte(a, 0, 0);
+      const real = SETORES_CUSTO_REAL.includes(a.setor);   // v288 — corte/expedição: custo real; demais: mercado × quantidade
+      const c = real ? await calcularReal(a) : calcularCorte(a, 0, 0);
       if (!c.pecas) continue;
       const m = (meses[a.competencia] ||= { volta: 0, pecas: 0 });
-      m.volta += c.terceirizado; m.pecas += c.pecas;
+      m.volta += real ? c.custoTotal : c.terceirizado; m.pecas += c.pecas;
     }
     return Object.entries(meses).sort((x, y) => y[0].localeCompare(x[0])).slice(0, JANELA_MESES);
   };
   const expedido = Object.fromEntries(porSetor(["EXPEDICAO"]).map((a) => [a.competencia, calcularCorte(a, 0, 0).pecas]));
-  const grupo = (chave, setores, base) => {
-    const ms = calcMes(porSetor(setores));
+  const grupo = async (chave, setores, base) => {
+    const ms = await calcMes(porSetor(setores));
     const volta = ms.reduce((s, [, v]) => s + v.volta, 0), pecas = ms.reduce((s, [, v]) => s + v.pecas, 0);
     const pecasProducao = ms.reduce((s, [k]) => s + (expedido[k] || 0), 0);
     const porPecaSetor = pecas ? volta / pecas : 0;
@@ -353,7 +361,8 @@ export async function resumoVolta(ate = null) {
     return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao,
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
-  const g = [grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")];
+  const g = await Promise.all([grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")]);
+  for (const x of g) x.real = ["CORTE", "EXPEDICAO"].includes(x.chave);
   const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
   // v284 — logística: só a FOLHA de logística volta para a operação (folha ÷ peças, últimos 6 meses encerrados — v286);
   //   combustível, fretes etc. não voltam (são cobrados na FPP)
