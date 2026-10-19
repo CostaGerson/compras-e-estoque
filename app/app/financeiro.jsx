@@ -1964,6 +1964,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
   const [fStatus, setFStatus] = useState("todos");
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(new Set());
+  const [fechados, setFechados] = useState(() => new Set());   // v295 — contas caixa recolhidas (só o total)
   const [modal, setModal] = useState(null); // {tipo:'identificar'|'editar'|'novo'|'desmembrar', itens|lanc}
   const [aviso, setAviso] = useState("");
   const [lendo, setLendo] = useState(false);
@@ -2256,18 +2257,29 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
             {grupos.map((g) => {
               let saldo = g.inicial;
               const soma = g.itens.reduce((a, l) => a + l.valor, 0);
+              const fechado = fechados.has(g.k);
               return (
                 <tbody key={g.k}>
                   <tr style={{ background: C.panel2, borderTop: `1px solid ${C.line}` }}>
                     <td className="px-2 py-2"><input type="checkbox" checked={g.itens.every((l) => sel.has(l.id))} onChange={() => toggleGrupo(g)} /></td>
-                    <td colSpan={4} className="px-2 py-2 font-bold" style={{ color: g.k === "~" ? C.accent : C.navy }}>
-                      {g.titulo} <span className="font-normal" style={{ color: C.sub }}>· {g.itens.length} lanç. · soma R$ {brl(soma)}</span>
+                    <td colSpan={fechado ? 4 : 4} className="px-2 py-2 font-bold" style={{ color: g.k === "~" ? C.accent : C.navy }}>
+                      {/* v295 — setinha: recolhe os lançamentos e deixa só o total da conta caixa */}
+                      <button onClick={() => setFechados((x) => { const n = new Set(x); n.has(g.k) ? n.delete(g.k) : n.add(g.k); return n; })}
+                        title={fechado ? "Mostrar lançamentos" : "Esconder lançamentos (só o total)"} className="inline-flex items-center mr-1 align-middle" style={{ color: C.sub }}>
+                        {fechado ? <ChevR size={15} /> : <ChevronDown size={15} />}
+                      </button>
+                      {g.titulo} <span className="font-normal" style={{ color: C.sub }}>· {g.itens.length} lanç.{fechado ? "" : ` · soma R$ ${brl(soma)}`}</span>
                     </td>
-                    <td className="px-2 py-2 text-right font-semibold" style={{ color: C.sub }}>SALDO ANTERIOR</td>
-                    <td className="px-2 py-2 text-right font-bold">{brl(g.inicial)}</td>
+                    {fechado ? <>
+                      <td className="px-2 py-2 text-right font-bold" style={{ color: corValor(soma) }}>{brl(soma)}</td>
+                      <td className="px-2 py-2 text-right font-bold" style={{ color: corValor(g.inicial + soma) }} title={`saldo anterior ${brl(g.inicial)}`}>{brl(g.inicial + soma)}</td>
+                    </> : <>
+                      <td className="px-2 py-2 text-right font-semibold" style={{ color: C.sub }}>SALDO ANTERIOR</td>
+                      <td className="px-2 py-2 text-right font-bold">{brl(g.inicial)}</td>
+                    </>}
                     <td />
                   </tr>
-                  {g.itens.map((l) => {
+                  {!fechado && g.itens.map((l) => {
                     saldo += l.valor;
                     const conta = l.contaId ? contasById[l.contaId] : null;
                     const cor = corConta(conta);
