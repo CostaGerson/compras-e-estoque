@@ -71,7 +71,6 @@ export default function PedidosAndamento({ user }) {
 
   const [conex, setConex] = useState(null);   // v317 — formulário de conexão com o Cronograma
   const [diag, setDiag] = useState(null);
-  const [verPend, setVerPend] = useState(false);
   const [sinc, setSinc] = useState(false);
   const post = async (corpo) => { const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); return r.json(); };
   const atualizarPcp = async () => { setSinc(true); await post({ acao: "crono-sync" }); await carregar(); setSinc(false); };
@@ -115,24 +114,8 @@ export default function PedidosAndamento({ user }) {
             : <span style={{ color: C.sub }}>lido {CR?.em ? new Date(CR.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"} · {CR?.itens ?? 0} itens, {CR?.etapas ?? 0} etapas · {CR?.casados ?? 0} pedido(s) daqui casados{CR?.semPedidoAqui ? ` · ${CR.semPedidoAqui} no PCP sem PV aqui` : ""}{CR?.avisoEtapas ? ` · etapas: ${CR.avisoEtapas}` : ""}</span>}
           <div className="flex-1" />
           <button disabled={sinc} onClick={atualizarPcp} className="flex items-center gap-1 font-semibold" style={{ color: C.accent }}>{sinc ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar do PCP</button>
-          {CR?.qtdPendentes > 0 && <button onClick={() => setVerPend(!verPend)} className="font-semibold" style={{ color: C.yellow }}>{CR.qtdPendentes} em andamento no PCP sem PV aqui</button>}
           <button onClick={verDiag} className="font-semibold" style={{ color: C.sub }}>Ver o que veio</button>
           <button onClick={() => setConex({ url: CR?.url || "", token: "" })} className="flex items-center gap-1 font-semibold" style={{ color: C.sub }}><Settings size={12} /> Conexão</button>
-        </div>
-      )}
-      {verPend && CR?.pendentes?.length > 0 && (
-        <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: C.panel, border: `1px solid ${C.yellow}` }}>
-          <div className="flex items-center justify-between mb-1"><b style={{ color: C.navy }}>Em andamento no Cronograma sem PV aqui — suba o PV e o PP destes</b><button onClick={() => setVerPend(false)}><X size={14} /></button></div>
-          <table className="w-full">
-            <thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Itens", "Peças", "Entrega prevista", "Prazo", "Situação"].map((h) => <th key={h} className="py-1 font-semibold text-center">{h}</th>)}</tr></thead>
-            <tbody>{CR.pendentes.map((x) => (
-              <tr key={x.pedido} style={{ borderTop: `1px solid ${C.line}`, background: x.entrega && x.entrega < (R?.hoje || "") ? C.redSoft : undefined, color: x.entrega && x.entrega < (R?.hoje || "") ? C.red : undefined }} title={x.entrega && x.entrega < (R?.hoje || "") ? "Programação vencida — reprogramar no Cronograma" : undefined}>
-                <td className="py-1 text-center font-bold" style={{ color: C.navy }}>{x.pedido}</td><td className="py-1">{x.cliente}</td>
-                <td className="py-1 text-center">{x.itens}</td><td className="py-1 text-center tabular-nums">{(x.pecas || 0).toLocaleString("pt-BR")}</td>
-                <td className="py-1 text-center">{dBR(x.entrega)}</td><td className="py-1 text-center">{dBR(x.prazo)}</td>
-                <td className="py-1 text-center" style={{ color: C.sub }}>{x.situacao}{x.etapa ? ` · ${x.etapa}` : ""}</td>
-              </tr>))}</tbody>
-          </table>
         </div>
       )}
       {conex && (
