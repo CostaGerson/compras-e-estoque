@@ -23,7 +23,7 @@ import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
-import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
+import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 
@@ -95,9 +95,11 @@ const MENU = [
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
-    { key: "analisesOp", label: "Análises operacionais", icon: IcoAnalise, desc: "Custo por peça de cada setor: corte, personalização, costura e expedição", filhos: [
+    { key: "analisesOp", label: "Análises operacionais", icon: IcoAnalise, desc: "Custo por peça de cada setor: corte, silk, bordado, costura, expedição e logística", filhos: [
       { key: "anCorte", label: "Corte", icon: IcoCorte, desc: "Peças cortadas no mês, custo do setor (folha + freelancers) e comparação com a meta e com terceirizar" },
-      { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por peça, valor terceirizado médio): folha, freelancers e peças feitas dentro" },
+      // v293 — silk e bordado em cards próprios
+      { key: "anSilk", label: "Silk", icon: IcoPers, desc: "Silk por nº de cores (R$ 0,80 por cor): folha, freelancers, tinta e peças estampadas dentro" },
+      { key: "anBordado", label: "Bordado", icon: IcoBordado, desc: "Bordado por peça (valor terceirizado médio do mês): folha, freelancers, insumo e peças bordadas dentro" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
       { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },
@@ -140,7 +142,7 @@ const PODE = {
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   fme: (u) => tem(u, "fme"),
-  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
+  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
   rota: () => true,
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
@@ -295,6 +297,8 @@ export default function Home() {
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}
           {view === "anPersonalizacao" && pode("anPersonalizacao") && <AnalisePersonalizacao user={user} />}
+          {view === "anSilk" && pode("anSilk") && <AnaliseCorte key="silk" user={user} setor="SILK" />}
+          {view === "anBordado" && pode("anBordado") && <AnaliseCorte key="bordado" user={user} setor="BORDADO" />}
           {view === "anCostura" && pode("anCostura") && <AnaliseCorte key="COSTURA" user={user} setor="COSTURA" />}
           {view === "anExpedicao" && pode("anExpedicao") && <AnaliseCorte key="EXPEDICAO" user={user} setor="EXPEDICAO" />}
           {view === "anLogistica" && pode("anLogistica") && <AnaliseLogistica user={user} />}
@@ -352,7 +356,7 @@ function MenuArvore({ itens, view, caminho, ir, nivel = 0 }) {
 
 /* ===== Tela de um grupo: cards das subabas ===== */
 // v264 — Análises operacionais: quanto volta para a operação por peça (média dos últimos 3 meses com registro)
-const SETOR_DO_CARD = { anCorte: "CORTE", anPersonalizacao: "PERSONALIZACAO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO", anLogistica: "LOGISTICA" };
+const SETOR_DO_CARD = { anCorte: "CORTE", anSilk: "SILK", anBordado: "BORDADO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO", anLogistica: "LOGISTICA" };
 const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const brlV = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function VoltaCard({ r }) {
@@ -415,8 +419,8 @@ function CardsGrupo({ grupo, ir, user }) {
             <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
             <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
             <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
-              Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura e personalização = valor de mercado × quantidade (silk: R$ 0,80 × cores); logística = valor cobrado na FPP por peça (folha + custos, sem frete entrega).
-              Corte e expedição: por peça do setor (todas passam por eles). Costura e personalização: por peça produzida (expedida), pois só parte das peças passa por elas.
+              Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura, silk e bordado = valor de mercado × quantidade (silk: R$ 0,80 × cores; bordado: terceirizado médio por peça); logística = valor cobrado na FPP por peça (folha + custos, sem frete entrega).
+              Corte e expedição: por peça do setor (todas passam por eles). Costura, silk e bordado: por peça produzida (expedida), pois só parte das peças passa por eles.
             </div>
           </div>
         )}

@@ -437,7 +437,7 @@ export async function resumoVolta(ate = null) {
     return { chave, meses: ms.map(([k]) => k).sort(), volta: r2(volta), pecas, pecasProducao, porPecaSetor, porPecaProducao, categorias,
       base, valor: base === "SETOR" ? porPecaSetor : porPecaProducao };
   };
-  const g = await Promise.all([grupo("CORTE", ["CORTE"], "SETOR"), grupo("PERSONALIZACAO", ["SILK", "BORDADO"], "PRODUCAO"), grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")]);
+  const g = await Promise.all([grupo("CORTE", ["CORTE"], "SETOR"), grupo("SILK", ["SILK"], "PRODUCAO"), grupo("BORDADO", ["BORDADO"], "PRODUCAO"),   /* v293 — silk e bordado separados */ grupo("COSTURA", ["COSTURA"], "PRODUCAO"), grupo("EXPEDICAO", ["EXPEDICAO"], "SETOR")]);
   for (const x of g) x.real = ["CORTE", "EXPEDICAO"].includes(x.chave);
   const producao = g.reduce((s, x) => s + (x.valor || 0), 0);
   // v284 — logística: só a FOLHA de logística volta para a operação (folha ÷ peças, últimos 6 meses encerrados — v286);

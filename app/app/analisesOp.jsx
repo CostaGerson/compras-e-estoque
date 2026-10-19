@@ -223,7 +223,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const INS = G || setor === "BORDADO";   // v291 — setores com insumo no custo
   const MES3 = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const mesesTxt = (l) => (l || []).map((m) => `${MES3[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`).join(", ");
-  const chaveResumo = { CORTE: "CORTE", EXPEDICAO: "EXPEDICAO", COSTURA: "COSTURA", SILK: "PERSONALIZACAO", BORDADO: "PERSONALIZACAO" }[setor];
+  const chaveResumo = { CORTE: "CORTE", EXPEDICAO: "EXPEDICAO", COSTURA: "COSTURA", SILK: "SILK", BORDADO: "BORDADO" }[setor];
   const rr = rf?.resumo?.setores?.[chaveResumo];
   const pctFree = rf?.resumo?.freelancer?.pct || 0;
   const fs = rf?.fpp?.[setor];
@@ -301,7 +301,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                 sub={`${brl(c.mediaTerc)} por peça${G && c.unidades ? ` · ${brl(c.mercadoUnid)} por ${T.cor}` : ""} — ${T.volta}`} />}
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
               {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 6 meses) */}
-              {rf && <KpiDestaque t={`Retorno à operação / peça${chaveResumo === "PERSONALIZACAO" ? " (silk + bordado)" : ""}`} cor={C.navy}
+              {rf && <KpiDestaque t="Retorno à operação / peça" cor={C.navy}
                 onClick={rr?.base === "SETOR" && rr.categorias?.length ? () => setDet({ titulo: "Retorno à operação / peça", cor: C.navy, valor: brl(rr.valor), itens: rr.categorias,
                   explica: `Custo real do setor (pessoal + freelancers) rateado por tipo de peça pelo peso de mercado · ${mesesTxt(rr.meses)}` }) : undefined}
                 v={rr?.meses?.length ? brl(rr.valor) : "—"}
