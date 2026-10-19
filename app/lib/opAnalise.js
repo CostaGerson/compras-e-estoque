@@ -298,7 +298,21 @@ export async function gravarAnalises(setor, analises, { nome, quem, historico = 
 // ---------------- cálculo (mesma mecânica da planilha) ----------------
 // insumo estimado: o da planilha importada, ou unidades × custo por unidade (quando a planilha trouxe)
 export const insumoAuto = (a, unidades) => a.extra?.tinta ?? (a.extra?.tintaUnit ? (unidades || 0) * a.extra.tintaUnit : 0);
-export function calcularCorte(a, pessoal, freelancer) {
+// v296 — bordado flat: análise gravada no formato por tipo de peça (v291) ou com chaves antigas → tudo vira PECA,
+//   com o valor = terceirizado médio (valor da tabela ÷ peças, ou média ponderada dos valores por tipo)
+function normBordado(a) {
+  const q = a.qtds || {};
+  const ks = Object.keys(q).filter((k) => Number(q[k]) > 0);
+  if (!ks.length || (ks.length === 1 && ks[0] === "PECA" && Number(a.mercado?.PECA) > 0)) return a;
+  const total = ks.reduce((s0, k) => s0 + (Number(q[k]) || 0), 0);
+  let valor = Number(a.extra?.valorTabela) || 0;
+  if (!valor) valor = ks.reduce((s0, k) => s0 + (Number(q[k]) || 0) * (Number(a.mercado?.[k]) || 0), 0);
+  const unit = Number(a.mercado?.PECA) > 0 && ks.length === 1 ? Number(a.mercado.PECA) : total ? valor / total : 0;
+  return { ...a, qtds: { PECA: total }, mercado: { ...(a.mercado || {}), PECA: unit } };
+}
+
+export function calcularCorte(a0, pessoal, freelancer) {
+  const a = a0?.setor === "BORDADO" ? normBordado(a0) : a0;
   const merc = { ...mercadoPadrao(a.setor), ...(a.mercado || {}) };
   const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k] ?? merc[nivelDe(k)]) || 0 }));
   const pecas = cats.reduce((s, c) => s + c.qtd, 0);
@@ -373,7 +387,8 @@ export function janelaMeses() { const atual = mesHoje(); return { de: somaM(atua
 export async function analiseCorte(competencia, setor = "CORTE") {
   const J = janelaMeses();
   const lista = await prisma.opAnalise.findMany({ where: { setor, competencia: { gte: J.de } }, orderBy: { competencia: "asc" }, select: { competencia: true, qtds: true } });
-  const a = competencia ? await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia } } }) : null;
+  const a0 = competencia ? await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia } } }) : null;
+  const a = a0 && setor === "BORDADO" ? normBordado(a0) : a0;   // v296 — tela já recebe o formato flat (salvar grava assim)
   const auto = competencia ? await custoDoSetor(setor, competencia) : null;
   let calc = null;
   if (a) {
