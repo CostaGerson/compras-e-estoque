@@ -359,18 +359,41 @@ function MenuArvore({ itens, view, caminho, ir, nivel = 0 }) {
 const SETOR_DO_CARD = { anCorte: "CORTE", anSilk: "SILK", anBordado: "BORDADO", anCostura: "COSTURA", anExpedicao: "EXPEDICAO", anLogistica: "LOGISTICA" };
 const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const brlV = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// v297 — explicação do cálculo só sob demanda: "i" azul ao lado do valor abre uma janelinha flutuante
+function InfoCalc({ children, claro }) {   // claro = cards escuros da direita (janela abre para a esquerda)
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => {
+    if (!aberto) return;
+    const f = () => setAberto(false);
+    const t = setTimeout(() => window.addEventListener("click", f), 0);
+    return () => { clearTimeout(t); window.removeEventListener("click", f); };
+  }, [aberto]);
+  return (
+    <span className="relative inline-flex align-middle ml-1.5" onClick={(e) => e.stopPropagation()}>
+      <span role="button" tabIndex={0} title="Como é calculado" onClick={(e) => { e.stopPropagation(); setAberto((x) => !x); }}
+        className="inline-flex items-center justify-center rounded-full text-[10px] font-bold cursor-pointer select-none"
+        style={{ width: 16, height: 16, background: claro ? "#fff" : "#2E7CD6", color: claro ? "#2E7CD6" : "#fff", fontStyle: "italic", fontFamily: "Georgia, serif" }}>i</span>
+      {aberto && (
+        <span className="absolute z-50 rounded-lg shadow-xl p-3 text-[11px] leading-4 font-normal normal-case text-left anim-modal"
+          style={{ top: 22, ...(claro ? { right: -8 } : { left: -8 }), width: 280, background: "#fff", color: C.text, border: `1px solid ${C.line}`, whiteSpace: "normal" }}>
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
 function VoltaCard({ r }) {
   if (!r || !r.meses?.length) return <div className="mt-auto pt-3 text-[11px] w-full" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>Contribuição bruta à operação: sem análise registrada.</div>;
   const meses = r.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ");
   return (
     <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
       <div className="text-[10px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sub }} title="Contribuição bruta à operação por peça">Contrib. bruta/peça</div>
-      <div className="text-lg font-bold tabular-nums" style={{ color: C.sidebar }}>{brlV(r.valor)}</div>
-      {/* v281 — rodapé com altura fixa (3 linhas) para a linha e o valor ficarem na mesma altura em todos os cards */}
-      <div className="text-[10px] leading-[14px] overflow-hidden" style={{ color: C.sub, height: "3.5rem" }}>
-        {r.base === "LOGISTICA" ? <>cobrado na FPP por peça (folha + custos, sem frete entrega) · média de {r.meses.length} mês(es) ({meses})</>
-          : r.base === "SETOR" ? <>custo real por peça operada · média de {r.meses.length} mês(es) ({meses})</>
-          : <>por peça produzida · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses})</>}
+      <div className="text-lg font-bold tabular-nums flex items-center" style={{ color: C.sidebar }}>{brlV(r.valor)}
+        <InfoCalc>
+          {r.base === "LOGISTICA" ? <>Valor cobrado na FPP por peça (folha + custos, sem frete entrega) · média de {r.meses.length} mês(es) ({meses}).</>
+            : r.base === "SETOR" ? <>Custo real do setor (pessoal + freelancers) ÷ peças operadas · média de {r.meses.length} mês(es) ({meses}).</>
+            : <>Valor de mercado × quantidade ÷ peças produzidas (expedidas) · {brlV(r.porPecaSetor)} por peça feita dentro · média de {r.meses.length} mês(es) ({meses}).</>}
+        </InfoCalc>
       </div>
     </div>
   );
@@ -417,24 +440,24 @@ function CardsGrupo({ grupo, ir, user }) {
         {volta && (
           <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.sidebar, color: "#fff" }}>
             <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
-            <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.total)}</div>
-            <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: C.sidebarSub }}>
+            <div className="text-2xl font-bold tabular-nums mt-1 flex items-center">{brlV(volta.total)}
+            <InfoCalc claro>
               Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura, silk e bordado = valor de mercado × quantidade (silk: R$ 0,80 × cores; bordado: terceirizado médio por peça); logística = valor cobrado na FPP por peça (folha + custos, sem frete entrega).
               Corte e expedição: por peça do setor (todas passam por eles). Costura, silk e bordado: por peça produzida (expedida), pois só parte das peças passa por eles.
-            </div>
+            </InfoCalc></div>
           </div>
         )}
         {/* v267 — contribuição líquida: bruta × (1 − % freelancer da mão de obra operacional) */}
         {volta && (
           <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.accent, color: "#fff" }}>
             <div className="text-[10px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
-            <div className="text-2xl font-bold tabular-nums mt-1">{brlV(volta.liquida)}</div>
-            <div className="text-[11px] font-semibold mt-1">produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}</div>
-            <div className="text-[10px] leading-[14px] mt-auto pt-3" style={{ color: "#FFE3D1" }}>
+            <div className="text-2xl font-bold tabular-nums mt-1 flex items-center">{brlV(volta.liquida)}
+            <InfoCalc claro>
+              <b>Produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}.</b><br />
               % freelancers oficial (o mesmo da Capacidade e da Matriz) = freelancers ÷ (folha + freelancers) de todos os setores
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
               folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers só do extrato identificado (os mesmos das análises).
-            </div>
+            </InfoCalc></div>
           </div>
         )}
       </div>
