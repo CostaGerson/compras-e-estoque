@@ -413,15 +413,15 @@ function Ind({ rotulo, valor, pct, cor, forte, destaque, titulo, onClick }) {   
   return (
     <Tag onClick={onClick} title={onClick ? `${titulo || rotulo} · clique para ver os lançamentos` : titulo}
       className={`rounded-lg px-3 py-2 text-left w-full h-full flex flex-col${onClick ? " transition-shadow hover:shadow-md" : ""}`}
-      style={{ minHeight: 70, background: destaque ? C.navy : C.panel, border: `1px solid ${destaque ? C.navy : C.line}`, borderLeft: `3px solid ${cor || C.line}`, cursor: onClick ? "pointer" : "default" }}>
-      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: destaque ? "#9FB0C7" : C.sub }}>
+      style={{ minHeight: 70, background: C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor || C.line}`, cursor: onClick ? "pointer" : "default" }}>
+      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
         <span className="truncate">{rotulo}</span>
         {onClick && <Search size={10} className="shrink-0" style={{ color: C.accent }} />}
       </div>
-      <div className="font-bold" style={{ fontSize: 16, color: destaque ? (cor === C.red ? "#FF8A80" : cor === C.green ? "#6EE7A8" : "#fff") : cor || C.text, lineHeight: 1.3 }}>
+      <div className="font-bold whitespace-nowrap tabular-nums" style={{ fontSize: destaque ? 17 : 16, color: cor || C.text, lineHeight: 1.3 }}>
         {compactoBR(valor)}
       </div>
-      {pct != null && <div className="text-[10px]" style={{ color: destaque ? "#9FB0C7" : C.sub }}>{pctBR(pct)} da receita</div>}
+      {pct != null && <div className="text-[10px]" style={{ color: C.sub }}>{pctBR(pct)} da receita</div>}
     </Tag>
   );
 }
@@ -1173,7 +1173,7 @@ function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2 }) {
       <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
         <Ico size={11} /> <span className="truncate">{rotulo}</span>{onClick && <Search size={10} className="ml-auto shrink-0" style={{ color: C.accent }} />}
       </div>
-      <div className="font-bold text-base mt-0.5" style={{ color: cor || C.text }}>{moeda(valor)}</div>
+      <div className="font-bold mt-0.5 whitespace-nowrap tabular-nums" style={{ color: cor || C.text, fontSize: "clamp(13px, 1.05vw, 16px)" }}>{moeda(valor)}</div>
       {sub && <div className="text-[10px]" style={{ color: C.sub }}>{sub}</div>}
     </Tag>
   );
@@ -1182,7 +1182,7 @@ function LinhaVal({ rotulo, valor, cor, forte, sub }) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
       <span style={{ color: C.sub }}>{rotulo}{sub && <span className="text-[11px]"> · {sub}</span>}</span>
-      <span className={forte ? "font-bold" : "font-semibold"} style={{ color: cor || C.text }}>{moeda(valor)}</span>
+      <span className={`${forte ? "font-bold" : "font-semibold"} whitespace-nowrap tabular-nums pl-2`} style={{ color: cor || C.text }}>{moeda(valor)}</span>
     </div>
   );
 }
@@ -1342,7 +1342,7 @@ function PainelPrevisao({ user, comp, setComp }) {
               <span>Bancos</span>
               <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
                 ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
                 <CardAuto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
@@ -1398,9 +1398,9 @@ function PainelPrevisao({ user, comp, setComp }) {
                 ["Antecipando e cobrindo", Cn.antecipandoCobrindo, `cobrindo o cheque + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
                 ["Antecipando sem cobrir", Cn.antecipandoSemCobrir, `sem cobrir + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
               ].map(([t, v, f]) => (
-                <div key={t} title={f} className="rounded-lg px-3 py-2" style={{ background: t === "Cenário do mês" ? C.navy : C.panel2, border: `1px solid ${C.line}` }}>
-                  <div className="text-[10px] font-semibold uppercase" style={{ color: t === "Cenário do mês" ? "#9FB0C7" : C.sub }}>{t}</div>
-                  <div className="font-bold" style={{ color: t === "Cenário do mês" ? (v >= 0 ? "#6EE7A8" : "#FF8A80") : v >= 0 ? C.green : C.red }}>{moeda(v)}</div>
+                <div key={t} title={f} className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                  <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
+                  <div className="font-bold whitespace-nowrap tabular-nums" style={{ color: v >= 0 ? C.green : C.red, fontSize: "clamp(13px, 1.05vw, 16px)" }}>{moeda(v)}</div>
                 </div>
               ))}
             </div>
@@ -1457,7 +1457,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                 </div>
               );
             })}
-            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
               <Kpi rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
               <Kpi rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
               <Kpi rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
