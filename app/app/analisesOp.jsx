@@ -41,7 +41,7 @@ const Kpi = ({ t, v, sub, cor }) => (
   </div>
 );
 const KpiDestaque = ({ t, v, sub, cor }) => (
-  <div className="rounded-xl p-3" style={{ background: C.panel, border: `1px solid ${cor}`, boxShadow: `inset 3px 0 0 ${cor}` }}>
+  <div className="rounded-xl p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
     <div className="text-[11px] font-semibold uppercase" style={{ color: cor }}>{t}</div>
     <div className="text-lg font-bold tabular-nums" style={{ color: cor }}>{v}</div>
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
