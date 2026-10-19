@@ -257,22 +257,22 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Últimos 6 meses · {d.serie.length} mês(es) com análise <span className="font-normal text-[11px]" style={{ color: C.sub }}>— só eles contam para a precificação; o mês corrente aparece, mas não entra nas médias</span></div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(INS ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(INS ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold text-center`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ref = x.mediaTerc; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
-                <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
-                <td className="text-right tabular-nums">{int(x.pecas)}</td>
-                <td className="text-right tabular-nums" title={x.fontePessoal === "PLANILHA" ? "da planilha" : "Matriz de custos"}>{x.pessoal ? brl(x.pessoal) : "—"}{x.fontePessoal === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}</td>
-                <td className="text-right tabular-nums" title={x.fonteFree === "PLANILHA" ? `planilha ${brl(x.freelancer)} × sistema ${brl(x.freeSistema)}` : "identificados no sistema"}>
+                <td className="py-1.5 text-center" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
+                <td className="text-center tabular-nums">{int(x.pecas)}</td>
+                <td className="text-center tabular-nums" title={x.fontePessoal === "PLANILHA" ? "da planilha" : "Matriz de custos"}>{x.pessoal ? brl(x.pessoal) : "—"}{x.fontePessoal === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}</td>
+                <td className="text-center tabular-nums" title={x.fonteFree === "PLANILHA" ? `planilha ${brl(x.freelancer)} × sistema ${brl(x.freeSistema)}` : "identificados no sistema"}>
                   {brl(x.freelancer)}{x.fonteFree === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}
                   {Math.abs(x.difFree) >= 1 && <div className="text-[10px] font-semibold" style={{ color: C.yellow }}>sistema {brl(x.freeSistema)} ({x.difFree > 0 ? "+" : "−"}{brl(Math.abs(x.difFree))})</div>}
                 </td>
-                {INS && <td className="text-right tabular-nums">{x.insumo ? brl(x.insumo) : "—"}</td>}
-                <td className="text-right tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
-                <td className="text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
-                {G && <td className="text-right tabular-nums font-semibold">{x.custoUnid ? brl(x.custoUnid) : "—"}</td>}
-                <td className="text-right tabular-nums" style={{ color: C.sub }}>{ref ? brl(ref) : "—"}</td>
-                <td className="text-right tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : x.retornoPct >= 0 ? C.green : C.red }}>{x.mediaTerc && x.incorrido ? pct(x.retornoPct) : "—"}</td>
+                {INS && <td className="text-center tabular-nums">{x.insumo ? brl(x.insumo) : "—"}</td>}
+                <td className="text-center tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
+                <td className="text-center tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
+                {G && <td className="text-center tabular-nums font-semibold">{x.custoUnid ? brl(x.custoUnid) : "—"}</td>}
+                <td className="text-center tabular-nums" style={{ color: C.sub }}>{ref ? brl(ref) : "—"}</td>
+                <td className="text-center tabular-nums font-semibold" style={{ color: !x.incorrido ? C.sub : x.retornoPct >= 0 ? C.green : C.red }}>{x.mediaTerc && x.incorrido ? pct(x.retornoPct) : "—"}</td>
                 <td className="w-28 pl-2"><div className="h-2.5 rounded relative" style={{ background: C.panel2 }}>
                   <div className="h-2.5 rounded" style={{ width: `${Math.min(100, (x.incorrido / Math.max(...d.serie.map((y) => Math.max(y.incorrido, y.mediaTerc)), 0.01)) * 100)}%`, background: ok ? C.green : C.red }} />
                 </div></td>

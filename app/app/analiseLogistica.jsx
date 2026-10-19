@@ -30,8 +30,8 @@ export default function AnaliseLogistica({ user }) {
   const infoCols = d.contas.filter((c) => !c.entra);
   const M = d.media;
   const m = d.meses.find((x) => x.comp === sel);
-  const Th = ({ children, dir, cor, bg }) => <th className={`px-2 py-1.5 font-semibold whitespace-nowrap ${dir ? "text-right" : "text-left"}`} style={{ color: cor || C.sub, background: bg }}>{children}</th>;
-  const Td = ({ v, forte, cor, bg, peca }) => <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap" style={{ color: cor || C.text, fontWeight: forte ? 700 : 400, background: bg }}>{peca ? int(v) : brl(v)}</td>;
+  const Th = ({ children, dir, cor, bg }) => <th className="px-2 py-1.5 font-semibold whitespace-nowrap text-center" style={{ color: cor || C.sub, background: bg }}>{children}</th>;
+  const Td = ({ v, forte, cor, bg, peca }) => <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap" style={{ color: cor || C.text, fontWeight: forte ? 700 : 400, background: bg }}>{peca ? int(v) : brl(v)}</td>;
 
   return (
     <div>
@@ -63,7 +63,7 @@ export default function AnaliseLogistica({ user }) {
               const on = x.comp === sel;
               return (
                 <tr key={x.comp} onClick={() => setSel(x.comp)} className="cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, background: on ? C.panel2 : undefined, fontWeight: on ? 700 : 400 }}>
-                  <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: on ? C.accent : C.text }}>{nomeMes(x.comp)}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-center" style={{ color: on ? C.accent : C.text }}>{nomeMes(x.comp)}</td>
                   <Td v={x.pessoal} />
                   {custoCols.map((c) => <Td key={c.k} v={x.valores[c.k]} />)}
                   <Td v={x.custo} forte cor={C.navy} />
