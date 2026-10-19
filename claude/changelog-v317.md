@@ -1,0 +1,21 @@
+# v317 — Pedidos em andamento lendo a programação do Cronograma (Maycon)
+
+- **`lib/cronograma.js`:**
+  - Lê `GET /api/ext/pedidos` (itens) e `/api/ext/etapas` (programação), com o token no cabeçalho `X-Api-Key`.
+  - Endereço padrão: `http://147.93.35.189:8124`.
+  - A configuração vem de **FinConfig** (`CRONO|URL`, `CRONO|TOKEN`, preenchidos pela tela) ou, na falta dela, do `.env` (`CRONO_URL`, `CRONO_TOKEN`).
+- **Leitura tolerante:**
+  - aceita lista na raiz ou em `itens/items/pedidos/etapas/data`;
+  - aceita nomes alternativos (`pedido`/`numeroPedido`, `entrega`/`dataEntrega`/`prazo`, `planejadoFim`/`fim`…);
+  - nº do pedido = campo `pedido` ou o prefixo do `itemCode` (`26100034-1` → 26100034).
+- **Entrega do pedido** = a do último item a ficar pronto. Para cada item vale o fim programado (maior `planejadoFim` das etapas dele) ou, sem programação, o prazo de entrega do item. Isso grava `entregaPrevista`, que passa a ser a base das parcelas.
+  - Pedido que não está no Cronograma volta para a DT despacho do PV.
+- **Gravado também:** `cronoPrazo`, `cronoFimProgramado`, `cronoSituacao`, `cronoEtapa`, `cronoConcluido` e `cronoItens` (resumo por item).
+- **Sincronização:**
+  - Roda ao abrir a tela, no máximo a cada 10 min, e também pelo botão **Atualizar do PCP**.
+  - O status fica em `CRONO|SYNC`: itens, etapas, casados, pedidos do PCP sem PV aqui, erro.
+- **Tela:**
+  - faixa "Cronograma PCP" com o status e os botões Atualizar, **Ver o que veio** (amostra crua e como foi lida) e **Conexão** (endereço e token);
+  - aviso de pedidos sem programação;
+  - bloco do Cronograma no detalhe do pedido.
+- **docker-compose:** repassa `CRONO_URL` e `CRONO_TOKEN`.

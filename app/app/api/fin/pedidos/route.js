@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
+import { sincronizar, diagnostico, salvarConexao, statusSync } from "@/lib/cronograma";
 import { importarArquivos, listarPedidos, atualizarPedido, lancarEntrada, pdfDoPedido, excluirPedido } from "@/lib/pedidos";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
@@ -10,6 +11,8 @@ const erro = (e) => Response.json({ error: e.message || String(e) }, { status: 4
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
   if (!(await usuarioGerencial(q.get("u")))) return negadoGerencial();
+  if (q.get("acao") === "crono") return Response.json(await statusSync());
+  if (q.get("acao") === "crono-diag") return Response.json(await diagnostico());
   if (q.get("acao") === "pdf") {
     const f = await pdfDoPedido(q.get("id"), q.get("tipo") === "PP" ? "PP" : "PV");
     if (!f) return Response.json({ error: "PDF não encontrado." }, { status: 404 });
@@ -25,6 +28,8 @@ export async function POST(req) {
   const u = await usuarioGerencial(b?.usuarioId);
   if (!u) return negadoGerencial();
   try {
+    if (b.acao === "crono-config") { await salvarConexao({ url: b.url, token: b.token }); return Response.json(await sincronizar({ forcar: true })); }
+    if (b.acao === "crono-sync") return Response.json(await sincronizar({ forcar: true }));
     if (b.acao === "entrada") return Response.json({ ok: true, titulo: await lancarEntrada(b.id, { vencimento: b.vencimento, valor: b.valor }, quemE(u)) });
     if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie os PDFs." }, { status: 400 });
     return Response.json({ ok: true, resultado: await importarArquivos(b.arquivos, quemE(u)) });

@@ -1,7 +1,7 @@
 "use client";
 // v316 — Pedidos em andamento: sobe PV + PP (KM Sistemas) e vê a previsão de receitas (entrada + parcelas após a NF), dentro e fora do mês
 import React, { useEffect, useRef, useState } from "react";
-import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2 } from "lucide-react";
+import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2, RefreshCw, Link2, Settings } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -62,7 +62,15 @@ export default function PedidosAndamento({ user }) {
     const r = await fetch(`/api/fin/pedidos?u=${user.id}&id=${p.id}`, { method: "DELETE" }); if (r.ok) carregar();
   };
 
+  const [conex, setConex] = useState(null);   // v317 — formulário de conexão com o Cronograma
+  const [diag, setDiag] = useState(null);
+  const [sinc, setSinc] = useState(false);
+  const post = async (corpo) => { const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); return r.json(); };
+  const atualizarPcp = async () => { setSinc(true); await post({ acao: "crono-sync" }); await carregar(); setSinc(false); };
+  const salvarConexao = async () => { setSinc(true); await post({ acao: "crono-config", url: conex.url, token: conex.token || undefined }); setConex(null); await carregar(); setSinc(false); };
+  const verDiag = async () => { setDiag({ carregando: true }); const r = await fetch(`/api/fin/pedidos?u=${user.id}&acao=crono-diag`); setDiag(await r.json()); };
   const R = d?.resumo;
+  const CR = d?.crono;
   const f = filtro.trim().toUpperCase();
   const lista = (d?.pedidos || []).filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f));
 
@@ -87,6 +95,35 @@ export default function PedidosAndamento({ user }) {
         className="rounded-xl px-4 py-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.blueSoft, color: C.blue, border: `1px dashed ${C.blue}` }}>
         <FileText size={14} /> Arraste aqui os PDFs do KM Sistemas: o <b>PV</b> (pedido de venda) traz valores e condição de pagamento; o <b>PP</b> (ordem de produção) traz os dados de produção. Os dois se juntam pelo nº do pedido.
       </div>
+
+      {/* v317 — conexão com o Cronograma (Maycon) */}
+      {d && (
+        <div className="rounded-xl px-4 py-2.5 mb-4 flex flex-wrap items-center gap-3 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <Link2 size={14} style={{ color: CR?.erro || !CR?.temToken ? C.red : C.green }} />
+          <b style={{ color: C.navy }}>Cronograma PCP</b>
+          {!CR?.temToken ? <span style={{ color: C.red }}>sem token — configure a conexão</span>
+            : CR?.erro ? <span style={{ color: C.red }}>{CR.erro}</span>
+            : <span style={{ color: C.sub }}>lido {CR?.em ? new Date(CR.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"} · {CR?.itens ?? 0} itens, {CR?.etapas ?? 0} etapas · {CR?.casados ?? 0} pedido(s) daqui casados{CR?.semPedidoAqui ? ` · ${CR.semPedidoAqui} no PCP sem PV aqui` : ""}{CR?.avisoEtapas ? ` · etapas: ${CR.avisoEtapas}` : ""}</span>}
+          <div className="flex-1" />
+          <button disabled={sinc} onClick={atualizarPcp} className="flex items-center gap-1 font-semibold" style={{ color: C.accent }}>{sinc ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar do PCP</button>
+          <button onClick={verDiag} className="font-semibold" style={{ color: C.sub }}>Ver o que veio</button>
+          <button onClick={() => setConex({ url: CR?.url || "", token: "" })} className="flex items-center gap-1 font-semibold" style={{ color: C.sub }}><Settings size={12} /> Conexão</button>
+        </div>
+      )}
+      {conex && (
+        <div className="rounded-xl p-4 mb-4 text-xs grid gap-2" style={{ background: C.panel, border: `1px solid ${C.accent}`, maxWidth: 560 }}>
+          <b style={{ color: C.navy }}>Conexão com o Cronograma</b>
+          <label>Endereço <input value={conex.url} onChange={(e) => setConex({ ...conex, url: e.target.value })} placeholder="http://147.93.35.189:8124" className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}` }} /></label>
+          <label>Token (X-Api-Key){CR?.temToken ? ` — atual termina em …${CR.tokenFim}; deixe vazio para manter` : ""} <input type="password" value={conex.token} onChange={(e) => setConex({ ...conex, token: e.target.value })} className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}` }} /></label>
+          <div className="flex gap-2"><button onClick={salvarConexao} className="px-3 py-1 rounded font-semibold text-white" style={{ background: C.accent }}>Salvar e ler</button><button onClick={() => setConex(null)} style={{ color: C.sub }}>cancelar</button></div>
+        </div>
+      )}
+      {diag && (
+        <div className="rounded-xl p-3 mb-4 text-[11px]" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center justify-between mb-1"><b style={{ color: C.navy }}>O que o Cronograma devolveu (amostra)</b><button onClick={() => setDiag(null)}><X size={14} /></button></div>
+          {diag.carregando ? <Loader2 size={14} className="animate-spin" /> : <pre className="overflow-auto" style={{ maxHeight: 360, whiteSpace: "pre-wrap" }}>{JSON.stringify(diag, null, 2)}</pre>}
+        </div>
+      )}
 
       {resultado && (
         <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -115,11 +152,12 @@ export default function PedidosAndamento({ user }) {
             <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
             {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
-          {(R.qtdAtrasados || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida) > 0 && (
+          {(R.qtdAtrasados || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
               {R.qtdAtrasados > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdAtrasados} pedido(s) com despacho vencido — previstos a partir de hoje</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
               {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
+              {R.qtdSemCrono > 0 && CR?.temToken && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
               {R.qtdNfSugerida > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
             </div>
           )}
@@ -155,7 +193,7 @@ export default function PedidosAndamento({ user }) {
             </table>
           </div>
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-            Entrega = programação do Cronograma (quando integrado) ou DT despacho do PV. Parcelas = restante (total − entrada) dividido pelos prazos da condição, contados da entrega/NF.
+            Entrega = programação do Cronograma (fim programado das etapas; sem etapas, o prazo de entrega dos itens) ou, sem ela, a DT despacho do PV. Parcelas = restante (total − entrada) dividido pelos prazos da condição, contados da entrega/NF.
             Entrada já lançada no contas a receber sai da previsão (já conta no a receber); entrada ainda não lançada entra na previsão. Faturado sai da previsão: a partir daí valem as contas da NF.
           </div>
         </>
@@ -176,7 +214,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
         <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}</td>
         <td className={td}>{dBR(p.emissao)}</td>
-        <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : "DT despacho do PV"}>
+        <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? `programação do Cronograma${p.despacho ? ` · DT despacho do PV ${dBR(p.despacho)}` : ""}` : "DT despacho do PV"}>
           {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
         </td>
         <td className={td} style={{ color: v.condicaoOk ? C.text : C.yellow }}>{p.condicao || "—"}</td>
@@ -268,6 +306,30 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                   </tbody>
                 </table>
                 {!p.temPp && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>Sem PP: suba a ordem de produção para ver os dados de produção.</div>}
+                {/* v317 — programação do Cronograma */}
+                <div className="mt-3 pt-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <b className="text-xs" style={{ color: C.navy }}>Cronograma PCP</b>
+                  {!p.cronoEm ? <div className="text-[11px]" style={{ color: C.sub }}>Ainda não lido.</div> : (
+                    <>
+                      <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
+                        {p.cronoSituacao || "—"}{p.cronoEtapa ? ` · etapa ${p.cronoEtapa}` : ""}
+                        {p.cronoFimProgramado && <> · fim programado <b style={{ color: C.text }}>{dBR(p.cronoFimProgramado)}</b></>}
+                        {p.cronoPrazo && <> · prazo <b style={{ color: C.text }}>{dBR(p.cronoPrazo)}</b></>}
+                        {p.despacho && <> · DT despacho PV {dBR(p.despacho)}</>}
+                      </div>
+                      {(p.cronoItens || []).length > 0 && (
+                        <table className="w-full text-[11px] mt-1">
+                          <tbody>{p.cronoItens.map((c, i) => (
+                            <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
+                              <td className="py-0.5" style={{ color: C.sub }}>{c.itemCode}</td><td className="py-0.5">{c.produto}</td>
+                              <td className="py-0.5 text-center">{c.qtd || ""}</td><td className="py-0.5 text-center">{c.situacao}{c.etapa ? ` · ${c.etapa}` : ""}</td>
+                              <td className="py-0.5 text-center">{c.fimProgramado ? `fim ${dBR(c.fimProgramado)}` : c.entrega ? `entrega ${dBR(c.entrega)}` : "—"}</td>
+                            </tr>))}</tbody>
+                        </table>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </td>

@@ -1,6 +1,7 @@
 // v316 — pedidos em andamento: PV + PP do KM Sistemas → previsão de receitas (entrada + parcelas após a NF)
 import { prisma } from "@/lib/prisma";
 import { lerPedidoPdf, lerCondicao } from "@/lib/pedidosLer";
+import { sincronizar } from "@/lib/cronograma";
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const dUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
@@ -9,6 +10,7 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 
@@ -93,6 +95,8 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
 
 // ---------- painel ----------
 export async function listarPedidos({ competencia, todos = false } = {}) {
+  // v317 — programação do Cronograma (no máximo a cada 10 min; erro não impede o painel)
+  let crono = null; try { crono = await sincronizar(); } catch (e) { crono = { ok: false, erro: e.message }; }
   const hoje = hojeISO();
   const comp = competencia || hoje.slice(0, 7);
   const lista = await prisma.pedidoVenda.findMany({ where: todos ? {} : { status: "ANDAMENTO" }, orderBy: [{ despacho: "asc" }, { numero: "asc" }], select: CAMPOS });
@@ -120,7 +124,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     const foraMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) > comp).reduce((s, x) => s + x.valor, 0));
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));
     return { ...p, total: r2(p.total), entradaValor: p.entradaValor != null ? r2(p.entradaValor) : null, frete: p.frete != null ? r2(p.frete) : null,
-      emissao: iso(p.emissao), despacho: iso(p.despacho), entregaPrevista: iso(p.entregaPrevista), faturadoEm: iso(p.faturadoEm),
+      emissao: iso(p.emissao), despacho: iso(p.despacho), entregaPrevista: iso(p.entregaPrevista), faturadoEm: iso(p.faturadoEm), cronoPrazo: iso(p.cronoPrazo), cronoFimProgramado: iso(p.cronoFimProgramado),
       temPv: comPv.has(p.id), temPp: comPp.has(p.id),
       previsao: prev, noMes, foraMes, antes,
       nfSugerida: nfSugerida ? { numero: nfSugerida.numero, emissao: iso(nfSugerida.emissao), valor: r2(nfSugerida.valor) } : null };
@@ -143,7 +147,8 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     // por mês (próximos 6)
     porMes: (() => { const m = {}; for (const p of and) for (const x of p.previsao.parcelas) { const c = x.data.slice(0, 7); m[c] = r2((m[c] || 0) + x.valor); } return Object.entries(m).sort().map(([c, v]) => ({ competencia: c, valor: v })); })(),
   };
-  return { resumo, pedidos };
+  resumo.qtdSemCrono = and.filter((p) => !p.entregaPrevista).length;
+  return { resumo, pedidos, crono };
 }
 
 export async function atualizarPedido(id, b, quem) {

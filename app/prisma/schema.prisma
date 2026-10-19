@@ -1754,6 +1754,10 @@ model PedidoVenda {
   cronoSituacao String?
   cronoEtapa    String?
   cronoEm       DateTime?
+  cronoPrazo    DateTime? @db.Date          // v317 — maior entrega dos itens no Cronograma
+  cronoFimProgramado DateTime? @db.Date     // v317 — maior fim planejado das etapas
+  cronoConcluido Boolean  @default(false)
+  cronoItens    Json?                       // resumo por item (itemCode, situação, etapa, entrega, fim programado)
   pvPdf         String?                     // base64
   ppPdf         String?
   obs           String?

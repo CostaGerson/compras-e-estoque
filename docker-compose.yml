@@ -28,6 +28,8 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-}
+      CRONO_URL: ${CRONO_URL:-}
+      CRONO_TOKEN: ${CRONO_TOKEN:-}
     ports:
       - "3010:3000"
     volumes:
