@@ -34,6 +34,9 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
   if (!cap) return <div className="rounded-xl p-4 mt-4 text-xs flex items-center gap-2" style={{ ...caixa, color: C.sub }}><Loader2 size={14} className="animate-spin" /> Calculando capacidade da equipe…</div>;
 
   const plano = planoMensal({ setores: cap.setores, pecasMes, ano, fechados });
+  // v303 — só o período em aberto (o passado não interessa para contratar)
+  const cols = MESES.map((_, i) => i).filter((i) => !fechados[i]);
+  const idx = cols.length ? cols : MESES.map((_, i) => i);
   const semDiaria = cap.setores.filter((s) => s.semDiaria).map((s) => s.setor);
   if (!plano.linhas.length) return (
     <div className="rounded-xl p-4 mt-4 text-xs" style={{ ...caixa, color: C.sub }}>
@@ -60,7 +63,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
         <div className="flex-1 min-w-[240px]">
           <div className="text-[11px] font-bold tracking-wider" style={{ color: C.sub }}>CAPACIDADE DA EQUIPE × META (MÊS A MÊS)</div>
           <div className="text-xs" style={{ color: C.sub }}>
-            Peças faturadas da meta ÷ peças por trabalhador do histórico ({cap.usados} {cap.usados === 1 ? "mês" : "meses"}). Meses fechados no KPI só aparecem (cinza); as recomendações valem para os meses em aberto. Contrata quando passa de 1 freelancer/dia por 2+ meses; desliga quando sobra ≥ 1 por 2+ meses. Dias úteis sem sábados e feriados.
+            Peças faturadas da meta ÷ peças por trabalhador do histórico ({cap.usados} {cap.usados === 1 ? "mês" : "meses"}). Só os meses em aberto aparecem — é para eles que valem as recomendações. Contrata quando passa de 1 freelancer/dia por 2+ meses; desliga quando sobra ≥ 1 por 2+ meses. Dias úteis sem sábados e feriados.
           </div>
           {nota && <div className="text-xs mt-0.5" style={{ color: C.text }}>{nota}</div>}
           <div className="text-[11px] font-semibold mt-1" style={{ color: C.accent }}>Só análise — nada aqui altera metas ou Matriz.</div>
@@ -83,7 +86,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
         <table className="w-full text-xs">
           <thead><tr style={{ color: C.sub, borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}` }}>
             <th className="text-left px-3 py-2">Setor</th>
-            {MESES.map((m, i) => <th key={m} className="text-center px-2 py-2 font-semibold" style={fechados[i] ? { background: C.panel2 } : undefined}>{m}<div className="text-[9px] font-normal">{fechados[i] ? "fechado" : `${plano.total[i].diasUteis} d.u.`}</div></th>)}
+            {idx.map((i) => MESES[i]).map((m, k) => { const i = idx[k]; return <th key={m} className="text-center px-2 py-2 font-semibold" style={fechados[i] ? { background: C.panel2 } : undefined}>{m}<div className="text-[9px] font-normal">{fechados[i] ? "fechado" : `${plano.total[i].diasUteis} d.u.`}</div></th>; })}
           </tr></thead>
           <tbody>
             {plano.linhas.map((l) => (
@@ -92,7 +95,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
                   <div className="font-semibold" style={{ color: C.navy }}>{l.setor}</div>
                   <div className="text-[10px]" style={{ color: C.sub }}>hoje {l.base} · {n1(l.porTrab)} pç/trab · diária {rs(l.diaria)}</div>
                 </td>
-                {l.meses.map((x) => {
+                {idx.map((i) => l.meses[i]).map((x) => {
                   const fundo = x.fechado ? C.panel2 : x.contratar ? C.greenSoft : x.demitir ? C.redSoft : x.freeDia > 1 ? C.yellowSoft : "transparent";
                   return (
                     <td key={x.comp} className="text-center px-1.5 py-1.5 align-top tabular-nums" style={{ background: fundo, opacity: x.fechado ? 0.55 : 1 }}
@@ -110,7 +113,7 @@ export default function CapacidadeMensal({ user, ano, pecasMes, metaFreela, irCa
             ))}
             <tr style={{ background: C.panel2 }}>
               <td className="px-3 py-2 font-bold" style={{ color: C.navy }}>Mão de obra</td>
-              {plano.total.map((t) => (
+              {idx.map((i) => plano.total[i]).map((t) => (
                 <td key={t.comp} className="text-center px-1.5 py-1.5 tabular-nums">
                   <div className="font-semibold" style={{ color: C.navy }}>{rs(t.folha + t.freelancer)}</div>
                   <div className="text-[10px]" style={{ color: pctMeta != null && t.pct != null && t.pct > pctMeta + 0.005 ? C.red : C.sub }}>{pc(t.pct)} free</div>
