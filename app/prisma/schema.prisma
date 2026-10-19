@@ -1750,6 +1750,7 @@ model PedidoVenda {
   qtd           Int       @default(0)
   itens         Json      @default("[]")    // PV: codigo, descricao, qtd, preco, total, grade · PP: op, parametros
   status        String    @default("ANDAMENTO") // ANDAMENTO | FATURADO | CANCELADO
+  interno       Boolean   @default(false)   // v323 — pedido interno (NORT SPORTS): não gera contas nem entra na previsão
   nfNumero      String?
   faturadoEm    DateTime? @db.Date
   entregaPrevista DateTime? @db.Date        // Cronograma (Maycon) — quando houver

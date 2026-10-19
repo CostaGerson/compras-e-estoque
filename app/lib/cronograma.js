@@ -146,7 +146,8 @@ export async function sincronizar({ forcar = false } = {}) {
       const nums = new Set(aqui.map((p) => soDig(p.numero)));
       res.semPedidoAqui = Object.keys(g).filter((n) => !nums.has(n)).length;
       // v321 — pedidos em andamento no PCP que ainda não têm PV aqui (para saber o que falta subir)
-      res.pendentes = Object.values(g).filter((c) => !nums.has(c.pedido) && !c.concluido && c.itens.length)
+      // NORT SPORTS é interno: não entra na lista do que falta subir para o financeiro
+      res.pendentes = Object.values(g).filter((c) => !nums.has(c.pedido) && !c.concluido && c.itens.length && !c.itens.some((i) => /\bNORT\b/i.test(i.cliente || "")))
         .map((c) => ({ pedido: c.pedido, cliente: c.itens.find((i) => i.cliente)?.cliente || "", itens: c.itens.length,
           pecas: c.itens.reduce((a, i) => a + (i.quantidade || 0), 0), entrega: c.entregaPrevista, prazo: c.prazo, situacao: c.situacao, etapa: c.etapa }))
         .sort((a, b) => String(a.entrega || "9").localeCompare(String(b.entrega || "9")));

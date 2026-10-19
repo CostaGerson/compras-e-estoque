@@ -10,9 +10,11 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
-  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
+// v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
+export const ehInterno = (cliente, cnpj) => String(cnpj || "").replace(/\D/g, "").startsWith("55116246") || /\bNORT\b/i.test(String(cliente || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 
 // ---------- importação ----------
 export async function importarArquivos(arquivos, quem) {
@@ -35,6 +37,7 @@ export async function importarArquivos(arquivos, quem) {
       const itens = l.itens.map((i) => { const ant = itensAtuais.find((x) => x.codigo === i.codigo) || {}; return { ...ant, ...i, descricao: ant.descricaoPP || i.descricao }; });
       const dados = {
         cliente: l.cliente || atual?.cliente || "SEM CLIENTE", clienteCodigo: l.clienteCodigo || null, cnpj: l.cnpj || null,
+        interno: ehInterno(l.cliente, l.cnpj) || !!atual?.interno,
         emissao: l.emissao ? dUTC(l.emissao) : null, despacho: l.despacho ? dUTC(l.despacho) : null,
         condicao: atual?.condicao && atual.condicao !== l.condicao && atual.pvPdf ? atual.condicao : (l.condicao || null),
         vendedor: l.vendedor || null, tipoPedido: l.tipoPedido || null, oc: l.oc || null, freteTipo: l.freteTipo || null, frete: l.frete ?? null,
@@ -118,6 +121,8 @@ export async function espelharPp(numero) {
 export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) {
   const total = r2(p.total);
   const cond = lerCondicao(p.condicao);
+  if (p.interno) return { interno: true, condicaoOk: true, entradaPct: 0, prazos: [], entrada: 0, entradaCalc: 0, entradaLancada: 0, entradaTitulos: [], restante: 0,
+    base: iso(p.entregaPrevista) || iso(p.despacho), baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : "DESPACHO", atrasado: false, reprogramar: null, pronto: !!p.cronoConcluido, parcelas: [] };
   const entradaCalc = r2(total * cond.entradaPct);
   const entrada = p.entradaValor != null ? r2(p.entradaValor) : entradaCalc;
   const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO");
@@ -173,7 +178,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     const prev = preverPedido(p, { hoje, titulosEntrada: titsDe(p.numero) });
     const em = iso(p.emissao) || "0000-00-00";
     const alvo = [r2(p.total), prev.restante];
-    const nfSugerida = p.status === "ANDAMENTO" ? nfs.find((n) => n.destCnpj === p.cnpj && iso(n.emissao) >= em && alvo.some((v) => v > 0 && Math.abs(Number(n.valor) - v) <= v * 0.02)) : null;
+    const nfSugerida = p.status === "ANDAMENTO" && !p.interno ? nfs.find((n) => n.destCnpj === p.cnpj && iso(n.emissao) >= em && alvo.some((v) => v > 0 && Math.abs(Number(n.valor) - v) <= v * 0.02)) : null;
     const noMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) === comp).reduce((s, x) => s + x.valor, 0));
     const foraMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) > comp).reduce((s, x) => s + x.valor, 0));
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));
@@ -183,7 +188,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
       previsao: prev, noMes, foraMes, antes,
       nfSugerida: nfSugerida ? { numero: nfSugerida.numero, emissao: iso(nfSugerida.emissao), valor: r2(nfSugerida.valor) } : null };
   });
-  const and = pedidos.filter((p) => p.status === "ANDAMENTO");
+  const and = pedidos.filter((p) => p.status === "ANDAMENTO" && !p.interno);   // v323 — internos (NORT) fora dos totais
   const soma = (l, f) => r2(l.reduce((s, p) => s + f(p), 0));
   const resumo = {
     competencia: comp, hoje,
@@ -205,6 +210,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     porMes: (() => { const m = {}; for (const p of and) for (const x of p.previsao.parcelas) { const c = x.data.slice(0, 7); m[c] = r2((m[c] || 0) + x.valor); } return Object.entries(m).sort().map(([c, v]) => ({ competencia: c, valor: v })); })(),
   };
   resumo.qtdSemCrono = and.filter((p) => !p.entregaPrevista).length;
+  resumo.qtdInternos = pedidos.filter((p) => p.status === "ANDAMENTO" && p.interno).length;
   return { resumo, pedidos, crono };
 }
 
@@ -213,6 +219,7 @@ export async function atualizarPedido(id, b, quem) {
   if (b.condicao !== undefined) data.condicao = String(b.condicao || "").toUpperCase().trim() || null;
   if (b.entradaValor !== undefined) data.entradaValor = b.entradaValor === null || b.entradaValor === "" ? null : r2(b.entradaValor);
   if (b.obs !== undefined) data.obs = b.obs || null;
+  if (b.interno !== undefined) data.interno = !!b.interno;
   if (b.despacho !== undefined) data.despacho = b.despacho ? dUTC(b.despacho) : null;
   if (b.status !== undefined) {
     if (!["ANDAMENTO", "FATURADO", "CANCELADO"].includes(b.status)) throw new Error("Status inválido.");
@@ -225,8 +232,9 @@ export async function atualizarPedido(id, b, quem) {
 
 // lança a conta a receber da entrada (uma vez por pedido)
 export async function lancarEntrada(id, { vencimento, valor } = {}, quem) {
-  const p = await prisma.pedidoVenda.findUnique({ where: { id: Number(id) }, select: { numero: true, cliente: true, cnpj: true, total: true, condicao: true, entradaValor: true, emissao: true, despacho: true, entregaPrevista: true } });
+  const p = await prisma.pedidoVenda.findUnique({ where: { id: Number(id) }, select: { numero: true, cliente: true, cnpj: true, total: true, condicao: true, entradaValor: true, emissao: true, despacho: true, entregaPrevista: true, interno: true } });
   if (!p) throw new Error("Pedido não encontrado.");
+  if (p.interno) throw new Error("Pedido interno (NORT SPORTS): não gera conta a receber.");
   const ja = await prisma.finTitulo.findFirst({ where: { chaveImport: chaveEntrada(p.numero) }, select: { id: true, status: true } });
   if (ja && ja.status !== "CANCELADO") throw new Error("A entrada deste pedido já está no contas a receber.");
   const prev = preverPedido(p);

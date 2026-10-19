@@ -177,10 +177,11 @@ export default function PedidosAndamento({ user }) {
             <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
             {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
-          {(R.qtdAtrasados || R.qtdProntos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
+          {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
               {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida no Cronograma — reprogramar</Aviso>}
               {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com despacho vencido e sem programação — programar no Cronograma</Aviso>}
+              {R.qtdInternos > 0 && <Aviso cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da previsão e sem contas</Aviso>}
               {R.qtdProntos > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntos} concluído(s) no PCP — faturar</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
               {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
@@ -236,12 +237,13 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined }}>
+      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
         <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}
           {v.reprogramar && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO CRONOGRAMA" : "DESPACHO VENCIDO — PROGRAMAR NO CRONOGRAMA"}</div>}
-          {v.pronto && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.green }}>✓ CONCLUÍDO NO PCP — FATURAR</div>}</td>
+          {v.pronto && !p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.green }}>✓ CONCLUÍDO NO PCP — FATURAR</div>}
+          {p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.sub }}>INTERNO · NORT — NÃO GERA CONTAS</div>}</td>
         <td className={td}>{dBR(p.emissao)}</td>
         <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? `programação do Cronograma${p.despacho ? ` · DT despacho do PV ${dBR(p.despacho)}` : ""}` : "DT despacho do PV"}>
           {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
@@ -304,7 +306,8 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                 </table>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {p.status === "ANDAMENTO" && v.parcelas.some((x) => x.pendente) && <Botao cor={C.accent} onClick={() => lancarEntrada(p)}><Receipt size={12} /> Lançar entrada no contas a receber</Botao>}
-                  {p.status === "ANDAMENTO" && <Botao cor={C.green} onClick={() => { const nf = prompt("Nº da NF do faturamento:", p.nfSugerida?.numero || ""); if (nf !== null) salvar(p.id, { status: "FATURADO", nfNumero: nf, faturadoEm: p.nfSugerida?.emissao }); }}><CheckCircle2 size={12} /> Marcar faturado{p.nfSugerida ? ` (NF ${p.nfSugerida.numero}?)` : ""}</Botao>}
+                  <Botao cor={C.sub} onClick={() => salvar(p.id, { interno: !p.interno })}>{p.interno ? "Não é interno (gera contas)" : "Interno (não gera contas)"}</Botao>
+                  {p.status === "ANDAMENTO" && !p.interno && <Botao cor={C.green} onClick={() => { const nf = prompt("Nº da NF do faturamento:", p.nfSugerida?.numero || ""); if (nf !== null) salvar(p.id, { status: "FATURADO", nfNumero: nf, faturadoEm: p.nfSugerida?.emissao }); }}><CheckCircle2 size={12} /> Marcar faturado{p.nfSugerida ? ` (NF ${p.nfSugerida.numero}?)` : ""}</Botao>}
                   {p.status === "ANDAMENTO" && <Botao cor={C.sub} onClick={() => confirm(`Cancelar o pedido ${p.numero}?`) && salvar(p.id, { status: "CANCELADO" })}><X size={12} /> Cancelado</Botao>}
                   {p.status !== "ANDAMENTO" && <Botao cor={C.navy} onClick={() => salvar(p.id, { status: "ANDAMENTO" })}><Undo2 size={12} /> Voltar para andamento</Botao>}
                   <Botao cor={C.red} onClick={() => excluir(p)}><Trash2 size={12} /> Excluir</Botao>
