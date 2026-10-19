@@ -1,0 +1,9 @@
+Leitor do KM (MentorSoft) — só leitura
+
+1) Instalar o Node (uma vez):   winget install OpenJS.NodeJS.LTS
+   Feche e abra o PowerShell de novo.
+2) Nesta pasta:                  cd C:\projetos\compras-e-estoque\tools\km
+                                  npm install
+3) Descobrir a estrutura:        node descobrir.mjs
+   (pede a senha do banco; não grava em lugar nenhum)
+4) Mande o arquivo km-estrutura.txt para o Claude.

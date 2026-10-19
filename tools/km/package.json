@@ -1,0 +1,7 @@
+{
+  "name": "km-leitor",
+  "private": true,
+  "type": "module",
+  "description": "Lê o banco do KM (MentorSoft, PostgreSQL) na rede da Meridian. Só leitura.",
+  "dependencies": { "pg": "8.11.3" }
+}
