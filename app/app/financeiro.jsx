@@ -448,8 +448,8 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
         </div>
       ) : (
         <>
-          {/* v308 — todos os cards do mesmo tamanho numa grade só; destaque só no resultado da operação e no saldo final */}
-          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}>
+          {/* v314 — 9 colunas: linha 1 vai da receita ao resultado da operação; linha 2 começa no saldo da operação */}
+          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(9, minmax(0, 1fr))" }}>
             <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução"
               onClick={() => ir("RECEITA", "Receita")} />
             <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção"
@@ -463,15 +463,13 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="Lucro líquido" valor={t.lucro} cor={t.lucro >= 0 ? C.green : C.red} pct={t.lucroPct} forte />
             <Ind rotulo="Investimento" valor={t.investimento} cor={C.yellow} pct={t.receita ? t.investimento / t.receita : null}
               onClick={() => ir("INVESTIMENTO", "Investimento")} />
-            <Ind rotulo="NORT (loja)" valor={t.nort || 0} cor={(t.nort || 0) >= 0 ? C.green : C.red} pct={t.receita ? (t.nort || 0) / t.receita : null}
-              titulo="Receitas da NORT (caixa NORT) menos os custos da loja que a Meridian banca"
-              onClick={() => ir("NORT", "NORT (loja)")} />
             <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} destaque />
+
             <Ind rotulo="Saldo da operação" valor={t.saldoOperacao} cor={t.saldoOperacao >= 0 ? C.green : C.red} forte
               titulo="Saldo inicial do primeiro mês lançado + resultado acumulado" />
             <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
-              titulo="Empréstimo, factoring, capital social e mútuo — entrada menos pagamento"
-              onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS", "Recursos externos")} />
+              titulo="Empréstimo, factoring, capital social, mútuo e NORT (loja) — entrada menos pagamento"
+              onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS,NORT", "Recursos externos")} />
             {Math.abs(t.aIdentificar || 0) >= 0.01 && <Ind rotulo="A identificar" valor={t.aIdentificar} cor={C.accent}
               titulo="Lançamentos ainda sem conta: já estão no saldo final; ao identificar, só mudam de linha na DRE" />}
             <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} destaque />
@@ -1083,7 +1081,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
               </div>
             </div>
             {(d.grupos?.operacao || []).map((g, i) => {
-              const vals = { RECEITA: o.receita, CMV: o.cmv, DESPESA_ADM: o.adm, IMPOSTOS_JUROS: o.impostos, INVESTIMENTO: o.investimento, NORT: o.nort || 0 };
+              const vals = { RECEITA: o.receita, CMV: o.cmv, DESPESA_ADM: o.adm, IMPOSTOS_JUROS: o.impostos, INVESTIMENTO: o.investimento };
               const linhas = [
                 <LinhaDre key={g.k} rotulo={g.n} valor={vals[g.k]} pct={o.receita ? vals[g.k] / o.receita : null} grupo={g.k}
                   detalhe={d.detalhes?.[g.k]} aberto={aberto === g.k} onToggle={() => setAberto(tg(g.k))} abrirConta={abrirConta} />,
@@ -1094,7 +1092,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
                 <LinhaDre key="e" rotulo="05. EBITDA" valor={o.ebitda} pct={o.receita ? o.ebitda / o.receita : null} forte tom="resultado" />);
               if (g.k === "IMPOSTOS_JUROS") linhas.push(
                 <LinhaDre key="l" rotulo="07. Lucro líquido" valor={o.lucro} pct={o.receita ? o.lucro / o.receita : null} forte tom="resultado" />);
-              if (g.k === "NORT") linhas.push(
+              if (g.k === "INVESTIMENTO") linhas.push(
                 <LinhaDre key="r" rotulo="09. Resultado da operação" valor={o.resultado} pct={o.receita ? o.resultado / o.receita : null} forte tom="resultado" />,
                 <LinhaDre key="si" rotulo="10. Saldo inicial do mês" valor={d.saldoInicial} pct={null} />,
                 <LinhaDre key="so" rotulo="11. Saldo da operação" valor={o.saldoOperacao} pct={null} forte tom="resultado" />);
@@ -1106,7 +1104,7 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
             <div className="px-4 py-3">
               <div className="text-sm font-bold" style={{ color: C.navy }}>Recursos externos</div>
               <div className="text-xs mt-0.5" style={{ color: C.sub }}>
-                Empréstimo, factoring, capital social e mútuo não são resultado: entram no caixa e saem depois. Ficam fora da DRE e só afetam o saldo final.
+                Empréstimo, factoring, capital social, mútuo e NORT (loja) não são resultado: entram no caixa e saem depois. Ficam fora da DRE e só afetam o saldo final.
               </div>
             </div>
             <div className="flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase" style={{ background: C.panel2, color: C.sub }}>

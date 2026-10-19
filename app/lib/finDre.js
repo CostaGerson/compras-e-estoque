@@ -11,7 +11,6 @@ export const GRUPOS_OPERACAO = [
   { k: "DESPESA_ADM", n: "04. Despesa adm e vegetativa", sinal: -1, ajuda: "Estrutura que roda independente de vender: vida vegetativa, pessoal adm, pró-labore, manutenção, designer" },
   { k: "IMPOSTOS_JUROS", n: "06. Impostos e juros", sinal: -1, ajuda: "Imposto, taxas, juros e despesa financeira — o principal da dívida não entra aqui" },
   { k: "INVESTIMENTO", n: "08. Investimento", sinal: -1, ajuda: "Reforma, maquinário, patrimônio, planta e reserva de capital" },
-  { k: "NORT", n: "08.1 NORT (loja bancada pela Meridian)", sinal: -1, ajuda: "Receitas da NORT (caixa NORT) menos aluguel, CEMIG, COPASA, folha e benefícios da loja — o que a Meridian banca" },
 ];
 // ---- recursos externos (não são operação: entram e saem do caixa) ----
 export const GRUPOS_EXTERNOS = [
@@ -21,6 +20,8 @@ export const GRUPOS_EXTERNOS = [
   { k: "EXT_CAPITAL", n: "Capital social" },
   { k: "EXT_MUTUO", n: "Mútuo" },
   { k: "EXT_SEM_JUROS", n: "Investimento externo sem juros" },
+  // v314 — NORT (loja) virou origem de recurso externo: receitas da NORT entram, custos da loja saem; não mexe no resultado da operação
+  { k: "NORT", n: "NORT (loja)", ajuda: "Receitas da NORT (caixa NORT) menos aluguel, CEMIG, COPASA, folha e benefícios da loja" },
 ];
 export const GRUPO_FORA = { k: "FORA", n: "Fora da DRE", ajuda: "Transferência entre contas e conciliação — não entra em lugar nenhum" };
 
@@ -145,7 +146,7 @@ export async function dre(competencia) {
   const lucro = r2(ebitda + impostos);
   const investimento = r2(porGrupo.INVESTIMENTO || 0);
   const nort = r2(porGrupo.NORT || 0);
-  const resultado = r2(lucro + investimento + nort);
+  const resultado = r2(lucro + investimento);   // v314 — NORT foi para recursos externos
   const saldoInicial = painel?.saldoInicial != null ? Number(painel.saldoInicial) : 0;
   const saldoOperacao = r2(saldoInicial + resultado);
 
@@ -168,7 +169,7 @@ export async function dre(competencia) {
       ebitdaPct: receita ? ebitda / receita : null,
       lucroPct: receita ? lucro / receita : null,
     },
-    detalhes: Object.fromEntries([...GRUPOS_OPERACAO, GRUPO_FORA].map((g) => [g.k, detalhe(g.k)])),
+    detalhes: Object.fromEntries([...GRUPOS_OPERACAO, { k: "NORT" }, GRUPO_FORA].map((g) => [g.k, detalhe(g.k)])),
     externos, entradaExterna, pagamentoExterno, resultadoExterno,
     // v306 — saldo final = saldo inicial + resultado do caixa do mês: o sem conta e o "fora da DRE" (menos a conciliação) entram como linhas próprias
     saldoFinal: r2(saldoOperacao + resultadoExterno + semConta + foraSemConc),

@@ -140,7 +140,7 @@ export async function dreAno(ano, hoje = new Date()) {
     const lucro = r2(ebitda + impostos);
     const investimento = r2(g.INVESTIMENTO || 0);
     const nort = r2(g.NORT || 0);
-    const resultado = r2(lucro + investimento + nort);
+    const resultado = r2(lucro + investimento);   // v314 — NORT entra em recursos externos (CHAVES_EXT)
     const externo = r2(CHAVES_EXT.reduce((s, k) => s + (g[k] || 0), 0));
     const saldoInicial = saldoDe[comp] ?? null;
     meses.push({
