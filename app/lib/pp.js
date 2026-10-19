@@ -2,7 +2,10 @@
 import { usuarioAtivoFin } from "@/lib/fin";
 import { lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 export async function usuarioPP(req, nivel = "lanca") {
-  const u = await usuarioAtivoFin(req.headers.get("x-usuario-id"));
+  // v320 — o id também pode vir na URL (_u), para abrir PDF em nova aba
+  let id = req.headers.get("x-usuario-id");
+  if (!id) { try { id = new URL(req.url).searchParams.get("_u"); } catch {} }
+  const u = await usuarioAtivoFin(id);
   if (!u) return null;
   return (nivel === "ve" ? vePP(u) : lancaPP(u)) ? u : null;
 }
@@ -10,6 +13,6 @@ export const negadoPP = () => Response.json({ error: "PP: sem acesso para este u
 // tira os valores do pedido para quem não pode vê-los
 export function ppParaUsuario(pp, u) {
   if (!pp || veValoresPP(u)) return pp;
-  const { valorTotal, ...resto } = pp;
-  return { ...resto, valorTotal: null, ...(Array.isArray(pp.itens) ? { itens: pp.itens.map(({ valorUnitario, valorTotal, valorTerceirizado, ...it }) => ({ ...it, valorUnitario: null, valorTotal: null, valorTerceirizado: null })) } : {}) };
+  const { valorTotal, arquivoPedidoPdf, ...resto } = pp;   // v320 — o PV (pedido) tem preços: não vai para quem não vê valores
+  return { ...resto, valorTotal: null, arquivoPedidoPdf: null, temPv: false, ...(Array.isArray(pp.itens) ? { itens: pp.itens.map(({ valorUnitario, valorTotal, valorTerceirizado, ...it }) => ({ ...it, valorUnitario: null, valorTotal: null, valorTerceirizado: null })) } : {}) };
 }

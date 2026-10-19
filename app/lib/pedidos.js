@@ -59,7 +59,55 @@ export async function importarArquivos(arquivos, quem) {
       out.push({ nome: l.nome, tipo: "PP", numero: l.numero, cliente: l.cliente || atual?.cliente, itens: l.itens.length, novo: !atual, semPv: !atual?.pvPdf });
     }
   }
+  // v320 — espelha no Lançar PP
+  for (const n of [...new Set(out.filter((o) => o.numero).map((o) => o.numero))]) {
+    try { await espelharPp(n); } catch (e) { out.push({ nome: `PP ${n}`, erro: `não espelhou no Lançar PP: ${e.message}` }); }
+  }
   return out;
+}
+
+// ---------- v320 — espelho no "Lançar PP" ----------
+// todo pedido subido (PV/PP) aparece no Lançar PP com os PDFs. PP criado aqui (origem PEDIDOS) tem os itens refeitos a cada upload;
+// PP já salvo no editor (origem vazia) só ganha os PDFs e os campos que estiverem em branco.
+const tipoDaPecaPP = (d) => {
+  const n = String(d || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (/CAMISETA|T-SHIRT|REGATA|BABY ?LOOK/.test(n)) return "CAMISETA";
+  if (/\bPOLO\b/.test(n)) return "POLO";
+  if (/CAMISA/.test(n)) return "CAMISA";
+  if (/JAQUETA|MOLETOM|BLUSAO|CASACO|AGASALHO|COLETE|PARKA/.test(n)) return "JAQUETA";
+  if (/CALCA|BERMUDA|SHORT|MACACAO/.test(n)) return "CALÇA";
+  if (/JALECO/.test(n)) return "JALECO";
+  if (/AVENTAL/.test(n)) return "AVENTAL";
+  return "POLO";
+};
+const dataURL = (b64) => (b64 ? `data:application/pdf;base64,${b64}` : null);
+const dBRs = (d) => (d ? iso(d).split("-").reverse().join("/") : null);
+export async function espelharPp(numero) {
+  const p = await prisma.pedidoVenda.findUnique({ where: { numero } });
+  if (!p) return null;
+  const pp = await prisma.pp.findUnique({ where: { numero }, select: { id: true, origem: true, clienteNome: true, clienteCnpj: true, oc: true, condicaoPagamento: true, dtDespacho: true, tipoPedido: true, vendedor: true, obs: true, valorTotal: true } });
+  const cab = {
+    clienteNome: p.cliente, clienteCnpj: p.cnpj ? p.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : null, oc: p.oc, condicaoPagamento: p.condicao,
+    dtDespacho: dBRs(p.despacho), prazoEntrega: dBRs(p.despacho), tipoPedido: p.tipoPedido, vendedor: p.vendedor, obs: p.obs, valorTotal: Number(p.total) || null,
+  };
+  const pdfs = { ...(p.pvPdf ? { arquivoPedidoPdf: dataURL(p.pvPdf) } : {}), ...(p.ppPdf ? { arquivoOpPdf: dataURL(p.ppPdf) } : {}) };
+  const itens = (Array.isArray(p.itens) ? p.itens : []).map((it) => {
+    const tipo = tipoDaPecaPP(it.descricao);
+    const qtd = Number(it.qtd) || (it.grade || []).reduce((s, g) => s + (Number(g.qtd) || 0), 0);
+    return { tipoPecaNome: tipo, codigo: it.codigo || null, descricao: it.descricao || null, quantidade: qtd,
+      valorUnitario: it.preco ?? null, valorTotal: it.total ?? null,
+      gradeJson: JSON.stringify((it.grade || []).map((g) => ({ tam: g.tam, qtd: String(g.qtd) }))),
+      parametrosJson: JSON.stringify(Object.fromEntries((it.parametros || []).filter((x) => x.v).map((x) => [x.t, x.v]))) };
+  });
+  if (!pp) {
+    return prisma.pp.create({ data: { numero, origem: "PEDIDOS", ...cab, ...pdfs, itens: { create: itens } }, select: { id: true } });
+  }
+  if (pp.origem === "PEDIDOS") {
+    await prisma.ppItem.deleteMany({ where: { ppId: pp.id } });
+    return prisma.pp.update({ where: { id: pp.id }, data: { ...cab, ...pdfs, itens: { create: itens } }, select: { id: true } });
+  }
+  const vazios = Object.fromEntries(Object.entries(cab).filter(([k, v]) => v != null && (pp[k] == null || pp[k] === "")));
+  return prisma.pp.update({ where: { id: pp.id }, data: { ...vazios, ...pdfs }, select: { id: true } });
 }
 
 // ---------- previsão de um pedido ----------

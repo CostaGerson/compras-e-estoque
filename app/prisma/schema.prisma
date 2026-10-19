@@ -273,6 +273,8 @@ model Pp {
   arquivoPcPdf      String?
   arquivoLancPdf    String?
   arquivoPedidoPdf  String?
+  arquivoOpPdf      String?   // v320 — ordem de produção (PP do KM Sistemas)
+  origem            String?   // v320 — "PEDIDOS" quando veio do upload de PV/PP (itens são atualizados pelos PDFs até alguém salvar no editor)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

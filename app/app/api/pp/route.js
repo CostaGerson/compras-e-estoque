@@ -5,11 +5,14 @@ import { usuarioPP, negadoPP, ppParaUsuario } from "@/lib/pp";
 export async function GET(req) {
   const u = await usuarioPP(req, "ve");
   if (!u) return negadoPP();
+  // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { itens: true } } },
+    select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } } },
   });
-  return Response.json(pps.map((p) => ppParaUsuario(p, u)));
+  const tem = async (campo) => new Set((await prisma.pp.findMany({ where: { [campo]: { not: null } }, select: { id: true } })).map((x) => x.id));
+  const [pv, op, pc, lanc] = await Promise.all([tem("arquivoPedidoPdf"), tem("arquivoOpPdf"), tem("arquivoPcPdf"), tem("arquivoLancPdf")]);
+  return Response.json(pps.map((p) => ppParaUsuario({ ...p, temPv: pv.has(p.id), temOp: op.has(p.id), temPc: pc.has(p.id), temLanc: lanc.has(p.id) }, u)));
 }
 
 const dec = (v) => {
@@ -47,6 +50,7 @@ export async function POST(req) {
         arquivoPcPdf: b.arquivoPcPdf || null,
         arquivoLancPdf: b.arquivoLancPdf || null,
         arquivoPedidoPdf: b.arquivoPedidoPdf || null,
+        arquivoOpPdf: b.arquivoOpPdf || null,
         itens: {
           create: itens.map((it) => ({
             tipoPecaNome: it.tipoPecaNome || null,

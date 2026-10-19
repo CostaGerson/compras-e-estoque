@@ -1124,6 +1124,29 @@ function LancarPP({ user }) {
     try { const d = await ppFetch("/api/pp").then((r) => r.json()); setLista(Array.isArray(d) ? d : []); } catch {}
   };
   useEffect(() => { carregar(); }, []);
+  // v320 — subir PV/PP do KM (botão, arrastar ou Ctrl+V): mesmo fluxo do Financeiro › Pedidos em andamento
+  const [subindo, setSubindo] = useState(false);
+  const [resUp, setResUp] = useState(null);
+  const inpUp = React.useRef(null);
+  const subir = async (files) => {
+    const l = [...(files || [])].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
+    if (!l.length || !podeLancar) return;
+    setSubindo(true); setResUp(null);
+    try {
+      const arquivos = [];
+      for (const f of l) arquivos.push({ nome: f.name, base64: await new Promise((ok, nok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = nok; r.readAsDataURL(f); }) });
+      const r = await ppFetch("/api/pp/importar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ arquivos }) });
+      const j = await r.json(); setResUp(r.ok ? j.resultado : [{ nome: "Erro", erro: j.error }]); carregar();
+    } catch (e) { setResUp([{ nome: "Erro", erro: e.message }]); }
+    setSubindo(false);
+  };
+  const subirRef = React.useRef(subir); subirRef.current = subir;
+  useEffect(() => {
+    if (modo !== "lista") return;
+    const colar = (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); subirRef.current(fs); } };
+    window.addEventListener("paste", colar); return () => window.removeEventListener("paste", colar);
+  }, [modo]);
+  const abrirPdf = (p, campo) => window.open(`/api/pp/${p.id}?arquivo=${campo}&_u=${user?.id}`, "_blank");
 
   if (modo === "editor") return <PpEditor ppId={ppId} podeLancar={podeLancar} veVal={veVal} onVoltar={() => { setModo("lista"); setPpId(null); carregar(); }} />;
 
@@ -1131,10 +1154,26 @@ function LancarPP({ user }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <div className="text-sm" style={{ color: C.sub }}>{lista.length} PP(s) lançado(s)</div>
-        {podeLancar && <button onClick={() => { setPpId(null); setModo("editor"); }} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
-          <Plus size={16} /> Novo PP
-        </button>}
+        <div className="flex gap-2">
+          {podeLancar && <>
+            <input ref={inpUp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { subir(e.target.files); e.target.value = ""; }} />
+            <button disabled={subindo} onClick={() => inpUp.current?.click()} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}`, opacity: subindo ? 0.5 : 1 }}>
+              {subindo ? "Lendo…" : "Subir PV e PP (KM)"}
+            </button>
+          </>}
+          {podeLancar && <button onClick={() => { setPpId(null); setModo("editor"); }} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
+            <Plus size={16} /> Novo PP
+          </button>}
+        </div>
       </div>
+      {podeLancar && <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(e.dataTransfer.files); }}
+        className="rounded-lg px-4 py-2.5 mb-3 text-xs" style={{ border: `1px dashed ${C.line}`, color: C.sub, background: C.panel }}>
+        Arraste ou cole (Ctrl+V) os PDFs do KM — PV (pedido de venda) e PP (ordem de produção), vários de uma vez. Os pedidos subidos no Financeiro também aparecem aqui.
+      </div>}
+      {resUp && <div className="rounded-lg px-4 py-2 mb-3 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        {resUp.map((r, i) => <div key={i} style={{ color: r.erro ? "#C33" : C.text }}>{r.erro ? "✗" : "✓"} <b>{r.nome}</b> {r.erro || `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.novo ? " · novo" : " · atualizado"}`}</div>)}
+        <button onClick={() => setResUp(null)} className="mt-1" style={{ color: C.sub }}>fechar</button>
+      </div>}
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
         <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <div className="w-28">PP nº</div>
@@ -1142,6 +1181,7 @@ function LancarPP({ user }) {
           <div className="w-24">OC</div>
           <div className="w-20 text-right">Itens</div>
           {veVal && <div className="w-32 text-right">Valor</div>}
+          <div className="w-40 text-center">PDFs</div>
           <div className="w-28"></div>
         </div>
         {lista.length === 0 ? (
@@ -1153,6 +1193,12 @@ function LancarPP({ user }) {
             <div className="w-24" style={{ color: C.sub }}>{p.oc || "—"}</div>
             <div className="w-20 text-right" style={{ color: C.sub }}>{p._count?.itens ?? 0}</div>
             {veVal && <div className="w-32 text-right" style={{ color: C.accent, fontWeight: 600 }}>{p.valorTotal != null ? ppMoney(p.valorTotal) : "—"}</div>}
+            <div className="w-40 flex justify-center gap-2 text-xs font-semibold">
+              {[["temPv", "arquivoPedidoPdf", "PV"], ["temOp", "arquivoOpPdf", "PP"], ["temPc", "arquivoPcPdf", "PC"], ["temLanc", "arquivoLancPdf", "SOL"]].filter(([k]) => p[k]).map(([k, campo, t]) => (
+                <button key={k} onClick={() => abrirPdf(p, campo)} className="px-1.5 rounded" style={{ color: C.accent, border: `1px solid ${C.line}` }} title="Abrir PDF">{t}</button>
+              ))}
+              {p.origem === "PEDIDOS" && <span className="px-1.5 rounded" style={{ color: C.sub, background: C.panel2 }} title="Veio do upload de PV/PP">KM</span>}
+            </div>
             <div className="w-28 flex justify-end gap-2">
               <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
               {podeLancar && <button onClick={async () => { if (confirm("Excluir este PP?")) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
@@ -1172,7 +1218,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
   const [f, setF] = useState({
     numero: "", clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
     oc: "", condicaoPagamento: "", prazoEntrega: "", dtDespacho: "", tipoPedido: "", vendedor: "", obs: "",
-    arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "",
+    arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
   });
   const [itens, setItens] = useState([novoItem()]);
   const [salvando, setSalvando] = useState(false);
@@ -1212,7 +1258,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
         clienteEndereco: d.clienteEndereco || "", clienteContato: d.clienteContato || "", oc: d.oc || "",
         condicaoPagamento: d.condicaoPagamento || "", prazoEntrega: d.prazoEntrega || "", dtDespacho: d.dtDespacho || "",
         tipoPedido: d.tipoPedido || "", vendedor: d.vendedor || "", obs: d.obs || "",
-        arquivoPcPdf: d.arquivoPcPdf || "", arquivoLancPdf: d.arquivoLancPdf || "", arquivoPedidoPdf: d.arquivoPedidoPdf || "",
+        arquivoPcPdf: d.arquivoPcPdf || "", arquivoLancPdf: d.arquivoLancPdf || "", arquivoPedidoPdf: d.arquivoPedidoPdf || "", arquivoOpPdf: d.arquivoOpPdf || "",
       });
       setItens((d.itens || []).map((it) => ({
         tipoPecaNome: it.tipoPecaNome || "POLO", codigo: it.codigo || "", descricao: it.descricao || "",
@@ -1314,6 +1360,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
           {anexo("1 · PC do cliente", "arquivoPcPdf")}
           {anexo("2 · Solicitação de lançamento", "arquivoLancPdf")}
           {anexo("3 · Pedido (base do PP)", "arquivoPedidoPdf")}
+          {anexo("4 · Ordem de produção (KM)", "arquivoOpPdf")}
         </div>
       </div>}
 
