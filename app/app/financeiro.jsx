@@ -471,7 +471,10 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <div className="rounded-xl px-4 py-2.5 mb-4 text-xs flex flex-wrap items-center gap-x-2 gap-y-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
               <b style={{ color: C.navy }}>Caixa × DRE</b>
               <span>soma dos resultados dos meses <b style={{ color: C.text }}>{moeda(t.caixa)}</b></span>
-              <span>− sem conta <b style={{ color: t.semConta ? C.accent : C.text }}>{moeda(t.semConta)}</b></span>
+              <span>− sem conta <b style={{ color: t.semConta ? C.accent : C.text }}>{moeda(t.semConta)}</b>
+                {/* v305 — de que meses vem o sem conta */}
+                {(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).length > 0 && <span className="ml-1">({(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).map((m) => `${nomeComp(m.competencia).split("/")[0].slice(0, 3).toLowerCase()} ${moeda(m.semConta)}`).join(" · ")})</span>}
+              </span>
               <span>− fora da DRE <button onClick={() => ir("FORA", "Fora da DRE")} className="font-bold underline" style={{ color: t.fora ? C.accent : C.text }}>{moeda(t.fora)}</button></span>
               {!!t.saldoInicial && <span>+ saldo inicial <b style={{ color: C.text }}>{moeda(t.saldoInicial)}</b></span>}
               <span>= saldo final <b style={{ color: t.saldoFinal >= 0 ? C.green : C.red }}>{moeda(t.saldoFinal)}</b></span>
