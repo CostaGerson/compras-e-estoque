@@ -196,6 +196,24 @@ function Kpi({ rotulo, valor, cor, sub, Ico }) {
   );
 }
 
+// v309 — previsão pelos títulos: a receber × a pagar com vencimento no período
+function BlocoPrevisao({ titulo, p, onClick }) {
+  if (!p) return null;
+  return (
+    <button onClick={onClick} className="text-left rounded-xl p-4 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }} title="Abrir contas a pagar e receber">
+      <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{titulo}</div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><div className="text-[11px]" style={{ color: C.sub }}>A receber</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.receber)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>A pagar</div><div className="font-bold" style={{ color: C.red }}>{moeda(-p.pagar)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>Saldo previsto</div><div className="font-bold" style={{ color: p.saldo >= 0 ? C.green : C.red }}>{moeda(p.saldo)}</div></div>
+      </div>
+      <div className="text-[11px] mt-2" style={{ color: C.sub }}>
+        {p.qtdReceber} a receber · {p.qtdPagar} a pagar
+        {(p.abertoReceber !== p.receber || p.abertoPagar !== p.pagar) && <> · em aberto: receber {moeda(p.abertoReceber)} · pagar {moeda(-p.abertoPagar)}</>}
+      </div>
+    </button>
+  );
+}
 function BlocoPeriodo({ titulo, p }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -275,8 +293,14 @@ function FinDashboard({ user, ir }) {
       {d && (
         <>
           <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-            <BlocoPeriodo titulo={`Hoje · ${hoje.toLocaleDateString("pt-BR")}`} p={d.periodo.dia} />
-            <BlocoPeriodo titulo={`Mês · ${MESES[hoje.getMonth()]}/${anoAtual}`} p={d.periodo.mes} />
+            {/* v309 — dia e mês: previsão pelas contas a pagar × receber; ano: entradas e saídas realizadas */}
+            {d.previsao ? <>
+              <BlocoPrevisao titulo={`Previsão do dia · ${hoje.toLocaleDateString("pt-BR")}`} p={d.previsao.dia} onClick={() => ir({ v: "pagrec" })} />
+              <BlocoPrevisao titulo={`Previsão do mês · ${MESES[hoje.getMonth()]}/${anoAtual}`} p={d.previsao.mes} onClick={() => ir({ v: "pagrec" })} />
+            </> : <>
+              <BlocoPeriodo titulo={`Hoje · ${hoje.toLocaleDateString("pt-BR")}`} p={d.periodo.dia} />
+              <BlocoPeriodo titulo={`Mês · ${MESES[hoje.getMonth()]}/${anoAtual}`} p={d.periodo.mes} />
+            </>}
             <BlocoPeriodo titulo={`Ano · ${anoAtual}`} p={d.periodo.ano} />
           </div>
 
