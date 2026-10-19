@@ -279,19 +279,7 @@ function FinDashboard({ user, ir }) {
             <BlocoPeriodo titulo={`Mês · ${MESES[hoje.getMonth()]}/${anoAtual}`} p={d.periodo.mes} />
             <BlocoPeriodo titulo={`Ano · ${anoAtual}`} p={d.periodo.ano} />
           </div>
-          <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold" style={{ color: C.navy }}>Entradas × saídas por mês · {anoAtual}</div>
-              <div className="flex gap-3 text-[11px]" style={{ color: C.sub }}>
-                <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, background: C.blue, borderRadius: 2 }} /> Entradas</span>
-                <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, background: C.red, borderRadius: 2 }} /> Saídas</span>
-              </div>
-            </div>
-            <BarrasAno meses={d.meses} onClick={(k) => ir({ v: "mes", comp: k, aba: "dre" })} />
-          </div>
-          <div className="text-xs mt-3" style={{ color: C.sub }}>
-            Valores pela data dos lançamentos, sem transferências entre contas (conciliação). Os KPIs definitivos deste painel ainda serão definidos.
-          </div>
+
         </>
       )}
     </div>
@@ -396,20 +384,20 @@ function useAnual(user, ano) {
   return [d, erro];
 }
 
-function Ind({ rotulo, valor, pct, cor, forte, titulo, onClick }) {
+function Ind({ rotulo, valor, pct, cor, forte, destaque, titulo, onClick }) {   // v308 — mesmo tamanho; só "destaque" muda o visual
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick} title={onClick ? `${titulo || rotulo} · clique para ver os lançamentos` : titulo}
-      className={`rounded-lg px-3 py-2 text-left w-full${onClick ? " transition-shadow hover:shadow-md" : ""}`}
-      style={{ background: forte ? C.panel2 : C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor || C.line}`, cursor: onClick ? "pointer" : "default" }}>
-      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
+      className={`rounded-lg px-3 py-2 text-left w-full h-full flex flex-col${onClick ? " transition-shadow hover:shadow-md" : ""}`}
+      style={{ minHeight: 70, background: destaque ? C.navy : C.panel, border: `1px solid ${destaque ? C.navy : C.line}`, borderLeft: `3px solid ${cor || C.line}`, cursor: onClick ? "pointer" : "default" }}>
+      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: destaque ? "#9FB0C7" : C.sub }}>
         <span className="truncate">{rotulo}</span>
         {onClick && <Search size={10} className="shrink-0" style={{ color: C.accent }} />}
       </div>
-      <div className={forte ? "font-bold" : "font-semibold"} style={{ fontSize: forte ? 17 : 15, color: cor || C.text, lineHeight: 1.3 }}>
+      <div className="font-bold" style={{ fontSize: 16, color: destaque ? (cor === C.red ? "#FF8A80" : cor === C.green ? "#6EE7A8" : "#fff") : cor || C.text, lineHeight: 1.3 }}>
         {compactoBR(valor)}
       </div>
-      {pct != null && <div className="text-[10px]" style={{ color: C.sub }}>{pctBR(pct)} da receita</div>}
+      {pct != null && <div className="text-[10px]" style={{ color: destaque ? "#9FB0C7" : C.sub }}>{pctBR(pct)} da receita</div>}
     </Tag>
   );
 }
@@ -436,7 +424,8 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
         </div>
       ) : (
         <>
-          <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+          {/* v308 — todos os cards do mesmo tamanho numa grade só; destaque só no resultado da operação e no saldo final */}
+          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}>
             <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução"
               onClick={() => ir("RECEITA", "Receita")} />
             <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção"
@@ -453,9 +442,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="NORT (loja)" valor={t.nort || 0} cor={(t.nort || 0) >= 0 ? C.green : C.red} pct={t.receita ? (t.nort || 0) / t.receita : null}
               titulo="Receitas da NORT (caixa NORT) menos os custos da loja que a Meridian banca"
               onClick={() => ir("NORT", "NORT (loja)")} />
-            <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} forte />
-          </div>
-          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            <Ind rotulo="Resultado da operação" valor={t.resultado} cor={t.resultado >= 0 ? C.green : C.red} destaque />
             <Ind rotulo="Saldo da operação" valor={t.saldoOperacao} cor={t.saldoOperacao >= 0 ? C.green : C.red} forte
               titulo="Saldo inicial do primeiro mês lançado + resultado acumulado" />
             <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
@@ -463,7 +450,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
               onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS", "Recursos externos")} />
             {Math.abs(t.aIdentificar || 0) >= 0.01 && <Ind rotulo="A identificar" valor={t.aIdentificar} cor={C.accent}
               titulo="Lançamentos ainda sem conta: já estão no saldo final; ao identificar, só mudam de linha na DRE" />}
-            <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} forte />
+            <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} destaque />
             <Ind rotulo="Média mensal de receita" valor={t.mediaReceita} cor={C.blue} />
             <Ind rotulo="Alavancagem total" valor={a?.atual?.total} cor={C.red} forte
               titulo="Dívidas + tributos em aberto" onClick={abrirAlav} />
