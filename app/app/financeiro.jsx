@@ -468,23 +468,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
             <Ind rotulo="Alavancagem total" valor={a?.atual?.total} cor={C.red} forte
               titulo="Dívidas + tributos em aberto" onClick={abrirAlav} />
           </div>
-          {/* v306 — prova: soma dos resultados dos meses (caixa) = saldo final; o sem conta é só uma linha à parte */}
-          {t.caixa != null && (() => {
-            const dif = r2c((t.saldoInicial || 0) + t.caixa - t.saldoFinal);
-            return (
-              <div className="rounded-xl px-4 py-2.5 mb-4 text-xs flex flex-wrap items-center gap-x-2 gap-y-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
-                <b style={{ color: C.navy }}>Caixa × DRE</b>
-                <span>soma dos resultados dos meses <b style={{ color: C.text }}>{moeda(t.caixa)}</b></span>
-                {!!t.saldoInicial && <span>+ saldo inicial <b style={{ color: C.text }}>{moeda(t.saldoInicial)}</b></span>}
-                <span>= saldo final <b style={{ color: t.saldoFinal >= 0 ? C.green : C.red }}>{moeda(t.saldoFinal)}</b></span>
-                {Math.abs(dif) < 0.01 ? <span style={{ color: C.green }}>✓ fecha</span> : <span style={{ color: C.red }}>· diferença {moeda(dif)}</span>}
-                <span className="ml-2">· composição: operação {moeda(t.resultado)} + recursos externos {moeda(t.externo)}
-                  {Math.abs(t.semConta || 0) >= 0.01 && <> + a identificar <b style={{ color: C.accent }}>{moeda(t.semConta)}</b> ({(d.meses || []).filter((m) => m.lancado && Math.abs(m.semConta || 0) >= 0.01).map((m) => `${nomeComp(m.competencia).split("/")[0].slice(0, 3).toLowerCase()} ${moeda(m.semConta)}`).join(" · ")})</>}
-                  {Math.abs(t.fora || 0) >= 0.01 && <> + fora da DRE <button onClick={() => ir("FORA", "Fora da DRE")} className="underline">{moeda(t.fora)}</button></>}
-                </span>
-              </div>
-            );
-          })()}
+          {/* v307 — linha Caixa × DRE removida (o saldo final já é a soma dos resultados dos meses) */}
         </>
       )}
 
