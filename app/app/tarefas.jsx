@@ -342,11 +342,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         {atribuida ? "Demanda para outra pessoa: sempre funcional e pública." : pessoal ? "Pessoal: sempre privada — só você enxerga." : "Privada: só o colaborador que recebe enxerga a demanda."}</div>}
 
       {/* recorrência */}
-      {(!ed || !inicial.serieId) && (
+      {/* v283 — recorrência também na edição: marcar uma avulsa como rotina, trocar a regra (vale desta em diante) ou deixar de repetir */}
+      {(
         <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2 }}>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Repeat size={14} style={{ color: C.blue }} />
-            <select value={f.rec.tipo} onChange={(e) => setRec("tipo", e.target.value)} disabled={ed} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{TIPOS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+            <select value={f.rec.tipo} onChange={(e) => setRec("tipo", e.target.value)} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{TIPOS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
             {["SEMANAL", "QUINZENAL", "MENSAL_NTH"].includes(f.rec.tipo) && f.rec.tipo === "MENSAL_NTH" && (
               <select value={f.rec.n ?? Math.min(4, Math.ceil(dPrazo.getUTCDate() / 7))} onChange={(e) => setRec("n", Number(e.target.value))} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{ORDINAIS.map(([n, t]) => <option key={n} value={n}>{t}</option>)}</select>
             )}
@@ -357,6 +358,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             {f.rec.tipo === "ANUAL" && <select value={f.rec.mes ?? dPrazo.getUTCMonth() + 1} onChange={(e) => setRec("mes", Number(e.target.value))} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>}
             {recorrente && <>até <input type="date" value={f.rec.ate || ""} onChange={(e) => setRec("ate", e.target.value)} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS} /><span style={{ color: C.sub }}>(vazio = sem fim)</span></>}
           </div>
+          {recorrente && f.rec.tipo !== "DIARIA" && <label className="flex items-center gap-2 text-xs mt-2" style={{ color: C.text }}>
+            <input type="checkbox" checked={!!f.rec.uteis} onChange={(e) => setRec("uteis", e.target.checked)} /> Só em dias úteis — se cair em sábado, domingo ou feriado, passa para o próximo dia útil</label>}
+          {recorrente && f.rec.tipo === "DIARIA" && <label className="flex items-center gap-2 text-xs mt-2" style={{ color: C.text }}>
+            <input type="checkbox" checked={!!f.rec.uteis} onChange={(e) => setRec("uteis", e.target.checked)} /> Pular também os feriados nacionais</label>}
+          {ed && inicial.serieId && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Mudar a repetição vale desta ocorrência em diante · "Não se repete" encerra a rotina depois desta.</div>}
+          {ed && !inicial.serieId && recorrente && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Esta demanda vira a primeira ocorrência da rotina.</div>}
           {recorrente && <div className="text-[11px] mt-1.5" style={{ color: C.blue }}>Repete {descreverRecorrencia({ ...f.rec, dow: f.rec.dow ?? dPrazo.getUTCDay(), dia: f.rec.dia ?? dPrazo.getUTCDate(), n: f.rec.n ?? Math.min(4, Math.ceil(dPrazo.getUTCDate() / 7)), mes: f.rec.mes ?? dPrazo.getUTCMonth() + 1 })} · vira rotina (azul) automaticamente.</div>}
         </div>
       )}
@@ -601,7 +608,8 @@ export function Agenda({ user }) {
   const projetos = d?.projetos || [];
   const P = useMemo(() => Object.fromEntries(projetos.map((p) => [p.id, p])), [projetos]);
   const fotos = useMemo(() => Object.fromEntries((d?.equipe || []).map((x) => [x.id, x.foto])), [d]);
-  const filtradas = (d?.tarefas || []).filter((t) => visao === "GERAL" || t.natureza === visao);
+  // v283 — concluída sai do calendário (continua na lista de Tarefas, filtro "Concluídas")
+  const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao));
   const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao]);
   Object.values(porDia).forEach((l) => l.sort((a, b) => (a.hora || "99") .localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };

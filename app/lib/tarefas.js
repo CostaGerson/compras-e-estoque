@@ -1,7 +1,8 @@
 // v169 — Tarefas: demandas entre setores, recorrência, subtarefas, arquivos, dependências, play/stop e status das pessoas
 import { prisma } from "@/lib/prisma";
 import { ehMaster, setorTarefaDe, SETORES_TAREFA, NOME_SETOR_TAREFA } from "@/lib/acesso";
-import { normalizarRegra, datasDaSerie, descreverRecorrencia } from "@/lib/recorrencia";
+import { normalizarRegra, datasDaSerie, descreverRecorrencia, proximoDiaUtil } from "@/lib/recorrencia";
+// v283 — recorrência editável (marcar/alterar/tirar na edição), opção "só dias úteis" e série com erro não trava as demais
 
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d || "").slice(0, 10));
 const dUTC = (s) => new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
@@ -30,12 +31,17 @@ export async function gerarOcorrencias(ate) {
   const limite = ate && ate > somaDia(hojeSP(), HORIZONTE_DIAS) ? ate : somaDia(hojeSP(), HORIZONTE_DIAS);
   const series = await prisma.tarefa.findMany({ where: { modelo: true, status: { not: "CANCELADA" } } });
   for (const s of series) {
+    try { await gerarDaSerie(s, limite); } catch (e) { console.error(`[tarefas] série #${s.id}:`, e?.message); }
+  }
+}
+async function gerarDaSerie(s, limite) {
+  {
     const r = s.recorrencia;
-    if (!r) continue;
+    if (!r) return;
     const ultima = await prisma.tarefa.findFirst({ where: { serieId: s.id }, orderBy: { prazo: "desc" }, select: { prazo: true } });
     const de = ultima ? somaDia(iso(ultima.prazo), 1) : iso(s.prazo);
-    const datas = datasDaSerie(r, iso(s.prazo), de, limite);
-    if (!datas.length) continue;
+    const datas = datasDaSerie(r, iso(s.prazo), de, limite).filter((d) => d >= de);
+    if (!datas.length) return;
     await prisma.tarefa.createMany({ skipDuplicates: true, data: datas.map((d) => ({
       titulo: s.titulo, descricao: s.descricao, setor: s.setor, responsavelId: s.responsavelId, responsavelNome: s.responsavelNome,
       criadoPorId: s.criadoPorId, criadoPorNome: s.criadoPorNome, prazo: dUTC(d), tipo: "ROTINA", publica: s.publica, serieId: s.id,
@@ -170,7 +176,8 @@ export async function editar(id, b, u) {
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
   if (resp && !resp.ativo) return { error: "Colaborador inválido." };
   const data = { ...t, prazo: dUTC(t.prazo), tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
-  const up = await prisma.tarefa.update({ where: { id: x.id }, data });
+  let up = await prisma.tarefa.update({ where: { id: x.id }, data });
+  if (b.recorrencia !== undefined) up = (await mudarRecorrencia(up, b.recorrencia)) || up;
   // alterar também as próximas da série (e a própria série)
   if (x.serieId && b.aplicarSerie) {
     const comuns = { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
@@ -180,6 +187,38 @@ export async function editar(id, b, u) {
   }
   if (resp) await avisar(u.id, t.responsavelId, `📌 DEMANDA PASSADA PARA VOCÊ por ${nome(u)}: ${t.titulo} — prazo ${t.prazo.split("-").reverse().join("/")}.`);
   return { ok: true, tarefa: up };
+}
+
+// v283 — marcar como recorrente uma demanda avulsa, trocar a regra de uma rotina (vale desta ocorrência em diante) ou deixar de repetir
+const chave = (r) => (r ? JSON.stringify(Object.keys(r).sort().map((k) => [k, r[k]])) : "");
+async function mudarRecorrencia(x, rec) {
+  const regra = normalizarRegra(rec, iso(x.prazo));
+  if (regra?.uteis && proximoDiaUtil(iso(x.prazo)) !== iso(x.prazo) && x.status !== "CONCLUIDA")
+    x = await prisma.tarefa.update({ where: { id: x.id }, data: { prazo: dUTC(proximoDiaUtil(iso(x.prazo))) } }).catch(() => x);
+  if (!x.serieId) {
+    if (!regra) return null;
+    const { id, createdAt, updatedAt, serieId, tempoTotal, emAndamentoDesde, retorno, concluidaEm, concluidaPorNome, status, ...campos } = x;
+    const serie = await prisma.tarefa.create({ data: { ...campos, tipo: "ROTINA", modelo: true, recorrencia: regra, dependencias: [],
+      subtarefas: (x.subtarefas || []).map((s) => ({ texto: s.texto, feita: false })) } });
+    const up = await prisma.tarefa.update({ where: { id: x.id }, data: { serieId: serie.id, tipo: x.tipo === "URGENTE" ? "URGENTE" : "ROTINA" } });
+    await gerarOcorrencias();
+    return up;
+  }
+  const serie = await prisma.tarefa.findUnique({ where: { id: x.serieId } });
+  if (!serie) return x;
+  if (!regra) {   // deixou de repetir: encerra a série a partir desta
+    await prisma.tarefa.update({ where: { id: serie.id }, data: { status: "CANCELADA" } });
+    await prisma.tarefa.updateMany({ where: { serieId: serie.id, prazo: { gt: x.prazo }, status: "ABERTA" }, data: { status: "CANCELADA" } });
+    return x;
+  }
+  if (chave(regra) === chave(serie.recorrencia) && serie.status !== "CANCELADA") return x;
+  // regra nova a partir desta ocorrência: tira as próximas em aberto (sem trabalho registrado) e gera de novo
+  await prisma.tarefa.update({ where: { id: serie.id }, data: { recorrencia: regra, prazo: x.prazo, status: "ABERTA" } });
+  const futuras = await prisma.tarefa.findMany({ where: { serieId: serie.id, prazo: { gt: x.prazo }, status: { in: ["ABERTA", "CANCELADA"] } }, select: { id: true, tempoTotal: true, status: true } });
+  const apagar = futuras.filter((f) => f.status === "CANCELADA" || !f.tempoTotal).map((f) => f.id);
+  if (apagar.length) await prisma.tarefa.deleteMany({ where: { id: { in: apagar } } });
+  await gerarOcorrencias();
+  return x;
 }
 
 export async function encerrarSerie(id, u) {

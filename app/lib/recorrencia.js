@@ -1,4 +1,6 @@
 // v169 — regras de recorrência das Tarefas (usado no navegador e no servidor)
+// v283 — opção "só dias úteis": data que cair em sábado, domingo ou feriado nacional passa para o próximo dia útil
+import { feriados } from "@/lib/diasUteis";
 export const TIPOS_REC = [
   ["NENHUMA", "Não se repete"], ["DIARIA", "Todo dia útil (seg a sex)"], ["SEMANAL", "Toda semana"], ["QUINZENAL", "A cada 15 dias (quinzenal)"],
   ["MENSAL_DIA", "Todo mês no dia…"], ["MENSAL_NTH", "Todo mês na… (1ª segunda, última terça…)"], ["ANUAL", "Todo ano"],
@@ -12,10 +14,12 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const somaDia = (s, n) => iso(new Date(dUTC(s).getTime() + n * 86400000));
 const dow = (s) => dUTC(s).getUTCDay();
 const ultimoDiaMes = (a, m) => new Date(Date.UTC(a, m, 0)).getUTCDate();   // m = 1..12
+export const ehDiaUtil = (s) => { const w = dow(s); return w > 0 && w < 6 && !feriados(Number(s.slice(0, 4))).has(s.slice(5, 10)); };
+export function proximoDiaUtil(s) { let d = String(s).slice(0, 10); for (let i = 0; i < 15 && !ehDiaUtil(d); i++) d = somaDia(d, 1); return d; }
 
 export function descreverRecorrencia(r) {
   if (!r || !r.tipo || r.tipo === "NENHUMA") return "";
-  const fim = r.ate ? ` até ${r.ate.split("-").reverse().join("/")}` : "";
+  const fim = (r.ate ? ` até ${r.ate.split("-").reverse().join("/")}` : "") + (r.uteis ? " · só dias úteis" : "");
   switch (r.tipo) {
     case "DIARIA": return `todo dia útil${fim}`;
     case "SEMANAL": return `toda ${DIAS_SEMANA[r.dow]}${fim}`;
@@ -37,6 +41,7 @@ export function normalizarRegra(r, inicio) {
   if (r.tipo === "ANUAL") o.mes = Number(r.mes) || d.getUTCMonth() + 1;
   if (r.tipo === "MENSAL_NTH") o.n = Number(r.n) || Math.min(4, Math.ceil(d.getUTCDate() / 7));
   if (r.ate && /^\d{4}-\d{2}-\d{2}$/.test(r.ate)) o.ate = r.ate;
+  if (r.uteis) o.uteis = true;
   return o;
 }
 
@@ -54,6 +59,10 @@ function nthDoMes(a, m, n, w) {   // n = 1..4 ou -1 (última); w = dia da semana
 
 // datas da série entre `de` e `ate` (inclusive), começando na data inicial da série
 export function datasDaSerie(r, inicio, de, ate) {
+  const l = datasBrutas(r, inicio, de, ate);
+  return r?.uteis ? [...new Set(l.map(proximoDiaUtil))] : l;
+}
+function datasBrutas(r, inicio, de, ate) {
   if (!r) return [];
   const fim = r.ate && r.ate < ate ? r.ate : ate;
   const ini = inicio > de ? inicio : de;
