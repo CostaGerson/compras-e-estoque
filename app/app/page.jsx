@@ -97,7 +97,7 @@ const MENU = [
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
     { key: "analisesOp", label: "Análises operacionais", icon: IcoAnalise, desc: "Custo por peça de cada setor: corte, personalização, costura e expedição", filhos: [
       { key: "anCorte", label: "Corte", icon: IcoCorte, desc: "Peças cortadas no mês, custo do setor (folha + freelancers) e comparação com a meta e com terceirizar" },
-      { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por milheiro de pontos): folha, freelancers e peças feitas dentro" },
+      { key: "anPersonalizacao", label: "Personalização", icon: IcoPers, desc: "Silk (por nº de cores) e bordado (por peça, valor terceirizado médio): folha, freelancers e peças feitas dentro" },
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
       { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },

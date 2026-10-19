@@ -3,7 +3,7 @@
 //   costura por tipo de peça = valor terceirizado registrado na análise da costura; silk = R$ por cor da análise do silk.
 // Mês completo = mês já encerrado com análise de CORTE e de EXPEDIÇÃO com peças. A cada mês novo completo os parâmetros são refeitos.
 import { prisma } from "@/lib/prisma";
-import { calcularCorte, calcularReal, SETORES_CUSTO_REAL, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR, janelaMeses, JANELA_MESES } from "@/lib/opAnalise";
+import { calcularCorte, calcularReal, SETORES_CUSTO_REAL, CATEGORIAS_BORDADO, CATEGORIAS_CORTE, CATEGORIAS_EXPEDICAO, CATEGORIAS_COSTURA, SILK_POR_COR, janelaMeses, JANELA_MESES } from "@/lib/opAnalise";
 // v288 — corte e expedição: valor por tipo de peça = custo REAL do setor rateado pelo peso de mercado de cada tipo (valorInterno);
 //   costura: valor de mercado (terceirizado); silk: R$ por cor.
 const calcDe = async (a) => (SETORES_CUSTO_REAL.includes(a.setor) ? calcularReal(a) : calcularCorte(a, 0, 0));
@@ -122,8 +122,9 @@ export async function fppPorSetor() {
   const meses = await janelaFpp();
   const out = { meses };
   if (meses.length) {
-    [out.CORTE, out.EXPEDICAO, out.COSTURA] = await Promise.all([
-      fppDoSetor("CORTE", meses, CATEGORIAS_CORTE), fppDoSetor("EXPEDICAO", meses, CATEGORIAS_EXPEDICAO), fppDoSetor("COSTURA", meses, CATEGORIAS_COSTURA)]);
+    [out.CORTE, out.EXPEDICAO, out.COSTURA, out.BORDADO] = await Promise.all([
+      fppDoSetor("CORTE", meses, CATEGORIAS_CORTE), fppDoSetor("EXPEDICAO", meses, CATEGORIAS_EXPEDICAO), fppDoSetor("COSTURA", meses, CATEGORIAS_COSTURA),
+      fppDoSetor("BORDADO", meses, CATEGORIAS_BORDADO)]);   // v291 — bordado: terceirizado médio por peça (referência)
     const silks = await prisma.opAnalise.findMany({ where: { setor: "SILK", competencia: { in: meses } } });
     let vol = 0, cores = 0;
     for (const a of silks) { const c = calcularCorte(a, 0, 0); vol += c.terceirizado; cores += c.unidades || 0; }

@@ -45,10 +45,13 @@ export const PECAS_PERS = [["CAMISETA", "Camiseta"], ["POLO", "Polo"], ["MOLETOM
   ["JALECO_OPERACIONAL", "Jaleco operacional"], ["CALCA_OPERACIONAL", "Calça operacional"], ["CALCA_JEANS", "Calça jeans"], ["CALCA_SOCIAL", "Calça social"], ["AVENTAL", "Avental"]];
 export const NIVEIS_OP = {
   SILK: { titulo: "Cores", niveis: [1, 2, 3, 4, 5, 6].map((i) => [`C${i}`, `${i} cor${i > 1 ? "es" : ""}`]) },
-  BORDADO: { titulo: "Milheiro de pontos", niveis: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => [`M${i}`, `${i} mil`]) },
 };
+// v291 — bordado por PEÇA (até termos o custo por bordado/milheiro): peças bordadas dentro por tipo; valor de mercado = valor
+//   terceirizado médio da peça na tabela de preços (média ponderada das linhas do mês); custo = folha da Matriz + freelancers + insumo (DRE 2112700)
+export const CATEGORIAS_BORDADO = [...PECAS_PERS.map(([k, n]) => [k, n, 0]), ["OUTROS", "Outras peças", 0]];
+export const CONTA_INSUMO_BORDADO = "2112700";
 const gradeCats = (setor) => PECAS_PERS.flatMap(([k, n]) => NIVEIS_OP[setor].niveis.map(([nk, nn]) => [`${k}__${nk}`, `${n} · ${nn}`, 0]));
-export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, COSTURA: CATEGORIAS_COSTURA, SILK: gradeCats("SILK"), BORDADO: gradeCats("BORDADO"), EXPEDICAO: CATEGORIAS_EXPEDICAO };
+export const CATEGORIAS_OP = { CORTE: CATEGORIAS_CORTE, COSTURA: CATEGORIAS_COSTURA, SILK: gradeCats("SILK"), BORDADO: CATEGORIAS_BORDADO, EXPEDICAO: CATEGORIAS_EXPEDICAO };
 export const SETORES_ANALISE = Object.keys(CATEGORIAS_OP);
 export const SETORES_MANUAIS = ["COSTURA"];   // sem importação de planilha: preenchida à mão
 export const SETORES_GRADE = Object.keys(NIVEIS_OP);
@@ -176,6 +179,60 @@ export function lerPlanilhaPers(buf, nome = "", compPadrao = null, setor = "SILK
   return { tipo: "MES", analises: [{ competencia, qtds, detalhe, semCategoria, total: Object.values(qtds).reduce((a, b) => a + b, 0), mercado, extra }] };
 }
 
+// v291 — planilha do bordado ("MERIDIAN · BORDADO NA PERSONALIZAÇÃO — SETEMBRO/2026"): detalhe dos itens concluídos no mês com
+//   PRODUTO, PEÇAS, QUEM FEZ, R$ / PEÇA (tabela de preços) e VALOR ESTIMADO. Interno → análise; terceiro → informativo.
+const MESES_N = { JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6, JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12 };
+export function lerPlanilhaBordado(buf, nome = "", compPadrao = null) {
+  const wb = XLSX.read(buf, { type: "buffer" });
+  let rows = null, iCab = -1;
+  for (const n of wb.SheetNames) {
+    const rs = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null, raw: true });
+    const i = rs.findIndex((r) => (r || []).some((c) => sa(c) === "PRODUTO") && (r || []).some((c) => sa(c) === "PECAS"));
+    if (i >= 0) { rows = rs; iCab = i; break; }
+  }
+  if (!rows) throw new Error("Não achei a tabela de itens (colunas PRODUTO e PEÇAS) na planilha do bordado.");
+  const cab = rows[iCab].map((c) => sa(c));
+  const col = (...ks) => cab.findIndex((c) => ks.some((k) => c === k || c.startsWith(k)));
+  const cProd = col("PRODUTO"), cPc = col("PECAS"), cQuem = col("QUEM_FEZ", "ORIGEM"), cPreco = col("R_PECA", "R_POR_PECA", "PRECO"), cValor = col("VALOR_ESTIMADO", "VALOR");
+  const cPed = col("PEDIDO"), cCli = col("CLIENTE"), cConc = col("CONCLUIDO"), cBord = col("BORDADO");
+  // mês: data de conclusão mais frequente; senão o título (SETEMBRO/2026); senão o mês escolhido na tela
+  const dataISO = (v) => {
+    if (typeof v === "number") { const d = XLSX.SSF.parse_date_code(v); return d ? `${d.y}-${String(d.m).padStart(2, "0")}` : null; }
+    const m = String(v || "").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : null;
+  };
+  const qtds = {}, somaV = {}, detalhe = [], conta = {};
+  const terc = { pecas: 0, valor: 0, fornecedores: {} };
+  for (let i = iCab + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const prod = r[cProd];
+    if (!prod || sa(prod) === "TOTAL") { if (sa(prod) === "TOTAL") break; continue; }
+    const pecas = Number(r[cPc]) || 0;
+    if (!pecas) continue;
+    const preco = Number(r[cPreco]) || 0;
+    const valor = cValor >= 0 && typeof r[cValor] === "number" ? r[cValor] : pecas * preco;
+    const quem = String(r[cQuem] ?? "Interno").trim() || "Interno";
+    const interno = sa(quem) === "INTERNO" || sa(quem) === "";
+    const comp = dataISO(r[cConc]); if (comp) conta[comp] = (conta[comp] || 0) + 1;
+    const cat = tipoPers(prod) || "OUTROS";
+    detalhe.push({ pedido: String(r[cPed] ?? ""), cliente: r[cCli], produto: prod, categoria: cat, qtde: pecas, preco: r2(preco), valor: r2(valor),
+      origem: interno ? "Interno" : `Terceirizado · ${quem}`, bordado: cBord >= 0 ? r[cBord] : null, concluido: r[cConc] ?? null });
+    if (!interno) { terc.pecas += pecas; terc.valor += valor; terc.fornecedores[quem] = (terc.fornecedores[quem] || 0) + pecas; continue; }
+    qtds[cat] = (qtds[cat] || 0) + pecas; somaV[cat] = (somaV[cat] || 0) + valor;
+  }
+  // peças de terceiro que só aparecem no resumo ("— por terceiro | 3 linhas · 850 peças")
+  if (!terc.pecas) for (const r of rows.slice(0, iCab)) if (/TERCEIRO/.test(sa(r?.[0]))) { const m = String(r[1] || "").match(/([\d.]+)\s*pe/i); if (m) terc.pecas = Number(m[1].replace(/\./g, "")) || 0; }
+  let competencia = Object.entries(conta).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  if (!competencia) {
+    const t = rows.slice(0, iCab).map((r) => sa((r || []).join(" "))).join(" ");
+    const m = t.match(/(JANEIRO|FEVEREIRO|MARCO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)_(\d{4})/);
+    competencia = m ? `${m[2]}-${String(MESES_N[m[1]]).padStart(2, "0")}` : compPadrao;
+  }
+  const mercado = Object.fromEntries(Object.keys(qtds).map((k) => [k, Math.round((somaV[k] / qtds[k]) * 10000) / 10000]));
+  const valorInterno = r2(Object.values(somaV).reduce((a, b) => a + b, 0));
+  return { tipo: "MES", analises: [{ competencia, qtds, detalhe, semCategoria: 0, total: Object.values(qtds).reduce((a, b) => a + b, 0), mercado,
+    extra: { valorTabela: valorInterno, terceirizado: { pecas: terc.pecas, valor: terc.valor ? r2(terc.valor) : null, fornecedores: terc.fornecedores } } }] };
+}
+
 // aba no formato da análise: linha ITEM (categorias) + QTDE; à direita PESSOAL/FREELANCERS/PEÇAS ESTIMADAS/CUSTO ESTIMADO
 function lerAbaAnalise(sh, competencia, historico, setor = "CORTE") {
   const rows = XLSX.utils.sheet_to_json(sh, { header: 1, defval: null, raw: true });
@@ -247,7 +304,8 @@ export function calcularCorte(a, pessoal, freelancer) {
   // v257 — silk/bordado: custo do setor = mão de obra (pessoal + freelancers) + insumo (tinta/linha)
   const grade = !!NIVEIS_OP[a.setor];
   const unidades = grade ? (a.extra?.unidades || cats.reduce((s, c) => s + c.qtd * (Number(String(nivelDe(c.k) || "").slice(1)) || 1), 0)) : 0;
-  const insumo = grade ? r2(a.insumoManual ?? insumoAuto(a, unidades)) : 0;
+  // v291 — bordado: insumo informado ou o da DRE do mês (conta 2112700), passado em a._insumoAuto
+  const insumo = grade ? r2(a.insumoManual ?? insumoAuto(a, unidades)) : a.setor === "BORDADO" ? r2(a.insumoManual ?? a._insumoAuto ?? 0) : 0;
   const maoDeObra = r2(pessoal + freelancer);
   const custoTotal = r2(maoDeObra + insumo);
   const incorrido = pecas ? custoTotal / pecas : 0;                                   // custo incorrido por peça
@@ -292,7 +350,16 @@ export async function custoDoSetor(setor, competencia) {
   const f = await freelancerXFolha(competencia).catch(() => null);
   const l = f?.linhas?.find((x) => x.setor === SETORES_OP[setor]?.setorFolha);
   // v268 — freelancers exclusivamente do extrato identificado (sem previsão pelas contas da semana)
-  return { pessoal: l?.folha || 0, freelancer: l?.freeExtrato || 0, fonteFree: l?.freeExtrato ? "EXTRATO IDENTIFICADO" : "nada identificado no extrato", pessoas: l?.pessoas || 0 };
+  const out = { pessoal: l?.folha || 0, freelancer: l?.freeExtrato || 0, fonteFree: l?.freeExtrato ? "EXTRATO IDENTIFICADO" : "nada identificado no extrato", pessoas: l?.pessoas || 0 };
+  if (setor === "BORDADO") out.insumo = await insumoDre(CONTA_INSUMO_BORDADO, competencia).catch(() => 0);   // v291
+  return out;
+}
+// v291 — saídas do mês numa conta da DRE (extrato identificado), em valor positivo
+async function insumoDre(codigo, competencia) {
+  const conta = await prisma.finConta.findFirst({ where: { codigo }, select: { id: true } });
+  if (!conta) return 0;
+  const s = await prisma.finLancamento.aggregate({ where: { competencia, desmembrado: false, substituido: false, contaId: conta.id }, _sum: { valor: true } });
+  return r2(-(Number(s._sum?.valor) || 0));
 }
 
 // v286 — só os últimos 6 meses importam para a precificação: as análises mostram e calculam apenas essa janela
@@ -311,7 +378,7 @@ export async function analiseCorte(competencia, setor = "CORTE") {
   if (a) {
     const pessoal = a.pessoalManual != null ? a.pessoalManual : auto.pessoal;
     const free = a.freelancerManual != null ? a.freelancerManual : auto.freelancer;
-    calc = calcularCorte(a, pessoal, free);
+    calc = calcularCorte({ ...a, _insumoAuto: auto.insumo }, pessoal, free);
   }
   // série dos últimos 6 meses (v286; antes: do ano)
   const serie = [];
@@ -319,7 +386,7 @@ export async function analiseCorte(competencia, setor = "CORTE") {
     const full = await prisma.opAnalise.findUnique({ where: { setor_competencia: { setor, competencia: x.competencia } } });
     const au = await custoDoSetor(setor, x.competencia);
     const free = full.freelancerManual ?? au.freelancer;
-    const c = calcularCorte(full, full.pessoalManual ?? au.pessoal, free);
+    const c = calcularCorte({ ...full, _insumoAuto: au.insumo }, full.pessoalManual ?? au.pessoal, free);
     // v182.2 — confronto: freelancer da planilha/manual × o que o sistema identificou no mês
     serie.push({ competencia: x.competencia, pecas: c.pecas, incorrido: c.incorrido, custoTotal: c.custoTotal, estimado: c.estimado,
       insumo: c.insumo, mediaTerc: c.mediaTerc, retornoPct: c.retornoPct, custoUnid: c.custoUnid,

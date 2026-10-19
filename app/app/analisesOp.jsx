@@ -97,8 +97,9 @@ const TXT = {
   // v255 — silk e bordado importam a exportação do sistema de produção; folha e freelancers à mão
   SILK: { titulo: "Análise do silk", Ico: Paintbrush, de: "do silk", volta: "R$ 0,80 por cor × cores aplicadas", dentro: "estampar dentro", imp: "Importar planilha do silk", unid: "cor·peça", cor: "cor", cores: "cores aplicadas", insumo: "tinta", unids: "Cores aplicadas (cor × peça)",
     ajuda: <>Importe a exportação do sistema de produção (<i>analise-silk_AAAA-MM-DD_a_AAAA-MM-DD.xlsx</i>) — o mês vem do nome do arquivo. As peças internas vão para a grade por nº de cores (7 ou mais entram em 6+); as terceirizadas ficam separadas. Depois preencha a folha e os freelancers do mês.</> },
-  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", volta: "valor de mercado do milheiro × peças bordadas", dentro: "bordar dentro", imp: "Importar planilha do bordado", unid: "milheiro·peça", cor: "milheiro", cores: "milheiros bordados", insumo: "linha e entretela", unids: "Milheiros bordados (milheiro × peça)",
-    ajuda: <>Importe a exportação do sistema de produção (<i>analise-bordado_…xlsx</i>) ou preencha à mão as peças <b>bordadas internamente</b>, por peça e milheiro de pontos. Depois preencha a folha e os freelancers do mês.</> },
+  // v291 — bordado por PEÇA até termos o custo por bordado: valor de mercado = terceirizado médio da peça (tabela de preços)
+  BORDADO: { titulo: "Análise do bordado", Ico: Sparkles, de: "do bordado", volta: "valor terceirizado médio da peça × peças bordadas dentro", dentro: "bordar dentro", imp: "Importar planilha do bordado", insumo: "linha e entretela · DRE 2112700",
+    ajuda: <>Importe a planilha do bordado do mês (<i>bordados_mês.xlsx</i>, itens concluídos com <b>R$ / peça</b> da tabela de preços) — o mês vem das datas de conclusão. As peças feitas dentro entram por tipo, com o valor terceirizado médio de cada tipo; as de terceiros ficam só informativas. Pessoal = folha do bordado pela Matriz; insumo = DRE do mês (2112700), quando aparecer.</> },
 };
 
 // v254 — Personalização: silk e bordado (DTF e sublimação depois)
@@ -194,7 +195,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
     const { _man, ...resto } = f;
     const campos = { ...resto };
     for (const [k, ak] of Object.entries(AUTO)) campos[k] = _man?.[k] && editado(f[k], d?.auto?.[ak]) ? f[k] : "";
-    if (!d?.grade) campos.insumoManual = "";
+    if (!d?.grade && setor !== "BORDADO") campos.insumoManual = "";
     try {
       const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, setor, acao: "salvar", competencia: comp, campos }); setD(j); setAtualizado(new Date());
       setF((x) => ({ ...x, _man: Object.fromEntries(Object.keys(AUTO).map((k) => [k, campos[k] !== ""])) }));
@@ -219,6 +220,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const G = !!d?.grade;   // v257 — silk/bordado: sem peças estimadas; compara com o mercado e mostra o custo por cor/milheiro
   // v261 — sem parâmetros estimados (peças estimadas / custo fixo): todas as análises comparam com o mercado (terceirizar)
   const bom = c && c.incorrido <= c.mediaTerc;
+  const INS = G || setor === "BORDADO";   // v291 — setores com insumo no custo
   const MES3 = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const mesesTxt = (l) => (l || []).map((m) => `${MES3[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`).join(", ");
   const chaveResumo = { CORTE: "CORTE", EXPEDICAO: "EXPEDICAO", COSTURA: "COSTURA", SILK: "PERSONALIZACAO", BORDADO: "PERSONALIZACAO" }[setor];
@@ -255,7 +257,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <div className="rounded-xl p-4 mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="font-bold text-sm mb-2" style={{ color: C.navy }}>Últimos 6 meses · {d.serie.length} mês(es) com análise <span className="font-normal text-[11px]" style={{ color: C.sub }}>— só eles contam para a precificação; o mês corrente aparece, mas não entra nas médias</span></div>
           <table className="w-full text-xs">
-            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(G ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ color: C.sub }}>{["Mês", "Peças", "Pessoal", "Freelancers", ...(INS ? ["Insumos"] : []), "Custo do setor", "Incorrido/pç", ...(G ? [`Incorrido/${T.cor}`] : []), T.volta ? "Contrib./pç" : "Mercado/pç", "Retorno", ""].map((h, i) => <th key={i} className={`py-1 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
             <tbody>{d.serie.map((x) => { const ref = x.mediaTerc; const ok = x.incorrido <= ref; const sel = x.competencia === comp; return (
               <tr key={x.competencia} onClick={() => setComp(x.competencia)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: sel ? C.panel2 : "transparent", fontWeight: sel ? 700 : 400 }}>
                 <td className="py-1.5" style={{ color: sel ? C.accent : C.text }}>{nomeMes(x.competencia)}</td>
@@ -265,7 +267,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
                   {brl(x.freelancer)}{x.fonteFree === "PLANILHA" && <span style={{ color: C.sub }}> ·P</span>}
                   {Math.abs(x.difFree) >= 1 && <div className="text-[10px] font-semibold" style={{ color: C.yellow }}>sistema {brl(x.freeSistema)} ({x.difFree > 0 ? "+" : "−"}{brl(Math.abs(x.difFree))})</div>}
                 </td>
-                {G && <td className="text-right tabular-nums">{x.insumo ? brl(x.insumo) : "—"}</td>}
+                {INS && <td className="text-right tabular-nums">{x.insumo ? brl(x.insumo) : "—"}</td>}
                 <td className="text-right tabular-nums">{x.custoTotal ? brl(x.custoTotal) : "—"}</td>
                 <td className="text-right tabular-nums">{x.incorrido ? brl(x.incorrido) : "—"}</td>
                 {G && <td className="text-right tabular-nums font-semibold">{x.custoUnid ? brl(x.custoUnid) : "—"}</td>}
@@ -291,7 +293,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
           {/* cenário interno × estimado */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             <Kpi t={T.manual || d.grade ? "Peças feitas internamente" : "Peças processadas"} v={int(c.pecas)} sub={d.analise.semCategoria ? `${int(d.analise.semCategoria)} sem categoria fora da análise` : d.analise.arquivoNome || ""} />
-            <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}${G ? ` + insumos ${brl(c.insumo)}` : ""}`} />
+            <Kpi t="Custo total do setor" v={brl(c.custoTotal)} sub={`pessoal ${brl(c.pessoal)} + freelancers ${brl(c.freelancer)}${INS ? ` + insumos ${brl(c.insumo)}` : ""}`} />
             <Kpi t="Custo incorrido / peça" v={brl(c.incorrido)} cor={bom ? C.green : C.red} sub={c.mediaTerc ? `mercado ${brl(c.mediaTerc)} / peça` : "preencha o valor de mercado"} />
             {G && <Kpi t={`Custo incorrido / ${T.cor}`} v={brl(c.custoUnid)} cor={c.custoUnid <= c.mercadoUnid ? C.green : C.red} sub={`${int(c.unidades)} ${T.cores} · mercado ${brl(c.mercadoUnid)}`} />}
               {/* v262 — costura/silk/bordado: o valor de mercado é o que se cobra da operação; é o que volta para o setor */}
@@ -307,10 +309,10 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               {rf && <KpiDestaque t="Valor cobrado na FPP" cor={C.accent}
                 onClick={fs?.categorias?.length ? () => setDet({ titulo: "Valor cobrado na FPP", cor: C.accent, valor: `${brl(fs.porPeca)} / pç`, itens: fs.categorias,
                   explica: `${["CORTE", "EXPEDICAO"].includes(setor) ? "Custo real do setor rateado por tipo de peça pelo peso de mercado" : "Valor de mercado por tipo de peça"} — é o valor de cada item nos parâmetros da FPP · ${mesesTxt(rf.fpp.meses)}` }) : undefined}
-                v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : setor === "BORDADO" ? "—" : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
+                v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
                 sub={setor === "SILK" ? <>contribuição ÷ cores aplicadas · {mesesTxt(rf.fpp.meses)}</>
-                  : setor === "BORDADO" ? "o bordado ainda não alimenta a FPP"
-                  : fs?.categorias?.length ? <>{fs.categorias.slice(0, 3).map((x) => `${x.n.toLowerCase()} ${brl(x.valor)}`).join(" · ")}{fs.categorias.length > 3 ? ` · +${fs.categorias.length - 3}` : ""} · média ponderada {mesesTxt(rf.fpp.meses)}</>
+                  : setor === "BORDADO" && !fs?.categorias?.length ? "sem bordado importado nos meses da FPP"
+                  : fs?.categorias?.length ? <>{setor === "BORDADO" ? "referência (na FPP o bordado é informado no item) · " : ""}{fs.categorias.slice(0, 3).map((x) => `${x.n.toLowerCase()} ${brl(x.valor)}`).join(" · ")}{fs.categorias.length > 3 ? ` · +${fs.categorias.length - 3}` : ""} · média ponderada {mesesTxt(rf.fpp.meses)}</>
                   : "sem mês completo (corte e expedição) para a FPP"} />}
           </div>
           {det && <ComposicaoMedia d={det} onClose={() => setDet(null)} />}
@@ -321,7 +323,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               <table className="w-full text-xs"><tbody>
                 {[["pessoalManual", "Pessoal (custo total da folha)", d.auto?.pessoal, "Matriz"],
                   ["freelancerManual", `Freelancers ${T.de}`, d.auto?.freelancer, String(d.auto?.fonteFree || "—").toLowerCase()],
-                  ...(G ? [["insumoManual", `Insumos (${T.insumo})`, d.auto?.insumo, c.extra?.tintaUnit != null ? `planilha: ${brl(c.extra.tintaUnit)}/${T.unid}` : "planilha"]] : [])].map(([k, rot, auto, fonte]) => {
+                  ...(INS ? [["insumoManual", `Insumos (${T.insumo})`, d.auto?.insumo, setor === "BORDADO" ? "DRE do mês" : c.extra?.tintaUnit != null ? `planilha: ${brl(c.extra.tintaUnit)}/${T.unid}` : "planilha"]] : [])].map(([k, rot, auto, fonte]) => {
                   const ed = !!f._man?.[k] && editado(f[k], auto);
                   return (
                     <tr key={k}><td className="py-1">{rot}
@@ -444,11 +446,12 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               </button>
               {verDet && (
                 <div className="overflow-auto px-4 pb-3" style={{ maxHeight: 400 }}>
-                  <table className="w-full text-xs"><thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Produto", "Categoria", "Qtde", ...(d.grade ? [d.grade.titulo, "Origem"] : []), "Concluído"].map((h) => <th key={h} className="text-left py-1 font-semibold">{h}</th>)}</tr></thead>
+                  <table className="w-full text-xs"><thead><tr style={{ color: C.sub }}>{["Pedido", "Cliente", "Produto", "Categoria", "Qtde", ...(d.grade ? [d.grade.titulo, "Origem"] : []), ...(setor === "BORDADO" ? ["R$ / peça", "Valor", "Origem"] : []), "Concluído"].map((h) => <th key={h} className="text-left py-1 font-semibold">{h}</th>)}</tr></thead>
                     <tbody>{d.analise.detalhe.map((l, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.line}`, color: l.categoria === "SEM_CATEGORIA" ? C.yellow : C.text }}>
                         <td className="py-1">{l.pedido}</td><td>{l.cliente}</td><td>{l.produto}</td><td>{l.categoria === "SEM_CATEGORIA" ? "sem categoria" : (d.grade ? d.grade.pecas : d.categorias).find((x) => x.k === l.categoria)?.n}</td><td className="text-right pr-2">{int(l.qtde)}</td>
-                        {d.grade && <><td className="text-right pr-2">{l.nivel}</td><td style={{ color: /terceir/i.test(l.origem || "") ? C.sub : C.text }}>{l.origem}</td></>}<td>{l.concluido}</td>
+                        {d.grade && <><td className="text-right pr-2">{l.nivel}</td><td style={{ color: /terceir/i.test(l.origem || "") ? C.sub : C.text }}>{l.origem}</td></>}
+                        {setor === "BORDADO" && <><td className="text-right pr-2 tabular-nums">{l.preco != null ? brl(l.preco) : "—"}</td><td className="text-right pr-2 tabular-nums">{l.valor != null ? brl(l.valor) : "—"}</td><td style={{ color: /terceir/i.test(l.origem || "") ? C.sub : C.text }}>{l.origem}</td></>}<td>{l.concluido}</td>
                       </tr>))}</tbody></table>
                 </div>
               )}
