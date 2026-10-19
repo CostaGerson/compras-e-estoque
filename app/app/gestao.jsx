@@ -78,6 +78,7 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1);
+  const [vista, setVista] = useState("mes");   // v329 — "mes" ou "ano" (ano até aqui)
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
 
@@ -95,17 +96,37 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
   };
 
   const anoAnterior = (d?.anos || []).find((x) => x < ano) ?? ano - 1;
+  const anosLista = [...new Set([...(d?.anos || []), ano, ano - 1, ano + 1, hoje.getFullYear()])].sort((a, b) => b - a);
+  // v329 — cards do ano até aqui: acumulado de jan até o mês selecionado
+  const somaAte = (serie) => { const v = (serie || []).slice(0, mes).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+  const kpisAno = (lista) => {
+    const fat = lista.find((k) => k.chave === "faturamentoValor"), pec = lista.find((k) => k.chave === "pecasFaturadas");
+    const fy = fat && somaAte(fat.serie), py = pec && somaAte(pec.serie), fmy = fat && somaAte(fat.metaSerie), pmy = pec && somaAte(pec.metaSerie);
+    return lista.map((k) => k.chave === "ticketMedio"
+      ? { ...k, valor: fy && py ? fy / py : null, meta: fmy && pmy ? fmy / pmy : null, acumulado: true }
+      : { ...k, valor: somaAte(k.serie), meta: somaAte(k.metaSerie), acumulado: true });
+  };
+  const cards = d ? (vista === "ano" ? kpisAno(d.kpis) : d.kpis) : [];
 
   return (
     <div>
       {/* período */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex items-center gap-1 rounded-lg px-1" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex items-center gap-1 rounded-lg px-1 py-0.5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <button onClick={() => andar(-1)} className="p-1.5" style={{ color: C.sub }} title="Mês anterior"><ChevronLeft size={16} /></button>
-          <div className="px-2 font-semibold" style={{ color: C.navy, minWidth: 140, textAlign: "center" }}>
-            {MESES_LONGO[mes - 1]} / {ano}
-          </div>
+          <select value={mes} onChange={(e) => setMes(Number(e.target.value))} className="font-semibold outline-none bg-transparent" style={{ color: C.navy }}>
+            {MESES_LONGO.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="font-semibold outline-none bg-transparent" style={{ color: C.navy }}>
+            {anosLista.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
           <button onClick={() => andar(1)} className="p-1.5" style={{ color: C.sub }} title="Próximo mês"><ChevronRight size={16} /></button>
+        </div>
+        {/* v329 — alterna entre o mês e o acumulado do ano até o mês */}
+        <div className="flex rounded-lg overflow-hidden text-sm font-semibold" style={{ border: `1px solid ${C.line}` }}>
+          {[["mes", "Mês"], ["ano", "Ano até aqui"]].map(([v, t]) => (
+            <button key={v} onClick={() => setVista(v)} className="px-3 py-1.5" style={{ background: vista === v ? C.navy : C.panel, color: vista === v ? "#fff" : C.sub }}>{t}</button>
+          ))}
         </div>
         {d && (
           <div className="text-xs" style={{ color: C.sub }}>
@@ -115,23 +136,23 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
           </div>
         )}
         <div className="flex-1" />
-        {d?.podeEditar && abrirCapacidade && (
-          <button onClick={abrirCapacidade} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}
-            title="Capacidade × freelancer: quanto gastar e quantos contratar para a meta"><Factory size={15} /> Capacidade</button>
-        )}
-        {irMatriz && (
-          <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}
-            title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>
-        )}
         {d?.podeEditar && (
           <button onClick={() => abrirMetas(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ border: `1px solid ${C.accent}`, color: C.accent }}>
+            style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>
             <Target size={15} /> Metas de {ano}
           </button>
         )}
+        {d?.podeEditar && abrirCapacidade && (
+          <button onClick={abrirCapacidade} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.blue}`, color: C.blue, background: C.panel }}
+            title="Capacidade × freelancer: quanto gastar e quantos contratar para a meta"><Factory size={15} /> Capacidade</button>
+        )}
+        {irMatriz && (
+          <button onClick={irMatriz} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.blue}`, color: C.blue, background: C.panel }}
+            title="Abre a Matriz de custos (Financeiro)"><Grid3x3 size={15} /> Matriz de custos</button>
+        )}
         {abrirRelatorio && (
           <button onClick={() => abrirRelatorio(ano)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }} title="Relatório de KPIs do ano">
+            style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }} title="Relatório de KPIs do ano">
             <BarChart3 size={15} /> KPIs de {ano}
           </button>
         )}
@@ -144,10 +165,10 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
         <>
           {/* ---- os 5 KPIs do mês ---- */}
           <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
-            {d.kpis.map((k) => (
-              <CardKpi key={k.chave} k={k} mes={mes} ano={ano} user={user} master={master || d.veValores} money={money} />
+            {cards.map((k) => (
+              <CardKpi key={k.chave} k={k} mes={mes} ano={ano} user={user} master={master || d.veValores} money={money} acumulado={vista === "ano"} />
             ))}
-            {!d.restrito && <CardReceitaCanais canais={d.canais} total={d.receitaMes} master={master} money={money} />}
+            {!d.restrito && vista === "mes" && <CardReceitaCanais canais={d.canais} total={d.receitaMes} master={master} money={money} />}
             {d.restrito && !d.kpis.length && (
               <div className="rounded-xl p-5 text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>
                 <b style={{ color: C.navy }}>Metas e evolução da meta do seu setor</b><br />Entram aqui quando o cronômetro do chão de fábrica estiver no ar.
@@ -227,11 +248,11 @@ function Rosca({ p, cor, trilho, tamanho = 96, espessura = 11 }) {
   );
 }
 
-function CardKpi({ k, mes, ano, user, master, money }) {
+function CardKpi({ k, mes, ano, user, master, money, acumulado = false }) {
   const [hover, setHover] = useState(null);
   const [ranking, setRanking] = useState(null);   // mês aberto no ranking de clientes
   const esconder = k.unidade === "R$" && !master;
-  const comRanking = !!user && ["vendasPecas", "vendasValor", "faturamentoValor", "receitaValor"].includes(k.chave) && !esconder;
+  const comRanking = !acumulado && !!user && ["vendasPecas", "vendasValor", "faturamentoValor", "receitaValor"].includes(k.chave) && !esconder;
   const temValor = k.valor !== null && k.valor !== undefined;
   const p = temValor && k.meta ? k.valor / k.meta : null;
   const [cor, trilho] = corMeta(p);
@@ -267,7 +288,7 @@ function CardKpi({ k, mes, ano, user, master, money }) {
           </div>
           )}
           <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
-            {k.meta ? (esconder ? "meta •••••" : `meta ${compacto(k.meta, k.unidade)}`) : "sem meta no mês"}
+            {k.meta ? (esconder ? "meta •••••" : `meta ${acumulado ? "do ano " : ""}${compacto(k.meta, k.unidade)}`) : (acumulado ? "sem meta no ano" : "sem meta no mês")}
           </div>
           {p !== null && k.meta && (
             <div className="text-[11px]" style={{ color: p >= 1 ? C.green : C.sub }}>
@@ -281,11 +302,11 @@ function CardKpi({ k, mes, ano, user, master, money }) {
 
       {/* os 12 meses do ano: cinza = outros meses, laranja = o mês aberto, traço = meta */}
       <div className="mt-3">
-        <MiniColunas serie={k.serie} metaSerie={k.metaSerie} destaque={mes - 1} hover={hover} setHover={setHover} cor={cor}
+        <MiniColunas serie={k.serie} metaSerie={k.metaSerie} destaque={acumulado ? mes - 1 : mes - 1} hover={hover} setHover={setHover} cor={cor} faixa={acumulado ? mes : 0}
           onClique={comRanking ? (i) => k.serie[i] != null && setRanking(i + 1) : null} />
         <div className="text-[11px] mt-1" style={{ color: C.sub, minHeight: 16 }}>
           {hover === null
-            ? k.fonte
+            ? (acumulado ? `Acumulado de janeiro a ${MESES[mes - 1]}` : k.fonte)
             : `${MESES[i]}: ${vSerie == null ? "sem lançamento" : esconder ? "•••••" : valorCheio(vSerie, k.unidade)}${mSerie ? ` · meta ${esconder ? "•••••" : valorCheio(mSerie, k.unidade)}` : ""}${comRanking && vSerie != null ? " · clique para ver os clientes" : ""}`}
         </div>
       </div>
@@ -347,7 +368,7 @@ function RankingClientes({ user, ano, mes, kpi, rotulo, onClose }) {
 }
 
 /* 12 colunas finas + marca da meta; hover devolve o índice do mês */
-function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor, onClique }) {
+function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor, onClique, faixa = 0 }) {
   const alt = 52;
   const max = Math.max(1, ...serie.map((v) => v || 0), ...metaSerie.map((v) => v || 0));
   return (
@@ -357,6 +378,7 @@ function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor, onCliqu
         const hm = ((metaSerie[i] || 0) / max) * alt;
         const atual = i === destaque;
         const ativo = hover === i;
+        const noPeriodo = faixa > 0 && i < faixa;   // v329 — meses do acumulado do ano
         return (
           <div key={i} className="relative flex-1 flex items-end" style={{ height: alt, cursor: onClique && v != null ? "pointer" : "default" }}
             onMouseEnter={() => setHover(i)} onClick={onClique ? () => onClique(i) : undefined}>
@@ -364,7 +386,7 @@ function MiniColunas({ serie, metaSerie, destaque, hover, setHover, cor, onCliqu
             {hm > 0 && <div className="absolute left-0 right-0" style={{ bottom: Math.min(alt - 2, hm), height: 2, background: C.marca, borderRadius: 2 }} />}
             <div style={{
               width: "100%", height: Math.max(v ? 3 : 0, h),
-              background: atual ? cor : ativo ? C.sub : C.trilho,
+              background: atual ? cor : ativo ? C.sub : noPeriodo ? C.accentSoft : C.trilho,
               borderRadius: "4px 4px 0 0",
             }} />
           </div>
