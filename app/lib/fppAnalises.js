@@ -95,3 +95,30 @@ export async function atualizarParamsFpp({ forcar = false } = {}) {
   await prisma.finConfig.upsert({ where: { chave: CHAVE_JANELA }, create: { chave: CHAVE_JANELA, valor: chave }, update: { valor: chave } }).catch(() => null);
   return { ok: true, janela: m.meses, alterados, semCategoria };
 }
+
+// v285 — valor cobrado na FPP por setor (mesma janela dos parâmetros): média por peça ponderada pelas quantidades + por tipo de peça
+async function fppDoSetor(setor, meses, cats) {
+  const rows = await prisma.opAnalise.findMany({ where: { setor, competencia: { in: meses } } });
+  let Q = 0, V = 0;
+  const por = {};
+  for (const a of rows) for (const c of calcularCorte(a, 0, 0).categorias || []) {
+    if (!c.qtd || !(c.mercado > 0)) continue;
+    Q += c.qtd; V += c.qtd * c.mercado;
+    const p = (por[c.k] ||= { q: 0, v: 0 }); p.q += c.qtd; p.v += c.qtd * c.mercado;
+  }
+  return { porPeca: Q ? V / Q : null, pecas: Q,
+    categorias: cats.filter(([k]) => por[k]?.q).map(([k, n]) => ({ k, n, valor: r4(por[k].v / por[k].q), qtd: por[k].q })).sort((a, b) => b.qtd - a.qtd) };
+}
+export async function fppPorSetor() {
+  const meses = await janelaFpp();
+  const out = { meses };
+  if (meses.length) {
+    [out.CORTE, out.EXPEDICAO, out.COSTURA] = await Promise.all([
+      fppDoSetor("CORTE", meses, CATEGORIAS_CORTE), fppDoSetor("EXPEDICAO", meses, CATEGORIAS_EXPEDICAO), fppDoSetor("COSTURA", meses, CATEGORIAS_COSTURA)]);
+    const silks = await prisma.opAnalise.findMany({ where: { setor: "SILK", competencia: { in: meses } } });
+    let vol = 0, cores = 0;
+    for (const a of silks) { const c = calcularCorte(a, 0, 0); vol += c.terceirizado; cores += c.unidades || 0; }
+    out.SILK = { porCor: cores ? r4(vol / cores) : SILK_POR_COR, cores };
+  } else out.SILK = { porCor: SILK_POR_COR, cores: 0 };
+  return out;
+}

@@ -12,6 +12,11 @@ export async function GET(req) {
   if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const comp = /^\d{4}-\d{2}$/.test(sp.get("competencia") || "") ? sp.get("competencia") : null;
   if (sp.get("acao") === "resumo") return Response.json(await resumoVolta(comp));   // v264 — tela de Análises operacionais
+  if (sp.get("acao") === "retornoFpp") {   // v285 — retorno à operação e valor cobrado na FPP de cada setor
+    const { fppPorSetor } = await import("@/lib/fppAnalises");
+    const [resumo, fpp] = await Promise.all([resumoVolta(null), fppPorSetor()]);
+    return Response.json({ resumo, fpp });
+  }
   if (sp.get("setor") === "LOGISTICA") {   // v279 — análise da logística (DRE) + FPP acompanha
     const { analiseLogistica, atualizarLogisticaFpp } = await import("@/lib/opLogistica");
     const a = await analiseLogistica();

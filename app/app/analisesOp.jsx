@@ -40,6 +40,13 @@ const Kpi = ({ t, v, sub, cor }) => (
     {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
   </div>
 );
+const KpiDestaque = ({ t, v, sub, cor }) => (
+  <div className="rounded-xl p-3" style={{ background: C.panel, border: `1px solid ${cor}`, boxShadow: `inset 3px 0 0 ${cor}` }}>
+    <div className="text-[11px] font-semibold uppercase" style={{ color: cor }}>{t}</div>
+    <div className="text-lg font-bold tabular-nums" style={{ color: cor }}>{v}</div>
+    {sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}
+  </div>
+);
 const inp = "rounded px-2 py-1 text-sm text-right tabular-nums";
 const inpS = { border: `1px solid ${C.line}`, background: "#fff", color: C.text };
 
@@ -116,6 +123,11 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   };
   useEffect(() => { carregar(null); }, []);
   useEffect(() => { if (comp) carregar(comp); }, [comp]);
+  // v285 — retorno à operação e valor cobrado na FPP do setor (média dos últimos 3 meses, a mesma das Análises e da FPP)
+  const [rf, setRf] = useState(null);
+  const carregarRf = () => api(`/api/producao/analises?u=${user.id}&acao=retornoFpp`).then(setRf).catch(() => setRf(null));
+  useEffect(() => { carregarRf(); }, []);
+  useEffect(() => { if (aviso) carregarRf(); }, [aviso]);
   // v259 — ao voltar para a tela (ou a cada 2 min com ela aberta) relê o sistema: identificações novas entram na hora
   const compRef = useRef(comp); compRef.current = comp;
   useEffect(() => {
@@ -169,6 +181,12 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const G = !!d?.grade;   // v257 — silk/bordado: sem peças estimadas; compara com o mercado e mostra o custo por cor/milheiro
   // v261 — sem parâmetros estimados (peças estimadas / custo fixo): todas as análises comparam com o mercado (terceirizar)
   const bom = c && c.incorrido <= c.mediaTerc;
+  const MES3 = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const mesesTxt = (l) => (l || []).map((m) => `${MES3[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`).join(", ");
+  const chaveResumo = { CORTE: "CORTE", EXPEDICAO: "EXPEDICAO", COSTURA: "COSTURA", SILK: "PERSONALIZACAO", BORDADO: "PERSONALIZACAO" }[setor];
+  const rr = rf?.resumo?.setores?.[chaveResumo];
+  const pctFree = rf?.resumo?.freelancer?.pct || 0;
+  const fs = rf?.fpp?.[setor];
 
   return (
     <div>
@@ -242,6 +260,16 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
               {T.volta && <Kpi t="Contribuição bruta à operação" v={brl(c.terceirizado)} cor={C.navy}
                 sub={`${brl(c.mediaTerc)} por peça${G && c.unidades ? ` · ${brl(c.mercadoUnid)} por ${T.cor}` : ""} — ${T.volta}`} />}
               <Kpi t="Retorno interno" v={brl(c.economiaTerc)} cor={c.economiaTerc >= 0 ? C.green : C.red} sub={`${pct(c.retornoPct)} do terceirizado (${brl(c.terceirizado)})`} />
+              {/* v285 — retorno à operação e valor cobrado na FPP (média dos últimos 3 meses) */}
+              {rf && <KpiDestaque t={`Retorno à operação / peça${chaveResumo === "PERSONALIZACAO" ? " (silk + bordado)" : ""}`} cor={C.navy}
+                v={rr?.meses?.length ? brl(rr.valor) : "—"}
+                sub={rr?.meses?.length ? <>líquido {brl(rr.valor * (1 - pctFree))} (− {pct(pctFree, 2)} freelancers) · {rr.base === "SETOR" ? "por peça operada" : "por peça produzida"} · {mesesTxt(rr.meses)}</> : "sem análise nos últimos 3 meses"} />}
+              {rf && <KpiDestaque t="Valor cobrado na FPP" cor={C.accent}
+                v={setor === "SILK" ? `${brl(fs?.porCor)} / cor` : setor === "BORDADO" ? "—" : fs?.porPeca != null ? `${brl(fs.porPeca)} / pç` : "—"}
+                sub={setor === "SILK" ? <>contribuição ÷ cores aplicadas · {mesesTxt(rf.fpp.meses)}</>
+                  : setor === "BORDADO" ? "o bordado ainda não alimenta a FPP"
+                  : fs?.categorias?.length ? <>{fs.categorias.slice(0, 3).map((x) => `${x.n.toLowerCase()} ${brl(x.valor)}`).join(" · ")}{fs.categorias.length > 3 ? ` · +${fs.categorias.length - 3}` : ""} · média ponderada {mesesTxt(rf.fpp.meses)}</>
+                  : "sem mês completo (corte e expedição) para a FPP"} />}
           </div>
 
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
