@@ -168,6 +168,26 @@ const COND_PAGTO = {
   "BOLETO 30/60/90/120": [{ frac: .25, dias: 30, tipo: "boleto" }, { frac: .25, dias: 60, tipo: "boleto" }, { frac: .25, dias: 90, tipo: "boleto" }, { frac: .25, dias: 120, tipo: "boleto" }],
 };
 const COND_LISTA = Object.keys(COND_PAGTO);
+const MARGEM_SUGERIDA = 0.2;   // v294 — sugestão do valor proposto: 20% de margem de contribuição
+
+// v294 — costura: só os tipos condizentes com o nome da peça (camiseta não oferece calça etc.)
+const semAc = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+function costuraDaPeca(item, lista) {
+  const d = semAc(item);
+  if (!d) return lista;
+  const pre = (...ps) => lista.filter((c) => ps.some((p) => c.k === p || c.k.startsWith(p + "_")));
+  let l = null;
+  if (/AVENTAL/.test(d)) l = pre("AVENTAL");
+  else if (/TOUCA|MASCARA/.test(d)) l = pre("TOUCA");
+  else if (/CALCA|BERMUDA|SHORT/.test(d)) l = pre(/JEANS/.test(d) ? "CALCA_JEANS" : /SOCIAL/.test(d) ? "CALCA_SOCIAL" : "CALCA_OPERACIONAL");
+  else if (/JAQUETA|PARKA|CORTA.?VENTO/.test(d) || (/BLUSAO|AGASALHO/.test(d) && /BRIM|TACTEL|NYLON/.test(d))) l = pre("JAQUETA");
+  else if (/JALECO|GUARDA.?PO/.test(d)) l = pre("JALECO_OPERACIONAL");
+  else if (/POLO/.test(d)) l = pre("POLO");
+  else if (/MOLETOM|AGASALHO|BLUSAO|CASACO/.test(d)) l = pre("MOLETOM");
+  else if (/CAMISETA|BABY ?LOOK|REGATA|T-?SHIRT/.test(d)) l = pre(/\bML\b|MANGA LONGA/.test(d) ? "CAMISETA_ML" : /\bMC\b|MANGA CURTA/.test(d) ? "CAMISETA_MC" : "CAMISETA");
+  else if (/CAMISA/.test(d)) l = pre("CAMISA_SOCIAL");
+  return l && l.length ? l : lista;
+}
 
 // ----- Dias úteis (feriados nacionais/bancários do Brasil) -----
 function pascoa(y) {
@@ -214,7 +234,7 @@ function fichaVazia(tipo) {
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     personalizacoes: [], arteTotal: "", faccaoTipo: "",   // v272
     freteVolume: "", embExt: "", embInt: "SIMPLES",
-    opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "",
+    opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "", repassarTaxas: false, paramsAlterados: false,
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
   };
 }
@@ -278,6 +298,13 @@ function Fpp({ user, master }) {
     return row ? row.valor : 0;
   }
 
+  // v294 — costura: só tipos condizentes com a peça; com um único tipo possível, já escolhe
+  const costuraOpcoes = useMemo(() => costuraDaPeca(f.item, params?.OPERACIONAL?.costura || []), [f.item, params]);
+  useEffect(() => {
+    if (!f.item || !costuraOpcoes.length) return;
+    const atual = costuraOpcoes.find((c) => c.k === f.faccaoTipo);
+    if (!atual && costuraOpcoes.length === 1) setF((s0) => ({ ...s0, faccaoTipo: costuraOpcoes[0].k, faccao: String(costuraOpcoes[0].valor).replace(".", ",") }));
+  }, [costuraOpcoes]);
   const golas = params?.MALHA?.GOLA || [];
   const punhos = params?.MALHA?.PUNHO || [];
   const elasticos = params?.PLANO?.ELASTICO || [];
@@ -323,7 +350,9 @@ function Fpp({ user, master }) {
     // Personalização (arte rateada ÷ qtde + posições por peça)
     const perTec = (p) => (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0);
     const pn = persPorTecnica(f, params, false);
-    const personalizacao = perTec(f.silk) + perTec(f.bordado) + perTec(f.sublimacao) + pn.silk + pn.bordado + pn.sublimacao + num(f.arteTotal) / qt;
+    // v294 — arte/tela (silk) e programa (bordado) por aplicação: valor total do pedido, sempre terceirizado, rateado ÷ qtde
+    const artesApl = (Array.isArray(f.personalizacoes) ? f.personalizacoes : []).reduce((s0, a) => s0 + num(a.arte), 0);
+    const personalizacao = perTec(f.silk) + perTec(f.bordado) + perTec(f.sublimacao) + pn.silk + pn.bordado + pn.sublimacao + (num(f.arteTotal) + artesApl) / qt;
 
     // Logística
     const pcsPorVolume = pget("EMB_EXT", f.embExt, "und") * volProp || 1;
@@ -361,8 +390,17 @@ function Fpp({ user, master }) {
     const roic = custoFinal ? (vp - custoFinal) / custoFinal : 0;
     const margem = vp ? (vp - custoFinal) / vp : 0;
     const totalItem = vp * num(f.qtde);
+    // v294 — sugestão do valor proposto (20% de margem). Sem repassar: a empresa absorve título, investimento e comissão.
+    //   Repassando: o preço cobre essas taxas e a margem de 20% fica preservada.
+    let kTit = 0;
+    if (f.opTitulo === "SIM") for (const p of cond) if (p.tipo === "boleto") kTit += p.frac * cget("OP_TITULO_TAXA") * (prazoComComp(p.dias) / 30);
+    const denBase = 1 - imposto - MARGEM_SUGERIDA;
+    const denRep = 1 - imposto - comissaoPct - kTit - MARGEM_SUGERIDA;
+    const sugestaoBase = denBase > 0 ? custoProducao / denBase : null;
+    const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
+    const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -370,7 +408,7 @@ function Fpp({ user, master }) {
       tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
       negociacao: f.negociacao || null,
       condicaoPagamento: f.condPagamento, leadTime: num(f.leadTime),
-      entradas: f, overrides: Object.keys(over).length ? over : null,
+      entradas: { ...f, paramsAlterados: !!(modoOverride || Object.keys(over).length) }, overrides: Object.keys(over).length ? over : null,
       resultados: r,
       custoProducao: r?.custoProducao, custoFinal: r?.custoFinal, valorProposto: num(f.valorProposto),
       margem: r?.margem, totalItem: r?.totalItem,
@@ -396,6 +434,7 @@ function Fpp({ user, master }) {
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
     setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
     setOver(fpp.overrides || {});
+    setModoOverride(!!(e.paramsAlterados || (fpp.overrides && Object.keys(fpp.overrides).length)));   // v294
     setEditId(fpp.id); setEditNum(fpp.numero);
     setAba("ficha");
     setMsg(`Editando a FPP ${fmtFpp(fpp.numero)} ✓`);
@@ -417,7 +456,7 @@ function Fpp({ user, master }) {
     try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); carregarNegs(); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
     catch (e) { alert(`Não foi possível clonar: ${e.message}`); }
   }
-  function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setEditId(null); setEditNum(null); setMsg(""); }
+  function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setModoOverride(false); setEditId(null); setEditNum(null); setMsg(""); }
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setP = (tec, k, v) => setF((s) => ({ ...s, [tec]: { ...s[tec], [k]: v } }));
@@ -468,9 +507,11 @@ function Fpp({ user, master }) {
                 <Combo label="Negociação" value={f.negociacao} options={negs} livre
                   onChange={(v) => set("negociacao", String(v || "").toUpperCase())} onPick={(v) => set("negociacao", String(v || "").toUpperCase())}
                   placeholder="Escolha ou digite uma nova…" />
-                <div className="flex items-center gap-2 pb-1 md:col-span-2 flex-wrap">
+                {/* v294 — "alterar parâmetros" na altura do campo de negociação; a ficha fica marcada com ! na lista */}
+                <div className="flex items-center gap-2 md:col-span-3 flex-wrap self-end" style={{ minHeight: 34 }}>
                   <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) { setOver({}); setParamsLocaisOpen(false); } }} />
-                  <span className="text-xs" style={{ color: C.sub }}>Parâmetros só desta ficha</span>
+                  <span className="text-xs font-semibold" style={{ color: modoOverride ? C.accent : C.sub }}>Alterar parâmetros</span>
+                  {modoOverride && <span title="Ficha com parâmetros alterados" className="inline-flex items-center justify-center rounded-full text-[11px] font-bold" style={{ width: 18, height: 18, background: C.red, color: "#fff" }}>!</span>}
                   {modoOverride && (
                     <button onClick={() => setParamsLocaisOpen(true)} className="ml-1 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold"
                       style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
@@ -511,29 +552,38 @@ function Fpp({ user, master }) {
             </Card>
 
             <Card title="Produção">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                <div>
-                  {/* v272 — costura: o tipo de peça cobra o valor terceirizado registrado na análise da costura */}
-                  {(params?.OPERACIONAL?.costura || []).length > 0 && (
+              {/* v294 — linha da costura: tipo de peça (só os condizentes) · valor da facção (fixo, salvo com "alterar parâmetros") · terceirizado ⇄ interno */}
+              <div className="flex flex-wrap items-end gap-3 mb-3">
+                {(params?.OPERACIONAL?.costura || []).length > 0 && (
+                  <div className="flex-1" style={{ minWidth: 220 }}>
+                    <div className="text-xs mb-1" style={{ color: C.sub }}>Costura · tipo de peça</div>
                     <select value={f.faccaoTipo || ""} onChange={(e) => {
                       const c = (params.OPERACIONAL.costura || []).find((x) => x.k === e.target.value);
-                      setF((s0) => ({ ...s0, faccaoTipo: e.target.value, faccao: c ? String(c.valor).replace(".", ",") : s0.faccao }));
-                    }} className="w-full mb-1 px-2 py-1.5 rounded text-xs" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
-                      <option value="">Costura · tipo de peça…</option>
-                      {params.OPERACIONAL.costura.map((c) => <option key={c.k} value={c.k}>{c.n} · {brl(c.valor)}</option>)}
+                      setF((s0) => ({ ...s0, faccaoTipo: e.target.value, faccao: c ? String(c.valor).replace(".", ",") : "" }));
+                    }} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+                      <option value="">Escolha…</option>
+                      {costuraOpcoes.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
                     </select>
-                  )}
-                  <Inp label="Costura / facção (R$/peça)" value={f.faccao} onChange={(v) => set("faccao", v)} />
-                  <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: f.faccaoInterna ? C.accent : C.sub }}>
-                    <Toggle on={!!f.faccaoInterna} onChange={(v) => set("faccaoInterna", v)} /> Processo interno
                   </div>
+                )}
+                <div>
+                  <div className="text-xs mb-1 flex items-center gap-1" style={{ color: C.sub }}>Facção (R$/peça){modoOverride && <Pencil size={11} />}</div>
+                  {modoOverride || !(params?.OPERACIONAL?.costura || []).length ? (
+                    <input value={f.faccao} onChange={(e) => set("faccao", e.target.value)} inputMode="decimal"
+                      className="px-2 py-1.5 rounded text-sm" style={{ width: 110, background: "#fff", border: `1px ${modoOverride ? "dashed" : "solid"} ${modoOverride ? C.accent : C.line}`, color: C.text }} />
+                  ) : (
+                    <div className="px-2 py-1.5 rounded text-sm tabular-nums" style={{ width: 110, background: C.panel2, border: `1px solid ${C.line}`, color: C.text }} title="Valor da análise da costura · use Alterar parâmetros para mudar">{num(f.faccao) ? brl(num(f.faccao)) : "—"}</div>
+                  )}
                 </div>
+                <SeletorOrigem interno={!!f.faccaoInterna} onChange={(v) => set("faccaoInterna", v)} />
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
               </div>
               {params?.OPERACIONAL?.meses?.length > 0 && (
                 <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-                  Corte, {tipo === "MALHA" ? "expedição" : "acabamento"} e costura: média das Análises operacionais de {params.OPERACIONAL.meses.map((m) => m.slice(5, 7) + "/" + m.slice(2, 4)).join(", ")} (valor bruto por tipo de peça). Atualiza sozinho a cada mês completo novo.
+                  Corte, {tipo === "MALHA" ? "expedição" : "acabamento"} e costura: Análises operacionais de {params.OPERACIONAL.meses.map((m) => m.slice(5, 7) + "/" + m.slice(2, 4)).join(", ")}. Atualiza sozinho a cada mês completo novo.
                 </div>
               )}
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
@@ -541,10 +591,8 @@ function Fpp({ user, master }) {
 
             <Card title="Personalização">
               {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
-              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} />
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                <Inp label="Arte / tela (R$ total, rateado)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} />
-              </div>
+              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} />
+              {num(f.arteTotal) > 0 && <div className="mt-2"><Inp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} /></div>}
               {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
               {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
                 <div key={tec} className="mb-3">
@@ -562,6 +610,16 @@ function Fpp({ user, master }) {
               ))}
             </Card>
 
+            {/* v294 — lead time previsto logo depois da personalização */}
+            <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
+              <div className="text-sm font-bold" style={{ color: C.navy }}>Lead time previsto</div>
+              <div className="flex items-center gap-2">
+                <input value={f.leadTime} onChange={(e) => set("leadTime", e.target.value)} inputMode="numeric" className="px-2 py-1.5 rounded text-sm text-right" style={{ width: 80, background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                <span className="text-xs" style={{ color: C.sub }}>dias</span>
+              </div>
+              {num(f.leadTime) > 0 && <span className="text-xs" style={{ color: C.sub }}>entrega prevista em {new Date(Date.now() + num(f.leadTime) * 86400000).toLocaleDateString("pt-BR")}</span>}
+            </div>
+
             <Card title="Logística e embalagem">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Inp label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
@@ -572,25 +630,37 @@ function Fpp({ user, master }) {
             </Card>
 
             <Card title="Operação financeira">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="flex items-end gap-2 pb-1">
+              {/* v294 — ordem: condição de pagamento › operações (investimento / título) e comissão › valor proposto (sugestão 20%) */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div style={{ width: 260 }}><Combo label="Condição de pagamento" value={f.condPagamento} onChange={(v) => set("condPagamento", v)} options={COND_LISTA} placeholder="Digite…" /></div>
+                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
                   <span className="text-xs" style={{ color: C.sub }}>Op. investimento</span>
                 </div>
-                <div className="flex items-end gap-2 pb-1">
+                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
                   <Toggle on={f.opTitulo === "SIM"} onChange={(v) => set("opTitulo", v ? "SIM" : "NAO")} />
                   <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
                 </div>
-                <Combo label="Condição de pagamento" value={f.condPagamento} onChange={(v) => set("condPagamento", v)} options={COND_LISTA} placeholder="Digite…" />
-                <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                <Inp label="Lead time (dias)" value={f.leadTime} onChange={(v) => set("leadTime", v)} />
                 <Inp label="Comissão do vendedor (%)" value={f.comissaoPct} onChange={(v) => set("comissaoPct", v)} placeholder="ex.: 3" />
-                {num(f.comissaoPct) > 0 && r && <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Comissão: <b style={{ color: C.text }}>{brl(r.comissao)}</b>/peça · <b style={{ color: C.text }}>{brl(r.comissaoTotal)}</b> no pedido</div>}
+              </div>
+              {num(f.comissaoPct) > 0 && r && <div className="text-xs mt-1" style={{ color: C.sub }}>Comissão: <b style={{ color: C.text }}>{brl(r.comissao)}</b>/peça · <b style={{ color: C.text }}>{brl(r.comissaoTotal)}</b> no pedido</div>}
+              <div className="flex flex-wrap items-end gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+                <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} />
+                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
+                  <Toggle on={!!f.repassarTaxas} onChange={(v) => set("repassarTaxas", v)} />
+                  <span className="text-xs" style={{ color: f.repassarTaxas ? C.accent : C.sub }}>Repassar taxas financeiras</span>
+                </div>
+                {r?.sugestao != null && (
+                  <div className="text-xs pb-2" style={{ color: C.sub }}>
+                    Sugestão ({Math.round(MARGEM_SUGERIDA * 100)}% de margem{f.repassarTaxas ? ", com título, investimento e comissão repassados" : ""}): <b style={{ color: C.navy }}>{brl(r.sugestao)}</b>
+                    <button onClick={() => set("valorProposto", r.sugestao.toFixed(2).replace(".", ","))} className="ml-2 font-semibold underline" style={{ color: C.accent }}>usar</button>
+                    {f.repassarTaxas && r.sugestaoBase != null && <span className="ml-2">(sem repasse: {brl(r.sugestaoBase)})</span>}
+                  </div>
+                )}
               </div>
               <div className="text-[11px] mt-2" style={{ color: C.sub }}>
                 Investimento: juros sobre o custo durante todo o lead time. Título: juros por parcela em boleto (prazo + 2 dias úteis), conforme a condição de pagamento.
+                Sem repassar, a empresa absorve título, investimento e comissão (a margem real fica abaixo de {Math.round(MARGEM_SUGERIDA * 100)}%); repassando, o preço sugerido cobre essas taxas e preserva a margem.
               </div>
             </Card>
           </div>
@@ -1092,6 +1162,11 @@ function KpiFpp({ rotulo, valor, sub, cor }) {
 }
 const guiaFpp = (k) => GUIAS_FPP.find((g) => g.k === k);
 
+// v294 — ficha com parâmetros alterados (para análises futuras)
+const paramsAlterados = (f) => !!(f?.entradas?.paramsAlterados || (f?.overrides && Object.keys(f.overrides).length));
+function AlertaParams() {
+  return <span title="Parâmetros alterados nesta ficha" className="inline-flex items-center justify-center rounded-full text-[10px] font-bold ml-1.5 align-middle" style={{ width: 16, height: 16, background: C.red, color: "#fff" }}>!</span>;
+}
 function FichasSalvas({ master, onEditar, onClonar }) {
   const [lista, setLista] = useState(null);
   const [, setPv] = useState(0);
@@ -1331,7 +1406,7 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                 {cols.map((c) => {
                   let v = f[c.k];
                   if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
-                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{fmtFpp(v)}</td>;
+                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{fmtFpp(v)}{paramsAlterados(f) && <AlertaParams />}</td>;
                   else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-right font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{brl(valorFpp(f))}</td>;
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
@@ -1364,7 +1439,7 @@ function FichaDetalhe({ f, master, onClose, onProposta }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-bold" style={{ color: C.navy }}>{f.numero ? `FPP ${fmtFpp(f.numero)} · ` : ""}{f.nomeComercial || f.item}{f.negociacao ? ` · ${f.negociacao}` : ""}</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>{f.numero ? `FPP ${fmtFpp(f.numero)} · ` : ""}{f.nomeComercial || f.item}{f.negociacao ? ` · ${f.negociacao}` : ""}{paramsAlterados(f) && <AlertaParams />}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 text-sm space-y-1.5">
@@ -1599,7 +1674,7 @@ function ProposalModal({ fichas, onClose }) {
 
 /* ---------- pequenos componentes ---------- */
 // v272 — lista de aplicações de personalização da FPP
-function PersAplicacoes({ lista, onChange, params }) {
+function PersAplicacoes({ lista, onChange, params, qtde }) {
   const pc = silkPorCorDe(params);
   const add = () => onChange([...lista, { local: "PEITO_E", metodo: "SILK", cores: 1, valor: "", interno: true }]);
   const mud = (i, k, v) => onChange(lista.map((a, j) => {
@@ -1631,13 +1706,35 @@ function PersAplicacoes({ lista, onChange, params }) {
               <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel} /></label>
           )}
           <div className="text-xs font-semibold pb-1.5" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>
-          <div className="flex items-center gap-1 text-[11px] pb-1.5" style={{ color: a.interno ? C.accent : C.sub }}><Toggle on={!!a.interno} onChange={(v) => mud(i, "interno", v)} /> interno</div>
+          <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />
+          {/* v294 — arte/tela (silk/DTF) ou programa (bordado): valor total do pedido, sempre terceirizado, rateado ÷ qtde */}
+          {(a.metodo === "SILK" || a.metodo === "DTF" || a.metodo === "BORDADO") && (
+            <label className="text-[11px]" style={{ color: C.sub }}>{a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)
+              <input value={a.arte || ""} onChange={(e) => mud(i, "arte", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel}
+                title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} /></label>
+          )}
+          {num(a.arte) > 0 && <div className="text-[11px] pb-1.5" style={{ color: C.sub }}>+{brl(num(a.arte) / Math.max(1, qtde || 1))}/pç</div>}
           <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="ml-auto pb-1.5" style={{ color: C.sub }} title="Remover"><Trash2 size={13} /></button>
         </div>
       ))}
       <button type="button" onClick={add} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>
         <Plus size={13} /> Aplicação
       </button>
+    </div>
+  );
+}
+
+/* v294 — seletor terceirizado (esquerda, laranja) ⇄ interno (direita, azul) */
+function SeletorOrigem({ interno, onChange }) {
+  const cor = interno ? C.blue : C.accent;
+  return (
+    <div className="flex items-center gap-2 text-xs select-none" style={{ minHeight: 34 }}>
+      <button type="button" onClick={() => onChange(false)} className="font-semibold" style={{ color: !interno ? C.accent : C.sub }}>Terceirizado</button>
+      <button type="button" onClick={() => onChange(!interno)} title={interno ? "Interno: o valor volta para a operação" : "Terceirizado"}
+        style={{ width: 44, height: 24, borderRadius: 12, background: cor, position: "relative", transition: "background .15s", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 3, left: interno ? 23 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.3)" }} />
+      </button>
+      <button type="button" onClick={() => onChange(true)} className="font-semibold" style={{ color: interno ? C.blue : C.sub }}>Interno</button>
     </div>
   );
 }
@@ -1685,7 +1782,7 @@ function Inp({ label, value, onChange, destaque, text, placeholder }) {
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <input value={value} onChange={(e) => onChange(e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
-        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
+        className={`px-2 py-1.5 rounded text-sm ${text ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
     </div>
   );
 }
@@ -1830,9 +1927,9 @@ function Ref({ label, grupo, chave, campo, pget, over, setOver, modo }) {
       <div className="text-xs mb-1 flex items-center gap-1" style={{ color: C.sub }}>{label}{modo && <Pencil size={11} />}</div>
       {modo ? (
         <input value={val} placeholder={String(base)} onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))} inputMode="decimal"
-          className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
+          className="w-36 px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
       ) : (
-        <div className="px-2 py-1.5 rounded text-sm" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{base || "—"}</div>
+        <div className="w-36 px-2 py-1.5 rounded text-sm" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{base || "—"}</div>
       )}
     </div>
   );
