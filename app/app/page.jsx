@@ -440,24 +440,29 @@ function CardsGrupo({ grupo, ir, user }) {
         {volta && (
           <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.sidebar, color: "#fff" }}>
             <div className="text-[10px] font-semibold uppercase" style={{ color: C.sidebarSub }}>Contribuição bruta total à operação por peça produzida</div>
-            <div className="text-2xl font-bold tabular-nums mt-1 flex items-center">{brlV(volta.total)}
+            {/* v298 — valor no rodapé, na mesma altura dos cards dos setores */}
+            <div className="mt-auto pt-3 w-full" style={{ borderTop: "1px solid rgba(255,255,255,.18)" }}>
+            <div className="text-[10px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sidebarSub }}>Bruta/peça</div>
+            <div className="text-lg font-bold tabular-nums flex items-center">{brlV(volta.total)}
             <InfoCalc claro>
               Soma das etapas, média dos últimos 6 meses encerrados com registro. Contribuição bruta: corte e expedição = custo real do setor (pessoal + freelancers); costura, silk e bordado = valor de mercado × quantidade (silk: R$ 0,80 × cores; bordado: terceirizado médio por peça); logística = valor cobrado na FPP por peça (folha + custos, sem frete entrega).
               Corte e expedição: por peça do setor (todas passam por eles). Costura, silk e bordado: por peça produzida (expedida), pois só parte das peças passa por eles.
-            </InfoCalc></div>
+            </InfoCalc></div></div>
           </div>
         )}
         {/* v267 — contribuição líquida: bruta × (1 − % freelancer da mão de obra operacional) */}
         {volta && (
           <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.accent, color: "#fff" }}>
             <div className="text-[10px] font-semibold uppercase" style={{ color: "#FFE3D1" }}>Contribuição líquida à operação precificada por peça</div>
-            <div className="text-2xl font-bold tabular-nums mt-1 flex items-center">{brlV(volta.liquida)}
+            <div className="mt-auto pt-3 w-full" style={{ borderTop: "1px solid rgba(255,255,255,.3)" }}>
+            <div className="text-[10px] font-semibold uppercase whitespace-nowrap" style={{ color: "#FFE3D1" }}>Líquida/peça</div>
+            <div className="text-lg font-bold tabular-nums flex items-center">{brlV(volta.liquida)}
             <InfoCalc claro>
               <b>Produção {brlV(volta.producao ?? volta.total)} − {(volta.freelancer.pct * 100).toFixed(2).replace(".", ",")}% de freelancers{volta.logistica ? ` + logística ${brlV(volta.logistica)}` : ""}.</b><br />
               % freelancers oficial (o mesmo da Capacidade e da Matriz) = freelancers ÷ (folha + freelancers) de todos os setores
               {volta.freelancer.meses.length ? ` em ${volta.freelancer.meses.map((m) => MES_CURTO[Number(m.slice(5, 7)) - 1]).join(", ")}` : ""}:
               folha {brlV(volta.freelancer.folha)} · freelancers {brlV(volta.freelancer.freelancer)}. Folha pela Matriz; freelancers só do extrato identificado (os mesmos das análises).
-            </InfoCalc></div>
+            </InfoCalc></div></div>
           </div>
         )}
       </div>
