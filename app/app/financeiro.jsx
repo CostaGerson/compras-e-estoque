@@ -1428,6 +1428,8 @@ function PainelPrevisao({ user, comp, setComp }) {
               <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
                 onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
               <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
+              {P.virtual && (() => { const V = P.virtual; const vt = V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0);
+                return <CardAuto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
               <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
               <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
@@ -1588,6 +1590,27 @@ function PainelPrevisao({ user, comp, setComp }) {
 
       )}
       {modal?.tipo === "receber" && <DetalheReceber titulo={modal.titulo} b={modal.b} onClose={() => setModal(null)} />}
+      {modal?.tipo === "pagarVirtual" && P.virtual && (() => {
+        const V = P.virtual, cmv = Number(val("cmvAndamento")) || 0, trib = Number(val("passivoTributario")) || 0;
+        const vt = V.real + V.previsoesProx + V.quitacao.total + cmv + trib;
+        const mes1 = nomeMesAno(V.mesSeguinte);
+        return (
+          <Modal titulo="Contas a pagar · real e virtual" icone={Search} onClose={() => setModal(null)} largura={620}>
+            <LinhaVal rotulo="Real" sub={`${V.qtdReal} conta(s) em aberto depois de ${nomeMesAno(p.mesPrevisto)}, sem previsões${V.parcelasDividaFora ? ` e sem ${brl(V.parcelasDividaFora)} de parcelas de contratos (estão na quitação)` : ""}`} valor={V.real} cor={C.red} forte />
+            <LinhaVal rotulo="Virtual" sub="real + previsões + quitação das dívidas + CMV em andamento + passivo tributário" valor={vt} cor={C.red} forte />
+            <div className="text-[11px] font-bold uppercase mt-3 mb-1" style={{ color: C.navy }}>Composição do virtual</div>
+            <LinhaVal rotulo="Real" valor={V.real} cor={C.sub} />
+            <LinhaVal rotulo={`Previsões de ${mes1}`} sub={`${V.qtdPrevisoesProx} previsão(ões) — mais um mês de operação`} valor={V.previsoesProx} cor={C.sub} />
+            <LinhaVal rotulo={`Quitação das dívidas em ${mes1}`} sub={V.quitacao.erro ? `erro na alavancagem: ${V.quitacao.erro}` : `saldo devedor de ${V.quitacao.contratos.length} contrato(s), sem tributárias (essas estão no real)`} valor={V.quitacao.total} cor={C.sub} />
+            {V.quitacao.contratos.length > 0 && <div className="ml-3 mb-1">{V.quitacao.contratos.map((c, i) => (
+              <div key={i} className="flex justify-between text-[11px] py-0.5" style={{ color: C.sub }}><span>{c.nome}{c.credor ? ` · ${c.credor}` : ""}</span><span className="tabular-nums">{brl(c.saldo)}</span></div>
+            ))}</div>}
+            <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>CMV dos pedidos em andamento <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("cmvAndamento")} onChange={set("cmvAndamento")} width={132} /></label>
+            <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>Passivo tributário <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("passivoTributario")} onChange={set("passivoTributario")} width={132} /></label>
+            <div className="text-[11px] mt-2" style={{ color: C.sub }}>Os campos digitados entram ao salvar o painel.</div>
+          </Modal>
+        );
+      })()}
       {modal?.tipo === "pedidos" && <PedidosPainelModal titulo={modal.titulo} k={modal.k} lista={p.manual?.pedidosLista || []} mes={p.mesPrevisto} onClose={() => setModal(null)} />}
       {modal?.tipo === "foraMes" && <DetalheReceber titulo={`A receber depois de ${nomeMesAno(p.mesPrevisto)}`} b={R.foraMes} onClose={() => setModal(null)} />}
       {modal?.tipo === "pagarAtrasadas" && (

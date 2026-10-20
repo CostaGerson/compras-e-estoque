@@ -24,14 +24,14 @@ export const BANCOS_PADRAO = [
 const PAINEL_VAZIO = {
   bancos: [], prioridade: [], quitacaoProvavel: [],
   receberPrevisao: null,
-  pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null, entregasMes: null, recebimentosMes: null, andamento: null,
+  pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null, cmvAndamento: null, passivoTributario: null, entregasMes: null, recebimentosMes: null, andamento: null,
   infoRelevante: "", salvos: [], atualizadoAuto: null,
 };
 // Campos digitados (a tela e o salvar usam esta lista)
-export const CAMPOS_MANUAIS = ["receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
+export const CAMPOS_MANUAIS = ["cmvAndamento", "passivoTributario", "receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
 
 const SEL = { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, previsao: true,
-  antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true };
+  antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true, recorrenciaId: true };
 const tOut = (t, mod) => ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: r2(t.valor), vencimento: iso(t.vencimento), numeroDoc: t.numeroDoc || null, previsao: !!t.previsao, modalidade: mod || null, pagoParcial: t.pagoParcial || null });
 const soma = (l) => r2(l.reduce((s, t) => s + Number(t.valor), 0));
 const antecipado = (t) => !!t.antecipadoForma || t.cobranca === "DESCONTADO";
@@ -77,6 +77,25 @@ async function posicao(M, hoje) {
   };
   // v341 — referência para a antecipação: a receber em aberto, a vencer, não antecipado e que não é previsão
   const antecipaveis = real.filter((t) => !vencido(t) && !t.previsao);
+  // v346 — contas a pagar REAL × VIRTUAL
+  //   real: em aberto depois do mês M, sem previsões e sem as parcelas dos contratos de dívida (a quitação cobre)
+  //   virtual: real + previsões do mês seguinte (M+1) + quitação do saldo devedor das dívidas não tributárias em M+1
+  //            + CMV dos pedidos em andamento + passivo tributário (esses dois digitados no painel)
+  const recsDivida = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|dividas|CONTRATO:" } }, select: { id: true } }).catch(() => []);
+  const idsDivida = new Set(recsDivida.map((r) => r.id));
+  const ehDivida = (t) => t.recorrenciaId && idsDivida.has(t.recorrenciaId);
+  const M1 = mesSeguinte(M), ini1 = `${M1}-01`, fim1 = fimDoMes(M1);
+  const pagarReal = pagar.filter((t) => depois(t) && !t.previsao && !ehDivida(t));
+  const prevProx = pagar.filter((t) => t.previsao && venc(t) >= ini1 && venc(t) <= fim1 && !ehDivida(t));
+  let quitacao = { total: 0, contratos: [], erro: null };
+  try {
+    const { panorama } = await import("@/lib/alavancagem");
+    const pn = await panorama(new Date(`${fim}T12:00:00Z`));   // posição no fim do mês M → quitação em M+1
+    const cs = pn.grupos.flatMap((g) => g.itens.map((x) => ({ grupo: g.label, nome: x.nome, credor: x.credor, saldo: r2(x.quitado ? 0 : (x.amort?.saldoDevedor ?? x.saldoCapital ?? 0)) }))).filter((x) => x.saldo > 0.009);
+    quitacao = { total: r2(cs.reduce((a, x) => a + x.saldo, 0)), contratos: cs, erro: null };
+  } catch (e) { quitacao.erro = e.message; }
+  const pagarVirtual = { mesSeguinte: M1, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
+    quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t))) };
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
   const pagarAtras = pagar.filter(vencido);   // v311 — atrasadas incluem previsões
   const pagarMes = pagar.filter(noMes);
@@ -92,6 +111,7 @@ async function posicao(M, hoje) {
       atrasadas: soma(pagarAtras), qtdAtrasadas: pagarAtras.length,
       mes: soma(pagarMes), mesPrevisoes: soma(pagarMes.filter((t) => t.previsao)), qtdMes: pagarMes.length,
       totalSemPrevisao: soma(pagarSemPrev),
+      virtual: pagarVirtual,
     },
     listas: {
       pagarAtrasadas: pagarAtras.map((t) => tOut(t)),
