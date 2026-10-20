@@ -9,6 +9,7 @@ export const TOLERANCIA = 0.02;    // centavos de diferença aceitos sem ressalv
 // v166: com o nome do credor/pagador batendo, aceita conta vencida há mais tempo e pagamento com juros/multa
 export const JANELA_NOME = 60;     // dias, quando o nome bate
 export const JUROS_MAX = 0.15;     // até 15% acima da conta, quando o nome bate
+export const JANELA_ATRASADO = 365;  // v331 — a receber bem atrasado: cliente paga meses depois; casa com valor exato + nome
 
 const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const palavras = (t) => semAcento(t).replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter((p) => p.length >= 4);
@@ -62,7 +63,7 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
 
   // títulos ainda em aberto, no intervalo de datas dos lançamentos ± janela
   const datas = lancamentos.map((l) => new Date(l.data).getTime());
-  const de = new Date(Math.min(...datas) - JANELA_NOME * MS_DIA);
+  const de = new Date(Math.min(...datas) - JANELA_ATRASADO * MS_DIA);   // v331 — alcança contas a receber atrasadas
   const ate = new Date(Math.max(...datas) + JANELA_DIAS * MS_DIA);
   const titulos0 = await prisma.finTitulo.findMany({
     where: { status: "ABERTO", vencimento: { gte: de, lte: ate } },
@@ -129,7 +130,8 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
         const juros = nome && valor > Number(t.valor) && valor <= r2(Number(t.valor) * (1 + JUROS_MAX));
         return { t, dif, dias, sim, exato, nome, juros };
       })
-      .filter((c) => (c.exato && Math.abs(c.dias) <= JANELA_DIAS) || (c.nome && (c.exato || c.juros) && c.dias >= -JANELA_DIAS && c.dias <= JANELA_NOME))
+      .filter((c) => { const janelaNome = c.t.tipo === "RECEBER" ? JANELA_ATRASADO : JANELA_NOME;   // v331 — recebível atrasado casa por mais tempo
+        return (c.exato && Math.abs(c.dias) <= JANELA_DIAS) || (c.nome && (c.exato || c.juros) && c.dias >= -JANELA_DIAS && c.dias <= janelaNome); })
       .filter((c) => fase === 2 || c.dif <= TOLERANCIA || c.nome)
       .sort((a, b) => (b.exato - a.exato) || (b.nome - a.nome) || (a.dif - b.dif) || (Math.abs(a.dias) - Math.abs(b.dias)) || (b.sim - a.sim));
 
