@@ -25,7 +25,7 @@ const PAINEL_VAZIO = {
   bancos: [], prioridade: [], quitacaoProvavel: [],
   receberPrevisao: null,
   pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null,
-  infoRelevante: "", salvos: [],
+  infoRelevante: "", salvos: [], atualizadoAuto: null,
 };
 // Campos digitados (a tela e o salvar usam esta lista)
 export const CAMPOS_MANUAIS = ["receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
@@ -166,6 +166,24 @@ export async function salvarPainel(competencia, { saldoInicial, dados, quem, ret
     await prisma.finMesPainel.update({ where: { competencia }, data: { dados: novo } });
   }
   return painel(competencia);
+}
+
+// v337 — botão Atualizar: sincroniza as contas (antecipados) e puxa os pedidos do PCP/KM para o mês previsto.
+// Preenche pedidos a entregar (saldo a faturar), a receber no mês (parcelas dos pedidos em M) e pedidos em andamento
+// (tudo que os pedidos ainda vão gerar, sem as entradas já lançadas no contas a receber). Bancos e antecipação seguem digitados.
+export async function atualizarPainel(competencia, quem) {
+  const M = mesSeguinte(competencia);
+  const avisos = [];
+  try { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem); }
+  catch (e) { avisos.push(`Contas: ${e.message}`); }
+  let resumo = null, crono = null;
+  try { const { listarPedidos } = await import("@/lib/pedidos"); const r = await listarPedidos({ competencia: M }); resumo = r.resumo; crono = r.crono; }
+  catch (e) { avisos.push(`Pedidos: ${e.message}`); }
+  if (crono && crono.ok === false) avisos.push(`PCP: ${crono.erro || "sem conexão"} (usei a última programação recebida)`);
+  const dados = { atualizadoAuto: { em: new Date().toISOString(), por: quem || null, qtdPedidos: resumo?.qtdPedidos ?? null, avisos } };
+  if (resumo) Object.assign(dados, { pedidosEntregar: resumo.totalAndamento, recebimentoMes: resumo.noMes, pedidosAndamento: resumo.aReceberPrevisto });
+  const pn = await salvarPainel(competencia, { dados, quem });
+  return { ...pn, avisos };
 }
 
 // v313 — exclui um painel salvo (confere a data para não apagar outro)

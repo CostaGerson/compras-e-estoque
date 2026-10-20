@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { painel, salvarPainel, painelSalvo, excluirSalvo, previstoRealizado, mesSeguinte } from "@/lib/finPainel";
+import { painel, salvarPainel, atualizarPainel, painelSalvo, excluirSalvo, previstoRealizado, mesSeguinte } from "@/lib/finPainel";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const mesAnt = (c) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 2, 1)); return d.toISOString().slice(0, 7); };
@@ -43,6 +43,10 @@ export async function PUT(req) {
   if (!u) return negadoGerencial();
   const comp = b?.competencia || "";
   if (!/^\d{4}-\d{2}$/.test(comp)) return Response.json({ error: "Competência inválida." }, { status: 400 });
+  if (b.acao === "atualizar") {
+    try { return Response.json({ ok: true, ...(await atualizarPainel(comp, quemE(u))) }); }
+    catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
+  }
   const out = await salvarPainel(comp, {
     saldoInicial: b.saldoInicial === undefined ? undefined : (b.saldoInicial === null ? null : Number(b.saldoInicial)),
     dados: b.dados, quem: quemE(u), retrato: !!b.retrato,

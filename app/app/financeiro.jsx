@@ -1262,6 +1262,23 @@ function PainelPrevisao({ user, comp, setComp }) {
     setSalvando(false);
   };
 
+  // v337 — Atualizar: contas ao vivo + pedidos do PCP/KM (mantém o que foi digitado nos demais campos)
+  const [atualizando, setAtualizando] = useState(false);
+  const atualizar = async () => {
+    setAtualizando(true); setErro(""); setOk("");
+    try {
+      const r = await fetch("/api/fin/painel", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: user.id, competencia: comp, acao: "atualizar" }) });
+      const j = await r.json();
+      if (r.ok) {
+        setP(j);
+        setRasc((x) => { const y = { ...x }; delete y.pedidosEntregar; delete y.recebimentoMes; delete y.pedidosAndamento; return y; });
+        setOk(`Atualizado com as contas e os pedidos de agora${j.avisos?.length ? ` · ${j.avisos.join(" · ")}` : ""}.`);
+      } else setErro(j.error || "Erro ao atualizar.");
+    } catch { setErro("Falha de conexão."); }
+    setAtualizando(false);
+  };
+
   // tudo recalculado na tela com o que está sendo digitado (o servidor faz a mesma conta ao salvar)
   const calc = useMemo(() => {
     if (!p) return null;
@@ -1322,6 +1339,10 @@ function PainelPrevisao({ user, comp, setComp }) {
         {p?.anteriorTemSalvo && <button onClick={abrirComparacao} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}>
           <ArrowLeftRight size={14} /> Previsto × realizado</button>}
         {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
+        <button disabled={atualizando || salvando} onClick={atualizar} title="Puxa os valores mais recentes: contas a pagar e a receber e pedidos do PCP"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.blue}`, color: C.blue, background: C.panel, opacity: atualizando ? 0.6 : 1 }}>
+          <RefreshCw size={15} className={atualizando ? "animate-spin" : ""} /> {atualizando ? "Atualizando…" : "Atualizar"}
+        </button>
         <button disabled={salvando} onClick={() => salvar(true)} title="Grava e guarda este painel com a data de hoje"
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: salvando ? 0.45 : 1 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar painel
@@ -1392,7 +1413,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           {/* previsões de entrega / recebimento */}
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos virão do sistema do Maycon (integração); antecipação disponível é digitada.</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos vêm do PCP pelo botão <b>Atualizar</b>{p.manual?.atualizadoAuto?.em ? <> (última: {dataHora(p.manual.atualizadoAuto.em)})</> : " (ainda não atualizado)"}; antecipação disponível é digitada.</div>
             {[["pedidosEntregar", "Pedidos a entregar"], ["recebimentoMes", "A receber no mês (entregas)"], ["pedidosAndamento", "Pedidos em andamento"], ["antecipacaoDisp", "Antecipação disponível"]].map(([k, t]) => (
               <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
             ))}
