@@ -1233,14 +1233,14 @@ function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
       const linhas = [];
       for (const p of itens) {
         const ps = parcs(p);
-        const base = { Pedido: p.numero, Cliente: p.cliente, "Peças": p.pecas || 0, "Entrega prevista": dt(p.entrega), Atrasado: p.atrasado ? "SIM" : "" };
+        const base = { Pedido: p.numero, Cliente: p.cliente, "Peças": p.pecas || 0, "Entrega prevista": dt(p.entrega), "Origem da data": p.origem || "", Atrasado: p.atrasado ? "SIM" : "", "Concluído no PCP": p.pronto ? "SIM" : "" };
         if (!ps.length) linhas.push({ ...base, "Pagamento previsto": null, "Valor da parcela": null, "Valor do pedido": valor(p) });
         else ps.forEach((x, i) => linhas.push({ ...base, "Pagamento previsto": dt(x.data), "Valor da parcela": x.valor, Tipo: x.tipo === "ENTRADA" ? "ENTRADA" : "PARCELA", "Valor do pedido": i === 0 ? valor(p) : null }));
       }
-      const ws = XLSX.utils.json_to_sheet(linhas, { header: ["Pedido", "Cliente", "Peças", "Entrega prevista", "Atrasado", "Pagamento previsto", "Tipo", "Valor da parcela", "Valor do pedido"], cellDates: true, dateNF: "dd/mm/yyyy" });
-      ws["!cols"] = [{ wch: 12 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 9 }, { wch: 16 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+      const ws = XLSX.utils.json_to_sheet(linhas, { header: ["Pedido", "Cliente", "Peças", "Entrega prevista", "Origem da data", "Atrasado", "Concluído no PCP", "Pagamento previsto", "Tipo", "Valor da parcela", "Valor do pedido"], cellDates: true, dateNF: "dd/mm/yyyy" });
+      ws["!cols"] = [{ wch: 12 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
       const rg = XLSX.utils.decode_range(ws["!ref"]);
-      for (let r = 1; r <= rg.e.r; r++) for (const c of [7, 8]) { const cel = ws[XLSX.utils.encode_cell({ r, c })]; if (cel && typeof cel.v === "number") cel.z = "#,##0.00"; }
+      for (let r = 1; r <= rg.e.r; r++) for (const c of [9, 10]) { const cel = ws[XLSX.utils.encode_cell({ r, c })]; if (cel && typeof cel.v === "number") cel.z = "#,##0.00"; }
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Pedidos");
       const nome = `${titulo.replace(/[()\/]/g, "").replace(/\s+/g, "_").toLowerCase()}.xlsx`;
       XLSX.writeFile(wb, nome);
@@ -1265,7 +1265,7 @@ function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
               <td className="px-2 py-1.5 font-semibold whitespace-nowrap">{p.numero}</td>
               <td className="px-2 py-1.5">{p.cliente}</td>
               <td className="px-2 py-1.5 text-right tabular-nums">{(p.pecas || 0).toLocaleString("pt-BR")}</td>
-              <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: p.atrasado ? C.red : undefined }}>{p.entrega ? dBR(p.entrega) : "—"}{p.atrasado ? " · atrasado" : ""}</td>
+              <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: p.atrasado ? C.red : undefined }}>{p.entrega ? dBR(p.entrega) : "—"}{p.origem && <span className="ml-1 px-1 rounded text-[9px] font-bold" style={{ background: p.origem === "PCP" ? C.blueSoft : C.panel2, color: p.origem === "PCP" ? C.blue : C.sub }}>{p.origem}</span>}{p.atrasado ? " · atrasado" : p.pronto ? <span style={{ color: C.green }}> · concluído no PCP</span> : ""}</td>
               <td className="px-2 py-1.5">{parcs(p).length ? parcs(p).map((x, i) => <div key={i} className="whitespace-nowrap">{dBR(x.data)} · {brl(x.valor)}{x.tipo === "ENTRADA" ? " (entrada)" : ""}</div>) : "—"}</td>
               <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{brl(valor(p))}</td>
             </tr>

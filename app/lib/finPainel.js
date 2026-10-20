@@ -239,7 +239,7 @@ export async function atualizarPainel(competencia, quem) {
     // v342 — lista dos pedidos (para abrir ao clicar): nº, cliente, peças, entrega prevista e parcelas
     const entIds = new Set(ent.map((p) => p.id)), recIds = new Set(rec.map((p) => p.id));
     dados.pedidosLista = tot.map((p) => ({
-      id: p.id, numero: p.numero, cliente: p.cliente, pecas: p.qtEntregar != null ? p.qtEntregar : p.qtd || 0, entrega: p.entregaPrevista || p.despacho || p.previsao?.base || null,
+      id: p.id, numero: p.numero, cliente: p.cliente, pecas: p.qtEntregar != null ? p.qtEntregar : p.qtd || 0, entrega: p.entregaPrevista || p.despacho || p.previsao?.base || null, origem: p.entregaPrevista ? "PCP" : p.despacho ? "KM" : null, pronto: !!p.previsao?.pronto,
       atrasado: !!p.previsao?.atrasado, saldo: saldo(p), noMes: p.noMes || 0, ent: entIds.has(p.id), rec: recIds.has(p.id),
       parcelas: (p.previsao?.parcelas || []).map((x) => ({ data: x.data, valor: x.valor, tipo: x.tipo })),
     }));
