@@ -1420,7 +1420,8 @@ function PainelPrevisao({ user, comp, setComp }) {
       {!p && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
 
       {p && calc && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))" }}>
+        /* v349 — 1ª linha: posição automática, contas atrasadas, contas a receber, previsões · 2ª linha: cenários e informações relevantes */
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
           {/* posição automática */}
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
@@ -1505,10 +1506,10 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* cenários */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} md:col-span-1 2xl:col-span-2`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Cenários</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Calculados com tudo acima (passe o mouse para ver a conta).</div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
               {[
                 ["Cenário geral", Cn.geral, `a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`],
                 ["Cenário do mês", Cn.mes, `saldos positivos ${brl(calc.caixa.saldoPositivo)} + entradas ${brl(calc.entradas)} (a receber no mês + quitação provável de meses anteriores + entregas) − saídas ${brl(calc.saidas)} (a pagar no mês + prioridade de meses anteriores; as do mês já estão no a pagar)`],
@@ -1526,7 +1527,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* informações relevantes */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} md:col-span-1 2xl:col-span-2`} style={caixaSt}>
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Informações relevantes</div>
             <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={6}
               placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
@@ -1536,7 +1537,7 @@ function PainelPrevisao({ user, comp, setComp }) {
 
           {/* painéis salvos */}
           {p.salvos?.length > 0 && (
-            <div className={caixaBloco} style={caixaSt}>
+            <div className={`${caixaBloco} md:col-span-2 2xl:col-span-4`} style={caixaSt}>
               <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Painéis salvos</div>
               {[...p.salvos].map((s, i) => ({ ...s, i })).reverse().map((s) => (
                 <div key={s.i} className="flex items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
