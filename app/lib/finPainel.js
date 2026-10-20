@@ -24,7 +24,7 @@ export const BANCOS_PADRAO = [
 const PAINEL_VAZIO = {
   bancos: [], prioridade: [], quitacaoProvavel: [],
   receberPrevisao: null,
-  pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null,
+  pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null, entregasMes: null, recebimentosMes: null, andamento: null,
   infoRelevante: "", salvos: [], atualizadoAuto: null,
 };
 // Campos digitados (a tela e o salvar usam esta lista)
@@ -75,10 +75,13 @@ async function posicao(M, hoje) {
     return { real: soma(rl), virtual: r2(soma(rl) + soma(vt)), antecipados: soma(vt), cobranca: soma(cb), execucao: soma(ex),
       qtd: rl.length, qtdAntecipados: vt.length, qtdCobranca: cb.length, qtdExecucao: ex.length };
   };
+  // v341 — referência para a antecipação: a receber em aberto, a vencer, não antecipado e que não é previsão
+  const antecipaveis = real.filter((t) => !vencido(t) && !t.previsao);
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
   const pagarAtras = pagar.filter(vencido);   // v311 — atrasadas incluem previsões
   const pagarMes = pagar.filter(noMes);
   return {
+    antecipaveis: { valor: soma(antecipaveis), qtd: antecipaveis.length },
     receber: {
       geral: bloco(() => true),
       mes: bloco(noMes),
@@ -148,7 +151,7 @@ export async function painel(competencia, hojeData = new Date()) {
     auto, pos: { receber: pos.receber, pagar: pos.pagar }, listas: { pagarAtrasadas: pos.listas.pagarAtrasadas, receberAtrasados: pos.listas.receberAtrasados },
     manual: { ...dados, salvos: undefined }, bancos, caixa,
     selecionados: { prioridade, quitacao, totPrioridade, totQuitacao },
-    cenarios,
+    cenarios, antecipaveis: pos.antecipaveis,
     atrasadoReceber: pos.receber.atrasado.cobranca,
     salvos: (dados.salvos || []).map((s) => ({ em: s.em, por: s.por, cenarios: s.snapshot?.cenarios || null })),
     anteriorTemSalvo: !!(ant?.dados?.salvos || []).length,
@@ -188,12 +191,25 @@ export async function atualizarPainel(competencia, quem) {
   catch (e) { avisos.push(`Compras em dobro: ${e.message}`); }
   try { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem); }
   catch (e) { avisos.push(`Contas: ${e.message}`); }
-  let resumo = null, crono = null;
-  try { const { listarPedidos } = await import("@/lib/pedidos"); const r = await listarPedidos({ competencia: M }); resumo = r.resumo; crono = r.crono; }
+  let resumo = null, crono = null, pedidos = [];
+  try { const { listarPedidos } = await import("@/lib/pedidos"); const r = await listarPedidos({ competencia: M }); resumo = r.resumo; crono = r.crono; pedidos = r.pedidos || []; }
   catch (e) { avisos.push(`Pedidos: ${e.message}`); }
   if (crono && crono.ok === false) avisos.push(`PCP: ${crono.erro || "sem conexão"} (usei a última programação recebida)`);
   const dados = { atualizadoAuto: { em: new Date().toISOString(), por: quem || null, qtdPedidos: resumo?.qtdPedidos ?? null, avisos } };
-  if (resumo) Object.assign(dados, { pedidosEntregar: resumo.totalAndamento, recebimentoMes: resumo.noMes, pedidosAndamento: resumo.aReceberPrevisto });
+  if (resumo) {
+    // v341 — valor e quantidade de pedidos de cada linha (pedidos em andamento, sem os internos NORT)
+    const and = pedidos.filter((p) => p.status === "ANDAMENTO" && !p.interno);
+    const saldo = (p) => r2(p.vlEntregar != null ? p.vlEntregar : p.total);
+    const ent = and.filter((p) => String(p.previsao?.base || "").slice(0, 7) === M && saldo(p) > 0);
+    const rec = and.filter((p) => p.noMes > 0);
+    const tot = and.filter((p) => saldo(p) > 0);
+    const sm = (l, f) => r2(l.reduce((a, p) => a + f(p), 0));
+    dados.entregasMes = { valor: sm(ent, saldo), qtd: ent.length };
+    dados.recebimentosMes = { valor: sm(rec, (p) => p.noMes), qtd: rec.length };
+    dados.andamento = { valor: sm(tot, saldo), qtd: tot.length, aReceber: resumo.aReceberPrevisto };
+    // campos usados nos cenários
+    Object.assign(dados, { pedidosEntregar: dados.entregasMes.valor, recebimentoMes: dados.recebimentosMes.valor, pedidosAndamento: resumo.aReceberPrevisto });
+  }
   const pn = await salvarPainel(competencia, { dados, quem });
   return { ...pn, avisos };
 }

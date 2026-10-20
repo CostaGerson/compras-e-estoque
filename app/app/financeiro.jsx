@@ -1415,9 +1415,25 @@ function PainelPrevisao({ user, comp, setComp }) {
           <div className={caixaBloco} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos vêm do PCP pelo botão <b>Atualizar</b>{p.manual?.atualizadoAuto?.em ? <> (última: {dataHora(p.manual.atualizadoAuto.em)})</> : " (ainda não atualizado)"}; antecipação disponível é digitada.</div>
-            {[["pedidosEntregar", "Pedidos a entregar"], ["recebimentoMes", "A receber no mês (entregas)"], ["pedidosAndamento", "Pedidos em andamento"], ["antecipacaoDisp", "Antecipação disponível"]].map(([k, t]) => (
-              <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
-            ))}
+            {/* v341 — valor e quantidade de pedidos */}
+            {[["entregasMes", `Entregas programadas (${nomeMesAno(p.mesPrevisto)})`, "pedido(s) com entrega no mês"],
+              ["recebimentosMes", `Recebimentos programados (${nomeMesAno(p.mesPrevisto)})`, "pedido(s) com parcela no mês"],
+              ["andamento", "Total em andamento", "pedido(s) em aberto"]].map(([k, t, u]) => {
+              const d = p.manual?.[k];
+              return (
+                <div key={k} className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${C.line}` }}
+                  title={k === "andamento" && d?.aReceber != null ? `Ainda a receber destes pedidos (sem entradas já lançadas): ${brl(d.aReceber)} — é o valor que entra no cenário geral` : undefined}>
+                  <div><div className="text-xs font-semibold" style={{ color: C.text }}>{t}</div>
+                    <div className="text-[11px]" style={{ color: C.sub }}>{d ? `${d.qtd} ${u}` : "clique em Atualizar"}{k === "andamento" && d?.aReceber != null ? ` · a receber ${brl(d.aReceber)}` : ""}</div></div>
+                  <div className="font-bold tabular-nums" style={{ color: C.navy }}>{d ? brl(d.valor) : "—"}</div>
+                </div>
+              );
+            })}
+            <label className="flex items-center justify-between py-1.5">
+              <div><div className="text-xs font-semibold" style={{ color: C.text }}>Antecipação disponível</div>
+                <div className="text-[11px]" style={{ color: C.sub }}>{p.antecipaveis ? `${p.antecipaveis.qtd} título(s) a vencer não antecipados · ${brl(p.antecipaveis.valor)}` : ""}</div></div>
+              <ValorIn value={val("antecipacaoDisp")} onChange={set("antecipacaoDisp")} width={132} negativo />
+            </label>
           </div>
 
           {/* cenários */}
