@@ -1,6 +1,7 @@
 // Baixa de contas a partir do extrato: casa os lançamentos lidos com os títulos previstos
 // (mesmo valor, data próxima) e devolve uma sugestão por vez para o usuário autorizar.
 import { prisma } from "@/lib/prisma";
+import { recomprar, sincronizarAntecipados, ehAntecipado } from "@/lib/finAntecipados";
 
 const r2 = (v) => Math.round(Number(v || 0) * 100) / 100;
 const MS_DIA = 86400000;
@@ -10,6 +11,9 @@ export const TOLERANCIA = 0.02;    // centavos de diferença aceitos sem ressalv
 export const JANELA_NOME = 60;     // dias, quando o nome bate
 export const JUROS_MAX = 0.15;     // até 15% acima da conta, quando o nome bate
 export const JANELA_ATRASADO = 365;  // v331 — a receber bem atrasado: cliente paga meses depois; casa com valor exato + nome
+// v332 — recompra: o banco debita de volta um título descontado não liquidado (aparece como "DEB DESCONTO DUPLICATAS")
+export const RECOMPRA_RX = /DESCONTO\s+DUPLICATA|DEB\.?\s*DESCONTO|RECOMPRA|DEVOL\w*\s+DESCONTO|DUPLICATA\w*\s+DESCONT/i;
+const RECOMPRA_TOL_PCT = 0.08;   // 8% (juros/IOF do banco) · ou R$ 50, o que for maior
 
 const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const palavras = (t) => semAcento(t).replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter((p) => p.length >= 4);
@@ -70,12 +74,17 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
     select: { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, formaPagamento: true, numeroDoc: true, recorrenciaId: true, competencia: true, chaveImport: true },
   });
   // v181 — freelancers e terceirizados da semana: cada item é uma conta; a casca (total) não casa com o extrato
-  const titulos = titulos0.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|"));
+  const titulos = titulos0.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !String(t.chaveImport || "").startsWith("RECOMPRA|"));
+  // v332 — títulos descontados (antecipados) ainda não liquidados: alvo das recompras do extrato
+  const descontados = await prisma.finTitulo.findMany({
+    where: { tipo: "RECEBER", status: "PAGO", liquidadoEm: null, OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, recompraId: true, antecipadoForma: true },
+  }).catch(() => []);
   const itens = await prisma.finSemanaItem.findMany({
     where: { pago: false, titulo: { status: "ABERTO", vencimento: { gte: new Date(+de - 7 * MS_DIA), lte: ate } } },
     include: { titulo: { select: { id: true, titulo: true, vencimento: true } }, prestador: { select: { nome: true, chavePix: true, documento: true } } },
   }).catch(() => []);
-  if (!titulos.length && !itens.length) return { sugestoes: [], lancamentos: lancamentos.length, titulos: 0 };
+  if (!titulos.length && !itens.length && !descontados.length) return { sugestoes: [], lancamentos: lancamentos.length, titulos: 0 };
 
   // lançamentos que já deram baixa em alguma conta (ou item da semana) não entram de novo
   const usados = new Set([
@@ -86,10 +95,38 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
 
   const out = [];
   const titulosUsados = new Set();
+  // v332 — recompra: débito "DESCONTO DUPLICATAS" casa, por valor próximo, com um título descontado não liquidado
+  const descUsados = new Set();
+  const feitosRec = new Set();
+  if (descontados.length) for (const l of lancamentos) {
+    if (usados.has(l.id)) continue;
+    if (Number(l.valor) >= 0) continue;                 // recompra é débito
+    if (!RECOMPRA_RX.test(semAcento(`${l.historico} ${l.identificacao || ""}`))) continue;
+    const valor = r2(Math.abs(Number(l.valor)));
+    const cand = descontados.filter((t) => !descUsados.has(t.id))
+      .map((t) => ({ t, dif: r2(Math.abs(Number(t.valor) - valor)), tol: Math.max(50, Number(t.valor) * RECOMPRA_TOL_PCT) }))
+      .filter((c) => c.dif <= c.tol)
+      .sort((a, b) => a.dif - b.dif);
+    const c = cand[0];
+    if (!c) continue;
+    descUsados.add(c.t.id); feitosRec.add(l.id);
+    const exato = c.dif <= TOLERANCIA;
+    out.push({
+      recompra: true,
+      lancamento: { id: l.id, data: l.data, historico: l.historico, identificacao: l.identificacao, valor: Number(l.valor), banco: l.banco, vista: !!l.baixaVista },
+      titulo: { id: c.t.id, tipo: "RECEBER", titulo: `RECOMPRA · ${c.t.titulo}`, parceiro: c.t.parceiro, valor: Number(c.t.valor), vencimento: c.t.vencimento, formaPagamento: "DESCONTO", numeroDoc: c.t.numeroDoc },
+      diferenca: r2(valor - Number(c.t.valor)),
+      dias: Math.round((new Date(l.data) - new Date(c.t.vencimento)) / MS_DIA),
+      semelhanca: 0,
+      confianca: exato ? "ALTA" : "MEDIA",
+      motivo: ["recompra de título descontado", exato ? "mesmo valor" : `valor próximo (${(r2(valor - Number(c.t.valor))).toFixed(2).replace(".", ",")} de juros/IOF?)`].join(" · "),
+      alternativas: cand.length - 1,
+    });
+  }
   // duas passadas: 1ª só casamentos fortes (valor exato ou nome), 2ª o resto — assim um valor parecido não "rouba" a conta de outro
   const feitos = new Set();
   for (const fase of [1, 2]) for (const l of lancamentos) {
-    if (usados.has(l.id) || feitos.has(l.id)) continue;
+    if (usados.has(l.id) || feitos.has(l.id) || feitosRec.has(l.id)) continue;
     const saida = Number(l.valor) < 0;
     const valor = r2(Math.abs(Number(l.valor)));
     const tipo = saida ? "PAGAR" : "RECEBER";
@@ -211,6 +248,20 @@ export async function baixar({ tituloId, lancamentoId, quem }) {
     select: { id: true, titulo: true, valor: true, valorPago: true, dataPagamento: true, status: true },
   });
   return { ok: true, titulo: up, diferenca: r2(valorPago - Number(t.valor)) };
+}
+
+// v332 — recompra identificada no extrato: cria/usa a conta a pagar da recompra, baixa-a com o débito e liquida o título original
+export async function baixarRecompra({ tituloId, lancamentoId, quem }) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(tituloId) } });
+  if (!t || !ehAntecipado(t)) return { ok: false, erro: "Título descontado não encontrado." };
+  if (t.status !== "PAGO" || t.liquidadoEm) return { ok: false, erro: "Este título não está descontado em aberto (já liquidado?)." };
+  let contaId = t.recompraId;
+  if (contaId) { const c = await prisma.finTitulo.findUnique({ where: { id: contaId }, select: { status: true } }); if (!c || c.status === "CANCELADO") contaId = null; }
+  if (!contaId) { const r = await recomprar(t.id, "RECOMPRA IDENTIFICADA NO EXTRATO", quem); contaId = r.id; }
+  const rb = await baixar({ tituloId: contaId, lancamentoId, quem });
+  if (!rb.ok) return rb;
+  await sincronizarAntecipados(quem).catch(() => null);   // amarra: título original fica liquidado (RECOMPRA)
+  return { ok: true, recompra: true, titulo: rb.titulo, original: { id: t.id, titulo: t.titulo } };
 }
 
 // Desfaz a baixa (volta a conta para aberta).

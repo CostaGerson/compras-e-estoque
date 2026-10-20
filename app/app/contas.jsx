@@ -3100,7 +3100,7 @@ function BaixasExtratoLista({ user, ids }) {
     let n = 0;
     for (const x of sel) {
       setSt(`Baixando ${++n} de ${sel.length}…`);
-      try { await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: x.titulo.id, itemId: x.titulo.itemId, lancamentoId: x.lancamento.id }); setFeitas((f) => ({ ...f, [x.lancamento.id]: "ok" })); }
+      try { await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: x.titulo.id, itemId: x.titulo.itemId, lancamentoId: x.lancamento.id, recompra: x.recompra }); setFeitas((f) => ({ ...f, [x.lancamento.id]: "ok" })); }
       catch (e) { setFeitas((f) => ({ ...f, [x.lancamento.id]: e.message })); }
     }
     setSt("");
@@ -3168,7 +3168,7 @@ function BaixasModal({ user, competencia, arquivoId, onClose }) {
   const autorizar = async () => {
     setOcupado(true);
     try {
-      await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: atual.titulo.id, itemId: atual.titulo.itemId, lancamentoId: atual.lancamento.id });
+      await api("/api/fin/baixas", "POST", { usuarioId: user.id, tituloId: atual.titulo.id, itemId: atual.titulo.itemId, lancamentoId: atual.lancamento.id, recompra: atual.recompra });
       setFeitos((f) => [...f, atual]);
       setI((x) => x + 1);
     } catch (e) { setErro(e.message); }

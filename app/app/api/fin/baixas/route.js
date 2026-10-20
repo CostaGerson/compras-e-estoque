@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado, competenciaValida } from "@/lib/fin";
-import { sugestoes, baixar, desfazer, marcarVistas, baixarItem, desfazerItem } from "@/lib/finBaixas";
+import { sugestoes, baixar, desfazer, marcarVistas, baixarItem, desfazerItem, baixarRecompra } from "@/lib/finBaixas";
 
 // GET ?u=&competencia=  ou  ?u=&arquivoId= → baixas sugeridas
 export async function GET(req) {
@@ -20,6 +20,12 @@ export async function POST(req) {
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
   if (b.acao === "vistas") return Response.json({ ok: true, n: await marcarVistas(b.ids) });
+  const quemE = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
+  if (b.recompra) {   // v332 — recompra de título descontado
+    const rr = await baixarRecompra({ tituloId: b.tituloId, lancamentoId: b.lancamentoId, quem: quemE });
+    if (!rr.ok) return Response.json({ error: rr.erro }, { status: 400 });
+    return Response.json(rr);
+  }
   if (b.itemId) {   // v181 — item da semana (freelancer/terceirizado)
     const ri = await baixarItem({ itemId: b.itemId, lancamentoId: b.lancamentoId, quem: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() });
     if (!ri.ok) return Response.json({ error: ri.erro }, { status: 400 });
