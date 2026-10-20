@@ -1249,6 +1249,87 @@ export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
   );
 }
 
+/* ---------------- v334 — títulos baixados (cliente pagou a duplicata descontada) ---------------- */
+const ST_BX = { LIQUIDAR: ["Liquidar", C.green, C.greenSoft], JA_LIQUIDADO: ["Já liquidado", C.sub, C.panel2], SEM_CONTA: ["Sem conta descontada", C.red, C.redSoft] };
+export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
+  const [arq, setArq] = useState(null);     // { nome, conteudo }
+  const [a, setA] = useState(null);
+  const [marc, setMarc] = useState({});
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const ler = async (fs) => {
+    const f = [...(fs || [])][0]; if (!f) return;
+    setErro(""); setSt("Lendo o relatório…");
+    try {
+      const conteudo = await readB64(f);
+      const r = await api("/api/fin/baixados", "POST", { usuarioId: user.id, acao: "analisar", conteudo });
+      setArq({ nome: f.name, conteudo }); setA(r);
+      const m = {}; for (const l of r.itens) if (l.status === "LIQUIDAR" && l.titulo) m[l.titulo.id] = true; setMarc(m);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
+  const ids = a ? a.itens.filter((l) => l.status === "LIQUIDAR" && l.titulo && marc[l.titulo.id]).map((l) => l.titulo.id) : [];
+  const aplicar = async () => {
+    setSt("Liquidando…"); setErro("");
+    try {
+      const r = await api("/api/fin/baixados", "POST", { usuarioId: user.id, acao: "aplicar", conteudo: arq.conteudo, ids });
+      onSalvo(`Títulos baixados: ${r.liquidados} liquidado(s) (${moeda(r.valor)})${r.semConta ? ` · ${r.semConta} sem conta descontada no sistema` : ""}${r.jaLiquidados ? ` · ${r.jaLiquidados} já estavam liquidados` : ""}.${r.erros?.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Títulos baixados — cliente pagou a duplicata descontada (Bradesco)" icone={FileCode2} onClose={onClose} largura={1080}
+      rodape={a ? <>
+        <span className="text-xs mr-auto" style={{ color: C.sub }}>{ids.length} para liquidar</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <BtnP onClick={aplicar} disabled={!!st || !ids.length}>{st && <Loader2 size={14} className="animate-spin" />} Liquidar selecionados</BtnP>
+      </> : null}>
+      {erro && <div className="rounded-lg px-3 py-2 mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!a && (
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
+          <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o relatório <b>Títulos Baixados</b> (desconto de duplicatas) do Bradesco.</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>São as duplicatas descontadas que o cliente pagou. Cada uma é liquidada (liquidação do cliente); se havia conta a pagar de recompra em aberto, ela é cancelada.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher o PDF"}</BtnP>
+          <input ref={ref} type="file" accept=".pdf,.PDF" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste o arquivo para cá</div>
+        </Soltar>
+      )}
+      {a && (
+        <>
+          <div className="text-xs mb-2" style={{ color: C.sub }}><b style={{ color: C.navy }}>{arq?.nome}</b> · total baixado {moeda(a.total)} · {a.casados} para liquidar · {a.jaLiquidados} já liquidado(s) · {a.semConta} sem conta</div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "58vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["", "NF / nosso nº", "Sacado", "Valor da nota", "Baixado", "Baixa", "Conta descontada", "Situação"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${/Valor|Baixado/.test(h) ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {a.itens.map((l, i) => {
+                  const [rot, cor, bg] = ST_BX[l.status];
+                  const on = l.status === "LIQUIDAR" && l.titulo && marc[l.titulo.id];
+                  return (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.line}`, background: on ? C.greenSoft : undefined }}>
+                      <td className="px-2 py-1.5">{l.status === "LIQUIDAR" && l.titulo && <input type="checkbox" checked={!!on} onChange={() => setMarc((m) => ({ ...m, [l.titulo.id]: !m[l.titulo.id] }))} />}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{l.seuNumero}<span style={{ color: C.sub }}> · {l.nossoNumero}</span></td>
+                      <td className="px-2 py-1.5">{l.sacado}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{moeda(l.valorNota)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.sub }}>{moeda(l.valorBaixado)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{dBR(l.dataBaixa)}</td>
+                      <td className="px-2 py-1.5">{l.titulo ? <>{l.titulo.titulo}<span style={{ color: C.sub }}> · {moeda(l.titulo.valor)}</span></> : <span style={{ color: C.red }}>não encontrada</span>}</td>
+                      <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: cor, background: bg }}>{rot}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 /* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
 const ACAO_RET = {
   REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],

@@ -4,6 +4,7 @@ export const DESTINOS = {
   NF: { rotulo: "Notas fiscais", desc: "XML e DANFE/NFS-e: entradas viram contas a pagar e saídas contas a receber (Movimento fiscal)", perms: ["nfEntrada", "contasPagar", "contasReceber", "faturamento"] },
   RETORNO: { rotulo: "Retorno de cobrança (CNAB)", desc: "Registro, liquidação e tarifas dos boletos: baixa as contas a receber", perms: ["contasReceber"] },
   REMESSA: { rotulo: "Remessa de cobrança (CNAB)", desc: "Boletos enviados ao banco: confere se cada um existe no contas a receber (o que não existe vira crítica) e grava o nº da remessa nas contas", perms: ["contasReceber"] },
+  BAIXADOS: { rotulo: "Títulos baixados (desconto)", desc: "Relatório do Bradesco de duplicatas descontadas que o cliente pagou: liquida os títulos antecipados (e cancela a cobrança da recompra, se houver)", perms: ["contasReceber"], porArquivo: true },
   ANTECIPACAO: { rotulo: "Antecipação de recebíveis", desc: "Contrato de desconto de duplicatas: baixa as contas descontadas e lança os custos", perms: ["contasReceber"], porArquivo: true },
   POSICAO: { rotulo: "Posição de contas (planilha)", desc: "Planilha de posição: importa e confere duplicidades das contas a pagar/receber", perms: ["contasPagar", "contasReceber"], porArquivo: true },
   HISTORICO: { rotulo: "Histórico de lançamentos (.txt)", desc: "Lançamentos antigos já identificados para a análise mensal", perms: ["docsFinanceiros"], porArquivo: true },

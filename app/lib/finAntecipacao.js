@@ -355,3 +355,71 @@ export async function lerComprovanteAntecipacao(b64) {
   }
   return { ...c, sugeridos, combinacoes };
 }
+
+// ==================== v334 — Relatório "Títulos Baixados" (cliente pagou a duplicata descontada) ====================
+export const ehTitulosBaixados = (t) => /T[íi]tulos\s+Baixados/i.test(t) && /Produto:?\s*DESCONTO/i.test(t) && /Valor\s+total\s+baixado/i.test(t);
+
+export function parseTitulosBaixados(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+baixado|Valor\s+total\s+baixado:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d{2}\/\d{2}\/\d{4})\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+Baixado:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const itens = []; let m;
+  while ((m = re.exec(t))) {
+    itens.push({
+      vencimento: dISO(m[1]), parcela: Number(m[2]), contrato: m[3], seuNumero: m[4], dataBaixa: dISO(m[5]),
+      nossoNumero: m[6], sacado: m[7].trim().toUpperCase(), valorBaixado: num(m[8]), valorNota: num(m[9]),
+    });
+  }
+  return { total, itens };
+}
+
+const soDig = (s) => String(s || "").replace(/\D/g, "");
+const nfDe = (seu) => String(seu || "").split(/[-\/]/)[0];   // "1910-1/2" → "1910"
+
+// casa cada baixa com o título descontado não liquidado
+export async function analisarBaixados(b64) {
+  const texto = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
+  if (!ehTitulosBaixados(texto)) throw new Error("Não é o relatório de Títulos Baixados (desconto de duplicatas) do Bradesco.");
+  const { total, itens } = parseTitulosBaixados(texto);
+  if (!itens.length) throw new Error("Não achei títulos baixados no relatório.");
+  const desc = await prisma.finTitulo.findMany({
+    where: { tipo: "RECEBER", status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true },
+  });
+  const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+  const usados = new Set();
+  const casar = (it) => {
+    const cand = desc.filter((d) => !usados.has(d.id));
+    const nn = soDig(it.nossoNumero), nf = nfDe(it.seuNumero);
+    // 1) nosso número bate
+    let d = cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn);
+    // 2) NF (numeroDoc) + valor da nota próximos
+    if (!d) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
+    // 3) valor exato + nome do sacado
+    if (!d) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
+    if (d) usados.add(d.id);
+    return d || null;
+  };
+  const linhas = itens.map((it) => {
+    const d = casar(it);
+    return {
+      ...it,
+      titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!d.recompraId } : null,
+      status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : "LIQUIDAR",
+    };
+  });
+  return { total, itens: linhas, casados: linhas.filter((l) => l.status === "LIQUIDAR").length, jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length, semConta: linhas.filter((l) => l.status === "SEM_CONTA").length };
+}
+
+// liquida (cliente pagou) os títulos baixados selecionados
+export async function aplicarBaixados(b64, { ids, quem } = {}) {
+  const r = await analisarBaixados(b64);
+  const { liquidar } = await import("@/lib/finAntecipados");
+  const alvo = r.itens.filter((l) => l.status === "LIQUIDAR" && l.titulo && (!ids || ids.includes(l.titulo.id)));
+  const out = { liquidados: 0, valor: 0, linhas: [], erros: [] };
+  for (const l of alvo) {
+    try { await liquidar(l.titulo.id, l.dataBaixa, quem); out.liquidados++; out.valor = r2(out.valor + l.titulo.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: liquidada (cliente pagou em ${dBR(l.dataBaixa)})`); }
+    catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
+  }
+  return { ...out, total: r.total, semConta: r.semConta, jaLiquidados: r.jaLiquidados };
+}
