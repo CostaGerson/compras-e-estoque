@@ -1596,14 +1596,14 @@ function PainelPrevisao({ user, comp, setComp }) {
         const mes1 = nomeMesAno(V.mesSeguinte);
         return (
           <Modal titulo="Contas a pagar · real e virtual" icone={Search} onClose={() => setModal(null)} largura={620}>
-            <LinhaVal rotulo="Real" sub={`${V.qtdReal} conta(s) em aberto depois de ${nomeMesAno(p.mesPrevisto)}, sem previsões${V.parcelasDividaFora ? ` e sem ${brl(V.parcelasDividaFora)} de parcelas de contratos (estão na quitação)` : ""}`} valor={V.real} cor={C.red} forte />
+            <LinhaVal rotulo="Real" sub={`${V.qtdReal} conta(s) em aberto depois de ${nomeMesAno(p.mesPrevisto)}, sem previsões${V.parcelasDividaFora ? ` · parcelas de contratos depois de ${nomeMesAno(V.mesSeguinte)} (${brl(V.parcelasDividaFora)}) estão na quitação` : ""}`} valor={V.real} cor={C.red} forte />
             <LinhaVal rotulo="Virtual" sub="real + previsões + quitação das dívidas + CMV em andamento + passivo tributário" valor={vt} cor={C.red} forte />
             <div className="text-[11px] font-bold uppercase mt-3 mb-1" style={{ color: C.navy }}>Composição do virtual</div>
             <LinhaVal rotulo="Real" valor={V.real} cor={C.sub} />
-            <LinhaVal rotulo={`Previsões de ${mes1}`} sub={`${V.qtdPrevisoesProx} previsão(ões) — mais um mês de operação`} valor={V.previsoesProx} cor={C.sub} />
-            <LinhaVal rotulo={`Quitação das dívidas em ${mes1}`} sub={V.quitacao.erro ? `erro na alavancagem: ${V.quitacao.erro}` : `saldo devedor de ${V.quitacao.contratos.length} contrato(s), sem tributárias (essas estão no real)`} valor={V.quitacao.total} cor={C.sub} />
+            <LinhaVal rotulo={`Previsões de ${mes1}`} sub={`${V.qtdPrevisoesProx} previsão(ões) — só mais um mês de operação, inclui a parcela dos contratos`} valor={V.previsoesProx} cor={C.sub} />
+            <LinhaVal rotulo={`Quitação das dívidas em ${mes1}`} sub={V.quitacao.erro ? `erro na alavancagem: ${V.quitacao.erro}` : `saldo devedor de ${V.quitacao.contratos.length} contrato(s) após as parcelas até ${mes1} (já no contas a pagar) · sem tributárias (estão no real)`} valor={V.quitacao.total} cor={C.sub} />
             {V.quitacao.contratos.length > 0 && <div className="ml-3 mb-1">{V.quitacao.contratos.map((c, i) => (
-              <div key={i} className="flex justify-between text-[11px] py-0.5" style={{ color: C.sub }}><span>{c.nome}{c.credor ? ` · ${c.credor}` : ""}</span><span className="tabular-nums">{brl(c.saldo)}</span></div>
+              <div key={i} className="flex justify-between text-[11px] py-0.5" style={{ color: C.sub }}><span>{c.nome}{c.credor ? ` · ${c.credor}` : ""}{c.parcelasDescontadas ? ` · −${c.parcelasDescontadas} parcela(s)` : ""}</span><span className="tabular-nums">{brl(c.saldo)}</span></div>
             ))}</div>}
             <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>CMV dos pedidos em andamento <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("cmvAndamento")} onChange={set("cmvAndamento")} width={132} /></label>
             <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>Passivo tributário <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("passivoTributario")} onChange={set("passivoTributario")} width={132} /></label>

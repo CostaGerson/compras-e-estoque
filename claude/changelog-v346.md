@@ -9,3 +9,7 @@ Novo card abaixo de "Contas atrasadas": mostra o **virtual**; clicando abre real
   + **CMV dos pedidos em andamento** (digitado, em branco)
   + **passivo tributário** (digitado, em branco).
 - Campos novos no painel: `cmvAndamento`, `passivoTributario` (gravam ao salvar o painel).
+
+## v348 — ajuste
+- Previsões: só as do mês seguinte (M+1), **incluindo** a parcela dos contratos de dívida nesse mês.
+- Quitação: saldo devedor de cada contrato **depois** das parcelas que já estão no contas a pagar até o fim de M+1 (atrasadas, mês e M+1) — sem contar duas vezes. Parcelas de contrato depois de M+1 ficam fora do real (estão na quitação).

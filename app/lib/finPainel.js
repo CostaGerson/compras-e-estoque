@@ -77,25 +77,37 @@ async function posicao(M, hoje) {
   };
   // v341 — referência para a antecipação: a receber em aberto, a vencer, não antecipado e que não é previsão
   const antecipaveis = real.filter((t) => !vencido(t) && !t.previsao);
-  // v346 — contas a pagar REAL × VIRTUAL
-  //   real: em aberto depois do mês M, sem previsões e sem as parcelas dos contratos de dívida (a quitação cobre)
-  //   virtual: real + previsões do mês seguinte (M+1) + quitação do saldo devedor das dívidas não tributárias em M+1
-  //            + CMV dos pedidos em andamento + passivo tributário (esses dois digitados no painel)
-  const recsDivida = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|dividas|CONTRATO:" } }, select: { id: true } }).catch(() => []);
-  const idsDivida = new Set(recsDivida.map((r) => r.id));
-  const ehDivida = (t) => t.recorrenciaId && idsDivida.has(t.recorrenciaId);
+  // v346/v348 — contas a pagar REAL × VIRTUAL (um mês a mais de operação: M+1)
+  //   real: em aberto depois do mês M, sem previsões; parcelas de contrato de dívida só até M+1 (as seguintes estão na quitação)
+  //   virtual: real + previsões de M+1 (inclui a parcela dos contratos em M+1)
+  //            + quitação do saldo devedor das dívidas não tributárias DESCONTADAS as parcelas que já estão no contas a pagar até M+1
+  //            + CMV dos pedidos em andamento + passivo tributário (digitados)
+  const recsDivida = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|dividas|CONTRATO:" } }, select: { id: true, chaveOrigem: true } }).catch(() => []);
+  const { contratoDaChave, cronograma: cronDe, posicaoApos } = await import("@/lib/alavancagemAmort");
+  const contratoDaRec = Object.fromEntries(recsDivida.map((r) => [r.id, contratoDaChave(r.chaveOrigem)]));
+  const ehDivida = (t) => t.recorrenciaId && contratoDaRec[t.recorrenciaId] != null;
   const M1 = mesSeguinte(M), ini1 = `${M1}-01`, fim1 = fimDoMes(M1);
-  const pagarReal = pagar.filter((t) => depois(t) && !t.previsao && !ehDivida(t));
-  const prevProx = pagar.filter((t) => t.previsao && venc(t) >= ini1 && venc(t) <= fim1 && !ehDivida(t));
+  const ateM1 = (t) => venc(t) <= fim1;
+  const pagarReal = pagar.filter((t) => depois(t) && !t.previsao && (!ehDivida(t) || ateM1(t)));
+  const prevProx = pagar.filter((t) => t.previsao && venc(t) >= ini1 && venc(t) <= fim1);
+  // parcelas de cada contrato que já contam em algum card (atrasadas, mês, real, previsões de M+1)
+  const abertasAte = {};
+  for (const t of pagar) if (ehDivida(t) && ateM1(t)) { const c = contratoDaRec[t.recorrenciaId]; abertasAte[c] = (abertasAte[c] || 0) + 1; }
   let quitacao = { total: 0, contratos: [], erro: null };
   try {
     const { panorama } = await import("@/lib/alavancagem");
-    const pn = await panorama(new Date(`${fim}T12:00:00Z`));   // posição no fim do mês M → quitação em M+1
-    const cs = pn.grupos.flatMap((g) => g.itens.map((x) => ({ grupo: g.label, nome: x.nome, credor: x.credor, saldo: r2(x.quitado ? 0 : (x.amort?.saldoDevedor ?? x.saldoCapital ?? 0)) }))).filter((x) => x.saldo > 0.009);
+    const pn = await panorama(new Date(`${fim}T12:00:00Z`));
+    const cs = pn.grupos.flatMap((g) => g.itens.map((x) => {
+      if (x.quitado) return null;
+      const k = abertasAte[x.id] || 0;
+      let saldo = Number(x.amort?.saldoDevedor ?? x.saldoCapital ?? 0);
+      if (k && x.amort && !x.amort.bullet) { try { saldo = posicaoApos(cronDe(x.bruto), (x.amort.parcelasPagas || 0) + k).saldoDevedor; } catch {} }
+      return { grupo: g.label, nome: x.nome, credor: x.credor, saldo: r2(saldo), parcelasDescontadas: k };
+    })).filter((x) => x && x.saldo > 0.009);
     quitacao = { total: r2(cs.reduce((a, x) => a + x.saldo, 0)), contratos: cs, erro: null };
   } catch (e) { quitacao.erro = e.message; }
   const pagarVirtual = { mesSeguinte: M1, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
-    quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t))) };
+    quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t) && !ateM1(t))) };
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
   const pagarAtras = pagar.filter(vencido);   // v311 — atrasadas incluem previsões
   const pagarMes = pagar.filter(noMes);
