@@ -1213,6 +1213,7 @@ function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
 // detalhe de um card do receber: real, virtual (antecipados não liquidados) e atrasados por modalidade
 // v342 — pedidos que compõem entregas/recebimentos programados e total em andamento
 function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
+  const [gerando, setGerando] = useState(false);
   const itens = (k === "entregasMes" ? lista.filter((p) => p.ent) : k === "recebimentosMes" ? lista.filter((p) => p.rec) : lista)
     .slice().sort((a, b) => String(a.entrega || "9").localeCompare(String(b.entrega || "9")) || String(a.numero).localeCompare(String(b.numero)));
   const valor = (p) => (k === "recebimentosMes" ? p.noMes : p.saldo);
@@ -1223,8 +1224,36 @@ function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
       <div className="text-sm" style={{ color: C.sub }}>A lista dos pedidos é montada pelo botão <b>Atualizar</b> do painel. Clique em Atualizar e abra de novo.</div>
     </Modal>
   );
+  // v345 — baixar a lista em Excel (mesmas colunas; uma linha por parcela de pagamento)
+  const baixar = async () => {
+    setGerando(true);
+    try {
+      const XLSX = await import("xlsx");
+      const dt = (d) => (d ? new Date(`${String(d).slice(0, 10)}T12:00:00Z`) : null);
+      const linhas = [];
+      for (const p of itens) {
+        const ps = parcs(p);
+        const base = { Pedido: p.numero, Cliente: p.cliente, "Peças": p.pecas || 0, "Entrega prevista": dt(p.entrega), Atrasado: p.atrasado ? "SIM" : "" };
+        if (!ps.length) linhas.push({ ...base, "Pagamento previsto": null, "Valor da parcela": null, "Valor do pedido": valor(p) });
+        else ps.forEach((x, i) => linhas.push({ ...base, "Pagamento previsto": dt(x.data), "Valor da parcela": x.valor, Tipo: x.tipo === "ENTRADA" ? "ENTRADA" : "PARCELA", "Valor do pedido": i === 0 ? valor(p) : null }));
+      }
+      const ws = XLSX.utils.json_to_sheet(linhas, { header: ["Pedido", "Cliente", "Peças", "Entrega prevista", "Atrasado", "Pagamento previsto", "Tipo", "Valor da parcela", "Valor do pedido"], cellDates: true, dateNF: "dd/mm/yyyy" });
+      ws["!cols"] = [{ wch: 12 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 9 }, { wch: 16 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+      const rg = XLSX.utils.decode_range(ws["!ref"]);
+      for (let r = 1; r <= rg.e.r; r++) for (const c of [7, 8]) { const cel = ws[XLSX.utils.encode_cell({ r, c })]; if (cel && typeof cel.v === "number") cel.z = "#,##0.00"; }
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Pedidos");
+      const nome = `${titulo.replace(/[()\/]/g, "").replace(/\s+/g, "_").toLowerCase()}.xlsx`;
+      XLSX.writeFile(wb, nome);
+    } catch (e) { alert(`Erro ao gerar o Excel: ${e.message}`); }
+    setGerando(false);
+  };
   return (
     <Modal titulo={titulo} icone={Search} onClose={onClose} largura={980}>
+      <div className="flex justify-end mb-2">
+        <button onClick={baixar} disabled={gerando} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-60" style={{ background: "#E7F6EE", color: "#12A150", border: "1px solid #12A15055" }}>
+          {gerando ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Baixar Excel
+        </button>
+      </div>
       <div className="text-xs mb-2" style={{ color: C.sub }}>{itens.length} pedido(s) · {pecas.toLocaleString("pt-BR")} peça(s) · <b style={{ color: C.navy }}>{brl(tot)}</b>{k === "recebimentosMes" ? " (parcelas do mês)" : " (saldo a faturar)"}</div>
       <div className="overflow-auto rounded-lg" style={{ maxHeight: "62vh", border: `1px solid ${C.line}` }}>
         <table className="w-full text-xs">
