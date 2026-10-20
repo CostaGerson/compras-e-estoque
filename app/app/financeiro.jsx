@@ -1218,6 +1218,11 @@ function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
   const valor = (p) => (k === "recebimentosMes" ? p.noMes : p.saldo);
   const parcs = (p) => (k === "recebimentosMes" ? p.parcelas.filter((x) => String(x.data).slice(0, 7) === mes) : p.parcelas);
   const tot = itens.reduce((a, p) => a + valor(p), 0), pecas = itens.reduce((a, p) => a + (p.pecas || 0), 0);
+  if (!lista.length) return (
+    <Modal titulo={titulo} icone={Search} onClose={onClose} largura={520}>
+      <div className="text-sm" style={{ color: C.sub }}>A lista dos pedidos é montada pelo botão <b>Atualizar</b> do painel. Clique em Atualizar e abra de novo.</div>
+    </Modal>
+  );
   return (
     <Modal titulo={titulo} icone={Search} onClose={onClose} largura={980}>
       <div className="text-xs mb-2" style={{ color: C.sub }}>{itens.length} pedido(s) · {pecas.toLocaleString("pt-BR")} peça(s) · <b style={{ color: C.navy }}>{brl(tot)}</b>{k === "recebimentosMes" ? " (parcelas do mês)" : " (saldo a faturar)"}</div>
@@ -1457,7 +1462,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                   title={k === "andamento" && d?.aReceber != null ? `Ainda a receber destes pedidos (sem entradas já lançadas): ${brl(d.aReceber)} — é o valor que entra no cenário geral` : undefined}>
                   <div><div className="text-xs font-semibold" style={{ color: C.text }}>{t}</div>
                     <div className="text-[11px]" style={{ color: C.sub }}>{d ? `${d.qtd} ${u}` : "clique em Atualizar"}{k === "andamento" && d?.aReceber != null ? ` · a receber ${brl(d.aReceber)}` : ""}</div></div>
-                  <div className="font-bold tabular-nums" style={{ color: C.navy }}>{d ? brl(d.valor) : "—"}</div>
+                  <div className="font-bold tabular-nums flex items-center gap-1.5" style={{ color: C.navy }}>{d ? brl(d.valor) : "—"}{d && <Search size={13} style={{ color: C.accent }} />}</div>
                 </div>
               );
             })}
