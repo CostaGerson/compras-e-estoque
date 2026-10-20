@@ -54,7 +54,7 @@ async function cobrarVencidos(quem) {
       const venc = prazo;
       p = await prisma.finTitulo.create({
         data: {
-          tipo: "PAGAR", titulo: `COBRANÇA DE ANTECIPAÇÃO NÃO PAGA · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
+          tipo: "PAGAR", titulo: `RECOMPRA DE ANTECIPAÇÃO · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
           numeroDoc: t.numeroDoc, valor: t.valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
           rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: "DEBITO_AUTOMATICO", chaveImport: chave, valorConfirmado: true,
           observacao: `TÍTULO A RECEBER #${t.id} ANTECIPADO (${FORMAS_ANT[t.antecipadoForma] || t.antecipadoForma}) VENCIDO EM ${dBR(t.vencimento)} SEM PAGAMENTO DO CLIENTE`,
@@ -90,7 +90,21 @@ async function amarrarCobrancas(quem) {
   }
 }
 
+// v333 — padroniza o nome das recompras/cobranças antigas (uma por fonte, prefixos diferentes) para "RECOMPRA DE ANTECIPAÇÃO · …"
+async function padronizarNomes() {
+  const antigos = await prisma.finTitulo.findMany({
+    where: { tipo: "PAGAR", OR: [{ titulo: { startsWith: "COBRANÇA DE ANTECIPAÇÃO NÃO PAGA · " } }, { titulo: { startsWith: "RECOMPRA DE TÍTULO ANTECIPADO · " } }] },
+    select: { id: true, titulo: true },
+  }).catch(() => []);
+  for (const t of antigos) {
+    const novo = t.titulo.replace(/^COBRANÇA DE ANTECIPAÇÃO NÃO PAGA · /, "RECOMPRA DE ANTECIPAÇÃO · ").replace(/^RECOMPRA DE TÍTULO ANTECIPADO · /, "RECOMPRA DE ANTECIPAÇÃO · ");
+    if (novo !== t.titulo) await prisma.finTitulo.update({ where: { id: t.id }, data: { titulo: novo.slice(0, 190) } }).catch(() => null);
+  }
+  return antigos.length;
+}
+
 export async function sincronizarAntecipados(quem) {
+  await padronizarNomes().catch((e) => console.log("antecipados/nomes:", e.message));
   await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
   await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
   await cobrarVencidos(quem).catch((e) => console.log("antecipados/cobrar:", e.message));
@@ -120,7 +134,7 @@ export async function recomprar(id, motivo, quem) {
   const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
   if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANC|${velha.id}` } });   // libera a chave da cobrança cancelada
   const p = await prisma.finTitulo.create({ data: {
-    tipo: "PAGAR", titulo: `RECOMPRA DE TÍTULO ANTECIPADO · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
+    tipo: "PAGAR", titulo: `RECOMPRA DE ANTECIPAÇÃO · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
     numeroDoc: t.numeroDoc, nossoNumero: t.nossoNumero, valor: t.valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
     rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: t.formaPagamento && t.formaPagamento !== "DESCONTO" ? t.formaPagamento : "BOLETO",
     chaveImport: chave, valorConfirmado: true, criadoPorNome: quem || null,
