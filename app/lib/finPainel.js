@@ -173,7 +173,7 @@ export async function salvarPainel(competencia, { saldoInicial, dados, quem, ret
   if (retrato) {
     const pn = await painel(competencia);
     const snapshot = { mesPrevisto: pn.mesPrevisto, pos: pn.pos, caixa: pn.caixa, bancos: pn.bancos, cenarios: pn.cenarios,
-      selecionados: pn.selecionados, manual: { ...pn.manual, salvos: undefined }, listasMes: pn._listasMes };
+      selecionados: pn.selecionados, manual: { ...pn.manual, salvos: undefined, pedidosLista: undefined }, listasMes: pn._listasMes };
     novo.salvos = [...novo.salvos, { em: new Date().toISOString(), por: quem || null, snapshot }].slice(-30);
     await prisma.finMesPainel.update({ where: { competencia }, data: { dados: novo } });
   }
@@ -204,6 +204,13 @@ export async function atualizarPainel(competencia, quem) {
     const rec = and.filter((p) => p.noMes > 0);
     const tot = and.filter((p) => saldo(p) > 0);
     const sm = (l, f) => r2(l.reduce((a, p) => a + f(p), 0));
+    // v342 — lista dos pedidos (para abrir ao clicar): nº, cliente, peças, entrega prevista e parcelas
+    const entIds = new Set(ent.map((p) => p.id)), recIds = new Set(rec.map((p) => p.id));
+    dados.pedidosLista = tot.map((p) => ({
+      id: p.id, numero: p.numero, cliente: p.cliente, pecas: p.qtEntregar != null ? p.qtEntregar : p.qtd || 0, entrega: p.entregaPrevista || p.despacho || p.previsao?.base || null,
+      atrasado: !!p.previsao?.atrasado, saldo: saldo(p), noMes: p.noMes || 0, ent: entIds.has(p.id), rec: recIds.has(p.id),
+      parcelas: (p.previsao?.parcelas || []).map((x) => ({ data: x.data, valor: x.valor, tipo: x.tipo })),
+    }));
     dados.entregasMes = { valor: sm(ent, saldo), qtd: ent.length };
     dados.recebimentosMes = { valor: sm(rec, (p) => p.noMes), qtd: rec.length };
     dados.andamento = { valor: sm(tot, saldo), qtd: tot.length, aReceber: resumo.aReceberPrevisto };

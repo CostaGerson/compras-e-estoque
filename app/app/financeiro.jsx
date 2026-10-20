@@ -1211,6 +1211,37 @@ function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
   );
 }
 // detalhe de um card do receber: real, virtual (antecipados não liquidados) e atrasados por modalidade
+// v342 — pedidos que compõem entregas/recebimentos programados e total em andamento
+function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
+  const itens = (k === "entregasMes" ? lista.filter((p) => p.ent) : k === "recebimentosMes" ? lista.filter((p) => p.rec) : lista)
+    .slice().sort((a, b) => String(a.entrega || "9").localeCompare(String(b.entrega || "9")) || String(a.numero).localeCompare(String(b.numero)));
+  const valor = (p) => (k === "recebimentosMes" ? p.noMes : p.saldo);
+  const parcs = (p) => (k === "recebimentosMes" ? p.parcelas.filter((x) => String(x.data).slice(0, 7) === mes) : p.parcelas);
+  const tot = itens.reduce((a, p) => a + valor(p), 0), pecas = itens.reduce((a, p) => a + (p.pecas || 0), 0);
+  return (
+    <Modal titulo={titulo} icone={Search} onClose={onClose} largura={980}>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{itens.length} pedido(s) · {pecas.toLocaleString("pt-BR")} peça(s) · <b style={{ color: C.navy }}>{brl(tot)}</b>{k === "recebimentosMes" ? " (parcelas do mês)" : " (saldo a faturar)"}</div>
+      <div className="overflow-auto rounded-lg" style={{ maxHeight: "62vh", border: `1px solid ${C.line}` }}>
+        <table className="w-full text-xs">
+          <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+            {["Pedido", "Cliente", "Peças", "Entrega prevista", "Pagamento previsto", "Valor"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${h === "Valor" || h === "Peças" ? "text-right" : "text-left"}`}>{h}</th>)}
+          </tr></thead>
+          <tbody>{itens.map((p) => (
+            <tr key={p.id} style={{ borderTop: `1px solid ${C.line}` }}>
+              <td className="px-2 py-1.5 font-semibold whitespace-nowrap">{p.numero}</td>
+              <td className="px-2 py-1.5">{p.cliente}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{(p.pecas || 0).toLocaleString("pt-BR")}</td>
+              <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: p.atrasado ? C.red : undefined }}>{p.entrega ? dBR(p.entrega) : "—"}{p.atrasado ? " · atrasado" : ""}</td>
+              <td className="px-2 py-1.5">{parcs(p).length ? parcs(p).map((x, i) => <div key={i} className="whitespace-nowrap">{dBR(x.data)} · {brl(x.valor)}{x.tipo === "ENTRADA" ? " (entrada)" : ""}</div>) : "—"}</td>
+              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{brl(valor(p))}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </Modal>
+  );
+}
+
 function DetalheReceber({ titulo, b, onClose }) {
   return (
     <Modal titulo={titulo} icone={Search} onClose={onClose} largura={520}>
@@ -1421,7 +1452,8 @@ function PainelPrevisao({ user, comp, setComp }) {
               ["andamento", "Total em andamento", "pedido(s) em aberto"]].map(([k, t, u]) => {
               const d = p.manual?.[k];
               return (
-                <div key={k} className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${C.line}` }}
+                <div key={k} className="flex items-center justify-between py-1.5 rounded" style={{ borderBottom: `1px solid ${C.line}`, cursor: d ? "pointer" : "default" }}
+                  onClick={() => d && setModal({ tipo: "pedidos", k, titulo: t })}
                   title={k === "andamento" && d?.aReceber != null ? `Ainda a receber destes pedidos (sem entradas já lançadas): ${brl(d.aReceber)} — é o valor que entra no cenário geral` : undefined}>
                   <div><div className="text-xs font-semibold" style={{ color: C.text }}>{t}</div>
                     <div className="text-[11px]" style={{ color: C.sub }}>{d ? `${d.qtd} ${u}` : "clique em Atualizar"}{k === "andamento" && d?.aReceber != null ? ` · a receber ${brl(d.aReceber)}` : ""}</div></div>
@@ -1522,6 +1554,7 @@ function PainelPrevisao({ user, comp, setComp }) {
 
       )}
       {modal?.tipo === "receber" && <DetalheReceber titulo={modal.titulo} b={modal.b} onClose={() => setModal(null)} />}
+      {modal?.tipo === "pedidos" && <PedidosPainelModal titulo={modal.titulo} k={modal.k} lista={p.manual?.pedidosLista || []} mes={p.mesPrevisto} onClose={() => setModal(null)} />}
       {modal?.tipo === "foraMes" && <DetalheReceber titulo={`A receber depois de ${nomeMesAno(p.mesPrevisto)}`} b={R.foraMes} onClose={() => setModal(null)} />}
       {modal?.tipo === "pagarAtrasadas" && (
         <Modal titulo="Contas a pagar atrasadas" icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
