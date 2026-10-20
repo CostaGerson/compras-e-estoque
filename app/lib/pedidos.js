@@ -125,7 +125,7 @@ export async function aplicarPosicaoVendas(l, quem) {
     somaVle: r2(l.pedidos.reduce((s, p) => s + (p.vlEntregar || 0), 0)) };
   const nums = l.pedidos.map((p) => p.numero);
   const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } },
-    select: { id: true, numero: true, condicao: true, despacho: true, vendedor: true, pvPdf: true, fonte: true, cliente: true } })).map((x) => [x.numero, x]));
+    select: { id: true, numero: true, condicao: true, despacho: true, vendedor: true, pvPdf: true, fonte: true, cliente: true, status: true, faturadoEm: true } })).map((x) => [x.numero, x]));
   const ops = [], novos = [];
   let criados = 0, atualizados = 0, pendentesNovos = 0;
   for (const p of l.pedidos) {
@@ -136,6 +136,7 @@ export async function aplicarPosicaoVendas(l, quem) {
       const temPv = !!at.pvPdf;
       ops.push(prisma.pedidoVenda.update({ where: { id: at.id }, data: {
         ...comum,
+        ...((p.vlEntregar || 0) <= 0.009 && at.status === "ANDAMENTO" ? { status: "FATURADO", faturadoEm: at.faturadoEm || dUTC(hojeISO()) } : {}),   // v347 — saldo a faturar zerado
         cliente: at.cliente && at.cliente !== "SEM CLIENTE" ? at.cliente : (p.cliente || at.cliente),
         condicao: (temPv && at.condicao) ? at.condicao : (at.condicao || p.condicao || null),
         despacho: at.despacho || (p.entrega ? dUTC(p.entrega) : null),
@@ -225,12 +226,43 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   };
 }
 
+// v347 — faturamento automático pela NF de saída: mesmo cliente (CNPJ, ou nome quando o pedido não tem CNPJ),
+// emitida a partir da emissão do pedido, valor ±2% do total, do total + frete ou do saldo a faturar. Uma NF baixa um pedido só.
+const soD = (s) => String(s || "").replace(/\D/g, "");
+const PAL_FRACAS = new Set(["LTDA", "ME", "EPP", "SA", "S", "A", "S/A", "EIRELI", "DE", "DA", "DO", "DOS", "DAS", "E", "COMERCIO", "SERVICOS", "INDUSTRIA"]);
+const palavras = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !PAL_FRACAS.has(w));
+const mesmoNome = (a, b) => { const pa = palavras(a), pb = new Set(palavras(b)); return pa.length > 0 && pa.slice(0, 2).every((w) => pb.has(w)); };
+export async function faturarPelasNfs() {
+  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true } });
+  if (!and.length) return [];
+  const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 86400000))));
+  const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: desde } }, select: { numero: true, emissao: true, valor: true, destCnpj: true, destNome: true }, orderBy: { emissao: "asc" } });
+  const usadas = new Set((await prisma.pedidoVenda.findMany({ where: { nfNumero: { not: null } }, select: { nfNumero: true } })).map((x) => String(x.nfNumero).replace(/^0+/, "")));
+  const feitos = [];
+  for (const p of and) {
+    const alvos = [Number(p.total), Number(p.total) + Number(p.frete || 0), p.vlEntregar != null ? Number(p.vlEntregar) : 0].filter((v) => v > 0);
+    const em = p.emissao ? p.emissao.toISOString().slice(0, 10) : "0000-00-00";
+    const nf = nfs.find((n) => !usadas.has(String(n.numero).replace(/^0+/, "")) && n.emissao.toISOString().slice(0, 10) >= em
+      && (p.cnpj ? soD(n.destCnpj) === soD(p.cnpj) : mesmoNome(p.cliente, n.destNome))
+      && alvos.some((v) => Math.abs(Number(n.valor) - v) <= v * 0.02));
+    if (!nf) continue;
+    usadas.add(String(nf.numero).replace(/^0+/, ""));
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "FATURADO", nfNumero: String(nf.numero), faturadoEm: nf.emissao,
+      obs: [p.obs, `FATURADO AUTOMÁTICO PELA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" } });
+    feitos.push({ numero: p.numero, nf: nf.numero });
+  }
+  return feitos;
+}
+
 // ---------- painel ----------
 export async function listarPedidos({ competencia, todos = false } = {}) {
   // v317 — programação do Cronograma (no máximo a cada 10 min; erro não impede o painel)
   let crono = null; try { crono = await sincronizar(); } catch (e) { crono = { ok: false, erro: e.message }; }
   const hoje = hojeISO();
   const comp = competencia || hoje.slice(0, 7);
+  // v347 — antes de listar: pedido em andamento que já tem NF de saída vira FATURADO sozinho
+  let autoFaturados = [];
+  try { autoFaturados = await faturarPelasNfs(); } catch (e) { console.log("pedidos/faturar:", e.message); }
   const lista = await prisma.pedidoVenda.findMany({ where: todos ? {} : { status: "ANDAMENTO" }, orderBy: [{ despacho: "asc" }, { numero: "asc" }], select: CAMPOS });
   // PDFs: só se existem (sem carregar o conteúdo)
   const ids = lista.map((p) => p.id);
@@ -245,13 +277,13 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
   const titsDe = (n) => tits.filter((t) => t.chaveImport === chaveEntrada(n) || (t.titulo || "").includes(`PEDIDO ${n}`));
   // NF de saída que pode ser o faturamento do pedido (mesmo CNPJ, depois da emissão, valor ±2%)
   const cnpjs = [...new Set(lista.map((p) => p.cnpj).filter(Boolean))];
-  const nfs = cnpjs.length ? await prisma.finNfSaida.findMany({ where: { destCnpj: { in: cnpjs } }, select: { numero: true, emissao: true, valor: true, destCnpj: true } }) : [];
+  const nfs = cnpjs.length ? (await prisma.finNfSaida.findMany({ where: { emissao: { gte: new Date(Date.now() - 400 * 86400000) } }, select: { numero: true, emissao: true, valor: true, destCnpj: true } })).filter((n) => cnpjs.some((c) => soD(c) === soD(n.destCnpj))) : [];
 
   const pedidos = lista.map((p) => {
     const prev = preverPedido(p, { hoje, titulosEntrada: titsDe(p.numero) });
     const em = iso(p.emissao) || "0000-00-00";
     const alvo = [r2(p.total), prev.restante];
-    const nfSugerida = p.status === "ANDAMENTO" && !p.interno ? nfs.find((n) => n.destCnpj === p.cnpj && iso(n.emissao) >= em && alvo.some((v) => v > 0 && Math.abs(Number(n.valor) - v) <= v * 0.02)) : null;
+    const nfSugerida = p.status === "ANDAMENTO" && !p.interno ? nfs.find((n) => soD(n.destCnpj) === soD(p.cnpj) && iso(n.emissao) >= em && alvo.some((v) => v > 0 && Math.abs(Number(n.valor) - v) <= v * 0.02)) : null;
     const noMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) === comp).reduce((s, x) => s + x.valor, 0));
     const foraMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) > comp).reduce((s, x) => s + x.valor, 0));
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));

@@ -61,7 +61,8 @@ const pedidoDe = (o) => {
   return ic ? soDig(String(ic).split(/[-/]/)[0]) : "";
 };
 const itemDe = (o) => String(pick(o, "itemCode", "codigoItem", "item_code") || "");
-const ehConcluido = (s) => /CONCLU|FINALIZ|ENTREGUE|EXPEDID/i.test(String(s || ""));
+const ehConcluido = (s) => /CONCLU|FINALIZ|ENTREGUE|EXPEDID|FATUR/i.test(String(s || ""));
+const ehFaturado = (s) => /FATUR/i.test(String(s || ""));   // v347
 
 export function normalizarItem(o) {
   return {
@@ -98,6 +99,7 @@ export function agruparPorPedido(itens, etapas) {
   for (const e of etapas) if (e.pedido) { const p = de(e.pedido); p.etapas.push(e); if (e.fim && (!p.fimProgramado || e.fim > p.fimProgramado)) p.fimProgramado = e.fim; }
   for (const p of Object.values(g)) {
     p.concluido = p.itens.length > 0 && p.itens.every((i) => ehConcluido(i.situacao));
+    p.faturado = p.itens.length > 0 && p.itens.every((i) => ehFaturado(i.situacao));
     const sits = [...new Set(p.itens.map((i) => i.situacao).filter(Boolean))];
     const etps = [...new Set(p.itens.filter((i) => !ehConcluido(i.situacao)).map((i) => i.etapaAtual).filter(Boolean))];
     p.situacao = p.concluido ? "CONCLUÍDO" : sits.join(" · ").toUpperCase() || (p.etapas.length ? "PROGRAMADO" : "");
@@ -131,7 +133,7 @@ export async function sincronizar({ forcar = false } = {}) {
       res.itens = itens.length; res.etapas = etapas.length; res.rev = jp?.rev ?? null;
       const g = agruparPorPedido(itens, etapas);
       res.pedidosCrono = Object.keys(g).length;
-      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true } });
+      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true } });
       for (const p of aqui) {
         const c = g[soDig(p.numero)];
         if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: "NÃO ESTÁ NO CRONOGRAMA", cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [] } }); continue; }
@@ -141,7 +143,9 @@ export async function sincronizar({ forcar = false } = {}) {
           cronoPrazo: c.prazo ? new Date(`${c.prazo}T00:00:00Z`) : null,
           cronoFimProgramado: c.fimProgramado ? new Date(`${c.fimProgramado}T00:00:00Z`) : null,
           cronoSituacao: c.situacao || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
+          ...(c.faturado && p.status === "ANDAMENTO" ? { status: "FATURADO", faturadoEm: new Date(`${res.em.slice(0, 10)}T00:00:00Z`) } : {}),   // v347 — faturado no PCP
         } });
+        if (c.faturado && p.status === "ANDAMENTO") res.faturados = (res.faturados || 0) + 1;
       }
       const nums = new Set(aqui.map((p) => soDig(p.numero)));
       res.semPedidoAqui = Object.keys(g).filter((n) => !nums.has(n)).length;
