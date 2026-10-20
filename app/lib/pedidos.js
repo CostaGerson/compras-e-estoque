@@ -202,11 +202,11 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const pronto = !!p.cronoConcluido;
   const atrasado = !pronto && !!baseOrig && baseOrig < hoje;
   const reprogramar = atrasado ? (p.entregaPrevista ? "PCP" : "DESPACHO") : null;
-  const base = !baseOrig || (pronto && baseOrig < hoje) ? hoje : baseOrig;
-  // v326 — cobrança antiga (entrega anterior a hoje e pedido não concluído) sai da previsão financeira
-  const desconsiderado = atrasado;
+  // v330 — atrasado (ainda em andamento) conta na previsão: a base passa a ser hoje; só entregue/faturado (vlEntregar 0) fica de fora
+  const base = !baseOrig || atrasado || (pronto && baseOrig < hoje) ? hoje : baseOrig;
+  const desconsiderado = false;
   const parcelas = [];
-  if (!desconsiderado) {
+  {
     if (entrada > 0 && entradaLancada + 0.01 < entrada) {
       const em = iso(p.emissao);
       parcelas.push({ tipo: "ENTRADA", data: em && em > hoje ? em : hoje, valor: r2(entrada - entradaLancada), pendente: true });

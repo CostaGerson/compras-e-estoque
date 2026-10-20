@@ -162,8 +162,8 @@ export default function PedidosAndamento({ user }) {
           </div>
           {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
-              {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — fora da previsão; reprogramar no Cronograma</Aviso>}
-              {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida e sem programação — fora da previsão; programar no Cronograma</Aviso>}
+              {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — reprogramar no Cronograma (contam de hoje)</Aviso>}
+              {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida — programar no Cronograma (contam de hoje)</Aviso>}
               {R.qtdInternos > 0 && <Aviso cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da previsão e sem contas</Aviso>}
               {R.qtdProntos > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntos} concluído(s) no PCP — faturar</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
@@ -224,7 +224,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
         <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}
-          {v.reprogramar && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — FORA DA PREVISÃO · REPROGRAMAR NO PCP" : "ENTREGA VENCIDA — FORA DA PREVISÃO · PROGRAMAR NO PCP"}</div>}
+          {v.reprogramar && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO PCP" : "ENTREGA VENCIDA — PROGRAMAR NO PCP"}</div>}
           {v.pronto && !p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.green }}>✓ CONCLUÍDO NO PCP — FATURAR</div>}
           {p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.sub }}>INTERNO · NORT — NÃO GERA CONTAS</div>}</td>
         <td className={td}>{dBR(p.emissao)}</td>
@@ -268,7 +268,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                 ) : (
                   <div className="text-[11px] mb-2" style={{ color: C.sub }}>
                     {v.condicaoOk ? <>Condição <b>{p.condicao}</b>: {v.entradaPct > 0 ? `entrada de ${Math.round(v.entradaPct * 100)}% + ` : ""}{v.prazos.length ? `${v.prazos.join("/")} dias após a NF` : ""}</> : <span style={{ color: C.yellow }}>Condição não reconhecida — previsto à vista na entrega. Edite a condição.</span>}
-                    {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? ` (${v.reprogramar === "PCP" ? "programação" : "entrega"} vencida: fora da previsão até reprogramar)` : ""}
+                    {" · "}base: {v.baseOrigem === "CRONOGRAMA" ? "programação do Cronograma" : v.baseOrigem === "DESPACHO" ? "DT despacho" : "hoje"} {dBR(v.base)}{v.atrasado ? ` (${v.reprogramar === "PCP" ? "programação" : "entrega"} vencida: previsão conta de hoje até reprogramar)` : ""}
                   </div>
                 )}
                 {p.obs && <div className="text-[11px] mb-2 px-2 py-1 rounded" style={{ background: C.yellowSoft, color: C.text }}><b>Obs. do pedido:</b> {p.obs}</div>}
