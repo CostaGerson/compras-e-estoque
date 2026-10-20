@@ -360,35 +360,31 @@ export default function MetasPagina({ user, anoInicial, freelaInicial, irCapacid
               const p = (v) => `${fmt("R$", v * 100)}%`;
               const nomeC = (c) => `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
               return (
-                <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub="cenários da capacidade para esta meta (período em aberto)" campo="Meta (%)" valor={freela} onCommit={setFreela}>
-                  {per ? <div className="grid grid-cols-2 gap-2">
-                    {[["A", per.A, C.yellow, C.yellowSoft, `manter equipe (até ${per.A.picoFreeDia} free/dia)`],
-                      ["B", per.B, C.green, C.greenSoft, `recomendado (+${per.B.contratar}${per.B.demitir ? ` −${per.B.demitir}` : ""} pessoas)`]].map(([k, X, cor, soft, desc]) => {
-                      const on = cenSel === k;
-                      return (
-                        <button key={k} type="button" onClick={() => X.pct != null && setFreela(r2(X.pct * 100))} title={`Usar ${p(X.pct)} de freelancer${k === "B" ? " — Metas e resultado passa a somar a folha dos contratados e as despesas por pessoa" : ""}`}
-                          className="rounded-lg px-2.5 py-2 text-left transition" style={{ background: on ? soft : C.panel, border: `${on ? 2 : 1}px solid ${cor}` }}>
-                          <div className="flex items-baseline justify-between gap-1">
-                            <span className="font-bold text-[13px]" style={{ color: cor }}>Simulação {k}</span>
+                <CardMeta rotulo="PRODUÇÃO" titulo="% de freelancer" sub={F.media3 ? `real: ${p(F.media3.pct)} (média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"})` : "período em aberto"} campo="Meta (%)" valor={freela} onCommit={setFreela}>
+                  {/* v343 — card enxuto: escolher a simulação mostra o que ela é e o botão para criar na Matriz */}
+                  {per ? <>
+                    <div className="flex gap-2">
+                      {[["A", per.A, C.yellow, C.yellowSoft], ["B", per.B, C.green, C.greenSoft]].map(([k, X, cor, soft]) => {
+                        const on = cenSel === k;
+                        return (
+                          <button key={k} type="button" onClick={() => X.pct != null && setFreela(r2(X.pct * 100))} title={`Usar ${p(X.pct)} de freelancer`}
+                            className="flex-1 rounded-lg px-2.5 py-1.5 flex items-baseline justify-between transition" style={{ background: on ? soft : C.panel, border: `${on ? 2 : 1}px solid ${on ? cor : C.line}` }}>
+                            <span className="font-semibold text-[12px]" style={{ color: on ? cor : C.sub }}>{k}{k === "B" ? " ★" : ""}</span>
                             <b className="tabular-nums text-[13px]" style={{ color: C.navy }}>{p(X.pct)}</b>
-                          </div>
-                          <div className="text-[10.5px] leading-snug mt-0.5" style={{ color: C.sub }}>{desc}</div>
-                        </button>
-                      );
-                    })}
-                  </div> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
-                  {F.media3 && <Linha k={`Real · média ${F.media3.meses} ${F.media3.meses === 1 ? "mês" : "meses"}`} v={p(F.media3.pct)} />}
-                  {freelaInicial != null && <div className="font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
-                  {per && <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px]" style={{ color: C.sub }}>Criar na Matriz:</span>
-                    {[["A", C.yellow], ["B", C.green]].map(([k, cor]) => (
-                      <button key={k} type="button" onClick={() => criarSim(k)} disabled={!!criando} title={`Cria a Simulação ${k} na Matriz com as metas desta tela (mesmo sem salvar)`}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-white" style={{ background: cor, opacity: criando && criando !== k ? 0.5 : 1 }}>
-                        {criando === k ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />} Simulação {k}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {cenSel && <div className="flex items-center gap-2 anim-entrar">
+                      <span className="text-[11px] flex-1" style={{ color: C.sub }}>{cenSel === "A" ? `Manter a equipe · até ${per.A.picoFreeDia} free/dia` : `Recomendado · +${per.B.contratar}${per.B.demitir ? ` −${per.B.demitir}` : ""} pessoa(s)`}</span>
+                      <button type="button" onClick={() => criarSim(cenSel)} disabled={!!criando} title="Cria a simulação na Matriz com as metas desta tela (mesmo sem salvar)"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold text-white" style={{ background: cenSel === "A" ? C.yellow : C.green, opacity: criando ? 0.6 : 1 }}>
+                        {criando ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />} Criar matriz simulada
                       </button>
-                    ))}
-                  </div>}
-                  {irCapacidade && <button onClick={() => irCapacidade(metasTela())} className="font-semibold underline text-left" style={{ color: C.blue }}>Analisar capacidade (com estas metas) →</button>}
+                    </div>}
+                  </> : <div style={{ color: C.sub }}>{cap ? "Sem meses em aberto ou sem dados de capacidade." : "Calculando cenários…"}</div>}
+                  {freelaInicial != null && <div className="text-[11px] font-semibold" style={{ color: C.accent }}>Trazido da análise de capacidade — confira e salve.</div>}
+                  {irCapacidade && <button onClick={() => irCapacidade(metasTela())} className="text-[11px] text-left self-start" style={{ color: C.sub }}>analisar capacidade →</button>}
                 </CardMeta>
               );
             })()}
