@@ -18,6 +18,7 @@ export async function GET(req) {
   { const { limparExpirados } = await import("@/lib/finLixeira"); await limparExpirados(); }   // lixeira: some o que passou de 30 dias
   // compra lançada em dobro (NF XML + posição/documento/manual): fica só a da NF
   const dedupCompras = tipo === "PAGAR" ? await (await import("@/lib/finDedupCompras")).deduplicarComprasXml().catch(() => null) : null;
+  if (tipo === "PAGAR") { const { corrigirVencimentosVista } = await import("@/lib/fiscal"); await corrigirVencimentosVista().catch((e) => console.log("v339 vencimentos:", e.message)); }   // uma vez
   if (tipo === "PAGAR") await separarMutuos().catch(() => null);   // mútuos por sócio (uma vez)
   if (tipo === "PAGAR") await ajustarSalarioSabado().catch(() => null);   // salário: 5º dia útil com sábado (uma vez)
   const autoMatriz = tipo === "PAGAR" ? await garantirRecorrenciasMatriz().catch(() => null) : null;

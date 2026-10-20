@@ -505,3 +505,31 @@ export async function registro({ de, ate }) {
   }));
   return [...fiscal, ...compras].sort((a, b) => String(b.emissao || "").localeCompare(String(a.emissao || "")));
 }
+
+// v339 — correção única: marcar e desmarcar "pago à vista" no lançamento deixava as parcelas novas vencendo na
+// data do pagamento (emissão). Devolve o vencimento do XML às contas EM ABERTO que ficaram com a data da emissão
+// quando o XML trazia outra. Conta paga ou com data mexida à mão (diferente da emissão) não é tocada.
+export async function corrigirVencimentosVista() {
+  const FLAG = "FIX|V339_VENC_VISTA";
+  if (await prisma.finConfig.findUnique({ where: { chave: FLAG } })) return { ja: true };
+  const notas = await prisma.fiscalNota.findMany({ where: { acao: "LANCADA", temXml: true, createdAt: { gte: new Date("2026-09-01T00:00:00Z") } }, select: { id: true, xml: true, emissao: true, parcelas: true } });
+  let corrigidas = 0;
+  for (const n of notas) {
+    let lida; try { lida = lerXmlFiscal(n.xml); } catch { continue; }
+    const emi = n.emissao.toISOString().slice(0, 10);
+    const reg = Array.isArray(n.parcelas) ? n.parcelas : [];
+    let mudou = false;
+    for (const rp of reg) {
+      if (rp.situacao !== "CRIADA" || !rp.tituloId) continue;
+      const xp = lida.parcelas.find((x) => String(x.parcela) === String(rp.parcela) && !x.semVencimento);
+      if (!xp || xp.vencimento === emi) continue;
+      const t = await prisma.finTitulo.findUnique({ where: { id: Number(rp.tituloId) }, select: { id: true, status: true, vencimento: true, forma: true } });
+      if (!t || t.status !== "ABERTO" || t.forma !== "NF_XML" || t.vencimento.toISOString().slice(0, 10) !== emi) continue;
+      await prisma.finTitulo.update({ where: { id: t.id }, data: { vencimento: dataUTC(xp.vencimento), competencia: mesDe(xp.vencimento) } });
+      rp.vencimento = xp.vencimento; mudou = true; corrigidas++;
+    }
+    if (mudou) await prisma.fiscalNota.update({ where: { id: n.id }, data: { parcelas: reg } });
+  }
+  await prisma.finConfig.create({ data: { chave: FLAG, valor: String(corrigidas) } }).catch(() => null);
+  return { corrigidas };
+}

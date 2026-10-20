@@ -287,7 +287,9 @@ export function ImportarNfs({ user, iniciais, onClose, onFim }) {
     const m = { ...n, ...mud };
     if (m.pagoVista && !m.formaPgto) m.formaPgto = "PIX";
     if (m.pagoVista && !m.dataPgto) m.dataPgto = m.emissao || hojeISO();
-    if (m.pagoVista) m.parcelas = m.parcelas.map((p) => (p.situacao === "NOVA" ? { ...p, vencimento: m.dataPgto, semVencimento: false } : p));
+    // v339 — guarda o vencimento da nota antes de trocar; desmarcar o à vista devolve as datas originais
+    if (m.pagoVista) m.parcelas = m.parcelas.map((p) => (p.situacao === "NOVA" ? { ...p, vencOrig: p.vencOrig !== undefined ? p.vencOrig : { vencimento: p.vencimento, semVencimento: !!p.semVencimento }, vencimento: m.dataPgto, semVencimento: false } : p));
+    else m.parcelas = m.parcelas.map((p) => (p.vencOrig ? { ...p, vencimento: p.vencOrig.vencimento, semVencimento: p.vencOrig.semVencimento, vencOrig: undefined } : p));
     return m;
   }));
   const altValor = (i, pi, v) => setNotas((l) => l.map((n, j) => (j === i ? { ...n, parcelas: redistribuir(n.parcelas, totalParcelas(n), pi, v) } : n)));
@@ -490,7 +492,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGrava
                     <td className="px-2 py-1"><input type="checkbox" checked={!!p.marcado} onChange={(e) => altP(i, pi, { marcado: e.target.checked })} /></td>
                     <td className="px-2 py-1">{p.parcela}</td>
                     <td className="px-2 py-1">{p.situacao === "NOVA"
-                      ? <input type="date" value={p.vencimento || ""} onChange={(e) => altP(i, pi, { vencimento: e.target.value, semVencimento: false })} className="rounded px-2 py-1 text-xs" style={{ ...inpS, borderColor: p.semVencimento ? C.yellow : C.line }} />
+                      ? <input type="date" value={p.vencimento || ""} onChange={(e) => altP(i, pi, { vencimento: e.target.value, semVencimento: false, vencOrig: undefined })} className="rounded px-2 py-1 text-xs" style={{ ...inpS, borderColor: p.semVencimento ? C.yellow : C.line }} />
                       : dBR(p.vencimento)}</td>
                     <td className="px-2 py-1 text-right">{p.situacao === "NOVA" ? <Valor value={p.valor} onChange={(v) => altValor(i, pi, v)} /> : moeda(p.valor)}</td>
                     <td className="px-2 py-1 text-[11px]">
