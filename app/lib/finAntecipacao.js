@@ -373,15 +373,36 @@ export function parseTitulosBaixados(texto) {
   return { total, itens };
 }
 
+// v336 — Relatório "Títulos Pagos" (mesmo efeito do Baixados: cliente pagou → liquida). Não traz data por título:
+// usa o vencimento, limitado ao "Último movimento".
+export const ehTitulosPagos = (t) => /T[íi]tulos\s+Pagos/i.test(t) && /Produto:?\s*DESCONTO/i.test(t) && /Valor\s+total\s+cobrado/i.test(t);
+
+export function parseTitulosPagos(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+cobrado|Valor\s+total\s+cobrado:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
+  const ult = dISO((t.match(/(\d{2}\/\d{2}\/\d{4})\s*[ÚU]ltimo\s+movimento|[ÚU]ltimo\s+movimento:?\s*(\d{2}\/\d{2}\/\d{4})/i) || []).slice(1).find(Boolean));
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+Cobrado:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const itens = []; let m;
+  while ((m = re.exec(t))) {
+    const venc = dISO(m[1]);
+    itens.push({
+      vencimento: venc, parcela: Number(m[2]), contrato: m[3], seuNumero: m[4], dataBaixa: ult && venc > ult ? ult : venc,
+      nossoNumero: m[5], sacado: m[6].trim().toUpperCase(), valorNota: num(m[7]), valorBaixado: num(m[8]),
+    });
+  }
+  return { total, itens };
+}
+
 const soDig = (s) => String(s || "").replace(/\D/g, "");
 const nfDe = (seu) => String(seu || "").split(/[-\/]/)[0];   // "1910-1/2" → "1910"
 
 // casa cada baixa com o título descontado não liquidado
 export async function analisarBaixados(b64) {
   const texto = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
-  if (!ehTitulosBaixados(texto)) throw new Error("Não é o relatório de Títulos Baixados (desconto de duplicatas) do Bradesco.");
-  const { total, itens } = parseTitulosBaixados(texto);
-  if (!itens.length) throw new Error("Não achei títulos baixados no relatório.");
+  const pagos = ehTitulosPagos(texto);
+  if (!pagos && !ehTitulosBaixados(texto)) throw new Error("Não é o relatório de Títulos Baixados / Títulos Pagos (desconto de duplicatas) do Bradesco.");
+  const { total, itens } = pagos ? parseTitulosPagos(texto) : parseTitulosBaixados(texto);
+  if (!itens.length) throw new Error("Não achei títulos pagos/baixados no relatório.");
   const desc = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
     select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true },

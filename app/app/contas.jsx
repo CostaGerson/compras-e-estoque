@@ -1279,7 +1279,7 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
     } catch (e) { setErro(e.message); setSt(""); }
   };
   return (
-    <Modal titulo="Títulos baixados — cliente pagou a duplicata descontada (Bradesco)" icone={FileCode2} onClose={onClose} largura={1080}
+    <Modal titulo="Títulos baixados / pagos — cliente pagou a duplicata descontada (Bradesco)" icone={FileCode2} onClose={onClose} largura={1080}
       rodape={a ? <>
         <span className="text-xs mr-auto" style={{ color: C.sub }}>{ids.length} para liquidar</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
@@ -1289,7 +1289,7 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
       {!a && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
-          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o relatório <b>Títulos Baixados</b> (desconto de duplicatas) do Bradesco.</div>
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o relatório <b>Títulos Baixados</b> ou <b>Títulos Pagos</b> (desconto de duplicatas) do Bradesco.</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>São as duplicatas descontadas que o cliente pagou. Cada uma é liquidada (liquidação do cliente); se havia conta a pagar de recompra em aberto, ela é cancelada.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher o PDF"}</BtnP>
           <input ref={ref} type="file" accept=".pdf,.PDF" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
