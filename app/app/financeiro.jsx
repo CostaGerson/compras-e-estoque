@@ -1436,9 +1436,9 @@ function PainelPrevisao({ user, comp, setComp }) {
         /* v349/v350 — tela inteira sem rolar (telas largas): 1ª linha ocupa a altura que sobra e cada card rola por dentro;
            2ª linha: cenários, informações relevantes e painéis salvos */
         <div ref={telaRef} className="flex flex-col gap-4" style={alturaTela ? { height: alturaTela } : undefined}>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "0 1 auto", minHeight: 0, maxHeight: Math.round(alturaTela * 0.66) } : undefined}>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "0 0 auto" } : undefined}>
           {/* posição automática */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
             <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
               <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
@@ -1469,7 +1469,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* contas atrasadas + prioridade */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas e em aberto, inclusive previsões).</div>
             <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
@@ -1481,7 +1481,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* contas a receber */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>A previsão virá do sistema do Maycon (integração); por ora, digitada.</div>
             {[["receberPrevisao", "Previsão (ainda sem título)"]].map(([k, t]) => (
@@ -1495,7 +1495,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* previsões de entrega / recebimento */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos vêm do PCP pelo botão <b>Atualizar</b>{p.manual?.atualizadoAuto?.em ? <> (última: {dataHora(p.manual.atualizadoAuto.em)})</> : " (ainda não atualizado)"}; antecipação disponível é digitada.</div>
             {/* v341 — valor e quantidade de pedidos */}
