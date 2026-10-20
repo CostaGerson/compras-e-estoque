@@ -1,7 +1,7 @@
 "use client";
 import { podeImportar, gerencial, tem, temAlguma } from "@/lib/acesso";
 import Dfc from "./dfc";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
@@ -1296,6 +1296,19 @@ function PainelPrevisao({ user, comp, setComp }) {
   const [salvando, setSalvando] = useState(false);
   const [ok, setOk] = useState("");
   const [modal, setModal] = useState(null);   // { tipo, ... }
+  // v350 — telas largas: o painel inteiro cabe na tela (sem rolar a página); cada card da 1ª linha rola por dentro
+  const telaRef = useRef(null);
+  const [alturaTela, setAlturaTela] = useState(null);
+  useLayoutEffect(() => {
+    const medir = () => {
+      const el = telaRef.current;
+      if (!el || window.innerWidth < 1536) { setAlturaTela(null); return; }
+      const topo = el.getBoundingClientRect().top + window.scrollY;
+      setAlturaTela(Math.round(Math.max(560, window.innerHeight - topo - 16)));
+    };
+    medir(); window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  });
   const carregar = () => fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}`)
     .then((r) => r.json().then((j) => (r.ok ? setP(j) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
   useEffect(() => { setP(null); setErro(""); setRasc({}); setOk(""); setModal(null); carregar(); }, [comp]);
@@ -1420,10 +1433,12 @@ function PainelPrevisao({ user, comp, setComp }) {
       {!p && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
 
       {p && calc && (
-        /* v349 — 1ª linha: posição automática, contas atrasadas, contas a receber, previsões · 2ª linha: cenários e informações relevantes */
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4">
+        /* v349/v350 — tela inteira sem rolar (telas largas): 1ª linha ocupa a altura que sobra e cada card rola por dentro;
+           2ª linha: cenários, informações relevantes e painéis salvos */
+        <div ref={telaRef} className="flex flex-col gap-4" style={alturaTela ? { height: alturaTela } : undefined}>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "1 1 0", minHeight: 0, gridAutoRows: "100%" } : undefined}>
           {/* posição automática */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
               <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
@@ -1454,7 +1469,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* contas atrasadas + prioridade */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas e em aberto, inclusive previsões).</div>
             <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
@@ -1466,7 +1481,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* contas a receber */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>A previsão virá do sistema do Maycon (integração); por ora, digitada.</div>
             {[["receberPrevisao", "Previsão (ainda sem título)"]].map(([k, t]) => (
@@ -1480,7 +1495,7 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* previsões de entrega / recebimento */}
-          <div className={caixaBloco} style={caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos vêm do PCP pelo botão <b>Atualizar</b>{p.manual?.atualizadoAuto?.em ? <> (última: {dataHora(p.manual.atualizadoAuto.em)})</> : " (ainda não atualizado)"}; antecipação disponível é digitada.</div>
             {/* v341 — valor e quantidade de pedidos */}
@@ -1505,8 +1520,10 @@ function PainelPrevisao({ user, comp, setComp }) {
             </label>
           </div>
 
+        </div>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 shrink-0">
           {/* cenários */}
-          <div className={`${caixaBloco} md:col-span-1 2xl:col-span-2`} style={caixaSt}>
+          <div className={`${caixaBloco} md:col-span-2`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Cenários</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Calculados com tudo acima (passe o mouse para ver a conta).</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
@@ -1527,9 +1544,9 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* informações relevantes */}
-          <div className={`${caixaBloco} md:col-span-1 2xl:col-span-2`} style={caixaSt}>
+          <div className={`${caixaBloco} ${p.salvos?.length > 0 ? "" : "2xl:col-span-2"}`} style={caixaSt}>
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Informações relevantes</div>
-            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={6}
+            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={4}
               placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
               className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff", resize: "vertical" }} />
             {p.atualizadoPorNome && <div className="text-[11px] mt-2" style={{ color: C.sub }}>Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}{sujo ? " · alterações não salvas" : ""}</div>}
@@ -1537,7 +1554,7 @@ function PainelPrevisao({ user, comp, setComp }) {
 
           {/* painéis salvos */}
           {p.salvos?.length > 0 && (
-            <div className={`${caixaBloco} md:col-span-2 2xl:col-span-4`} style={caixaSt}>
+            <div className={`${caixaBloco} overflow-auto`} style={{ ...caixaSt, maxHeight: 230 }}>
               <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Painéis salvos</div>
               {[...p.salvos].map((s, i) => ({ ...s, i })).reverse().map((s) => (
                 <div key={s.i} className="flex items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
@@ -1550,6 +1567,7 @@ function PainelPrevisao({ user, comp, setComp }) {
               ))}
             </div>
           )}
+        </div>
         </div>
       )}
 
