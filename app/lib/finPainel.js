@@ -117,13 +117,14 @@ export async function painel(competencia, hojeData = new Date()) {
   const quitacao = (dados.quitacaoProvavel || []).map((id) => porIdRec[id]).filter(Boolean);
   // v338 — o que já vence dentro do mês previsto está em "a pagar/receber no mês": não soma de novo
   const iniM = `${M}-01`;
-  const totPrioridade = soma(prioridade.filter((t) => t.vencimento < iniM)), totQuitacao = soma(quitacao.filter((t) => t.vencimento < iniM));
+  const totPrioridade = soma(prioridade), totQuitacao = soma(quitacao);   // v340 — o card mostra a soma da lista
+  const extraPrior = soma(prioridade.filter((t) => t.vencimento < iniM)), extraQuit = soma(quitacao.filter((t) => t.vencimento < iniM));   // só isso entra a mais no cenário
 
   const n = (k) => Number(dados[k]) || 0;
   // cenários (calculados)
   const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - pos.pagar.totalSemPrevisao);
-  const entradasMes = r2(pos.receber.mes.real + totQuitacao + n("recebimentoMes"));
-  const saidasMes = r2(pos.pagar.mes + totPrioridade);
+  const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes"));
+  const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
   const cenarios = {
     geral, mes,

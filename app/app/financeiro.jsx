@@ -1292,11 +1292,12 @@ function PainelPrevisao({ user, comp, setComp }) {
     const prior = (p.listas.pagarAtrasadas || []).filter((t) => selPrior.has(t.id));
     const quit = (p.listas.receberAtrasados || []).filter((t) => selQuit.has(t.id));
     const iniM = `${p.mesPrevisto}-01`;   // v338 — o que vence no mês previsto já está em "a pagar/receber no mês"
-    const tP = prior.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0), tQ = quit.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0);
+    const tP = prior.reduce((a, t) => a + t.valor, 0), tQ = quit.reduce((a, t) => a + t.valor, 0);   // v340 — soma da lista
+    const xP = prior.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0), xQ = quit.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0);
     const n = (k) => Number(val(k)) || 0;
     const R = p.pos.receber, P = p.pos.pagar;
     const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao;
-    const entradas = R.mes.real + tQ + n("recebimentoMes"), saidas = P.mes + tP;
+    const entradas = R.mes.real + xQ + n("recebimentoMes"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
     return { caixa, prior, quit, tP, tQ, entradas, saidas, cen: { geral, mes, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
       antecipandoCobrindo: mes - caixa.limiteTomado + n("antecipacaoDisp"), antecipandoSemCobrir: mes + n("antecipacaoDisp") } };
@@ -1426,7 +1427,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
               {[
                 ["Cenário geral", Cn.geral, `a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`],
-                ["Cenário do mês", Cn.mes, `saldos positivos ${brl(calc.caixa.saldoPositivo)} + entradas ${brl(calc.entradas)} (a receber no mês + quitação provável + entregas) − saídas ${brl(calc.saidas)} (a pagar no mês + prioridade)`],
+                ["Cenário do mês", Cn.mes, `saldos positivos ${brl(calc.caixa.saldoPositivo)} + entradas ${brl(calc.entradas)} (a receber no mês + quitação provável de meses anteriores + entregas) − saídas ${brl(calc.saidas)} (a pagar no mês + prioridade de meses anteriores; as do mês já estão no a pagar)`],
                 ["Cobrindo o cheque", Cn.cobrindo, `cenário do mês − cheque em uso ${brl(calc.caixa.limiteTomado)}`],
                 ["Sem cobrir", Cn.semCobrir, "cenário do mês, ignorando o cheque especial em uso"],
                 ["Antecipando e cobrindo", Cn.antecipandoCobrindo, `cobrindo o cheque + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
