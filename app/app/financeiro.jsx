@@ -1205,7 +1205,7 @@ function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
           <td className="py-1.5 whitespace-nowrap">{dBR(t.vencimento)}</td>
           <td className="py-1.5">{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
           <td className="py-1.5" style={{ color: C.sub }}>{t.parceiro}</td>
-          <td className="py-1.5 text-right font-semibold tabular-nums">{brl(t.valor)}</td>
+          <td className="py-1.5 text-right font-semibold tabular-nums">{brl(t.valor)}{t.pagoParcial ? <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)}</div> : null}</td>
         </tr>))}</tbody>
     </table>
   );
@@ -1291,7 +1291,8 @@ function PainelPrevisao({ user, comp, setComp }) {
     const caixa = { saldoGeral: s("saldo"), saldoPositivo: l.reduce((a, b) => a + Math.max(0, b.saldo), 0), limiteTotal: s("limite"), limiteTomado: s("tomado"), disponivelTotal: s("disponivel") };
     const prior = (p.listas.pagarAtrasadas || []).filter((t) => selPrior.has(t.id));
     const quit = (p.listas.receberAtrasados || []).filter((t) => selQuit.has(t.id));
-    const tP = prior.reduce((a, t) => a + t.valor, 0), tQ = quit.reduce((a, t) => a + t.valor, 0);
+    const iniM = `${p.mesPrevisto}-01`;   // v338 — o que vence no mês previsto já está em "a pagar/receber no mês"
+    const tP = prior.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0), tQ = quit.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0);
     const n = (k) => Number(val(k)) || 0;
     const R = p.pos.receber, P = p.pos.pagar;
     const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao;
@@ -1361,7 +1362,6 @@ function PainelPrevisao({ user, comp, setComp }) {
               <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
                 onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
               <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
-              <CardAuto rotulo="A pagar · total em aberto" valor={P.totalSemPrevisao} cor={C.sub} sub="sem previsões" />
               <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
               <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"

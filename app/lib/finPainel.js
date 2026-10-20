@@ -32,7 +32,7 @@ export const CAMPOS_MANUAIS = ["receberPrevisao", "pedidosEntregar", "recebiment
 
 const SEL = { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, previsao: true,
   antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true };
-const tOut = (t, mod) => ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: r2(t.valor), vencimento: iso(t.vencimento), numeroDoc: t.numeroDoc || null, previsao: !!t.previsao, modalidade: mod || null });
+const tOut = (t, mod) => ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: r2(t.valor), vencimento: iso(t.vencimento), numeroDoc: t.numeroDoc || null, previsao: !!t.previsao, modalidade: mod || null, pagoParcial: t.pagoParcial || null });
 const soma = (l) => r2(l.reduce((s, t) => s + Number(t.valor), 0));
 const antecipado = (t) => !!t.antecipadoForma || t.cobranca === "DESCONTADO";
 
@@ -49,12 +49,18 @@ function calcBancos(lista) {
 // números ao vivo das contas (para o mês M)
 async function posicao(M, hoje) {
   const ini = `${M}-01`, fim = fimDoMes(M);
-  const [pagar, receberAb, receberAnt, receberExec] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo: "PAGAR", status: "ABERTO" }, select: SEL, orderBy: { vencimento: "asc" } }),
+  const [pagar0, receberAb, receberAnt, receberExec] = await Promise.all([
+    prisma.finTitulo.findMany({ where: { tipo: "PAGAR", status: "ABERTO" }, select: { ...SEL, chaveImport: true }, orderBy: { vencimento: "asc" } }),
     prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO" }, select: SEL, orderBy: { vencimento: "asc" } }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PAGO", liquidadoEm: null, recompraId: null, OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }] }, select: SEL, orderBy: { vencimento: "asc" } }),
+    // v338 — virtual igual ao contas a receber: todo antecipado que o cliente ainda não pagou (com ou sem recompra)
+    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PAGO", liquidadoEm: null, OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }] }, select: SEL, orderBy: { vencimento: "asc" } }),
     prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "EXECUCAO" }, select: SEL, orderBy: { vencimento: "asc" } }),
   ]);
+  // v338 — conta da semana com baixas parciais: vale só o SALDO (valor − itens já pagos), como no contas a pagar
+  const semIds = pagar0.filter((t) => String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id);
+  const itensPagos = semIds.length ? await prisma.finSemanaItem.findMany({ where: { tituloId: { in: semIds }, pago: true }, select: { tituloId: true, valor: true } }).catch(() => []) : [];
+  const pagoDe = {}; for (const i of itensPagos) pagoDe[i.tituloId] = (pagoDe[i.tituloId] || 0) + Number(i.valor || 0);
+  const pagar = pagar0.map((t) => (pagoDe[t.id] > 0 ? { ...t, valor: r2(Number(t.valor) - pagoDe[t.id]), pagoParcial: r2(pagoDe[t.id]) } : t)).filter((t) => Number(t.valor) > 0.009);
   const venc = (t) => iso(t.vencimento);
   const noMes = (t) => venc(t) >= ini && venc(t) <= fim;
   const depois = (t) => venc(t) > fim;
@@ -109,7 +115,9 @@ export async function painel(competencia, hojeData = new Date()) {
   const porIdRec = Object.fromEntries(pos.listas.receberAtrasados.map((t) => [t.id, t]));
   const prioridade = (dados.prioridade || []).map((id) => porIdPagar[id]).filter(Boolean);
   const quitacao = (dados.quitacaoProvavel || []).map((id) => porIdRec[id]).filter(Boolean);
-  const totPrioridade = soma(prioridade), totQuitacao = soma(quitacao);
+  // v338 — o que já vence dentro do mês previsto está em "a pagar/receber no mês": não soma de novo
+  const iniM = `${M}-01`;
+  const totPrioridade = soma(prioridade.filter((t) => t.vencimento < iniM)), totQuitacao = soma(quitacao.filter((t) => t.vencimento < iniM));
 
   const n = (k) => Number(dados[k]) || 0;
   // cenários (calculados)
@@ -174,6 +182,9 @@ export async function salvarPainel(competencia, { saldoInicial, dados, quem, ret
 export async function atualizarPainel(competencia, quem) {
   const M = mesSeguinte(competencia);
   const avisos = [];
+  // v338 — mesma limpeza do contas a pagar: compra lançada em dobro (NF XML + boleto/posição) fica só uma
+  try { const { deduplicarComprasXml } = await import("@/lib/finDedupCompras"); const d = await deduplicarComprasXml(); if (d?.removidas) avisos.push(`${d.removidas} compra(s) lançada(s) em dobro unificada(s)`); }
+  catch (e) { avisos.push(`Compras em dobro: ${e.message}`); }
   try { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem); }
   catch (e) { avisos.push(`Contas: ${e.message}`); }
   let resumo = null, crono = null;

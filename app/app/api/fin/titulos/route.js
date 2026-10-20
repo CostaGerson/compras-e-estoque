@@ -82,7 +82,11 @@ export async function GET(req) {
     const o = tituloOut(t), p = pagoDe[t.id];
     return p > 0 && t.status === "ABERTO" ? { ...o, valorTotal: o.valor, pagoParcial: Math.round(p * 100) / 100, valor: Math.round((o.valor - p) * 100) / 100 } : o;
   };
-  const vencPago = atrasados.reduce((s0, t) => s0 + (pagoDe[t.id] || 0), 0);
+  // v338 — vencido total desconta o pago parcial de TODAS as contas da semana vencidas (não só as anteriores ao período)
+  const semVenc = await prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO", vencimento: { lt: hojeUTC }, chaveImport: { startsWith: "SEMANA|" } }, select: { id: true } }).catch(() => []);
+  const faltam = semVenc.map((t) => t.id).filter((id) => !(id in pagoDe));
+  if (faltam.length) for (const g of await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: faltam }, pago: true }, _sum: { valor: true } }).catch(() => [])) pagoDe[g.tituloId] = Number(g._sum.valor || 0);
+  const vencPago = semVenc.reduce((s0, t) => s0 + (pagoDe[t.id] || 0), 0);
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map(saida) : null,
