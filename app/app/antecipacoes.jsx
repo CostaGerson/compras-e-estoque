@@ -51,7 +51,7 @@ export function sitAntecipado(t) {
   const k = t.sitAnt || (t.liquidadoEm ? (t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO") : t.recompraId ? "COBRADO" : t.vencimento < hojeISO() ? "VENCIDO" : "A_VENCER");
   return {
     A_VENCER: { k, t: "Antecipado · a vencer", c: C.yellow, bg: C.yellowSoft },
-    VENCIDO: { k, t: `Aguarda cliente${t.prazoCobranca ? ` (até ${dBR(t.prazoCobranca).slice(0, 5)})` : ""}`, c: C.yellow, bg: C.yellowSoft },
+    VENCIDO: { k, t: "Atrasado — aguarda relatório de vencidos", c: C.yellow, bg: C.yellowSoft },
     COBRADO: { k, t: "Banco cobrou — conta a pagar", c: C.red, bg: C.redSoft },
     LIQUIDADO: { k, t: `Liquidado ${dBR(t.liquidadoEm).slice(0, 5)}`, c: C.green, bg: C.greenSoft },
     RECOMPRADO: { k, t: `Recomprado ${dBR(t.liquidadoEm).slice(0, 5)}`, c: C.roxo, bg: C.roxoSoft },
@@ -505,7 +505,7 @@ export default function Antecipacoes({ user }) {
               <option value="">Todas as formas</option>{Object.entries(FORMAS_ANT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
-              <option value="">Todas as situações</option><option value="PEND">Aguardando o cliente</option><option value="VENCIDO">Venceu — dentro dos 3 dias úteis</option>
+              <option value="">Todas as situações</option><option value="PEND">Aguardando o cliente</option><option value="VENCIDO">Atrasado (ainda não está nos vencidos do banco)</option>
               <option value="COBRADO">Cobrado pelo banco</option><option value="LIQUIDADO">Liquidado pelo cliente</option><option value="RECOMPRADO">Recomprado (conta a pagar paga)</option>
             </select>
           </div>

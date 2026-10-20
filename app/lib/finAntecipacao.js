@@ -423,3 +423,78 @@ export async function aplicarBaixados(b64, { ids, quem } = {}) {
   }
   return { ...out, total: r.total, semConta: r.semConta, jaLiquidados: r.jaLiquidados };
 }
+
+// ==================== v335 — Relatório "Títulos Vencidos" (duplicata descontada venceu no banco e o cliente não pagou) ====================
+// Regra do Igor: um título antecipado só vira conta a pagar de recompra se aparecer NESTE relatório.
+export const ehTitulosVencidos = (t) => /T[íi]tulos\s+Vencidos/i.test(t) && /Produto:?\s*DESCONTO/i.test(t) && /Valor\s+total\s+vencidos/i.test(t);
+
+export function parseTitulosVencidos(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+vencidos|Valor\s+total\s+vencidos:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+dos\s+Encargos:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const itens = []; let m;
+  while ((m = re.exec(t))) {
+    itens.push({
+      vencimento: dISO(m[1]), parcela: Number(m[2]), contrato: m[3], seuNumero: m[4],
+      nossoNumero: m[5], sacado: m[6].trim().toUpperCase(), encargos: num(m[7]), valorNota: num(m[8]),
+    });
+  }
+  return { total, itens };
+}
+
+// casa cada vencido com o título descontado não liquidado (mesma lógica dos baixados)
+export async function analisarVencidos(b64) {
+  const texto = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
+  if (!ehTitulosVencidos(texto)) throw new Error("Não é o relatório de Títulos Vencidos (desconto de duplicatas) do Bradesco.");
+  const { total, itens } = parseTitulosVencidos(texto);
+  if (!itens.length) throw new Error("Não achei títulos vencidos no relatório.");
+  const desc = await prisma.finTitulo.findMany({
+    where: { tipo: "RECEBER", status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true },
+  });
+  const recompras = await prisma.finTitulo.findMany({ where: { id: { in: desc.map((d) => d.recompraId).filter(Boolean) } }, select: { id: true, status: true } });
+  const recStatus = new Map(recompras.map((c) => [c.id, c.status]));
+  const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+  const usados = new Set();
+  const casar = (it) => {
+    const cand = desc.filter((d) => !usados.has(d.id));
+    const nn = soDig(it.nossoNumero), nf = nfDe(it.seuNumero);
+    let d = cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn);
+    if (!d) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
+    if (!d) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
+    if (d) usados.add(d.id);
+    return d || null;
+  };
+  const linhas = itens.map((it) => {
+    const d = casar(it);
+    const temRecompraViva = d && d.recompraId && recStatus.get(d.recompraId) && recStatus.get(d.recompraId) !== "CANCELADO";
+    return {
+      ...it,
+      titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!temRecompraViva } : null,
+      total: r2((it.valorNota || 0) + (it.encargos || 0)),
+      status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : temRecompraViva ? "JA_RECOMPRA" : "RECOMPRAR",
+    };
+  });
+  return {
+    total, itens: linhas,
+    recomprar: linhas.filter((l) => l.status === "RECOMPRAR").length,
+    jaRecompra: linhas.filter((l) => l.status === "JA_RECOMPRA").length,
+    jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length,
+    semConta: linhas.filter((l) => l.status === "SEM_CONTA").length,
+  };
+}
+
+// cria a conta a pagar de recompra para os títulos vencidos selecionados
+export async function aplicarVencidos(b64, { ids, quem } = {}) {
+  const r = await analisarVencidos(b64);
+  const { recompraPorVencido } = await import("@/lib/finAntecipados");
+  const alvo = r.itens.filter((l) => l.status === "RECOMPRAR" && l.titulo && (!ids || ids.includes(l.titulo.id)));
+  const out = { recompradas: 0, valor: 0, linhas: [], erros: [] };
+  for (const l of alvo) {
+    try {
+      const res = await recompraPorVencido(l.titulo.id, { encargos: l.encargos, vencBanco: l.vencimento, quem });
+      if (!res?.ja) { out.recompradas++; out.valor = r2(out.valor + (res.valor || l.total)); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: recompra criada (R$ ${(res.valor || l.total).toFixed(2)})`); }
+    } catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
+  }
+  return { ...out, total: r.total, semConta: r.semConta, jaRecompra: r.jaRecompra, jaLiquidados: r.jaLiquidados };
+}

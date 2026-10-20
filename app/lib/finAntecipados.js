@@ -107,7 +107,9 @@ export async function sincronizarAntecipados(quem) {
   await padronizarNomes().catch((e) => console.log("antecipados/nomes:", e.message));
   await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
   await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
-  await cobrarVencidos(quem).catch((e) => console.log("antecipados/cobrar:", e.message));
+  // v335 — a recompra NÃO é mais criada automaticamente por data. Um título antecipado só vira
+  // conta a pagar de recompra quando aparece no relatório "Títulos Vencidos" do Bradesco (aplicarVencidos)
+  // ou por recompra manual. Antes disso, o título fica apenas como ATRASADO.
 }
 
 // v189 — "seta vermelha": título antecipado que não deveria ter ido ao banco (ex.: cancelado e enviado por engano).
@@ -146,6 +148,42 @@ export async function recomprar(id, motivo, quem) {
   await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id, atualizadoPorNome: quem || null,
     critica: [t.critica, `Recompra solicitada${mot ? ` (${mot})` : ""} — conta a pagar até ${dBR(venc)}.`].filter(Boolean).join(" · ").slice(0, 500) } });
   return { id: p.id, vencimento: venc.toISOString().slice(0, 10), valor: Number(t.valor) };
+}
+
+// v335 — cria a conta a pagar de recompra a partir do relatório "Títulos Vencidos" do Bradesco.
+// Só títulos que aparecem nesse relatório viram recompra. Valor = nota + encargos (o que o banco vai debitar).
+export async function recompraPorVencido(id, { encargos = 0, vencBanco, quem } = {}) {
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser recomprado.");
+  if (t.liquidadoEm) throw new Error("O título já está liquidado (cliente pagou).");
+  const chave = `RECOMPRA|${t.id}`;
+  if (t.recompraId) {
+    const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId }, select: { status: true } });
+    if (c && c.status !== "CANCELADO") return { ja: true, id: t.recompraId };
+  }
+  await garantirContas();
+  const conta = await prisma.finConta.findUnique({ where: { codigo: "2131300" }, select: { id: true } });
+  const forma = t.antecipadoForma || "BRADESCO";
+  const [parc, doc] = PARCEIRO[forma] || PARCEIRO.BRADESCO;
+  const enc = r2(Number(encargos) || 0);
+  const valor = r2(Number(t.valor) + enc);
+  const venc = hojeUTC();   // já está vencido no banco: cobrança é imediata
+  const ctr = t.antecipacaoId ? await prisma.finAntecipacao.findUnique({ where: { id: t.antecipacaoId }, select: { contrato: true } }) : null;
+  const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
+  if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANC|${velha.id}` } });
+  const p = await prisma.finTitulo.create({ data: {
+    tipo: "PAGAR", titulo: `RECOMPRA DE ANTECIPAÇÃO · ${t.titulo} · ${t.parceiro}`.slice(0, 190), parceiro: parc, documento: doc,
+    numeroDoc: t.numeroDoc, nossoNumero: t.nossoNumero, valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
+    rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: "DEBITO_AUTOMATICO", chaveImport: chave, valorConfirmado: true, criadoPorNome: quem || "SISTEMA",
+    observacao: [`TÍTULO A RECEBER #${t.id} · ${t.titulo} · CLIENTE ${t.parceiro}${t.documento ? ` (${t.documento})` : ""} · NF/DOC ${t.numeroDoc || "—"}${t.nossoNumero ? ` · NOSSO Nº ${t.nossoNumero}` : ""}`,
+      `VENCIDO NO BANCO · VENC. ORIGINAL ${dBR(t.vencimento)}${vencBanco ? ` · VENCIMENTO BRADESCO ${dBR(vencBanco)}` : ""} (${FORMAS_ANT[forma]}${ctr ? ` · CONTRATO ${ctr.contrato}` : ""})`,
+      enc ? `NOTA R$ ${Number(t.valor).toFixed(2)} + ENCARGOS R$ ${enc.toFixed(2)}` : null,
+      `ORIGEM: RELATÓRIO TÍTULOS VENCIDOS (BRADESCO)`].filter(Boolean).join(" · ").slice(0, 1000),
+    critica: `Título antecipado ${t.titulo} (${t.parceiro}) apareceu no relatório de Títulos Vencidos do Bradesco — virou recompra${enc ? ` (nota + encargos de R$ ${enc.toFixed(2)})` : ""}. Ao baixar esta conta, o título original também é baixado.`,
+  } });
+  await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id, atualizadoPorNome: quem || null,
+    critica: [t.critica, `Apareceu nos Títulos Vencidos do Bradesco — virou conta a pagar de recompra (${dBR(venc)}).`].filter(Boolean).join(" · ").slice(0, 500) } });
+  return { id: p.id, valor, vencimento: venc.toISOString().slice(0, 10) };
 }
 
 // marca o título como liquidado (cliente pagou quem antecipou)
@@ -225,7 +263,7 @@ export function situacaoAntecipado(t, hoje = hojeUTC()) {
   if (t.liquidadoEm) return t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO";
   if (t.recompraId) return "COBRADO";
   const v = t.vencimento instanceof Date ? t.vencimento : dataUTC(t.vencimento);
-  if (v < hoje) return "VENCIDO";   // dentro dos 3 dias úteis
+  if (v < hoje) return "VENCIDO";   // atrasado: só vira recompra pelo relatório Títulos Vencidos (v335)
   return "A_VENCER";
 }
 
