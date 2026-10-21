@@ -1416,7 +1416,7 @@ function PainelPrevisao({ user, comp, setComp }) {
     // v371 — cenário geral = a receber geral + execução + em andamento − antecipação − a pagar geral − contas atrasadas (sem duplicar: o a pagar geral só tem o que vence de hoje em diante)
     const V0 = P.virtual || { real: 0, previsoesProx: 0, quitacao: { total: 0 } };
     const pagarGeral = V0.real + (V0.quitacao?.total || 0);   // v377 — previsões saíram (1 mês de operação digitado no LB)
-    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - n("antecipacaoDisp") - pagarGeral - P.atrasadas;
+    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - pagarGeral - P.atrasadas;   // v383 — antecipação não muda o geral/LB
     // v357 — antecipação preenchida entra no a receber do mês (e sai do a receber geral)
     const entradas = R.mes.real + xQ + n("recebimentoMes") + n("antecipacaoDisp"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
@@ -1513,7 +1513,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                 V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} onClick={() => setModal({ tipo: "pagarVirtual" })}
                   sub={[`a vencer ${brl(V.real)}`, V.quitacao.total ? `dívidas ${brl(V.quitacao.total)}` : null].filter(Boolean).join(" + ")} /> : <div />,
                 <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />,
-                <div title={`a receber geral ${brl(R.geral.real + R.atrasado.execucao)} (inclui execução) + em andamento ${brl(Number(val("pedidosAndamento")) || 0)}${antec ? ` − antecipação ${brl(antec)}` : ""} − a pagar geral ${brl(calc.pagarGeral)} − contas atrasadas ${brl(P.atrasadas)}`}>
+                <div title={`a receber geral ${brl(R.geral.real + R.atrasado.execucao)} (inclui execução) + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar geral ${brl(calc.pagarGeral)} − contas atrasadas ${brl(P.atrasadas)}`}>
                   <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber geral + em andamento − a pagar geral − atrasadas" Ico={TrendingUp} /></div>,
               ];
               return (
