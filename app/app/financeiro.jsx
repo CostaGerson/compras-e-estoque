@@ -1492,7 +1492,7 @@ function PainelPrevisao({ user, comp, setComp }) {
               ];
               const geralL = [
                 <CardAuto compacto rotulo="A receber geral" valor={R.geral.real + R.atrasado.execucao} cor={C.blue}   /* v379 — tudo: atrasado (cobrança + execução) + a vencer no mês + depois */
-                  sub={`atrasado ${brl(R.atrasado.cobranca + R.atrasado.execucao)} + a vencer no mês ${brl(R.mes.real - R.mes.cobranca)} + depois ${brl(R.foraMes.real)}${R.geral.antecipados ? ` · fora: antecipados ${brl(R.geral.antecipados)}` : ""}`}
+                  sub={`atrasado ${brl(R.atrasado.cobranca + R.atrasado.execucao)} + a vencer no mês ${brl(R.mes.real - R.mes.cobranca)} + depois ${brl(R.foraMes.real)}`}
                   onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />,
                 V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} onClick={() => setModal({ tipo: "pagarVirtual" })}
                   sub={[`a vencer ${brl(V.real)}`, V.quitacao.total ? `dívidas ${brl(V.quitacao.total)}` : null].filter(Boolean).join(" + ")} /> : <div />,
