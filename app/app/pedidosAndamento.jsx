@@ -111,7 +111,7 @@ export default function PedidosAndamento({ user }) {
           <b style={{ color: C.navy }}>Cronograma PCP</b>
           {!CR?.temToken ? <span style={{ color: C.red }}>sem token — configure a conexão</span>
             : CR?.erro ? <span style={{ color: C.red }}>{CR.erro}</span>
-            : <span style={{ color: C.sub }}>lido {CR?.em ? new Date(CR.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"} · {CR?.itens ?? 0} itens, {CR?.etapas ?? 0} etapas · {CR?.casados ?? 0} pedido(s) daqui casados{CR?.semPedidoAqui ? ` · ${CR.semPedidoAqui} no PCP sem PV aqui` : ""}{CR?.avisoEtapas ? ` · etapas: ${CR.avisoEtapas}` : ""}</span>}
+            : <span style={{ color: C.sub }}>lido {CR?.em ? new Date(CR.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"} · {CR?.itens ?? 0} itens, {CR?.etapas ?? 0} etapas · {CR?.casados ?? 0} pedido(s) daqui casados{CR?.semPedidoAqui ? ` · ${CR.semPedidoAqui} OP(s) em produção no PCP sem PV aqui` : ""}{CR?.pecasEmProducao != null ? ` · ${CR.pecasEmProducao.toLocaleString("pt-BR")} peças em produção (${CR.opsEmProducao ?? 0} OPs)` : ""}{CR?.opsAgrupamento ? ` · ${CR.opsAgrupamento} OP(s) de agrupamento` : ""}{CR?.complementos ? ` · ${CR.complementos} complementos fora da contagem de peças` : ""}{CR?.semNumero ? ` · ${CR.semNumero} itens sem nº (amostra/piloto)` : ""}{CR?.avisoEtapas ? ` · etapas: ${CR.avisoEtapas}` : ""}</span>}
           <div className="flex-1" />
           <button disabled={sinc} onClick={atualizarPcp} className="flex items-center gap-1 font-semibold" style={{ color: C.accent }}>{sinc ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar do PCP</button>
           <button onClick={verDiag} className="font-semibold" style={{ color: C.sub }}>Ver o que veio</button>
@@ -333,12 +333,22 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                         {p.cronoPrazo && <> · prazo <b style={{ color: C.text }}>{dBR(p.cronoPrazo)}</b></>}
                         {p.despacho && <> · DT despacho PV {dBR(p.despacho)}</>}
                       </div>
+                      {(p.cronoItens || []).length > 0 && (() => {   /* v353 — peças = campo pecas (complemento não conta) */
+                        const pc = p.cronoItens.reduce((s, c) => s + (c.pecas ?? c.qtd ?? 0), 0);
+                        const corte = p.cronoItens.reduce((s, c) => s + (c.qtdCorte ?? c.qtd ?? 0), 0);
+                        const agr = /AGRUPADO NA OP/.test(p.cronoSituacao || "");
+                        const dif = !agr && p.qtd && pc && Number(p.qtd) !== pc;
+                        return <div className="text-[11px] mt-0.5" style={{ color: dif ? C.red : C.sub }}>
+                          PCP: <b>{pc.toLocaleString("pt-BR")}</b> peças{corte !== pc ? ` · ${corte.toLocaleString("pt-BR")} a cortar (com complementos)` : ""}
+                          {p.qtd ? ` · PV ${Number(p.qtd).toLocaleString("pt-BR")}` : ""}{dif ? " — quantidade diferente, conferir item a item" : ""}{agr ? " · peças da OP inteira (agrupamento)" : ""}
+                        </div>;
+                      })()}
                       {(p.cronoItens || []).length > 0 && (
                         <table className="w-full text-[11px] mt-1">
                           <tbody>{p.cronoItens.map((c, i) => (
                             <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
-                              <td className="py-0.5" style={{ color: C.sub }}>{c.itemCode}</td><td className="py-0.5">{c.produto}</td>
-                              <td className="py-0.5 text-center">{c.qtd || ""}</td><td className="py-0.5 text-center">{c.situacao}{c.etapa ? ` · ${c.etapa}` : ""}</td>
+                              <td className="py-0.5" style={{ color: C.sub }}>{c.itemCode}</td><td className="py-0.5">{c.produto}{c.complemento ? <span style={{ color: C.sub }}> (complemento)</span> : ""}</td>
+                              <td className="py-0.5 text-center" title={c.complemento ? `complemento: ${c.qtdCorte ?? ""} a cortar, não conta como peça` : ""}>{c.complemento ? <span style={{ color: C.sub }}>corte {c.qtdCorte || ""}</span> : (c.pecas ?? c.qtd) || ""}</td><td className="py-0.5 text-center">{c.situacao}{c.etapa ? ` · ${c.etapa}` : ""}</td>
                               <td className="py-0.5 text-center">{c.fimProgramado ? `fim ${dBR(c.fimProgramado)}` : c.entrega ? `entrega ${dBR(c.entrega)}` : "—"}</td>
                             </tr>))}</tbody>
                         </table>

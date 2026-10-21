@@ -1,16 +1,21 @@
 // v317 — leitura do Cronograma PCP (sistema do Maycon): programação de entrega por nº de pedido → PedidoVenda.entregaPrevista
 // Endpoints só-leitura com token no cabeçalho X-Api-Key: /api/ext/pedidos (itens) e /api/ext/etapas (programação por etapa).
+// v353 — regras novas do Maycon (como-ler-o-cronograma): situacao LEVANTAMENTO/A_PROGRAMAR/EM_PRODUCAO/CONCLUIDO;
+//   peças = campo `pecas` (complemento = forro/entretela/recorte… vale 0); `quantidade` só p/ corte e matéria-prima;
+//   item sem `pedido` = amostra/piloto (sem contrapartida); OP de agrupamento casa pelos números de `pedidosAgrupados`.
 // O formato é lido de forma tolerante (nomes de campo alternativos); "diagnostico" mostra o que veio, para ajustar se precisar.
 import { prisma } from "@/lib/prisma";
 
 const K_URL = "CRONO|URL", K_TOKEN = "CRONO|TOKEN", K_SYNC = "CRONO|SYNC";
-const URL_PADRAO = "http://147.93.35.189:8124";
+const URL_ANTIGA = "http://147.93.35.189:8124";
+const URL_PADRAO = "http://pcp.meridianpro.com.br", TOKEN_PADRAO = "meridian-pcp";   // v353
 const INTERVALO_MS = 10 * 60 * 1000;
 
 const cfg = async (k) => (await prisma.finConfig.findUnique({ where: { chave: k } }).catch(() => null))?.valor || "";
 export async function conexao() {
-  const url = (await cfg(K_URL)) || process.env.CRONO_URL || URL_PADRAO;
-  const token = (await cfg(K_TOKEN)) || process.env.CRONO_TOKEN || "";
+  let url = (await cfg(K_URL)) || process.env.CRONO_URL || URL_PADRAO;
+  if (url.replace(/\/+$/, "") === URL_ANTIGA) url = URL_PADRAO;   // v353 — endereço novo do PCP
+  const token = (await cfg(K_TOKEN)) || process.env.CRONO_TOKEN || TOKEN_PADRAO;
   return { url: url.replace(/\/+$/, ""), token };
 }
 export async function salvarConexao({ url, token }) {
@@ -53,23 +58,36 @@ const dataDe = (v) => {
   return null;
 };
 const soDig = (v) => String(v || "").replace(/\D/g, "");
+const temCampo = (o, ...nomes) => { const m = chaves(o); return nomes.some((n) => m[n.toLowerCase().replace(/[_\s-]/g, "")] != null); };
 const pedidoDe = (o) => {
   const p = pick(o, "pedido", "numeroPedido", "pedidoNumero", "nPedido", "numero_pedido", "pedidoNum");
   const v = p && typeof p === "object" ? pick(p, "numero", "codigo", "id") : p;
   if (v) return soDig(v);
+  if (temCampo(o, "pedido")) return "";   // v353 — campo existe e veio vazio: amostra/piloto/grade sem OP (não deduzir pelo itemCode)
   const ic = pick(o, "itemCode", "codigoItem", "item");
   return ic ? soDig(String(ic).split(/[-/]/)[0]) : "";
 };
 const itemDe = (o) => String(pick(o, "itemCode", "codigoItem", "item_code") || "");
+// v353 — produção em aberto = situacao != CONCLUIDO (LEVANTAMENTO, A_PROGRAMAR, EM_PRODUCAO). Termos antigos mantidos por tolerância.
 const ehConcluido = (s) => /CONCLU|FINALIZ|ENTREGUE|EXPEDID|FATUR/i.test(String(s || ""));
+const SITUACAO_TXT = { LEVANTAMENTO: "LEVANTAMENTO", A_PROGRAMAR: "A PROGRAMAR", EM_PRODUCAO: "EM PRODUÇÃO", CONCLUIDO: "CONCLUÍDO" };
+const situacaoTxt = (s) => SITUACAO_TXT[String(s || "").toUpperCase()] || String(s || "").toUpperCase();
+const simNao = (v) => v === true || /^(true|1|sim|s)$/i.test(String(v ?? ""));
+const listaNums = (v) => (Array.isArray(v) ? v : String(v || "").split(/[,;\s]+/)).map((x) => soDig(x && typeof x === "object" ? pick(x, "numero", "pedido", "codigo") : x)).filter(Boolean);
 const ehFaturado = (s) => /FATUR/i.test(String(s || ""));   // v347
 
 export function normalizarItem(o) {
+  const quantidade = Number(pick(o, "quantidade", "qtd", "qtde")) || 0;   // v353 — unidades a cortar (corte / matéria-prima)
+  const complemento = simNao(pick(o, "complemento"));
+  const pc = pick(o, "pecas");
+  const pecas = pc != null ? Number(pc) || 0 : complemento ? 0 : quantidade;   // v353 — peças de verdade (complemento = 0)
+  const agrupamento = simNao(pick(o, "agrupamento"));
   return {
     itemCode: itemDe(o), pedido: pedidoDe(o),
     produto: String(pick(o, "produto", "descricao", "nome", "item") || ""),
     cliente: String(pick(o, "cliente", "clienteNome", "razaoSocial") || ""),
-    quantidade: Number(pick(o, "quantidade", "qtd", "qtde", "pecas")) || 0,
+    quantidade, pecas, complemento, agrupamento,
+    pedidosAgrupados: agrupamento ? listaNums(pick(o, "pedidosAgrupados", "pedidos_agrupados")) : [],
     entrega: dataDe(pick(o, "entrega", "dataEntrega", "prazoEntrega", "prazo", "entregaPrevista", "previsaoEntrega", "dataPrevista")),
     situacao: String(pick(o, "situacao", "status", "fase") || ""),
     etapaAtual: String(pick(o, "etapaAtual", "etapa", "setorAtual", "setor") || ""),
@@ -98,16 +116,22 @@ export function agruparPorPedido(itens, etapas) {
   for (const i of itens) if (i.pedido) { const p = de(i.pedido); p.itens.push(i); if (i.entrega && (!p.prazo || i.entrega > p.prazo)) p.prazo = i.entrega; }
   for (const e of etapas) if (e.pedido) { const p = de(e.pedido); p.etapas.push(e); if (e.fim && (!p.fimProgramado || e.fim > p.fimProgramado)) p.fimProgramado = e.fim; }
   for (const p of Object.values(g)) {
+    // v353 — OP de agrupamento: lista dos pedidos comerciais que ela contempla
+    p.agrupamento = p.itens.some((i) => i.agrupamento);
+    p.pedidosAgrupados = [...new Set(p.itens.flatMap((i) => i.pedidosAgrupados))];
+    p.pecas = p.itens.reduce((s, i) => s + i.pecas, 0);             // peças reais (sem complementos)
+    p.quantidadeCorte = p.itens.reduce((s, i) => s + i.quantidade, 0); // unidades a cortar
+    p.emProducao = p.itens.some((i) => !ehConcluido(i.situacao));
     p.concluido = p.itens.length > 0 && p.itens.every((i) => ehConcluido(i.situacao));
     p.faturado = p.itens.length > 0 && p.itens.every((i) => ehFaturado(i.situacao));
     const sits = [...new Set(p.itens.map((i) => i.situacao).filter(Boolean))];
     const etps = [...new Set(p.itens.filter((i) => !ehConcluido(i.situacao)).map((i) => i.etapaAtual).filter(Boolean))];
-    p.situacao = p.concluido ? "CONCLUÍDO" : sits.join(" · ").toUpperCase() || (p.etapas.length ? "PROGRAMADO" : "");
+    p.situacao = p.concluido ? "CONCLUÍDO" : sits.filter((x) => !ehConcluido(x)).map(situacaoTxt).join(" · ") || (p.etapas.length ? "PROGRAMADO" : "");
     p.etapa = etps.join(" · ").toUpperCase();
     // resumo por item: fim programado do item = maior fim das etapas dele
     p.resumo = p.itens.map((i) => {
       const fims = p.etapas.filter((e) => e.itemCode && e.itemCode === i.itemCode && e.fim).map((e) => e.fim).sort();
-      return { itemCode: i.itemCode, produto: i.produto, qtd: i.quantidade, situacao: i.situacao, etapa: i.etapaAtual, entrega: i.entrega, fimProgramado: fims[fims.length - 1] || null };
+      return { op: p.pedido, itemCode: i.itemCode, produto: i.produto, qtd: i.pecas, pecas: i.pecas, qtdCorte: i.quantidade, complemento: i.complemento, situacao: situacaoTxt(i.situacao), etapa: i.etapaAtual, entrega: i.entrega, fimProgramado: fims[fims.length - 1] || null };
     });
     // entrega do pedido = a do último item a ficar pronto (fim programado do item; sem programação, o prazo de entrega dele)
     const datas = p.resumo.map((r) => r.fimProgramado || r.entrega).filter(Boolean);
@@ -115,6 +139,31 @@ export function agruparPorPedido(itens, etapas) {
     p.entregaPrevista = datas.sort().pop() || p.fimProgramado || p.prazo || null;
   }
   return g;
+}
+
+// v353 — índice nº comercial → OPs: a própria OP e, quando é agrupamento, cada número de pedidosAgrupados
+export function indiceComercial(g) {
+  const ix = {};
+  const add = (n, op) => { (ix[n] = ix[n] || []).includes(op) || ix[n].push(op); };
+  for (const op of Object.values(g)) { add(op.pedido, op.pedido); for (const n of op.pedidosAgrupados) add(n, op.pedido); }
+  return ix;
+}
+// junta as OPs de um pedido comercial (normalmente 1; agrupado pode cair em mais de uma)
+export function visaoDoPedido(g, ops, numero) {
+  const l = ops.map((o) => g[o]).filter(Boolean);
+  if (!l.length) return null;
+  if (l.length === 1 && l[0].pedido === numero) return { ...l[0], viaAgrupamento: null };
+  const datas = (k) => l.map((x) => x[k]).filter(Boolean).sort().pop() || null;
+  const agr = l.filter((x) => x.pedido !== numero).map((x) => x.pedido);
+  return {
+    pedido: numero, itens: l.flatMap((x) => x.itens), etapas: l.flatMap((x) => x.etapas),
+    prazo: datas("prazo"), fimProgramado: datas("fimProgramado"), entregaPrevista: datas("entregaPrevista"),
+    concluido: l.every((x) => x.concluido), faturado: l.every((x) => x.faturado), emProducao: l.some((x) => x.emProducao),
+    pecas: l.reduce((s, x) => s + x.pecas, 0), quantidadeCorte: l.reduce((s, x) => s + x.quantidadeCorte, 0),
+    situacao: [...new Set(l.map((x) => x.situacao).filter(Boolean))].join(" · "),
+    etapa: [...new Set(l.map((x) => x.etapa).filter(Boolean))].join(" · "),
+    resumo: l.flatMap((x) => x.resumo), agrupamento: true, viaAgrupamento: agr,
+  };
 }
 
 // ---------- sincronização ----------
@@ -132,23 +181,33 @@ export async function sincronizar({ forcar = false } = {}) {
       const itens = listaDe(jp).map(normalizarItem), etapas = listaDe(je).map(normalizarEtapa);
       res.itens = itens.length; res.etapas = etapas.length; res.rev = jp?.rev ?? null;
       const g = agruparPorPedido(itens, etapas);
+      const ix = indiceComercial(g);
       res.pedidosCrono = Object.keys(g).length;
+      // v353 — números de controle (regras do Maycon)
+      res.semNumero = itens.filter((i) => !i.pedido).length;                       // amostras/pilotos sem OP
+      res.complementos = itens.filter((i) => i.complemento).length;
+      res.pecas = itens.reduce((s, i) => s + i.pecas, 0);
+      res.quantidadeCorte = itens.reduce((s, i) => s + i.quantidade, 0);
+      res.opsAgrupamento = Object.values(g).filter((o) => o.agrupamento).length;
+      res.opsEmProducao = Object.values(g).filter((o) => o.emProducao).length;
+      res.pecasEmProducao = itens.filter((i) => i.pedido && !ehConcluido(i.situacao)).reduce((s, i) => s + i.pecas, 0);
       const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true } });
       for (const p of aqui) {
-        const c = g[soDig(p.numero)];
+        const c = visaoDoPedido(g, ix[soDig(p.numero)] || [], soDig(p.numero));
         if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: "NÃO ESTÁ NO CRONOGRAMA", cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [] } }); continue; }
         res.casados++;
         await prisma.pedidoVenda.update({ where: { id: p.id }, data: {
           entregaPrevista: c.entregaPrevista ? new Date(`${c.entregaPrevista}T00:00:00Z`) : null,
           cronoPrazo: c.prazo ? new Date(`${c.prazo}T00:00:00Z`) : null,
           cronoFimProgramado: c.fimProgramado ? new Date(`${c.fimProgramado}T00:00:00Z`) : null,
-          cronoSituacao: c.situacao || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
+          cronoSituacao: (c.viaAgrupamento?.length ? `${c.situacao || "—"} · AGRUPADO NA OP ${c.viaAgrupamento.join("/")}` : c.situacao) || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
           ...(c.faturado && p.status === "ANDAMENTO" ? { status: "FATURADO", faturadoEm: new Date(`${res.em.slice(0, 10)}T00:00:00Z`) } : {}),   // v347 — faturado no PCP
         } });
         if (c.faturado && p.status === "ANDAMENTO") res.faturados = (res.faturados || 0) + 1;
       }
       const nums = new Set(aqui.map((p) => soDig(p.numero)));
-      res.semPedidoAqui = Object.keys(g).filter((n) => !nums.has(n)).length;
+      // v353 — OP do PCP sem PV aqui: não conta se ela própria ou algum pedido agrupado nela casou; só produção em aberto
+      res.semPedidoAqui = Object.values(g).filter((o) => o.emProducao && !nums.has(o.pedido) && !o.pedidosAgrupados.some((n) => nums.has(n))).length;
       // v321 — pedidos em andamento no PCP que ainda não têm PV aqui (para saber o que falta subir)
     } catch (e) { res.erro = e.message; }
     await prisma.finConfig.upsert({ where: { chave: K_SYNC }, create: { chave: K_SYNC, valor: JSON.stringify(res) }, update: { valor: JSON.stringify(res) } });
