@@ -1388,7 +1388,8 @@ function PainelPrevisao({ user, comp, setComp }) {
     // v357 — antecipação preenchida entra no a receber do mês (e sai do a receber geral)
     const entradas = R.mes.real + xQ + n("recebimentoMes") + n("antecipacaoDisp"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
-    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, cen: { geral, mes, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
+    const lb = geral + n("lbVendaPatrimonio") - n("lbPassivoTrabalhista") - n("lbMesOperacao") - (P.dividasLB?.liquido || 0);   // v364
+    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, cen: { geral, mes, lb, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
       antecipandoCobrindo: mes - caixa.limiteTomado, antecipandoSemCobrir: mes } };
   }, [p, bancos, selPrior, selQuit, rasc]);
 
@@ -1474,12 +1475,36 @@ function PainelPrevisao({ user, comp, setComp }) {
                 V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} /> : <div />,
                 <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />,
                 <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}${antec ? ` − antecipação ${brl(antec)}` : ""}`}>
-                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub={`a receber + execução + em andamento − a pagar${antec ? ` − antecipação ${brl(antec)}` : ""}`} Ico={TrendingUp} /></div>,
+                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar" Ico={TrendingUp} /></div>,
               ];
               return (
                 <div className="grid gap-2 grid-cols-2">
                   {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}{cab("Geral")}
                   {mesL.map((m, i) => [<div key={`m${i}`} className="grid">{m}</div>, <div key={`g${i}`} className="grid">{geralL[i]}</div>])}
+                  {/* v364 — cenário LB (liquidação de balanço), largura das duas colunas */}
+                  {(() => {
+                    const D = P.dividasLB || {}, nn = (k) => Number(val(k)) || 0;
+                    const f = `cenário geral ${brl(Cn.geral)} + venda de patrimônio ${brl(nn("lbVendaPatrimonio"))} − passivo trabalhista ${brl(nn("lbPassivoTrabalhista"))} − 1 mês de operação ${brl(nn("lbMesOperacao"))} − dívidas ${brl(D.liquido || 0)} (quitação hoje ${brl(D.quitacaoHoje || 0)} − parcelas já lançadas no a pagar ${brl(D.lancadas || 0)}, que já saem do cenário geral)`;
+                    return (
+                      <div className="col-span-2 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                        <div title={f} className="min-w-[180px]">
+                          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}><TrendingUp size={11} /> Cenário LB · liquidação de balanço</div>
+                          <div className="font-bold tabular-nums whitespace-nowrap" style={{ color: Cn.lb >= 0 ? C.green : C.red, fontSize: "clamp(12px, 0.95vw, 15px)" }}>{moeda(Cn.lb)}</div>
+                          <div className="text-[10px]" style={{ color: C.sub }}>cenário geral + patrimônio − passivo − operação − dívidas</div>
+                        </div>
+                        <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+                          {[["lbVendaPatrimonio", "+ Venda de patrimônio"], ["lbPassivoTrabalhista", "− Passivo trabalhista"], ["lbMesOperacao", "− 1 mês de operação"]].map(([k, t]) => (
+                            <label key={k} className="flex flex-col gap-0.5 min-w-0"><span className="text-[10px] font-semibold uppercase truncate" style={{ color: C.sub }}>{t}</span>
+                              <ValorIn value={val(k)} onChange={set(k)} width="100%" /></label>
+                          ))}
+                          <button onClick={() => setModal({ tipo: "dividasLB" })} className="flex flex-col gap-0.5 text-left min-w-0" title="Saldo para quitar hoje tudo o que está na Alavancagem">
+                            <span className="text-[10px] font-semibold uppercase truncate flex items-center gap-1" style={{ color: C.sub }}>− Dívidas (alavancagem) <Search size={10} style={{ color: C.accent }} /></span>
+                            <span className="font-bold tabular-nums whitespace-nowrap py-1" style={{ color: C.red }}>{D.erro ? "erro" : brl(D.liquido || 0)}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
@@ -1633,6 +1658,15 @@ function PainelPrevisao({ user, comp, setComp }) {
           <ListaTitulos itens={p.listas.pagarAtrasadas} vazio="Nenhuma conta atrasada." />
         </Modal>
       )}
+      {modal?.tipo === "dividasLB" && (() => { const D = P.dividasLB || {}; return (
+        <Modal titulo="Dívidas · quitação imediata (alavancagem)" icone={Search} onClose={() => setModal(null)} largura={680}>
+          {D.erro && <div className="text-xs mb-2" style={{ color: C.red }}>{D.erro}</div>}
+          {(D.contratos || []).map((c, i) => <LinhaVal key={i} rotulo={`${c.nome}${c.credor ? ` · ${c.credor}` : ""}`} sub={c.grupo} valor={c.saldo} cor={C.red} />)}
+          <LinhaVal rotulo="Quitação hoje" valor={D.quitacaoHoje || 0} cor={C.red} forte />
+          <LinhaVal rotulo="(−) Parcelas dessas dívidas já lançadas no a pagar" sub="já saem do cenário geral" valor={D.lancadas || 0} cor={C.sub} />
+          <LinhaVal rotulo="Entra no cenário LB" valor={D.liquido || 0} cor={C.red} forte />
+        </Modal>
+      ); })()}
       {/* v356 — listas que compõem os valores do card de atrasados e prioridades */}
       {modal?.tipo === "listaPrior" && (
         <Modal titulo={`Prioridade do mês · ${brl(calc.tP)}`} icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>

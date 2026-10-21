@@ -26,9 +26,10 @@ const PAINEL_VAZIO = {
   receberPrevisao: null,
   pedidosEntregar: null, recebimentoMes: null, pedidosAndamento: null, antecipacaoDisp: null, cmvAndamento: null, passivoTributario: null, entregasMes: null, recebimentosMes: null, andamento: null,
   infoRelevante: "", salvos: [], atualizadoAuto: null,
+  lbVendaPatrimonio: null, lbPassivoTrabalhista: null, lbMesOperacao: null,   // v364 — cenário LB
 };
 // Campos digitados (a tela e o salvar usam esta lista)
-export const CAMPOS_MANUAIS = ["cmvAndamento", "passivoTributario", "receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante"];
+export const CAMPOS_MANUAIS = ["cmvAndamento", "passivoTributario", "receberPrevisao", "pedidosEntregar", "recebimentoMes", "pedidosAndamento", "antecipacaoDisp", "infoRelevante", "lbVendaPatrimonio", "lbPassivoTrabalhista", "lbMesOperacao"];
 
 const SEL = { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, previsao: true,
   antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true, recorrenciaId: true };
@@ -106,6 +107,16 @@ async function posicao(M, hoje) {
     })).filter((x) => x && x.saldo > 0.009);
     quitacao = { total: r2(cs.reduce((a, x) => a + x.saldo, 0)), contratos: cs, erro: null };
   } catch (e) { quitacao.erro = e.message; }
+  // v364 — cenário LB: quitar hoje tudo o que está na alavancagem; as parcelas dessas dívidas já lançadas (não previsão) saem do cenário geral, então não contam de novo
+  let dividasLB = { quitacaoHoje: 0, lancadas: 0, liquido: 0, contratos: [], erro: null };
+  try {
+    const { panorama } = await import("@/lib/alavancagem");
+    const pnH = await panorama(new Date());
+    const cs = pnH.grupos.flatMap((g) => g.itens.filter((x) => !x.quitado).map((x) => ({ grupo: g.label, nome: x.nome, credor: x.credor, saldo: r2(Number(x.amort?.saldoDevedor ?? x.saldoCapital ?? 0)) }))).filter((x) => x.saldo > 0.009);
+    const quitacaoHoje = r2(cs.reduce((a, x) => a + x.saldo, 0));
+    const lancadas = soma(pagar.filter((t) => ehDivida(t) && !t.previsao));
+    dividasLB = { quitacaoHoje, lancadas, liquido: r2(Math.max(0, quitacaoHoje - lancadas)), contratos: cs, erro: null };
+  } catch (e) { dividasLB.erro = e.message; }
   const pagarVirtual = { mesSeguinte: M1, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
     quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t) && !ateM1(t))) };
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
@@ -124,6 +135,7 @@ async function posicao(M, hoje) {
       mes: soma(pagarMes), mesPrevisoes: soma(pagarMes.filter((t) => t.previsao)), qtdMes: pagarMes.length,
       totalSemPrevisao: soma(pagarSemPrev),
       virtual: pagarVirtual,
+      dividasLB,
     },
     listas: {
       pagarAtrasadas: pagarAtras.map((t) => tOut(t)),
@@ -161,8 +173,10 @@ export async function painel(competencia, hojeData = new Date()) {
   const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes") + n("antecipacaoDisp"));   // v357 — antecipação entra no mês
   const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
+  // v364 — LB (liquidação de balanço): geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − quitação das dívidas
+  const lb = r2(geral + n("lbVendaPatrimonio") - n("lbPassivoTrabalhista") - n("lbMesOperacao") - (pos.pagar.dividasLB?.liquido || 0));
   const cenarios = {
-    geral, mes,
+    geral, mes, lb,
     cobrindo: r2(mes - caixa.limiteTomado),
     semCobrir: mes,
     antecipandoCobrindo: r2(mes - caixa.limiteTomado),   // v357 — antecipação já está em "mes"
