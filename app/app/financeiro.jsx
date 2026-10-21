@@ -1180,6 +1180,15 @@ function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2, compacto = fa
     </Tag>
   );
 }
+// v356 — linha com valor clicável (abre a lista que compõe o valor)
+function LinhaClique({ titulo, sub, valor, cor, onClick }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center justify-between gap-2 py-2 text-left rounded hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+      <div><div className="text-xs font-semibold" style={{ color: C.text }}>{titulo}</div>{sub && <div className="text-[11px]" style={{ color: C.sub }}>{sub}</div>}</div>
+      <div className="font-bold tabular-nums whitespace-nowrap flex items-center gap-1.5" style={{ color: cor || C.navy }}>{brl(valor)}<Search size={13} style={{ color: C.accent }} /></div>
+    </button>
+  );
+}
 function LinhaVal({ rotulo, valor, cor, forte, sub }) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
@@ -1439,22 +1448,22 @@ function PainelPrevisao({ user, comp, setComp }) {
         <div ref={telaRef} className="flex flex-col gap-4" style={alturaTela ? { height: alturaTela } : undefined}>
         {/* v354 — 1ª linha ocupa toda a altura que sobra; 2ª linha só o necessário (compacta) */}
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "1 1 0", minHeight: 0, gridAutoRows: "100%" } : undefined}>
-          {/* posição automática */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+          {/* posição automática — v356: 2 colunas */}
+          <div className={`${caixaBloco} overflow-auto min-h-0 2xl:col-span-2`} style={caixaSt}>
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-              <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
                 onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
-              <CardAuto compacto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
+              <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
               {P.virtual && (() => { const V = P.virtual; const vt = V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0);
-                return <CardAuto compacto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
-              <CardAuto compacto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
+                return <CardAuto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
+              <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
-              <CardAuto compacto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
+              <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
-              <CardAuto compacto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
+              <CardAuto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
                 onClick={() => setModal({ tipo: "foraMes" })} />
-              <CardAuto compacto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
+              <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
                 sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
             </div>
             {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
@@ -1462,38 +1471,30 @@ function PainelPrevisao({ user, comp, setComp }) {
               <span>Bancos</span>
               <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
                 ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
-                <CardAuto compacto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
+                <CardAuto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
               ))}
             </div>
           </div>
 
-          {/* contas atrasadas + prioridade */}
+          {/* v356 — contas atrasadas, prioridade, previsão e quitação provável num card só: só os valores; clicar abre a lista */}
           <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
-            <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas e em aberto, inclusive previsões).</div>
-            <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
-            <div className="flex items-center justify-between mt-3 mb-1">
-              <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Prioridade do mês <span className="font-semibold" style={{ color: C.red }}>{brl(calc.tP)}</span></div>
-              <button onClick={() => setModal({ tipo: "prioridade" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
-            </div>
-            <ListaTitulos compacto itens={calc.prior} vazio="Nenhuma conta escolhida. Use + para selecionar as atrasadas que serão pagas no mês." />
-          </div>
-
-          {/* contas a receber */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
-            <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>A previsão virá do sistema do Maycon (integração); por ora, digitada.</div>
-            {[["receberPrevisao", "Previsão (ainda sem título)"]].map(([k, t]) => (
-              <label key={k} className="flex items-center justify-between py-1"><span className="text-xs" style={{ color: C.sub }}>{t}</span><ValorIn value={val(k)} onChange={set(k)} width={132} negativo /></label>
+            <div className="text-sm font-bold" style={{ color: C.navy }}>Atrasados e prioridades</div>
+            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Clique num valor para ver os lançamentos que o compõem.</div>
+            <div className="text-[11px] font-bold uppercase mt-2 mb-0.5" style={{ color: C.navy }}>A pagar</div>
+            {[["Contas atrasadas", `${P.qtdAtrasadas} conta(s) vencidas e em aberto, inclusive previsões`, P.atrasadas, P.atrasadas ? C.red : C.green, () => setModal({ tipo: "pagarAtrasadas" })],
+              ["Prioridade do mês", `${calc.prior.length} conta(s) atrasadas escolhidas para pagar no mês`, calc.tP, C.red, () => setModal({ tipo: "listaPrior" })]].map(([t, sub, v, cor, abrir]) => (
+              <LinhaClique key={t} titulo={t} sub={sub} valor={v} cor={cor} onClick={abrir} />
             ))}
-            <div className="flex items-center justify-between mt-3 mb-1">
-              <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Quitação provável <span className="font-semibold" style={{ color: C.blue }}>{brl(calc.tQ)}</span></div>
-              <button onClick={() => setModal({ tipo: "receberAtrasados" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
-            </div>
-            <ListaTitulos compacto itens={calc.quit} vazio="Nenhum atrasado escolhido. Selecione no card A receber atrasado os que devem entrar no mês." />
+            <div className="text-[11px] font-bold uppercase mt-4 mb-0.5" style={{ color: C.navy }}>A receber</div>
+            <LinhaClique titulo="Quitação provável" sub={`${calc.quit.length} título(s) atrasados que devem entrar no mês`} valor={calc.tQ} cor={C.blue} onClick={() => setModal({ tipo: "listaQuit" })} />
+            <label className="flex items-center justify-between py-1.5 gap-2">
+              <div><div className="text-xs font-semibold" style={{ color: C.text }}>Previsão a receber</div>
+                <div className="text-[11px]" style={{ color: C.sub }}>ainda sem título; digitada</div></div>
+              <ValorIn value={val("receberPrevisao")} onChange={set("receberPrevisao")} width={132} negativo />
+            </label>
           </div>
 
           {/* previsões de entrega / recebimento */}
@@ -1638,6 +1639,19 @@ function PainelPrevisao({ user, comp, setComp }) {
       {modal?.tipo === "pagarAtrasadas" && (
         <Modal titulo="Contas a pagar atrasadas" icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
           <ListaTitulos itens={p.listas.pagarAtrasadas} vazio="Nenhuma conta atrasada." />
+        </Modal>
+      )}
+      {/* v356 — listas que compõem os valores do card de atrasados e prioridades */}
+      {modal?.tipo === "listaPrior" && (
+        <Modal titulo={`Prioridade do mês · ${brl(calc.tP)}`} icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
+          <div className="flex justify-end mb-2"><button onClick={() => setModal({ tipo: "prioridade" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button></div>
+          <ListaTitulos itens={calc.prior} vazio="Nenhuma conta escolhida. Use Selecionar para marcar as atrasadas que serão pagas no mês." />
+        </Modal>
+      )}
+      {modal?.tipo === "listaQuit" && (
+        <Modal titulo={`Quitação provável · ${brl(calc.tQ)}`} icone={Search} onClose={() => setModal(null)} largura={760}>
+          <div className="flex justify-end mb-2"><button onClick={() => setModal({ tipo: "receberAtrasados" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button></div>
+          <ListaTitulos itens={calc.quit} vazio="Nenhum atrasado escolhido. Use Selecionar para marcar os que devem entrar no mês." />
         </Modal>
       )}
       {modal?.tipo === "prioridade" && (
