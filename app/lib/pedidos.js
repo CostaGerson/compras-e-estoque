@@ -243,16 +243,24 @@ export function lerNfItens(xml) {
   const inf = tag(t, "infCpl");
   const oc = ((inf.match(/Pedido de Compra:\s*([^|]*)/i) || [])[1] || "").split("/").map((x) => x.trim()).filter(Boolean);
   return { numero: tag(t, "nNF").replace(/^0+(?=\d)/, ""), emissao: tag(t, "dhEmi").slice(0, 10), cnpj: soD(tag(dest, "CNPJ") || tag(dest, "CPF")), nome: tag(dest, "xNome"),
-    valorProd: itens.reduce((a, i) => a + i.valor, 0), itens, oc };
+    valorProd: itens.reduce((a, i) => a + i.valor, 0), valorNf: Number(tag(t, "vNF")) || itens.reduce((a, i) => a + i.valor, 0), itens, oc };
 }
 const normOc = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
 const codBase = (c) => String(c || "").trim().toUpperCase();
 
+// v374 — peças do pedido: do PV/relatório; sem isso, a soma de peças do PCP (sem complementos)
+const pecasDoPedido = (p) => Number(p.qtd) || (Array.isArray(p.cronoItens) ? p.cronoItens.reduce((a, i) => a + (Number(i.pecas ?? i.qtd) || 0), 0) : 0) || Number(p.qtEntregar) || 0;
+
 // v372 — NF ↔ pedido pelos ITENS: mesmo cliente (CNPJ) + códigos dos produtos (+ O.C. quando houver). Soma as quantidades das NFs:
 // tudo entregue → FATURADO; parte → continua em andamento com o saldo a faturar (vlEntregar/qtEntregar) e as NFs anotadas.
 export async function faturarPelasNfsItens() {
+  // v374 — pedido fechado pela regra antiga (só valor ±2%) volta a ser conferido pelas peças: faturamento parcial não pode sumir do em andamento
+  const velhos = (await prisma.pedidoVenda.findMany({ where: { status: "FATURADO", atualizadoPorNome: "SISTEMA", obs: { contains: "FATURADO AUTOMÁTICO PELA NF" } },
+    select: { id: true, obs: true, nfsFaturadas: true } })).filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length));
+  for (const p of velhos) await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "ANDAMENTO", nfNumero: null, faturadoEm: null,
+    obs: String(p.obs || "").split(" · ").filter((x) => !x.startsWith("FATURADO AUTOMÁTICO PELA NF")).join(" · ") || null } });
   const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false },
-    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, qtd: true, itens: true, oc: true, obs: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true } });
+    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, qtd: true, itens: true, oc: true, obs: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true, cronoItens: true } });
   if (!and.length) return [];
   const todosPv = await prisma.pedidoVenda.findMany({ select: { nfsFaturadas: true } });   // Json: filtra aqui, não no banco
   const usadas = new Set(todosPv.flatMap((p) => (Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []).map((n) => n.chave)));
@@ -280,26 +288,49 @@ export async function faturarPelasNfsItens() {
       const porCod = {}; for (const i of nf.itens) porCod[codBase(i.codigo)] = (porCod[codBase(i.codigo)] || 0) + i.qtd;
       for (const [c, q] of Object.entries(porCod)) if (pedido[c] != null) { casados++; if (q <= (pedido[c] - (ja[c] || 0)) + 0.001) cabem++; }
       const ocOk = ocs.length && p.oc && ocs.some((o) => normOc(p.oc).includes(o) || o.includes(normOc(p.oc)));
+      // v374 — pedido sem itens do PV (veio do relatório): confere pelas PEÇAS (pedido ou PCP) e pelo valor
+      let porPecas = null;
+      if (!Object.keys(pedido).length) {
+        const qtdPed = pecasDoPedido(p);
+        const lst = Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : [];
+        const jaPecas = lst.reduce((a, n) => a + (Number(n.pecas) || 0), 0), jaValor = lst.reduce((a, n) => a + (Number(n.valor) || 0), 0);
+        const nfPecas = nf.itens.reduce((a, i) => a + i.qtd, 0);
+        const saldo = Number(p.total) - jaValor;
+        const valorOk = [nf.valorNf, nf.valorProd].some((v) => saldo > 0 && v <= saldo * 1.02 + 0.01 && v >= saldo * 0.5);
+        const pecasCabem = qtdPed > 0 && nfPecas <= qtdPed - jaPecas + 0.001;
+        if (!(valorOk || pecasCabem) && !ocOk) continue;
+        if (qtdPed > 0 && !pecasCabem) continue;   // mais peças do que o pedido tem: não é este
+        porPecas = { qtdPed };
+        const score = (ocOk ? 100 : 0) + (valorOk ? 20 : 0) + (pecasCabem ? 15 : 0) - Math.abs(saldo - nf.valorNf) / Math.max(1, saldo);
+        if (!melhor || score > melhor.score) melhor = { p, score, porCod, pedido, ja, porPecas };
+        continue;
+      }
       if (!casados && !ocOk) continue;
       const score = (ocOk ? 100 : 0) + cabem * 10 + casados - (casados < Object.keys(porCod).length ? 5 : 0);
       if (!melhor || score > melhor.score) melhor = { p, score, porCod, pedido, ja };
     }
     if (!melhor) continue;
-    const { p, porCod, pedido } = melhor;
-    const lista = [...(Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []), { chave: ch, numero: nf.numero, emissao: nf.emissao, valor: r2(nf.valorProd), pecas: nf.itens.reduce((a, i) => a + i.qtd, 0), itens: porCod }];
+    const { p, porCod, pedido, porPecas } = melhor;
+    // valor faturado: total da NF (com frete) quando cabe no pedido; senão só os produtos
+    const lista0 = Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : [];
+    const jaV = lista0.reduce((a, n) => a + (Number(n.valor) || 0), 0);
+    const vNf = jaV + nf.valorNf <= Number(p.total) + 0.01 ? nf.valorNf : nf.valorProd;
+    const lista = [...lista0, { chave: ch, numero: nf.numero, emissao: nf.emissao, valor: r2(vNf), pecas: nf.itens.reduce((a, i) => a + i.qtd, 0), itens: porCod }];
     const fat = {}; for (const n of lista) for (const [c, q] of Object.entries(n.itens || {})) fat[c] = (fat[c] || 0) + q;
     const valorFat = r2(lista.reduce((a, n) => a + (Number(n.valor) || 0), 0));
     const pecasFat = lista.reduce((a, n) => a + (Number(n.pecas) || 0), 0);
     const codsPedido = Object.keys(pedido);
     // pedido com códigos: só fecha quando TODAS as quantidades foram entregues; sem códigos, pelo valor (±2%)
-    const completo = codsPedido.length ? codsPedido.every((c) => (fat[c] || 0) + 0.001 >= pedido[c]) : valorFat >= Number(p.total) * 0.98;
+    const completo = codsPedido.length ? codsPedido.every((c) => (fat[c] || 0) + 0.001 >= pedido[c])
+      : porPecas?.qtdPed > 0 ? pecasFat + 0.001 >= porPecas.qtdPed : valorFat >= Number(p.total) * 0.98;
     const nums = lista.map((n) => n.numero).join(", ");
     const dataBR = (s) => s.split("-").reverse().join("/");
+    const qtdTotal = codsPedido.length ? Number(p.qtd) || codsPedido.reduce((a, c) => a + pedido[c], 0) : porPecas?.qtdPed || Number(p.qtd) || 0;
     const data = completo
       ? { status: "FATURADO", nfNumero: nums.slice(0, 190), faturadoEm: dUTC(nf.emissao), nfsFaturadas: lista, vlEntregar: 0, qtEntregar: 0,
-          obs: [p.obs, `FATURADO PELA(S) NF ${nums} (${dataBR(nf.emissao)}) — itens conferidos com o pedido`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }
-      : { nfsFaturadas: lista, vlEntregar: r2(Math.max(0, Number(p.total) - valorFat)), qtEntregar: Math.max(0, (Number(p.qtd) || 0) - pecasFat),
-          obs: [String(p.obs || "").replace(/ · PARCIALMENTE FATURADO[^·]*/g, ""), `PARCIALMENTE FATURADO: NF ${nums} — ${pecasFat} de ${p.qtd || "?"} peças, R$ ${valorFat.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" };
+          obs: [p.obs, `FATURADO PELA(S) NF ${nums} (${dataBR(nf.emissao)}) — ${porPecas ? "peças conferidas com o pedido/PCP" : "itens conferidos com o pedido"}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }
+      : { nfsFaturadas: lista, vlEntregar: r2(Math.max(0, Number(p.total) - valorFat)), qtEntregar: Math.max(0, qtdTotal - pecasFat),
+          obs: [String(p.obs || "").replace(/ · PARCIALMENTE FATURADO[^·]*/g, ""), `PARCIALMENTE FATURADO: NF ${nums} — ${pecasFat} de ${qtdTotal || "?"} peças, R$ ${valorFat.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" };
     await prisma.pedidoVenda.update({ where: { id: p.id }, data });
     Object.assign(p, data);
     usadas.add(ch);
@@ -315,7 +346,10 @@ export async function faturarPelasNfs() {
     .filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length));   // já casado pelos itens: não usa a regra por valor
   if (!and.length) return [];
   const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 86400000))));
-  const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: desde } }, select: { numero: true, emissao: true, valor: true, destCnpj: true, destNome: true }, orderBy: { emissao: "asc" } });
+  // v374 — NF com XML no movimento fiscal é tratada pelos itens/peças (acima); aqui só as que não têm XML
+  const comXml = new Set((await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", temXml: true, emissao: { gte: desde } }, select: { chave: true } })).map((x) => x.chave).filter(Boolean));
+  const nfs = (await prisma.finNfSaida.findMany({ where: { emissao: { gte: desde } }, select: { chave: true, numero: true, emissao: true, valor: true, destCnpj: true, destNome: true }, orderBy: { emissao: "asc" } }))
+    .filter((n) => !comXml.has(n.chave));
   const usadas = new Set((await prisma.pedidoVenda.findMany({ select: { nfNumero: true, nfsFaturadas: true } }))
     .flatMap((x) => [...String(x.nfNumero || "").split(/[,\s]+/), ...(Array.isArray(x.nfsFaturadas) ? x.nfsFaturadas.map((n) => n.numero) : [])]).filter(Boolean).map((n) => String(n).replace(/^0+/, "")));
   const feitos = [];
@@ -328,7 +362,7 @@ export async function faturarPelasNfs() {
     if (!nf) continue;
     usadas.add(String(nf.numero).replace(/^0+/, ""));
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "FATURADO", nfNumero: String(nf.numero), faturadoEm: nf.emissao,
-      obs: [p.obs, `FATURADO AUTOMÁTICO PELA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" } });
+      obs: [p.obs, `FATURADO PELO VALOR DA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" } });
     feitos.push({ numero: p.numero, nf: nf.numero });
   }
   return [...porItens, ...feitos];
