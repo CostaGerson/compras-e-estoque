@@ -82,14 +82,14 @@ async function posicao(M, hoje) {
   //   real: em aberto depois do mês M, sem previsões; parcelas de contrato de dívida só até M+1 (as seguintes estão na quitação)
   //   virtual: real + previsões de M+1 (inclui a parcela dos contratos em M+1)
   //            + quitação do saldo devedor das dívidas não tributárias DESCONTADAS as parcelas que já estão no contas a pagar até M+1
-  //            + CMV dos pedidos em andamento + passivo tributário (digitados)
+  //            + CMV dos pedidos em andamento + passivo trabalhista (digitados; campo passivoTributario)
   const recsDivida = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { startsWith: "MATRIZ|dividas|CONTRATO:" } }, select: { id: true, chaveOrigem: true } }).catch(() => []);
   const { contratoDaChave, cronograma: cronDe, posicaoApos } = await import("@/lib/alavancagemAmort");
   const contratoDaRec = Object.fromEntries(recsDivida.map((r) => [r.id, contratoDaChave(r.chaveOrigem)]));
   const ehDivida = (t) => t.recorrenciaId && contratoDaRec[t.recorrenciaId] != null;
   const M1 = mesSeguinte(M), ini1 = `${M1}-01`, fim1 = fimDoMes(M1);
   const ateM1 = (t) => venc(t) <= fim1;
-  const pagarReal = pagar.filter((t) => depois(t) && !t.previsao && (!ehDivida(t) || ateM1(t)));
+  const pagarReal = pagar.filter((t) => (noMes(t) || depois(t)) && !t.previsao && (!ehDivida(t) || ateM1(t)));   // v370 — inclui o que vence no mês
   const prevProx = pagar.filter((t) => t.previsao && venc(t) >= ini1 && venc(t) <= fim1);
   // parcelas de cada contrato que já contam em algum card (atrasadas, mês, real, previsões de M+1)
   const abertasAte = {};
@@ -117,7 +117,20 @@ async function posicao(M, hoje) {
     const lancadas = soma(pagar.filter((t) => ehDivida(t) && !t.previsao));
     dividasLB = { quitacaoHoje, lancadas, liquido: r2(Math.max(0, quitacaoHoje - lancadas)), contratos: cs, erro: null };
   } catch (e) { dividasLB.erro = e.message; }
-  const pagarVirtual = { mesSeguinte: M1, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
+  // v370 — base para digitar o CMV em andamento: peças em aberto (PCP) × ritmo de produção do ano (expedição)
+  let producao = { pecasAberto: null, pecasAno: 0, mesesAno: 0, mediaMes: 0, mesesOperacao: null, cronoEm: null };
+  try {
+    const sync = await prisma.finConfig.findUnique({ where: { chave: "CRONO|SYNC" } }).catch(() => null);
+    let sj = {}; try { sj = JSON.parse(sync?.valor || "{}"); } catch {}
+    const { pecasExpedicao } = await import("@/lib/opAnalise");
+    const pe = await pecasExpedicao(Number(M.slice(0, 4)));
+    const meses = Object.entries(pe).filter(([c, v]) => c <= M && v > 0);
+    const pecasAno = meses.reduce((a, [, v]) => a + v, 0);
+    const mediaMes = meses.length ? Math.round(pecasAno / meses.length) : 0;
+    const pecasAberto = sj.pecasEmProducao ?? null;
+    producao = { pecasAberto, pecasAno, mesesAno: meses.length, mediaMes, mesesOperacao: pecasAberto != null && mediaMes ? Math.round((pecasAberto / mediaMes) * 10) / 10 : null, cronoEm: sj.em || null };
+  } catch (e) { producao.erro = e.message; }
+  const pagarVirtual = { mesSeguinte: M1, producao, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
     quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t) && !ateM1(t))) };
   const pagarSemPrev = pagar.filter((t) => !t.previsao);
   const pagarAtras = pagar.filter(vencido);   // v311 — atrasadas incluem previsões
@@ -174,7 +187,7 @@ export async function painel(competencia, hojeData = new Date()) {
   const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
   // v364 — LB (liquidação de balanço): geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − quitação das dívidas
-  const lb = r2(geral + n("lbVendaPatrimonio") - n("lbPassivoTrabalhista") - n("lbMesOperacao") - (pos.pagar.dividasLB?.liquido || 0));
+  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("lbMesOperacao") - (pos.pagar.dividasLB?.liquido || 0));
   const cenarios = {
     geral, mes, lb,
     cobrindo: r2(mes - caixa.limiteTomado),
