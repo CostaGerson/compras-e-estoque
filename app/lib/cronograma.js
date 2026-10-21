@@ -229,3 +229,19 @@ export async function diagnostico() {
   }
   return out;
 }
+
+// v381 — Comercial › Acompanhamento: lê ao vivo do PCP os itens e etapas de um pedido (inclui OP de agrupamento)
+export async function pcpDoPedido(numero) {
+  const n = soDig(numero);
+  const [jp, je] = await Promise.all([get("/api/ext/pedidos"), get("/api/ext/etapas").catch(() => [])]);
+  const brutos = listaDe(jp);
+  const itens = brutos.map((o) => ({ ...normalizarItem(o), atualizadoEm: dataDe(pick(o, "atualizadoEm")), prestadorItem: null }));
+  const g = agruparPorPedido(itens, []);
+  const ops = (indiceComercial(g)[n] || []);
+  const meus = itens.filter((i) => ops.includes(i.pedido));
+  const codes = new Set(meus.map((i) => i.itemCode));
+  const etapas = listaDe(je).filter((e) => codes.has(itemDe(e)) || ops.includes(pedidoDe(e))).map((e) => ({
+    ...normalizarEtapa(e), entrada: dataDe(pick(e, "entradaEm")), prestador: String(pick(e, "prestador") || ""), quantidade: Number(pick(e, "quantidade")) || null,
+  }));
+  return { numero: n, ops, agrupado: ops.some((o) => o !== n), itens: meus, etapas };
+}

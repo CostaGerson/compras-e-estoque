@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
+import Acompanhamento from "./acompanhamento";   // v381
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
@@ -90,7 +91,21 @@ async function clonarFpp(fpp, user, origemId) {
 
 /* ============================================================ */
 export default function Comercial({ user, master }) {
-  const [view, setView] = useState(null); // null = landing (2 cards) | "fpp"
+  const [view, setView] = useState(null); // null = landing (2 cards) | "fpp" | "acomp"
+
+  if (view === "acomp") {   // v381
+    return (
+      <div>
+        <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
+          <button onClick={() => setView(null)} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          <button onClick={() => setView(null)} style={{ color: C.sub }}>Comercial</button>
+          <ChevronRight size={13} style={{ color: C.sub }} />
+          <span className="font-semibold" style={{ color: C.text }}>Acompanhamento</span>
+        </div>
+        <Acompanhamento user={user} />
+      </div>
+    );
+  }
 
   if (view === "fpp") {
     return (
@@ -108,9 +123,10 @@ export default function Comercial({ user, master }) {
 
   return (
     <div>
-      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", maxWidth: 820 }}>
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", maxWidth: 1100 }}>
         {[
           ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
+          ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
         ].map(([k, Ico, t, sub, go]) => (
           <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
