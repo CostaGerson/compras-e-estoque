@@ -259,7 +259,8 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
     const tipoT = tipoTitulo(n.tipo);
     if (!n.parceiro && n.documento) n.parceiro = await nomeDoDoc(n.documento);
     if (!n.razao) n.razao = n.parceiro;
-    const existente = n.chaveRegistro ? await prisma.fiscalNota.findUnique({ where: { chaveRegistro: n.chaveRegistro }, select: { id: true, temXml: true, temPdf: true, parcelas: true } }).catch(() => null) : null;
+    let existente = n.chaveRegistro ? await prisma.fiscalNota.findUnique({ where: { chaveRegistro: n.chaveRegistro }, select: { id: true, temXml: true, temPdf: true, parcelas: true, acao: true } }).catch(() => null) : null;
+    if (existente?.acao === ACAO_CONTAB) existente = null;   // v360 — veio só da contabilidade: segue como nota nova (substitui o aviso)
     const semConta = motivoSemConta(n.natureza, n.cfops);
     const parcelas = [];
     for (const p of n.parcelas) {
@@ -355,6 +356,8 @@ export async function gravar(notas, u) {
 
     const erro = validarNota(n);
     if (erro) { res.push({ numero: n.numero, situacao: "ERRO", motivo: erro }); continue; }
+    // v360 — havia só o aviso da importação da contabilidade: dá lugar ao lançamento de verdade
+    await prisma.fiscalNota.deleteMany({ where: { chaveRegistro: n.chaveRegistro, acao: ACAO_CONTAB } }).catch(() => null);
 
     let reg;
     try {
@@ -435,6 +438,31 @@ export async function gravar(notas, u) {
     res.push(r);
   }
   return res;
+}
+
+/* ---------------- v360 — NF de saída que só chegou pelo ZIP da contabilidade ---------------- */
+export const ACAO_CONTAB = "CONTABILIDADE";
+export const CRITICA_CONTAB = "NF subida por importação na contabilidade, verificar contas";
+// cria o registro (sem contas) quando a nota ainda não está no movimento fiscal; devolve "CRITICA", "REGISTRO" ou null.
+// Só nota que gera recebível ganha a crítica; cancelada, remessa e afins só ficam registradas (não têm conta).
+export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { cancelada = false } = {}) {
+  let n; try { n = lerXmlFiscal(xmlTexto, nomeXml); } catch { return null; }
+  if (!n?.chaveRegistro || n.tipo !== "SAIDA") return null;
+  const ja = await prisma.fiscalNota.findFirst({ where: { OR: [{ chaveRegistro: n.chaveRegistro }, ...(n.chave ? [{ chave: n.chave }] : [])] }, select: { id: true } });
+  if (ja) return null;
+  const semConta = cancelada ? "NF CANCELADA" : motivoSemConta(n.natureza, n.cfops);
+  try {
+    await prisma.fiscalNota.create({ data: {
+      tipo: "SAIDA", empresa: n.empresa || "MERIDIAN", modelo: n.modelo || "NF-e", chave: n.chave || null, chaveRegistro: n.chaveRegistro,
+      numero: n.numero, serie: n.serie || null, emissao: n.emissao ? dataUTC(n.emissao) : null, competencia: mesDe(n.emissao),
+      parceiro: n.parceiro || "SEM NOME", documento: n.documento, natureza: n.natureza || null, valor: n.valor,
+      acao: semConta ? "REGISTRADA" : ACAO_CONTAB, motivo: semConta || CRITICA_CONTAB,
+      xml: xmlTexto, xmlNome: nomeXml, hashXml: hashTexto(xmlTexto), temXml: true,
+      ...(pdf ? { pdf: pdf.b64, pdfNome: pdf.nome, hashPdf: hashB64(pdf.b64), temPdf: true } : {}),
+      parcelas: [], criadoPorNome: "IMPORTAÇÃO CONTABILIDADE",
+    } });
+    return semConta ? "REGISTRO" : "CRITICA";
+  } catch (e) { if (String(e.code) === "P2002") return null; throw e; }
 }
 
 /* ---------------- 3) lista e exclusão ---------------- */

@@ -32,6 +32,13 @@ export const CATEGORIAS = {
     formatos: ["TXT", "XML", "ZIP"], slots: false, multiplo: false,
     descricao: "Arquivo do SPED do mês.",
   },
+  // v360 — um envio só por mês: o ZIP do emissor com XMLs e DANFEs; vai para a contabilidade do jeito que veio
+  SAIDAS: {
+    label: "Notas de saída · XML e DANFE", rotulo: "NOTAS DE SAIDA", pasta: "NOTAS DE SAIDA",
+    formatos: ["ZIP"], slots: false, multiplo: false,
+    descricao: "O ZIP do mês com os XMLs e os PDFs (DANFE) das notas de saída. Vai para a contabilidade como foi enviado; o sistema lê os XMLs (e os cancelamentos) para o cruzamento.",
+  },
+  // antigos (só aparecem em meses que já tinham arquivos neles)
   SAIDA_XML: {
     label: "Notas de saída · XML", rotulo: "NOTAS DE SAIDA", pasta: "NOTAS DE SAIDA/XML",
     formatos: ["XML", "ZIP"], slots: false, multiplo: true,
@@ -53,7 +60,8 @@ export const CATEGORIAS = {
     descricao: "Qualquer outro arquivo que a contabilidade pedir no mês.",
   },
 };
-export const ORDEM_CATEGORIAS = ["RECEBIMENTOS", "SPED", "SAIDA_XML", "SAIDA_PDF", "NFS_TOMADA", "OUTRO"];
+export const ORDEM_CATEGORIAS = ["RECEBIMENTOS", "SPED", "SAIDAS", "NFS_TOMADA", "OUTRO"];
+export const CATEGORIAS_ANTIGAS = ["SAIDA_XML", "SAIDA_PDF"];   // v360
 
 export const EXT_POR_FORMATO = { PDF: "pdf", OFX: "ofx", XML: "xml", XLSX: "xlsx", TXT: "txt", ZIP: "zip" };
 

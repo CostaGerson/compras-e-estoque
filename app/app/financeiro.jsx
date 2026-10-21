@@ -3661,7 +3661,7 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
   const subir = async (categoria, tipoId, files) => {
     const itens = Array.from(files || []);
     if (!itens.length) return;
-    let ok = 0; const problemas = [];
+    let ok = 0; const problemas = [], extra = [];
     for (const f of itens) {
       const b64 = await readB64(f);
       const r = await fetch("/api/fin/contab", {
@@ -3670,9 +3670,12 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok && j.error) { problemas.push(`${f.name}: ${j.error}`); continue; }
-      (j.resultados || []).forEach((x) => { if (x.ok) ok++; else problemas.push(`${x.nome}: ${x.erro}`); });
+      (j.resultados || []).forEach((x) => {
+        if (x.ok) ok++; else problemas.push(`${x.nome}: ${x.erro}`);
+        if (x.saidas) extra.push(`${x.saidas.lidas} nota(s) lida(s), ${x.saidas.pdfs} DANFE(s)${x.saidas.canceladas ? `, ${x.saidas.canceladas} cancelada(s) fora do cruzamento` : ""}${x.saidas.semMovimento ? `, ${x.saidas.semMovimento} sem lançamento no movimento fiscal (em vermelho lá)` : ""}${x.saidas.soRegistro ? `, ${x.saidas.soRegistro} só registrada(s) no movimento fiscal` : ""}`);   // v360
+      });
     }
-    setAviso({ tipo: problemas.length ? "erro" : "ok", texto: `${ok} arquivo(s) guardado(s).${problemas.length ? " Problemas: " + problemas.join(" · ") : ""}` });
+    setAviso({ tipo: problemas.length ? "erro" : "ok", texto: `${ok} arquivo(s) guardado(s).${extra.length ? " " + extra.join(" · ") + "." : ""}${problemas.length ? " Problemas: " + problemas.join(" · ") : ""}` });
     carregar();
   };
 
@@ -4073,7 +4076,7 @@ function Recebimentos({ user, comp, setComp }) {
           {ocupado === "gerar" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Gerar do extrato e cobranças
         </button>
         <button onClick={cruzar} disabled={!d || !!ocupado || !d?.iaPronta || !d?.notasSaida}
-          title={!d?.notasSaida ? "Envie os XMLs das notas de saída na guia Contabilidade" : !d?.iaPronta ? "Sem ANTHROPIC_API_KEY na VPS" : "Cruza valor recebido x NF x nome x CNPJ"}
+          title={!d?.notasSaida ? "Envie o ZIP das notas de saída (XML e DANFE) na guia Contabilidade" : !d?.iaPronta ? "Sem ANTHROPIC_API_KEY na VPS" : "Cruza valor recebido x NF x nome x CNPJ"}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ border: `1px solid ${C.accent}`, color: C.accent, opacity: !d || ocupado || !d?.iaPronta || !d?.notasSaida ? 0.4 : 1 }}>
           {ocupado === "ia" ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Cruzar com a IA

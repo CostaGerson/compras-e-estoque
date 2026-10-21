@@ -103,7 +103,7 @@ export default function MovimentoFiscal({ user }) {
     return {
       ent: l.filter((n) => n.tipo === "ENTRADA").length, entV: s((n) => n.tipo === "ENTRADA"),
       sai: l.filter((n) => n.tipo === "SAIDA").length, saiV: s((n) => n.tipo === "SAIDA"),
-      reg: l.filter((n) => n.acao === "REGISTRADA").length, pagar: cont("ENTRADA"), receber: cont("SAIDA"),
+      reg: l.filter((n) => n.acao === "REGISTRADA").length, contab: l.filter((n) => n.acao === "CONTABILIDADE").length, pagar: cont("ENTRADA"), receber: cont("SAIDA"),
     };
   }, [lista]);
 
@@ -167,6 +167,7 @@ export default function MovimentoFiscal({ user }) {
         </div>
         {msg && <div className="mx-4 mt-3 p-2 rounded text-xs flex items-center gap-2" style={{ background: C.greenSoft, color: C.green }}><CheckCircle2 size={14} /> {msg}<button className="ml-auto" onClick={() => setMsg("")}><X size={13} /></button></div>}
         {erro && <div className="mx-4 mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+        {tot.contab > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold" style={{ background: C.redSoft, color: C.red }}>{tot.contab} NF(s) subida(s) por importação na contabilidade sem lançamento aqui — verificar contas (importe o XML da nota aqui para lançar as contas; o aviso some).</div>}
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -182,7 +183,7 @@ export default function MovimentoFiscal({ user }) {
               {(lista || []).map((n) => {
                 const T = TIPO[n.tipo] || TIPO.ENTRADA;
                 return (
-                  <tr key={n.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, ...(n.acao === "CONTABILIDADE" ? { background: C.redSoft, color: C.red } : {}) }}>   {/* v360 — veio só da contabilidade */}
                     <td className="px-3 py-2"><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold" style={{ background: T.bg, color: T.c }}><T.I size={12} /> {T.t}</span></td>
                     <td className="px-3 py-2">{dBR(n.emissao)}</td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}</td>
@@ -190,7 +191,9 @@ export default function MovimentoFiscal({ user }) {
                     <td className="px-3 py-2" style={{ color: C.sub, maxWidth: 200 }}>{n.natureza || "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2">
-                      {n.acao === "REGISTRADA"
+                      {n.acao === "CONTABILIDADE"
+                        ? <span className="font-semibold" style={{ color: C.red }}>{n.motivo || "NF subida por importação na contabilidade, verificar contas"}</span>
+                        : n.acao === "REGISTRADA"
                         ? <span className="px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }} title={n.motivo || ""}>só registro</span>
                         : <div className="flex flex-wrap gap-1">{n.parcelas.map((p, i) => {
                             const [c, bg, t] = ST_PARC[p.status] || ST_PARC.ABERTO;

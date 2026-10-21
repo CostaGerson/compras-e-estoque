@@ -4,10 +4,10 @@ import { unzipSync } from "fflate";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, usuarioSoMaster, soMaster, negado, competenciaValida, garantirTipos } from "@/lib/fin";
 import {
-  CATEGORIAS, ORDEM_CATEGORIAS, formatoDoNome, gravarDoc, sincronizarExtratos,
+  CATEGORIAS, ORDEM_CATEGORIAS, CATEGORIAS_ANTIGAS, formatoDoNome, gravarDoc, sincronizarExtratos,
   CFG_EMAIL, lerConfig, salvarConfig, emailValido, mesAno,
 } from "@/lib/finContab";
-import { registrarXmlSaida } from "@/lib/finNfSaida";
+import { registrarXmlSaida, processarZipSaidas } from "@/lib/finNfSaida";
 import { emailDisponivel } from "@/lib/email";
 
 // GET ?u=&competencia=AAAA-MM
@@ -35,7 +35,8 @@ export async function GET(req) {
   return Response.json({
     competencia, mesAno: mesAno(competencia),
     bancos, docs, email: email || "", envios, notasSaida: nfs,
-    categorias: ORDEM_CATEGORIAS.map((k) => ({ k, ...CATEGORIAS[k] })),
+    // v360 — categorias antigas de saída só aparecem se o mês já tem arquivo nelas
+    categorias: [...ORDEM_CATEGORIAS, ...CATEGORIAS_ANTIGAS.filter((k) => docs.some((d) => d.categoria === k))].map((k) => ({ k, ...CATEGORIAS[k] })),
     emailPronto: emailDisponivel(),
   });
 }
@@ -64,6 +65,17 @@ export async function POST(req) {
   const nomeEnviado = String(b.nome || "arquivo");
   const buf = Buffer.from(String(b.conteudo), "base64");
   const resultados = [];
+
+  // v360 — notas de saída: um ZIP só (XML + DANFE), guardado inteiro; os XMLs de dentro são lidos
+  if (categoria === "SAIDAS") {
+    if (!/\.zip$/i.test(nomeEnviado)) return Response.json({ error: "Envie o ZIP com os XMLs e os DANFEs do mês." }, { status: 400 });
+    let lido;
+    try { lido = await processarZipSaidas(b.competencia, buf, null, unzipSync); } catch { return Response.json({ error: "ZIP inválido." }, { status: 400 }); }
+    if (!lido.xmls) return Response.json({ error: "O ZIP não tem XML de nota." }, { status: 400 });
+    const g = await gravarDoc({ competencia: b.competencia, categoria, formato: "ZIP", buf, nomeOriginal: nomeEnviado, usuario: u });
+    if (g.doc?.id) await prisma.finNfSaida.updateMany({ where: { competencia: b.competencia, docId: null }, data: { docId: g.doc.id } });
+    return Response.json({ ok: true, resultados: [{ nome: nomeEnviado, ok: true, duplicado: !!g.duplicado, doc: g.doc, saidas: lido }] });
+  }
 
   // entrada: um arquivo ou vários (ZIP em categoria múltipla)
   const entradas = [];
