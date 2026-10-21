@@ -13,6 +13,7 @@ import { unzipSync } from "fflate";
 import MatrizCustos from "./matriz";
 import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
+import Patrimonio from "./patrimonio";   // v368
 import Transmissao from "./transmissao";
 import Uploads from "./uploads";
 import ConferenciaIntegracao from "./conferencia";
@@ -79,6 +80,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   if (tela.v === "pagrec") migalhas.push({ t: "Contas a pagar e receber" });
   if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
   if (tela.v === "alavancagem") migalhas.push({ t: "Alavancagem" });
+  if (tela.v === "patrimonio") migalhas.push({ t: "Patrimônio" });
   if (tela.v === "credito") migalhas.push({ t: "Posição de crédito" });
   if (tela.v === "pedidos") migalhas.push({ t: "Pedidos em andamento" });
   if (tela.v === "transmissao") migalhas.push({ t: "Transmissão de arquivos" });
@@ -121,6 +123,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
       {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}
       {tela.v === "dfc" && ger && <Dfc user={user} />}
       {tela.v === "pedidos" && ger && <PedidosAndamento user={user} />}
+      {tela.v === "patrimonio" && ger && <Patrimonio user={user} />}
     </div>
   );
 }
@@ -279,6 +282,7 @@ function FinDashboard({ user, ir }) {
           ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
           ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
           ["pedidos", FileStack, "Pedidos em andamento", "PV e PP: valor, condição, entrada e previsão de receitas"],
+          ["patrimonio", Building2, "Patrimônio", "Bens da empresa, valores e NF de compra"],
         ].map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
             <Ico size={26} style={{ color: C.accent }} />

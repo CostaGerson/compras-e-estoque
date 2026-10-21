@@ -1776,3 +1776,26 @@ model PedidoVenda {
 
   @@index([status])
 }
+
+// v368 — Financeiro › Patrimônio: bens da empresa, valores e NF de compra
+model FinPatrimonio {
+  id            Int       @id @default(autoincrement())
+  descricao     String
+  categoria     String?   // MÁQUINAS, VEÍCULOS, MÓVEIS, INFORMÁTICA, IMÓVEIS, INSTALAÇÕES, OUTROS
+  marcaModelo   String?
+  serie         String?   // nº de série / placa / chassi
+  local         String?
+  aquisicao     DateTime? @db.Date
+  valorCompra   Decimal?  @db.Decimal(14, 2)
+  valorAtual    Decimal?  @db.Decimal(14, 2)   // valor de mercado estimado (base para venda)
+  situacao      String    @default("ATIVO")    // ATIVO | VENDIDO | BAIXADO
+  nfNumero      String?
+  nfFornecedor  String?
+  nfChave       String?
+  nfArquivo     String?   // base64 (PDF ou XML da NF de compra)
+  nfArquivoNome String?
+  obs           String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
