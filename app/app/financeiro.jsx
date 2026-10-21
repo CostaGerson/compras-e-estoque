@@ -1384,7 +1384,7 @@ function PainelPrevisao({ user, comp, setComp }) {
     const xP = prior.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0), xQ = quit.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0);
     const n = (k) => Number(val(k)) || 0;
     const R = p.pos.receber, P = p.pos.pagar;
-    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao;
+    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao - n("antecipacaoDisp");   // v358 — antecipação sai do cenário geral
     // v357 — antecipação preenchida entra no a receber do mês (e sai do a receber geral)
     const entradas = R.mes.real + xQ + n("recebimentoMes") + n("antecipacaoDisp"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
@@ -1472,14 +1472,14 @@ function PainelPrevisao({ user, comp, setComp }) {
                   </div>
                   <div className="grid gap-2 content-start">
                     {cab("Geral")}
-                    <CardAuto rotulo="A receber geral" valor={R.geral.real - antec} cor={C.blue} sub={antec ? `real ${brl(R.geral.real)} − antecipação ${brl(antec)}` : "real"}
+                    <CardAuto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
                       onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
                     {V && <CardAuto rotulo="A pagar geral" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />}
                     <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
                     <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
                       sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
-                    <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`}>
-                      <CardAuto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar" Ico={TrendingUp} /></div>
+                    <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}${antec ? ` − antecipação ${brl(antec)}` : ""}`}>
+                      <CardAuto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub={`a receber + execução + em andamento − a pagar${antec ? ` − antecipação ${brl(antec)}` : ""}`} Ico={TrendingUp} /></div>
                   </div>
                 </div>
               );

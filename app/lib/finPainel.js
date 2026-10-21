@@ -157,7 +157,7 @@ export async function painel(competencia, hojeData = new Date()) {
 
   const n = (k) => Number(dados[k]) || 0;
   // cenários (calculados)
-  const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - pos.pagar.totalSemPrevisao);
+  const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - pos.pagar.totalSemPrevisao - n("antecipacaoDisp"));   // v358
   const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes") + n("antecipacaoDisp"));   // v357 — antecipação entra no mês
   const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
