@@ -96,7 +96,8 @@ async function posicao(M, hoje) {
   const prevProx = pagar.filter((t) => t.previsao && !vencido(t) && venc(t) <= fim1);
   // parcelas de cada contrato que já contam em algum card (atrasadas, mês, real, previsões de M+1)
   const abertasAte = {};
-  for (const t of pagar) if (ehDivida(t) && ateM1(t)) { const c = contratoDaRec[t.recorrenciaId]; abertasAte[c] = (abertasAte[c] || 0) + 1; }
+  // v377 — só descontam da quitação as parcelas que já contam no a pagar geral: a vencer (não previsão) ou vencidas (atrasadas)
+  for (const t of pagar) if (ehDivida(t) && ateM1(t) && (!t.previsao || vencido(t))) { const c = contratoDaRec[t.recorrenciaId]; abertasAte[c] = (abertasAte[c] || 0) + 1; }
   let quitacao = { total: 0, contratos: [], erro: null };
   try {
     const { panorama } = await import("@/lib/alavancagem");
@@ -197,7 +198,7 @@ export async function painel(competencia, hojeData = new Date()) {
   // cenários (calculados)
   // v371 — cenário geral = a receber geral + execução + pedidos em andamento − antecipação − a pagar geral (real + previsões + quitação das dívidas) − contas atrasadas
   const V = pos.pagar.virtual;
-  const pagarGeral = r2(V.real + V.previsoesProx + (V.quitacao?.total || 0));
+  const pagarGeral = r2(V.real + (V.quitacao?.total || 0));   // v377 — previsões (1 mês de operação) saíram: entram digitadas no LB
   const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - n("antecipacaoDisp") - pagarGeral - pos.pagar.atrasadas);
   const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes") + n("antecipacaoDisp"));   // v357 — antecipação entra no mês
   const saidasMes = r2(pos.pagar.mes + extraPrior);
@@ -205,7 +206,7 @@ export async function painel(competencia, hojeData = new Date()) {
   // v364 — LB (liquidação de balanço): geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − quitação das dívidas
   // v371 — LB = cenário geral + venda de patrimônio − passivo trabalhista − CMV dos pedidos em andamento − impostos (9,1% do total em andamento)
   const impostosAndamento = r2((Number(dados.andamento?.valor) || 0) * ALIQ_IMPOSTOS_ANDAMENTO);
-  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - impostosAndamento);
+  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - n("lbMesOperacao") - impostosAndamento);   // v377 — + custo de 1 mês de operação (digitado)
   const cenarios = {
     geral, mes, lb,
     cobrindo: r2(mes - caixa.limiteTomado),
