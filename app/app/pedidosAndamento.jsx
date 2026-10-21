@@ -220,13 +220,18 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
+      <tr onClick={onToggle} className="cursor-pointer" style={{ height: 52, borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
-        <td className="px-2 py-2 text-left">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}
-          {v.reprogramar && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO PCP" : "ENTREGA VENCIDA — PROGRAMAR NO PCP"}</div>}
-          {v.pronto && !p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.green }}>✓ CONCLUÍDO NO PCP — FATURAR</div>}
-          {p.interno && <div className="text-[10px] font-bold mt-0.5" style={{ color: C.sub }}>INTERNO · NORT — NÃO GERA CONTAS</div>}</td>
+        {/* v376 — linha de altura fixa: no máximo 2 linhas (cliente + um aviso); o resto aparece ao abrir o pedido */}
+        <td className="px-2 py-1 text-left" style={{ maxWidth: 340 }} title={[p.cliente, p.vendedor].filter(Boolean).join(" · ")}>
+          <div className="truncate">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}</div>
+          {(() => {
+            const a = v.reprogramar ? [C.red, `⚠ ${v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO PCP" : "ENTREGA VENCIDA — PROGRAMAR NO PCP"}`]
+              : p.interno ? [C.sub, "INTERNO · NORT — NÃO GERA CONTAS"]
+              : v.pronto ? [C.green, "✓ CONCLUÍDO NO PCP — FATURAR"] : null;
+            return a ? <div className="text-[10px] font-bold truncate" style={{ color: a[0] }}>{a[1]}</div> : null;
+          })()}</td>
         <td className={td}>{dBR(p.emissao)}</td>
         <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? `programação do Cronograma${p.despacho ? ` · DT despacho do PV ${dBR(p.despacho)}` : ""}` : "DT despacho do PV"}>
           {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
@@ -239,11 +244,13 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         </td>
         <td className={`${td} tabular-nums font-semibold`} style={{ color: p.noMes ? C.green : C.sub }}>{brl(p.noMes)}</td>
         <td className={`${td} tabular-nums`} style={{ color: p.foraMes ? C.blue : C.sub }}>{brl(p.foraMes)}</td>
-        <td className={td}><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }}>{st[0]}{p.nfNumero ? ` · NF ${p.nfNumero}` : ""}</span>
-          {p.status === "ANDAMENTO" && Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0 && (   /* v372 — faturado em parte pelas NFs */
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
-              title={p.nfsFaturadas.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${n.pecas} peças · ${moeda(n.valor)}`).join("\n")}>
-              PARCIAL · NF {p.nfsFaturadas.map((n) => n.numero).join(", ")} · faltam {p.qtEntregar ?? "?"} pç</span>)}
+        <td className={td}>
+          {p.status === "ANDAMENTO" && Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0   /* v372/v376 — parcial: resumido; NFs ao abrir */
+            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
+                title={p.nfsFaturadas.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${n.pecas} peças · ${moeda(n.valor)}`).join("\n")}>
+                Parcial · faltam {p.qtEntregar ?? "?"} pç</span>
+            : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }} title={p.nfNumero ? `NF ${p.nfNumero}` : undefined}>
+                {st[0]}{p.nfNumero ? ` · NF ${String(p.nfNumero).split(/[,\s]+/)[0]}${String(p.nfNumero).includes(",") ? "…" : ""}` : ""}</span>}
           {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}</td>
         <td className={td} onClick={(e) => e.stopPropagation()}>
           {p.temPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
@@ -326,6 +333,27 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                   </tbody>
                 </table>
                 {!p.temPp && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>Sem PP: suba a ordem de produção para ver os dados de produção.</div>}
+                {/* v376 — avisos e faturamento completos (na linha ficam resumidos) */}
+                {(v.reprogramar || v.pronto || p.interno || p.vendedor || (Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length) || p.nfNumero) && (
+                  <div className="mt-3 pt-2 text-[11px] grid gap-0.5" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>
+                    <b className="text-xs" style={{ color: C.navy }}>Situação</b>
+                    <div>{p.cliente}{p.vendedor ? ` · vendedor ${p.vendedor}` : ""}</div>
+                    {v.reprogramar && <div className="font-bold" style={{ color: C.red }}>⚠ {v.reprogramar === "PCP" ? "Programação vencida — reprogramar no PCP" : "Entrega vencida — programar no PCP"}</div>}
+                    {v.pronto && !p.interno && <div className="font-bold" style={{ color: C.green }}>✓ Concluído no PCP — faturar</div>}
+                    {p.interno && <div className="font-bold">Interno · NORT — não gera contas</div>}
+                    {p.nfNumero && <div>NF: <b style={{ color: C.text }}>{p.nfNumero}</b>{p.faturadoEm ? ` · faturado em ${dBR(p.faturadoEm)}` : ""}</div>}
+                    {Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0 && (
+                      <table className="w-full mt-1"><tbody>{p.nfsFaturadas.map((n, i) => (
+                        <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
+                          <td className="py-0.5 font-semibold" style={{ color: C.text }}>NF {n.numero}</td><td className="py-0.5">{dBR(n.emissao)}</td>
+                          <td className="py-0.5 text-right">{n.pecas} pç</td><td className="py-0.5 text-right tabular-nums">{moeda(n.valor)}</td>
+                          <td className="py-0.5 text-right text-[10px]">{n.modo === "PCP" ? "pelos produtos do PCP" : n.modo === "PECAS" ? "pelas peças" : "pelos itens do PV"}</td>
+                        </tr>))}
+                        <tr style={{ borderTop: `1px solid ${C.line}` }}><td colSpan={5} className="py-0.5 font-semibold" style={{ color: C.yellow }}>Falta faturar: {p.qtEntregar ?? "?"} peça(s) · {moeda(p.vlEntregar)}</td></tr>
+                      </tbody></table>
+                    )}
+                  </div>
+                )}
                 {/* v317 — programação do Cronograma */}
                 <div className="mt-3 pt-2" style={{ borderTop: `1px solid ${C.line}` }}>
                   <b className="text-xs" style={{ color: C.navy }}>Cronograma PCP</b>
