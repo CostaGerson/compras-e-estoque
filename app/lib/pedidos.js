@@ -265,7 +265,7 @@ export async function faturarPelasNfsItens() {
   const todosPv = await prisma.pedidoVenda.findMany({ select: { nfsFaturadas: true } });   // Json: filtra aqui, não no banco
   const usadas = new Set(todosPv.flatMap((p) => (Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []).map((n) => n.chave)));
   const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 864e5))));
-  const notas = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", temXml: true, emissao: { gte: desde }, NOT: { motivo: { contains: "CANCELAD" } } },
+  const notas = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", temXml: true, emissao: { gte: desde }, OR: [{ motivo: null }, { NOT: { motivo: { contains: "CANCELAD" } } }] },   // v374.1 — NOT sozinho descartava motivo nulo (as lançadas)
     select: { chave: true, chaveRegistro: true, xml: true, acao: true, natureza: true }, orderBy: { emissao: "asc" } });
   const feitos = [];
   for (const fn of notas) {
