@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 const K_URL = "CRONO|URL", K_TOKEN = "CRONO|TOKEN", K_SYNC = "CRONO|SYNC";
 const URL_ANTIGA = "http://147.93.35.189:8124";
-const URL_PADRAO = "http://pcp.meridianpro.com.br", TOKEN_PADRAO = "meridian-pcp";   // v353
+const URL_PADRAO = "https://pcp.meridianpro.com.br", TOKEN_PADRAO = "meridian-pcp";   // v353
 const INTERVALO_MS = 10 * 60 * 1000;
 
 const cfg = async (k) => (await prisma.finConfig.findUnique({ where: { chave: k } }).catch(() => null))?.valor || "";
