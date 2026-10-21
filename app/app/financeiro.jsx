@@ -1491,13 +1491,14 @@ function PainelPrevisao({ user, comp, setComp }) {
                   <CardAuto compacto rotulo="Cenário cobrindo os limites" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− limites em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>,
               ];
               const geralL = [
-                <CardAuto compacto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
+                <CardAuto compacto rotulo="A receber geral" valor={R.geral.real + R.atrasado.execucao} cor={C.blue}   /* v379 — tudo: atrasado (cobrança + execução) + a vencer no mês + depois */
+                  sub={`atrasado ${brl(R.atrasado.cobranca + R.atrasado.execucao)} + a vencer no mês ${brl(R.mes.real - R.mes.cobranca)} + depois ${brl(R.foraMes.real)}${R.geral.antecipados ? ` · fora: antecipados ${brl(R.geral.antecipados)}` : ""}`}
                   onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />,
                 V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} onClick={() => setModal({ tipo: "pagarVirtual" })}
                   sub={[`a vencer ${brl(V.real)}`, V.quitacao.total ? `dívidas ${brl(V.quitacao.total)}` : null].filter(Boolean).join(" + ")} /> : <div />,
                 <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />,
-                <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)}${antec ? ` − antecipação ${brl(antec)}` : ""} − a pagar geral ${brl(calc.pagarGeral)} − contas atrasadas ${brl(P.atrasadas)}`}>
-                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar geral − atrasadas" Ico={TrendingUp} /></div>,
+                <div title={`a receber geral ${brl(R.geral.real + R.atrasado.execucao)} (inclui execução) + em andamento ${brl(Number(val("pedidosAndamento")) || 0)}${antec ? ` − antecipação ${brl(antec)}` : ""} − a pagar geral ${brl(calc.pagarGeral)} − contas atrasadas ${brl(P.atrasadas)}`}>
+                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber geral + em andamento − a pagar geral − atrasadas" Ico={TrendingUp} /></div>,
               ];
               return (
                 <div className="grid gap-2 grid-cols-2">
