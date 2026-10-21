@@ -1168,14 +1168,14 @@ function DreGerencial({ user, comp, setComp, abrirConta }) {
 const compAnt = (c) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 2, 1)); return d.toISOString().slice(0, 7); };
 const nomeMesAno = (c) => (c ? `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}` : "");
 
-function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2 }) {
+function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2, compacto = false }) {
   const Tag = onClick ? "button" : "div";
   return (
-    <Tag onClick={onClick} className={`text-left rounded-lg px-3 py-2.5 w-full ${onClick ? "transition-shadow hover:shadow-md" : ""}`} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+    <Tag onClick={onClick} className={`text-left rounded-lg px-3 ${compacto ? "py-1.5" : "py-2.5"} w-full ${onClick ? "transition-shadow hover:shadow-md" : ""}`} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
         <Ico size={11} /> <span className="truncate">{rotulo}</span>{onClick && <Search size={10} className="ml-auto shrink-0" style={{ color: C.accent }} />}
       </div>
-      <div className="font-bold mt-0.5 whitespace-nowrap tabular-nums" style={{ color: cor || C.text, fontSize: "clamp(13px, 1.05vw, 16px)" }}>{moeda(valor)}</div>
+      <div className="font-bold mt-0.5 whitespace-nowrap tabular-nums" style={{ color: cor || C.text, fontSize: compacto ? "clamp(12px, 0.95vw, 15px)" : "clamp(13px, 1.05vw, 16px)" }}>{moeda(valor)}</div>
       {sub && <div className="text-[10px]" style={{ color: C.sub }}>{sub}</div>}
     </Tag>
   );
@@ -1189,11 +1189,12 @@ function LinhaVal({ rotulo, valor, cor, forte, sub }) {
   );
 }
 // lista de títulos com seleção opcional
-function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
+function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui.", compacto = false }) {
   if (!itens?.length) return <div className="text-sm py-2" style={{ color: C.sub }}>{vazio}</div>;
+  const py = compacto ? "py-1" : "py-1.5";
   const todos = !!onTodos && itens.every((t) => sel?.has(t.id));
   return (
-    <table className="w-full text-xs">
+    <table className={`w-full ${compacto ? "text-[11px] leading-tight" : "text-xs"}`}>
       <thead><tr style={{ color: C.sub }}>
         {onToggle && <th className="py-1 pr-2 text-left">{onTodos && <input type="checkbox" checked={todos} title={todos ? "Desmarcar todos" : "Marcar todos"}
           onChange={() => onTodos(itens.map((t) => t.id), !todos)} className="cursor-pointer" />}</th>}
@@ -1201,11 +1202,11 @@ function ListaTitulos({ itens, sel, onToggle, onTodos, vazio = "Nada aqui." }) {
       </tr></thead>
       <tbody>{itens.map((t) => (
         <tr key={t.id} style={{ borderTop: `1px solid ${C.line}`, background: sel?.has(t.id) ? C.accentSoft : undefined, cursor: onToggle ? "pointer" : "default" }} onClick={() => onToggle?.(t.id)}>
-          {onToggle && <td className="py-1.5 pr-2"><input type="checkbox" readOnly checked={!!sel?.has(t.id)} /></td>}
-          <td className="py-1.5 whitespace-nowrap">{dBR(t.vencimento)}</td>
-          <td className="py-1.5">{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
-          <td className="py-1.5" style={{ color: C.sub }}>{t.parceiro}</td>
-          <td className="py-1.5 text-right font-semibold tabular-nums">{brl(t.valor)}{t.pagoParcial ? <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)}</div> : null}</td>
+          {onToggle && <td className={`${py} pr-2`}><input type="checkbox" readOnly checked={!!sel?.has(t.id)} /></td>}
+          <td className={`${py} whitespace-nowrap`}>{dBR(t.vencimento)}</td>
+          <td className={py}>{t.titulo}{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
+          <td className={py} style={{ color: C.sub }}>{t.parceiro}</td>
+          <td className={`${py} text-right font-semibold tabular-nums`}>{brl(t.valor)}{t.pagoParcial ? <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)}</div> : null}</td>
         </tr>))}</tbody>
     </table>
   );
@@ -1436,40 +1437,41 @@ function PainelPrevisao({ user, comp, setComp }) {
         /* v349/v350 — tela inteira sem rolar (telas largas): 1ª linha ocupa a altura que sobra e cada card rola por dentro;
            2ª linha: cenários, informações relevantes e painéis salvos */
         <div ref={telaRef} className="flex flex-col gap-4" style={alturaTela ? { height: alturaTela } : undefined}>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "0 0 auto" } : undefined}>
+        {/* v354 — 1ª linha ocupa toda a altura que sobra; 2ª linha só o necessário (compacta) */}
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "1 1 0", minHeight: 0, gridAutoRows: "100%" } : undefined}>
           {/* posição automática */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
-            <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+            <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
+              <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
                 onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
-              <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
+              <CardAuto compacto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
               {P.virtual && (() => { const V = P.virtual; const vt = V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0);
-                return <CardAuto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
-              <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
+                return <CardAuto compacto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
+              <CardAuto compacto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
-              <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
+              <CardAuto compacto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
                 onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
-              <CardAuto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
+              <CardAuto compacto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
                 onClick={() => setModal({ tipo: "foraMes" })} />
-              <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
+              <CardAuto compacto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
                 sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
             </div>
             {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
-            <div className="text-[11px] font-bold uppercase mt-4 mb-2 flex items-center justify-between" style={{ color: C.navy }}>
+            <div className="text-[11px] font-bold uppercase mt-3 mb-1.5 flex items-center justify-between" style={{ color: C.navy }}>
               <span>Bancos</span>
               <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
                 ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
-                <CardAuto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
+                <CardAuto compacto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
               ))}
             </div>
           </div>
 
           {/* contas atrasadas + prioridade */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas atrasadas</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Vêm do contas a pagar (vencidas e em aberto, inclusive previsões).</div>
             <LinhaVal rotulo="Total atrasado" sub={`${P.qtdAtrasadas} conta(s)`} valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} forte />
@@ -1477,11 +1479,11 @@ function PainelPrevisao({ user, comp, setComp }) {
               <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Prioridade do mês <span className="font-semibold" style={{ color: C.red }}>{brl(calc.tP)}</span></div>
               <button onClick={() => setModal({ tipo: "prioridade" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
             </div>
-            <ListaTitulos itens={calc.prior} vazio="Nenhuma conta escolhida. Use + para selecionar as atrasadas que serão pagas no mês." />
+            <ListaTitulos compacto itens={calc.prior} vazio="Nenhuma conta escolhida. Use + para selecionar as atrasadas que serão pagas no mês." />
           </div>
 
           {/* contas a receber */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Contas a receber</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>A previsão virá do sistema do Maycon (integração); por ora, digitada.</div>
             {[["receberPrevisao", "Previsão (ainda sem título)"]].map(([k, t]) => (
@@ -1491,11 +1493,11 @@ function PainelPrevisao({ user, comp, setComp }) {
               <div className="text-xs font-bold uppercase" style={{ color: C.navy }}>Quitação provável <span className="font-semibold" style={{ color: C.blue }}>{brl(calc.tQ)}</span></div>
               <button onClick={() => setModal({ tipo: "receberAtrasados" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button>
             </div>
-            <ListaTitulos itens={calc.quit} vazio="Nenhum atrasado escolhido. Selecione no card A receber atrasado os que devem entrar no mês." />
+            <ListaTitulos compacto itens={calc.quit} vazio="Nenhum atrasado escolhido. Selecione no card A receber atrasado os que devem entrar no mês." />
           </div>
 
           {/* previsões de entrega / recebimento */}
-          <div className={`${caixaBloco} overflow-auto min-h-0`} style={alturaTela ? { ...caixaSt, maxHeight: Math.round(alturaTela * 0.64) } : caixaSt}>
+          <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
             <div className="text-sm font-bold" style={{ color: C.navy }}>Previsões de entrega / recebimento</div>
             <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Pedidos vêm do PCP pelo botão <b>Atualizar</b>{p.manual?.atualizadoAuto?.em ? <> (última: {dataHora(p.manual.atualizadoAuto.em)})</> : " (ainda não atualizado)"}; antecipação disponível é digitada.</div>
             {/* v341 — valor e quantidade de pedidos */}
@@ -1521,11 +1523,11 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
         </div>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "1 1 0", minHeight: 220, gridAutoRows: "100%" } : undefined}>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "0 0 auto" } : undefined}>
           {/* cenários */}
-          <div className={`${caixaBloco} md:col-span-2 overflow-auto min-h-0`} style={caixaSt}>
-            <div className="text-sm font-bold" style={{ color: C.navy }}>Cenários</div>
-            <div className="text-xs mb-2 mt-0.5" style={{ color: C.sub }}>Calculados com tudo acima (passe o mouse para ver a conta).</div>
+          <div className={`rounded-xl px-4 py-3 md:col-span-2`} style={caixaSt}>
+            <div className="flex items-baseline gap-2 mb-2"><span className="text-sm font-bold" style={{ color: C.navy }}>Cenários</span>
+              <span className="text-[11px]" style={{ color: C.sub }}>calculados com tudo acima (passe o mouse para ver a conta)</span></div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
               {[
                 ["Cenário geral", Cn.geral, `a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`],
@@ -1535,7 +1537,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                 ["Antecipando e cobrindo", Cn.antecipandoCobrindo, `cobrindo o cheque + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
                 ["Antecipando sem cobrir", Cn.antecipandoSemCobrir, `sem cobrir + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
               ].map(([t, v, f]) => (
-                <div key={t} title={f} className="rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                <div key={t} title={f} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
                   <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
                   <div className="font-bold whitespace-nowrap tabular-nums" style={{ color: v >= 0 ? C.green : C.red, fontSize: "clamp(13px, 1.05vw, 16px)" }}>{moeda(v)}</div>
                 </div>
@@ -1544,17 +1546,17 @@ function PainelPrevisao({ user, comp, setComp }) {
           </div>
 
           {/* informações relevantes */}
-          <div className={`${caixaBloco} flex flex-col ${p.salvos?.length > 0 ? "" : "2xl:col-span-2"}`} style={caixaSt}>
-            <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Informações relevantes</div>
-            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={4}
+          <div className={`rounded-xl px-4 py-3 flex flex-col ${p.salvos?.length > 0 ? "" : "2xl:col-span-2"}`} style={caixaSt}>
+            <div className="text-sm font-bold mb-1.5" style={{ color: C.navy }}>Informações relevantes</div>
+            <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={3}
               placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
-              className="w-full flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff", resize: "none", minHeight: 80 }} />
-            {p.atualizadoPorNome && <div className="text-[11px] mt-2" style={{ color: C.sub }}>Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}{sujo ? " · alterações não salvas" : ""}</div>}
+              className="w-full flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff", resize: "none", minHeight: 56 }} />
+            {p.atualizadoPorNome && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Última atualização: {p.atualizadoPorNome}{p.atualizadoEm ? ` · ${dataHora(p.atualizadoEm)}` : ""}{sujo ? " · alterações não salvas" : ""}</div>}
           </div>
 
           {/* painéis salvos */}
           {p.salvos?.length > 0 && (
-            <div className={`${caixaBloco} overflow-auto min-h-0`} style={caixaSt}>
+            <div className="rounded-xl px-4 py-3 overflow-auto" style={{ ...caixaSt, maxHeight: alturaTela ? 170 : undefined }}>
               <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Painéis salvos</div>
               {[...p.salvos].map((s, i) => ({ ...s, i })).reverse().map((s) => (
                 <div key={s.i} className="flex items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
