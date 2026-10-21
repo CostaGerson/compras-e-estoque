@@ -1455,44 +1455,43 @@ function PainelPrevisao({ user, comp, setComp }) {
             {(() => {
               const antec = Number(val("antecipacaoDisp")) || 0, entreg = Number(val("recebimentoMes")) || 0;
               const V = P.virtual, vt = V ? V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0) : null;
-              const cab = (t) => <div className="text-[11px] font-bold uppercase mb-1.5" style={{ color: C.navy }}>{t}</div>;
+              const cab = (t) => <div className="text-[11px] font-bold uppercase" style={{ color: C.navy }}>{t}</div>;
+              // v359 — linhas pareadas (mês | geral) para os cards ficarem alinhados lado a lado
+              const mesL = [
+                <CardAuto compacto rotulo="A receber no mês" valor={calc.entradas} cor={C.blue}
+                  sub={[`no mês ${brl(R.mes.real)}`, calc.xQ ? `quitação provável ${brl(calc.xQ)}` : null, entreg ? `entregas ${brl(entreg)}` : null, antec ? `antecipação ${brl(antec)}` : null].filter(Boolean).join(" + ")}
+                  onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />,
+                <CardAuto compacto rotulo="A pagar no mês" valor={calc.saidas} cor={C.red}
+                  sub={[`no mês ${brl(P.mes)}${P.mesPrevisoes ? ` (inclui ${brl(P.mesPrevisoes)} em previsões)` : ""}`, calc.xP ? `prioridade ${brl(calc.xP)}` : null].filter(Boolean).join(" + ")} />,
+                <div title={`saldos positivos ${brl(calc.caixa.saldoPositivo)} + a receber no mês ${brl(calc.entradas)} − a pagar no mês ${brl(calc.saidas)}`}>
+                  <CardAuto compacto rotulo="Cenário sem cobrir o cheque" valor={Cn.semCobrir} cor={Cn.semCobrir >= 0 ? C.green : C.red} sub="saldos positivos + a receber − a pagar" Ico={TrendingUp} /></div>,
+                <div title={`sem cobrir ${brl(Cn.semCobrir)} − cheque em uso ${brl(calc.caixa.limiteTomado)}`}>
+                  <CardAuto compacto rotulo="Cenário cobrindo o cheque" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− cheque em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>,
+              ];
+              const geralL = [
+                <CardAuto compacto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
+                  onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />,
+                V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} /> : <div />,
+                <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />,
+                <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}${antec ? ` − antecipação ${brl(antec)}` : ""}`}>
+                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub={`a receber + execução + em andamento − a pagar${antec ? ` − antecipação ${brl(antec)}` : ""}`} Ico={TrendingUp} /></div>,
+              ];
               return (
-                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                  <div className="grid gap-2 content-start">
-                    {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}
-                    <CardAuto rotulo="A receber no mês" valor={calc.entradas} cor={C.blue}
-                      sub={[`no mês ${brl(R.mes.real)}`, calc.xQ ? `quitação provável ${brl(calc.xQ)}` : null, entreg ? `entregas ${brl(entreg)}` : null, antec ? `antecipação ${brl(antec)}` : null].filter(Boolean).join(" + ")}
-                      onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
-                    <CardAuto rotulo="A pagar no mês" valor={calc.saidas} cor={C.red}
-                      sub={[`no mês ${brl(P.mes)}${P.mesPrevisoes ? ` (inclui ${brl(P.mesPrevisoes)} em previsões)` : ""}`, calc.xP ? `prioridade ${brl(calc.xP)}` : null].filter(Boolean).join(" + ")} />
-                    <div title={`saldos positivos ${brl(calc.caixa.saldoPositivo)} + a receber no mês ${brl(calc.entradas)} − a pagar no mês ${brl(calc.saidas)}`}>
-                      <CardAuto rotulo="Cenário sem cobrir o cheque" valor={Cn.semCobrir} cor={Cn.semCobrir >= 0 ? C.green : C.red} sub="saldos positivos + a receber − a pagar" Ico={TrendingUp} /></div>
-                    <div title={`sem cobrir ${brl(Cn.semCobrir)} − cheque em uso ${brl(calc.caixa.limiteTomado)}`}>
-                      <CardAuto rotulo="Cenário cobrindo o cheque" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− cheque em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>
-                  </div>
-                  <div className="grid gap-2 content-start">
-                    {cab("Geral")}
-                    <CardAuto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
-                      onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
-                    {V && <CardAuto rotulo="A pagar geral" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />}
-                    <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
-                    <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
-                      sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
-                    <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}${antec ? ` − antecipação ${brl(antec)}` : ""}`}>
-                      <CardAuto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub={`a receber + execução + em andamento − a pagar${antec ? ` − antecipação ${brl(antec)}` : ""}`} Ico={TrendingUp} /></div>
-                  </div>
+                <div className="grid gap-2 grid-cols-2">
+                  {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}{cab("Geral")}
+                  {mesL.map((m, i) => [<div key={`m${i}`} className="grid">{m}</div>, <div key={`g${i}`} className="grid">{geralL[i]}</div>])}
                 </div>
               );
             })()}
             {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
-            <div className="text-[11px] font-bold uppercase mt-3 mb-1.5 flex items-center justify-between" style={{ color: C.navy }}>
+            <div className="text-[11px] font-bold uppercase mt-3 mb-1 flex items-center justify-between" style={{ color: C.navy }}>
               <span>Bancos</span>
               <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
                 ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
-                <CardAuto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
+                <CardAuto compacto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
               ))}
             </div>
           </div>
@@ -1507,6 +1506,7 @@ function PainelPrevisao({ user, comp, setComp }) {
               <LinhaClique key={t} titulo={t} sub={sub} valor={v} cor={cor} onClick={abrir} />
             ))}
             <div className="text-[11px] font-bold uppercase mt-4 mb-0.5" style={{ color: C.navy }}>A receber</div>
+            <LinhaClique titulo="A receber atrasado" sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green} onClick={() => setModal({ tipo: "listaRecAtrasados" })} />
             <LinhaClique titulo="Quitação provável" sub={`${calc.quit.length} título(s) atrasados que devem entrar no mês`} valor={calc.tQ} cor={C.blue} onClick={() => setModal({ tipo: "listaQuit" })} />
           </div>
 
@@ -1638,6 +1638,16 @@ function PainelPrevisao({ user, comp, setComp }) {
         <Modal titulo={`Prioridade do mês · ${brl(calc.tP)}`} icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
           <div className="flex justify-end mb-2"><button onClick={() => setModal({ tipo: "prioridade" })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Plus size={13} /> Selecionar</button></div>
           <ListaTitulos itens={calc.prior} vazio="Nenhuma conta escolhida. Use Selecionar para marcar as atrasadas que serão pagas no mês." />
+        </Modal>
+      )}
+      {modal?.tipo === "listaRecAtrasados" && (
+        <Modal titulo={`A receber atrasado · ${brl(R.atrasado.total)}`} icone={AlertTriangle} onClose={() => setModal(null)} largura={760}>
+          {[["COBRANCA", "Em cobrança", R.atrasado.cobranca], ["EXECUCAO", "Em execução", R.atrasado.execucao]].map(([k, t, v]) => (
+            <div key={k} className="mb-3">
+              <div className="text-xs font-bold uppercase mb-1 flex justify-between" style={{ color: C.navy }}><span>{t}</span><span>{brl(v)}</span></div>
+              <ListaTitulos itens={(p.listas.receberAtrasados || []).filter((x) => x.modalidade === k)} vazio="Nenhum." />
+            </div>
+          ))}
         </Modal>
       )}
       {modal?.tipo === "listaQuit" && (
