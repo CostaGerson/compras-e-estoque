@@ -1400,12 +1400,17 @@ function PainelPrevisao({ user, comp, setComp }) {
     const xP = prior.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0), xQ = quit.filter((t) => t.vencimento < iniM).reduce((a, t) => a + t.valor, 0);
     const n = (k) => Number(val(k)) || 0;
     const R = p.pos.receber, P = p.pos.pagar;
-    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao - n("antecipacaoDisp");   // v358 — antecipação sai do cenário geral
+    // v371 — cenário geral = a receber geral + execução + em andamento − antecipação − a pagar geral − contas atrasadas (sem duplicar: o a pagar geral só tem o que vence de hoje em diante)
+    const V0 = P.virtual || { real: 0, previsoesProx: 0, quitacao: { total: 0 } };
+    const pagarGeral = V0.real + V0.previsoesProx + (V0.quitacao?.total || 0);
+    const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - n("antecipacaoDisp") - pagarGeral - P.atrasadas;
     // v357 — antecipação preenchida entra no a receber do mês (e sai do a receber geral)
     const entradas = R.mes.real + xQ + n("recebimentoMes") + n("antecipacaoDisp"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
-    const lb = geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("lbMesOperacao") - (P.dividasLB?.liquido || 0);   // v364
-    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, cen: { geral, mes, lb, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
+    // v371 — LB = geral + venda de patrimônio − passivo trabalhista − CMV em andamento − impostos (9,1% do total em andamento)
+    const impostosAnd = (Number(p.manual?.andamento?.valor) || 0) * 0.091;
+    const lb = geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - impostosAnd;
+    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, pagarGeral, impostosAnd, cen: { geral, mes, lb, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
       antecipandoCobrindo: mes - caixa.limiteTomado, antecipandoSemCobrir: mes } };
   }, [p, bancos, selPrior, selQuit, rasc]);
 
@@ -1471,7 +1476,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
             {(() => {
               const antec = Number(val("antecipacaoDisp")) || 0, entreg = Number(val("recebimentoMes")) || 0;
-              const V = P.virtual, vt = V ? V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0) : null;
+              const V = P.virtual, vt = V ? calc.pagarGeral : null;   // v371 — sem CMV e passivo (estão no cenário LB)
               const cab = (t) => <div className="text-[11px] font-bold uppercase" style={{ color: C.navy }}>{t}</div>;
               // v359 — linhas pareadas (mês | geral) para os cards ficarem alinhados lado a lado
               const mesL = [
@@ -1489,11 +1494,10 @@ function PainelPrevisao({ user, comp, setComp }) {
                 <CardAuto compacto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
                   onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />,
                 V ? <CardAuto compacto rotulo="A pagar geral" valor={vt} cor={C.red} onClick={() => setModal({ tipo: "pagarVirtual" })}
-                  sub={[`real ${brl(V.real)}`, V.previsoesProx ? `previsões ${brl(V.previsoesProx)}` : null, V.quitacao.total ? `dívidas ${brl(V.quitacao.total)}` : null,
-                    Number(val("cmvAndamento")) ? `CMV ${brl(Number(val("cmvAndamento")))}` : null, Number(val("passivoTributario")) ? `passivo trab. ${brl(Number(val("passivoTributario")))}` : null].filter(Boolean).join(" + ")} /> : <div />,
+                  sub={[`a vencer ${brl(V.real)}`, V.previsoesProx ? `previsões ${brl(V.previsoesProx)}` : null, V.quitacao.total ? `dívidas ${brl(V.quitacao.total)}` : null].filter(Boolean).join(" + ")} /> : <div />,
                 <CardAuto compacto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />,
-                <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}${antec ? ` − antecipação ${brl(antec)}` : ""}`}>
-                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar" Ico={TrendingUp} /></div>,
+                <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)}${antec ? ` − antecipação ${brl(antec)}` : ""} − a pagar geral ${brl(calc.pagarGeral)} − contas atrasadas ${brl(P.atrasadas)}`}>
+                  <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar geral − atrasadas" Ico={TrendingUp} /></div>,
               ];
               return (
                 <div className="grid gap-2 grid-cols-2">
@@ -1502,14 +1506,14 @@ function PainelPrevisao({ user, comp, setComp }) {
                   {/* v366 — cenário LB (liquidação de balanço): só o valor, como os outros; clicar abre os campos e o detalhe */}
                   <div className="col-span-2 grid">
                     <CardAuto compacto rotulo="Cenário LB · liquidação de balanço" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red}
-                      sub="cenário geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − dívidas" Ico={TrendingUp} onClick={() => setModal({ tipo: "lb" })} />
+                      sub="cenário geral + venda de patrimônio − passivo trabalhista − CMV e impostos dos pedidos em andamento" Ico={TrendingUp} onClick={() => setModal({ tipo: "lb" })} />
                   </div>
                 </div>
               );
             })()}
             {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
             <div className="text-[11px] font-bold uppercase mt-3 mb-1 flex items-center justify-between" style={{ color: C.navy }}>
-              <span>Bancos</span>
+              <span>Caixa</span>
               <button onClick={() => setModal({ tipo: "bancos" })} className="flex items-center gap-1 text-xs font-semibold normal-case" style={{ color: C.accent }}><Pencil size={12} /> editar saldos e limites</button>
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
@@ -1592,7 +1596,7 @@ function PainelPrevisao({ user, comp, setComp }) {
 
       {/* janelas */}
       {modal?.tipo === "bancos" && calc && (
-        <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={960}>
+        <Modal titulo="Caixa — saldos e limites dos bancos" icone={Building2} onClose={() => setModal(null)} largura={960}>
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco. Saldo negativo = limite em uso (em vermelho quando passa do limite).</div>
               <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
@@ -1630,30 +1634,20 @@ function PainelPrevisao({ user, comp, setComp }) {
       )}
       {modal?.tipo === "receber" && <DetalheReceber titulo={modal.titulo} b={modal.b} onClose={() => setModal(null)} />}
       {modal?.tipo === "pagarVirtual" && P.virtual && (() => {
-        const V = P.virtual, cmv = Number(val("cmvAndamento")) || 0, trib = Number(val("passivoTributario")) || 0;
-        const vt = V.real + V.previsoesProx + V.quitacao.total + cmv + trib;
+        const V = P.virtual;
+        const vt = calc.pagarGeral;
         const mes1 = nomeMesAno(V.mesSeguinte);
         return (
           <Modal titulo="Contas a pagar · real e virtual" icone={Search} onClose={() => setModal(null)} largura={620}>
-            <LinhaVal rotulo="Real" sub={`${V.qtdReal} conta(s) em aberto de ${nomeMesAno(p.mesPrevisto)} em diante, sem previsões${V.parcelasDividaFora ? ` · parcelas de contratos depois de ${nomeMesAno(V.mesSeguinte)} (${brl(V.parcelasDividaFora)}) estão na quitação` : ""}`} valor={V.real} cor={C.red} forte />
-            <LinhaVal rotulo="Virtual" sub="real + previsões + quitação das dívidas + CMV em andamento + passivo trabalhista" valor={vt} cor={C.red} forte />
+            <LinhaVal rotulo="Real" sub={`${V.qtdReal} conta(s) a vencer (de hoje em diante) de ${nomeMesAno(p.mesPrevisto)} em diante, sem previsões · as vencidas estão em contas atrasadas${V.parcelasDividaFora ? ` · parcelas de contratos depois de ${nomeMesAno(V.mesSeguinte)} (${brl(V.parcelasDividaFora)}) estão na quitação` : ""}`} valor={V.real} cor={C.red} forte />
+            <LinhaVal rotulo="Virtual" sub="a vencer + previsões até o fim do mês seguinte + quitação das dívidas" valor={vt} cor={C.red} forte />
             <div className="text-[11px] font-bold uppercase mt-3 mb-1" style={{ color: C.navy }}>Composição do virtual</div>
             <LinhaVal rotulo="Real" valor={V.real} cor={C.sub} />
-            <LinhaVal rotulo={`Previsões de ${mes1}`} sub={`${V.qtdPrevisoesProx} previsão(ões) — só mais um mês de operação, inclui a parcela dos contratos`} valor={V.previsoesProx} cor={C.sub} />
+            <LinhaVal rotulo={`Previsões até ${mes1}`} sub={`${V.qtdPrevisoesProx} previsão(ões) a vencer — resto do mês + um mês de operação, inclui a parcela dos contratos`} valor={V.previsoesProx} cor={C.sub} />
             <LinhaVal rotulo={`Quitação das dívidas em ${mes1}`} sub={V.quitacao.erro ? `erro na alavancagem: ${V.quitacao.erro}` : `saldo devedor de ${V.quitacao.contratos.length} contrato(s) após as parcelas até ${mes1} (já no contas a pagar) · sem tributárias (estão no real)`} valor={V.quitacao.total} cor={C.sub} />
             {V.quitacao.contratos.length > 0 && <div className="ml-3 mb-1">{V.quitacao.contratos.map((c, i) => (
               <div key={i} className="flex justify-between text-[11px] py-0.5" style={{ color: C.sub }}><span>{c.nome}{c.credor ? ` · ${c.credor}` : ""}{c.parcelasDescontadas ? ` · −${c.parcelasDescontadas} parcela(s)` : ""}</span><span className="tabular-nums">{brl(c.saldo)}</span></div>
             ))}</div>}
-            <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>CMV dos pedidos em andamento <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("cmvAndamento")} onChange={set("cmvAndamento")} width={132} /></label>
-            {/* v370 — base para digitar o CMV: peças em aberto × ritmo de produção do ano */}
-            {(() => { const pr = V.producao || {}; return (
-              <div className="ml-3 mb-1 rounded-lg px-3 py-2 text-[11px] grid gap-0.5" style={{ background: C.panel2, color: C.sub }}>
-                <div><b style={{ color: C.text }}>{pr.pecasAberto != null ? pr.pecasAberto.toLocaleString("pt-BR") : "—"}</b> peças em aberto no PCP{pr.cronoEm ? ` (lido ${dataHora(pr.cronoEm)})` : " (atualize em Pedidos em andamento)"}</div>
-                <div><b style={{ color: C.text }}>{(pr.mediaMes || 0).toLocaleString("pt-BR")}</b> peças/mês produzidas em {String(p.mesPrevisto).slice(0, 4)} ({(pr.pecasAno || 0).toLocaleString("pt-BR")} em {pr.mesesAno || 0} mês(es), pela expedição)</div>
-                <div>mais <b style={{ color: C.text }}>{pr.mesesOperacao != null ? `${String(pr.mesesOperacao).replace(".", ",")} mês(es)` : "—"}</b> de operação para entregar todos os pedidos em andamento</div>
-              </div>
-            ); })()}
-            <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>Passivo trabalhista <span style={{ color: C.sub }}>(digitado · usado também no cenário LB)</span></span><ValorIn value={val("passivoTributario")} onChange={set("passivoTributario")} width={132} /></label>
             <div className="text-[11px] mt-2" style={{ color: C.sub }}>Os campos digitados entram ao salvar o painel.</div>
           </Modal>
         );
@@ -1665,18 +1659,25 @@ function PainelPrevisao({ user, comp, setComp }) {
           <ListaTitulos itens={p.listas.pagarAtrasadas} vazio="Nenhuma conta atrasada." />
         </Modal>
       )}
-      {modal?.tipo === "lb" && (() => { const D = P.dividasLB || {}; return (
-        <Modal titulo="Cenário LB · liquidação de balanço" icone={TrendingUp} onClose={() => setModal(null)} largura={620}>
-          <LinhaVal rotulo="Cenário geral" sub="automático" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} />
-          {[["lbVendaPatrimonio", "+ Venda de patrimônio"], ["passivoTributario", "− Passivo trabalhista (o mesmo do a pagar geral)"], ["lbMesOperacao", "− 1 mês de operação"]].map(([k, t]) => (
-            <label key={k} className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
-              <span style={{ color: C.sub }}>{t} <span className="text-[11px]">· digitado</span></span>
-              <ValorIn value={val(k)} onChange={set(k)} width={150} />
-            </label>
-          ))}
-          <button onClick={() => setModal({ tipo: "dividasLB" })} className="w-full text-left">
-            <LinhaVal rotulo="− Dívidas (alavancagem)" sub={`automático · quitação hoje ${brl(D.quitacaoHoje || 0)} − parcelas já lançadas ${brl(D.lancadas || 0)} · clique para ver`} valor={D.liquido || 0} cor={C.red} />
-          </button>
+      {modal?.tipo === "lb" && (() => { const V = P.virtual || {}; return (
+        <Modal titulo="Cenário LB · liquidação de balanço" icone={TrendingUp} onClose={() => setModal(null)} largura={640}>
+          <LinhaVal rotulo="Cenário geral" sub="automático · a receber, a pagar geral (com quitação das dívidas) e atrasadas já estão nele" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} />
+          <label className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+            <span style={{ color: C.sub }}>+ Venda de patrimônio <span className="text-[11px]">· digitado</span></span><ValorIn value={val("lbVendaPatrimonio")} onChange={set("lbVendaPatrimonio")} width={150} /></label>
+          <label className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+            <span style={{ color: C.sub }}>− Passivo trabalhista <span className="text-[11px]">· digitado</span></span><ValorIn value={val("passivoTributario")} onChange={set("passivoTributario")} width={150} /></label>
+          <div style={{ borderTop: `1px solid ${C.line}` }}>
+            <label className="flex items-center justify-between py-1.5"><span className="text-xs" style={{ color: C.text }}>− CMV dos pedidos em andamento <span style={{ color: C.sub }}>(digitado)</span></span><ValorIn value={val("cmvAndamento")} onChange={set("cmvAndamento")} width={150} /></label>
+            {/* v370 — base para digitar o CMV: peças em aberto × ritmo de produção do ano */}
+            {(() => { const pr = V.producao || {}; return (
+              <div className="ml-3 mb-1 rounded-lg px-3 py-2 text-[11px] grid gap-0.5" style={{ background: C.panel2, color: C.sub }}>
+                <div><b style={{ color: C.text }}>{pr.pecasAberto != null ? pr.pecasAberto.toLocaleString("pt-BR") : "—"}</b> peças em aberto no PCP{pr.cronoEm ? ` (lido ${dataHora(pr.cronoEm)})` : " (atualize em Pedidos em andamento)"}</div>
+                <div><b style={{ color: C.text }}>{(pr.mediaMes || 0).toLocaleString("pt-BR")}</b> peças/mês produzidas em {String(p.mesPrevisto).slice(0, 4)} ({(pr.pecasAno || 0).toLocaleString("pt-BR")} em {pr.mesesAno || 0} mês(es), pela expedição)</div>
+                <div>mais <b style={{ color: C.text }}>{pr.mesesOperacao != null ? `${String(pr.mesesOperacao).replace(".", ",")} mês(es)` : "—"}</b> de operação para entregar todos os pedidos em andamento</div>
+              </div>
+            ); })()}
+          </div>
+          <LinhaVal rotulo="− Impostos dos pedidos em andamento" sub={`automático · 9,1% do total em andamento ${brl(Number(p.manual?.andamento?.valor) || 0)}`} valor={calc.impostosAnd} cor={C.red} />
           <LinhaVal rotulo="Cenário LB" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red} forte />
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>Os valores digitados entram no painel na hora; use Salvar painel para gravar.</div>
         </Modal>

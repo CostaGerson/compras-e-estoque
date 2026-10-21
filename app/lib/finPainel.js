@@ -17,6 +17,7 @@ const mesAnterior = (c) => { const d = new Date(Date.UTC(Number(c.slice(0, 4)), 
 const fimDoMes = (m) => iso(new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)));
 
 // bancos padrão (limites de cheque especial) — o saldo é preenchido no painel
+export const ALIQ_IMPOSTOS_ANDAMENTO = 0.091;   // v371 — impostos sobre os pedidos em andamento no cenário LB
 export const BANCOS_PADRAO = [
   ["BRADESCO", 50000], ["ITAU", 22819], ["ITAU CX AVAL", 7000], ["CAIXA", 10000], ["C6", 15000], ["INTER", 0], ["BB", 1000],
 ].map(([nome, limite], i) => ({ id: i + 1, nome, saldo: 0, limite, tomado: null }));
@@ -89,8 +90,10 @@ async function posicao(M, hoje) {
   const ehDivida = (t) => t.recorrenciaId && contratoDaRec[t.recorrenciaId] != null;
   const M1 = mesSeguinte(M), ini1 = `${M1}-01`, fim1 = fimDoMes(M1);
   const ateM1 = (t) => venc(t) <= fim1;
-  const pagarReal = pagar.filter((t) => (noMes(t) || depois(t)) && !t.previsao && (!ehDivida(t) || ateM1(t)));   // v370 — inclui o que vence no mês
-  const prevProx = pagar.filter((t) => t.previsao && venc(t) >= ini1 && venc(t) <= fim1);
+  // v371 — real: a vencer (de hoje em diante) a partir do mês, sem previsões; o que já venceu está em "contas atrasadas" (não duplica)
+  const pagarReal = pagar.filter((t) => !vencido(t) && (noMes(t) || depois(t)) && !t.previsao && (!ehDivida(t) || ateM1(t)));
+  // v371 — previsões a vencer até o fim de M+1 (resto do mês + um mês de operação); vencidas estão nas atrasadas
+  const prevProx = pagar.filter((t) => t.previsao && !vencido(t) && venc(t) <= fim1);
   // parcelas de cada contrato que já contam em algum card (atrasadas, mês, real, previsões de M+1)
   const abertasAte = {};
   for (const t of pagar) if (ehDivida(t) && ateM1(t)) { const c = contratoDaRec[t.recorrenciaId]; abertasAte[c] = (abertasAte[c] || 0) + 1; }
@@ -182,12 +185,17 @@ export async function painel(competencia, hojeData = new Date()) {
 
   const n = (k) => Number(dados[k]) || 0;
   // cenários (calculados)
-  const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - pos.pagar.totalSemPrevisao - n("antecipacaoDisp"));   // v358
+  // v371 — cenário geral = a receber geral + execução + pedidos em andamento − antecipação − a pagar geral (real + previsões + quitação das dívidas) − contas atrasadas
+  const V = pos.pagar.virtual;
+  const pagarGeral = r2(V.real + V.previsoesProx + (V.quitacao?.total || 0));
+  const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - n("antecipacaoDisp") - pagarGeral - pos.pagar.atrasadas);
   const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes") + n("antecipacaoDisp"));   // v357 — antecipação entra no mês
   const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
   // v364 — LB (liquidação de balanço): geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − quitação das dívidas
-  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("lbMesOperacao") - (pos.pagar.dividasLB?.liquido || 0));
+  // v371 — LB = cenário geral + venda de patrimônio − passivo trabalhista − CMV dos pedidos em andamento − impostos (9,1% do total em andamento)
+  const impostosAndamento = r2((Number(dados.andamento?.valor) || 0) * ALIQ_IMPOSTOS_ANDAMENTO);
+  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - impostosAndamento);
   const cenarios = {
     geral, mes, lb,
     cobrindo: r2(mes - caixa.limiteTomado),
