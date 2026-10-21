@@ -258,7 +258,7 @@ export default function Home() {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center justify-between px-6 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+        <header className="flex items-center justify-between px-5 py-1.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
           <div className="flex items-center gap-2">
             {collapsed && (
               <button onClick={() => setCollapsed(false)} title="Expandir menu"
@@ -284,7 +284,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto px-5 py-3">
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}

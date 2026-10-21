@@ -88,8 +88,8 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   return (
     <div>
       {migalhas.length > 1 && (
-        <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
-          <button onClick={migalhas[migalhas.length - 2].go} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+        <div className="flex items-center gap-1 text-[13px] mb-2 flex-wrap">
+          <button onClick={migalhas[migalhas.length - 2].go} className="flex items-center gap-1 mr-2 px-2 py-0.5 rounded" style={{ color: C.accent }}><ArrowLeft size={14} /> Voltar</button>
           {migalhas.map((m, i) => (
             <React.Fragment key={i}>
               {i > 0 && <ChevR size={13} style={{ color: C.sub }} />}
@@ -391,9 +391,9 @@ function PagarReceber() {
   const [aba, setAba] = useState("pagar");
   return (
     <div>
-      <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
+      <div className="flex gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
         {[["pagar", "Contas a pagar", TrendingDown], ["receber", "Contas a receber", TrendingUp]].map(([k, t, I]) => (
-          <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+          <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium"
             style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <I size={15} /> {t}
           </button>
@@ -536,7 +536,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirI
       {ger && (
         <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
           {[["meses", "Meses", CalendarRange], ["prevreal", "Previsto × realizado", Scale]].map(([k, t, I]) => (
-            <button key={k} onClick={() => setGuia(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+            <button key={k} onClick={() => setGuia(k)} className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium"
               style={{ color: guia === k ? C.accent : C.sub, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><I size={15} /> {t}</button>
           ))}
         </div>
@@ -731,9 +731,9 @@ function MesFinanceiro({ user, tela, setTela }) {
     .filter(([k]) => gerencial(user) || !["dre", "painel"].includes(k));   // v170 — DRE e painel são gerenciais
   return (
     <div>
-      <div className="flex gap-1 mb-5" style={{ borderBottom: `1px solid ${C.line}` }}>
+      <div className="flex gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
         {abas.map(([k, t, Ico]) => (
-          <button key={k} onClick={() => setAba(k, { contaFiltro: null })} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+          <button key={k} onClick={() => setAba(k, { contaFiltro: null })} className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium"
             style={{ color: tela.aba === k ? C.accent : C.sub, borderBottom: tela.aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
             <Ico size={15} /> {t}
           </button>
@@ -1200,7 +1200,7 @@ const nomeMesAno = (c) => (c ? `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0,
 function CardAuto({ rotulo, valor, cor, sub, onClick, Ico = Link2, compacto = false }) {
   const Tag = onClick ? "button" : "div";
   return (
-    <Tag onClick={onClick} className={`text-left rounded-lg px-3 ${compacto ? "py-1.5" : "py-2.5"} w-full ${onClick ? "transition-shadow hover:shadow-md" : ""}`} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+    <Tag onClick={onClick} className={`text-left rounded-lg px-3 ${compacto ? "py-1" : "py-2.5"} w-full ${onClick ? "transition-shadow hover:shadow-md" : ""}`} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
         <Ico size={11} /> <span className="truncate">{rotulo}</span>{onClick && <Search size={10} className="ml-auto shrink-0" style={{ color: C.accent }} />}
       </div>
@@ -1451,22 +1451,11 @@ function PainelPrevisao({ user, comp, setComp }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         <SeletorMes comp={comp} setComp={setComp} />
-        {p && <div className="text-sm font-bold px-3 py-1.5 rounded-lg" style={{ background: C.navy, color: "#fff" }}>Previsão de {nomeMesAno(p.mesPrevisto)}</div>}
-        <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.blueSoft, color: C.blue }}>
-          <Link2 size={13} /> Campos com corrente vêm das contas a pagar e a receber (ao vivo). Os demais você preenche.
-        </div>
+        {p && <div className="text-sm font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ background: C.blueSoft, color: C.blue }}>Previsão de {nomeMesAno(p.mesPrevisto)}</div>}
         <div className="flex-1" />
-        {/* v311 — previsões salvas: a deste mês (último retrato) e a que o painel anterior fez para este mês */}
-        {p?.anteriorTemSalvo && <button onClick={() => abrirSalvo(-1, compAnt(comp))} title="Último painel salvo no mês anterior (o que previu este mês)"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}>
-          <Eye size={14} /> Previsão salva de {nomeMesAno(comp)}</button>}
-        {p?.salvos?.length > 0 && <button onClick={() => abrirSalvo(-1)} title="Último painel salvo nesta competência"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}>
-          <Eye size={14} /> Previsão salva de {nomeMesAno(p.mesPrevisto)}</button>}
-        {p?.anteriorTemSalvo && <button onClick={abrirComparacao} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}>
-          <ArrowLeftRight size={14} /> Previsto × realizado</button>}
+        {/* v385 — painéis salvos ficam só ao lado de Informações relevantes; previsto × realizado na guia da Análise financeira */}
         {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
         <button disabled={atualizando || salvando} onClick={atualizar} title="Puxa os valores mais recentes: contas a pagar e a receber e pedidos do PCP"
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.blue}`, color: C.blue, background: C.panel, opacity: atualizando ? 0.6 : 1 }}>
@@ -1517,7 +1506,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                   <CardAuto compacto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber geral + em andamento − a pagar geral − atrasadas" Ico={TrendingUp} /></div>,
               ];
               return (
-                <div className="grid gap-2 grid-cols-2">
+                <div className="grid gap-1.5 grid-cols-2">
                   {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}{cab("Geral")}
                   {mesL.map((m, i) => [<div key={`m${i}`} className="grid">{m}</div>, <div key={`g${i}`} className="grid">{geralL[i]}</div>])}
                   {/* v366 — cenário LB (liquidação de balanço): só o valor, como os outros; clicar abre os campos e o detalhe */}
