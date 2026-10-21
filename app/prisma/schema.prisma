@@ -1800,3 +1800,16 @@ model FinPatrimonio {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+// v382 — Previsto × realizado: cada painel de previsão salvo e a conferência dele com o que aconteceu no mês previsto
+model FinPrevReal {
+  id            Int      @id @default(autoincrement())
+  competencia   String   // mês do painel (a previsão é de competencia + 1)
+  salvoEm       String   // "em" do painel salvo (ISO)
+  mesPrevisto   String
+  linhas        Json     // [{ k, grupo, rotulo, previsto, realizado, dif, divergente, detalhe, justificativa }]
+  geradoEm      DateTime @default(now())
+  geradoPorNome String?
+  atualizadoEm  DateTime @updatedAt
+  @@unique([competencia, salvoEm])
+}

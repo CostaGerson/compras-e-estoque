@@ -247,7 +247,8 @@ export async function painel(competencia, hojeData = new Date()) {
     salvos: (dados.salvos || []).map((s) => ({ em: s.em, por: s.por, cenarios: s.snapshot?.cenarios || null })),
     anteriorTemSalvo: !!(ant?.dados?.salvos || []).length,
     atualizadoPorNome: p?.atualizadoPorNome || null, atualizadoEm: p?.updatedAt || null,
-    _listasMes: { receberMesIds: pos.listas.receberMesIds, pagarMesIds: pos.listas.pagarMesIds },
+    _listasMes: { receberMesIds: pos.listas.receberMesIds, pagarMesIds: pos.listas.pagarMesIds,
+      pagarAtrasadasIds: (pos.listas.pagarAtrasadas || []).map((t) => t.id), receberAtrasadosIds: (pos.listas.receberAtrasados || []).map((t) => t.id) },   // v382
   };
 }
 

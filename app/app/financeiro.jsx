@@ -6,7 +6,7 @@ import {
   Upload, FileText, Trash2, CheckCircle2, AlertTriangle, Clock, KeyRound, Eye, EyeOff, Plus, X, Lock, Save,
   FolderArchive, Loader2, Copy, HelpCircle, Scissors, Pencil, Tag, Search, RefreshCw, ListTree, Wand2,
   ChevronUp, ChevronDown, ChevronsUp, FlaskConical, ArrowUpDown, ShieldCheck, Link2, Undo2, ChevronRight as ChevR,
-  LayoutDashboard, Sparkles, CalendarRange, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
+  LayoutDashboard, Sparkles, CalendarRange, Scale, Grid3x3, ArrowLeftRight, LineChart, Construction, BookOpen, ArrowLeft, TrendingUp, TrendingDown, PieChart as PieIco, FileStack,
   Building2, Database, Table2, Mail, Send, Download, FileSpreadsheet, Paperclip, FileCode2, CreditCard, Gauge,
 } from "lucide-react";
 import { unzipSync } from "fflate";
@@ -14,6 +14,7 @@ import MatrizCustos from "./matriz";
 import ContasPagarReceber, { BaixasModal } from "./contas";
 import Alavancagem from "./alavancagem";
 import Patrimonio from "./patrimonio";   // v368
+import PrevistoRealizado from "./prevReal";   // v382
 import Transmissao from "./transmissao";
 import Uploads from "./uploads";
 import ConferenciaIntegracao from "./conferencia";
@@ -512,6 +513,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirI
   const ger = gerencial(user);
   const [anual, erroAnual] = useAnual(user, ger ? ano : null);
   const [hist, setHist] = useState(false);
+  const [guia, setGuia] = useState("meses");   // v382 — meses | prevreal
   const alavMes = useMemo(
     () => Object.fromEntries((anual?.meses || []).map((m) => [m.competencia, m.alavancagem])),
     [anual]
@@ -530,6 +532,16 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirI
           className="flex items-center gap-1.5 px-3 rounded-lg text-sm font-semibold" style={{ height: 42, border: `1px solid ${C.line}`, background: C.panel, color: C.navy }}><ShieldCheck size={15} /> Conferência</button>}
         <div className="text-sm flex-1" style={{ color: C.sub }}>Clique no mês para abrir a DRE, a importação e a identificação.</div>
       </div>
+      {/* v382 — guias da análise financeira */}
+      {ger && (
+        <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
+          {[["meses", "Meses", CalendarRange], ["prevreal", "Previsto × realizado", Scale]].map(([k, t, I]) => (
+            <button key={k} onClick={() => setGuia(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+              style={{ color: guia === k ? C.accent : C.sub, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><I size={15} /> {t}</button>
+          ))}
+        </div>
+      )}
+      {guia === "prevreal" && ger ? <PrevistoRealizado user={user} /> : <>
       {anual && <IndicadoresAno d={anual} ano={ano} abrirGrupo={abrirGrupo} abrirAlav={abrirAlav} />}
       {erroAnual && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erroAnual}</div>}
       {erro && <div className="p-3 rounded mb-4" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -596,6 +608,7 @@ function AnaliseMensal({ user, ano, setAno, abrir, abrirGrupo, abrirAlav, abrirI
           })}
         </div>
       )}
+      </>}
     </div>
   );
 }
