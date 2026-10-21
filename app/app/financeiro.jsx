@@ -1363,7 +1363,7 @@ function PainelPrevisao({ user, comp, setComp }) {
     if (!p) return null;
     const l = bancos.map((b) => {
       const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
-      const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
+      const tomado = Math.max(0, -saldo);   // v355 — saldo negativo = cheque em uso
       return { saldo, limite, tomado, disponivel: Math.max(0, saldo) + Math.max(0, limite - tomado) };
     });
     const s = (f) => l.reduce((a, b) => a + b[f], 0);
@@ -1464,7 +1464,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
-                ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
+                ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
                 <CardAuto compacto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
               ))}
             </div>
@@ -1577,7 +1577,7 @@ function PainelPrevisao({ user, comp, setComp }) {
       {modal?.tipo === "bancos" && calc && (
         <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={960}>
             <div className="flex items-center justify-between mb-3">
-              <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco (negativo = cheque especial em uso).</div>
+              <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco. Saldo negativo = cheque especial em uso (em vermelho quando passa do limite).</div>
               <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
@@ -1586,7 +1586,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             </div>
             {bancos.map((b, i) => {
               const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
-              const tomado = b.tomado == null || b.tomado === "" ? Math.max(0, -saldo) : Number(b.tomado) || 0;
+              const tomado = Math.max(0, -saldo);   // v355 — saldo negativo = cheque em uso
               const disp = Math.max(0, saldo) + Math.max(0, limite - tomado);
               return (
                 <div key={i} className="flex items-center gap-2 py-1">
@@ -1594,7 +1594,8 @@ function PainelPrevisao({ user, comp, setComp }) {
                     className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
                   <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={150} negativo />
                   <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={150} />
-                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={150} />
+                  <span className="rounded px-2 py-1.5 text-sm text-right tabular-nums whitespace-nowrap" title={tomado > limite ? `passou ${brl(tomado - limite)} do limite` : "calculado pelo saldo negativo"}
+                    style={{ width: 150, border: `1px solid ${tomado > limite ? C.red : C.line}`, background: C.panel2, color: tomado > limite ? C.red : tomado > 0 ? C.yellow : C.sub, fontWeight: tomado > limite ? 700 : 400 }}>{brl(tomado)}</span>
                   <span className="text-sm font-semibold whitespace-nowrap tabular-nums" style={{ width: 130, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
                   <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
                 </div>
@@ -1603,7 +1604,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
               <Kpi semQuebra rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
               <Kpi semQuebra rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
-              <Kpi semQuebra rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi semQuebra rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub} />
               <Kpi semQuebra rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
             </div>
             <div className="text-[11px] mt-2" style={{ color: C.sub }}>As alterações entram no painel ao fechar; use Salvar painel para gravar.</div>

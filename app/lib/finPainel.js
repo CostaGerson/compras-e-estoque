@@ -39,7 +39,7 @@ const antecipado = (t) => !!t.antecipadoForma || t.cobranca === "DESCONTADO";
 function calcBancos(lista) {
   const bancos = (lista && lista.length ? lista : BANCOS_PADRAO).map((b, i) => {
     const saldo = r2(b.saldo), limite = r2(b.limite);
-    const tomado = b.tomado == null || b.tomado === "" ? r2(Math.max(0, -saldo)) : r2(b.tomado);
+    const tomado = r2(Math.max(0, -saldo));   // v355 — cheque em uso = saldo negativo
     return { id: b.id ?? i + 1, nome: String(b.nome || "").toUpperCase(), saldo, limite, tomado, disponivel: r2(Math.max(0, saldo) + Math.max(0, limite - tomado)) };
   });
   const s = (k) => r2(bancos.reduce((a, b) => a + b[k], 0));

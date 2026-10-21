@@ -21,7 +21,7 @@ async function caixaAtual() {
   if (!p) return { saldo: 0, limite: 0, tomado: 0, disponivelLimite: 0, bancos: [], origem: null, antecipacaoDisp: 0 };
   const bancos = p.dados.bancos.map((b) => {
     const saldo = r2(b.saldo), limite = r2(b.limite);
-    const tomado = b.tomado == null ? r2(Math.max(0, -saldo)) : r2(b.tomado);
+    const tomado = r2(Math.max(0, -saldo));   // v355
     return { nome: String(b.nome || "").toUpperCase(), saldo, limite, tomado, livre: r2(Math.max(0, limite - tomado)) };
   });
   return {
