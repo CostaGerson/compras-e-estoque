@@ -213,7 +213,7 @@ export const CAMPOS_PAINEL = [
   ] },
   { bloco: "Cenários", ajuda: "O sistema sugere; o valor que você digitar manda.", campos: [
     ["cenarioGeral", "Cenário geral"], ["cenarioMes", "Cenário do mês"],
-    ["cobrindoCheque", "Cobrindo o cheque"], ["semCobrir", "Sem cobrir"],
+    ["cobrindoCheque", "Cobrindo os limites"], ["semCobrir", "Sem cobrir"],
     ["antecipandoCobrindo", "Antecipando e cobrindo"], ["antecipandoSemCobrir", "Antecipando sem cobrir"],
   ] },
 ];

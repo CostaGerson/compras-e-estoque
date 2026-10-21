@@ -112,7 +112,7 @@ async function sugerir(r, caixa, linhas) {
       const usar = r2(Math.min(falta, caixa.disponivelLimite));
       const dias = linhas.filter((l) => l.saldo < 0).length;
       s.push({
-        nivel: "OPERACAO", titulo: "Usar limite / cheque especial",
+        nivel: "OPERACAO", titulo: "Usar limites",
         texto: `Os bancos têm ${brl(caixa.disponivelLimite)} de limite livre (${caixa.bancos.filter((b) => b.livre > 0).map((b) => `${b.nome} ${brl(b.livre)}`).join(", ")}). Cobre ${brl(usar)} do furo por ${dias} dia(s) — é o dinheiro mais caro: use só como ponte curta${totDup ? ", de preferência depois de antecipar" : ""}.`,
         valor: usar,
       });
@@ -127,7 +127,7 @@ async function sugerir(r, caixa, linhas) {
     if (restante > 0) s.push({ nivel: "ALERTA", titulo: "Furo sem cobertura", texto: `Mesmo antecipando o possível e usando o limite livre, faltam ${brl(restante)}. Avaliar capital de giro, aporte ou cortar/adiar saídas.` });
   } else if (caixa.origem) {
     s.push({ nivel: "OK", titulo: "Caixa positivo no período", texto: `O menor saldo é ${brl(r.menorSaldo?.valor || r.saldoInicial)}${r.menorSaldo ? ` em ${dBR(r.menorSaldo.data)}` : ""}. Não há necessidade de antecipar ou usar limite.` });
-    if (caixa.tomado > 0) s.push({ nivel: "OPERACAO", titulo: "Cobrir o limite já tomado", texto: `Há ${brl(caixa.tomado)} de limite/cheque especial em uso. Com o caixa positivo, cobrir esse saldo primeiro reduz juros.` });
+    if (caixa.tomado > 0) s.push({ nivel: "OPERACAO", titulo: "Cobrir o limite já tomado", texto: `Há ${brl(caixa.tomado)} de limites em uso. Com o caixa positivo, cobrir esse saldo primeiro reduz juros.` });
     const sobra = r.menorSaldo ? r.menorSaldo.valor : 0;
     if (sobra > 50000) s.push({ nivel: "OPERACAO", titulo: "Sobra de caixa", texto: `O caixa nunca fica abaixo de ${brl(sobra)} no período — avaliar amortizar a dívida mais cara ou aplicar a sobra com liquidez diária.` });
   }

@@ -1464,9 +1464,9 @@ function PainelPrevisao({ user, comp, setComp }) {
                 <CardAuto compacto rotulo="A pagar no mês" valor={calc.saidas} cor={C.red}
                   sub={[`no mês ${brl(P.mes)}${P.mesPrevisoes ? ` (inclui ${brl(P.mesPrevisoes)} em previsões)` : ""}`, calc.xP ? `prioridade ${brl(calc.xP)}` : null].filter(Boolean).join(" + ")} />,
                 <div title={`saldos positivos ${brl(calc.caixa.saldoPositivo)} + a receber no mês ${brl(calc.entradas)} − a pagar no mês ${brl(calc.saidas)}`}>
-                  <CardAuto compacto rotulo="Cenário sem cobrir o cheque" valor={Cn.semCobrir} cor={Cn.semCobrir >= 0 ? C.green : C.red} sub="saldos positivos + a receber − a pagar" Ico={TrendingUp} /></div>,
-                <div title={`sem cobrir ${brl(Cn.semCobrir)} − cheque em uso ${brl(calc.caixa.limiteTomado)}`}>
-                  <CardAuto compacto rotulo="Cenário cobrindo o cheque" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− cheque em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>,
+                  <CardAuto compacto rotulo="Cenário sem cobrir os limites" valor={Cn.semCobrir} cor={Cn.semCobrir >= 0 ? C.green : C.red} sub="saldos positivos + a receber − a pagar" Ico={TrendingUp} /></div>,
+                <div title={`sem cobrir ${brl(Cn.semCobrir)} − limites em uso ${brl(calc.caixa.limiteTomado)}`}>
+                  <CardAuto compacto rotulo="Cenário cobrindo os limites" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− limites em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>,
               ];
               const geralL = [
                 <CardAuto compacto rotulo="A receber geral" valor={R.geral.real} cor={C.blue} sub="real"
@@ -1490,7 +1490,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
               {[["Saldo geral", calc.caixa.saldoGeral, calc.caixa.saldoGeral >= 0 ? C.green : C.red], ["Limite total", calc.caixa.limiteTotal, C.sub],
-                ["Cheque em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
+                ["Limites em uso", calc.caixa.limiteTomado, calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub], ["Disponível", calc.caixa.disponivelTotal, C.blue]].map(([t, v, c]) => (
                 <CardAuto compacto key={t} rotulo={t} valor={v} cor={c} Ico={Building2} onClick={() => setModal({ tipo: "bancos" })} />
               ))}
             </div>
@@ -1570,12 +1570,12 @@ function PainelPrevisao({ user, comp, setComp }) {
       {modal?.tipo === "bancos" && calc && (
         <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={960}>
             <div className="flex items-center justify-between mb-3">
-              <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco. Saldo negativo = cheque especial em uso (em vermelho quando passa do limite).</div>
+              <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco. Saldo negativo = limite em uso (em vermelho quando passa do limite).</div>
               <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
               <span className="flex-1">Banco</span><span style={{ width: 150, textAlign: "right" }}>Saldo</span><span style={{ width: 150, textAlign: "right" }}>Limite</span>
-              <span style={{ width: 150, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 130, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
+              <span style={{ width: 150, textAlign: "right" }}>Limites em uso</span><span style={{ width: 130, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
             </div>
             {bancos.map((b, i) => {
               const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
@@ -1597,7 +1597,7 @@ function PainelPrevisao({ user, comp, setComp }) {
             <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
               <Kpi semQuebra rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
               <Kpi semQuebra rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
-              <Kpi semQuebra rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi semQuebra rotulo="Limites em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado > calc.caixa.limiteTotal ? C.red : calc.caixa.limiteTomado ? C.yellow : C.sub} />
               <Kpi semQuebra rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
             </div>
             <div className="text-[11px] mt-2" style={{ color: C.sub }}>As alterações entram no painel ao fechar; use Salvar painel para gravar.</div>
@@ -1694,9 +1694,9 @@ function PainelSalvoModal({ s, onClose }) {
       <LinhaVal rotulo="Prioridade do mês" sub={`${s.selecionados?.prioridade?.length || 0} conta(s)`} valor={s.selecionados?.totPrioridade} cor={C.red} />
       <LinhaVal rotulo="Quitação provável" sub={`${s.selecionados?.quitacao?.length || 0} título(s)`} valor={s.selecionados?.totQuitacao} cor={C.blue} />
       <LinhaVal rotulo="Saldo geral dos bancos" valor={s.caixa?.saldoGeral} />
-      <LinhaVal rotulo="Cheque em uso" valor={s.caixa?.limiteTomado} cor={C.yellow} />
+      <LinhaVal rotulo="Limites em uso" valor={s.caixa?.limiteTomado} cor={C.yellow} />
       <div className="text-[11px] font-bold uppercase mt-3" style={{ color: C.navy }}>Cenários</div>
-      {[["Geral", c.geral], ["Do mês", c.mes], ["Cobrindo o cheque", c.cobrindo], ["Sem cobrir", c.semCobrir], ["Antecipando e cobrindo", c.antecipandoCobrindo], ["Antecipando sem cobrir", c.antecipandoSemCobrir]].map(([t, v]) => (
+      {[["Geral", c.geral], ["Do mês", c.mes], ["Cobrindo os limites", c.cobrindo], ["Sem cobrir", c.semCobrir], ["Antecipando e cobrindo", c.antecipandoCobrindo], ["Antecipando sem cobrir", c.antecipandoSemCobrir]].map(([t, v]) => (
         <LinhaVal key={t} rotulo={t} valor={v} cor={v >= 0 ? C.green : C.red} forte={t === "Do mês"} />
       ))}
       {s.manual?.infoRelevante && <div className="text-xs mt-3 whitespace-pre-wrap p-2 rounded" style={{ background: C.panel2 }}>{s.manual.infoRelevante}</div>}
