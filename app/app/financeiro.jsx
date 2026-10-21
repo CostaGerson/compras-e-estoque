@@ -4020,6 +4020,52 @@ function Cel({ valor, tipo = "texto", largura, onSalvar, placeholder, fundo, tit
   );
 }
 
+// v367 — nome do pagador com autocompletar dos clientes cadastrados; escolher um corrige o CNPJ.
+// Sem nenhum cliente parecido: fica o que foi digitado e o CNPJ em branco para digitar.
+function CelCliente({ valor, clientes, onEscolher }) {
+  const [v, setV] = useState(valor ?? "");
+  const [aberto, setAberto] = useState(false);
+  const [i, setI] = useState(0);
+  const [pos, setPos] = useState(null);   // lista em position:fixed para não ser cortada pela rolagem da tabela
+  const marcarPos = (el) => { const r = el.getBoundingClientRect(); setPos({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 320) }); };
+  useEffect(() => { setV(valor ?? ""); }, [valor]);
+  const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const q = norm(v).trim();
+  const ops = q.length < 2 ? [] : (clientes || []).filter((c) => norm(`${c.nome} ${c.fantasia || ""} ${c.cnpj || ""}`).includes(q) || q.split(/\s+/).every((w) => norm(`${c.nome} ${c.fantasia || ""}`).includes(w))).slice(0, 8);
+  const escolher = (c) => { setAberto(false); setV(c.nome); onEscolher(c.nome, c.cnpj); };
+  const sair = () => {
+    setTimeout(() => {
+      setAberto(false);
+      if (String(v ?? "") === String(valor ?? "")) return;
+      onEscolher(String(v).toUpperCase().trim(), ops.length ? undefined : "");   // sem cliente parecido → CNPJ em branco
+    }, 150);
+  };
+  return (
+    <div className="relative">
+      <input value={v} onChange={(e) => { setV(e.target.value); setAberto(true); setI(0); marcarPos(e.currentTarget); }} onFocus={(e) => { setAberto(true); marcarPos(e.currentTarget); }} onBlur={sair}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); setI((x) => Math.min(x + 1, ops.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setI((x) => Math.max(x - 1, 0)); }
+          else if (e.key === "Enter") { if (aberto && ops[i]) { e.preventDefault(); escolher(ops[i]); } else e.currentTarget.blur(); }
+          else if (e.key === "Escape") { setV(valor ?? ""); setAberto(false); }
+        }}
+        placeholder="—" className="rounded px-1.5 py-1 text-xs w-full uppercase"
+        style={{ border: `1px solid ${String(v ?? "") !== String(valor ?? "") ? C.accent : "transparent"}`, background: "transparent", color: C.text }} />
+      {aberto && ops.length > 0 && pos && (
+        <div className="fixed z-50 rounded-lg shadow-lg overflow-auto" style={{ top: pos.top, left: pos.left, width: pos.width, background: C.panel, border: `1px solid ${C.line}`, maxHeight: 240 }}>
+          {ops.map((c, k) => (
+            <button key={`${c.cnpj}${k}`} onMouseDown={(e) => { e.preventDefault(); escolher(c); }}
+              className="w-full text-left px-2 py-1.5 text-xs" style={{ background: k === i ? C.accentSoft : "transparent" }}>
+              <div className="font-semibold" style={{ color: C.text }}>{c.nome}</div>
+              <div style={{ color: C.sub }}>{c.cnpj || "sem CNPJ"}{c.fantasia && c.fantasia !== c.nome ? ` · ${c.fantasia}` : ""}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // v362 — tipo do recebimento: créditos ENTRADA/RESTANTE/TOTAL; boletos parcela k/n ou TOTAL
 function TipoReceb({ valor, boleto, onSalvar }) {
   const n = Number((String(valor || "").match(/\/(\d+)$/) || [])[1]) || 0;
@@ -4228,7 +4274,7 @@ function Recebimentos({ user, comp, setComp }) {
                           fundo={l.nfSugerida ? C.yellowSoft : undefined} title={l.nfSugerida ? "NF sugerida pelo sistema — confira; ao editar deixa de ser sugestão" : undefined} />
                       </td>
                       <td className="px-1 py-0.5">
-                        <Cel valor={l.nomePagador} onSalvar={(v) => editar(l.id, "nomePagador", v)} placeholder="—" />
+                        <CelCliente valor={l.nomePagador} clientes={d.clientes} onEscolher={async (nome, cnpj) => { await editar(l.id, "nomePagador", nome); if (cnpj !== undefined) await editar(l.id, "cnpj", cnpj || ""); }} />
                       </td>
                       <td className="px-1 py-0.5" style={{ width: 150 }}>
                         <Cel valor={l.cnpj} onSalvar={(v) => editar(l.id, "cnpj", v)} placeholder="—" />
