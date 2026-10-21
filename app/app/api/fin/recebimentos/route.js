@@ -13,7 +13,7 @@ const sel = {
 async function carregar(competencia) {
   const [linhas, notas, lanc] = await Promise.all([
     prisma.finRecebimento.findMany({ where: { competencia }, orderBy: [{ bloco: "asc" }, { data: "asc" }, { ordem: "asc" }], select: sel }),
-    prisma.finNfSaida.count({ where: { competencia } }),
+    import("@/lib/finRecebimentos").then((m) => m.baseNfs()).then((l) => l.length).catch(() => 0),   // v361 — base inteira de NFs
     prisma.finLancamento.count({ where: { competencia, valor: { gt: 0 }, desmembrado: false, substituido: false } }),
   ]);
   return {

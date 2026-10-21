@@ -4097,8 +4097,8 @@ function Recebimentos({ user, comp, setComp }) {
         <div className="flex flex-wrap gap-2 mb-4">
           <Pilula cor={C.navy} bg={C.panel2} txt={`${(d.linhas || []).length} linha(s) · R$ ${brl(totalConc)}`} />
           {d.notasSaida > 0
-            ? <Pilula cor={C.blue} bg={C.blueSoft} txt={`${d.notasSaida} nota(s) de saída lida(s)`} />
-            : <Pilula cor={C.yellow} bg={C.yellowSoft} txt="Nenhum XML de saída enviado" />}
+            ? <Pilula cor={C.blue} bg={C.blueSoft} txt={`${d.notasSaida} NF(s) de saída na base para casar`} />
+            : <Pilula cor={C.yellow} bg={C.yellowSoft} txt="Nenhuma NF de saída na base" />}
           {semNf > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${semNf} sem NF`} />}
           {semCnpj > 0 && <Pilula cor={C.yellow} bg={C.yellowSoft} txt={`${semCnpj} sem CNPJ`} />}
         </div>

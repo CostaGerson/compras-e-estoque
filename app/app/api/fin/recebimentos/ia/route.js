@@ -57,13 +57,14 @@ export async function POST(req) {
       orderBy: [{ data: "asc" }, { ordem: "asc" }],
       select: { id: true, bloco: true, data: true, titulo: true, valor: true, nf: true, nomePagador: true, cnpj: true, obs: true },
     }),
-    prisma.finNfSaida.findMany({
-      where: { competencia: b.competencia },
-      orderBy: { emissao: "asc" },
-      select: { numero: true, valor: true, destNome: true, destCnpj: true, emissao: true },
+    // v361 — base inteira de NFs de saída, das emitidas até 12 meses antes do fim do mês
+    import("@/lib/finRecebimentos").then((m) => m.baseNfs()).then((l) => {
+      const fim = new Date(`${b.competencia}-01T00:00:00Z`); fim.setUTCMonth(fim.getUTCMonth() + 1);
+      const ini = new Date(fim.getTime() - 400 * 864e5);
+      return l.filter((n) => n.emissao && new Date(n.emissao) >= ini && new Date(n.emissao) < fim).map((n) => ({ ...n, emissao: new Date(n.emissao) }));
     }),
   ]);
-  if (!notas.length) return Response.json({ error: "Nenhuma nota de saída lida neste mês. Envie os XMLs na guia Contabilidade." }, { status: 400 });
+  if (!notas.length) return Response.json({ error: "Nenhuma NF de saída na base. Envie o ZIP das notas na guia Contabilidade ou lance no movimento fiscal." }, { status: 400 });
 
   const pendentes = linhas.filter((l) => !l.nf || !l.cnpj || !l.nomePagador);
   if (!pendentes.length) return Response.json({ ok: true, sugestoes: [], msg: "Todas as linhas já têm NF, nome e CNPJ." });
@@ -71,8 +72,8 @@ export async function POST(req) {
   const conteudo = [
     `MÊS: ${b.competencia}`,
     "",
-    "NOTAS DE SAÍDA DO MÊS (numero | valor | destinatário | CNPJ | emissão):",
-    ...notas.map((n) => `${n.numero} | ${brl(n.valor)} | ${n.destNome} | ${n.destCnpj || "-"} | ${n.emissao.toISOString().slice(0, 10)}`),
+    "NOTAS DE SAÍDA DA BASE, ÚLTIMOS 12 MESES (numero | valor | parcelas | destinatário | CNPJ | emissão):",
+    ...notas.map((n) => `${n.numero} | ${brl(n.valor)} | ${n.parcelas?.length ? n.parcelas.map(brl).join("+") : "-"} | ${n.destNome} | ${n.destCnpj || "-"} | ${n.emissao.toISOString().slice(0, 10)}`),
     "",
     "LINHAS DE RECEBIMENTO A RESOLVER (id | data | título | valor | nf atual | nome atual | cnpj atual):",
     ...pendentes.map((l) => `${l.id} | ${l.data ? l.data.toISOString().slice(0, 10) : "-"} | ${l.titulo || "-"} | ${brl(l.valor)} | ${l.nf || "-"} | ${l.nomePagador || "-"} | ${l.cnpj || "-"}`),
