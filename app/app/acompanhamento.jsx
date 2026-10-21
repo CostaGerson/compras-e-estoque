@@ -22,6 +22,8 @@ export default function Acompanhamento({ user }) {
   const [todos, setTodos] = useState(false);
   const [busca, setBusca] = useState("");
   const [fSit, setFSit] = useState("");
+  const [fVend, setFVend] = useState("");   // v384 — filtros com autocompletar
+  const [fCli, setFCli] = useState("");
   const [aberto, setAberto] = useState(null);
 
   const carregar = async () => {
@@ -37,8 +39,14 @@ export default function Acompanhamento({ user }) {
 
   const lista = useMemo(() => {
     const b = busca.trim().toUpperCase();
-    return (d?.pedidos || []).filter((p) => (!fSit || p.situacao === fSit) && (!b || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(b)));
-  }, [d, busca, fSit]);
+    const v = fVend.trim().toUpperCase(), c = fCli.trim().toUpperCase();
+    return (d?.pedidos || []).filter((p) => (!fSit || p.situacao === fSit)
+      && (!v || String(p.vendedor || "").toUpperCase().includes(v))
+      && (!c || String(p.cliente || "").toUpperCase().includes(c))
+      && (!b || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(b)));
+  }, [d, busca, fSit, fVend, fCli]);
+  const vendedores = useMemo(() => [...new Set((d?.pedidos || []).map((p) => p.vendedor).filter(Boolean))].sort(), [d]);
+  const clientes = useMemo(() => [...new Set((d?.pedidos || []).map((p) => p.cliente).filter(Boolean))].sort(), [d]);
   const cont = useMemo(() => { const m = {}; for (const p of d?.pedidos || []) m[p.situacao] = (m[p.situacao] || 0) + 1; return m; }, [d]);
 
   return (
@@ -58,9 +66,21 @@ export default function Acompanhamento({ user }) {
           {Object.entries(cont).map(([k, n]) => { const [c, bg] = SIT[k] || SIT["SEM PCP"]; return (
             <button key={k} onClick={() => setFSit(fSit === k ? "" : k)} className="px-2.5 py-1 rounded-full text-xs font-semibold"
               style={{ color: fSit === k ? "#fff" : c, background: fSit === k ? c : bg }}>{k} · {n}</button>); })}
-          <div className="flex items-center gap-2 rounded-lg px-3 py-1" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: 240 }}>
+          {d.todos && (
+            <div className="flex items-center gap-1 rounded-lg px-2 py-1" style={{ background: C.panel, border: `1px solid ${fVend ? C.accent : C.line}`, minWidth: 180 }}>
+              <input list="acomp-vendedores" value={fVend} onChange={(e) => setFVend(e.target.value)} placeholder="Vendedor" className="flex-1 text-sm outline-none uppercase" />
+              {fVend && <button onClick={() => setFVend("")} style={{ color: C.sub }}>×</button>}
+              <datalist id="acomp-vendedores">{vendedores.map((v) => <option key={v} value={v} />)}</datalist>
+            </div>
+          )}
+          <div className="flex items-center gap-1 rounded-lg px-2 py-1" style={{ background: C.panel, border: `1px solid ${fCli ? C.accent : C.line}`, minWidth: 260 }}>
+            <input list="acomp-clientes" value={fCli} onChange={(e) => setFCli(e.target.value)} placeholder="Cliente" className="flex-1 text-sm outline-none uppercase" />
+            {fCli && <button onClick={() => setFCli("")} style={{ color: C.sub }}>×</button>}
+            <datalist id="acomp-clientes">{clientes.map((c) => <option key={c} value={c} />)}</datalist>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg px-3 py-1" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: 200 }}>
             <Search size={13} style={{ color: C.sub }} />
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pedido, cliente…" className="flex-1 text-sm outline-none" />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nº do pedido…" className="flex-1 text-sm outline-none" />
           </div>
         </div>
       )}
@@ -75,7 +95,7 @@ export default function Acompanhamento({ user }) {
                 <th key={i} className={`px-3 py-2 font-semibold ${h === "Valor total" ? "text-right" : "text-left"}`}>{h}</th>))}
             </tr></thead>
             <tbody>
-              {!lista.length && <tr><td colSpan={9} className="px-3 py-8 text-center" style={{ color: C.sub }}>Nenhum pedido{busca || fSit ? " com estes filtros" : ""}.</td></tr>}
+              {!lista.length && <tr><td colSpan={9} className="px-3 py-8 text-center" style={{ color: C.sub }}>Nenhum pedido{busca || fSit || fVend || fCli ? " com estes filtros" : ""}.</td></tr>}
               {lista.map((p) => { const [c, bg] = SIT[p.situacao] || SIT["SEM PCP"]; const ab = aberto === p.numero; return (
                 <React.Fragment key={p.numero}>
                   <tr onClick={() => setAberto(ab ? null : p.numero)} className="cursor-pointer" style={{ height: 44, borderTop: `1px solid ${C.line}`, background: ab ? C.panel2 : undefined }}>
