@@ -183,10 +183,21 @@ function FinOperacional({ user, ir }) {
 function useResumo(user, ano, rk = 0) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
+  const [tick, setTick] = useState(0);
+  // v369 — sem cache e relido a cada 2 min e ao voltar para a aba
   useEffect(() => {
-    setD(null); setErro("");
-    fetch(`/api/fin/resumo?u=${user.id}&ano=${ano}`).then((r) => r.json().then((j) => (r.ok ? setD(j) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
-  }, [ano, rk]);
+    const f = () => setTick((t) => t + 1);
+    const vis = () => { if (document.visibilityState === "visible") f(); };
+    const t = setInterval(f, 120000);
+    window.addEventListener("focus", f); document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(t); window.removeEventListener("focus", f); document.removeEventListener("visibilitychange", vis); };
+  }, []);
+  useEffect(() => { setD(null); setErro(""); }, [ano, rk]);
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/fin/resumo?u=${user.id}&ano=${ano}&t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json().then((j) => { if (!vivo) return; if (r.ok) { setD(j); setErro(""); } else setErro(j.error || "Erro"); })).catch(() => vivo && setErro("Falha de conexão."));
+    return () => { vivo = false; };
+  }, [ano, rk, tick]);
   return [d, erro];
 }
 const moeda = (n) => "R$ " + brl(n);
@@ -209,13 +220,14 @@ function BlocoPrevisao({ titulo, p, onClick }) {
     <button onClick={onClick} className="text-left rounded-xl p-4 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }} title="Abrir contas a pagar e receber">
       <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{titulo}</div>
       <div className="grid grid-cols-3 gap-3">
-        <div><div className="text-[11px]" style={{ color: C.sub }}>A receber</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.receber)}</div></div>
-        <div><div className="text-[11px]" style={{ color: C.sub }}>A pagar</div><div className="font-bold" style={{ color: C.red }}>{moeda(-p.pagar)}</div></div>
-        <div><div className="text-[11px]" style={{ color: C.sub }}>Saldo previsto</div><div className="font-bold" style={{ color: p.saldo >= 0 ? C.green : C.red }}>{moeda(p.saldo)}</div></div>
+        {/* v369 — o que ainda falta (em aberto): baixas e recebimentos já mexem nos números */}
+        <div><div className="text-[11px]" style={{ color: C.sub }}>A receber</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.abertoReceber)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>A pagar</div><div className="font-bold" style={{ color: C.red }}>{moeda(-p.abertoPagar)}</div></div>
+        <div><div className="text-[11px]" style={{ color: C.sub }}>Saldo previsto</div><div className="font-bold" style={{ color: p.abertoReceber - p.abertoPagar >= 0 ? C.green : C.red }}>{moeda(p.abertoReceber - p.abertoPagar)}</div></div>
       </div>
       <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-        {p.qtdReceber} a receber · {p.qtdPagar} a pagar
-        {(p.abertoReceber !== p.receber || p.abertoPagar !== p.pagar) && <> · em aberto: receber {moeda(p.abertoReceber)} · pagar {moeda(-p.abertoPagar)}</>}
+        em aberto: {p.qtdAbertoReceber ?? p.qtdReceber} a receber · {p.qtdAbertoPagar ?? p.qtdPagar} a pagar
+        {(p.abertoReceber !== p.receber || p.abertoPagar !== p.pagar) && <> · já realizado: recebido {moeda(p.receber - p.abertoReceber)} · pago {moeda(-(p.pagar - p.abertoPagar))}</>}
       </div>
     </button>
   );
