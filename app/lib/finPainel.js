@@ -133,6 +133,18 @@ async function posicao(M, hoje) {
     const mediaMes = meses.length ? Math.round(pecasAno / meses.length) : 0;
     const pecasAberto = sj.pecasEmProducao ?? null;
     producao = { pecasAberto, pecasAno, mesesAno: meses.length, mediaMes, mesesOperacao: pecasAberto != null && mediaMes ? Math.round((pecasAberto / mediaMes) * 10) / 10 : null, cronoEm: sj.em || null };
+    // v380 — custo para entrega = custo mensal do negócio na Matriz oficial SEM dívidas (custo da operação) × meses de operação
+    try {
+      const mo = await prisma.finMatriz.findFirst({ where: { oficial: true }, select: { dados: true, nome: true } });
+      if (mo?.dados) {
+        const { calcularMatriz } = await import("@/lib/matriz");
+        let dd = mo.dados;
+        try { const { dadosComMetas } = await import("@/lib/matrizMetas"); const { comOperacaoReal } = await import("@/lib/matrizReal"); dd = await comOperacaoReal(await dadosComMetas(mo.dados)); } catch {}
+        const cm = calcularMatriz(dd);
+        producao.custoMesOperacao = r2(cm.custoOperacao);
+        producao.custoEntrega = producao.mesesOperacao != null ? r2(cm.custoOperacao * producao.mesesOperacao) : null;
+      }
+    } catch (e) { producao.erroMatriz = e.message; }
   } catch (e) { producao.erro = e.message; }
   const pagarVirtual = { mesSeguinte: M1, producao, real: soma(pagarReal), qtdReal: pagarReal.length, previsoesProx: soma(prevProx), qtdPrevisoesProx: prevProx.length,
     quitacao, parcelasDividaFora: soma(pagar.filter((t) => depois(t) && ehDivida(t) && !ateM1(t))) };
@@ -206,7 +218,8 @@ export async function painel(competencia, hojeData = new Date()) {
   // v364 — LB (liquidação de balanço): geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − quitação das dívidas
   // v371 — LB = cenário geral + venda de patrimônio − passivo trabalhista − CMV dos pedidos em andamento − impostos (9,1% do total em andamento)
   const impostosAndamento = r2((Number(dados.andamento?.valor) || 0) * ALIQ_IMPOSTOS_ANDAMENTO);
-  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - n("lbMesOperacao") - impostosAndamento);   // v377 — + custo de 1 mês de operação (digitado)
+  const custoEntrega = dados.lbMesOperacao != null && dados.lbMesOperacao !== "" ? n("lbMesOperacao") : (Number(V.producao?.custoEntrega) || 0);   // v380 — pré-preenchido pela Matriz
+  const lb = r2(geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - custoEntrega - impostosAndamento);   // v377 — + custo de 1 mês de operação (digitado)
   const cenarios = {
     geral, mes, lb,
     cobrindo: r2(mes - caixa.limiteTomado),

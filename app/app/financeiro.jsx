@@ -1409,8 +1409,11 @@ function PainelPrevisao({ user, comp, setComp }) {
     const mes = caixa.saldoPositivo + entradas - saidas;
     // v371 — LB = geral + venda de patrimônio − passivo trabalhista − CMV em andamento − impostos (9,1% do total em andamento)
     const impostosAnd = (Number(p.manual?.andamento?.valor) || 0) * 0.091;
-    const lb = geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - n("lbMesOperacao") - impostosAnd;
-    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, pagarGeral, impostosAnd, cen: { geral, mes, lb, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
+    // v380 — custo para entrega: digitado ou, vazio, custo da operação da Matriz (sem dívidas) × meses para entregar
+    const custoEntregaAuto = Number(P.virtual?.producao?.custoEntrega) || 0;
+    const custoEntrega = val("lbMesOperacao") != null && val("lbMesOperacao") !== "" ? n("lbMesOperacao") : custoEntregaAuto;
+    const lb = geral + n("lbVendaPatrimonio") - n("passivoTributario") - n("cmvAndamento") - custoEntrega - impostosAnd;
+    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, pagarGeral, impostosAnd, custoEntrega, custoEntregaAuto, cen: { geral, mes, lb, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
       antecipandoCobrindo: mes - caixa.limiteTomado, antecipandoSemCobrir: mes } };
   }, [p, bancos, selPrior, selQuit, rasc]);
 
@@ -1507,7 +1510,7 @@ function PainelPrevisao({ user, comp, setComp }) {
                   {/* v366 — cenário LB (liquidação de balanço): só o valor, como os outros; clicar abre os campos e o detalhe */}
                   <div className="col-span-2 grid">
                     <CardAuto compacto rotulo="Cenário LB · liquidação de balanço" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red}
-                      sub="cenário geral + patrimônio − passivo − CMV − 1 mês de operação − impostos" Ico={TrendingUp} onClick={() => setModal({ tipo: "lb" })} />
+                      sub="cenário geral + patrimônio − passivo − CMV − custo para entrega − impostos" Ico={TrendingUp} onClick={() => setModal({ tipo: "lb" })} />
                   </div>
                 </div>
               );
@@ -1677,8 +1680,17 @@ function PainelPrevisao({ user, comp, setComp }) {
               </div>
             ); })()}
           </div>
-          <label className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
-            <span style={{ color: C.sub }}>− Custo de 1 mês de operação <span className="text-[11px]">· digitado</span></span><ValorIn value={val("lbMesOperacao")} onChange={set("lbMesOperacao")} width={150} /></label>
+          {(() => { const pr = P.virtual?.producao || {}; const digitado = val("lbMesOperacao") != null && val("lbMesOperacao") !== ""; return (
+          <div style={{ borderTop: `1px solid ${C.line}` }}>
+            <label className="flex items-center justify-between py-1.5 text-sm">
+              <span style={{ color: C.sub }}>− Custo para entrega <span className="text-[11px]">· {digitado ? "digitado" : "pré-preenchido pela Matriz"}</span>
+                {digitado && calc.custoEntregaAuto > 0 && <button onClick={() => set("lbMesOperacao")(null)} className="ml-2 text-[11px] underline" style={{ color: C.accent }}>voltar ao calculado</button>}</span>
+              <ValorIn value={digitado ? val("lbMesOperacao") : calc.custoEntregaAuto || null} onChange={set("lbMesOperacao")} width={150} /></label>
+            <div className="ml-3 mb-1 text-[11px]" style={{ color: C.sub }}>
+              {pr.custoMesOperacao != null ? <>custo da operação na Matriz oficial (sem dívidas) <b style={{ color: C.text }}>{moeda(pr.custoMesOperacao)}</b>/mês × <b style={{ color: C.text }}>{pr.mesesOperacao != null ? String(pr.mesesOperacao).replace(".", ",") : "—"}</b> mês(es) para entregar = <b style={{ color: C.text }}>{moeda(calc.custoEntregaAuto)}</b></>
+                : `sem Matriz oficial${pr.erroMatriz ? ` (${pr.erroMatriz})` : ""} — digite o valor`}
+            </div>
+          </div>); })()}
           <LinhaVal rotulo="− Impostos dos pedidos em andamento" sub={`automático · 9,1% do total em andamento ${brl(Number(p.manual?.andamento?.valor) || 0)}`} valor={calc.impostosAnd} cor={C.red} />
           <LinhaVal rotulo="Cenário LB" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red} forte />
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>Os valores digitados entram no painel na hora; use Salvar painel para gravar.</div>
