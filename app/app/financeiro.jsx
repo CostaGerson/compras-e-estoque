@@ -189,11 +189,11 @@ function useResumo(user, ano, rk = 0) {
 const moeda = (n) => "R$ " + brl(n);
 const r2c = (n) => Math.round((Number(n) || 0) * 100) / 100;   // v301
 
-function Kpi({ rotulo, valor, cor, sub, Ico }) {
+function Kpi({ rotulo, valor, cor, sub, Ico, semQuebra = false }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{Ico && <Ico size={14} />} {rotulo}</div>
-      <div className="text-xl font-bold mt-1" style={{ color: cor || C.text }}>{valor}</div>
+      <div className={`text-xl font-bold mt-1 ${semQuebra ? "whitespace-nowrap tabular-nums" : ""}`} style={{ color: cor || C.text }}>{valor}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
     </div>
   );
@@ -1575,14 +1575,14 @@ function PainelPrevisao({ user, comp, setComp }) {
 
       {/* janelas */}
       {modal?.tipo === "bancos" && calc && (
-        <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={720}>
+        <Modal titulo="Bancos — saldos e limites" icone={Building2} onClose={() => setModal(null)} largura={960}>
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs" style={{ color: C.sub }}>Saldo de cada banco (negativo = cheque especial em uso).</div>
               <button onClick={addBanco} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Plus size={13} /> Banco</button>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
-              <span className="flex-1">Banco</span><span style={{ width: 110, textAlign: "right" }}>Saldo</span><span style={{ width: 110, textAlign: "right" }}>Limite</span>
-              <span style={{ width: 110, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 100, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
+              <span className="flex-1">Banco</span><span style={{ width: 150, textAlign: "right" }}>Saldo</span><span style={{ width: 150, textAlign: "right" }}>Limite</span>
+              <span style={{ width: 150, textAlign: "right" }}>Cheque em uso</span><span style={{ width: 130, textAlign: "right" }}>Disponível</span><span style={{ width: 20 }} />
             </div>
             {bancos.map((b, i) => {
               const saldo = Number(b.saldo) || 0, limite = Number(b.limite) || 0;
@@ -1592,19 +1592,19 @@ function PainelPrevisao({ user, comp, setComp }) {
                 <div key={i} className="flex items-center gap-2 py-1">
                   <input value={b.nome || ""} onChange={(e) => setBanco(i, "nome", e.target.value.toUpperCase())} placeholder="BANCO"
                     className="flex-1 rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
-                  <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={110} negativo />
-                  <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={110} />
-                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={110} />
-                  <span className="text-sm font-semibold" style={{ width: 100, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
+                  <ValorIn value={b.saldo} onChange={(v) => setBanco(i, "saldo", v ?? 0)} width={150} negativo />
+                  <ValorIn value={b.limite} onChange={(v) => setBanco(i, "limite", v ?? 0)} width={150} />
+                  <ValorIn value={tomado} onChange={(v) => setBanco(i, "tomado", v)} width={150} />
+                  <span className="text-sm font-semibold whitespace-nowrap tabular-nums" style={{ width: 130, textAlign: "right", color: disp > 0 ? C.green : C.sub }}>{brl(disp)}</span>
                   <button onClick={() => delBanco(i)} style={{ color: C.sub, width: 20 }}><Trash2 size={13} /></button>
                 </div>
               );
             })}
-            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-              <Kpi rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
-              <Kpi rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
-              <Kpi rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
-              <Kpi rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
+            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <Kpi semQuebra rotulo="Saldo geral" valor={moeda(calc.caixa.saldoGeral)} cor={calc.caixa.saldoGeral >= 0 ? C.green : C.red} />
+              <Kpi semQuebra rotulo="Limite total" valor={moeda(calc.caixa.limiteTotal)} cor={C.sub} />
+              <Kpi semQuebra rotulo="Cheque em uso" valor={moeda(calc.caixa.limiteTomado)} cor={calc.caixa.limiteTomado ? C.yellow : C.sub} />
+              <Kpi semQuebra rotulo="Valor disponível" valor={moeda(calc.caixa.disponivelTotal)} cor={C.blue} />
             </div>
             <div className="text-[11px] mt-2" style={{ color: C.sub }}>As alterações entram no painel ao fechar; use Salvar painel para gravar.</div>
         </Modal>
