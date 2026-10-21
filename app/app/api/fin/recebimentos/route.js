@@ -7,7 +7,7 @@ import { iaDisponivel } from "@/lib/finIA";
 
 const sel = {
   id: true, bloco: true, ordem: true, data: true, titulo: true, valor: true,
-  nf: true, nomePagador: true, cnpj: true, obs: true, origem: true, lancamentoId: true, editado: true,
+  nf: true, nomePagador: true, cnpj: true, obs: true, tipoReceb: true, nfSugerida: true, origem: true, lancamentoId: true, editado: true,
 };
 
 async function carregar(competencia) {
@@ -55,4 +55,15 @@ export async function PUT(req) {
     select: sel,
   });
   return Response.json({ ok: true, linha: l });
+}
+
+// v362 — DELETE { usuarioId, ids: [] } → exclusão de várias linhas de uma vez
+export async function DELETE(req) {
+  let b;
+  try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
+  if (!(await usuarioMaster(b?.usuarioId))) return negado();
+  const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter((x) => x > 0);
+  if (!ids.length) return Response.json({ error: "Nenhuma linha selecionada." }, { status: 400 });
+  const r = await prisma.finRecebimento.deleteMany({ where: { id: { in: ids } } });
+  return Response.json({ ok: true, excluidas: r.count });
 }

@@ -1147,6 +1147,8 @@ model FinRecebimento {
   nomePagador  String?
   cnpj         String?
   obs          String?
+  tipoReceb    String?   // v362 — ENTRADA | RESTANTE | TOTAL (créditos) · k/n | TOTAL (boletos)
+  nfSugerida   Boolean   @default(false)    // v362 — NF posta pelo sistema (amarela) até alguém mexer na NF
   origem       String    @default("AUTO")   // AUTO | MANUAL | IA
   lancamentoId Int?
   editado      Boolean   @default(false)    // mexido à mão: o gerar não sobrescreve

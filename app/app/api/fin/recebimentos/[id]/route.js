@@ -12,7 +12,7 @@ export async function PATCH(req, { params }) {
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   if (!(await usuarioMaster(b?.usuarioId))) return negado();
 
-  const campos = ["data", "titulo", "valor", "nf", "nomePagador", "cnpj", "obs", "bloco"];
+  const campos = ["data", "titulo", "valor", "nf", "nomePagador", "cnpj", "obs", "bloco", "tipoReceb"];
   if (!campos.includes(b.campo)) return Response.json({ error: "Campo inválido." }, { status: 400 });
 
   const data = { editado: true };
@@ -27,11 +27,15 @@ export async function PATCH(req, { params }) {
     data.cnpj = b.valor ? formatarCnpj(b.valor) : null;
   } else if (b.campo === "bloco") {
     data.bloco = ["CREDITO", "BOLETO", "CONFIRMAR"].includes(b.valor) ? b.valor : "CREDITO";
+  } else if (b.campo === "tipoReceb") {   // v362
+    const t = up(b.valor);
+    data.tipoReceb = !t ? null : ["ENTRADA", "RESTANTE", "TOTAL"].includes(t) || /^\d+\/\d+$/.test(t) ? t : null;
   } else data[b.campo] = up(b.valor);
+  if (b.campo === "nf") data.nfSugerida = false;   // v362 — mexeu na NF: deixa de ser sugestão
 
   const l = await prisma.finRecebimento.update({
     where: { id: Number(params.id) }, data,
-    select: { id: true, bloco: true, data: true, titulo: true, valor: true, nf: true, nomePagador: true, cnpj: true, obs: true, origem: true, editado: true },
+    select: { id: true, bloco: true, data: true, titulo: true, valor: true, nf: true, nomePagador: true, cnpj: true, obs: true, tipoReceb: true, nfSugerida: true, origem: true, editado: true },
   }).catch(() => null);
   if (!l) return Response.json({ error: "Linha não encontrada." }, { status: 404 });
   return Response.json({ ok: true, linha: l });

@@ -3968,7 +3968,7 @@ function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
    ============================================================ */
 const BLOCO_COR = { CREDITO: [C.blue, C.blueSoft], BOLETO: [C.green, C.greenSoft], CONFIRMAR: [C.yellow, C.yellowSoft] };
 
-function Cel({ valor, tipo = "texto", largura, onSalvar, placeholder }) {
+function Cel({ valor, tipo = "texto", largura, onSalvar, placeholder, fundo, title }) {
   const [v, setV] = useState(valor ?? "");
   const [salvando, setSalvando] = useState(false);
   useEffect(() => { setV(valor ?? ""); }, [valor]);
@@ -3983,9 +3983,25 @@ function Cel({ valor, tipo = "texto", largura, onSalvar, placeholder }) {
     <input
       value={v} onChange={(e) => setV(e.target.value)} onBlur={gravar}
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setV(valor ?? ""); }}
-      type={tipo === "data" ? "date" : "text"} placeholder={placeholder}
+      type={tipo === "data" ? "date" : "text"} placeholder={placeholder} title={title}
       className={`rounded px-1.5 py-1 text-xs w-full ${tipo === "valor" ? "text-right" : ""} ${tipo === "texto" ? "uppercase" : ""}`}
-      style={{ width: largura, border: `1px solid ${mudou ? C.accent : "transparent"}`, background: salvando ? C.accentSoft : "transparent", color: C.text }} />
+      style={{ width: largura, border: `1px solid ${mudou ? C.accent : "transparent"}`, background: salvando ? C.accentSoft : fundo || "transparent", color: C.text, fontWeight: fundo ? 600 : undefined }} />
+  );
+}
+
+// v362 — tipo do recebimento: créditos ENTRADA/RESTANTE/TOTAL; boletos parcela k/n ou TOTAL
+function TipoReceb({ valor, boleto, onSalvar }) {
+  const n = Number((String(valor || "").match(/\/(\d+)$/) || [])[1]) || 0;
+  const ops = boleto
+    ? ["TOTAL", ...(n > 1 ? Array.from({ length: n }, (_, i) => `${i + 1}/${n}`) : [2, 3, 4, 5, 6].flatMap((m) => Array.from({ length: m }, (_, i) => `${i + 1}/${m}`)))]
+    : ["ENTRADA", "RESTANTE", "TOTAL"];
+  if (valor && !ops.includes(valor)) ops.unshift(valor);
+  return (
+    <select value={valor || ""} onChange={(e) => onSalvar(e.target.value)} className="rounded px-1 py-1 text-xs w-full"
+      style={{ border: `1px solid ${C.line}`, background: "#fff", color: valor ? C.text : C.sub, fontWeight: valor === "TOTAL" ? 700 : 400 }}>
+      <option value="">—</option>
+      {ops.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
   );
 }
 
@@ -3995,6 +4011,15 @@ function Recebimentos({ user, comp, setComp }) {
   const [aviso, setAviso] = useState(null);
   const [ocupado, setOcupado] = useState("");
   const [ia, setIa] = useState(null);
+  const [sel, setSel] = useState(() => new Set());   // v362 — linhas marcadas para excluir juntas
+  const marcar = (ids, on) => setSel((s0) => { const n = new Set(s0); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
+  const excluirSel = async () => {
+    if (!sel.size || !confirm(`Excluir ${sel.size} linha(s) selecionada(s)?`)) return;
+    const r = await fetch("/api/fin/recebimentos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids: [...sel] }) });
+    const j = await r.json().catch(() => ({}));
+    setAviso(r.ok ? { tipo: "ok", texto: `${j.excluidas} linha(s) excluída(s).` } : { tipo: "erro", texto: j.error || "Erro ao excluir." });
+    setSel(new Set()); carregar();
+  };
 
   const carregar = async () => {
     setErro("");
@@ -4005,7 +4030,7 @@ function Recebimentos({ user, comp, setComp }) {
       setD(j);
     } catch { setErro("Falha de conexão."); }
   };
-  useEffect(() => { setD(null); setAviso(null); carregar(); }, [comp]);
+  useEffect(() => { setD(null); setAviso(null); setSel(new Set()); carregar(); }, [comp]);
 
   const gerar = async () => {
     setOcupado("gerar");
@@ -4101,6 +4126,12 @@ function Recebimentos({ user, comp, setComp }) {
             : <Pilula cor={C.yellow} bg={C.yellowSoft} txt="Nenhuma NF de saída na base" />}
           {semNf > 0 && <Pilula cor={C.red} bg={C.redSoft} txt={`${semNf} sem NF`} />}
           {semCnpj > 0 && <Pilula cor={C.yellow} bg={C.yellowSoft} txt={`${semCnpj} sem CNPJ`} />}
+          {(d.linhas || []).some((l) => l.nfSugerida) && <Pilula cor={C.yellow} bg={C.yellowSoft} txt={`${d.linhas.filter((l) => l.nfSugerida).length} NF(s) sugerida(s) em amarelo — confira`} />}
+          {sel.size > 0 && (
+            <button onClick={excluirSel} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: C.red, color: "#fff" }}>
+              <Trash2 size={12} /> Excluir {sel.size} selecionada(s)
+            </button>
+          )}
         </div>
       )}
 
@@ -4137,17 +4168,21 @@ function Recebimentos({ user, comp, setComp }) {
               </button>
             </div>
             <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1020 }}>
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1140 }}>
                 <thead>
                   <tr style={{ background: C.panel2, color: C.sub }}>
-                    {["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "OBS", ""].map((h, i) => (
+                    <th className="px-2 py-2" style={{ width: 28 }}>
+                      <input type="checkbox" checked={ls.length > 0 && ls.every((l) => sel.has(l.id))} onChange={(e) => marcar(ls.map((l) => l.id), e.target.checked)} title="Marcar todas deste bloco" />
+                    </th>
+                    {["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "TIPO", "OBS", ""].map((h, i) => (
                       <th key={i} className={`px-2 py-2 text-left font-semibold ${h === "VALOR (R$)" ? "text-right" : ""}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {ls.map((l) => (
-                    <tr key={l.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <tr key={l.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(l.id) ? C.redSoft : undefined }}>
+                      <td className="px-2 py-0.5"><input type="checkbox" checked={sel.has(l.id)} onChange={(e) => marcar([l.id], e.target.checked)} /></td>
                       <td className="px-1 py-0.5" style={{ width: 120 }}>
                         <Cel valor={l.data ? String(l.data).slice(0, 10) : ""} tipo="data" onSalvar={(v) => editar(l.id, "data", v)} />
                       </td>
@@ -4158,13 +4193,17 @@ function Recebimentos({ user, comp, setComp }) {
                         <Cel valor={brl(l.valor)} tipo="valor" onSalvar={(v) => editar(l.id, "valor", v)} />
                       </td>
                       <td className="px-1 py-0.5" style={{ width: 110 }}>
-                        <Cel valor={l.nf} onSalvar={(v) => editar(l.id, "nf", v)} placeholder="—" />
+                        <Cel valor={l.nf} onSalvar={(v) => editar(l.id, "nf", v)} placeholder="—"
+                          fundo={l.nfSugerida ? C.yellowSoft : undefined} title={l.nfSugerida ? "NF sugerida pelo sistema — confira; ao editar deixa de ser sugestão" : undefined} />
                       </td>
                       <td className="px-1 py-0.5">
                         <Cel valor={l.nomePagador} onSalvar={(v) => editar(l.id, "nomePagador", v)} placeholder="—" />
                       </td>
                       <td className="px-1 py-0.5" style={{ width: 150 }}>
                         <Cel valor={l.cnpj} onSalvar={(v) => editar(l.id, "cnpj", v)} placeholder="—" />
+                      </td>
+                      <td className="px-1 py-0.5" style={{ width: 100 }}>
+                        <TipoReceb valor={l.tipoReceb} boleto={b.k === "BOLETO"} onSalvar={(v) => editar(l.id, "tipoReceb", v)} />
                       </td>
                       <td className="px-1 py-0.5" style={{ width: 200 }}>
                         <Cel valor={l.obs} onSalvar={(v) => editar(l.id, "obs", v)} placeholder="—" />
@@ -4180,9 +4219,9 @@ function Recebimentos({ user, comp, setComp }) {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: `2px solid ${C.line}`, background: C.panel2 }}>
-                    <td className="px-2 py-2 font-bold" style={{ color: C.navy }} colSpan={2}>TOTAL</td>
+                    <td className="px-2 py-2 font-bold" style={{ color: C.navy }} colSpan={3}>TOTAL</td>
                     <td className="px-2 py-2 text-right font-bold" style={{ color: C.navy }}>R$ {brl(soma)}</td>
-                    <td colSpan={5} />
+                    <td colSpan={6} />
                   </tr>
                 </tfoot>
               </table>

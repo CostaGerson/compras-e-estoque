@@ -75,20 +75,35 @@ export async function baseNfs() {
   return [...m.values()].filter((n) => !n.semConta && n.valor > 0).sort((a, b) => new Date(a.emissao) - new Date(b.emissao));
 }
 
-// v361 — casa um crédito com NFs: valor (total ou parcela) × CNPJ/nome do cliente × data (NF emitida até 5 dias depois do crédito, até 1 ano antes)
-function candidatos(notas, { valor, data, cnpjDig, nome }) {
+// v362 — quanto de cada NF já foi recebido (todas as competências). TOTAL fecha a NF; ENTRADA/RESTANTE/parcelas abatem até o valor dela.
+export const chaveNf = (nf) => String(nf || "").trim().split(/[-\/ ]/)[0].replace(/^0+(?=\d)/, "");
+function novoUso() {
+  const m = new Map();
+  return {
+    m,
+    add(nf, valor, tipo) { const k = chaveNf(nf); if (!k) return; const u = m.get(k) || { soma: 0, fechada: false }; u.soma += Number(valor) || 0; if (tipo === "TOTAL") u.fechada = true; m.set(k, u); },
+    get(nf) { return m.get(chaveNf(nf)) || { soma: 0, fechada: false }; },
+  };
+}
+
+// v361/v362 — casa um crédito com NFs: valor (total, parcela ou saldo que falta) × CNPJ/nome × data (NF até 1 ano antes / 5 dias depois)
+function candidatos(notas, { valor, data, cnpjDig, nome }, uso) {
   const v = cent(valor), dt = new Date(data).getTime();
   const out = [];
   for (const n of notas) {
     const em = n.emissao ? new Date(n.emissao).getTime() : null;
     if (em != null && (em > dt + 5 * 864e5 || em < dt - 366 * 864e5)) continue;
+    const u = uso.get(n.numero);
+    const resta = cent(n.valor) - cent(u.soma);
+    if (u.fechada || resta <= 0 || v > resta + 1) continue;   // NF já recebida (TOTAL) ou sem saldo para este valor
     const doCliente = (cnpjDig && n.cnpjDig && (n.cnpjDig === cnpjDig || (cnpjDig.length === 14 && n.cnpjDig.slice(0, 8) === cnpjDig.slice(0, 8)))) || (nome && parecido(nome, n.destNome) >= 0.6);
-    const total = cent(n.valor) === v, parc = n.parcelas.some((p) => cent(p) === v);
-    if (!total && !parc && !doCliente) continue;
-    const chaveUso = `${n.numero}|${v}`;
-    const cap = Math.max(1, n.parcelas.filter((p) => cent(p) === v).length);   // 2 parcelas iguais podem casar 2 créditos
-    const score = (total || parc ? 2 : 0) + (doCliente ? 2 : 0) + (total ? 0.5 : 0) + (em != null ? Math.max(0, 1 - (dt - em) / (120 * 864e5)) * 0.5 : 0);
-    out.push({ n, total, parc, doCliente, score, chaveUso, cap });
+    const total = u.soma === 0 && cent(n.valor) === v;
+    const rest = u.soma > 0 && Math.abs(resta - v) <= 1;
+    const parc = n.parcelas.some((p) => cent(p) === v);
+    if (!total && !rest && !parc && !doCliente) continue;
+    const tipo = total ? "TOTAL" : rest ? "RESTANTE" : "ENTRADA";
+    const score = (total || rest || parc ? 2 : 0) + (doCliente ? 2 : 0) + (total || rest ? 0.5 : 0) + (em != null ? Math.max(0, 1 - (dt - em) / (120 * 864e5)) * 0.5 : 0);
+    out.push({ n, total, parc: parc || rest, doCliente, score, tipo, valorBate: total || rest || parc });
   }
   return out.sort((a, b) => b.score - a.score);
 }
@@ -105,6 +120,20 @@ export async function montar(competencia) {
     baseNfs(),
     prisma.cliente.findMany({ where: { cnpj: { not: null } }, select: { razaoSocial: true, nomeFantasia: true, cnpj: true } }),
   ]);
+
+  // v362 — o que já foi recebido de cada NF (outros meses + linhas deste mês que ficam: editadas e manuais)
+  const uso = novoUso();
+  const hist = await prisma.finRecebimento.findMany({
+    where: { nf: { not: null }, OR: [{ competencia: { not: competencia } }, { editado: true }, { origem: "MANUAL" }] },
+    select: { nf: true, valor: true, tipoReceb: true, bloco: true },
+  });
+  const valorNf = new Map(notas.map((n) => [chaveNf(n.numero), n.valor]));
+  for (const r of hist) {
+    if (r.bloco === "CONFIRMAR") continue;
+    // linha antiga sem tipo: valor cheio da NF conta como TOTAL
+    const t = r.tipoReceb || (valorNf.has(chaveNf(r.nf)) && Math.abs(cent(valorNf.get(chaveNf(r.nf))) - cent(r.valor)) <= 1 ? "TOTAL" : null);
+    uso.add(r.nf, r.valor, t);
+  }
 
   const buscarCnpj = (nome) => {
     if (!nome) return null;
@@ -135,8 +164,11 @@ export async function montar(competencia) {
       const seuNumero = (String(l.identificacao || "").match(/T[ÍI]TULO\s+([^\s·]+)/i) || [])[1] || null;
       const numeroNf = seuNumero ? String(Number(seuNumero.split(/[-\/]/)[0]) || seuNumero.split(/[-\/]/)[0]) : null;
       const nota = numeroNf ? notas.find((n) => n.numero === numeroNf) : null;
+      const pm = String(seuNumero || "").match(/(\d+)\s*\/\s*(\d+)\s*$/);
+      const tipoReceb = pm ? (Number(pm[2]) <= 1 ? "TOTAL" : `${Number(pm[1])}/${Number(pm[2])}`) : null;   // v362
+      if (numeroNf) uso.add(numeroNf, l.valor, tipoReceb === "TOTAL" ? "TOTAL" : "PARCELA");
       linhas.push({
-        bloco: "BOLETO", ordem: ordem++, data: l.data, titulo: "LIQ COBRANÇA", valor: l.valor,
+        bloco: "BOLETO", ordem: ordem++, data: l.data, titulo: "LIQ COBRANÇA", valor: l.valor, tipoReceb,
         nf: seuNumero, nomePagador: nota ? nota.destNome : nome || null,
         cnpj: nota ? nota.destCnpj : buscarCnpj(nome), obs: null,
         origem: "AUTO", lancamentoId: l.id,
@@ -174,31 +206,24 @@ export async function montar(competencia) {
     });
   }
 
-  // v361 — sugestão de NF para cada crédito de cliente: melhores casamentos primeiro, cada NF/valor usado uma vez
-  const outros = await prisma.finRecebimento.findMany({ where: { competencia: { not: competencia }, nf: { not: null } }, select: { nf: true, valor: true } });
-  const usados = new Map();
-  const usar = (k) => usados.set(k, (usados.get(k) || 0) + 1);
-  for (const r of [...outros, ...linhas.filter((x) => x.nf)]) usar(`${String(r.nf).split(/[-\/ ]/)[0].replace(/^0+/, "")}|${cent(r.valor)}`);
+  // v362 — sugestão de NF (amarela, sem OBS): melhores casamentos primeiro, respeitando o saldo de cada NF
   const ops = pendentes.filter((x) => !x.proprio && !x.antecip).map((x) => {
     const lin = linhas[x.i];
-    const c = candidatos(notas, { valor: lin.valor, data: lin.data, cnpjDig: soDig(lin.cnpj), nome: x.pagador });
-    return { x, lin, c };
+    return { x, lin, c: candidatos(notas, { valor: lin.valor, data: lin.data, cnpjDig: soDig(lin.cnpj), nome: x.pagador }, uso) };
   });
   ops.sort((a, b) => (b.c[0]?.score || 0) - (a.c[0]?.score || 0));
-  for (const { lin, c } of ops) {
-    const livres = c.filter((k) => (usados.get(k.chaveUso) || 0) < k.cap);
-    const forte = livres.find((k) => (k.total || k.parc) && k.doCliente);
-    const soValor = livres.filter((k) => k.total || k.parc);
+  for (const { x, lin } of ops) {
+    const c = candidatos(notas, { valor: lin.valor, data: lin.data, cnpjDig: soDig(lin.cnpj), nome: x.pagador }, uso);   // de novo: o saldo muda a cada escolha
+    const forte = c.find((k) => k.valorBate && k.doCliente);
+    const soValor = c.filter((k) => k.valorBate);
     const escolhido = forte || (soValor.length === 1 ? soValor[0] : null);
     if (escolhido) {
-      usar(escolhido.chaveUso);
-      lin.nf = escolhido.n.numero;
-      lin.nomePagador = escolhido.n.destNome || lin.nomePagador;
-      lin.cnpj = escolhido.n.destCnpj || lin.cnpj;
-      lin.obs = forte ? `NF SUGERIDA: valor${escolhido.parc && !escolhido.total ? " (parcela)" : ""} e cliente batem` : "NF SUGERIDA SÓ PELO VALOR — CONFERIR O CLIENTE";
-    } else if (livres.length) {
-      lin.obs = `POSSÍVEIS: ${livres.slice(0, 3).map(descr).join(" · ")}`;
-      const cli = livres.find((k) => k.doCliente);
+      uso.add(escolhido.n.numero, lin.valor, escolhido.tipo);
+      Object.assign(lin, { nf: escolhido.n.numero, nfSugerida: true, tipoReceb: escolhido.tipo, obs: null,
+        nomePagador: escolhido.n.destNome || lin.nomePagador, cnpj: escolhido.n.destCnpj || lin.cnpj });
+    } else if (c.length) {
+      lin.obs = `POSSÍVEIS: ${c.slice(0, 3).map(descr).join(" · ")}`;
+      const cli = c.find((k) => k.doCliente);
       if (cli && !lin.cnpj) lin.cnpj = cli.n.destCnpj;
     }
   }

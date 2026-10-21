@@ -11,26 +11,26 @@ async function planilha(competencia) {
   const linhas = await prisma.finRecebimento.findMany({
     where: { competencia },
     orderBy: [{ bloco: "asc" }, { data: "asc" }, { ordem: "asc" }],
-    select: { bloco: true, data: true, titulo: true, valor: true, nf: true, nomePagador: true, cnpj: true, obs: true },
+    select: { bloco: true, data: true, titulo: true, valor: true, nf: true, nomePagador: true, cnpj: true, tipoReceb: true, obs: true },
   });
   if (!linhas.length) return null;
 
   const conc = linhas.filter((l) => l.bloco !== "CONFIRMAR");
   const conf = linhas.filter((l) => l.bloco === "CONFIRMAR");
 
-  const linha = (l) => [dBR(l.data), l.titulo || "", Number(l.valor), l.nf || "", l.nomePagador || "", l.cnpj || "", l.obs || ""];
+  const linha = (l) => [dBR(l.data), l.titulo || "", Number(l.valor), l.nf || "", l.nomePagador || "", l.cnpj || "", l.tipoReceb || "", l.obs || ""];
   const soma = (ls) => ls.reduce((s, l) => s + Number(l.valor), 0);
 
   const wb = XLSX.utils.book_new();
 
-  const aba1 = [["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "OBS"], ...conc.map(linha)];
+  const aba1 = [["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "TIPO", "OBS"], ...conc.map(linha)];
   aba1.push(["", "TOTAL", soma(conc), "", "", "", ""]);
   const ws1 = XLSX.utils.aoa_to_sheet(aba1);
-  ws1["!cols"] = [{ wch: 11 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 46 }, { wch: 20 }, { wch: 28 }];
+  ws1["!cols"] = [{ wch: 11 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 46 }, { wch: 20 }, { wch: 10 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, ws1, "Conciliação");
 
   if (conf.length) {
-    const aba2 = [["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "OBS"], ...conf.map(linha)];
+    const aba2 = [["DATA", "TÍTULO", "VALOR (R$)", "NF", "NOME PAGADOR", "CNPJ", "TIPO", "OBS"], ...conf.map(linha)];
     aba2.push(["", "TOTAL", soma(conf), "", "", "", ""]);
     const ws2 = XLSX.utils.aoa_to_sheet(aba2);
     ws2["!cols"] = ws1["!cols"];
