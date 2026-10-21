@@ -10,7 +10,7 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
-  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 // v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
@@ -232,12 +232,92 @@ const soD = (s) => String(s || "").replace(/\D/g, "");
 const PAL_FRACAS = new Set(["LTDA", "ME", "EPP", "SA", "S", "A", "S/A", "EIRELI", "DE", "DA", "DO", "DOS", "DAS", "E", "COMERCIO", "SERVICOS", "INDUSTRIA"]);
 const palavras = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !PAL_FRACAS.has(w));
 const mesmoNome = (a, b) => { const pa = palavras(a), pb = new Set(palavras(b)); return pa.length > 0 && pa.slice(0, 2).every((w) => pb.has(w)); };
+// v372 — lê do XML da NF de saída o que interessa para casar com o pedido
+export function lerNfItens(xml) {
+  const t = String(xml || "");
+  const tag = (src, k) => (src.match(new RegExp(`<${k}>([^<]*)</${k}>`)) || [])[1] || "";
+  const dest = (t.match(/<dest>([\s\S]*?)<\/dest>/) || [])[1] || "";
+  const itens = [...t.matchAll(/<det nItem="\d+">([\s\S]*?)<\/det>/g)].map((m) => ({
+    codigo: tag(m[1], "cProd").trim(), descricao: tag(m[1], "xProd").trim(), qtd: Number(tag(m[1], "qCom")) || 0, valor: Number(tag(m[1], "vProd")) || 0, cfop: tag(m[1], "CFOP"),
+  }));
+  const inf = tag(t, "infCpl");
+  const oc = ((inf.match(/Pedido de Compra:\s*([^|]*)/i) || [])[1] || "").split("/").map((x) => x.trim()).filter(Boolean);
+  return { numero: tag(t, "nNF").replace(/^0+(?=\d)/, ""), emissao: tag(t, "dhEmi").slice(0, 10), cnpj: soD(tag(dest, "CNPJ") || tag(dest, "CPF")), nome: tag(dest, "xNome"),
+    valorProd: itens.reduce((a, i) => a + i.valor, 0), itens, oc };
+}
+const normOc = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
+const codBase = (c) => String(c || "").trim().toUpperCase();
+
+// v372 — NF ↔ pedido pelos ITENS: mesmo cliente (CNPJ) + códigos dos produtos (+ O.C. quando houver). Soma as quantidades das NFs:
+// tudo entregue → FATURADO; parte → continua em andamento com o saldo a faturar (vlEntregar/qtEntregar) e as NFs anotadas.
+export async function faturarPelasNfsItens() {
+  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false },
+    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, qtd: true, itens: true, oc: true, obs: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true } });
+  if (!and.length) return [];
+  const todosPv = await prisma.pedidoVenda.findMany({ select: { nfsFaturadas: true } });   // Json: filtra aqui, não no banco
+  const usadas = new Set(todosPv.flatMap((p) => (Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []).map((n) => n.chave)));
+  const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 864e5))));
+  const notas = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", temXml: true, emissao: { gte: desde }, NOT: { motivo: { contains: "CANCELAD" } } },
+    select: { chave: true, chaveRegistro: true, xml: true, acao: true, natureza: true }, orderBy: { emissao: "asc" } });
+  const feitos = [];
+  for (const fn of notas) {
+    const ch = fn.chave || fn.chaveRegistro;
+    if (usadas.has(ch) || !/VENDA/i.test(fn.natureza || "VENDA")) continue;
+    const nf = lerNfItens(fn.xml);
+    if (!nf.itens.length) continue;
+    const ocs = nf.oc.map(normOc).filter(Boolean);
+    let melhor = null;
+    for (const p of and) {
+      if (p.status === "FATURADO") continue;
+      const pc = soD(p.cnpj);
+      const mesmoCliente = pc && nf.cnpj ? pc === nf.cnpj : mesmoNome(p.cliente, nf.nome);
+      if (!mesmoCliente) continue;
+      if (p.emissao && iso(p.emissao) > nf.emissao) continue;
+      const itens = Array.isArray(p.itens) ? p.itens : [];
+      const pedido = {}; for (const i of itens) if (i.codigo) pedido[codBase(i.codigo)] = (pedido[codBase(i.codigo)] || 0) + (Number(i.qtd) || 0);
+      const ja = {}; for (const n of Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []) for (const [c, q] of Object.entries(n.itens || {})) ja[c] = (ja[c] || 0) + q;
+      let casados = 0, cabem = 0;
+      const porCod = {}; for (const i of nf.itens) porCod[codBase(i.codigo)] = (porCod[codBase(i.codigo)] || 0) + i.qtd;
+      for (const [c, q] of Object.entries(porCod)) if (pedido[c] != null) { casados++; if (q <= (pedido[c] - (ja[c] || 0)) + 0.001) cabem++; }
+      const ocOk = ocs.length && p.oc && ocs.some((o) => normOc(p.oc).includes(o) || o.includes(normOc(p.oc)));
+      if (!casados && !ocOk) continue;
+      const score = (ocOk ? 100 : 0) + cabem * 10 + casados - (casados < Object.keys(porCod).length ? 5 : 0);
+      if (!melhor || score > melhor.score) melhor = { p, score, porCod, pedido, ja };
+    }
+    if (!melhor) continue;
+    const { p, porCod, pedido } = melhor;
+    const lista = [...(Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []), { chave: ch, numero: nf.numero, emissao: nf.emissao, valor: r2(nf.valorProd), pecas: nf.itens.reduce((a, i) => a + i.qtd, 0), itens: porCod }];
+    const fat = {}; for (const n of lista) for (const [c, q] of Object.entries(n.itens || {})) fat[c] = (fat[c] || 0) + q;
+    const valorFat = r2(lista.reduce((a, n) => a + (Number(n.valor) || 0), 0));
+    const pecasFat = lista.reduce((a, n) => a + (Number(n.pecas) || 0), 0);
+    const codsPedido = Object.keys(pedido);
+    // pedido com códigos: só fecha quando TODAS as quantidades foram entregues; sem códigos, pelo valor (±2%)
+    const completo = codsPedido.length ? codsPedido.every((c) => (fat[c] || 0) + 0.001 >= pedido[c]) : valorFat >= Number(p.total) * 0.98;
+    const nums = lista.map((n) => n.numero).join(", ");
+    const dataBR = (s) => s.split("-").reverse().join("/");
+    const data = completo
+      ? { status: "FATURADO", nfNumero: nums.slice(0, 190), faturadoEm: dUTC(nf.emissao), nfsFaturadas: lista, vlEntregar: 0, qtEntregar: 0,
+          obs: [p.obs, `FATURADO PELA(S) NF ${nums} (${dataBR(nf.emissao)}) — itens conferidos com o pedido`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }
+      : { nfsFaturadas: lista, vlEntregar: r2(Math.max(0, Number(p.total) - valorFat)), qtEntregar: Math.max(0, (Number(p.qtd) || 0) - pecasFat),
+          obs: [String(p.obs || "").replace(/ · PARCIALMENTE FATURADO[^·]*/g, ""), `PARCIALMENTE FATURADO: NF ${nums} — ${pecasFat} de ${p.qtd || "?"} peças, R$ ${valorFat.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" };
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data });
+    Object.assign(p, data);
+    usadas.add(ch);
+    feitos.push({ numero: p.numero, nf: nf.numero, completo });
+  }
+  return feitos;
+}
+
 export async function faturarPelasNfs() {
-  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true } });
+  // v372 — primeiro pelos itens das NFs (faturamento total ou parcial); depois a regra antiga por valor para as NFs sem XML
+  const porItens = await faturarPelasNfsItens().catch((e) => { console.log("pedidos/faturar itens:", e.message); return []; });
+  const and = (await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true, nfsFaturadas: true } }))
+    .filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length));   // já casado pelos itens: não usa a regra por valor
   if (!and.length) return [];
   const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 86400000))));
   const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: desde } }, select: { numero: true, emissao: true, valor: true, destCnpj: true, destNome: true }, orderBy: { emissao: "asc" } });
-  const usadas = new Set((await prisma.pedidoVenda.findMany({ where: { nfNumero: { not: null } }, select: { nfNumero: true } })).map((x) => String(x.nfNumero).replace(/^0+/, "")));
+  const usadas = new Set((await prisma.pedidoVenda.findMany({ select: { nfNumero: true, nfsFaturadas: true } }))
+    .flatMap((x) => [...String(x.nfNumero || "").split(/[,\s]+/), ...(Array.isArray(x.nfsFaturadas) ? x.nfsFaturadas.map((n) => n.numero) : [])]).filter(Boolean).map((n) => String(n).replace(/^0+/, "")));
   const feitos = [];
   for (const p of and) {
     const alvos = [Number(p.total), Number(p.total) + Number(p.frete || 0), p.vlEntregar != null ? Number(p.vlEntregar) : 0].filter((v) => v > 0);
@@ -251,7 +331,7 @@ export async function faturarPelasNfs() {
       obs: [p.obs, `FATURADO AUTOMÁTICO PELA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" } });
     feitos.push({ numero: p.numero, nf: nf.numero });
   }
-  return feitos;
+  return [...porItens, ...feitos];
 }
 
 // ---------- painel ----------

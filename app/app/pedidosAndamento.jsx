@@ -240,6 +240,10 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         <td className={`${td} tabular-nums font-semibold`} style={{ color: p.noMes ? C.green : C.sub }}>{brl(p.noMes)}</td>
         <td className={`${td} tabular-nums`} style={{ color: p.foraMes ? C.blue : C.sub }}>{brl(p.foraMes)}</td>
         <td className={td}><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }}>{st[0]}{p.nfNumero ? ` · NF ${p.nfNumero}` : ""}</span>
+          {p.status === "ANDAMENTO" && Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0 && (   /* v372 — faturado em parte pelas NFs */
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
+              title={p.nfsFaturadas.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${n.pecas} peças · ${moeda(n.valor)}`).join("\n")}>
+              PARCIAL · NF {p.nfsFaturadas.map((n) => n.numero).join(", ")} · faltam {p.qtEntregar ?? "?"} pç</span>)}
           {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}</td>
         <td className={td} onClick={(e) => e.stopPropagation()}>
           {p.temPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
