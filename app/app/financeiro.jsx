@@ -1481,30 +1481,11 @@ function PainelPrevisao({ user, comp, setComp }) {
                 <div className="grid gap-2 grid-cols-2">
                   {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}{cab("Geral")}
                   {mesL.map((m, i) => [<div key={`m${i}`} className="grid">{m}</div>, <div key={`g${i}`} className="grid">{geralL[i]}</div>])}
-                  {/* v364 — cenário LB (liquidação de balanço), largura das duas colunas */}
-                  {(() => {
-                    const D = P.dividasLB || {}, nn = (k) => Number(val(k)) || 0;
-                    const f = `cenário geral ${brl(Cn.geral)} + venda de patrimônio ${brl(nn("lbVendaPatrimonio"))} − passivo trabalhista ${brl(nn("lbPassivoTrabalhista"))} − 1 mês de operação ${brl(nn("lbMesOperacao"))} − dívidas ${brl(D.liquido || 0)} (quitação hoje ${brl(D.quitacaoHoje || 0)} − parcelas já lançadas no a pagar ${brl(D.lancadas || 0)}, que já saem do cenário geral)`;
-                    return (
-                      <div className="col-span-2 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                        <div title={f} className="min-w-[180px]">
-                          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}><TrendingUp size={11} /> Cenário LB · liquidação de balanço</div>
-                          <div className="font-bold tabular-nums whitespace-nowrap" style={{ color: Cn.lb >= 0 ? C.green : C.red, fontSize: "clamp(12px, 0.95vw, 15px)" }}>{moeda(Cn.lb)}</div>
-                          <div className="text-[10px]" style={{ color: C.sub }}>cenário geral + patrimônio − passivo − operação − dívidas</div>
-                        </div>
-                        <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-                          {[["lbVendaPatrimonio", "+ Venda de patrimônio"], ["lbPassivoTrabalhista", "− Passivo trabalhista"], ["lbMesOperacao", "− 1 mês de operação"]].map(([k, t]) => (
-                            <label key={k} className="flex flex-col gap-0.5 min-w-0"><span className="text-[10px] font-semibold uppercase truncate" style={{ color: C.sub }}>{t}</span>
-                              <ValorIn value={val(k)} onChange={set(k)} width="100%" /></label>
-                          ))}
-                          <button onClick={() => setModal({ tipo: "dividasLB" })} className="flex flex-col gap-0.5 text-left min-w-0" title="Saldo para quitar hoje tudo o que está na Alavancagem">
-                            <span className="text-[10px] font-semibold uppercase truncate flex items-center gap-1" style={{ color: C.sub }}>− Dívidas (alavancagem) <Search size={10} style={{ color: C.accent }} /></span>
-                            <span className="font-bold tabular-nums whitespace-nowrap py-1" style={{ color: C.red }}>{D.erro ? "erro" : brl(D.liquido || 0)}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {/* v366 — cenário LB (liquidação de balanço): só o valor, como os outros; clicar abre os campos e o detalhe */}
+                  <div className="col-span-2 grid">
+                    <CardAuto compacto rotulo="Cenário LB · liquidação de balanço" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red}
+                      sub="cenário geral + venda de patrimônio − passivo trabalhista − 1 mês de operação − dívidas" Ico={TrendingUp} onClick={() => setModal({ tipo: "lb" })} />
+                  </div>
                 </div>
               );
             })()}
@@ -1658,6 +1639,22 @@ function PainelPrevisao({ user, comp, setComp }) {
           <ListaTitulos itens={p.listas.pagarAtrasadas} vazio="Nenhuma conta atrasada." />
         </Modal>
       )}
+      {modal?.tipo === "lb" && (() => { const D = P.dividasLB || {}; return (
+        <Modal titulo="Cenário LB · liquidação de balanço" icone={TrendingUp} onClose={() => setModal(null)} largura={620}>
+          <LinhaVal rotulo="Cenário geral" sub="automático" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} />
+          {[["lbVendaPatrimonio", "+ Venda de patrimônio"], ["lbPassivoTrabalhista", "− Passivo trabalhista"], ["lbMesOperacao", "− 1 mês de operação"]].map(([k, t]) => (
+            <label key={k} className="flex items-center justify-between py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+              <span style={{ color: C.sub }}>{t} <span className="text-[11px]">· digitado</span></span>
+              <ValorIn value={val(k)} onChange={set(k)} width={150} />
+            </label>
+          ))}
+          <button onClick={() => setModal({ tipo: "dividasLB" })} className="w-full text-left">
+            <LinhaVal rotulo="− Dívidas (alavancagem)" sub={`automático · quitação hoje ${brl(D.quitacaoHoje || 0)} − parcelas já lançadas ${brl(D.lancadas || 0)} · clique para ver`} valor={D.liquido || 0} cor={C.red} />
+          </button>
+          <LinhaVal rotulo="Cenário LB" valor={Cn.lb} cor={Cn.lb >= 0 ? C.green : C.red} forte />
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>Os valores digitados entram no painel na hora; use Salvar painel para gravar.</div>
+        </Modal>
+      ); })()}
       {modal?.tipo === "dividasLB" && (() => { const D = P.dividasLB || {}; return (
         <Modal titulo="Dívidas · quitação imediata (alavancagem)" icone={Search} onClose={() => setModal(null)} largura={680}>
           {D.erro && <div className="text-xs mb-2" style={{ color: C.red }}>{D.erro}</div>}
