@@ -201,9 +201,8 @@ export async function sincronizar({ forcar = false } = {}) {
           cronoPrazo: c.prazo ? new Date(`${c.prazo}T00:00:00Z`) : null,
           cronoFimProgramado: c.fimProgramado ? new Date(`${c.fimProgramado}T00:00:00Z`) : null,
           cronoSituacao: (c.viaAgrupamento?.length ? `${c.situacao || "—"} · AGRUPADO NA OP ${c.viaAgrupamento.join("/")}` : c.situacao) || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
-          ...(c.faturado && p.status === "ANDAMENTO" ? { status: "FATURADO", faturadoEm: new Date(`${res.em.slice(0, 10)}T00:00:00Z`) } : {}),   // v347 — faturado no PCP
+          // v373 — o PCP não fecha o pedido: concluído na produção continua em andamento no financeiro até a NF (faturarPelasNfs)
         } });
-        if (c.faturado && p.status === "ANDAMENTO") res.faturados = (res.faturados || 0) + 1;
       }
       const nums = new Set(aqui.map((p) => soDig(p.numero)));
       // v353 — OP do PCP sem PV aqui: não conta se ela própria ou algum pedido agrupado nela casou; só produção em aberto

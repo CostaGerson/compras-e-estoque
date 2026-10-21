@@ -121,6 +121,8 @@ export async function processarZipSaidas(competencia, buf, docId, unzipSync) {
     if (r === "CRITICA") semMovimento++; else if (r === "REGISTRO") soRegistro++;
   }
   const removidas = canceladas.size ? (await prisma.finNfSaida.deleteMany({ where: { chave: { in: [...canceladas] } } })).count : 0;
+  // v373 — NFs novas no movimento fiscal: baixa os pedidos correspondentes (total ou parcial)
+  if (semMovimento || soRegistro) { try { const { faturarPelasNfsItens } = await import("@/lib/pedidos"); await faturarPelasNfsItens(); } catch (e) { console.log("contab→pedidos:", e.message); } }
   return { xmls: xmls.length, pdfs, outros, lidas, canceladas: canceladas.size, removidas, ignoradas, semMovimento, soRegistro };
 }
 

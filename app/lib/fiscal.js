@@ -437,6 +437,10 @@ export async function gravar(notas, u) {
     }
     res.push(r);
   }
+  // v373 — NF de saída lançada: o pedido correspondente sai de "em andamento" (total) ou fica só com o saldo (parcial)
+  if (res.some((r) => r.tipo === "SAIDA" && ["LANCADA", "REGISTRADA"].includes(r.situacao))) {
+    try { const { faturarPelasNfsItens } = await import("@/lib/pedidos"); await faturarPelasNfsItens(); } catch (e) { console.log("fiscal→pedidos:", e.message); }
+  }
   return res;
 }
 

@@ -165,6 +165,16 @@ async function posicao(M, hoje) {
 export async function painel(competencia, hojeData = new Date()) {
   const hoje = typeof hojeData === "string" ? hojeData : hojeSP();
   const M = mesSeguinte(competencia);
+  // v373 — pedido faturado (total ou parcial) depois da última atualização: refaz os números de pedidos em andamento,
+  // para o valor não ficar ao mesmo tempo em "em andamento" e no contas a receber (onde a NF já entrou)
+  try {
+    const p0 = await prisma.finMesPainel.findUnique({ where: { competencia }, select: { dados: true } });
+    const em = p0?.dados?.atualizadoAuto?.em;
+    if (em) {
+      const mud = await prisma.pedidoVenda.findMany({ where: { updatedAt: { gt: new Date(em) } }, select: { status: true, nfsFaturadas: true } });
+      if (mud.some((x) => x.status === "FATURADO" || (Array.isArray(x.nfsFaturadas) && x.nfsFaturadas.length))) await atualizarPainel(competencia, "SISTEMA (PEDIDO FATURADO)");
+    }
+  } catch (e) { console.log("painel/pedidos faturados:", e.message); }
   const [p, pos, ant] = await Promise.all([
     prisma.finMesPainel.findUnique({ where: { competencia } }),
     posicao(M, hoje),
