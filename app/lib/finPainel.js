@@ -158,15 +158,15 @@ export async function painel(competencia, hojeData = new Date()) {
   const n = (k) => Number(dados[k]) || 0;
   // cenários (calculados)
   const geral = r2(pos.receber.geral.real + pos.receber.atrasado.execucao + n("pedidosAndamento") - pos.pagar.totalSemPrevisao);
-  const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes"));
+  const entradasMes = r2(pos.receber.mes.real + extraQuit + n("recebimentoMes") + n("antecipacaoDisp"));   // v357 — antecipação entra no mês
   const saidasMes = r2(pos.pagar.mes + extraPrior);
   const mes = r2(caixa.saldoPositivo + entradasMes - saidasMes);
   const cenarios = {
     geral, mes,
     cobrindo: r2(mes - caixa.limiteTomado),
     semCobrir: mes,
-    antecipandoCobrindo: r2(mes - caixa.limiteTomado + n("antecipacaoDisp")),
-    antecipandoSemCobrir: r2(mes + n("antecipacaoDisp")),
+    antecipandoCobrindo: r2(mes - caixa.limiteTomado),   // v357 — antecipação já está em "mes"
+    antecipandoSemCobrir: mes,
     memoria: { saldoPositivo: caixa.saldoPositivo, entradasMes, saidasMes, chequeEmUso: caixa.limiteTomado, antecipacao: n("antecipacaoDisp"),
       receberMes: pos.receber.mes.real, quitacao: totQuitacao, recebimentoEntregas: n("recebimentoMes"), pagarMes: pos.pagar.mes, prioridade: totPrioridade,
       receberReal: pos.receber.geral.real, execucao: pos.receber.atrasado.execucao, andamento: n("pedidosAndamento"), pagarSemPrevisao: pos.pagar.totalSemPrevisao },

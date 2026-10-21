@@ -1385,10 +1385,11 @@ function PainelPrevisao({ user, comp, setComp }) {
     const n = (k) => Number(val(k)) || 0;
     const R = p.pos.receber, P = p.pos.pagar;
     const geral = R.geral.real + R.atrasado.execucao + n("pedidosAndamento") - P.totalSemPrevisao;
-    const entradas = R.mes.real + xQ + n("recebimentoMes"), saidas = P.mes + xP;
+    // v357 — antecipação preenchida entra no a receber do mês (e sai do a receber geral)
+    const entradas = R.mes.real + xQ + n("recebimentoMes") + n("antecipacaoDisp"), saidas = P.mes + xP;
     const mes = caixa.saldoPositivo + entradas - saidas;
-    return { caixa, prior, quit, tP, tQ, entradas, saidas, cen: { geral, mes, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
-      antecipandoCobrindo: mes - caixa.limiteTomado + n("antecipacaoDisp"), antecipandoSemCobrir: mes + n("antecipacaoDisp") } };
+    return { caixa, prior, quit, tP, tQ, xP, xQ, entradas, saidas, cen: { geral, mes, cobrindo: mes - caixa.limiteTomado, semCobrir: mes,
+      antecipandoCobrindo: mes - caixa.limiteTomado, antecipandoSemCobrir: mes } };
   }, [p, bancos, selPrior, selQuit, rasc]);
 
   const abrirSalvo = async (idx, c = comp) => {
@@ -1448,24 +1449,41 @@ function PainelPrevisao({ user, comp, setComp }) {
         <div ref={telaRef} className="flex flex-col gap-4" style={alturaTela ? { height: alturaTela } : undefined}>
         {/* v354 — 1ª linha ocupa toda a altura que sobra; 2ª linha só o necessário (compacta) */}
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "1 1 0", minHeight: 0, gridAutoRows: "100%" } : undefined}>
-          {/* posição automática — v356: 2 colunas */}
+          {/* posição automática — v357: MÊS (a receber, a pagar, cenários) ao lado do GERAL (a receber, a pagar, atrasadas, a receber atrasado) */}
           <div className={`${caixaBloco} overflow-auto min-h-0 2xl:col-span-2`} style={caixaSt}>
             <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Posição automática · {nomeMesAno(p.mesPrevisto)}</div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-              <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`}
-                onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
-              <CardAuto rotulo="A pagar no mês" valor={P.mes} sub={P.mesPrevisoes ? `inclui ${brl(P.mesPrevisoes)} em previsões` : `${P.qtdMes} conta(s)`} />
-              {P.virtual && (() => { const V = P.virtual; const vt = V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0);
-                return <CardAuto rotulo="Contas a pagar" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />; })()}
-              <CardAuto rotulo="A receber · posição geral" valor={R.geral.real} cor={C.blue} sub="real"
-                onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
-              <CardAuto rotulo="A receber no mês" valor={R.mes.real} cor={C.blue} sub="real"
-                onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
-              <CardAuto rotulo="A receber · fora do mês" valor={R.foraMes.real} cor={C.blue} sub={`real · depois de ${dBR(`${p.mesPrevisto}-01`).slice(3)}`}
-                onClick={() => setModal({ tipo: "foraMes" })} />
-              <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
-                sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
-            </div>
+            {(() => {
+              const antec = Number(val("antecipacaoDisp")) || 0, entreg = Number(val("recebimentoMes")) || 0;
+              const V = P.virtual, vt = V ? V.real + V.previsoesProx + V.quitacao.total + (Number(val("cmvAndamento")) || 0) + (Number(val("passivoTributario")) || 0) : null;
+              const cab = (t) => <div className="text-[11px] font-bold uppercase mb-1.5" style={{ color: C.navy }}>{t}</div>;
+              return (
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                  <div className="grid gap-2 content-start">
+                    {cab(`Mês · ${nomeMesAno(p.mesPrevisto)}`)}
+                    <CardAuto rotulo="A receber no mês" valor={calc.entradas} cor={C.blue}
+                      sub={[`no mês ${brl(R.mes.real)}`, calc.xQ ? `quitação provável ${brl(calc.xQ)}` : null, entreg ? `entregas ${brl(entreg)}` : null, antec ? `antecipação ${brl(antec)}` : null].filter(Boolean).join(" + ")}
+                      onClick={() => setModal({ tipo: "receber", titulo: `A receber em ${nomeMesAno(p.mesPrevisto)}`, b: R.mes })} />
+                    <CardAuto rotulo="A pagar no mês" valor={calc.saidas} cor={C.red}
+                      sub={[`no mês ${brl(P.mes)}${P.mesPrevisoes ? ` (inclui ${brl(P.mesPrevisoes)} em previsões)` : ""}`, calc.xP ? `prioridade ${brl(calc.xP)}` : null].filter(Boolean).join(" + ")} />
+                    <div title={`saldos positivos ${brl(calc.caixa.saldoPositivo)} + a receber no mês ${brl(calc.entradas)} − a pagar no mês ${brl(calc.saidas)}`}>
+                      <CardAuto rotulo="Cenário sem cobrir o cheque" valor={Cn.semCobrir} cor={Cn.semCobrir >= 0 ? C.green : C.red} sub="saldos positivos + a receber − a pagar" Ico={TrendingUp} /></div>
+                    <div title={`sem cobrir ${brl(Cn.semCobrir)} − cheque em uso ${brl(calc.caixa.limiteTomado)}`}>
+                      <CardAuto rotulo="Cenário cobrindo o cheque" valor={Cn.cobrindo} cor={Cn.cobrindo >= 0 ? C.green : C.red} sub={`− cheque em uso ${brl(calc.caixa.limiteTomado)}`} Ico={TrendingUp} /></div>
+                  </div>
+                  <div className="grid gap-2 content-start">
+                    {cab("Geral")}
+                    <CardAuto rotulo="A receber geral" valor={R.geral.real - antec} cor={C.blue} sub={antec ? `real ${brl(R.geral.real)} − antecipação ${brl(antec)}` : "real"}
+                      onClick={() => setModal({ tipo: "receber", titulo: "A receber · posição geral", b: R.geral })} />
+                    {V && <CardAuto rotulo="A pagar geral" valor={vt} cor={C.red} sub={`virtual · real ${brl(V.real)}`} onClick={() => setModal({ tipo: "pagarVirtual" })} />}
+                    <CardAuto rotulo="Contas atrasadas" valor={P.atrasadas} cor={P.atrasadas ? C.red : C.green} sub={`${P.qtdAtrasadas} conta(s)`} onClick={() => setModal({ tipo: "pagarAtrasadas" })} />
+                    <CardAuto rotulo="A receber atrasado" valor={R.atrasado.total} cor={R.atrasado.total ? C.yellow : C.green}
+                      sub={`cobrança ${brl(R.atrasado.cobranca)} · execução ${brl(R.atrasado.execucao)}`} onClick={() => setModal({ tipo: "receberAtrasados" })} />
+                    <div title={`a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`}>
+                      <CardAuto rotulo="Cenário geral" valor={Cn.geral} cor={Cn.geral >= 0 ? C.green : C.red} sub="a receber + execução + em andamento − a pagar" Ico={TrendingUp} /></div>
+                  </div>
+                </div>
+              );
+            })()}
             {/* v311 — bancos: só os resultados aqui; clicar abre a edição */}
             <div className="text-[11px] font-bold uppercase mt-3 mb-1.5 flex items-center justify-between" style={{ color: C.navy }}>
               <span>Bancos</span>
@@ -1490,11 +1508,6 @@ function PainelPrevisao({ user, comp, setComp }) {
             ))}
             <div className="text-[11px] font-bold uppercase mt-4 mb-0.5" style={{ color: C.navy }}>A receber</div>
             <LinhaClique titulo="Quitação provável" sub={`${calc.quit.length} título(s) atrasados que devem entrar no mês`} valor={calc.tQ} cor={C.blue} onClick={() => setModal({ tipo: "listaQuit" })} />
-            <label className="flex items-center justify-between py-1.5 gap-2">
-              <div><div className="text-xs font-semibold" style={{ color: C.text }}>Previsão a receber</div>
-                <div className="text-[11px]" style={{ color: C.sub }}>ainda sem título; digitada</div></div>
-              <ValorIn value={val("receberPrevisao")} onChange={set("receberPrevisao")} width={132} negativo />
-            </label>
           </div>
 
           {/* previsões de entrega / recebimento */}
@@ -1525,29 +1538,8 @@ function PainelPrevisao({ user, comp, setComp }) {
 
         </div>
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" style={alturaTela ? { flex: "0 0 auto" } : undefined}>
-          {/* cenários */}
-          <div className={`rounded-xl px-4 py-3 md:col-span-2`} style={caixaSt}>
-            <div className="flex items-baseline gap-2 mb-2"><span className="text-sm font-bold" style={{ color: C.navy }}>Cenários</span>
-              <span className="text-[11px]" style={{ color: C.sub }}>calculados com tudo acima (passe o mouse para ver a conta)</span></div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-              {[
-                ["Cenário geral", Cn.geral, `a receber real ${brl(R.geral.real)} + execução ${brl(R.atrasado.execucao)} + em andamento ${brl(Number(val("pedidosAndamento")) || 0)} − a pagar sem previsões ${brl(P.totalSemPrevisao)}`],
-                ["Cenário do mês", Cn.mes, `saldos positivos ${brl(calc.caixa.saldoPositivo)} + entradas ${brl(calc.entradas)} (a receber no mês + quitação provável de meses anteriores + entregas) − saídas ${brl(calc.saidas)} (a pagar no mês + prioridade de meses anteriores; as do mês já estão no a pagar)`],
-                ["Cobrindo o cheque", Cn.cobrindo, `cenário do mês − cheque em uso ${brl(calc.caixa.limiteTomado)}`],
-                ["Sem cobrir", Cn.semCobrir, "cenário do mês, ignorando o cheque especial em uso"],
-                ["Antecipando e cobrindo", Cn.antecipandoCobrindo, `cobrindo o cheque + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
-                ["Antecipando sem cobrir", Cn.antecipandoSemCobrir, `sem cobrir + antecipação disponível ${brl(Number(val("antecipacaoDisp")) || 0)}`],
-              ].map(([t, v, f]) => (
-                <div key={t} title={f} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                  <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
-                  <div className="font-bold whitespace-nowrap tabular-nums" style={{ color: v >= 0 ? C.green : C.red, fontSize: "clamp(13px, 1.05vw, 16px)" }}>{moeda(v)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* informações relevantes */}
-          <div className={`rounded-xl px-4 py-3 flex flex-col ${p.salvos?.length > 0 ? "" : "2xl:col-span-2"}`} style={caixaSt}>
+          <div className={`rounded-xl px-4 py-3 flex flex-col ${p.salvos?.length > 0 ? "md:col-span-1 2xl:col-span-3" : "md:col-span-2 2xl:col-span-4"}`} style={caixaSt}>
             <div className="text-sm font-bold mb-1.5" style={{ color: C.navy }}>Informações relevantes</div>
             <textarea value={val("infoRelevante") || ""} onChange={(e) => set("infoRelevante")(e.target.value)} rows={3}
               placeholder="Anotações do mês: negociações em andamento, acordos, o que explica os números…"
