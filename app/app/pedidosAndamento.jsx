@@ -153,7 +153,8 @@ export default function PedidosAndamento({ user }) {
         <>
           {/* painel de previsão de receitas */}
           <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-            <Kpi t="Pedidos em andamento" v={moeda(R.totalAndamento)} s={`${R.qtdPedidos} pedido(s) · ${R.pecas.toLocaleString("pt-BR")} peças`} cor={C.navy} />
+            <Kpi t="Pedidos em andamento · a faturar" v={moeda(R.totalAndamento)} cor={C.navy}
+              s={`${R.qtdPedidos} pedido(s) · ${R.pecas.toLocaleString("pt-BR")} peças a entregar${R.totalBruto != null && Math.abs(R.totalBruto - R.totalAndamento) > 0.01 ? ` · bruto ${moeda(R.totalBruto)}` : ""}${R.qtdSemSaldo ? ` · ${R.qtdSemSaldo} sem saldo` : ""}`} />
             <Kpi t={`A receber em ${curto(comp)}`} v={moeda(R.noMes)} s="entradas a lançar + parcelas que vencem no mês" cor={C.green} />
             <Kpi t="Fora do mês" v={moeda(R.foraMes)} s={`parcelas depois de ${curto(comp)}`} cor={C.blue} />
             <Kpi t="Entradas já lançadas" v={moeda(R.entradasLancadas)} s="estão no contas a receber" cor={C.sub} />

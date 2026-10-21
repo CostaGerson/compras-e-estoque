@@ -454,8 +454,12 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
   const soma = (l, f) => r2(l.reduce((s, p) => s + f(p), 0));
   const resumo = {
     competencia: comp, hoje,
-    qtdPedidos: and.length, pecas: and.reduce((s, p) => s + (p.qtd || 0), 0),
-    totalAndamento: soma(and, (p) => p.total),
+    // v378 — mesmo critério do painel de previsão: o que AINDA falta faturar (saldo), não o total bruto do pedido
+    qtdPedidos: and.filter((p) => (p.vlEntregar != null ? Number(p.vlEntregar) : Number(p.total)) > 0.009).length,
+    qtdSemSaldo: and.filter((p) => (p.vlEntregar != null ? Number(p.vlEntregar) : Number(p.total)) <= 0.009).length,
+    pecas: and.reduce((s, p) => s + (p.qtEntregar != null ? Number(p.qtEntregar) : (p.qtd || 0)), 0),
+    totalAndamento: soma(and, (p) => (p.vlEntregar != null ? p.vlEntregar : p.total)),
+    totalBruto: soma(and, (p) => p.total),
     entradasLancadas: soma(and, (p) => p.previsao.entradaLancada),
     aReceberPrevisto: soma(and, (p) => p.previsao.parcelas.reduce((s, x) => s + x.valor, 0)),
     noMes: soma(and, (p) => p.noMes), foraMes: soma(and, (p) => p.foraMes), antes: soma(and, (p) => p.antes),
