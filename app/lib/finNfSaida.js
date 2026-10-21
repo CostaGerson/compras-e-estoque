@@ -117,7 +117,7 @@ export async function processarZipSaidas(competencia, buf, docId, unzipSync) {
     const cancelada = canceladas.has(n.chave);
     if (!cancelada) { await registrarXmlSaida(competencia, x.texto, docId); lidas++; }
     // v360 — não estava no movimento fiscal: entra lá; com recebível, em vermelho com a crítica; cancelada/remessa só registrada
-    const r = await registrarDaContabilidade(x.texto, x.nome, pdfsArq[soDigitos(n.chave)] || null, { cancelada }).catch(() => null);
+    const r = await registrarDaContabilidade(x.texto, x.nome, pdfsArq[soDigitos(n.chave)] || null, { cancelada }).catch((e) => { console.log(`contab→fiscal NF ${n.numero}:`, e.message); return null; });
     if (r === "CRITICA") semMovimento++; else if (r === "REGISTRO") soRegistro++;
   }
   const removidas = canceladas.size ? (await prisma.finNfSaida.deleteMany({ where: { chave: { in: [...canceladas] } } })).count : 0;

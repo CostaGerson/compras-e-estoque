@@ -443,6 +443,27 @@ export async function gravar(notas, u) {
 /* ---------------- v360 — NF de saída que só chegou pelo ZIP da contabilidade ---------------- */
 export const ACAO_CONTAB = "CONTABILIDADE";
 export const CRITICA_CONTAB = "NF subida por importação na contabilidade, verificar contas";
+export const ORIGEM_CONTAB = "IMPORTAÇÃO CONTABILIDADE";
+
+// v363 — garante no movimento fiscal as NFs dos ZIPs/XMLs de saída já enviados na contabilidade (cada arquivo só uma vez)
+export async function sincronizarSaidasContab() {
+  const K = "FISCAL|SYNC_CONTAB";
+  const cfg = await prisma.finConfig.findUnique({ where: { chave: K } }).catch(() => null);
+  let feitos = []; try { feitos = JSON.parse(cfg?.valor || "[]"); } catch {}
+  const docs = await prisma.finContabDoc.findMany({ where: { categoria: { in: ["SAIDAS", "SAIDA_XML"] }, id: { notIn: feitos.length ? feitos : [0] } }, select: { id: true, competencia: true, formato: true, conteudo: true, nomeOriginal: true } });
+  if (!docs.length) return 0;
+  const { unzipSync } = await import("fflate");
+  const { processarZipSaidas, chaveCancelada } = await import("@/lib/finNfSaida");
+  let n = 0;
+  for (const d of docs) {
+    const buf = Buffer.from(d.conteudo, "base64");
+    if (d.formato === "ZIP") { const r = await processarZipSaidas(d.competencia, buf, d.id, unzipSync); n += (r.semMovimento || 0) + (r.soRegistro || 0); }
+    else { const t = buf.toString("utf8"); if (!chaveCancelada(t) && await registrarDaContabilidade(t, d.nomeOriginal || "nota.xml")) n++; }
+    feitos.push(d.id);
+  }
+  await prisma.finConfig.upsert({ where: { chave: K }, create: { chave: K, valor: JSON.stringify(feitos) }, update: { valor: JSON.stringify(feitos) } });
+  return n;
+}
 // cria o registro (sem contas) quando a nota ainda não está no movimento fiscal; devolve "CRITICA", "REGISTRO" ou null.
 // Só nota que gera recebível ganha a crítica; cancelada, remessa e afins só ficam registradas (não têm conta).
 export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { cancelada = false } = {}) {
@@ -459,7 +480,7 @@ export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { 
       acao: semConta ? "REGISTRADA" : ACAO_CONTAB, motivo: semConta || CRITICA_CONTAB,
       xml: xmlTexto, xmlNome: nomeXml, hashXml: hashTexto(xmlTexto), temXml: true,
       ...(pdf ? { pdf: pdf.b64, pdfNome: pdf.nome, hashPdf: hashB64(pdf.b64), temPdf: true } : {}),
-      parcelas: [], criadoPorNome: "IMPORTAÇÃO CONTABILIDADE",
+      parcelas: [], criadoPorNome: ORIGEM_CONTAB,
     } });
     return semConta ? "REGISTRO" : "CRITICA";
   } catch (e) { if (String(e.code) === "P2002") return null; throw e; }
@@ -467,6 +488,7 @@ export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { 
 
 /* ---------------- 3) lista e exclusão ---------------- */
 export async function listar({ de, ate, tipo, busca }) {
+  await sincronizarSaidasContab().catch((e) => console.log("fiscal/sync contabilidade:", e.message));   // v363
   const where = {};
   if (de || ate) where.emissao = { ...(de ? { gte: dataUTC(de) } : {}), ...(ate ? { lte: dataUTC(ate) } : {}) };
   if (tipo === "ENTRADA" || tipo === "SAIDA") where.tipo = tipo;
@@ -482,6 +504,9 @@ export async function listar({ de, ate, tipo, busca }) {
   return l
     .map((n) => ({
       ...n, valor: Number(n.valor), emissao: n.emissao ? new Date(n.emissao).toISOString().slice(0, 10) : null,
+      origem: n.criadoPorNome === ORIGEM_CONTAB ? "IMPORTAÇÃO CONTABILIDADE" : "MOVIMENTO FISCAL",   // v363
+      // v363 — crítica: nota que gera conta e não tem conta lançada
+      critica: n.acao === ACAO_CONTAB ? (n.motivo || CRITICA_CONTAB) : n.acao === "LANCADA" && !(Array.isArray(n.parcelas) && n.parcelas.length) ? "NF sem conta lançada, verificar contas" : null,
       parcelas: (Array.isArray(n.parcelas) ? n.parcelas : []).map((p) => {
         const t = porId[p.tituloId];
         return { ...p, status: t ? t.status : "EXCLUIDA", vencimento: t ? new Date(t.vencimento).toISOString().slice(0, 10) : p.vencimento, valor: t ? Number(t.valor) : p.valor };
@@ -513,7 +538,7 @@ export async function excluirRegistro(id, quem) {
 // v164 — todas as NFs: as do movimento fiscal + as de entrada lançadas antes pelo Compras (NotaFiscal) que não
 // estão no movimento fiscal (mesma chave de acesso = mesma nota, vale a do movimento fiscal).
 export async function registro({ de, ate }) {
-  const fiscal = (await listar({ de, ate })).map((n) => ({ ...n, origem: "MOVIMENTO FISCAL" }));
+  const fiscal = await listar({ de, ate });   // v363 — origem vem do registro (movimento fiscal ou importação da contabilidade)
   const chaves = new Set(fiscal.map((n) => n.chave).filter(Boolean));
   const where = {};
   if (de || ate) where.dataEmissao = { ...(de ? { gte: dataUTC(de) } : {}), ...(ate ? { lte: new Date(dataUTC(ate).getTime() + 86399999) } : {}) };

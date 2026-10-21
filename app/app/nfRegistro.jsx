@@ -24,7 +24,7 @@ export function filtrarNotas(lista, f) {
     && (!f.natureza || (f.natureza === "—" ? !n.natureza : n.natureza === f.natureza))
     && (!f.empresa || n.empresa === f.empresa)
     && (!f.situacao || n.acao === f.situacao)
-    && (!f.origem || (f.origem === "COMPRAS" ? n.origem !== "MOVIMENTO FISCAL" : n.origem === "MOVIMENTO FISCAL"))
+    && (!f.origem || (f.origem === "COMPRAS" ? !!n.idCompras : f.origem === "CONTAB" ? n.origem === "IMPORTAÇÃO CONTABILIDADE" : f.origem === "CRITICA" ? !!n.critica : n.origem === "MOVIMENTO FISCAL"))
     && (!b || sem(`${n.numero} ${n.parceiro} ${n.documento || ""} ${n.natureza || ""} ${n.chave || ""}`).includes(b) || brl(n.valor).includes(b)));
   const [k, dir] = f.ordem || ["emissao", -1];
   const v = (n) => (k === "valor" ? n.valor : k === "numero" ? Number(n.numero) || 0 : String(n[k] || ""));
@@ -75,7 +75,7 @@ export default function NfRegistro({ user }) {
       {t}{ordem[0] === k && (ordem[1] > 0 ? <ChevronUp size={12} className="inline ml-0.5" /> : <ChevronDown size={12} className="inline ml-0.5" />)}
     </th>
   );
-  const arqLink = (n, x) => n.origem === "MOVIMENTO FISCAL" ? `/api/fiscal/${n.id}?u=${user.id}&arq=${x}` : `/api/nf/${n.idCompras}/${x}`;
+  const arqLink = (n, x) => !n.idCompras ? `/api/fiscal/${n.id}?u=${user.id}&arq=${x}` : `/api/nf/${n.idCompras}/${x}`;
 
   return (
     <div>
@@ -123,9 +123,10 @@ export default function NfRegistro({ user }) {
         <select value={f.situacao} onChange={(e) => setF({ ...f, situacao: e.target.value })} className={sel} style={selS}>
           <option value="">Lançadas e só registradas</option><option value="LANCADA">{ent ? "Lançadas (contas a pagar)" : "Lançadas (contas a receber)"}</option><option value="REGISTRADA">Só registradas</option>
         </select>
-        {ent && <select value={f.origem} onChange={(e) => setF({ ...f, origem: e.target.value })} className={sel} style={selS}>
-          <option value="">Todas as origens</option><option value="FISCAL">Movimento fiscal</option><option value="COMPRAS">Antigas do Compras</option>
-        </select>}
+        <select value={f.origem} onChange={(e) => setF({ ...f, origem: e.target.value })} className={sel} style={selS}>
+          <option value="">Todas as origens</option><option value="FISCAL">Movimento fiscal</option><option value="CONTAB">Importação contabilidade</option>
+          {ent && <option value="COMPRAS">Antigas do Compras</option>}<option value="CRITICA">Com crítica (sem conta)</option>
+        </select>
         {filtrado && <button onClick={() => setF({ busca: "", parceiro: "", natureza: "", empresa: "", situacao: "", origem: "" })} className="flex items-center gap-1 text-xs" style={{ color: C.accent }}><X size={12} /> limpar filtros</button>}
       </div>
 
@@ -158,7 +159,7 @@ export default function NfRegistro({ user }) {
               const ab = aberta === n.id;
               return (
                 <React.Fragment key={n.id}>
-                  <tr onClick={() => setAberta(ab ? null : n.id)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: ab ? C.panel2 : undefined }}>
+                  <tr onClick={() => setAberta(ab ? null : n.id)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: ab ? C.panel2 : n.critica ? C.redSoft : undefined, color: n.critica ? C.red : undefined }}>
                     <td className="px-3 py-2 whitespace-nowrap">{dBR(n.emissao)}</td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1 rounded text-[9px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }}>{n.modelo}</td>
@@ -167,7 +168,8 @@ export default function NfRegistro({ user }) {
                     <td className="px-3 py-2" style={{ color: n.natureza ? C.text : C.sub }}>{n.natureza || "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {n.acao === "REGISTRADA" ? <span style={{ color: C.sub }}>só registro</span>
+                      {n.critica ? <span className="font-semibold whitespace-normal" style={{ color: C.red }}>{n.critica}</span>
+                        : n.acao === "REGISTRADA" ? <span style={{ color: C.sub }}>só registro</span>
                         : !n.parcelas.length ? <span style={{ color: C.sub }}>—</span>
                         : Object.entries(st).map(([s, q]) => { const [c, bg, t] = ST[s] || ST.EXCLUIDA; return <span key={s} className="mr-1 px-1.5 py-0.5 rounded" style={{ background: bg, color: c }}>{q} {t}</span>; })}
                     </td>
