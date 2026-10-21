@@ -87,6 +87,7 @@ export function normalizarItem(o) {
     produto: String(pick(o, "produto", "descricao", "nome", "item") || ""),
     cliente: String(pick(o, "cliente", "clienteNome", "razaoSocial") || ""),
     quantidade, pecas, complemento, agrupamento,
+    oc: (() => { const v = String(pick(o, "oc", "ordemCompra") || "").trim(); return /^0*$/.test(v) ? "" : v; })(),   // v375
     pedidosAgrupados: agrupamento ? listaNums(pick(o, "pedidosAgrupados", "pedidos_agrupados")) : [],
     entrega: dataDe(pick(o, "entrega", "dataEntrega", "prazoEntrega", "prazo", "entregaPrevista", "previsaoEntrega", "dataPrevista")),
     situacao: String(pick(o, "situacao", "status", "fase") || ""),
@@ -120,6 +121,7 @@ export function agruparPorPedido(itens, etapas) {
     p.agrupamento = p.itens.some((i) => i.agrupamento);
     p.pedidosAgrupados = [...new Set(p.itens.flatMap((i) => i.pedidosAgrupados))];
     p.pecas = p.itens.reduce((s, i) => s + i.pecas, 0);             // peças reais (sem complementos)
+    p.oc = (p.itens.find((i) => i.oc) || {}).oc || "";               // v375 — O.C. do cliente informada no PCP
     p.quantidadeCorte = p.itens.reduce((s, i) => s + i.quantidade, 0); // unidades a cortar
     p.emProducao = p.itens.some((i) => !ehConcluido(i.situacao));
     p.concluido = p.itens.length > 0 && p.itens.every((i) => ehConcluido(i.situacao));
@@ -162,7 +164,7 @@ export function visaoDoPedido(g, ops, numero) {
     pecas: l.reduce((s, x) => s + x.pecas, 0), quantidadeCorte: l.reduce((s, x) => s + x.quantidadeCorte, 0),
     situacao: [...new Set(l.map((x) => x.situacao).filter(Boolean))].join(" · "),
     etapa: [...new Set(l.map((x) => x.etapa).filter(Boolean))].join(" · "),
-    resumo: l.flatMap((x) => x.resumo), agrupamento: true, viaAgrupamento: agr,
+    resumo: l.flatMap((x) => x.resumo), agrupamento: true, viaAgrupamento: agr, oc: (l.find((x) => x.oc) || {}).oc || "",
   };
 }
 
@@ -191,7 +193,7 @@ export async function sincronizar({ forcar = false } = {}) {
       res.opsAgrupamento = Object.values(g).filter((o) => o.agrupamento).length;
       res.opsEmProducao = Object.values(g).filter((o) => o.emProducao).length;
       res.pecasEmProducao = itens.filter((i) => i.pedido && !ehConcluido(i.situacao)).reduce((s, i) => s + i.pecas, 0);
-      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true } });
+      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true, oc: true } });
       for (const p of aqui) {
         const c = visaoDoPedido(g, ix[soDig(p.numero)] || [], soDig(p.numero));
         if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: "NÃO ESTÁ NO CRONOGRAMA", cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [] } }); continue; }
@@ -200,6 +202,7 @@ export async function sincronizar({ forcar = false } = {}) {
           entregaPrevista: c.entregaPrevista ? new Date(`${c.entregaPrevista}T00:00:00Z`) : null,
           cronoPrazo: c.prazo ? new Date(`${c.prazo}T00:00:00Z`) : null,
           cronoFimProgramado: c.fimProgramado ? new Date(`${c.fimProgramado}T00:00:00Z`) : null,
+          ...(!p.oc && c.oc ? { oc: String(c.oc).slice(0, 60) } : {}),   // v375 — O.C. do PCP quando o PV não trouxe
           cronoSituacao: (c.viaAgrupamento?.length ? `${c.situacao || "—"} · AGRUPADO NA OP ${c.viaAgrupamento.join("/")}` : c.situacao) || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
           // v373 — o PCP não fecha o pedido: concluído na produção continua em andamento no financeiro até a NF (faturarPelasNfs)
         } });
