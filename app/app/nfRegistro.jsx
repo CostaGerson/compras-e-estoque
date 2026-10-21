@@ -41,6 +41,8 @@ export default function NfRegistro({ user }) {
   const [f, setF] = useState({ busca: "", parceiro: "", natureza: "", empresa: "", situacao: "", origem: "" });
   const [ordem, setOrdem] = useState(["emissao", -1]);
   const [aberta, setAberta] = useState(null);
+  const [tick, setTick] = useState(0);
+  const carregar = () => setTick((t) => t + 1);   // v365
 
   useEffect(() => {
     let vivo = true; setLista(null); setErro("");
@@ -50,7 +52,7 @@ export default function NfRegistro({ user }) {
       if (vivo) setLista(Array.isArray(d) ? d : []);
     }).catch((e) => { if (vivo) { setErro(e.message); setLista([]); } });
     return () => { vivo = false; };
-  }, [de, ate]);
+  }, [de, ate, tick]);
 
   const daGuia = useMemo(() => (lista || []).filter((n) => n.tipo === tipo), [lista, tipo]);
   const opcoes = useMemo(() => ({
@@ -168,7 +170,7 @@ export default function NfRegistro({ user }) {
                     <td className="px-3 py-2" style={{ color: n.natureza ? C.text : C.sub }}>{n.natureza || "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {n.critica ? <span className="font-semibold whitespace-normal" style={{ color: C.red }}>{n.critica}</span>
+                      {n.critica ? <span className="font-semibold whitespace-normal" style={{ color: C.red }}>{n.critica}{!n.idCompras && <BotoesCritica user={user} n={n} onFeito={carregar} C={C} />}</span>
                         : n.acao === "REGISTRADA" ? <span style={{ color: C.sub }}>só registro</span>
                         : !n.parcelas.length ? <span style={{ color: C.sub }}>—</span>
                         : Object.entries(st).map(([s, q]) => { const [c, bg, t] = ST[s] || ST.EXCLUIDA; return <span key={s} className="mr-1 px-1.5 py-0.5 rounded" style={{ background: bg, color: c }}>{q} {t}</span>; })}
@@ -201,5 +203,24 @@ export default function NfRegistro({ user }) {
         </table>
       </div>
     </div>
+  );
+}
+
+// v365 — nota com crítica: lançar contas (vai ao contas a receber) ou vistar (tira a crítica sem lançar)
+export async function acaoCritica(user, n, acao, onFeito) {
+  if (acao === "vistar" && !confirm(`Vistar a NF ${n.numero} (${n.parceiro})?\n\nA crítica sai e a nota fica só registrada, sem conta lançada.`)) return;
+  if (acao === "lancar" && !confirm(`Lançar as contas da NF ${n.numero} (${n.parceiro}) com as parcelas do XML?`)) return;
+  const r = await fetch("/api/fiscal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: acao === "vistar" ? "vistar" : "lancarCritica", id: n.id }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(j.error || "Erro."); return; }
+  onFeito?.();
+  if (acao === "lancar") window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pagrec", rec: { tipo: n.tipo === "ENTRADA" ? "PAGAR" : "RECEBER", busca: j.busca || n.parceiro, de: j.de, ate: j.ate } } }));
+}
+export function BotoesCritica({ user, n, onFeito, C }) {
+  return (
+    <span className="inline-flex gap-1 ml-1 align-middle" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => acaoCritica(user, n, "lancar", onFeito)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Lançar contas</button>
+      <button onClick={() => acaoCritica(user, n, "vistar", onFeito)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green, background: "#fff" }}>Vistar</button>
+    </span>
   );
 }

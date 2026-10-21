@@ -444,6 +444,7 @@ export async function gravar(notas, u) {
 export const ACAO_CONTAB = "CONTABILIDADE";
 export const CRITICA_CONTAB = "NF subida por importação na contabilidade, verificar contas";
 export const ORIGEM_CONTAB = "IMPORTAÇÃO CONTABILIDADE";
+const chaveNum = (s) => String(s || "").trim().split(/[-\/ ]/)[0].replace(/^0+(?=\d)/, "");
 
 // v363 — garante no movimento fiscal as NFs dos ZIPs/XMLs de saída já enviados na contabilidade (cada arquivo só uma vez)
 export async function sincronizarSaidasContab() {
@@ -464,6 +465,27 @@ export async function sincronizarSaidasContab() {
   await prisma.finConfig.upsert({ where: { chave: K }, create: { chave: K, valor: JSON.stringify(feitos) }, update: { valor: JSON.stringify(feitos) } });
   return n;
 }
+// v365 — contas a receber já lançadas por fora do movimento fiscal (pela chave da NF ou pelo nº da NF do mesmo cliente)
+async function contasJaLancadas(n) {
+  const doc = so(n.documento);
+  const ts = await prisma.finTitulo.findMany({
+    where: { tipo: "RECEBER", status: { not: "CANCELADO" }, OR: [
+      ...(n.chave ? [{ chaveImport: { startsWith: `NFE|${n.chave}` } }] : []),
+      ...(n.numero ? [{ numeroDoc: { startsWith: String(n.numero) }, ...(doc ? { documento: doc } : {}) }, ...(doc ? [{ documento: doc, titulo: { contains: `NF ${n.numero}` } }] : [])] : []),
+    ] },
+    select: { id: true, vencimento: true, valor: true, numeroDoc: true },
+  }).catch(() => []);
+  return ts.filter((t) => !t.numeroDoc || chaveNum(t.numeroDoc) === String(n.numero))
+    .map((t, i) => ({ parcela: String(i + 1), vencimento: new Date(t.vencimento).toISOString().slice(0, 10), valor: r2(t.valor), tituloId: t.id, situacao: "LIGADA" }));
+}
+// v365 — notas com crítica da contabilidade cujas contas foram lançadas depois por fora: ligam e saem da crítica
+async function revisarCriticasContab() {
+  const l = await prisma.fiscalNota.findMany({ where: { acao: ACAO_CONTAB }, select: { id: true, chave: true, numero: true, documento: true } });
+  for (const n of l) {
+    const lig = await contasJaLancadas(n);
+    if (lig.length) await prisma.fiscalNota.update({ where: { id: n.id }, data: { acao: "LANCADA", motivo: null, parcelas: lig } });
+  }
+}
 // cria o registro (sem contas) quando a nota ainda não está no movimento fiscal; devolve "CRITICA", "REGISTRO" ou null.
 // Só nota que gera recebível ganha a crítica; cancelada, remessa e afins só ficam registradas (não têm conta).
 export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { cancelada = false } = {}) {
@@ -472,23 +494,59 @@ export async function registrarDaContabilidade(xmlTexto, nomeXml, pdf = null, { 
   const ja = await prisma.fiscalNota.findFirst({ where: { OR: [{ chaveRegistro: n.chaveRegistro }, ...(n.chave ? [{ chave: n.chave }] : [])] }, select: { id: true } });
   if (ja) return null;
   const semConta = cancelada ? "NF CANCELADA" : motivoSemConta(n.natureza, n.cfops);
+  // v365 — contas a receber já lançadas por fora do movimento fiscal (pela chave da NF ou pelo nº da NF do mesmo cliente): liga, sem crítica
+  const ligadas = semConta ? [] : await contasJaLancadas(n);
   try {
     await prisma.fiscalNota.create({ data: {
       tipo: "SAIDA", empresa: n.empresa || "MERIDIAN", modelo: n.modelo || "NF-e", chave: n.chave || null, chaveRegistro: n.chaveRegistro,
       numero: n.numero, serie: n.serie || null, emissao: n.emissao ? dataUTC(n.emissao) : null, competencia: mesDe(n.emissao),
       parceiro: n.parceiro || "SEM NOME", documento: n.documento, natureza: n.natureza || null, valor: n.valor,
-      acao: semConta ? "REGISTRADA" : ACAO_CONTAB, motivo: semConta || CRITICA_CONTAB,
+      acao: semConta ? "REGISTRADA" : ligadas.length ? "LANCADA" : ACAO_CONTAB, motivo: semConta || (ligadas.length ? null : CRITICA_CONTAB),
       xml: xmlTexto, xmlNome: nomeXml, hashXml: hashTexto(xmlTexto), temXml: true,
       ...(pdf ? { pdf: pdf.b64, pdfNome: pdf.nome, hashPdf: hashB64(pdf.b64), temPdf: true } : {}),
-      parcelas: [], criadoPorNome: ORIGEM_CONTAB,
+      parcelas: ligadas, criadoPorNome: ORIGEM_CONTAB,
     } });
-    return semConta ? "REGISTRO" : "CRITICA";
+    return semConta || ligadas.length ? "REGISTRO" : "CRITICA";
   } catch (e) { if (String(e.code) === "P2002") return null; throw e; }
+}
+
+/* ---------------- v365 — ações sobre nota com crítica ---------------- */
+// Lançar contas: refaz a importação normal com o XML guardado (parcelas do XML, rateio padrão) e grava como LANÇADA.
+export async function lancarCritica(id, u) {
+  const n0 = await prisma.fiscalNota.findUnique({ where: { id: Number(id) } });
+  if (!n0) return { error: "Nota não encontrada." };
+  if (!n0.xml) return { error: "Esta nota não tem XML guardado — importe o XML pelo movimento fiscal." };
+  const temContas = Array.isArray(n0.parcelas) && n0.parcelas.length;
+  if (n0.acao !== ACAO_CONTAB && !(n0.acao === "LANCADA" && !temContas)) return { error: "Esta nota não está com crítica." };
+  if (n0.acao !== ACAO_CONTAB) await prisma.fiscalNota.update({ where: { id: n0.id }, data: { acao: ACAO_CONTAB } });   // sem contas: pode ser substituída
+  const { notas, erros } = await analisar([{ nome: n0.xmlNome || `NF ${n0.numero}.xml`, xml: n0.xml }]);
+  const n = notas[0];
+  if (!n) return { error: erros[0] || "Não consegui ler o XML." };
+  if (n0.pdf) Object.assign(n, { pdf: n0.pdf, pdfNome: n0.pdfNome, hashPdf: n0.hashPdf });
+  n.decisao = "LANCAR";
+  n.parcelas = n.parcelas.map((p) => ({ ...p, marcado: true }));
+  const rt = validarRateio(n.rateio);
+  if (rt.erro) return { error: `Sem conta contábil padrão para este cliente (${rt.erro}). Lance pela importação do movimento fiscal escolhendo a conta.` };
+  const [r] = await gravar([n], u);
+  if (!r || r.situacao === "ERRO") return { error: r?.motivo || "Erro ao lançar." };
+  const novo = await prisma.fiscalNota.findUnique({ where: { chaveRegistro: n.chaveRegistro }, select: { id: true, parcelas: true } });
+  if (n0.criadoPorNome === ORIGEM_CONTAB && novo) await prisma.fiscalNota.update({ where: { id: novo.id }, data: { criadoPorNome: ORIGEM_CONTAB } });   // mantém a origem
+  const vencs = (Array.isArray(novo?.parcelas) ? novo.parcelas : []).map((p) => p.vencimento).filter(Boolean).sort();
+  return { ok: true, numero: n.numero, criadas: r.criadas || 0, ligadas: r.ligadas || 0, de: vencs[0] || n.emissao, ate: vencs[vencs.length - 1] || n.emissao, busca: n.parceiro };
+}
+// Vistar: tira a crítica sem lançar contas (fica só registrada, com quem vistou e quando).
+export async function vistarCritica(id, u) {
+  const n0 = await prisma.fiscalNota.findUnique({ where: { id: Number(id) }, select: { id: true, acao: true, parcelas: true } });
+  if (!n0) return { error: "Nota não encontrada." };
+  const hoje = new Date().toISOString().slice(0, 10).split("-").reverse().join("/");
+  await prisma.fiscalNota.update({ where: { id: n0.id }, data: { acao: "REGISTRADA", motivo: `VISTADA SEM CONTA POR ${nomeU(u)} EM ${hoje}` } });
+  return { ok: true };
 }
 
 /* ---------------- 3) lista e exclusão ---------------- */
 export async function listar({ de, ate, tipo, busca }) {
   await sincronizarSaidasContab().catch((e) => console.log("fiscal/sync contabilidade:", e.message));   // v363
+  await revisarCriticasContab().catch((e) => console.log("fiscal/revisar críticas:", e.message));   // v365
   const where = {};
   if (de || ate) where.emissao = { ...(de ? { gte: dataUTC(de) } : {}), ...(ate ? { lte: dataUTC(ate) } : {}) };
   if (tipo === "ENTRADA" || tipo === "SAIDA") where.tipo = tipo;

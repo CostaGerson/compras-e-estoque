@@ -8,6 +8,7 @@ import {
   Link2, Circle, CirclePlay, List, Columns3, Pencil, CalendarDays, Flag, Route as IcoRota, Truck,
 } from "lucide-react";
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
+import { BotoesCritica } from "./nfRegistro";   // v365
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -192,7 +193,7 @@ export default function MovimentoFiscal({ user }) {
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2">
                       {n.critica
-                        ? <span className="font-semibold" style={{ color: C.red }}>{n.critica}</span>
+                        ? <span className="font-semibold" style={{ color: C.red }}>{n.critica}{podeImportar(user, "contasReceber", "faturamento", "nfEntrada") && <BotoesCritica user={user} n={n} onFeito={carregar} C={C} />}</span>
                         : n.acao === "REGISTRADA"
                         ? <span className="px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }} title={n.motivo || ""}>só registro</span>
                         : <div className="flex flex-wrap gap-1">{n.parcelas.map((p, i) => {

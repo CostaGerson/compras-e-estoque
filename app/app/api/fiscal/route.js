@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { usuarioMaster, usuarioSoMaster, soMaster, negado, abrirPdf } from "@/lib/fin";
 import { senhasSalvas } from "@/lib/finImportArquivo";
-import { analisar, gravar, listar } from "@/lib/fiscal";
+import { analisar, gravar, listar, lancarCritica, vistarCritica } from "@/lib/fiscal";
 
 // GET ?u=&de=&ate=&tipo=ENTRADA|SAIDA&busca= → notas registradas no movimento fiscal
 export async function GET(req) {
@@ -21,5 +21,10 @@ export async function POST(req) {
     return Response.json(await analisar(b.arquivos || [], { abrirPdf, senhas }));
   }
   if (b.acao === "gravar") return Response.json({ ok: true, resultados: await gravar(b.notas || [], u) });
+  // v365 — nota com crítica: lançar as contas ou vistar (tirar a crítica sem conta)
+  if (b.acao === "lancarCritica" || b.acao === "vistar") {
+    const r = b.acao === "vistar" ? await vistarCritica(b.id, u) : await lancarCritica(b.id, u);
+    return Response.json(r, { status: r.error ? 400 : 200 });
+  }
   return Response.json({ error: "Ação inválida." }, { status: 400 });
 }

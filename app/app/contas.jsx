@@ -274,20 +274,20 @@ function ContaSelect({ conta, contas, onPick }) {
 }
 
 /* ============================================================ */
-export default function ContasPagarReceber({ user }) {
-  const [tipo, setTipo] = useState("PAGAR");
+export default function ContasPagarReceber({ user, inicial = null }) {
+  const [tipo, setTipo] = useState(inicial?.tipo || "PAGAR");   // v365 — pode abrir já filtrado
   const [mes, setMes] = useState(mesAtual());
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(inicial?.busca || "");
   const [fSit, setFSit] = useState("TODOS");
   const [soCompra, setSoCompra] = useState(false);
   const [soRec, setSoRec] = useState(false);   // v196: só contas recorrentes   // filtro rápido: só contas vindas de NF de compra (XML)
   const [modal, setModal] = useState(null);
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
-  const [dIni, setDIni] = useState(hojeISO());
-  const [dFim, setDFim] = useState(hojeISO());
+  const [dIni, setDIni] = useState(inicial?.de || hojeISO());
+  const [dFim, setDFim] = useState(inicial?.ate || hojeISO());
   const [sel, setSel] = useState(() => new Set());   // contas marcadas para ação em lote
   const [lote, setLote] = useState(null);             // "baixar" | "excluir"
 

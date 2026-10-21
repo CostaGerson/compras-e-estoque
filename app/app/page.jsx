@@ -182,6 +182,11 @@ export default function Home() {
   const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
   const [gestaoInicial, setGestaoInicial] = useState(null);   // v220: Matriz → Metas da Gestão direto
   useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); }, [view]);
+  // v365 — outras telas pedem para abrir o contas a pagar/receber já filtrado (ex.: NF lançada pela crítica do movimento fiscal)
+  useEffect(() => {
+    const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); } };
+    window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
+  }, []);
   const [tab, setTab] = useState("lista");
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
