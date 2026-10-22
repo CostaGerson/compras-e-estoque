@@ -10,11 +10,55 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
-  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas", "kmNfs",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas", "kmNfs", "faturamentoPendente",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 // v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
 export const ehInterno = (cliente, cnpj) => String(cnpj || "").replace(/\D/g, "").startsWith("55116246") || /\bNORT\b/i.test(String(cliente || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+
+// ---------- v391 — faturado só com as contas da NF lançadas ----------
+const semZ = (n) => String(n || "").trim().replace(/^0+(?=\d)/, "");
+const nfsDe = (s) => String(s || "").split(/[,\s]+/).map(semZ).filter(Boolean);
+// todas as NFs têm conta a receber lançada? (movimento fiscal LANÇADA com parcelas, ou título a receber com o nº da NF no documento)
+export async function contasLancadas(nums, cnpj) {
+  const lista = [...new Set((nums || []).map(semZ).filter(Boolean))];
+  if (!lista.length) return false;
+  const doc = String(cnpj || "").replace(/\D/g, "");
+  for (const n of lista) {
+    const fn = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", numero: n, acao: "LANCADA", ...(doc ? { documento: doc } : {}) }, select: { parcelas: true } });
+    if (fn.some((x) => Array.isArray(x.parcelas) && x.parcelas.some((y) => y.tituloId))) continue;
+    const ts = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, numeroDoc: { contains: n }, ...(doc ? { documento: doc } : {}) }, select: { numeroDoc: true } });
+    if (ts.some((t) => new RegExp(`(^|\\D)0*${n}(\\D|$)`).test(String(t.numeroDoc || "")))) continue;
+    return false;
+  }
+  return true;
+}
+// fatura já (contas lançadas) ou deixa pendente em andamento — "dados" é o que iria junto com status FATURADO
+export async function faturarOuPendurar(id, cnpj, dados, origem) {
+  const nums = nfsDe(dados.nfNumero);
+  if (await contasLancadas(nums, cnpj)) {
+    return prisma.pedidoVenda.update({ where: { id }, data: { ...dados, status: "FATURADO", faturamentoPendente: null } });
+  }
+  const { status, obs, atualizadoPorNome, ...resto } = dados;
+  const pend = { ...resto, faturadoEm: dados.faturadoEm ? new Date(dados.faturadoEm).toISOString().slice(0, 10) : null, origem, em: hojeISO() };
+  // saldo a faturar fica como estava: enquanto as contas não existem, o valor segue na previsão do pedido
+  return prisma.pedidoVenda.update({ where: { id }, data: { faturamentoPendente: pend,
+    ...(dados.nfsFaturadas ? { nfsFaturadas: dados.nfsFaturadas } : {}), ...(atualizadoPorNome ? { atualizadoPorNome } : {}) } });
+}
+// pendentes cujas contas já foram lançadas → FATURADO
+export async function efetivarFaturamentos() {
+  const l = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", NOT: { faturamentoPendente: { equals: null } } }, select: { id: true, cnpj: true, obs: true, faturamentoPendente: true } });
+  const feitos = [];
+  for (const p of l) {
+    const f = p.faturamentoPendente || {};
+    if (!(await contasLancadas(nfsDe(f.nfNumero), p.cnpj))) continue;
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "FATURADO", nfNumero: f.nfNumero || null, faturadoEm: f.faturadoEm ? dUTC(f.faturadoEm) : dUTC(hojeISO()),
+      vlEntregar: 0, qtEntregar: 0, faturamentoPendente: null, atualizadoPorNome: "SISTEMA",
+      obs: [p.obs, `FATURADO: NF ${f.nfNumero} COM CONTAS LANÇADAS (${f.origem || "—"})`].filter(Boolean).join(" · ").slice(0, 1000) } });
+    feitos.push(p.id);
+  }
+  return feitos;
+}
 
 // ---------- importação ----------
 export async function importarArquivos(arquivos, quem) {
@@ -141,7 +185,7 @@ export async function aplicarPosicaoVendas(l, quem) {
       const temPv = !!at.pvPdf;
       ops.push(prisma.pedidoVenda.update({ where: { id: at.id }, data: {
         ...comum,
-        ...((p.vlEntregar || 0) <= 0.009 && at.status === "ANDAMENTO" ? { status: "FATURADO", faturadoEm: at.faturadoEm || dUTC(hojeISO()) } : {}),   // v347 — saldo a faturar zerado
+        // v391 — saldo zerado no relatório não fatura sozinho: só com a NF e as contas lançadas (NF do KM / movimento fiscal)
         cliente: at.cliente && at.cliente !== "SEM CLIENTE" ? at.cliente : (p.cliente || at.cliente),
         condicao: (temPv && at.condicao) ? at.condicao : (at.condicao || p.condicao || null),
         despacho: at.despacho || (p.entrega ? dUTC(p.entrega) : null),
@@ -379,7 +423,8 @@ export async function faturarPelasNfsItens() {
           obs: [p.obs, `FATURADO PELA(S) NF ${nums} (${dataBR(nf.emissao)}) — ${porPecas ? "peças conferidas com o pedido/PCP" : modo === "PCP" ? "produtos conferidos com o PCP" : "itens conferidos com o pedido"}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }
       : { nfsFaturadas: lista, vlEntregar: r2(Math.max(0, Number(p.total) - valorFat)), qtEntregar: Math.max(0, qtdTotal - pecasFat),
           obs: [String(p.obs || "").replace(/ · PARCIALMENTE FATURADO[^·]*/g, ""), `PARCIALMENTE FATURADO: NF ${nums} — ${pecasFat} de ${qtdTotal || "?"} peças, R$ ${valorFat.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" };
-    await prisma.pedidoVenda.update({ where: { id: p.id }, data });
+    if (completo) await faturarOuPendurar(p.id, p.cnpj, data, "NF PELOS ITENS");   // v391
+    else await prisma.pedidoVenda.update({ where: { id: p.id }, data });
     Object.assign(p, data);
     usadas.add(ch);
     feitos.push({ numero: p.numero, nf: nf.numero, completo });
@@ -389,17 +434,18 @@ export async function faturarPelasNfsItens() {
 
 export async function faturarPelasNfs() {
   // v372 — primeiro pelos itens das NFs (faturamento total ou parcial); depois a regra antiga por valor para as NFs sem XML
+  await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message));   // v391 — pendentes com contas já lançadas
   const porItens = await faturarPelasNfsItens().catch((e) => { console.log("pedidos/faturar itens:", e.message); return []; });
-  const and = (await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true, nfsFaturadas: true } }))
-    .filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length));   // já casado pelos itens: não usa a regra por valor
+  const and = (await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true, nfsFaturadas: true, faturamentoPendente: true } }))
+    .filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length) && !p.faturamentoPendente);   // v391 — pendente de contas: já tem NF   // já casado pelos itens: não usa a regra por valor
   if (!and.length) return [];
   const desde = new Date(Math.min(...and.map((p) => (p.emissao ? +p.emissao : Date.now() - 400 * 86400000))));
   // v374 — NF com XML no movimento fiscal é tratada pelos itens/peças (acima); aqui só as que não têm XML
   const comXml = new Set((await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", temXml: true, emissao: { gte: desde } }, select: { chave: true } })).map((x) => x.chave).filter(Boolean));
   const nfs = (await prisma.finNfSaida.findMany({ where: { emissao: { gte: desde } }, select: { chave: true, numero: true, emissao: true, valor: true, destCnpj: true, destNome: true }, orderBy: { emissao: "asc" } }))
     .filter((n) => !comXml.has(n.chave));
-  const usadas = new Set((await prisma.pedidoVenda.findMany({ select: { nfNumero: true, nfsFaturadas: true } }))
-    .flatMap((x) => [...String(x.nfNumero || "").split(/[,\s]+/), ...(Array.isArray(x.nfsFaturadas) ? x.nfsFaturadas.map((n) => n.numero) : [])]).filter(Boolean).map((n) => String(n).replace(/^0+/, "")));
+  const usadas = new Set((await prisma.pedidoVenda.findMany({ select: { nfNumero: true, nfsFaturadas: true, faturamentoPendente: true } }))
+    .flatMap((x) => [...String(x.nfNumero || "").split(/[,\s]+/), ...String(x.faturamentoPendente?.nfNumero || "").split(/[,\s]+/), ...(Array.isArray(x.nfsFaturadas) ? x.nfsFaturadas.map((n) => n.numero) : [])]).filter(Boolean).map((n) => String(n).replace(/^0+/, "")));
   const feitos = [];
   for (const p of and) {
     const alvos = [Number(p.total), Number(p.total) + Number(p.frete || 0), p.vlEntregar != null ? Number(p.vlEntregar) : 0].filter((v) => v > 0);
@@ -409,8 +455,8 @@ export async function faturarPelasNfs() {
       && alvos.some((v) => Math.abs(Number(n.valor) - v) <= v * 0.02));
     if (!nf) continue;
     usadas.add(String(nf.numero).replace(/^0+/, ""));
-    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "FATURADO", nfNumero: String(nf.numero), faturadoEm: nf.emissao,
-      obs: [p.obs, `FATURADO PELO VALOR DA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" } });
+    await faturarOuPendurar(p.id, p.cnpj, { status: "FATURADO", nfNumero: String(nf.numero), faturadoEm: nf.emissao, vlEntregar: 0, qtEntregar: 0,
+      obs: [p.obs, `FATURADO PELO VALOR DA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }, "NF PELO VALOR");   // v391
     feitos.push({ numero: p.numero, nf: nf.numero });
   }
   return [...porItens, ...feitos];
@@ -492,6 +538,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     porMes: (() => { const m = {}; for (const p of and) for (const x of p.previsao.parcelas) { const c = x.data.slice(0, 7); m[c] = r2((m[c] || 0) + x.valor); } return Object.entries(m).sort().map(([c, v]) => ({ competencia: c, valor: v })); })(),
   };
   resumo.qtdSemCrono = and.filter((p) => !p.entregaPrevista).length;
+  resumo.qtdNfSemContas = and.filter((p) => p.faturamentoPendente).length;   // v391 — NF emitida, contas não lançadas
   resumo.qtdForaPcp = ocultos.length;   // v389 — antigos fora do PCP, ocultos
   resumo.foraPcp = ocultos.map((p) => p.numero);
   resumo.qtdInternos = pedidos.filter((p) => p.status === "ANDAMENTO" && p.interno).length;

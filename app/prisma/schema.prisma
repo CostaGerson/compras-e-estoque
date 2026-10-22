@@ -1759,6 +1759,7 @@ model PedidoVenda {
   nfNumero      String?
   faturadoEm    DateTime? @db.Date
   kmNfs         Json?                       // v387 — NFs de saída do pedido no KM (livsaida): [{ numero, emissao, valor }]
+  faturamentoPendente Json?                   // v391 — NF emitida, contas ainda não lançadas: { nfNumero, faturadoEm, nfs, origem, obs, vlEntregar, qtEntregar, nfsFaturadas }
   entradaAbatidaNfs Json?                     // v387 — quanto da entrada cada NF já abateu: [{ nf, valor, em }]
   nfsFaturadas  Json?                       // v372 — NFs de saída casadas pelos itens: [{ chave, numero, emissao, valor, pecas, itens: { codigo: qtd } }]
   entregaPrevista DateTime? @db.Date        // Cronograma (Maycon) — quando houver

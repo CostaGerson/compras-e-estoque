@@ -4,7 +4,7 @@
 // · pedido sem mudança desde o último envio é ignorado (hash em KmPedido)
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { aplicarLidos, entradaAutomatica, QUEM_KM } from "@/lib/pedidos";
+import { aplicarLidos, entradaAutomatica, QUEM_KM, faturarOuPendurar, contasLancadas } from "@/lib/pedidos";
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const n0 = (v) => (v == null || v === "" ? null : Number(v));
@@ -101,10 +101,30 @@ export function mapearPedido(k) {
   return { pv, pp, extra };
 }
 
-const hashDe = (o) => createHash("sha256").update("v390|" + JSON.stringify(o)).digest("hex");   // trocar o prefixo reprocessa todos uma vez
+const hashDe = (o) => createHash("sha256").update("v391|" + JSON.stringify(o)).digest("hex");   // trocar o prefixo reprocessa todos uma vez
+
+// v391 — uma vez: o que a integração marcou FATURADO sem as contas lançadas volta para em andamento (pendente de contas)
+const K_REV = "KM_REVISAO_V391";
+export async function revisarFaturadosKm() {
+  if (await prisma.finConfig.findUnique({ where: { chave: K_REV } })) return 0;
+  const l = await prisma.pedidoVenda.findMany({ where: { status: "FATURADO", atualizadoPorNome: QUEM_KM, updatedAt: { gte: new Date("2026-10-22T00:00:00-03:00") } },
+    select: { id: true, cnpj: true, total: true, nfNumero: true, kmNfs: true, faturadoEm: true } });
+  let n = 0;
+  for (const p of l) {
+    const nums = String(p.nfNumero || "").split(/[,\s]+/).filter(Boolean).concat((Array.isArray(p.kmNfs) ? p.kmNfs : []).map((x) => x.numero));
+    if (nums.length && await contasLancadas(nums, p.cnpj)) continue;
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "ANDAMENTO", vlEntregar: Number(p.total) || 0,
+      faturamentoPendente: { nfNumero: [...new Set(nums)].join(", ") || null, faturadoEm: p.faturadoEm ? p.faturadoEm.toISOString().slice(0, 10) : null, origem: "KM (REVISÃO)" },
+      nfNumero: null, faturadoEm: null } });
+    n++;
+  }
+  await prisma.finConfig.create({ data: { chave: K_REV, valor: JSON.stringify({ em: new Date().toISOString(), revertidos: n }) } });
+  return n;
+}
 
 // ---------- aplica um lote vindo do agente ----------
 export async function sincronizarKm(pedidos, { previa = false } = {}) {
+  if (!previa) { try { await revisarFaturadosKm(); } catch (e) { console.log("km/revisao:", e.message); } }
   const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero);
   const nums = lista.map((k) => String(k.numero).trim());
   const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } },
@@ -150,7 +170,7 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
   }
   for (const p of posAplicar) {
     if (!p.so) {
-      const at = await prisma.pedidoVenda.findUnique({ where: { numero: p.numero }, select: { id: true, status: true, faturadoEm: true, fonte: true, total: true, nfNumero: true, interno: true } });
+      const at = await prisma.pedidoVenda.findUnique({ where: { numero: p.numero }, select: { id: true, status: true, faturadoEm: true, fonte: true, total: true, nfNumero: true, interno: true, cnpj: true } });
       if (at) {
         const e = p.extra;
         const data = { qtEntregar: e.qtEntregar, vlEntregar: e.vlEntregar, kmNfs: e.nfs, fonte: at.fonte && at.fonte.includes("KM") ? at.fonte : (at.fonte ? `${at.fonte}+KM` : "KM") };
@@ -160,14 +180,16 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
           const somaNfs = r2((e.nfs || []).reduce((s, x) => s + (Number(x.valor) || 0), 0));
           const cobre = (e.nfs || []).length && Number(at.total) > 0 && somaNfs >= Number(at.total) * 0.98;
           if (e.vlEntregar <= 0.009 || cobre) {
+            // v391 — só vira FATURADO com as contas das NFs lançadas; senão fica pendente ("NF emitida — lançar as contas")
             const ult = (e.nfs || []).map((x) => x.emissao).filter(Boolean).sort().pop() || e.ultFaturamento;
-            data.status = "FATURADO"; data.faturadoEm = at.faturadoEm || (ult ? dUTC(ult) : new Date());
-            if (!at.nfNumero && (e.nfs || []).length) data.nfNumero = e.nfs.map((x) => x.numero).join(", ").slice(0, 190);
-            if (cobre) { data.vlEntregar = 0; data.qtEntregar = 0; }
-            res.faturados++;
+            delete data.vlEntregar; delete data.qtEntregar;   // saldo só zera quando faturar de fato (contas lançadas)
+            data._fat = { nfNumero: (e.nfs || []).map((x) => x.numero).join(", ").slice(0, 190) || at.nfNumero || null,
+              faturadoEm: at.faturadoEm || (ult ? dUTC(ult) : new Date()), vlEntregar: 0, qtEntregar: 0, atualizadoPorNome: QUEM_KM };
           }
         }
+        const fat = data._fat; delete data._fat;
         await prisma.pedidoVenda.update({ where: { id: at.id }, data });
+        if (fat) { const r = await faturarOuPendurar(at.id, at.cnpj, fat, "KM"); if (r?.status === "FATURADO") { res.faturados++; data.status = "FATURADO"; } else res.pendentesContas = (res.pendentesContas || 0) + 1; }
         if (p.novo) res.novos++; else res.atualizados++;
         if (!data.status) {
           try { const e2 = await entradaAutomatica(p.numero); if (e2) res.entradas++; } catch (e) { res.erros.push(`${p.numero}: entrada — ${e.message}`); }
@@ -176,6 +198,7 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
     }
     await prisma.kmPedido.upsert({ where: { numero: p.numero }, create: { numero: p.numero, hash: p.hash }, update: { hash: p.hash } });
   }
+  try { const { efetivarFaturamentos } = await import("@/lib/pedidos"); res.faturados += (await efetivarFaturamentos()).length; } catch (e) { res.erros.push(`efetivar: ${e.message}`); }
   await prisma.kmSyncLog.create({ data: { recebidos: res.recebidos, novos: res.novos, atualizados: res.atualizados, iguais: res.iguais, entradas: res.entradas,
     erros: res.erros.length ? res.erros.slice(0, 50).join("\n") : null } });
   return res;

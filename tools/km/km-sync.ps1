@@ -1,4 +1,4 @@
-# v390 - Agente KM -> Compras & Estoque (Meridian)
+# v391 - Agente KM -> Compras & Estoque (Meridian)
 # Le os pedidos do banco do KM (somente leitura, usuario de consulta) e envia para o sistema na VPS.
 #
 # Uso (PowerShell, dentro de C:\projetos\compras-e-estoque\tools\km):
@@ -106,6 +106,6 @@ if ($Previa) {
   Log ("PREVIA: {0} recebidos, {1} ignorados (sem saldo/cancelados) -> {2}" -f $r.recebidos, $r.ignorados, $arq)
   notepad $arq
 } else {
-  Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} cancelados{7}" -f `
-    $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }))
+  Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados{8}" -f `
+    $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }))
 }
