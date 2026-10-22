@@ -474,7 +474,9 @@ export async function listarPedidos({ competencia, todos = false, comOcultos = f
   const lista0 = await prisma.pedidoVenda.findMany({ where: todos ? {} : { status: "ANDAMENTO" }, orderBy: [{ despacho: "asc" }, { numero: "asc" }], select: CAMPOS });
   // v389 — o PCP do Maycon é a referência: pedido antigo (antes da integração com o KM) em andamento que não está no Cronograma não aparece
   const desdeKm = process.env.KM_ENTRADA_DESDE || "2026-10-22";
-  const foraPcp = (p) => p.status === "ANDAMENTO" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desdeKm);
+  // v397 — "antigo" = já estava no sistema antes da integração (ou veio na 1ª carga); pedido que o KM trouxe depois aparece mesmo com data antiga
+  const novoNoKm = (p) => p.createdAt && new Date(p.createdAt) >= KM_INICIO;
+  const foraPcp = (p) => p.status === "ANDAMENTO" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && !novoNoKm(p) && (!p.emissao || iso(p.emissao) < desdeKm);
   const ocultos = lista0.filter(foraPcp);
   // v393 — comOcultos: a tela recebe os antigos fora do PCP marcados (oculto) para listá-los ao clicar no aviso; ficam fora dos totais
   const lista = todos ? lista0 : comOcultos ? lista0.map((p) => (foraPcp(p) ? { ...p, oculto: true } : p)) : lista0.filter((p) => !foraPcp(p));
@@ -594,12 +596,14 @@ export const excluirPedido = (id) => prisma.pedidoVenda.delete({ where: { id: Nu
 // · já existe e foi lançada pelo KM, em aberto, com valor diferente → atualiza o valor e volta a crítica
 // · entrada cancelada à mão não volta; pedido interno / sem entrada na condição não lança
 export const QUEM_KM = "KM (AUTOMÁTICO)";
+// v397 — fim da 1ª carga do KM (22/10/2026 13:09): o que foi criado depois é pedido novo de verdade
+export const KM_INICIO = new Date(process.env.KM_INICIO || "2026-10-22T16:15:00Z");
 export async function entradaAutomatica(numero) {
-  const p = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, numero: true, status: true, interno: true, total: true, condicao: true, entradaValor: true, emissao: true, criadoPorNome: true } });
+  const p = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, numero: true, status: true, interno: true, total: true, condicao: true, entradaValor: true, emissao: true, criadoPorNome: true, createdAt: true } });
   if (!p || p.interno || p.status !== "ANDAMENTO" || p.criadoPorNome !== QUEM_KM) return null;   // só pedido cadastrado pelo KM (os antigos, do PDF, ficam como estão)
   // só pedidos emitidos depois que a integração começou (os antigos que chegaram na 1ª carga podem já ter a entrada recebida)
-  const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
-  if (!p.emissao || iso(p.emissao) < desde) return null;
+  // v397 — pedido criado pelo KM depois da 1ª carga (a data de emissão pode ser anterior: o PV às vezes é lançado com data de dias atrás)
+  if (!p.createdAt || new Date(p.createdAt) < KM_INICIO) return null;
   // entrada lançada à mão com outro título ("PEDIDO 26080045 …") também conta
   const mao = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", titulo: { contains: `PEDIDO ${p.numero}` }, NOT: { chaveImport: chaveEntrada(p.numero) } }, select: { id: true } });
   if (mao) return null;
