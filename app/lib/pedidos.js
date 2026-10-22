@@ -463,7 +463,7 @@ export async function faturarPelasNfs() {
 }
 
 // ---------- painel ----------
-export async function listarPedidos({ competencia, todos = false } = {}) {
+export async function listarPedidos({ competencia, todos = false, comOcultos = false } = {}) {
   // v317 — programação do Cronograma (no máximo a cada 10 min; erro não impede o painel)
   let crono = null; try { crono = await sincronizar(); } catch (e) { crono = { ok: false, erro: e.message }; }
   const hoje = hojeISO();
@@ -476,7 +476,8 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
   const desdeKm = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   const foraPcp = (p) => p.status === "ANDAMENTO" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desdeKm);
   const ocultos = lista0.filter(foraPcp);
-  const lista = todos ? lista0 : lista0.filter((p) => !foraPcp(p));
+  // v393 — comOcultos: a tela recebe os antigos fora do PCP marcados (oculto) para listá-los ao clicar no aviso; ficam fora dos totais
+  const lista = todos ? lista0 : comOcultos ? lista0.map((p) => (foraPcp(p) ? { ...p, oculto: true } : p)) : lista0.filter((p) => !foraPcp(p));
   // PDFs: só se existem (sem carregar o conteúdo)
   const ids = lista.map((p) => p.id);
   const comPv = new Set(ids.length ? (await prisma.pedidoVenda.findMany({ where: { id: { in: ids }, pvPdf: { not: null } }, select: { id: true } })).map((x) => x.id) : []);
@@ -500,7 +501,8 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     const noMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) === comp).reduce((s, x) => s + x.valor, 0));
     const foraMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) > comp).reduce((s, x) => s + x.valor, 0));
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));
-    return { ...p, total: r2(p.total), entradaValor: p.entradaValor != null ? r2(p.entradaValor) : null, frete: p.frete != null ? r2(p.frete) : null,
+    return { ...p, total: r2(p.total), vlEntregar: p.vlEntregar != null ? r2(p.vlEntregar) : null,   // v393 — Decimal → número (o card somava texto e dava 0)
+      entradaValor: p.entradaValor != null ? r2(p.entradaValor) : null, frete: p.frete != null ? r2(p.frete) : null,
       emissao: iso(p.emissao), despacho: iso(p.despacho), entregaPrevista: iso(p.entregaPrevista), faturadoEm: iso(p.faturadoEm), cronoPrazo: iso(p.cronoPrazo), cronoFimProgramado: iso(p.cronoFimProgramado),
       // v388 — vindo do KM conta como PV/PP (o PDF é só um dos meios); os links continuam só quando há PDF
       pdfPv: comPv.has(p.id), pdfPp: comPp.has(p.id),
@@ -509,7 +511,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
       previsao: prev, noMes, foraMes, antes,
       nfSugerida: nfSugerida ? { numero: nfSugerida.numero, emissao: iso(nfSugerida.emissao), valor: r2(nfSugerida.valor) } : null };
   });
-  const and = pedidos.filter((p) => p.status === "ANDAMENTO" && !p.interno);   // v323 — internos (NORT) fora dos totais
+  const and = pedidos.filter((p) => p.status === "ANDAMENTO" && !p.interno && !p.oculto);   // v323 — internos (NORT) fora dos totais
   const soma = (l, f) => r2(l.reduce((s, p) => s + f(p), 0));
   const resumo = {
     competencia: comp, hoje,
@@ -541,7 +543,7 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
   resumo.qtdNfSemContas = and.filter((p) => p.faturamentoPendente).length;   // v391 — NF emitida, contas não lançadas
   resumo.qtdForaPcp = ocultos.length;   // v389 — antigos fora do PCP, ocultos
   resumo.foraPcp = ocultos.map((p) => p.numero);
-  resumo.qtdInternos = pedidos.filter((p) => p.status === "ANDAMENTO" && p.interno).length;
+  resumo.qtdInternos = pedidos.filter((p) => p.status === "ANDAMENTO" && p.interno && !p.oculto).length;
   return { resumo, pedidos, crono };
 }
 

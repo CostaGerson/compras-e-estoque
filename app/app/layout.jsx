@@ -1,4 +1,5 @@
 import "./globals.css";
+import OrdenarTabelas from "./ordenarTabelas";
 
 export const metadata = {
   title: "Compras & Estoque — Meridian",
@@ -8,7 +9,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>{children}<OrdenarTabelas /></body>
     </html>
   );
 }

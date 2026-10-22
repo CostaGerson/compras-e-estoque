@@ -18,7 +18,7 @@ export async function GET(req) {
     if (!f) return Response.json({ error: "PDF não encontrado." }, { status: 404 });
     return new Response(f.buf, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${f.nome}"` } });
   }
-  try { return Response.json(await listarPedidos({ competencia: q.get("competencia") || undefined, todos: q.get("todos") === "1" })); }
+  try { return Response.json(await listarPedidos({ competencia: q.get("competencia") || undefined, todos: q.get("todos") === "1", comOcultos: q.get("ocultos") === "1" })); }
   catch (e) { return erro(e); }
 }
 

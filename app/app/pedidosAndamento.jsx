@@ -28,9 +28,10 @@ export default function PedidosAndamento({ user }) {
   const [resultado, setResultado] = useState(null);
   const [aberto, setAberto] = useState(null);
   const [filtro, setFiltro] = useState("");
+  const [vista, setVista] = useState(null);   // v393 — card/aviso clicado: a lista mostra só os pedidos dele
   const inp = useRef(null);
 
-  const carregar = () => fetch(`/api/fin/pedidos?u=${user.id}&competencia=${comp}${todos ? "&todos=1" : ""}`)
+  const carregar = () => fetch(`/api/fin/pedidos?u=${user.id}&competencia=${comp}&ocultos=1${todos ? "&todos=1" : ""}`)
     .then((r) => r.json().then((j) => (r.ok ? (setD(j), setErro("")) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
   useEffect(() => { carregar(); }, [comp, todos]);
   // v319 — colar (Ctrl+V) PDFs copiados do Explorer/e-mail em qualquer lugar da tela
@@ -77,9 +78,31 @@ export default function PedidosAndamento({ user }) {
   const salvarConexao = async () => { setSinc(true); await post({ acao: "crono-config", url: conex.url, token: conex.token || undefined }); setConex(null); await carregar(); setSinc(false); };
   const verDiag = async () => { setDiag({ carregando: true }); const r = await fetch(`/api/fin/pedidos?u=${user.id}&acao=crono-diag`); setDiag(await r.json()); };
   const R = d?.resumo;
+  const normal = (p) => !p.oculto && !p.interno;
   const CR = d?.crono;
   const f = filtro.trim().toUpperCase();
-  const lista = (d?.pedidos || []).filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f))
+  const VISTAS = {
+    andamento: ["Pedidos em andamento · a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && (p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009],
+    noMes: [`A receber em ${curto(comp)}`, (p) => normal(p) && p.noMes > 0.009],
+    foraMes: ["Fora do mês", (p) => normal(p) && p.foraMes > 0.009],
+    antes: ["Antes do mês", (p) => normal(p) && p.antes > 0.009],
+    entLancadas: ["Entradas já lançadas", (p) => normal(p) && p.previsao.entradaLancada > 0.009],
+    entPendentes: ["Entradas a lançar", (p) => normal(p) && p.previsao.parcelas.some((x) => x.pendente)],
+    reprogPcp: ["Programação vencida no Cronograma", (p) => normal(p) && p.previsao.reprogramar === "PCP"],
+    reprogDespacho: ["Entrega vencida", (p) => normal(p) && p.previsao.reprogramar === "DESPACHO"],
+    internos: ["Internos NORT", (p) => !p.oculto && p.interno && p.status === "ANDAMENTO"],
+    prontosSemNf: ["Concluídos no PCP sem NF no KM", (p) => normal(p) && p.previsao.pronto && !(p.kmNfs || []).length],
+    prontosComNf: ["Concluídos no PCP com NF parcial no KM", (p) => normal(p) && p.previsao.pronto && (p.kmNfs || []).length > 0],
+    semCondicao: ["Condição não reconhecida", (p) => normal(p) && !p.previsao.condicaoOk],
+    nfSemContas: ["NF emitida no KM — subir NF", (p) => normal(p) && !!p.faturamentoPendente],
+    foraPcp: ["Antigos fora do PCP do Maycon (ocultos)", (p) => !!p.oculto],
+    semPv: ["Sem PV", (p) => normal(p) && !p.temPv],
+    semCrono: ["Sem programação no Cronograma", (p) => normal(p) && !p.entregaPrevista],
+    nfSugerida: ["Com NF de saída que parece ser o faturamento", (p) => normal(p) && !!p.nfSugerida],
+  };
+  const tog = (k) => setVista(vista === k ? null : k);
+  const base = (d?.pedidos || []).filter(vista && VISTAS[vista] ? VISTAS[vista][1] : (p) => !p.oculto && !(p.interno && p.status === "ANDAMENTO"));
+  const lista = base.filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f))
     .map((p, i) => [p, i]).sort((a, b) => (b[0].previsao.atrasado ? 1 : 0) - (a[0].previsao.atrasado ? 1 : 0) || a[1] - b[1]).map(([p]) => p);   // v322 — vencidos no topo
 
   return (
@@ -153,27 +176,27 @@ export default function PedidosAndamento({ user }) {
         <>
           {/* painel de previsão de receitas */}
           <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-            <Kpi t="Pedidos em andamento · a faturar" v={moeda(R.totalAndamento)} cor={C.navy}
+            <Kpi onClick={() => tog("andamento")} ativo={vista === "andamento"} t="Pedidos em andamento · a faturar" v={moeda(R.totalAndamento)} cor={C.navy}
               s={`${R.qtdPedidos} pedido(s) · ${R.pecas.toLocaleString("pt-BR")} peças a entregar${R.totalBruto != null && Math.abs(R.totalBruto - R.totalAndamento) > 0.01 ? ` · bruto ${moeda(R.totalBruto)}` : ""}${R.qtdSemSaldo ? ` · ${R.qtdSemSaldo} sem saldo` : ""}`} />
-            <Kpi t={`A receber em ${curto(comp)}`} v={moeda(R.noMes)} s="entradas a lançar + parcelas que vencem no mês" cor={C.green} />
-            <Kpi t="Fora do mês" v={moeda(R.foraMes)} s={`parcelas depois de ${curto(comp)}`} cor={C.blue} />
-            <Kpi t="Entradas já lançadas" v={moeda(R.entradasLancadas)} s="estão no contas a receber" cor={C.sub} />
-            <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
-            {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
+            <Kpi onClick={() => tog("noMes")} ativo={vista === "noMes"} t={`A receber em ${curto(comp)}`} v={moeda(R.noMes)} s="entradas a lançar + parcelas que vencem no mês" cor={C.green} />
+            <Kpi onClick={() => tog("foraMes")} ativo={vista === "foraMes"} t="Fora do mês" v={moeda(R.foraMes)} s={`parcelas depois de ${curto(comp)}`} cor={C.blue} />
+            <Kpi onClick={() => tog("entLancadas")} ativo={vista === "entLancadas"} t="Entradas já lançadas" v={moeda(R.entradasLancadas)} s="estão no contas a receber" cor={C.sub} />
+            <Kpi onClick={() => tog("entPendentes")} ativo={vista === "entPendentes"} t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
+            {R.antes > 0 && <Kpi onClick={() => tog("antes")} ativo={vista === "antes"} t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
           {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || R.qtdForaPcp || R.qtdNfSemContas || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
-              {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — reprogramar no Cronograma (contam de hoje)</Aviso>}
-              {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida — programar no Cronograma (contam de hoje)</Aviso>}
-              {R.qtdInternos > 0 && <Aviso cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da previsão e sem contas</Aviso>}
-              {R.qtdProntosSemNf > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntosSemNf} concluído(s) no PCP sem NF no KM — faturar</Aviso>}
-              {R.qtdProntosComNf > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdProntosComNf} concluído(s) no PCP com NF parcial no KM — conferir o saldo</Aviso>}
-              {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
-              {R.qtdNfSemContas > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSemContas} com NF emitida no KM — suba a NF no movimento fiscal para faturar</Aviso>}
-              {R.qtdForaPcp > 0 && <Aviso cor={C.sub} bg={C.panel2}><span title={(R.foraPcp || []).join(", ")}>{R.qtdForaPcp} pedido(s) antigo(s) fora do PCP do Maycon — ocultos</span></Aviso>}
-              {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
-              {R.qtdSemCrono > 0 && CR?.temToken && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
-              {R.qtdNfSugerida > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
+              {R.qtdReprogPcp > 0 && <Aviso onClick={() => tog("reprogPcp")} ativo={vista === "reprogPcp"} cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — reprogramar no Cronograma (contam de hoje)</Aviso>}
+              {R.qtdReprogDespacho > 0 && <Aviso onClick={() => tog("reprogDespacho")} ativo={vista === "reprogDespacho"} cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida — programar no Cronograma (contam de hoje)</Aviso>}
+              {R.qtdInternos > 0 && <Aviso onClick={() => tog("internos")} ativo={vista === "internos"} cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da lista, da previsão e sem contas</Aviso>}
+              {R.qtdProntosSemNf > 0 && <Aviso onClick={() => tog("prontosSemNf")} ativo={vista === "prontosSemNf"} cor={C.green} bg={C.greenSoft}>{R.qtdProntosSemNf} concluído(s) no PCP sem NF no KM — faturar</Aviso>}
+              {R.qtdProntosComNf > 0 && <Aviso onClick={() => tog("prontosComNf")} ativo={vista === "prontosComNf"} cor={C.blue} bg={C.blueSoft}>{R.qtdProntosComNf} concluído(s) no PCP com NF parcial no KM — conferir o saldo</Aviso>}
+              {R.qtdSemCondicao > 0 && <Aviso onClick={() => tog("semCondicao")} ativo={vista === "semCondicao"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
+              {R.qtdNfSemContas > 0 && <Aviso onClick={() => tog("nfSemContas")} ativo={vista === "nfSemContas"} cor={C.blue} bg={C.blueSoft}>{R.qtdNfSemContas} com NF emitida no KM — suba a NF no movimento fiscal para faturar</Aviso>}
+              {R.qtdForaPcp > 0 && <Aviso onClick={() => tog("foraPcp")} ativo={vista === "foraPcp"} cor={C.sub} bg={C.panel2}><span title={(R.foraPcp || []).join(", ")}>{R.qtdForaPcp} pedido(s) antigo(s) fora do PCP do Maycon — ocultos</span></Aviso>}
+              {R.qtdSemPv > 0 && <Aviso onClick={() => tog("semPv")} ativo={vista === "semPv"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
+              {R.qtdSemCrono > 0 && CR?.temToken && <Aviso onClick={() => tog("semCrono")} ativo={vista === "semCrono"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
+              {R.qtdNfSugerida > 0 && <Aviso onClick={() => tog("nfSugerida")} ativo={vista === "nfSugerida"} cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
             </div>
           )}
           {R.porMes.length > 0 && (
@@ -191,6 +214,12 @@ export default function PedidosAndamento({ user }) {
             </div>
           )}
 
+          {vista && VISTAS[vista] && (
+            <div className="flex items-center gap-2 mb-2 text-xs">
+              <span className="px-2.5 py-1 rounded-full font-semibold" style={{ background: C.navy, color: "#fff" }}>Mostrando: {VISTAS[vista][0]} · {lista.length}</span>
+              <button onClick={() => setVista(null)} className="flex items-center gap-1 px-2 py-1 rounded-lg font-semibold" style={{ color: C.sub, border: `1px solid ${C.line}` }}><X size={12} /> mostrar todos</button>
+            </div>
+          )}
           {/* pedidos */}
           <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <table className="w-full text-xs">
@@ -227,7 +256,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer" style={{ height: 52, borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
+      <tr onClick={onToggle} data-chave={p.id} className="cursor-pointer" style={{ height: 52, borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
         {/* v376 — linha de altura fixa: no máximo 2 linhas (cliente + um aviso); o resto aparece ao abrir o pedido */}
@@ -269,7 +298,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         </td>
       </tr>
       {aberto && (
-        <tr style={{ background: C.panel2 }}>
+        <tr data-anexo={p.id} style={{ background: C.panel2 }}>
           <td colSpan={13} className="px-4 pb-4 pt-1">
             <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(320px, 1fr) minmax(320px, 1.4fr)" }}>
               {/* financeiro */}
@@ -408,14 +437,17 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   );
 }
 
-function Kpi({ t, v, s, cor }) {
+function Kpi({ t, v, s, cor, onClick, ativo }) {
   return (
-    <div className="rounded-xl px-3 py-2.5" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${cor}` }}>
+    <div onClick={onClick} title={onClick ? "Clique para ver os pedidos deste card" : undefined} className={`rounded-xl px-3 py-2.5 ${onClick ? "cursor-pointer hover:shadow-sm" : ""}`}
+      style={{ background: ativo ? C.accentSoft : C.panel, border: `1px solid ${ativo ? C.accent : C.line}`, borderLeft: `3px solid ${cor}` }}>
       <div className="text-[10px] font-semibold uppercase tracking-wide truncate" style={{ color: C.sub }}>{t}</div>
       <div className="font-bold whitespace-nowrap tabular-nums" style={{ color: cor, fontSize: "clamp(14px, 1.15vw, 18px)" }}>{v}</div>
       {s && <div className="text-[10px]" style={{ color: C.sub }}>{s}</div>}
     </div>
   );
 }
-const Aviso = ({ cor, bg, children }) => <span className="flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold" style={{ color: cor, background: bg }}><AlertTriangle size={11} /> {children}</span>;
+const Aviso = ({ cor, bg, children, onClick, ativo }) => <span onClick={onClick} title={onClick ? "Clique para ver estes pedidos" : undefined}
+  className={`flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
+  style={{ color: cor, background: bg, outline: ativo ? `2px solid ${cor}` : "none" }}><AlertTriangle size={11} /> {children}</span>;
 const Botao = ({ cor, onClick, children }) => <button onClick={onClick} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold" style={{ color: cor, border: `1px solid ${cor}`, background: C.panel }}>{children}</button>;
