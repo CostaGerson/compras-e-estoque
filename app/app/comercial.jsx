@@ -243,6 +243,7 @@ function fichaVazia(tipo) {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
     negociacao: "",
     nomeArtigo: "", nomeArtigoForro: "",
+    artigoDet: null, artigoForroDet: null,   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
     mpValor: "", forroValor: "", consumoForro: "",   // v208: consumo do forro (m/peça) — vazio = estimado pelo fator
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
@@ -416,7 +417,7 @@ function Fpp({ user, master }) {
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -541,10 +542,12 @@ function Fpp({ user, master }) {
 
             <Card title="Matéria-prima">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Inp label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} value={f.nomeArtigo} onChange={(v) => set("nomeArtigo", v.toUpperCase())} text placeholder="Nome do artigo" />
+                <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
+                  onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
                 <Inp label={tipo === "MALHA" ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
                 <Ref label={tipo === "MALHA" ? "Rendimento (peças/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                {tipo === "PLANO" && <Inp label="Artigo (forro)" value={f.nomeArtigoForro} onChange={(v) => set("nomeArtigoForro", v.toUpperCase())} text placeholder="Nome do artigo do forro" />}
+                {tipo === "PLANO" && <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
+                  onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />}
                 {tipo === "PLANO" && <Inp label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />}
                 {tipo === "PLANO" && <Inp label="Consumo do forro (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
                   placeholder={r ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")} — informe o real` : ""} />}
@@ -1751,6 +1754,77 @@ function SeletorOrigem({ interno, onChange }) {
         <span style={{ position: "absolute", top: 3, left: interno ? 23 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.3)" }} />
       </button>
       <button type="button" onClick={() => onChange(true)} className="font-semibold" style={{ color: interno ? C.blue : C.sub }}>Interno</button>
+    </div>
+  );
+}
+
+/* v404 — nome do artigo + botão "+" com o detalhe (fornecedor, cor, código, largura; malha: rendimento e ramada/tubular).
+   Preenchido, o artigo entra no cadastro de Artigos com origem FPP ao salvar a ficha. Campo vazio não distingue um artigo do outro. */
+let _fornCache = null;
+function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
+  const [aberto, setAberto] = useState(false);
+  const d = det || {};
+  const resumo = [d.fornecedorNome, d.cor, d.codigo, d.largura ? `${d.largura} m larg.` : null, categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null].filter(Boolean);
+  const cheio = !!(d.fornecedorId && d.cor && d.codigo && d.largura && (categoria !== "MALHA" || (d.rendimento && d.tipoMalha)));
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <div className="flex gap-1">
+        <input value={nome || ""} onChange={(e) => onNome(e.target.value)} placeholder="Nome do artigo"
+          className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+        <button type="button" onClick={() => setAberto(true)} title="Fornecedor, cor, código e largura do artigo"
+          className="px-2 rounded text-sm font-bold" style={{ background: resumo.length ? (cheio ? C.greenSoft || "#E7F6EE" : C.accentSoft) : C.panel2, color: resumo.length ? (cheio ? C.green : C.accent) : C.sub, border: `1px solid ${resumo.length ? (cheio ? C.green : C.accent) : C.line}` }}>+</button>
+      </div>
+      {resumo.length > 0 && <div className="text-[11px] mt-0.5 truncate" style={{ color: C.sub }} title={resumo.join(" · ")}>{resumo.join(" · ")}</div>}
+      {aberto && <ArtigoDetModal nome={nome} det={d} categoria={categoria} onClose={() => setAberto(false)} onSalvar={(x) => { onDet(x); setAberto(false); }} />}
+    </div>
+  );
+}
+function ArtigoDetModal({ nome, det, categoria, onClose, onSalvar }) {
+  const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "" });
+  const [forns, setForns] = useState(_fornCache || []);
+  useEffect(() => { if (!_fornCache) fetch("/api/fornecedores").then((r) => r.json()).then((l) => { _fornCache = Array.isArray(l) ? l : []; setForns(_fornCache); }).catch(() => {}); }, []);
+  const s = (k, v) => setX((o) => ({ ...o, [k]: v }));
+  const campo = (lbl, k, ph) => (
+    <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>{lbl}</div>
+      <input value={x[k]} onChange={(e) => s(k, k === "cor" || k === "codigo" ? e.target.value.toUpperCase() : e.target.value)} placeholder={ph || ""}
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} /></label>
+  );
+  const salvar = () => {
+    const out = { ...(det.artigoId ? { artigoId: det.artigoId } : {}) };
+    for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
+    if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
+    onSalvar(Object.keys(out).length ? out : null);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>{categoria === "MALHA" ? "Malha" : "Tecido"} · {nome || "sem nome"}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-4 grid grid-cols-2 gap-3">
+          <label className="block col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
+            <select value={x.fornecedorId} onChange={(e) => { const f = forns.find((o) => String(o.id) === e.target.value); setX((o) => ({ ...o, fornecedorId: e.target.value ? Number(e.target.value) : "", fornecedorNome: f ? f.nome : "" })); }}
+              className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+              <option value="">—</option>
+              {forns.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select></label>
+          {campo("Cor", "cor", "ex.: CINZA")}
+          {campo("Código", "codigo", "ex.: 8047")}
+          {campo("Largura (m)", "largura", "ex.: 1,60")}
+          {categoria === "MALHA" && campo("Rendimento da malha (m/kg)", "rendimento", "ex.: 2,8")}
+          {categoria === "MALHA" && (
+            <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Tipo da malha</div>
+              <div className="flex gap-2">{["RAMADA", "TUBULAR"].map((t) => (
+                <button key={t} type="button" onClick={() => s("tipoMalha", x.tipoMalha === t ? "" : t)} className="flex-1 py-1.5 rounded text-sm font-semibold"
+                  style={{ background: x.tipoMalha === t ? C.accent : C.panel2, color: x.tipoMalha === t ? "#fff" : C.sub, border: `1px solid ${x.tipoMalha === t ? C.accent : C.line}` }}>{t === "RAMADA" ? "Ramada" : "Tubular"}</button>
+              ))}</div></div>
+          )}
+          <div className="col-span-2 text-[11px]" style={{ color: C.sub }}>Ao salvar a FPP, o artigo entra no cadastro de Artigos (origem: FPP). Campo em branco não separa este artigo de outro com o mesmo nome — compras pode juntar os volumes.</div>
+          <button onClick={salvar} className="col-span-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Aplicar</button>
+        </div>
+      </div>
     </div>
   );
 }

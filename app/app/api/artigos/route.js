@@ -28,6 +28,12 @@ export async function GET() {
     },
     orderBy: { createdAt: "desc" },
   });
+  // v404 — nº da FPP de origem (artigo cadastrado pelo detalhe da ficha)
+  const ids = [...new Set(artigos.map((a) => a.origemFppId).filter(Boolean))];
+  if (ids.length) {
+    const nums = Object.fromEntries((await prisma.fpp.findMany({ where: { id: { in: ids } }, select: { id: true, numero: true } })).map((f) => [f.id, f.numero]));
+    for (const a of artigos) if (a.origemFppId) a.origemFppNumero = nums[a.origemFppId] ?? null;
+  }
   return Response.json(artigos);
 }
 

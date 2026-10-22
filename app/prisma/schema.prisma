@@ -202,6 +202,8 @@ model Artigo {
   estoqueMinimoAtivo  Boolean    @default(false)
   estoqueMinimo       Decimal?   @db.Decimal(14, 3)
   abaixoMinimoAvisado Boolean    @default(false)
+  origem        String?         // v404 — "FPP" quando o artigo nasceu do detalhe de uma FPP
+  origemFppId   Int?            // v404 — FPP que criou o cadastro
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -1834,4 +1836,27 @@ model KmSyncLog {
   iguais      Int      @default(0)
   entradas    Int      @default(0)
   erros       String?
+}
+
+// v404 — Compras: cada item de pedido (PedidoVenda do KM) com a FPP base e a demanda de matéria-prima gerada.
+// A chave é pedido + item (os PpItem são refeitos a cada sincronização do KM, então não servem de âncora).
+model CompraItem {
+  id            Int       @id @default(autoincrement())
+  pedidoNumero  String
+  chave         String    // código do item no pedido (#2, #3… quando o código se repete)
+  descricao     String?
+  quantidade    Decimal   @db.Decimal(14, 3)
+  valorUnitario Decimal?  @db.Decimal(14, 2)
+  cliente       String?
+  entrega       DateTime? @db.Date
+  fppId         Int?
+  fppNumero     Int?
+  status        String    @default("LEVANTAMENTO") // LEVANTAMENTO | ESTOQUE | PIC | OC | NF | ENTREGUE
+  demanda       Json      @default("[]")   // [{ papel, artigoId, nome, categoria, unidade, fornecedorId, fornecedor, cor, codigo, largura, consumoPorPeca, quantidade, valorUnitario, equiparadoA }]
+  vinculadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([pedidoNumero, chave])
+  @@index([status])
 }

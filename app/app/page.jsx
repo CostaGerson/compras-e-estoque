@@ -14,6 +14,8 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
 import NfRegistro from "./nfRegistro";
+import { ComprasPedidos, Levantamento } from "./compras";   // v404
+import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
@@ -91,7 +93,9 @@ const MENU = [
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, desc: "Pedidos de produção, análises, compras e estoque", filhos: [
     { key: "pp", label: "Lançar PP", icon: FileText, desc: "Pedidos de produção com grade, foto e parâmetros de cada peça" },
-    { key: "compras", label: "Compras", icon: ShoppingCart, desc: "PIC diário e ordens de compra", filhos: [
+    { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
+      { key: "comprasPedidos", label: "Pedidos", icon: ClipboardList, desc: "Itens de cada pedido do KM com a FPP base e a demanda de matéria-prima" },
+      { key: "levantamento", label: "Levantamento", icon: Layers, desc: "Demandas registradas, equiparações de artigos e demanda consolidada" },
       { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Pedido interno de compras consolidado do dia" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
@@ -140,6 +144,8 @@ const PODE = {
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
   pp: (u) => vePP(u),
   pic: (u) => tem(u, "pic"),
+  comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
+  levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   fme: (u) => tem(u, "fme"),
@@ -297,6 +303,8 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
+          {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
+          {view === "levantamento" && pode("levantamento") && <Levantamento user={user} veValores={veValoresPP(user)} />}
           {view === "pic" && pode("pic") && <PIC />}
           {view === "oc" && pode("oc") && <OC money={money} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
@@ -2710,7 +2718,7 @@ function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoqu
           <div key={a.id} onClick={() => setEditando(a)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
-            <div className="flex-1 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}</div>
+            <div className="flex-1 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>
             <div className="flex-1" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
             <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}

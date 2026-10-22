@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { garantirNumeros, criarComNumero, registrarNegociacao } from "../../../lib/fppNumero";
+import { sincronizarArtigosFpp } from "../../../lib/compras";
 
 export const dynamic = "force-dynamic";
 
@@ -37,5 +38,7 @@ export async function POST(req) {
       criadoPorNome: b.criadoPorNome || null,
   });
   await registrarNegociacao(f.negociacao);
+  // v404 — artigos detalhados na ficha entram no cadastro (origem FPP)
+  try { if (await sincronizarArtigosFpp(f)) return NextResponse.json(await prisma.fpp.findUnique({ where: { id: f.id } })); } catch (e) { console.error("artigos da FPP", e); }
   return NextResponse.json(f);
 }
