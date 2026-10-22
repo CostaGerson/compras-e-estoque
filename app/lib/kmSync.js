@@ -55,7 +55,8 @@ export function mapearPedido(k) {
     cnpj: k.cnpj ? String(k.cnpj).replace(/\D/g, "") || null : null,
     condicao: limpa(k.condicao), vendedor: limpa(k.representante),
     tipoPedido: limpa(k.tipo), oc: limpa(k.oc),
-    total: r2(n0(k.vlr_financeiro) || n0(k.vlr_com_desconto) || n0(k.valor_pedido) || 0),
+    total: r2(n0(k.valor_pedido) || n0(k.valor_solpedid) || 0),
+    frete: n0(k.frete) || null, freteTipo: limpa(k.frete_tipo), obs: limpa(k.obs) ? limpa(k.obs).toUpperCase() : null,
     qtdTotal: Number(k.total_pecas) || itensKm.reduce((s, i) => s + (Number(i.qtd) || 0), 0),
     itens: itensKm.map((i) => {
       const qtd = Number(i.qtd) || 0, preco = n0(i.preco) ?? n0(i.precoTabela);
@@ -89,7 +90,7 @@ export function mapearPedido(k) {
   }
   const extra = {
     qtEntregar: Math.round(Number(k.itens_a_entregar) || 0), vlEntregar: r2(k.valor_a_entregar),
-    ultFaturamento: isoD(k.ult_faturamento), excluido: !!k.excluido, fase: limpa(k.fase), situacao: limpa(k.situacao),
+    ultFaturamento: isoD(k.ult_faturamento), excluido: !!k.excluido, fase: limpa(k.fase), situacao: limpa(k.status_km),
   };
   return { pv, pp, extra };
 }
@@ -124,7 +125,7 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
         const itAt = Array.isArray(at?.itens) ? at.itens : [];
         res.pedidos.push({
           numero: pv.numero, novo: !at, cliente: pv.cliente, total: pv.total, totalAtual: at ? Number(at.total) : null, qtd: pv.qtdTotal, qtdAtual: at?.qtd ?? null,
-          vlEntregar: extra.vlEntregar, fase: extra.fase, situacao: extra.situacao,
+          vlEntregar: extra.vlEntregar, statusKm: extra.situacao, valorSolpedid: n0(k.valor_solpedid), frete: pv.frete, freteTipo: pv.freteTipo, oc: pv.oc, condicao: pv.condicao, despacho: pv.despacho, cnpj: pv.cnpj, vendedor: pv.vendedor,
           itens: pv.itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco, grade: i.grade.map((g) => `${g.tam}:${g.qtd}`).join(" "),
             casaComAtual: at ? itAt.some((x) => x.codigo === i.codigo) : null })),
           op: pp ? pp.itens.map((i) => ({ codigo: i.codigo, op: i.op, parametros: i.parametros.length, setores: (i.kmOps[0]?.setores || []).length })) : [],
