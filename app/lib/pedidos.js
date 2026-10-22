@@ -266,7 +266,7 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const cond = lerCondicao(p.condicao);
   if (p.interno) return { interno: true, condicaoOk: true, entradaPct: 0, prazos: [], entrada: 0, entradaCalc: 0, entradaLancada: 0, entradaTitulos: [], restante: 0,
     base: iso(p.entregaPrevista) || iso(p.despacho), baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : "DESPACHO", atrasado: false, reprogramar: null, pronto: !!p.cronoConcluido, parcelas: [] };
-  const entradaCalc = r2(total * cond.entradaPct);
+  const entradaCalc = r2(r2(p.total) * cond.entradaPct);   // v403 — entrada é % do pedido (não do saldo a faturar)
   const entrada = p.entradaValor != null ? r2(p.entradaValor) : entradaCalc;
   const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO");
   const entradaLancada = r2(lancadas.reduce((s, t) => s + Number(t.valor), 0));
@@ -281,7 +281,9 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const desconsiderado = false;
   const parcelas = [];
   {
-    if (entrada > 0 && entradaLancada + 0.01 < entrada) {
+    // v403 — diferença de centavos (arredondamento entre total do PV e soma dos itens) não vira "entrada a lançar"
+    const tolEnt = Math.max(1, entrada * 0.005);
+    if (entrada > 0 && entradaLancada + tolEnt < entrada) {
       const em = iso(p.emissao);
       parcelas.push({ tipo: "ENTRADA", data: em && em > hoje ? em : hoje, valor: r2(entrada - entradaLancada), pendente: true });
     }

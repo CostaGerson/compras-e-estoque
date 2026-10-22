@@ -331,8 +331,8 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         <td className={`${td} tabular-nums font-semibold`}>{p.temPv ? brl(p.total) : <span style={{ color: C.yellow }}>falta PV</span>}
           {p.faturadoLancado > 0 && <div className="text-[9px] font-semibold" style={{ color: C.green }} title={`NF ${(p.nfsComContas || []).join(", ")} com contas a receber lançadas — fora da previsão`}>− {brl(p.faturadoLancado)} faturado</div>}
           {p.status === "ANDAMENTO" && (p.nfsSemContas || []).length > 0 && <div className="text-[9px] font-semibold" style={{ color: C.accent }} title="NF parcial sem contas a receber lançadas: o valor continua na previsão até lançar as contas">NF {p.nfsSemContas.join(", ")} sem contas</div>}</td>
-        <td className={`${td} tabular-nums`} style={{ color: v.entrada ? (v.entradaLancada + 0.01 >= v.entrada ? C.green : C.accent) : C.sub }}>
-          {v.entrada ? brl(v.entrada) : "—"}{v.entrada > 0 && <span className="text-[9px] ml-1">{v.entradaLancada + 0.01 >= v.entrada ? "lançada" : "a lançar"}</span>}
+        <td className={`${td} tabular-nums`} style={{ color: v.entrada ? (v.entradaLancada + Math.max(1, v.entrada * 0.005) >= v.entrada ? C.green : C.accent) : C.sub }}>
+          {v.entrada ? brl(v.entrada) : "—"}{v.entrada > 0 && <span className="text-[9px] ml-1">{v.entradaLancada + Math.max(1, v.entrada * 0.005) >= v.entrada ? "lançada" : "a lançar"}</span>}
         </td>
         <td className={`${td} tabular-nums font-semibold`} style={{ color: p.noMes ? C.green : C.sub }}>{brl(p.noMes)}</td>
         <td className={`${td} tabular-nums`} style={{ color: p.foraMes ? C.blue : C.sub }}>{brl(p.foraMes)}</td>
