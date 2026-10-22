@@ -115,7 +115,7 @@ if ($Previa) {
 } else {
   $mudou = ([int]$r.novos + [int]$r.atualizados + [int]$r.faturados + [int]$r.entradas + [int]$r.cancelados + [int]$r.pendentesContas + $r.erros.Count) -gt 0
   if ($mudou -or -not $Silencioso -or (Get-Date).Minute -eq 0) {   # agendado e sem mudanca: registra so uma vez por hora (manual: sempre)
-    Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados | {9} ignorados{8}" -f `
-      $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }), $(if ($r.ignoradosLista) { "$($r.ignorados) (" + (($r.ignoradosLista | Select-Object -First 15) -join ", ") + ")" } else { "0" })))
+    Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados | ignorados {9}{8}" -f `
+      $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }), $(if ($r.ignoradosLista) { "$($r.ignorados) (" + (($r.ignoradosLista | Select-Object -First 15) -join ", ") + ")" } else { "0" }))
   }
 }
