@@ -33,6 +33,30 @@ export async function contasLancadas(nums, cnpj) {
   }
   return true;
 }
+// v402 — em lote: quais NFs (nº + CNPJ do cliente) já têm conta a receber lançada — para tirar da previsão o que já foi faturado
+export async function nfsComContas(pares) {
+  const nums = [...new Set(pares.map((x) => semZ(x.nf)).filter(Boolean))];
+  const ok = new Set();
+  if (!nums.length) return ok;
+  const docOk = (doc, cnpj) => !doc || !cnpj || String(doc).replace(/\D/g, "") === String(cnpj).replace(/\D/g, "");
+  const fn = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", acao: "LANCADA", numero: { in: nums } }, select: { numero: true, documento: true, parcelas: true } });
+  const ts = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, OR: nums.map((n) => ({ numeroDoc: { contains: n } })) }, select: { numeroDoc: true, documento: true } });
+  for (const { nf, cnpj } of pares) {
+    const n = semZ(nf);
+    if (fn.some((x) => x.numero === n && docOk(x.documento, cnpj) && Array.isArray(x.parcelas) && x.parcelas.some((y) => y.tituloId))
+      || ts.some((t) => docOk(t.documento, cnpj) && new RegExp(`(^|\\D)0*${n}(\\D|$)`).test(String(t.numeroDoc || "")))) ok.add(`${n}|${String(cnpj || "").replace(/\D/g, "")}`);
+  }
+  return ok;
+}
+// NFs do pedido com valor (casadas pelos itens no faturamento parcial, ou as do KM), sem repetir
+export function nfsDoPedido(p) {
+  const m = new Map();
+  for (const n of [...(Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []), ...(Array.isArray(p.kmNfs) ? p.kmNfs : [])]) {
+    const k = semZ(n.numero); if (k && !m.has(k)) m.set(k, Number(n.valor) || 0);
+  }
+  return [...m.entries()].map(([nf, valor]) => ({ nf, valor }));
+}
+
 // fatura já (contas lançadas) ou deixa pendente em andamento — "dados" é o que iria junto com status FATURADO
 export async function faturarOuPendurar(id, cnpj, dados, origem) {
   const nums = nfsDe(dados.nfNumero);
@@ -495,7 +519,16 @@ export async function listarPedidos({ competencia, todos = false, comOcultos = f
   const cnpjs = [...new Set(lista.map((p) => p.cnpj).filter(Boolean))];
   const nfs = cnpjs.length ? (await prisma.finNfSaida.findMany({ where: { emissao: { gte: new Date(Date.now() - 400 * 86400000) } }, select: { numero: true, emissao: true, valor: true, destCnpj: true } })).filter((n) => cnpjs.some((c) => soD(c) === soD(n.destCnpj))) : [];
 
-  const pedidos = lista.map((p) => {
+  // v402 — faturamento parcial: o que já foi faturado E tem conta a receber lançada sai da previsão (senão duplica o recebível)
+  const pares = lista.filter((p) => p.status === "ANDAMENTO").flatMap((p) => nfsDoPedido(p).map((x) => ({ nf: x.nf, cnpj: p.cnpj })));
+  let comContas = new Set(); try { comContas = await nfsComContas(pares); } catch (e) { console.log("pedidos/nfs com contas:", e.message); }
+  const pedidos = lista.map((p0) => {
+    const nfsP = p0.status === "ANDAMENTO" ? nfsDoPedido(p0) : [];
+    const lancadas = nfsP.filter((x) => comContas.has(`${x.nf}|${String(p0.cnpj || "").replace(/\D/g, "")}`));
+    const faturadoLancado = r2(lancadas.reduce((a, x) => a + x.valor, 0));
+    const baseKm = p0.vlEntregar != null ? Number(p0.vlEntregar) : Number(p0.total);
+    const base = faturadoLancado > 0 ? r2(Math.max(0, Math.min(baseKm, Number(p0.total) - faturadoLancado))) : baseKm;
+    const p = faturadoLancado > 0 ? { ...p0, vlEntregar: base } : p0;
     const prev = preverPedido(p, { hoje, titulosEntrada: titsDe(p.numero) });
     const em = iso(p.emissao) || "0000-00-00";
     const alvo = [r2(p.total), prev.restante];
@@ -503,7 +536,8 @@ export async function listarPedidos({ competencia, todos = false, comOcultos = f
     const noMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) === comp).reduce((s, x) => s + x.valor, 0));
     const foraMes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) > comp).reduce((s, x) => s + x.valor, 0));
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));
-    return { ...p, total: r2(p.total), vlEntregar: p.vlEntregar != null ? r2(p.vlEntregar) : null,   // v393 — Decimal → número (o card somava texto e dava 0)
+    return { ...p, total: r2(p.total), vlEntregar: p.vlEntregar != null ? r2(p.vlEntregar) : null,
+      faturadoLancado, nfsComContas: lancadas.map((x) => x.nf), nfsSemContas: nfsP.filter((x) => !lancadas.includes(x)).map((x) => x.nf),   // v402   // v393 — Decimal → número (o card somava texto e dava 0)
       entradaValor: p.entradaValor != null ? r2(p.entradaValor) : null, frete: p.frete != null ? r2(p.frete) : null,
       emissao: iso(p.emissao), despacho: iso(p.despacho), entregaPrevista: iso(p.entregaPrevista), faturadoEm: iso(p.faturadoEm), cronoPrazo: iso(p.cronoPrazo), cronoFimProgramado: iso(p.cronoFimProgramado),
       // v388 — vindo do KM conta como PV/PP (o PDF é só um dos meios); os links continuam só quando há PDF
