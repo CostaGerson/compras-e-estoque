@@ -11,6 +11,9 @@ const C = {
 const fmtFpp = (n) => (n ? String(n).padStart(5, "0") : "—");
 const brl = (v) => (v == null ? "—" : `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const qtdU = (v, u) => `${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: u === "UN" ? 0 : 2, maximumFractionDigits: u === "UN" ? 0 : 2 })} ${String(u || "").toLowerCase()}`;
+// v405 — botão: unidades + grosas inteiras (144)
+const qtdG = (v, u, emb) => (emb ? `${qtdU(v, u)} · ${Math.ceil((Number(v) || 0) / emb - 1e-9)} grosa(s)` : qtdU(v, u));
+const tipoMat = (m) => (m.papel === "FORRO" ? "forro" : m.categoria === "MALHA" ? "malha" : m.categoria === "AVIAMENTO" ? "aviamento" : "tecido");
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const nomeUser = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
@@ -64,16 +67,15 @@ function FppResumo({ fppId, item, veValores, onClose, onUsar, usando }) {
             {f.materiais.map((m) => (
               <div key={m.papel} className="rounded-md px-3 py-2 mb-1.5" style={{ background: C.panel2 }}>
                 <div className="flex justify-between gap-2">
-                  <div className="text-sm font-semibold" style={{ color: C.text }}>{m.nome} <span className="font-normal text-xs" style={{ color: C.sub }}>{m.papel === "FORRO" ? "forro" : m.categoria === "MALHA" ? "malha" : "tecido"}</span></div>
-                  {m.demanda != null && <div className="text-sm font-bold" style={{ color: C.accent }}>{qtdU(m.demanda, m.unidade)}</div>}
+                  <div className="text-sm font-semibold" style={{ color: C.text }}>{m.nome} <span className="font-normal text-xs" style={{ color: C.sub }}>{tipoMat(m)}</span></div>
+                  {m.demanda != null && <div className="text-sm font-bold" style={{ color: C.accent }}>{qtdG(m.demanda, m.unidade, m.embalagem)}</div>}
                 </div>
                 <div className="text-xs" style={{ color: C.sub }}>
-                  {detArtigo({ ...m.det, fornecedor: m.fornecedor }) || <span style={{ color: C.yellow }}>sem fornecedor/cor/código</span>} · {m.base}
+                  {detArtigo({ ...m.det, fornecedor: m.fornecedor }) || <span style={{ color: C.yellow }}>sem fornecedor/cor/código</span>} · {m.base}{m.det?.obs ? ` · obs: ${m.det.obs}` : ""}
                 </div>
               </div>
             ))}
           </div>
-          {f.aviamentos.length > 0 && <div className="text-xs" style={{ color: C.sub }}><b>Aviamentos:</b> {f.aviamentos.join(" · ")}</div>}
           <div className="text-xs" style={{ color: C.sub }}>Criada por {f.criadoPorNome || "—"} em {new Date(f.createdAt).toLocaleDateString("pt-BR")}</div>
           {onUsar && (
             <button disabled={usando} onClick={() => onUsar(f)} className="w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: usando ? 0.6 : 1 }}>
@@ -240,7 +242,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
           {!(v.demanda || []).length && <div className="mt-1.5 text-xs flex items-center gap-1" style={{ color: C.yellow }}><AlertTriangle size={12} /> A FPP não tem artigo — sem demanda gerada.</div>}
           {(v.demanda || []).map((dm, i) => (
             <div key={i} className="mt-1.5 flex justify-between gap-2 text-xs">
-              <span style={{ color: C.text }}><b>{dm.nome}</b>{dm.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(dm)}</span></span>
+              <span style={{ color: C.text }}><b>{dm.nome}</b>{dm.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(dm)}{dm.obs ? ` · obs: ${dm.obs}` : ""}</span></span>
               <span className="font-semibold whitespace-nowrap" style={{ color: C.accent }}>{qtdU(dm.quantidade, dm.unidade)}</span>
             </div>
           ))}
@@ -315,7 +317,7 @@ export function Levantamento({ user, veValores }) {
               <div className="flex-1"><b>{c.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{c.categoria?.toLowerCase()}</span>
                 {c.juntados.length > 0 && <div className="text-[11px]" style={{ color: C.green }}>+ juntou {c.juntados.map((j) => detArtigo(j) || "sem detalhe").join(", ")}</div>}</div>
               <div className="w-48 text-xs" style={{ color: detArtigo(c) ? C.sub : C.yellow }}>{detArtigo(c) || "sem detalhe"}</div>
-              <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{qtdU(c.quantidade, c.unidade)}</div>
+              <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{c.compra ? <>{c.compra} grosa(s)<div className="text-[11px] font-normal" style={{ color: C.sub }}>{qtdU(c.quantidade, c.unidade)} de {qtdU(c.compra * c.embalagem, c.unidade)}</div></> : qtdU(c.quantidade, c.unidade)}</div>
               <div className="w-24 text-right text-xs" style={{ color: C.sub }} title={c.pedidos.join(", ")}>{c.pedidos.length} ped · {c.itens} it</div>
               {veValores && <div className="w-28 text-right text-xs" style={{ color: C.sub }}>{c.valorEstimado ? brl(c.valorEstimado) : "—"}</div>}
             </div>
@@ -359,7 +361,7 @@ export function Levantamento({ user, veValores }) {
           {p.linhas.map((l, i) => (
             <div key={i} className="flex px-4 py-2 text-xs gap-2" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
               <div className="w-56 truncate" style={{ color: C.text }} title={l.descricao}>{l.chave} · {l.descricao} <span style={{ color: C.sub }}>({l.qtdPecas} pç)</span></div>
-              <div className="flex-1"><b>{l.nome}</b>{l.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(l)}</span>{l.equiparadoA && <span style={{ color: C.green }}> → junto com {detArtigo(nomeArt[l.equiparadoA] || {})}</span>}</div>
+              <div className="flex-1"><b>{l.nome}</b>{l.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(l)}{l.obs ? ` · obs: ${l.obs}` : ""}</span>{l.equiparadoA && <span style={{ color: C.green }}> → junto com {detArtigo(nomeArt[l.equiparadoA] || {})}</span>}</div>
               <div className="w-24 text-right font-semibold" style={{ color: C.accent }}>{qtdU(l.quantidade, l.unidade)}</div>
             </div>
           ))}

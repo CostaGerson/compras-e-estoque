@@ -13,12 +13,18 @@ const n0 = (v) => {
 };
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 
-// papéis de matéria-prima que a FPP descreve hoje
+// papéis de matéria-prima que a FPP descreve
 // MALHA: artigo principal em kg (rendimento peças/kg). PLANO: tecido externo em m (consumo m/peça) + forro em m.
-export const PAPEIS = {
-  PRINCIPAL: { nomeCampo: "nomeArtigo", detCampo: "artigoDet", valorCampo: "mpValor" },
-  FORRO: { nomeCampo: "nomeArtigoForro", detCampo: "artigoForroDet", valorCampo: "forroValor" },
-};
+// v405 — aviamentos (gola, punho, elástico, faixa, botão e extras) sempre em unidades; botão compra em grosa (144).
+export const GROSA = 144;
+export const AVIAMENTOS = [
+  { chave: "GOLA", campo: "gola", tipo: "MALHA", prefixo: "GOLA" },
+  { chave: "PUNHO", campo: "punho", tipo: "MALHA", prefixo: "PUNHO" },
+  { chave: "ELASTICO", campo: "elastico", tipo: "PLANO", prefixo: "ELÁSTICO" },
+  { chave: "FAIXA", campo: "faixa", prefixo: "FAIXA" },
+];
+const nomeAv = (pref, v) => { const n = String(v || "").trim().toUpperCase(); return norm(n).startsWith(norm(pref)) ? n : `${pref} ${n}`; };
+const ehSem = (v) => vazio(v) || /^SEM\b/.test(norm(v));
 
 // campos que distinguem um artigo do outro (vazio = não distingue)
 export const CAMPOS_ID = ["fornecedorId", "cor", "codigo"];
@@ -32,6 +38,7 @@ function paramValor(params, tipo, grupo, chave, overrides) {
 }
 
 // matérias-primas da FPP com consumo por peça (na unidade de compra)
+// ref diz onde o detalhe mora em entradas: { campo } | { campo, chave } | { campo, idx }
 export function materiaisDaFpp(fpp, params = []) {
   const e = fpp.entradas || {};
   const r = fpp.resultados || {};
@@ -42,16 +49,41 @@ export function materiaisDaFpp(fpp, params = []) {
   const nomeP = String(e.nomeArtigo || "").trim();
   if (nomeP) {
     const consumo = tipo === "MALHA" ? (rendCons ? 1 / rendCons : 0) : rendCons;
-    out.push({ papel: "PRINCIPAL", categoria: tipo === "MALHA" ? "MALHA" : "TECIDO", unidade: tipo === "MALHA" ? "KG" : "M",
+    out.push({ papel: "PRINCIPAL", ref: { campo: "artigoDet" }, categoria: tipo === "MALHA" ? "MALHA" : "TECIDO", unidade: tipo === "MALHA" ? "KG" : "M",
       nome: nomeP.toUpperCase(), det: e.artigoDet || {}, consumoPorPeca: consumo, valorUnitario: n0(e.mpValor),
       base: tipo === "MALHA" ? `${String(rendCons).replace(".", ",")} peças/kg` : `${String(rendCons).replace(".", ",")} m/peça` });
   }
   const nomeF = String(e.nomeArtigoForro || "").trim();
   if (tipo === "PLANO" && nomeF) {
     const cf = n0(e.consumoForro) || n0(r.consumoForro) || paramValor(params, "PLANO", "CONST", "FORRO_FATOR", ov) * rendCons;
-    out.push({ papel: "FORRO", categoria: "TECIDO", unidade: "M", nome: nomeF.toUpperCase(), det: e.artigoForroDet || {},
+    out.push({ papel: "FORRO", ref: { campo: "artigoForroDet" }, categoria: "TECIDO", unidade: "M", nome: nomeF.toUpperCase(), det: e.artigoForroDet || {},
       consumoPorPeca: cf, valorUnitario: n0(e.forroValor), base: `${String(r3(cf)).replace(".", ",")} m/peça` });
   }
+  const avDet = e.aviamentosDet || {};
+  for (const a of AVIAMENTOS) {
+    if (a.tipo && a.tipo !== tipo) continue;
+    const v = e[a.campo];
+    if (ehSem(v)) continue;
+    const det = avDet[a.chave] || {};
+    const q = n0(det.qtdPeca) || 1;
+    const custoPeca = paramValor(params, tipo, a.chave, v, ov);
+    out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "UN", nome: nomeAv(a.prefixo, v), det,
+      consumoPorPeca: q, valorUnitario: custoPeca ? Math.round((custoPeca / q) * 10000) / 10000 : null, base: `${q} un/peça`, obs: det.obs || null });
+  }
+  const botoes = n0(e.botaoQtd);
+  if (botoes > 0) {
+    const det = avDet.BOTAO || {};
+    out.push({ papel: "BOTAO", ref: { campo: "aviamentosDet", chave: "BOTAO" }, categoria: "AVIAMENTO", unidade: "UN", embalagem: GROSA, nome: "BOTÃO", det,
+      consumoPorPeca: botoes, valorUnitario: paramValor(params, tipo, "CONST", "BOTAO_UNIT", ov) || null, base: `${botoes} un/peça · grosa de ${GROSA}`, obs: det.obs || null });
+  }
+  (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).forEach((x, idx) => {
+    if (vazio(x.desc)) return;
+    const det = x.det || {};
+    const q = n0(det.qtdPeca) || 1;
+    const vp = n0(x.valor);
+    out.push({ papel: `EXTRA${idx}`, ref: { campo: "extrasAviamentos", idx }, categoria: "AVIAMENTO", unidade: "UN", nome: String(x.desc).trim().toUpperCase(), det,
+      consumoPorPeca: q, valorUnitario: vp ? Math.round((vp / q) * 10000) / 10000 : null, base: `${q} un/peça`, obs: det.obs || null });
+  });
   return out;
 }
 
@@ -61,7 +93,7 @@ const chaveDet = (d) => ({
   cor: vazio(d.cor) ? null : norm(d.cor),
   codigo: vazio(d.codigo) ? null : norm(d.codigo),
 });
-const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura", "rendimento", "tipoMalha"].some((k) => !vazio(d[k]));
+const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura", "rendimento", "tipoMalha", "obs"].some((k) => !vazio(d[k]));
 
 // procura o artigo idêntico (mesma categoria, nome e mesmos campos de identificação, vazio = vazio); senão cria
 export async function artigoDaFpp(m, fpp, db = prisma) {
@@ -82,23 +114,30 @@ export async function artigoDaFpp(m, fpp, db = prisma) {
   }
   const novo = await db.artigo.create({ data: {
     categoria: m.categoria, nome: m.nome, unidade: m.unidade, fornecedorId: k.fornecedorId, cor: k.cor, codigo: k.codigo,
+    ...(m.det?.obs ? { especificacao: String(m.det.obs).toUpperCase() } : {}),
     ...dados, origem: "FPP", origemFppId: fpp.id,
   }, select: { id: true } });
   return novo.id;
 }
 
 // chamada depois de salvar a FPP: garante o cadastro de cada artigo e grava o id no detalhe
+const lerDet = (e, ref) => (ref.campo === "extrasAviamentos" ? (e.extrasAviamentos?.[ref.idx]?.det || {}) : ref.chave ? (e[ref.campo]?.[ref.chave] || {}) : (e[ref.campo] || {}));
+function gravarDet(e, ref, det) {
+  if (ref.campo === "extrasAviamentos") { const l = [...(e.extrasAviamentos || [])]; l[ref.idx] = { ...l[ref.idx], det }; return { ...e, extrasAviamentos: l }; }
+  if (ref.chave) return { ...e, [ref.campo]: { ...(e[ref.campo] || {}), [ref.chave]: det } };
+  return { ...e, [ref.campo]: det };
+}
 export async function sincronizarArtigosFpp(fpp, db = prisma) {
-  const e = fpp.entradas || {};
+  let novas = { ...(fpp.entradas || {}) };
   let mudou = false;
-  const novas = { ...e };
-  for (const m of materiaisDaFpp(fpp)) {
-    const campoDet = PAPEIS[m.papel].detCampo;
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true } });
+  for (const m of materiaisDaFpp(fpp, params)) {
     // só cadastra quando alguém abriu o "+" e preencheu algo (FPP de proposta não enche o cadastro);
     // sem detalhe, o cadastro pelo nome acontece quando a FPP vira base de um pedido (demandaDoItem)
     if (!temAlgumDetalhe(m.det)) continue;
     const id = await artigoDaFpp(m, fpp, db);
-    if ((novas[campoDet] || {}).artigoId !== id) { novas[campoDet] = { ...(novas[campoDet] || {}), artigoId: id }; mudou = true; }
+    const atual = lerDet(novas, m.ref);
+    if (atual.artigoId !== id) { novas = gravarDet(novas, m.ref, { ...atual, artigoId: id }); mudou = true; }
   }
   if (mudou) await db.fpp.update({ where: { id: fpp.id }, data: { entradas: novas } });
   return mudou;
@@ -168,7 +207,8 @@ export async function demandaDoItem(fpp, qtd, db = prisma) {
     out.push({ papel: m.papel, artigoId, nome: a.nome, categoria: a.categoria, unidade: m.unidade,
       fornecedorId: a.fornecedorId, fornecedor: a.fornecedor?.nome || null, cor: a.cor, codigo: a.codigo,
       largura: a.largura != null ? Number(a.largura) : null, base: m.base,
-      consumoPorPeca: Math.round(m.consumoPorPeca * 10000) / 10000, quantidade: r3(m.consumoPorPeca * qtd), valorUnitario: m.valorUnitario, equiparadoA: null });
+      consumoPorPeca: Math.round(m.consumoPorPeca * 10000) / 10000, quantidade: r3(m.consumoPorPeca * qtd), valorUnitario: m.valorUnitario,
+      embalagem: m.embalagem || null, obs: m.obs || null, equiparadoA: null });
   }
   return out;
 }
@@ -192,7 +232,7 @@ export function montarLevantamento(itens) {
   for (const it of itens) (Array.isArray(it.demanda) ? it.demanda : []).forEach((d, idx) => linhas.push({ ...d, itemId: it.id, idx, pedidoNumero: it.pedidoNumero, chave: it.chave, descricao: it.descricao, cliente: it.cliente, entrega: it.entrega, qtdPecas: Number(it.quantidade) }));
   // artigos distintos que aparecem
   const arts = {};
-  for (const l of linhas) if (!arts[l.artigoId]) arts[l.artigoId] = { artigoId: l.artigoId, nome: l.nome, categoria: l.categoria, unidade: l.unidade, fornecedorId: l.fornecedorId, fornecedor: l.fornecedor, cor: l.cor, codigo: l.codigo, largura: l.largura };
+  for (const l of linhas) if (!arts[l.artigoId]) arts[l.artigoId] = { artigoId: l.artigoId, nome: l.nome, categoria: l.categoria, unidade: l.unidade, embalagem: l.embalagem || null, fornecedorId: l.fornecedorId, fornecedor: l.fornecedor, cor: l.cor, codigo: l.codigo, largura: l.largura };
   const lista = Object.values(arts);
   // sugestões: para cada artigo sem equiparação aceita, os mais detalhados compatíveis
   const equiparacoes = [];
@@ -212,7 +252,8 @@ export function montarLevantamento(itens) {
     if (l.equiparadoA) c.juntados.add(l.artigoId);
     if (l.valorUnitario) c.valorEstimado += l.quantidade * l.valorUnitario;
   }
-  const consolidado = Object.values(cons).map((c) => ({ ...c, quantidade: r3(c.quantidade), valorEstimado: Math.round(c.valorEstimado * 100) / 100,
+  const consolidado = Object.values(cons).map((c) => ({ ...c, quantidade: r3(c.quantidade),
+    compra: c.embalagem ? Math.ceil(r3(c.quantidade) / c.embalagem) : null,   // v405 — botão: grosas inteiras valorEstimado: Math.round(c.valorEstimado * 100) / 100,
     pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]) })).sort((a, b) => a.nome.localeCompare(b.nome));
   return { linhas, equiparacoes, consolidado };
 }

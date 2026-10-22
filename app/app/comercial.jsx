@@ -243,7 +243,7 @@ function fichaVazia(tipo) {
     tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
     negociacao: "",
     nomeArtigo: "", nomeArtigoForro: "",
-    artigoDet: null, artigoForroDet: null,   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
+    artigoDet: null, artigoForroDet: null, aviamentosDet: {},   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
     mpValor: "", forroValor: "", consumoForro: "",   // v208: consumo do forro (m/peça) — vazio = estimado pelo fator
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
@@ -477,6 +477,7 @@ function Fpp({ user, master }) {
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setP = (tec, k, v) => setF((s) => ({ ...s, [tec]: { ...s[tec], [k]: v } }));
+  const setAvDet = (k, d) => setF((s) => ({ ...s, aviamentosDet: { ...(s.aviamentosDet || {}), [k]: d } }));   // v405
 
   if (!params) return <div className="text-sm" style={{ color: C.sub }}>Carregando parâmetros…</div>;
 
@@ -558,16 +559,16 @@ function Fpp({ user, master }) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {tipo === "MALHA" ? (
                   <>
-                    <Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" />
-                    <Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" />
+                    <AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                    <AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                   </>
                 ) : (
-                  <Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" />
+                  <AvComDet valor={f.elastico} det={f.aviamentosDet?.ELASTICO} onDet={(d) => setAvDet("ELASTICO", d)}><Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                 )}
-                <Combo label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" />
-                <Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} />
+                <AvComDet valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}><Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></AvComDet>
               </div>
-              <ExtrasCustos lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} />
+              <ExtrasCustos lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} comDet />
             </Card>
 
             <Card title="Produção">
@@ -1759,48 +1760,78 @@ function SeletorOrigem({ interno, onChange }) {
 }
 
 /* v404 — nome do artigo + botão "+" com o detalhe (fornecedor, cor, código, largura; malha: rendimento e ramada/tubular).
+   v405 — aviamentos também: fornecedor, cor, código, qtd por peça e observação (sempre em unidades; botão compra em grosa de 144).
    Preenchido, o artigo entra no cadastro de Artigos com origem FPP ao salvar a ficha. Campo vazio não distingue um artigo do outro. */
 let _fornCache = null;
-function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
+function resumoDet(d, categoria, botao) {
+  return [d.fornecedorNome, d.cor, d.codigo, d.largura ? `${d.largura} m larg.` : null,
+    categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null,
+    categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${d.obs}` : null].filter(Boolean);
+}
+function DetBotao({ det, categoria, nome, onDet, botao, titulo }) {
   const [aberto, setAberto] = useState(false);
   const d = det || {};
-  const resumo = [d.fornecedorNome, d.cor, d.codigo, d.largura ? `${d.largura} m larg.` : null, categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null].filter(Boolean);
-  const cheio = !!(d.fornecedorId && d.cor && d.codigo && d.largura && (categoria !== "MALHA" || (d.rendimento && d.tipoMalha)));
+  const resumo = resumoDet(d, categoria, botao);
+  const cheio = categoria === "AVIAMENTO" ? !!(d.fornecedorId && d.cor) : !!(d.fornecedorId && d.cor && d.codigo && d.largura && (categoria !== "MALHA" || (d.rendimento && d.tipoMalha)));
+  return (
+    <>
+      <button type="button" onClick={() => setAberto(true)} title={titulo || "Fornecedor, cor, código e detalhes para compras"}
+        className="px-2 rounded text-sm font-bold self-stretch" style={{ minWidth: 30, background: resumo.length ? (cheio ? C.greenSoft : C.accentSoft) : C.panel2, color: resumo.length ? (cheio ? C.green : C.accent) : C.sub, border: `1px solid ${resumo.length ? (cheio ? C.green : C.accent) : C.line}` }}>+</button>
+      {aberto && <ArtigoDetModal nome={nome} det={d} categoria={categoria} botao={botao} onClose={() => setAberto(false)} onSalvar={(x) => { onDet(x); setAberto(false); }} />}
+    </>
+  );
+}
+function ResumoDet({ det, categoria, botao }) {
+  const r = resumoDet(det || {}, categoria, botao);
+  return r.length ? <div className="text-[11px] mt-0.5 truncate" style={{ color: C.sub }} title={r.join(" · ")}>{r.join(" · ")}</div> : null;
+}
+function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
   return (
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <div className="flex gap-1">
         <input value={nome || ""} onChange={(e) => onNome(e.target.value)} placeholder="Nome do artigo"
           className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
-        <button type="button" onClick={() => setAberto(true)} title="Fornecedor, cor, código e largura do artigo"
-          className="px-2 rounded text-sm font-bold" style={{ background: resumo.length ? (cheio ? C.greenSoft || "#E7F6EE" : C.accentSoft) : C.panel2, color: resumo.length ? (cheio ? C.green : C.accent) : C.sub, border: `1px solid ${resumo.length ? (cheio ? C.green : C.accent) : C.line}` }}>+</button>
+        <DetBotao det={det} categoria={categoria} nome={nome} onDet={onDet} />
       </div>
-      {resumo.length > 0 && <div className="text-[11px] mt-0.5 truncate" style={{ color: C.sub }} title={resumo.join(" · ")}>{resumo.join(" · ")}</div>}
-      {aberto && <ArtigoDetModal nome={nome} det={d} categoria={categoria} onClose={() => setAberto(false)} onSalvar={(x) => { onDet(x); setAberto(false); }} />}
+      <ResumoDet det={det} categoria={categoria} />
     </div>
   );
 }
-function ArtigoDetModal({ nome, det, categoria, onClose, onSalvar }) {
-  const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "" });
+// aviamento escolhido no combo + "+" (só aparece com um aviamento escolhido)
+function AvComDet({ children, valor, det, onDet, botao }) {
+  const tem = valor && !/^SEM\b/i.test(String(valor).trim()) && (!botao || Number(String(valor).replace(",", ".")) > 0);
+  return (
+    <div>
+      <div className="flex gap-1 items-end"><div className="flex-1 min-w-0">{children}</div>{tem && <DetBotao det={det} categoria="AVIAMENTO" nome={botao ? "BOTÃO" : valor} onDet={onDet} botao={botao} />}</div>
+      {tem && <ResumoDet det={det} categoria="AVIAMENTO" botao={botao} />}
+    </div>
+  );
+}
+function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
+  const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "", qtdPeca: det.qtdPeca || "", obs: det.obs || "" });
   const [forns, setForns] = useState(_fornCache || []);
   useEffect(() => { if (!_fornCache) fetch("/api/fornecedores").then((r) => r.json()).then((l) => { _fornCache = Array.isArray(l) ? l : []; setForns(_fornCache); }).catch(() => {}); }, []);
   const s = (k, v) => setX((o) => ({ ...o, [k]: v }));
-  const campo = (lbl, k, ph) => (
-    <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>{lbl}</div>
-      <input value={x[k]} onChange={(e) => s(k, k === "cor" || k === "codigo" ? e.target.value.toUpperCase() : e.target.value)} placeholder={ph || ""}
+  const av = categoria === "AVIAMENTO";
+  const campo = (lbl, k, ph, span) => (
+    <label className={`block ${span ? "col-span-2" : ""}`}><div className="text-xs mb-1" style={{ color: C.sub }}>{lbl}</div>
+      <input value={x[k]} onChange={(e) => s(k, ["cor", "codigo", "obs"].includes(k) ? e.target.value.toUpperCase() : e.target.value)} placeholder={ph || ""}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} /></label>
   );
   const salvar = () => {
     const out = { ...(det.artigoId ? { artigoId: det.artigoId } : {}) };
     for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
     if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
+    if (av) delete out.largura; else delete out.qtdPeca;
+    if (botao) delete out.qtdPeca;
     onSalvar(Object.keys(out).length ? out : null);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-md" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-          <div className="text-sm font-bold" style={{ color: C.navy }}>{categoria === "MALHA" ? "Malha" : "Tecido"} · {nome || "sem nome"}</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>{categoria === "MALHA" ? "Malha" : av ? "Aviamento" : "Tecido"} · {nome || "sem nome"}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 grid grid-cols-2 gap-3">
@@ -1812,8 +1843,10 @@ function ArtigoDetModal({ nome, det, categoria, onClose, onSalvar }) {
             </select></label>
           {campo("Cor", "cor", "ex.: CINZA")}
           {campo("Código", "codigo", "ex.: 8047")}
-          {campo("Largura (m)", "largura", "ex.: 1,60")}
+          {!av && campo("Largura (m)", "largura", "ex.: 1,60")}
           {categoria === "MALHA" && campo("Rendimento da malha (m/kg)", "rendimento", "ex.: 2,8")}
+          {av && !botao && campo("Qtd por peça (un)", "qtdPeca", "1")}
+          {botao && <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Qtd por peça = Qtde de botões. Compra em grosa (144), arredondada para cima.</div>}
           {categoria === "MALHA" && (
             <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Tipo da malha</div>
               <div className="flex gap-2">{["RAMADA", "TUBULAR"].map((t) => (
@@ -1821,6 +1854,7 @@ function ArtigoDetModal({ nome, det, categoria, onClose, onSalvar }) {
                   style={{ background: x.tipoMalha === t ? C.accent : C.panel2, color: x.tipoMalha === t ? "#fff" : C.sub, border: `1px solid ${x.tipoMalha === t ? C.accent : C.line}` }}>{t === "RAMADA" ? "Ramada" : "Tubular"}</button>
               ))}</div></div>
           )}
+          {campo("Observação", "obs", "info para compras", true)}
           <div className="col-span-2 text-[11px]" style={{ color: C.sub }}>Ao salvar a FPP, o artigo entra no cadastro de Artigos (origem: FPP). Campo em branco não separa este artigo de outro com o mesmo nome — compras pode juntar os volumes.</div>
           <button onClick={salvar} className="col-span-2 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Aplicar</button>
         </div>
@@ -1839,24 +1873,29 @@ function Card({ title, children }) {
 }
 /* custos extras (aviamentos / produção): sem limite de linhas, sempre em R$ por peça */
 const somaExtras = (l) => (Array.isArray(l) ? l : []).reduce((s, x) => s + num(x?.valor), 0);
-function ExtrasCustos({ lista, onChange }) {
+function ExtrasCustos({ lista, onChange, comDet }) {
   const l = Array.isArray(lista) ? lista : [];
+  const cols = comDet ? "1fr 160px 30px 28px" : "1fr 160px 28px";
   const alt = (i, k, v) => onChange(l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   return (
     <div className="mt-3">
       {l.length > 0 && (
         <div className="space-y-2 mb-2">
-          <div className="grid gap-2 text-xs" style={{ gridTemplateColumns: "1fr 160px 28px", color: C.sub }}>
-            <span>Custo extra (descrição)</span><span>Valor (R$ por peça)</span><span />
+          <div className="grid gap-2 text-xs" style={{ gridTemplateColumns: cols, color: C.sub }}>
+            <span>Custo extra (descrição)</span><span>Valor (R$ por peça)</span><span />{comDet && <span />}
           </div>
           {l.map((x, i) => (
-            <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 160px 28px" }}>
+            <React.Fragment key={i}>
+            <div className="grid gap-2 items-center" style={{ gridTemplateColumns: cols }}>
               <input value={x.desc || ""} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: ZÍPER, ETIQUETA, LAVAGEM…"
                 className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
               <input value={x.valor ?? ""} onChange={(e) => alt(i, "valor", e.target.value)} inputMode="decimal" placeholder="0,00 por peça"
                 className="w-full px-2 py-1.5 rounded text-sm text-right" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+              {comDet && (x.desc ? <DetBotao det={x.det} categoria="AVIAMENTO" nome={x.desc} onDet={(d) => alt(i, "det", d)} /> : <span />)}
               <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
             </div>
+            {comDet && x.desc && <ResumoDet det={x.det} categoria="AVIAMENTO" />}
+            </React.Fragment>
           ))}
           <div className="text-xs text-right" style={{ color: C.sub }}>Extras: <b style={{ color: C.navy }}>{brl(somaExtras(l))}</b> por peça</div>
         </div>
