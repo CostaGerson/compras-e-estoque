@@ -1813,3 +1813,22 @@ model FinPrevReal {
   atualizadoEm  DateTime @updatedAt
   @@unique([competencia, salvoEm])
 }
+
+// v386 — integração com o banco do KM: último conteúdo recebido de cada pedido (para não reprocessar o que não mudou)
+model KmPedido {
+  numero    String   @id
+  hash      String
+  updatedAt DateTime @updatedAt
+}
+
+// v386 — histórico das sincronizações do agente do KM
+model KmSyncLog {
+  id          Int      @id @default(autoincrement())
+  em          DateTime @default(now())
+  recebidos   Int      @default(0)
+  novos       Int      @default(0)
+  atualizados Int      @default(0)
+  iguais      Int      @default(0)
+  entradas    Int      @default(0)
+  erros       String?
+}

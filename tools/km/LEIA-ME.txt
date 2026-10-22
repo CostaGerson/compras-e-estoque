@@ -1,9 +1,18 @@
-Leitor do KM (MentorSoft) — só leitura
+Agente KM -> Compras & Estoque (v386)  -  SO LEITURA no banco do KM
 
-1) Instalar o Node (uma vez):   winget install OpenJS.NodeJS.LTS
-   Feche e abra o PowerShell de novo.
-2) Nesta pasta:                  cd C:\projetos\compras-e-estoque\tools\km
-                                  npm install
-3) Descobrir a estrutura:        node descobrir.mjs
-   (pede a senha do banco; não grava em lugar nenhum)
-4) Mande o arquivo km-estrutura.txt para o Claude.
+Requisitos no PC (ja feitos em 22/10/2026):
+  - cliente do PostgreSQL em  %USERPROFILE%\pgsql-cli\pgsql\bin\psql.exe
+  - acesso ao servidor do KM 192.168.0.107:5435 (usuario de consulta mentorbi, enviado pela KM)
+
+Na VPS: KM_SYNC_TOKEN no .env (mesmo valor que vai no agente).
+
+No PC (PowerShell):
+  cd C:\projetos\compras-e-estoque ; git pull
+  cd tools\km
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Configurar   (senha do banco + token)
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Previa       (confere sem gravar; abre km_previa.json)
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1               (sincroniza agora)
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (a cada 10 min, enquanto o usuario estiver logado)
+
+Log: %LOCALAPPDATA%\km-sync\log.txt
+O que entra: pedidos com saldo a entregar, dos ultimos 45 dias, ou alterados nos ultimos 3 dias.

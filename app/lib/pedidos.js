@@ -26,6 +26,11 @@ export async function importarArquivos(arquivos, quem) {
       lidos.push({ nome: a.nome, b64, ...r });
     } catch (e) { lidos.push({ nome: a.nome, erro: e.message }); }
   }
+  return aplicarLidos(lidos, quem);
+}
+
+// v386 — aplica PVs/OPs já lidos (PDF ou banco do KM) — mesmo fluxo para os dois
+export async function aplicarLidos(lidos, quem) {
   const out = [];
   // v325 — relatorio "Posicao Geral de Vendas": importa todos os pedidos em massa
   for (const l of lidos.filter((x) => x.tipo === "POSICAO")) {
@@ -44,9 +49,9 @@ export async function importarArquivos(arquivos, quem) {
         interno: ehInterno(l.cliente, l.cnpj) || !!atual?.interno,
         emissao: l.emissao ? dUTC(l.emissao) : null, despacho: l.despacho ? dUTC(l.despacho) : null,
         condicao: atual?.condicao && atual.condicao !== l.condicao && atual.pvPdf ? atual.condicao : (l.condicao || null),
-        vendedor: l.vendedor || null, tipoPedido: l.tipoPedido || null, oc: l.oc || null, freteTipo: l.freteTipo || null, frete: l.frete ?? null,
+        vendedor: l.vendedor || null, tipoPedido: l.tipoPedido || null, oc: l.oc || null, freteTipo: l.freteTipo || atual?.freteTipo || null, frete: l.frete ?? atual?.frete ?? null,
         obs: atual?.obs || l.obs || null,
-        total: r2(l.total), qtd: Math.round(l.qtdTotal || itens.reduce((s, i) => s + (i.qtd || 0), 0)), itens, pvPdf: l.b64, atualizadoPorNome: quem,
+        total: r2(l.total), qtd: Math.round(l.qtdTotal || itens.reduce((s, i) => s + (i.qtd || 0), 0)), itens, ...(l.b64 ? { pvPdf: l.b64 } : {}), atualizadoPorNome: quem,
       };
       if (atual) await prisma.pedidoVenda.update({ where: { id: atual.id }, data: dados });
       else await prisma.pedidoVenda.create({ data: { numero: l.numero, ...dados, criadoPorNome: quem } });
@@ -55,15 +60,15 @@ export async function importarArquivos(arquivos, quem) {
       const itens = [...itensAtuais];
       for (const it of l.itens) {
         const k = itens.findIndex((x) => (it.codigo && x.codigo === it.codigo));
-        const pp = { op: it.op, seq: it.seq, parametros: it.parametros, descricaoPP: it.descricao, qtdPP: it.qtd };
+        const pp = { op: it.op, seq: it.seq, parametros: it.parametros, descricaoPP: it.descricao, qtdPP: it.qtd, ...(it.kmOps ? { kmOps: it.kmOps } : {}) };
         if (k >= 0) itens[k] = { ...itens[k], ...pp, descricao: it.descricao || itens[k].descricao };
         else itens.push({ codigo: it.codigo || null, descricao: it.descricao, qtd: it.qtd || 0, ...pp });
       }
-      const dados = { itens, ppPdf: l.b64, atualizadoPorNome: quem };
+      const dados = { itens, ...(l.b64 ? { ppPdf: l.b64 } : {}), atualizadoPorNome: quem };
       if (atual) await prisma.pedidoVenda.update({ where: { id: atual.id }, data: { ...dados, despacho: atual.despacho || (l.despacho ? dUTC(l.despacho) : null) } });
       else await prisma.pedidoVenda.create({ data: { numero: l.numero, cliente: l.cliente || "SEM CLIENTE", emissao: l.emissao ? dUTC(l.emissao) : null,
         despacho: l.despacho ? dUTC(l.despacho) : null, total: 0, qtd: l.itens.reduce((s, i) => s + (i.qtd || 0), 0), ...dados, criadoPorNome: quem } });
-      out.push({ nome: l.nome, tipo: "PP", numero: l.numero, cliente: l.cliente || atual?.cliente, itens: l.itens.length, novo: !atual, semPv: !atual?.pvPdf });
+      out.push({ nome: l.nome, tipo: "PP", numero: l.numero, cliente: l.cliente || atual?.cliente, itens: l.itens.length, novo: !atual, semPv: !atual?.pvPdf && !l.fonteKm });
     }
   }
   // v321 — relê o Cronograma para casar os pedidos novos na hora
@@ -522,3 +527,29 @@ export async function pdfDoPedido(id, tipo) {
   return b ? { nome: `${tipo} ${p.numero}.pdf`, buf: Buffer.from(b, "base64") } : null;
 }
 export const excluirPedido = (id) => prisma.pedidoVenda.delete({ where: { id: Number(id) } });
+
+// v386 — entrada automática (pedido vindo do KM): lança a conta a receber da entrada na data de emissão, com crítica para conferir.
+// · já existe e foi lançada pelo KM, em aberto, com valor diferente → atualiza o valor e volta a crítica
+// · entrada cancelada à mão não volta; pedido interno / sem entrada na condição não lança
+export const QUEM_KM = "KM (AUTOMÁTICO)";
+export async function entradaAutomatica(numero) {
+  const p = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, numero: true, status: true, interno: true, total: true, condicao: true, entradaValor: true, emissao: true, criadoPorNome: true } });
+  if (!p || p.interno || p.status !== "ANDAMENTO" || p.criadoPorNome !== QUEM_KM) return null;   // só pedido cadastrado pelo KM (os antigos, do PDF, ficam como estão)
+  // entrada lançada à mão com outro título ("PEDIDO 26080045 …") também conta
+  const mao = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", titulo: { contains: `PEDIDO ${p.numero}` }, NOT: { chaveImport: chaveEntrada(p.numero) } }, select: { id: true } });
+  if (mao) return null;
+  const prev = preverPedido({ ...p, vlEntregar: null });
+  const ja = await prisma.finTitulo.findFirst({ where: { chaveImport: chaveEntrada(p.numero) }, select: { id: true, status: true, valor: true, criadoPorNome: true } });
+  if (ja) {
+    if (ja.status === "ABERTO" && ja.criadoPorNome === QUEM_KM && prev.entrada > 0 && Math.abs(Number(ja.valor) - prev.entrada) > 0.009) {
+      await prisma.finTitulo.update({ where: { id: ja.id }, data: { valor: prev.entrada, atualizadoPorNome: QUEM_KM,
+        critica: `ENTRADA DO PEDIDO ${p.numero} MUDOU NO KM (${Number(ja.valor).toFixed(2)} → ${prev.entrada.toFixed(2)}) — CONFIRA VALOR E DATA` } });
+      return "ATUALIZADA";
+    }
+    return null;
+  }
+  if (!(prev.entrada > 0)) return null;
+  const t = await lancarEntrada(p.id, {}, QUEM_KM);
+  await prisma.finTitulo.update({ where: { id: t.id }, data: { critica: `ENTRADA LANÇADA AUTOMATICAMENTE PELO PEDIDO ${p.numero} DO KM (CONDIÇÃO ${p.condicao || "—"}) — CONFIRA VALOR E DATA` } });
+  return "LANCADA";
+}
