@@ -2,7 +2,7 @@
 // v316 — Pedidos em andamento: sobe PV + PP (KM Sistemas) e vê a previsão de receitas (entrada + parcelas após a NF), dentro e fora do mês
 import React, { useEffect, useRef, useState } from "react";
 import { ouvirColar, pdfsDoColar } from "./colarPdf";
-import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2, RefreshCw, Link2, Settings } from "lucide-react";
+import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2, RefreshCw, Link2, Settings, Download } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -30,6 +30,7 @@ export default function PedidosAndamento({ user }) {
   const [filtro, setFiltro] = useState("");
   const [vista, setVista] = useState(null);   // v393 — card/aviso clicado: a lista mostra só os pedidos dele
   const inp = useRef(null);
+  const tabRef = useRef(null);
 
   const carregar = () => fetch(`/api/fin/pedidos?u=${user.id}&competencia=${comp}&ocultos=1${todos ? "&todos=1" : ""}`)
     .then((r) => r.json().then((j) => (r.ok ? (setD(j), setErro("")) : setErro(j.error || "Erro")))).catch(() => setErro("Falha de conexão."));
@@ -105,6 +106,42 @@ export default function PedidosAndamento({ user }) {
   const lista = base.filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f))
     .map((p, i) => [p, i]).sort((a, b) => (b[0].previsao.atrasado ? 1 : 0) - (a[0].previsao.atrasado ? 1 : 0) || a[1] - b[1]).map(([p]) => p);   // v322 — vencidos no topo
 
+  // v395 — exporta para Excel exatamente o que a lista mostra (filtro do card/aviso, busca e ordem escolhida no título da coluna)
+  const exportar = async () => {
+    const XLSX = await import("xlsx");
+    const ordemDom = [...(tabRef.current?.querySelectorAll("tbody tr[data-chave]") || [])].map((tr) => tr.dataset.chave);
+    const porId = Object.fromEntries(lista.map((p) => [String(p.id), p]));
+    const pedidos = ordemDom.length ? ordemDom.map((k) => porId[k]).filter(Boolean) : lista;
+    const dt = (s) => (s ? new Date(`${String(s).slice(0, 10)}T12:00:00Z`) : null);
+    const situacao = (p) => p.status !== "ANDAMENTO" ? (p.status === "FATURADO" ? `FATURADO${p.nfNumero ? ` · NF ${p.nfNumero}` : ""}` : p.status)
+      : p.cronoSituacao && p.cronoSituacao !== "NÃO ESTÁ NO CRONOGRAMA" ? `PCP: ${String(p.cronoSituacao).split(" · ")[0]}` : p.cronoSituacao ? "FORA DO PCP" : "EM ANDAMENTO";
+    const linhas = pedidos.map((p) => ({
+      Pedido: p.numero, Cliente: p.cliente, CNPJ: p.cnpj || "", Vendedor: p.vendedor || "", "O.C.": p.oc || "",
+      "Emissão": dt(p.emissao), Entrega: dt(p.entregaPrevista || p.despacho), "Entrega pelo": p.previsao.baseOrigem === "CRONOGRAMA" ? "PCP" : "PV",
+      "Condição": p.condicao || "", "Peças": p.qtd || 0, "Peças a entregar": p.qtEntregar ?? "", Total: Number(p.total) || 0,
+      "Saldo a faturar": p.vlEntregar != null ? Number(p.vlEntregar) : Number(p.total) || 0,
+      Entrada: p.previsao.entrada || 0, "Entrada lançada": p.previsao.entradaLancada || 0,
+      [`No mês (${curto(comp)})`]: p.noMes || 0, "Fora do mês": p.foraMes || 0, "Antes do mês": p.antes || 0,
+      "Situação": situacao(p), "Etapa PCP": p.cronoEtapa || "", Atrasado: p.previsao.atrasado ? "SIM" : "",
+      "NF no KM": (p.kmNfs || []).map((n) => n.numero).join(", "), Interno: p.interno ? "SIM" : "", Origem: p.fonte || "",
+    }));
+    const parcelas = pedidos.flatMap((p) => p.previsao.parcelas.map((x) => ({
+      Pedido: p.numero, Cliente: p.cliente, Tipo: x.tipo === "ENTRADA" ? "ENTRADA" : `PARCELA ${x.n}/${x.de}`, Vencimento: dt(x.data), Valor: x.valor,
+      "Pendente (entrada a lançar)": x.pendente ? "SIM" : "",
+    })));
+    const wb = XLSX.utils.book_new();
+    const add = (dados, nome, larg) => {
+      const ws = XLSX.utils.json_to_sheet(dados.length ? dados : [{ "": "sem dados" }], { cellDates: true, dateNF: "dd/mm/yyyy" });
+      ws["!cols"] = larg.map((w) => ({ wch: w }));
+      if (ws["!ref"]) ws["!autofilter"] = { ref: ws["!ref"] };
+      XLSX.utils.book_append_sheet(wb, ws, nome);
+    };
+    add(linhas, "Pedidos", [11, 38, 16, 12, 16, 11, 11, 8, 26, 8, 10, 13, 13, 12, 12, 13, 13, 13, 26, 18, 9, 14, 8, 10]);
+    add(parcelas, "Parcelas previstas", [11, 38, 14, 12, 13, 12]);
+    const sufixo = vista && VISTAS[vista] ? ` - ${VISTAS[vista][0]}` : "";
+    XLSX.writeFile(wb, `Pedidos em andamento ${comp}${sufixo}.xlsx`.replace(/[\\/:*?"<>|]/g, "-"), { cellDates: true });
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -115,6 +152,8 @@ export default function PedidosAndamento({ user }) {
         </div>
         <label className="flex items-center gap-1.5 text-xs" style={{ color: C.sub }}><input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> mostrar faturados e cancelados</label>
         <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar pedido, cliente, vendedor…" className="px-3 py-1.5 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, minWidth: 240 }} />
+        <button onClick={exportar} disabled={!lista.length} title="Baixa em Excel o que a lista está mostrando (filtro, busca e ordem)" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold"
+          style={{ color: C.green, border: `1px solid ${C.green}`, background: C.panel, opacity: lista.length ? 1 : 0.4 }}><Download size={14} /> Excel{lista.length ? ` (${lista.length})` : ""}</button>
         <div className="flex-1" />
         <input ref={inp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
         <button disabled={enviando} onClick={() => inp.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: enviando ? 0.5 : 1 }}>
@@ -222,7 +261,7 @@ export default function PedidosAndamento({ user }) {
           )}
           {/* pedidos */}
           <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <table className="w-full text-xs">
+            <table ref={tabRef} className="w-full text-xs">
               <thead>
                 <tr style={{ background: C.panel2, color: C.sub }}>
                   {["", "Pedido", "Cliente", "Emissão", "Entrega", "Condição", "Peças", "Total", "Entrada", `No mês`, "Fora do mês", "Situação", ""].map((h, i) => (
