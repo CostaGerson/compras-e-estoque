@@ -535,6 +535,9 @@ export const QUEM_KM = "KM (AUTOMÁTICO)";
 export async function entradaAutomatica(numero) {
   const p = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, numero: true, status: true, interno: true, total: true, condicao: true, entradaValor: true, emissao: true, criadoPorNome: true } });
   if (!p || p.interno || p.status !== "ANDAMENTO" || p.criadoPorNome !== QUEM_KM) return null;   // só pedido cadastrado pelo KM (os antigos, do PDF, ficam como estão)
+  // só pedidos emitidos depois que a integração começou (os antigos que chegaram na 1ª carga podem já ter a entrada recebida)
+  const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
+  if (!p.emissao || iso(p.emissao) < desde) return null;
   // entrada lançada à mão com outro título ("PEDIDO 26080045 …") também conta
   const mao = await prisma.finTitulo.findFirst({ where: { tipo: "RECEBER", titulo: { contains: `PEDIDO ${p.numero}` }, NOT: { chaveImport: chaveEntrada(p.numero) } }, select: { id: true } });
   if (mao) return null;
