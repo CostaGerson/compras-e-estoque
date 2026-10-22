@@ -143,10 +143,11 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
       const { pv, pp, extra } = mapearPedido(k);
       const at = existentes[pv.numero];
       const h = hashDe(k);
-      if (!previa && hashes[pv.numero] === h) { res.iguais++; continue; }
+      if (!previa && at && hashes[pv.numero] === h) { res.iguais++; continue; }   // v398 — só pula o que já existe aqui
       if (at?.cliente) pv.cliente = at.cliente; else if (pv.clienteCodigo && nomePorCodigo[pv.clienteCodigo]) pv.cliente = nomePorCodigo[pv.clienteCodigo];
       // não cria pedido que já chega cancelado ou sem nada a faturar
-      if (!at && (extra.excluido || extra.vlEntregar <= 0.009)) { res.ignorados++; if (!previa) posAplicar.push({ numero: pv.numero, hash: h, so: true }); continue; }
+      // não cria pedido que chega cancelado ou sem saldo; não grava o hash — é reavaliado a cada rodada (o KM pode completar o pedido depois)
+      if (!at && (extra.excluido || extra.vlEntregar <= 0.009)) { res.ignorados++; if (pv.emissao && pv.emissao >= new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10)) (res.ignoradosLista ||= []).push(`${pv.numero}${extra.situacao ? ` (${extra.situacao})` : ""}${extra.excluido ? " cancelado" : " sem saldo"}`); continue; }
       if (previa) {
         const itAt = Array.isArray(at?.itens) ? at.itens : [];
         res.pedidos.push({
