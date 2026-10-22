@@ -1,13 +1,13 @@
-# v391 - Agente KM -> Compras & Estoque (Meridian)
+# v399 - Agente KM -> Compras & Estoque (Meridian)
 # Le os pedidos do banco do KM (somente leitura, usuario de consulta) e envia para o sistema na VPS.
 #
 # Uso (PowerShell, dentro de C:\projetos\compras-e-estoque\tools\km):
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Configurar   (1a vez: senha do banco e token; fica criptografado neste usuario do Windows)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Previa       (mostra o que vai entrar, sem gravar)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1               (sincroniza agora)
-#   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (roda sozinho a cada 10 minutos)
+#   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (roda sozinho a cada 1 minuto; -Minutos N para outro intervalo)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Desinstalar
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar)
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -54,11 +54,18 @@ if ($Instalar) {
   if (-not (Test-Path $cfgArq)) { throw "Rode antes com -Configurar." }
   Copy-Item -Force (Join-Path $PSScriptRoot "km-sync.ps1") (Join-Path $pasta "km-sync.ps1")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
-  $acao = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $pasta 'km-sync.ps1')`""
-  $gat  = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 10) -RepetitionDuration (New-TimeSpan -Days 3650)
-  $cfgT = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 9)
-  Register-ScheduledTask -TaskName $tarefa -Action $acao -Trigger $gat -Settings $cfgT -Description "Envia os pedidos do KM para o Compras e Estoque a cada 10 minutos" -Force | Out-Null
-  Write-Host "Instalado: roda a cada 10 minutos enquanto este usuario estiver logado. Log: $logArq"
+  if ($Minutos -lt 1) { $Minutos = 1 }
+  # lancador .vbs: roda o PowerShell sem abrir/piscar janela
+  $vbs = Join-Path $pasta "km-sync.vbs"
+  $ps1 = Join-Path $pasta "km-sync.ps1"
+  $q = [char]34
+  $linha = 'CreateObject("WScript.Shell").Run "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ' + $q + $q + $ps1 + $q + $q + ' -Silencioso", 0, False'
+  Set-Content -Path $vbs -Encoding ASCII -Value $linha
+  $acao = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$vbs`""
+  $gat  = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $Minutos) -RepetitionDuration (New-TimeSpan -Days 3650)
+  $cfgT = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+  Register-ScheduledTask -TaskName $tarefa -Action $acao -Trigger $gat -Settings $cfgT -Description "Envia os pedidos do KM para o Compras e Estoque a cada $Minutos minuto(s)" -Force | Out-Null
+  Write-Host "Instalado: roda a cada $Minutos minuto(s), sem janela, enquanto este usuario estiver logado. Log: $logArq"
   exit 0
 }
 
@@ -106,6 +113,9 @@ if ($Previa) {
   Log ("PREVIA: {0} recebidos, {1} ignorados (sem saldo/cancelados) -> {2}" -f $r.recebidos, $r.ignorados, $arq)
   notepad $arq
 } else {
-  Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados | {9} ignorados{8}" -f `
-    $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }), $(if ($r.ignoradosLista) { "$($r.ignorados) (" + (($r.ignoradosLista | Select-Object -First 15) -join ", ") + ")" } else { "0" })))
+  $mudou = ([int]$r.novos + [int]$r.atualizados + [int]$r.faturados + [int]$r.entradas + [int]$r.cancelados + [int]$r.pendentesContas + $r.erros.Count) -gt 0
+  if ($mudou -or -not $Silencioso -or (Get-Date).Minute -eq 0) {   # agendado e sem mudanca: registra so uma vez por hora (manual: sempre)
+    Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados | {9} ignorados{8}" -f `
+      $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }), $(if ($r.ignoradosLista) { "$($r.ignorados) (" + (($r.ignoradosLista | Select-Object -First 15) -join ", ") + ")" } else { "0" })))
+  }
 }

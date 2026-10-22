@@ -12,7 +12,7 @@ No PC (PowerShell):
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Configurar   (senha do banco + token)
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Previa       (confere sem gravar; abre km_previa.json)
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1               (sincroniza agora)
-  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (a cada 10 min, enquanto o usuario estiver logado)
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (a cada 1 min, sem janela, enquanto o usuario estiver logado)
 
 Log: %LOCALAPPDATA%\km-sync\log.txt
 O que entra: pedidos com saldo a entregar, dos ultimos 45 dias, ou alterados nos ultimos 3 dias.
