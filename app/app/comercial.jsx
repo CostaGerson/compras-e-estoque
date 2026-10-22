@@ -1808,6 +1808,49 @@ function AvComDet({ children, valor, det, onDet, botao }) {
     </div>
   );
 }
+// v407 — fornecedor: busca pelo nome (comercial, fantasia ou razão social); não cadastrado → cria o cadastro só com o nome
+const nomeForn = (f) => f.nome || f.nomeFantasia || f.razaoSocial || (f.cnpjs?.[0]?.razaoSocial) || `Fornecedor ${f.id}`;
+function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
+  const [q, setQ] = useState(nome || "");
+  const [open, setOpen] = useState(false);
+  const [criando, setCriando] = useState(false);
+  const nq = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  const hay = (f) => [f.nome, f.nomeFantasia, f.razaoSocial, ...(f.cnpjs || []).map((c) => `${c.razaoSocial || ""} ${c.cnpj}`)].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const lista = forns.filter((f) => !nq || hay(f).includes(nq)).sort((a, b) => nomeForn(a).localeCompare(nomeForn(b))).slice(0, 40);
+  const exato = forns.some((f) => nomeForn(f).toUpperCase().trim() === nq);
+  async function criar() {
+    setCriando(true);
+    const r = await fetch("/api/fornecedores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: q.trim().toUpperCase() }) });
+    const f = await r.json().catch(() => ({}));
+    setCriando(false);
+    if (!r.ok) return alert(f.error || "Não foi possível cadastrar.");
+    setQ(nomeForn(f)); setOpen(false); onCriado(f);
+  }
+  return (
+    <div className="col-span-2" style={{ position: "relative" }}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor {id ? "" : <span style={{ color: C.sub }}>· digite para buscar</span>}</div>
+      <input value={q} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); if (id) onPick(null); }} placeholder="Nome do fornecedor"
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${id ? C.green : open ? C.accent : C.line}`, color: C.text }} />
+      {open && (
+        <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {lista.map((f) => (
+            <button key={f.id} type="button" onMouseDown={(e) => { e.preventDefault(); setQ(nomeForn(f)); setOpen(false); onPick(f); }}
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: f.id === id ? C.accentSoft : "#fff" }}>
+              {nomeForn(f)}{f.razaoSocial && f.razaoSocial !== nomeForn(f) ? <span className="text-xs" style={{ color: C.sub }}> · {f.razaoSocial}</span> : null}
+            </button>
+          ))}
+          {!lista.length && !nq && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum fornecedor cadastrado.</div>}
+          {nq && !exato && (
+            <button type="button" disabled={criando} onMouseDown={(e) => { e.preventDefault(); criar(); }} className="flex items-center gap-1 w-full text-left px-3 py-2 text-sm font-semibold" style={{ color: C.accent, borderTop: `1px solid ${C.line}` }}>
+              <Plus size={14} /> {criando ? "Cadastrando…" : `Cadastrar “${q.trim().toUpperCase()}” (só o nome)`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
   const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "", qtdPeca: det.qtdPeca || "", obs: det.obs || "" });
   const [forns, setForns] = useState(_fornCache || []);
@@ -1835,12 +1878,9 @@ function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <div className="p-4 grid grid-cols-2 gap-3">
-          <label className="block col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
-            <select value={x.fornecedorId} onChange={(e) => { const f = forns.find((o) => String(o.id) === e.target.value); setX((o) => ({ ...o, fornecedorId: e.target.value ? Number(e.target.value) : "", fornecedorNome: f ? f.nome : "" })); }}
-              className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
-              <option value="">—</option>
-              {forns.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select></label>
+          <FornecedorCombo forns={forns} id={x.fornecedorId} nome={x.fornecedorNome}
+            onPick={(f) => setX((o) => ({ ...o, fornecedorId: f ? f.id : "", fornecedorNome: f ? nomeForn(f) : "" }))}
+            onCriado={(f) => { _fornCache = [...(_fornCache || []), f]; setForns(_fornCache); setX((o) => ({ ...o, fornecedorId: f.id, fornecedorNome: nomeForn(f) })); }} />
           {campo("Cor", "cor", "ex.: CINZA")}
           {campo("Código", "codigo", "ex.: 8047")}
           {!av && campo("Largura (m)", "largura", "ex.: 1,60")}

@@ -11,7 +11,7 @@ export async function GET(req, { params }) {
   const e = f.entradas || {};
   const ids = [e.artigoDet?.fornecedorId, e.artigoForroDet?.fornecedorId, ...Object.values(e.aviamentosDet || {}).map((d) => d?.fornecedorId),
     ...(e.extrasAviamentos || []).map((x) => x?.det?.fornecedorId)].filter(Boolean).map(Number);
-  const forns = Object.fromEntries((ids.length ? await prisma.fornecedor.findMany({ where: { id: { in: ids } }, select: { id: true, nome: true } }) : []).map((x) => [x.id, x.nome]));
+  const forns = Object.fromEntries((ids.length ? await prisma.fornecedor.findMany({ where: { id: { in: ids } }, select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } }) : []).map((x) => [x.id, x.nome || x.nomeFantasia || x.razaoSocial]));
   const materiais = materiaisDaFpp(f, ps).map((m) => ({ ...m, fornecedor: m.det?.fornecedorId ? forns[m.det.fornecedorId] || m.det.fornecedorNome : null,
     demanda: qtd ? Math.round(m.consumoPorPeca * qtd * 1000) / 1000 : null }));
   return Response.json({ id: f.id, numero: f.numero, tipo: f.tipo, item: f.item, nomeComercial: f.nomeComercial, clienteNome: f.clienteNome, negociacao: f.negociacao,

@@ -194,18 +194,18 @@ export async function demandaDoItem(fpp, qtd, db = prisma) {
   const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true } });
   const mats = materiaisDaFpp(fpp, params);
   const ids = mats.map((m) => (m.det || {}).artigoId).filter(Boolean);
-  const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true } } } }) : [];
+  const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } }) : [];
   const porId = Object.fromEntries(arts.map((a) => [a.id, a]));
   const out = [];
   for (const m of mats) {
     let artigoId = (m.det || {}).artigoId;
     if (!artigoId || !porId[artigoId]) {   // FPP antiga, sem detalhe: cadastra pelo nome
       artigoId = await artigoDaFpp(m, fpp, db);
-      porId[artigoId] = await db.artigo.findUnique({ where: { id: artigoId }, include: { fornecedor: { select: { id: true, nome: true } } } });
+      porId[artigoId] = await db.artigo.findUnique({ where: { id: artigoId }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } });
     }
     const a = porId[artigoId];
     out.push({ papel: m.papel, artigoId, nome: a.nome, categoria: a.categoria, unidade: m.unidade,
-      fornecedorId: a.fornecedorId, fornecedor: a.fornecedor?.nome || null, cor: a.cor, codigo: a.codigo,
+      fornecedorId: a.fornecedorId, fornecedor: a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial || null) : null, cor: a.cor, codigo: a.codigo,
       largura: a.largura != null ? Number(a.largura) : null, base: m.base,
       consumoPorPeca: Math.round(m.consumoPorPeca * 10000) / 10000, quantidade: r3(m.consumoPorPeca * qtd), valorUnitario: m.valorUnitario,
       embalagem: m.embalagem || null, obs: m.obs || null, equiparadoA: null });
