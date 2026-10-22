@@ -254,8 +254,9 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                 {st[0]}{p.nfNumero ? ` · NF ${String(p.nfNumero).split(/[,\s]+/)[0]}${String(p.nfNumero).includes(",") ? "…" : ""}` : ""}</span>}
           {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}</td>
         <td className={td} onClick={(e) => e.stopPropagation()}>
-          {p.temPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
-          {p.temPp && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PP`} target="_blank" className="font-semibold" style={{ color: C.accent }}>PP</a>}
+          {p.pdfPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
+          {p.pdfPp && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PP`} target="_blank" className="font-semibold" style={{ color: C.accent }}>PP</a>}
+          {String(p.fonte || "").includes("KM") && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ color: C.green, background: C.greenSoft }} title="Dados sincronizados do KM (PV e OP)">KM</span>}
         </td>
       </tr>
       {aberto && (

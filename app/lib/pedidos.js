@@ -451,7 +451,10 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     const antes = r2(prev.parcelas.filter((x) => x.data.slice(0, 7) < comp).reduce((s, x) => s + x.valor, 0));
     return { ...p, total: r2(p.total), entradaValor: p.entradaValor != null ? r2(p.entradaValor) : null, frete: p.frete != null ? r2(p.frete) : null,
       emissao: iso(p.emissao), despacho: iso(p.despacho), entregaPrevista: iso(p.entregaPrevista), faturadoEm: iso(p.faturadoEm), cronoPrazo: iso(p.cronoPrazo), cronoFimProgramado: iso(p.cronoFimProgramado),
-      temPv: comPv.has(p.id), temPp: comPp.has(p.id),
+      // v388 — vindo do KM conta como PV/PP (o PDF é só um dos meios); os links continuam só quando há PDF
+      pdfPv: comPv.has(p.id), pdfPp: comPp.has(p.id),
+      temPv: comPv.has(p.id) || String(p.fonte || "").includes("KM"),
+      temPp: comPp.has(p.id) || (Array.isArray(p.itens) && p.itens.some((i) => (i.kmOps && i.kmOps.length) || (i.parametros && i.parametros.length))),
       previsao: prev, noMes, foraMes, antes,
       nfSugerida: nfSugerida ? { numero: nfSugerida.numero, emissao: iso(nfSugerida.emissao), valor: r2(nfSugerida.valor) } : null };
   });
