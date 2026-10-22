@@ -425,7 +425,12 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
   // v347 — antes de listar: pedido em andamento que já tem NF de saída vira FATURADO sozinho
   let autoFaturados = [];
   try { autoFaturados = await faturarPelasNfs(); } catch (e) { console.log("pedidos/faturar:", e.message); }
-  const lista = await prisma.pedidoVenda.findMany({ where: todos ? {} : { status: "ANDAMENTO" }, orderBy: [{ despacho: "asc" }, { numero: "asc" }], select: CAMPOS });
+  const lista0 = await prisma.pedidoVenda.findMany({ where: todos ? {} : { status: "ANDAMENTO" }, orderBy: [{ despacho: "asc" }, { numero: "asc" }], select: CAMPOS });
+  // v389 — o PCP do Maycon é a referência: pedido antigo (antes da integração com o KM) em andamento que não está no Cronograma não aparece
+  const desdeKm = process.env.KM_ENTRADA_DESDE || "2026-10-22";
+  const foraPcp = (p) => p.status === "ANDAMENTO" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desdeKm);
+  const ocultos = lista0.filter(foraPcp);
+  const lista = todos ? lista0 : lista0.filter((p) => !foraPcp(p));
   // PDFs: só se existem (sem carregar o conteúdo)
   const ids = lista.map((p) => p.id);
   const comPv = new Set(ids.length ? (await prisma.pedidoVenda.findMany({ where: { id: { in: ids }, pvPdf: { not: null } }, select: { id: true } })).map((x) => x.id) : []);
@@ -484,6 +489,8 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     porMes: (() => { const m = {}; for (const p of and) for (const x of p.previsao.parcelas) { const c = x.data.slice(0, 7); m[c] = r2((m[c] || 0) + x.valor); } return Object.entries(m).sort().map(([c, v]) => ({ competencia: c, valor: v })); })(),
   };
   resumo.qtdSemCrono = and.filter((p) => !p.entregaPrevista).length;
+  resumo.qtdForaPcp = ocultos.length;   // v389 — antigos fora do PCP, ocultos
+  resumo.foraPcp = ocultos.map((p) => p.numero);
   resumo.qtdInternos = pedidos.filter((p) => p.status === "ANDAMENTO" && p.interno).length;
   return { resumo, pedidos, crono };
 }

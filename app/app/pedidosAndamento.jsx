@@ -161,13 +161,14 @@ export default function PedidosAndamento({ user }) {
             <Kpi t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
             {R.antes > 0 && <Kpi t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
-          {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || (CR?.temToken && R.qtdSemCrono)) > 0 && (
+          {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || R.qtdForaPcp || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
               {R.qtdReprogPcp > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — reprogramar no Cronograma (contam de hoje)</Aviso>}
               {R.qtdReprogDespacho > 0 && <Aviso cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida — programar no Cronograma (contam de hoje)</Aviso>}
               {R.qtdInternos > 0 && <Aviso cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da previsão e sem contas</Aviso>}
               {R.qtdProntos > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntos} concluído(s) no PCP — faturar</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
+              {R.qtdForaPcp > 0 && <Aviso cor={C.sub} bg={C.panel2}><span title={(R.foraPcp || []).join(", ")}>{R.qtdForaPcp} pedido(s) antigo(s) fora do PCP do Maycon — ocultos</span></Aviso>}
               {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
               {R.qtdSemCrono > 0 && CR?.temToken && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
               {R.qtdNfSugerida > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
