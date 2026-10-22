@@ -6,7 +6,7 @@ import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { r2, so, mesDe, dataUTC, validarRateio, nomeU } from "@/lib/finTitulos";
-import { abaterEntradaNaNf, registrarAbatimento } from "@/lib/entradaNf";
+import { abaterEntradaNaNf, registrarAbatimento, faturarPeloUpload } from "@/lib/entradaNf";
 
 export const PROPRIAS = { "48011287": "MERIDIAN", "55116246": "NORT" };
 export const empresaDoDoc = (d) => { const s = so(d); return s.length === 14 ? PROPRIAS[s.slice(0, 8)] || null : null; };
@@ -422,6 +422,8 @@ export async function gravar(notas, u) {
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
+    // v392 — NF de saída subida com contas: fatura o pedido na hora
+    if (n.tipo === "SAIDA" && n.decisao === "LANCAR" && (r.criadas > 0 || r.ligadas > 0)) { try { const f = await faturarPeloUpload(n); if (f) r.pedido = f; } catch (e) { console.log("fiscal/pedido:", e.message); } }
     if (n.decisao === "LANCAR" && r.criadas > 0 && n.entradaPedido?.abate > 0) { try { await registrarAbatimento(n.entradaPedido, n.numero); r.entradaAbatida = n.entradaPedido.abate; } catch (e) { console.log("fiscal/abatimento:", e.message); } }
 
     // entrada de NF-e: cadastra/completa o fornecedor pelo emitente

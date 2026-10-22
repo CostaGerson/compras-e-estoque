@@ -169,7 +169,7 @@ export default function PedidosAndamento({ user }) {
               {R.qtdProntosSemNf > 0 && <Aviso cor={C.green} bg={C.greenSoft}>{R.qtdProntosSemNf} concluído(s) no PCP sem NF no KM — faturar</Aviso>}
               {R.qtdProntosComNf > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdProntosComNf} concluído(s) no PCP com NF parcial no KM — conferir o saldo</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
-              {R.qtdNfSemContas > 0 && <Aviso cor={C.accent} bg={C.accentSoft}>{R.qtdNfSemContas} com NF emitida e contas a receber não lançadas — lance no movimento fiscal</Aviso>}
+              {R.qtdNfSemContas > 0 && <Aviso cor={C.blue} bg={C.blueSoft}>{R.qtdNfSemContas} com NF emitida no KM — suba a NF no movimento fiscal para faturar</Aviso>}
               {R.qtdForaPcp > 0 && <Aviso cor={C.sub} bg={C.panel2}><span title={(R.foraPcp || []).join(", ")}>{R.qtdForaPcp} pedido(s) antigo(s) fora do PCP do Maycon — ocultos</span></Aviso>}
               {R.qtdSemPv > 0 && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
               {R.qtdSemCrono > 0 && CR?.temToken && <Aviso cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
@@ -220,7 +220,10 @@ export default function PedidosAndamento({ user }) {
 function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir, comp }) {
   const v = p.previsao;
   const [ed, setEd] = useState(null);
-  const st = { ANDAMENTO: ["Em andamento", C.accent, C.accentSoft], FATURADO: ["Faturado", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2] }[p.status];
+  // v392 — em andamento mostra a situação do pedido no PCP do Maycon; FATURADO só quando a NF é subida (contas lançadas)
+  const pcpSit = p.cronoSituacao && p.cronoSituacao !== "NÃO ESTÁ NO CRONOGRAMA" ? String(p.cronoSituacao).split(" · ")[0] : null;
+  const st = { ANDAMENTO: [pcpSit ? `PCP: ${pcpSit}` : p.cronoSituacao ? "Fora do PCP" : "Em andamento", p.cronoConcluido ? C.green : C.accent, p.cronoConcluido ? C.greenSoft : C.accentSoft],
+    FATURADO: ["Faturado", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2] }[p.status];
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (
     <>
@@ -253,14 +256,12 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
             ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
                 title={p.nfsFaturadas.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${n.pecas} peças · ${moeda(n.valor)}`).join("\n")}>
                 Parcial · faltam {p.qtEntregar ?? "?"} pç</span>
-            : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }} title={p.nfNumero ? `NF ${p.nfNumero}` : undefined}>
+            : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }} title={p.status === "ANDAMENTO" ? [p.cronoSituacao, p.cronoEtapa && `etapa: ${p.cronoEtapa}`].filter(Boolean).join(" · ") || undefined : p.nfNumero ? `NF ${p.nfNumero}` : undefined}>
                 {st[0]}{p.nfNumero ? ` · NF ${String(p.nfNumero).split(/[,\s]+/)[0]}${String(p.nfNumero).includes(",") ? "…" : ""}` : ""}</span>}
           {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}
-          {p.status === "ANDAMENTO" && p.faturamentoPendente && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ color: C.accent, background: C.accentSoft }}
-            title={`NF emitida (${p.faturamentoPendente.origem || ""}) — o pedido só fica FATURADO quando as contas a receber da NF forem lançadas no movimento fiscal`}>
-            NF {p.faturamentoPendente.nfNumero || "?"} — lançar contas</span>}
-          {p.status === "ANDAMENTO" && !p.faturamentoPendente && Array.isArray(p.kmNfs) && p.kmNfs.length > 0 && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }}
-            title={p.kmNfs.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${moeda(n.valor)}`).join("\n")}>NF KM {p.kmNfs.map((n) => n.numero).join(", ")}</span>}</td>
+          {p.status === "ANDAMENTO" && (p.faturamentoPendente?.nfNumero || (Array.isArray(p.kmNfs) && p.kmNfs.length > 0)) && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }}
+            title={`${(p.kmNfs || []).map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${moeda(n.valor)}`).join("\n")}\nEmitida no KM — suba a NF no movimento fiscal para faturar o pedido`}>
+            NF {p.faturamentoPendente?.nfNumero || (p.kmNfs || []).map((n) => n.numero).join(", ")} no KM — subir NF</span>}</td>
         <td className={td} onClick={(e) => e.stopPropagation()}>
           {p.pdfPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
           {p.pdfPp && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PP`} target="_blank" className="font-semibold" style={{ color: C.accent }}>PP</a>}

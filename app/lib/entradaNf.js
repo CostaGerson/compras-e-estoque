@@ -76,3 +76,29 @@ export async function registrarAbatimento(ent, numeroNf) {
   lista.push({ nf, valor: ent.abate, em: new Date().toISOString().slice(0, 10) });
   await prisma.pedidoVenda.update({ where: { id: ent.pedidoId }, data: { entradaAbatidaNfs: lista } });
 }
+
+// v392 — subir a NF de saída (contas lançadas) é o que fatura o pedido: na hora, sem esperar a próxima listagem
+// · pedido ligado à NF pelo KM: fatura quando as NFs do pedido cobrem o total (±2%) e todas têm contas; senão fica parcial/pendente
+// · sem ligação pelo KM: a casação pelos itens/valor (faturarPelasNfs) cuida, já exigindo as contas
+export async function faturarPeloUpload(n) {
+  if (n.tipo !== "SAIDA") return null;
+  const { faturarOuPendurar, efetivarFaturamentos, faturarPelasNfs } = await import("@/lib/pedidos");
+  let feito = null;
+  const p0 = await pedidoDaNf(n.numero, n.documento);
+  if (p0) {
+    const p = await prisma.pedidoVenda.findUnique({ where: { id: p0.id }, select: { id: true, status: true, total: true, cnpj: true, kmNfs: true, faturamentoPendente: true } });
+    if (p?.status === "ANDAMENTO") {
+      const km = Array.isArray(p.kmNfs) ? p.kmNfs : [];
+      const nf = semZero(n.numero);
+      const nums = [...new Set([...km.map((x) => semZero(x.numero)), ...String(p.faturamentoPendente?.nfNumero || "").split(/[,\s]+/).map(semZero), nf].filter(Boolean))];
+      const soma = r2(km.reduce((s, x) => s + Number(x.valor || 0), 0) + (km.some((x) => semZero(x.numero) === nf) ? 0 : Number(n.valor || 0)));
+      if (soma >= Number(p.total) * 0.98 || p.faturamentoPendente) {
+        const r = await faturarOuPendurar(p.id, p.cnpj, { nfNumero: nums.join(", ").slice(0, 190), faturadoEm: new Date(`${n.emissao}T00:00:00Z`),
+          vlEntregar: 0, qtEntregar: 0, atualizadoPorNome: "SISTEMA" }, "NF SUBIDA");
+        feito = { pedido: p0.numero, status: r?.status === "FATURADO" ? "FATURADO" : "PENDENTE" };
+      }
+    }
+  }
+  try { await efetivarFaturamentos(); await faturarPelasNfs(); } catch (e) { console.log("fiscal/faturar:", e.message); }
+  return feito;
+}
