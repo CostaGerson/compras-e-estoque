@@ -101,7 +101,7 @@ export function mapearPedido(k) {
   return { pv, pp, extra };
 }
 
-const hashDe = (o) => createHash("sha256").update(JSON.stringify(o)).digest("hex");
+const hashDe = (o) => createHash("sha256").update("v390|" + JSON.stringify(o)).digest("hex");   // trocar o prefixo reprocessa todos uma vez
 
 // ---------- aplica um lote vindo do agente ----------
 export async function sincronizarKm(pedidos, { previa = false } = {}) {
@@ -150,12 +150,23 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
   }
   for (const p of posAplicar) {
     if (!p.so) {
-      const at = await prisma.pedidoVenda.findUnique({ where: { numero: p.numero }, select: { id: true, status: true, faturadoEm: true, fonte: true } });
+      const at = await prisma.pedidoVenda.findUnique({ where: { numero: p.numero }, select: { id: true, status: true, faturadoEm: true, fonte: true, total: true, nfNumero: true, interno: true } });
       if (at) {
         const e = p.extra;
         const data = { qtEntregar: e.qtEntregar, vlEntregar: e.vlEntregar, kmNfs: e.nfs, fonte: at.fonte && at.fonte.includes("KM") ? at.fonte : (at.fonte ? `${at.fonte}+KM` : "KM") };
         if (e.excluido && at.status !== "CANCELADO") { data.status = "CANCELADO"; res.cancelados++; }
-        else if (e.vlEntregar <= 0.009 && at.status === "ANDAMENTO") { data.status = "FATURADO"; data.faturadoEm = at.faturadoEm || (e.ultFaturamento ? dUTC(e.ultFaturamento) : new Date()); res.faturados++; }
+        else if (at.status === "ANDAMENTO") {
+          // v390 — faturado: KM marca F / saldo zerado, ou as NFs de saída do pedido no KM já cobrem o total (±2%)
+          const somaNfs = r2((e.nfs || []).reduce((s, x) => s + (Number(x.valor) || 0), 0));
+          const cobre = (e.nfs || []).length && Number(at.total) > 0 && somaNfs >= Number(at.total) * 0.98;
+          if (e.vlEntregar <= 0.009 || cobre) {
+            const ult = (e.nfs || []).map((x) => x.emissao).filter(Boolean).sort().pop() || e.ultFaturamento;
+            data.status = "FATURADO"; data.faturadoEm = at.faturadoEm || (ult ? dUTC(ult) : new Date());
+            if (!at.nfNumero && (e.nfs || []).length) data.nfNumero = e.nfs.map((x) => x.numero).join(", ").slice(0, 190);
+            if (cobre) { data.vlEntregar = 0; data.qtEntregar = 0; }
+            res.faturados++;
+          }
+        }
         await prisma.pedidoVenda.update({ where: { id: at.id }, data });
         if (p.novo) res.novos++; else res.atualizados++;
         if (!data.status) {

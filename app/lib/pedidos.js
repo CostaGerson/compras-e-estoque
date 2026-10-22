@@ -10,7 +10,7 @@ const somaDias = (s, n) => { const d = dUTC(s); d.setUTCDate(d.getUTCDate() + n)
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); };   // Brasília
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
-  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas",
+  "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas", "kmNfs",
   "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 // v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
@@ -482,6 +482,9 @@ export async function listarPedidos({ competencia, todos = false } = {}) {
     qtdReprogPcp: and.filter((p) => p.previsao.reprogramar === "PCP").length,
     qtdReprogDespacho: and.filter((p) => p.previsao.reprogramar === "DESPACHO").length,
     qtdProntos: and.filter((p) => p.previsao.pronto).length,
+    // v390 — concluídos no PCP: com NF parcial emitida no KM × sem NF nenhuma (faturar)
+    qtdProntosComNf: and.filter((p) => p.previsao.pronto && Array.isArray(p.kmNfs) && p.kmNfs.length).length,
+    qtdProntosSemNf: and.filter((p) => p.previsao.pronto && !(Array.isArray(p.kmNfs) && p.kmNfs.length)).length,
     qtdSemCondicao: and.filter((p) => !p.previsao.condicaoOk).length,
     qtdSemPv: and.filter((p) => !p.temPv).length,
     qtdNfSugerida: and.filter((p) => p.nfSugerida).length,

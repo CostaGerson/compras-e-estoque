@@ -1,4 +1,4 @@
--- v387 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
+-- v390 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
 -- Sem as views pedido_mestre / pedido_item_detalhe (chamam prc_valor_pedido, que lê recpedid — sem permissão).
 -- Entram: pedidos com saldo a entregar, dos últimos 45 dias ou alterados nos últimos 3 dias.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
@@ -57,4 +57,5 @@ FROM (
   WHERE pe.quant_saldo > 0
      OR pe.ddatapedid >= now() - interval '45 days'
      OR sp.dalterapedid >= now() - interval '3 days'
+     OR pe.ncodigopedid::text = ANY(string_to_array(:'abertos', ','))   -- em andamento no Compras & Estoque
 ) x;

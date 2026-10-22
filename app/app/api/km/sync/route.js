@@ -32,6 +32,11 @@ export async function POST(req) {
 export async function GET(req) {
   const neg = autorizado(req);
   if (neg) return Response.json({ error: neg.erro }, { status: neg.status });
+  // v390 — números dos pedidos em andamento aqui: o agente consulta esses no KM mesmo fora do filtro (ex.: faturados há tempo)
+  if (new URL(req.url).searchParams.get("abertos") === "1") {
+    const l = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO" }, select: { numero: true } });
+    return new Response(l.map((p) => p.numero).filter((n) => /^\d+$/.test(n)).join(","), { headers: { "content-type": "text/plain" } });
+  }
   const logs = await prisma.kmSyncLog.findMany({ orderBy: { id: "desc" }, take: 20 });
   return Response.json({ logs });
 }

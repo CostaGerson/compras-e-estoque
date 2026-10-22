@@ -1,4 +1,4 @@
-# v386.2 - Agente KM -> Compras & Estoque (Meridian)
+# v390 - Agente KM -> Compras & Estoque (Meridian)
 # Le os pedidos do banco do KM (somente leitura, usuario de consulta) e envia para o sistema na VPS.
 #
 # Uso (PowerShell, dentro de C:\projetos\compras-e-estoque\tools\km):
@@ -70,11 +70,18 @@ if (-not (Test-Path $sql)) { $sql = Join-Path $pasta "km-pedidos.sql" }
 if (-not (Test-Path $c.psql)) { throw "psql nao encontrado em $($c.psql)" }
 $saida = Join-Path $pasta "pedidos.json"
 
+# pedidos em andamento no sistema (consultados no KM mesmo fora do filtro)
+$abertos = ""
+try {
+  $wa = Invoke-WebRequest -UseBasicParsing -Uri ($c.url.TrimEnd("/") + "/api/km/sync?abertos=1") -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 60
+  $abertos = ([Text.Encoding]::UTF8.GetString($wa.RawContentStream.ToArray())) -replace "[^0-9,]", ""
+} catch { Log "aviso: nao consegui a lista de pedidos em andamento ($($_.Exception.Message))" }
+
 try {
   $env:PGPASSWORD = Abrir $c.senha
   $env:PGCLIENTENCODING = "UTF8"
   $ErrorActionPreference = "Continue"   # PowerShell 5.1: stderr do psql nao pode virar excecao
-  & $c.psql -h $c.host -p $c.porta -U $c.usuario -d $c.banco -X -q -t -A -v ON_ERROR_STOP=1 -f $sql -o $saida 2>&1 | ForEach-Object { Log "psql: $_" }
+  & $c.psql -h $c.host -p $c.porta -U $c.usuario -d $c.banco -X -q -t -A -v ON_ERROR_STOP=1 -v "abertos=$abertos" -f $sql -o $saida 2>&1 | ForEach-Object { Log "psql: $_" }
   $cod = $LASTEXITCODE
   $ErrorActionPreference = "Stop"
   if ($cod -ne 0) { Log "ERRO: psql terminou com codigo $cod"; exit 1 }
