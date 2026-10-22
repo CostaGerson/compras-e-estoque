@@ -3732,6 +3732,12 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
   };
   useEffect(() => { setD(null); setAviso(null); carregar(); }, [comp]);
 
+  // v396 — arquivo solto fora de um card não abre no navegador
+  useEffect(() => {
+    const evita = (e) => { if (Array.from(e.dataTransfer?.types || []).includes("Files")) e.preventDefault(); };
+    window.addEventListener("dragover", evita); window.addEventListener("drop", evita);
+    return () => { window.removeEventListener("dragover", evita); window.removeEventListener("drop", evita); };
+  }, []);
   const subir = async (categoria, tipoId, files) => {
     const itens = Array.from(files || []);
     if (!itens.length) return;
@@ -3951,12 +3957,29 @@ function SlotArquivo({ doc, formato, user, onExcluir, onPedir, dica }) {
   );
 }
 
+// v396 — arrastar e soltar arquivos num card (contador evita o "pisca" ao passar por cima dos elementos de dentro)
+function useSoltar(pode, onFiles) {
+  const [n, setN] = useState(0);
+  const tem = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+  return {
+    drag: n > 0,
+    props: !pode ? {} : {
+      onDragEnter: (e) => { if (!tem(e)) return; e.preventDefault(); setN((x) => x + 1); },
+      onDragOver: (e) => { if (!tem(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; },
+      onDragLeave: (e) => { if (!tem(e)) return; setN((x) => Math.max(0, x - 1)); },
+      onDrop: (e) => { if (!tem(e)) return; e.preventDefault(); e.stopPropagation(); setN(0); if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files); },
+    },
+  };
+}
+
 function CardContabExtrato({ banco, user, comp, pdf, ofx, onSubir, onExcluir }) {
+  const sol = useSoltar(podeImportar(user, "docsFinanceiros"), onSubir);
   const n = (pdf ? 1 : 0) + (ofx ? 1 : 0);
   const st = n === 2 ? ["Completo", C.green, C.greenSoft, CheckCircle2] : n === 1 ? ["Falta 1", C.yellow, C.yellowSoft, AlertTriangle] : ["Pendente", C.red, C.redSoft, Clock];
   const Ico = st[3];
   return (
-    <div className="rounded-xl flex flex-col" style={{ background: C.panel, border: `1px solid ${C.line}`, borderTop: `3px solid ${st[1]}` }}>
+    <div className="rounded-xl flex flex-col" {...sol.props} title="Arraste o PDF e/ou o OFX do extrato para cá"
+      style={{ background: sol.drag ? C.accentSoft : C.panel, border: `1px ${sol.drag ? "dashed" : "solid"} ${sol.drag ? C.accent : C.line}`, borderTop: `3px solid ${st[1]}` }}>
       <div className="p-4 pb-2 flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold" style={{ color: C.text }}>{banco.banco}</div>
@@ -3976,14 +3999,14 @@ function CardContabExtrato({ banco, user, comp, pdf, ofx, onSubir, onExcluir }) 
 
 function CardContabCategoria({ cat, user, docs, onSubir, onExcluir, acao }) {
   const inp = useRef(null);
-  const [drag, setDrag] = useState(false);
+  const sol = useSoltar(podeImportar(user, "docsFinanceiros"), onSubir);
+  const drag = sol.drag;
   const ok = docs.length > 0;
   const aceita = cat.formatos.map((f) => "." + f.toLowerCase()).join(",");
   return (
     <div className="rounded-xl flex flex-col"
-      style={{ background: C.panel, border: `1px solid ${drag ? C.accent : C.line}`, borderTop: `3px solid ${ok ? C.green : C.red}` }}
-      onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeImportar(user, "docsFinanceiros")) onSubir(e.dataTransfer.files); }}>
+      style={{ background: drag ? C.accentSoft : C.panel, border: `1px ${drag ? "dashed" : "solid"} ${drag ? C.accent : C.line}`, borderTop: `3px solid ${ok ? C.green : C.red}` }}
+      {...sol.props} title={`Arraste ${cat.multiplo ? "os arquivos" : "o arquivo"} para cá`}>
       <div className="p-4 pb-2 flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold" style={{ color: C.text }}>{cat.label}</div>
