@@ -1,4 +1,4 @@
--- v386.1 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
+-- v386.3 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
 -- Sem as views pedido_mestre / pedido_item_detalhe (chamam prc_valor_pedido, que lê recpedid — sem permissão).
 -- Entram: pedidos com saldo a entregar, dos últimos 45 dias ou alterados nos últimos 3 dias.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
@@ -9,13 +9,13 @@ FROM (
     pe.nnumeropedid                        AS id,
     sp.ddatapedid                          AS emissao,
     coalesce(sp.ddataentrega, pe.ddataentrega) AS entrega,
-    coalesce(cb.razao_social, sp.cnomecliente, pe.cliente) AS cliente,
-    cb.fantasia                            AS fantasia,
-    trim(cb.codigo)                        AS cliente_codigo,
-    cb.cnpj_cpf                            AS cnpj,
+    coalesce(cl.cnomeclien, sp.cnomecliente, pe.cliente) AS cliente,
+    cl.cnfantaclien                        AS fantasia,
+    trim(cl.ccodigoclien)                  AS cliente_codigo,
+    coalesce(nullif(trim(cl.ccnpjclien),''), nullif(trim(cl.ccpfclien),'')) AS cnpj,
     trim(pe.cd_pgto)                       AS condicao,
     trim(pe.tppedido)                      AS tipo,
-    cb.nome_repre                          AS representante,
+    (SELECT r.nome FROM v_dash_representantes r WHERE r.id = sp.nnumerorepre LIMIT 1) AS representante,
     trim(sp.cpedclipedid)                  AS oc,
     pe.vlr_pedido                          AS valor_pedido,
     sp.nvalorpedid                         AS valor_solpedid,
@@ -51,7 +51,7 @@ FROM (
      WHERE si.nnumeropedid = pe.nnumeropedid) AS itens
   FROM pedidos pe
   LEFT JOIN solpedid sp ON sp.nnumeropedid = pe.nnumeropedid
-  LEFT JOIN LATERAL (SELECT * FROM v_clientes_bi c WHERE c.id_cliente = pe.nnumeroclien LIMIT 1) cb ON true
+  LEFT JOIN solclien cl ON cl.nnumeroclien = coalesce(sp.nnumeroclien, pe.nnumeroclien)
   WHERE pe.quant_saldo > 0
      OR pe.ddatapedid >= now() - interval '45 days'
      OR sp.dalterapedid >= now() - interval '3 days'
