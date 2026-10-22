@@ -1,4 +1,4 @@
-# v386 - Agente KM -> Compras & Estoque (Meridian)
+# v386.2 - Agente KM -> Compras & Estoque (Meridian)
 # Le os pedidos do banco do KM (somente leitura, usuario de consulta) e envia para o sistema na VPS.
 #
 # Uso (PowerShell, dentro de C:\projetos\compras-e-estoque\tools\km):
@@ -83,7 +83,9 @@ try {
 $bytes = [IO.File]::ReadAllBytes($saida)
 $url = $c.url.TrimEnd("/") + "/api/km/sync" + $(if ($Previa) { "?previa=1" } else { "" })
 try {
-  $r = Invoke-RestMethod -Uri $url -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 300
+  $w = Invoke-WebRequest -UseBasicParsing -Uri $url -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 300
+  $txt = [Text.Encoding]::UTF8.GetString($w.RawContentStream.ToArray())   # PowerShell 5.1 leria a resposta como Latin-1
+  $r = $txt | ConvertFrom-Json
 } catch {
   $msg = $_.Exception.Message
   if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $msg = "$msg - $($_.ErrorDetails.Message)" }

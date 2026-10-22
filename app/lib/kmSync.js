@@ -88,9 +88,14 @@ export function mapearPedido(k) {
       }),
     };
   }
+  // status do pedido no KM (solpedid.cstatuspedid): C cancelado · F faturado · P parcial · L/U/E em andamento
+  const st = String(k.status_km || "").trim().toUpperCase();
+  const faturadoKm = st === "F", canceladoKm = st === "C" || !!k.excluido;
+  const qtSaldo = itensKm.reduce((s, i) => s + Math.max((Number(i.qtd) || 0) - (Number(i.entregue) || 0), 0), 0);
   const extra = {
-    qtEntregar: Math.round(Number(k.itens_a_entregar) || 0), vlEntregar: r2(k.valor_a_entregar),
-    ultFaturamento: isoD(k.ult_faturamento), excluido: !!k.excluido, fase: limpa(k.fase), situacao: limpa(k.status_km),
+    qtEntregar: faturadoKm || canceladoKm ? 0 : Math.round(qtSaldo),
+    vlEntregar: faturadoKm || canceladoKm ? 0 : r2(k.valor_a_entregar),
+    ultFaturamento: isoD(k.ult_faturamento), excluido: canceladoKm, faturadoKm, situacao: st || null,
   };
   return { pv, pp, extra };
 }
