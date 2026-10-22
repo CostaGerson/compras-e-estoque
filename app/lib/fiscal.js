@@ -6,6 +6,7 @@ import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { r2, so, mesDe, dataUTC, validarRateio, nomeU } from "@/lib/finTitulos";
+import { abaterEntradaNaNf, registrarAbatimento } from "@/lib/entradaNf";
 
 export const PROPRIAS = { "48011287": "MERIDIAN", "55116246": "NORT" };
 export const empresaDoDoc = (d) => { const s = so(d); return s.length === 14 ? PROPRIAS[s.slice(0, 8)] || null : null; };
@@ -271,11 +272,15 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
       if (par) parcelas.push({ ...p, chaveImport: ck, situacao: "LIGAR", tituloId: par.id, tituloDesc: `${par.titulo} · ${par.parceiro} (${par.status === "PAGO" ? "paga" : "em aberto"})`, marcado: true });
       else parcelas.push({ ...p, chaveImport: ck, situacao: "NOVA", marcado: true });
     }
+    // v387 — NF de pedido com entrada: parcelas descontam a entrada (o KM fatura a NF cheia)
+    let entradaPedido = null;
+    try { entradaPedido = await abaterEntradaNaNf(n, parcelas); } catch (e) { console.log("fiscal/entrada:", e.message); }
+    if (entradaPedido?.aviso) n.conferir = [n.conferir, entradaPedido.aviso].filter(Boolean).join(" · ");
     const { rateio, origem } = await rateioPadrao(tipoT, n);
     const completa = existente && ((n.pdf && !existente.temPdf) || (n.xml && !existente.temXml));
     const decisao = existente ? (completa ? "COMPLETAR" : "IGNORAR") : semConta ? "REGISTRAR" : "LANCAR";
     out.push({
-      ...n, tipoTitulo: tipoT, titulo: tituloPadrao(n), parcelas, rateio, rateioOrigem: origem, motivoSemConta: semConta,
+      ...n, tipoTitulo: tipoT, titulo: tituloPadrao(n), parcelas, rateio, rateioOrigem: origem, motivoSemConta: semConta, entradaPedido,
       existenteId: existente?.id || null, existenteFalta: completa ? (n.pdf && !existente.temPdf ? "PDF" : "XML") : null, decisao,
     });
   }
@@ -405,7 +410,8 @@ export async function gravar(notas, u) {
             numeroDoc: `${n.modelo} ${n.numero}${multi ? ` · PARC ${p.parcela}` : ""}`, valor: r2(p.valor), vencimento: dataUTC(p.vencimento), competencia: mesDe(p.vencimento),
             previsao: false, rateio: rt.rateio, forma: "NF_XML", formaPagamento: n.pagoVista ? n.formaPgto : p.semVencimento ? null : "BOLETO", chaveImport: ck,
             ...(n.pagoVista ? { status: "PAGO", dataPagamento: dataUTC(n.dataPgto), valorPago: r2(p.valor), valorConfirmado: true } : {}),
-            observacao: `MOVIMENTO FISCAL · NF DE ${n.tipo === "SAIDA" ? "SAÍDA" : "ENTRADA"} ${n.numero} · EMISSÃO ${n.emissao.split("-").reverse().join("/")}`,
+            observacao: `MOVIMENTO FISCAL · NF DE ${n.tipo === "SAIDA" ? "SAÍDA" : "ENTRADA"} ${n.numero} · EMISSÃO ${n.emissao.split("-").reverse().join("/")}${n.entradaPedido?.abate > 0 ? ` · ${n.entradaPedido.aviso}` : ""}`,
+            ...(n.entradaPedido?.critica ? { critica: n.entradaPedido.critica.slice(0, 500) } : {}),
             criadoPorId: u.id, criadoPorNome: quem,
           },
         });
@@ -416,6 +422,7 @@ export async function gravar(notas, u) {
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
+    if (n.decisao === "LANCAR" && r.criadas > 0 && n.entradaPedido?.abate > 0) { try { await registrarAbatimento(n.entradaPedido, n.numero); r.entradaAbatida = n.entradaPedido.abate; } catch (e) { console.log("fiscal/abatimento:", e.message); } }
 
     // entrada de NF-e: cadastra/completa o fornecedor pelo emitente
     if (n.tipo === "ENTRADA" && n.xml && n.modelo === "NF-e" && !empresaDoDoc(n.emitDoc)) {

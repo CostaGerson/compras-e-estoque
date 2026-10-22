@@ -1758,6 +1758,8 @@ model PedidoVenda {
   fonte         String?                     // v325 — PV | RELATORIO | PV+RELATORIO
   nfNumero      String?
   faturadoEm    DateTime? @db.Date
+  kmNfs         Json?                       // v387 — NFs de saída do pedido no KM (livsaida): [{ numero, emissao, valor }]
+  entradaAbatidaNfs Json?                     // v387 — quanto da entrada cada NF já abateu: [{ nf, valor, em }]
   nfsFaturadas  Json?                       // v372 — NFs de saída casadas pelos itens: [{ chave, numero, emissao, valor, pecas, itens: { codigo: qtd } }]
   entregaPrevista DateTime? @db.Date        // Cronograma (Maycon) — quando houver
   cronoSituacao String?

@@ -1,4 +1,4 @@
--- v386.3 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
+-- v387 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
 -- Sem as views pedido_mestre / pedido_item_detalhe (chamam prc_valor_pedido, que lê recpedid — sem permissão).
 -- Entram: pedidos com saldo a entregar, dos últimos 45 dias ou alterados nos últimos 3 dias.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
@@ -31,6 +31,8 @@ FROM (
     trim(sp.cstatuspedid)                  AS status_km,
     sp.dalterapedid                        AS alterado,
     false                                  AS excluido,
+    (SELECT json_agg(json_build_object('numero', ls.nnumeronfsai::text, 'emissao', ls.demissenfsai, 'valor', ls.nnvalornfsai) ORDER BY ls.demissenfsai)
+       FROM livsaida ls WHERE ls.nnumeropedid = pe.nnumeropedid AND coalesce(ls.cnfcancnfsai,'N') <> 'S') AS nfs,
     (SELECT coalesce(json_agg(json_build_object(
         'id', si.nnumeroitped, 'produto', si.nnumeroprodu, 'codigo', trim(pr.ccodigoprodu),
         'nome', pr.cnomeprodu, 'descricao', si.cdescomitped,

@@ -96,6 +96,7 @@ export function mapearPedido(k) {
     qtEntregar: faturadoKm || canceladoKm ? 0 : Math.round(qtSaldo),
     vlEntregar: faturadoKm || canceladoKm ? 0 : r2(k.valor_a_entregar),
     ultFaturamento: isoD(k.ult_faturamento), excluido: canceladoKm, faturadoKm, situacao: st || null,
+    nfs: (k.nfs || []).map((x) => ({ numero: String(x.numero || "").replace(/^0+(?=\d)/, ""), emissao: isoD(x.emissao), valor: r2(x.valor) })).filter((x) => x.numero),
   };
   return { pv, pp, extra };
 }
@@ -152,7 +153,7 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
       const at = await prisma.pedidoVenda.findUnique({ where: { numero: p.numero }, select: { id: true, status: true, faturadoEm: true, fonte: true } });
       if (at) {
         const e = p.extra;
-        const data = { qtEntregar: e.qtEntregar, vlEntregar: e.vlEntregar, fonte: at.fonte && at.fonte.includes("KM") ? at.fonte : (at.fonte ? `${at.fonte}+KM` : "KM") };
+        const data = { qtEntregar: e.qtEntregar, vlEntregar: e.vlEntregar, kmNfs: e.nfs, fonte: at.fonte && at.fonte.includes("KM") ? at.fonte : (at.fonte ? `${at.fonte}+KM` : "KM") };
         if (e.excluido && at.status !== "CANCELADO") { data.status = "CANCELADO"; res.cancelados++; }
         else if (e.vlEntregar <= 0.009 && at.status === "ANDAMENTO") { data.status = "FATURADO"; data.faturadoEm = at.faturadoEm || (e.ultFaturamento ? dUTC(e.ultFaturamento) : new Date()); res.faturados++; }
         await prisma.pedidoVenda.update({ where: { id: at.id }, data });
