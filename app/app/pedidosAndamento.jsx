@@ -83,7 +83,7 @@ export default function PedidosAndamento({ user }) {
   const f = filtro.trim().toUpperCase();
   const VISTAS = {
     andamento: ["Pedidos em andamento · a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && (p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009],
-    noMes: [`A receber em ${curto(comp)}`, (p) => normal(p) && p.noMes > 0.009],
+    noMes: [`Com pagamento em ${curto(comp)}`, (p) => normal(p) && p.noMes > 0.009],
     foraMes: ["Fora do mês", (p) => normal(p) && p.foraMes > 0.009],
     antes: ["Antes do mês", (p) => normal(p) && p.antes > 0.009],
     entLancadas: ["Entradas já lançadas", (p) => normal(p) && p.previsao.entradaLancada > 0.009],
@@ -204,8 +204,8 @@ export default function PedidosAndamento({ user }) {
               <div className="text-[11px] font-bold uppercase mb-2" style={{ color: C.navy }}>Previsão por mês</div>
               <div className="flex flex-wrap gap-2">
                 {R.porMes.map((m) => (
-                  <button key={m.competencia} onClick={() => setComp(m.competencia)} className="rounded-lg px-3 py-1.5 text-left"
-                    style={{ background: m.competencia === comp ? C.accentSoft : C.panel2, border: `1px solid ${m.competencia === comp ? C.accent : C.line}` }}>
+                  <button key={m.competencia} onClick={() => { const sai = m.competencia === comp && vista === "noMes"; setComp(m.competencia); setVista(sai ? null : "noMes"); }} title="Clique para ver os pedidos com pagamento neste mês" className="rounded-lg px-3 py-1.5 text-left"
+                    style={{ background: m.competencia === comp ? C.accentSoft : C.panel2, border: `${m.competencia === comp && vista === "noMes" ? 2 : 1}px solid ${m.competencia === comp ? C.accent : C.line}` }}>
                     <div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>{curto(m.competencia)}</div>
                     <div className="text-sm font-bold whitespace-nowrap tabular-nums" style={{ color: C.navy }}>{moeda(m.valor)}</div>
                   </button>
@@ -230,7 +230,7 @@ export default function PedidosAndamento({ user }) {
                 </tr>
               </thead>
               <tbody>
-                {!lista.length && <tr><td colSpan={13} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhum pedido. Suba os PDFs de PV e PP.</td></tr>}
+                {!lista.length && <tr><td colSpan={13} className="px-3 py-6 text-center" style={{ color: C.sub }}>{vista ? "Nenhum pedido neste filtro." : "Nenhum pedido. Suba os PDFs de PV e PP."}</td></tr>}
                 {lista.map((p) => <LinhaPedido key={p.id} p={p} aberto={aberto === p.id} onToggle={() => setAberto(aberto === p.id ? null : p.id)}
                   user={user} salvar={salvar} lancarEntrada={lancarEntrada} excluir={excluir} comp={comp} />)}
               </tbody>
