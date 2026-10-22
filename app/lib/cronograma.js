@@ -245,3 +245,43 @@ export async function pcpDoPedido(numero) {
   }));
   return { numero: n, ops, agrupado: ops.some((o) => o !== n), itens: meus, etapas };
 }
+
+// v401 — Conferência Pedidos em andamento × PCP do Maycon (ao vivo): o que está em andamento aqui e lá, e onde diverge
+// · PCP em andamento = OP com algum item não concluído (OP de agrupamento conta 1, cobrindo os pedidos agrupados nela)
+// · cada pedido em andamento aqui: OP própria aberta | só via OP de agrupamento | todas as OPs concluídas | fora do PCP
+// · cada OP aberta no PCP sem pedido em andamento aqui: diz como o pedido está aqui (faturado, interno, inexistente…)
+export async function confrontoPcp() {
+  const jp = await get("/api/ext/pedidos");
+  const itens = listaDe(jp).map(normalizarItem);
+  const g = agruparPorPedido(itens, []);
+  const ix = indiceComercial(g);
+  const ops = Object.values(g);
+  const abertas = ops.filter((o) => !o.concluido && !o.faturado);
+  const nossos = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO" }, select: { numero: true, cliente: true, interno: true, total: true, cronoSituacao: true } });
+  const todosAqui = Object.fromEntries((await prisma.pedidoVenda.findMany({ select: { numero: true, status: true, interno: true, cliente: true } })).map((p) => [soDig(p.numero), p]));
+  const cliOp = (o) => (o.itens.find((i) => i.cliente) || {}).cliente || "";
+  const linhaOp = (o) => ({ op: o.pedido, cliente: cliOp(o), situacao: o.situacao || "", pecas: o.pecas, agrupamento: !!o.agrupamento, pedidosAgrupados: o.pedidosAgrupados });
+  const aqui = nossos.map((p) => {
+    const n = soDig(p.numero);
+    const lops = (ix[n] || []).map((o) => g[o]).filter(Boolean);
+    const propria = lops.find((o) => o.pedido === n);
+    const abertasDele = lops.filter((o) => !o.concluido && !o.faturado);
+    const grupo = !lops.length ? "FORA_PCP" : !abertasDele.length ? "CONCLUIDO_PCP" : propria && abertasDele.includes(propria) ? "OP_PROPRIA" : "SO_AGRUPADO";
+    return { numero: p.numero, cliente: p.cliente, interno: p.interno, total: Number(p.total) || 0, grupo,
+      ops: lops.map((o) => ({ op: o.pedido, situacao: o.concluido ? "CONCLUÍDO" : o.situacao, agrupamento: !!o.agrupamento })) };
+  });
+  const nossosSet = new Set(nossos.map((p) => soDig(p.numero)));
+  const pcpSemAqui = abertas
+    .filter((o) => ![o.pedido, ...o.pedidosAgrupados].some((n) => nossosSet.has(soDig(n))))
+    .map((o) => { const p = todosAqui[soDig(o.pedido)] || o.pedidosAgrupados.map((n) => todosAqui[soDig(n)]).find(Boolean);
+      return { ...linhaOp(o), aqui: !p ? "NÃO EXISTE AQUI" : p.interno ? `INTERNO (${p.status})` : p.status }; });
+  const conta = (k, internos = false) => aqui.filter((x) => x.grupo === k && (internos ? x.interno : !x.interno)).length;
+  return {
+    em: new Date().toISOString(),
+    pcp: { opsAbertas: abertas.length, opsAbertasAgrupamento: abertas.filter((o) => o.agrupamento).length, opsConcluidas: ops.filter((o) => o.concluido).length },
+    aqui: { emAndamento: nossos.filter((p) => !p.interno).length, internos: nossos.filter((p) => p.interno).length,
+      opPropria: conta("OP_PROPRIA"), soAgrupado: conta("SO_AGRUPADO"), concluidoPcp: conta("CONCLUIDO_PCP"), foraPcp: conta("FORA_PCP") },
+    pedidos: aqui.sort((a, b) => a.grupo.localeCompare(b.grupo) || a.numero.localeCompare(b.numero)),
+    pcpSemAqui: pcpSemAqui.sort((a, b) => String(a.op).localeCompare(String(b.op))),
+  };
+}

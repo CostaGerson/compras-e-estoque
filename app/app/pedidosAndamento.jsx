@@ -88,6 +88,8 @@ export default function PedidosAndamento({ user }) {
   const post = async (corpo) => { const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); return r.json(); };
   const atualizarPcp = async () => { setSinc(true); await post({ acao: "crono-sync" }); await carregar(); setSinc(false); };
   const salvarConexao = async () => { setSinc(true); await post({ acao: "crono-config", url: conex.url, token: conex.token || undefined }); setConex(null); await carregar(); setSinc(false); };
+  const [conf, setConf] = useState(null);   // v401 — conferência com o PCP
+  const conferir = async () => { setConf({ carregando: true }); try { const r = await fetch(`/api/fin/pedidos?u=${user.id}&acao=confronto-pcp`); setConf(await r.json()); } catch (e) { setConf({ error: e.message }); } };
   const verDiag = async () => { setDiag({ carregando: true }); const r = await fetch(`/api/fin/pedidos?u=${user.id}&acao=crono-diag`); setDiag(await r.json()); };
   const R = d?.resumo;
   const normal = (p) => !p.oculto && !p.interno;
@@ -187,6 +189,7 @@ export default function PedidosAndamento({ user }) {
             : <span style={{ color: C.sub }}>lido {CR?.em ? new Date(CR.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"} · {CR?.itens ?? 0} itens, {CR?.etapas ?? 0} etapas · {CR?.casados ?? 0} pedido(s) daqui casados{CR?.semPedidoAqui ? ` · ${CR.semPedidoAqui} OP(s) em produção no PCP sem PV aqui` : ""}{CR?.pecasEmProducao != null ? ` · ${CR.pecasEmProducao.toLocaleString("pt-BR")} peças em produção (${CR.opsEmProducao ?? 0} OPs)` : ""}{CR?.opsAgrupamento ? ` · ${CR.opsAgrupamento} OP(s) de agrupamento` : ""}{CR?.complementos ? ` · ${CR.complementos} complementos fora da contagem de peças` : ""}{CR?.semNumero ? ` · ${CR.semNumero} itens sem nº (amostra/piloto)` : ""}{CR?.avisoEtapas ? ` · etapas: ${CR.avisoEtapas}` : ""}</span>}
           <div className="flex-1" />
           <button disabled={sinc} onClick={atualizarPcp} className="flex items-center gap-1 font-semibold" style={{ color: C.accent }}>{sinc ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Atualizar do PCP</button>
+          <button onClick={conferir} className="font-semibold" style={{ color: C.blue }}>Conferir com o PCP</button>
           <button onClick={verDiag} className="font-semibold" style={{ color: C.sub }}>Ver o que veio</button>
           <button onClick={() => setConex({ url: CR?.url || "", token: "" })} className="flex items-center gap-1 font-semibold" style={{ color: C.sub }}><Settings size={12} /> Conexão</button>
         </div>
@@ -199,6 +202,7 @@ export default function PedidosAndamento({ user }) {
           <div className="flex gap-2"><button onClick={salvarConexao} className="px-3 py-1 rounded font-semibold text-white" style={{ background: C.accent }}>Salvar e ler</button><button onClick={() => setConex(null)} style={{ color: C.sub }}>cancelar</button></div>
         </div>
       )}
+      {conf && <ConferenciaPcp conf={conf} onFechar={() => setConf(null)} />}
       {diag && (
         <div className="rounded-xl p-3 mb-4 text-[11px]" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex items-center justify-between mb-1"><b style={{ color: C.navy }}>O que o Cronograma devolveu (amostra)</b><button onClick={() => setDiag(null)}><X size={14} /></button></div>
@@ -501,3 +505,62 @@ const Aviso = ({ cor, bg, children, onClick, ativo }) => <span onClick={onClick}
   className={`flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
   style={{ color: cor, background: bg, outline: ativo ? `2px solid ${cor}` : "none" }}><AlertTriangle size={11} /> {children}</span>;
 const Botao = ({ cor, onClick, children }) => <button onClick={onClick} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold" style={{ color: cor, border: `1px solid ${cor}`, background: C.panel }}>{children}</button>;
+
+// v401 — Conferência com o PCP do Maycon (ao vivo)
+const GRUPOS_PCP = {
+  OP_PROPRIA: ["Em andamento aqui e no PCP (OP própria)", C.green],
+  SO_AGRUPADO: ["Em andamento só dentro de OP de agrupamento", C.blue],
+  CONCLUIDO_PCP: ["Concluídos no PCP, aguardando NF aqui", C.accent],
+  FORA_PCP: ["Em andamento aqui e fora do PCP", C.red],
+};
+function ConferenciaPcp({ conf, onFechar }) {
+  const [abre, setAbre] = useState({ SO_AGRUPADO: true, CONCLUIDO_PCP: true, FORA_PCP: true, PCP: true });
+  if (conf.carregando) return <div className="rounded-xl p-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}><Loader2 size={14} className="animate-spin" /> Lendo o PCP…</div>;
+  if (conf.error) return <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: C.redSoft, color: C.red }}>{conf.error} <button onClick={onFechar} className="ml-2"><X size={12} /></button></div>;
+  const A = conf.aqui, P = conf.pcp;
+  const ped = (conf.pedidos || []).filter((p) => !p.interno);
+  const tog = (k) => setAbre((a) => ({ ...a, [k]: !a[k] }));
+  return (
+    <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: C.panel, border: `1px solid ${C.blue}` }}>
+      <div className="flex items-center justify-between mb-2">
+        <b style={{ color: C.navy }}>Conferência com o PCP do Maycon · {new Date(conf.em).toLocaleTimeString("pt-BR", { timeStyle: "short" })}</b>
+        <button onClick={onFechar}><X size={14} /></button>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className="px-2.5 py-1 rounded-full font-semibold" style={{ background: C.panel2 }}>PCP: <b>{P.opsAbertas}</b> OP(s) em andamento{P.opsAbertasAgrupamento ? ` (${P.opsAbertasAgrupamento} de agrupamento)` : ""}</span>
+        <span className="px-2.5 py-1 rounded-full font-semibold" style={{ background: C.panel2 }}>Aqui: <b>{A.emAndamento}</b> pedido(s) em andamento{A.internos ? ` + ${A.internos} interno(s) NORT` : ""}</span>
+        <span className="px-2.5 py-1 rounded-full" style={{ background: C.panel2, color: C.sub }}>= {A.opPropria} com OP própria + {A.soAgrupado} só agrupados + {A.concluidoPcp} concluídos no PCP + {A.foraPcp} fora do PCP</span>
+      </div>
+      {Object.entries(GRUPOS_PCP).map(([k, [titulo, cor]]) => {
+        const l = ped.filter((p) => p.grupo === k);
+        if (!l.length) return null;
+        return (
+          <div key={k} className="mb-2">
+            <button onClick={() => tog(k)} className="flex items-center gap-1 font-bold mb-1" style={{ color: cor }}>{abre[k] ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {titulo} · {l.length}</button>
+            {abre[k] && (
+              <table className="w-full mb-1"><thead><tr style={{ color: C.sub, background: C.panel2 }}><th className="px-2 py-1 text-left">Pedido</th><th className="px-2 py-1 text-left">Cliente</th><th className="px-2 py-1 text-right">Total</th><th className="px-2 py-1 text-left">OP(s) no PCP</th></tr></thead>
+                <tbody>{l.map((p) => (
+                  <tr key={p.numero} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-2 py-1 font-bold" style={{ color: C.navy }}>{p.numero}</td><td className="px-2 py-1">{p.cliente}</td><td className="px-2 py-1 text-right tabular-nums">{moeda(p.total)}</td>
+                    <td className="px-2 py-1" style={{ color: C.sub }}>{p.ops.length ? p.ops.map((o) => `${o.op}${o.agrupamento ? " (agrupamento)" : ""}: ${o.situacao || "—"}`).join(" · ") : "—"}</td>
+                  </tr>))}</tbody></table>
+            )}
+          </div>
+        );
+      })}
+      {(conf.pcpSemAqui || []).length > 0 && (
+        <div className="mb-1">
+          <button onClick={() => tog("PCP")} className="flex items-center gap-1 font-bold mb-1" style={{ color: C.yellow }}>{abre.PCP ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Em andamento no PCP e não em andamento aqui · {conf.pcpSemAqui.length}</button>
+          {abre.PCP && (
+            <table className="w-full"><thead><tr style={{ color: C.sub, background: C.panel2 }}><th className="px-2 py-1 text-left">OP / pedido</th><th className="px-2 py-1 text-left">Cliente (PCP)</th><th className="px-2 py-1 text-left">Situação no PCP</th><th className="px-2 py-1 text-right">Peças</th><th className="px-2 py-1 text-left">Aqui</th></tr></thead>
+              <tbody>{conf.pcpSemAqui.map((o) => (
+                <tr key={o.op} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-2 py-1 font-bold" style={{ color: C.navy }}>{o.op}{o.agrupamento ? ` (agrupa ${o.pedidosAgrupados.join(", ")})` : ""}</td><td className="px-2 py-1">{o.cliente}</td>
+                  <td className="px-2 py-1">{o.situacao}</td><td className="px-2 py-1 text-right tabular-nums">{o.pecas}</td><td className="px-2 py-1 font-semibold">{o.aqui}</td>
+                </tr>))}</tbody></table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

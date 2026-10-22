@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioGerencial, negadoGerencial } from "@/lib/fin";
-import { sincronizar, diagnostico, salvarConexao, statusSync } from "@/lib/cronograma";
+import { sincronizar, diagnostico, salvarConexao, statusSync, confrontoPcp } from "@/lib/cronograma";
 import { importarArquivos, listarPedidos, atualizarPedido, lancarEntrada, pdfDoPedido, excluirPedido } from "@/lib/pedidos";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
@@ -13,6 +13,7 @@ export async function GET(req) {
   if (!(await usuarioGerencial(q.get("u")))) return negadoGerencial();
   if (q.get("acao") === "crono") return Response.json(await statusSync());
   if (q.get("acao") === "crono-diag") return Response.json(await diagnostico());
+  if (q.get("acao") === "confronto-pcp") { try { return Response.json(await confrontoPcp()); } catch (e) { return Response.json({ error: e.message }, { status: 500 }); } }   // v401
   if (q.get("acao") === "pdf") {
     const f = await pdfDoPedido(q.get("id"), q.get("tipo") === "PP" ? "PP" : "PV");
     if (!f) return Response.json({ error: "PDF não encontrado." }, { status: 404 });
