@@ -1,7 +1,7 @@
 "use client";
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -19,6 +19,10 @@ const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toU
 const nomeUser = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
 const detArtigo = (d) => [d.fornecedor, d.cor, d.codigo, d.largura ? `${String(d.largura).replace(".", ",")} m` : null].filter(Boolean).join(" · ");
 
+const STATUS = {
+  LEVANTAMENTO: ["No levantamento", C.blue, C.blueSoft], ESTOQUE: ["Atendido pelo estoque · liberado p/ PCP", C.green, C.greenSoft],
+  PIC: ["Em PIC", C.accent, C.accentSoft], OC: ["OC emitida", C.accent, C.accentSoft], NF: ["NF emitida", C.yellow, C.yellowSoft], ENTREGUE: ["Entregue · liberado p/ PCP", C.green, C.greenSoft],
+};
 function Chip({ cor = C.sub, fundo = C.panel2, children, title }) {
   return <span title={title} className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: fundo, color: cor, border: `1px solid ${cor}33` }}>{children}</span>;
 }
@@ -228,7 +232,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
           <div className="text-sm font-semibold" style={{ color: C.text }}>{it.codigo ? `${it.codigo} · ` : ""}{it.descricao || "—"}</div>
           <div className="text-xs" style={{ color: C.sub }}>{it.qtd} peças{veValores && it.preco != null ? ` · ${brl(it.preco)}/pç` : ""}{it.grade?.length ? ` · ${it.grade.map((g) => `${g.tam}:${g.qtd}`).join(" ")}` : ""}</div>
         </div>
-        {v ? <Chip cor={C.green} fundo={C.greenSoft}>{v.status === "LEVANTAMENTO" ? "No levantamento" : v.status}</Chip> : <Chip cor={C.yellow} fundo={C.yellowSoft}>Sem FPP</Chip>}
+        {v ? <Chip cor={STATUS[v.status]?.[1] || C.green} fundo={STATUS[v.status]?.[2] || C.greenSoft}>{STATUS[v.status]?.[0] || v.status}</Chip> : <Chip cor={C.yellow} fundo={C.yellowSoft}>Sem FPP</Chip>}
       </div>
       {v ? (
         <div className="mt-2">
@@ -302,10 +306,11 @@ export function Levantamento({ user, veValores }) {
         {[["consolidado", "Demanda consolidada", Layers], ["equiparacoes", `Equiparações${d.equiparacoes.length ? ` (${d.equiparacoes.length})` : ""}`, Merge], ["itens", "Demandas por item", PackageSearch]].map(([k, t, Ico]) => (
           <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><Ico size={15} /> {t}</button>
         ))}
-        <button disabled title="Próxima etapa: cruza com o saldo de estoque e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}`, cursor: "not-allowed" }}>Cruzar com estoque (em breve)</button>
+        <button onClick={() => setAba("cruzamento")} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
       </div>
+      {aba === "cruzamento" && <Cruzamento user={user} veValores={veValores} onMudou={carregar} />}
 
-      {!d.linhas.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma demanda no levantamento. Vincule a FPP base nos itens em Compras › Pedidos.</div>}
+      {aba !== "cruzamento" && !d.linhas.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma demanda no levantamento. Vincule a FPP base nos itens em Compras › Pedidos.</div>}
 
       {aba === "consolidado" && d.consolidado.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -367,6 +372,94 @@ export function Levantamento({ user, veValores }) {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------- v406 — cruzamento com o estoque ----------
+function Cruzamento({ user, veValores, onMudou }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [marc, setMarc] = useState(new Set());
+  const [salvando, setSalvando] = useState(false);
+  const [integ, setInteg] = useState(null);
+  const carregar = () => { setD(null); fetch("/api/compras/cruzar").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setMarc(new Set(x.atendidos)); }).catch((e) => setErro(e.message)); };
+  useEffect(() => { carregar(); }, []);
+  const tog = (id) => setMarc((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  async function autorizar() {
+    if (!marc.size) return;
+    if (!confirm(`Autorizar o atendimento pelo estoque de ${marc.size} item(ns)? Eles ficam liberados para o PCP programar.`)) return;
+    setSalvando(true);
+    const r = await fetch("/api/compras/cruzar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: [...marc], quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({}));
+    setSalvando(false);
+    if (!r.ok) return alert(x.error || "Erro.");
+    onMudou?.(); carregar();
+  }
+  if (erro) return <div className="text-sm" style={{ color: C.red }}>{erro}</div>;
+  if (!d) return <div className="flex items-center gap-2 text-sm py-4" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Cruzando com o estoque…</div>;
+  const SIT = { COMPLETO: [C.green, C.greenSoft, "atendido completo"], PARCIAL: [C.yellow, C.yellowSoft, "parcial"], COMPRA: [C.accent, C.accentSoft, "vai para compra"], "SEM DEMANDA": [C.sub, C.panel2, "sem demanda"] };
+  const nCompra = d.pedidos.flatMap((p) => p.itens).filter((i) => !i.atendido && !i.semDemanda).length;
+  return (
+    <div className="space-y-4">
+      <div className="text-xs" style={{ color: C.sub }}>Sugestão: primeiro os pedidos que o estoque atende por inteiro, em ordem de entrega; depois itens inteiros com o que sobrar. Item nunca é atendido pela metade. Disponível = saldo − reservas de itens já autorizados que ainda não entraram em produção.</div>
+      <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2 }}>
+          <div className="flex-1">Artigo</div><div className="w-24 text-right">Demanda</div><div className="w-24 text-right">Saldo</div><div className="w-24 text-right">Reservado</div><div className="w-24 text-right">Atende</div><div className="w-28 text-right">A comprar</div>
+        </div>
+        {d.artigos.map((a) => (
+          <div key={a.artigoId} className="flex px-4 py-2 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
+            <div className="flex-1"><b>{a.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{detArtigo(a)}</span></div>
+            <div className="w-24 text-right">{qtdU(a.quantidade, a.unidade)}</div>
+            <div className="w-24 text-right" style={{ color: C.sub }}>{qtdU(a.saldo, a.unidade)}</div>
+            <div className="w-24 text-right" style={{ color: a.reservado ? C.yellow : C.sub }}>{qtdU(a.reservado, a.unidade)}</div>
+            <div className="w-24 text-right" style={{ color: C.green }}>{qtdU(a.atendido, a.unidade)}</div>
+            <div className="w-28 text-right font-bold" style={{ color: a.comprar ? C.accent : C.sub }}>{a.comprarEmb ? `${a.comprarEmb} grosa(s)` : qtdU(a.comprar, a.unidade)}</div>
+          </div>
+        ))}
+      </div>
+
+      {d.pedidos.map((p) => {
+        const [cor, fundo, txt] = SIT[p.situacao] || SIT.COMPRA;
+        return (
+          <div key={p.numero} className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+              <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+            </div>
+            {p.itens.map((i) => (
+              <label key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs cursor-pointer" style={{ borderTop: `1px solid ${C.line}` }}>
+                <input type="checkbox" disabled={i.semDemanda} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="text-sm" style={{ color: C.text }}>{i.chave} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
+                  <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
+                </div>
+                {!i.semDemanda && (i.atendido ? <Chip cor={C.green} fundo={C.greenSoft}>estoque</Chip> : <Chip cor={C.accent} fundo={C.accentSoft}>compra</Chip>)}
+              </label>
+            ))}
+          </div>
+        );
+      })}
+
+      <div className="flex flex-wrap items-center gap-2 sticky bottom-0 py-3" style={{ background: "#F7F8FA" }}>
+        <button disabled={salvando || !marc.size} onClick={autorizar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.green, color: "#fff", opacity: marc.size ? 1 : 0.5 }}>
+          {salvando ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Autorizar atendimento pelo estoque ({marc.size})
+        </button>
+        <button disabled title="Próxima versão: junta os artigos iguais dos itens não atendidos e agrupa por fornecedor" className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}`, cursor: "not-allowed" }}>
+          <ShoppingCart size={15} /> Gerar PIC ({nCompra} itens) · em breve
+        </button>
+        <button onClick={carregar} className="p-2 rounded-md" title="Refazer o cruzamento" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
+        {veValores && <button onClick={() => fetch("/api/compras/integracao").then((r) => r.json()).then(setInteg)} className="ml-auto text-xs flex items-center gap-1" style={{ color: C.sub }}><KeyRound size={13} /> Integração PCP</button>}
+      </div>
+      {integ && (
+        <Modal titulo="Integração com o PCP (Maycon)" onClose={() => setInteg(null)}>
+          <div className="text-sm space-y-2">
+            <div>O PCP lê os itens liberados (atendidos pelo estoque ou com OC entregue) com todos os dados do pedido:</div>
+            <div className="font-mono text-xs p-2 rounded" style={{ background: C.panel2 }}>GET {typeof window !== "undefined" ? window.location.origin : ""}{integ.caminho}<br />Cabeçalho X-Api-Key: {integ.token}<br />?desde=AAAA-MM-DDTHH:MM (opcional) · ?pedido=NÚMERO (opcional)</div>
+            <button onClick={() => navigator.clipboard?.writeText(integ.token)} className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }}><Copy size={12} /> copiar token</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

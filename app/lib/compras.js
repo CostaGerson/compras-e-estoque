@@ -257,3 +257,112 @@ export function montarLevantamento(itens) {
     pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]) })).sort((a, b) => a.nome.localeCompare(b.nome));
   return { linhas, equiparacoes, consolidado };
 }
+
+// ---------- v406 — cruzamento com o estoque ----------
+const efetivo = (d) => d.equiparadoA || d.artigoId;
+// necessidade de um item por artigo efetivo
+export function necessidade(item) {
+  const n = {};
+  for (const d of Array.isArray(item.demanda) ? item.demanda : []) n[efetivo(d)] = r3((n[efetivo(d)] || 0) + (Number(d.quantidade) || 0));
+  return n;
+}
+const cabe = (nec, disp) => Object.entries(nec).every(([a, q]) => (disp[a] || 0) + 1e-9 >= q);
+const tira = (nec, disp) => { for (const [a, q] of Object.entries(nec)) disp[a] = r3((disp[a] || 0) - q); };
+const ordemEntrega = (a, b) => String(a.entrega ? new Date(a.entrega).toISOString() : "9999").localeCompare(String(b.entrega ? new Date(b.entrega).toISOString() : "9999")) || String(a.pedidoNumero).localeCompare(String(b.pedidoNumero));
+
+// itens: [{ id, pedidoNumero, entrega, demanda }]; disponivel: { artigoId: qtd }
+// 1º atende pedidos inteiros (todos os itens), em ordem de entrega; 2º, com o que sobrou, itens inteiros em ordem de entrega.
+// Item nunca é atendido pela metade: ou sai 100% do estoque ou vai para compra.
+export function cruzarEstoque(itens, disponivel) {
+  const disp = Object.fromEntries(Object.entries(disponivel).map(([k, v]) => [k, Math.max(0, Number(v) || 0)]));
+  const comDemanda = itens.filter((i) => Object.keys(necessidade(i)).length);
+  const pedidos = {};
+  for (const i of comDemanda) (pedidos[i.pedidoNumero] ||= { pedidoNumero: i.pedidoNumero, entrega: i.entrega, itens: [] }).itens.push(i);
+  const lista = Object.values(pedidos).sort(ordemEntrega);
+  const atendidos = new Set();
+  const completos = new Set();
+  for (const p of lista) {
+    const nec = {};
+    for (const i of p.itens) for (const [a, q] of Object.entries(necessidade(i))) nec[a] = r3((nec[a] || 0) + q);
+    if (cabe(nec, disp)) { tira(nec, disp); p.itens.forEach((i) => atendidos.add(i.id)); completos.add(p.pedidoNumero); }
+  }
+  for (const i of [...comDemanda].sort(ordemEntrega)) {
+    if (atendidos.has(i.id)) continue;
+    const nec = necessidade(i);
+    if (cabe(nec, disp)) { tira(nec, disp); atendidos.add(i.id); }
+  }
+  return { atendidos: [...atendidos], completos: [...completos], sobra: disp };
+}
+
+// itens no levantamento de pedidos ainda em andamento
+export async function itensAbertos(db = prisma) {
+  const itens = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] });
+  const ativos = new Set((await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true } })).map((p) => p.numero));
+  return itens.filter((i) => ativos.has(i.pedidoNumero));
+}
+
+// reservas do estoque: itens atendidos pelo estoque cujo material ainda não seguiu para a produção.
+// Libera sozinho quando o pedido saiu do andamento ou o item já está EM PRODUÇÃO/CONCLUÍDO no cronograma do Maycon.
+export async function reservasEstoque(db = prisma) {
+  const res = await db.compraItem.findMany({ where: { status: "ESTOQUE", reservaLiberada: false } });
+  if (!res.length) return {};
+  const peds = Object.fromEntries((await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(res.map((r) => r.pedidoNumero))] } }, select: { numero: true, status: true, cronoItens: true, cronoSituacao: true } })).map((p) => [p.numero, p]));
+  const seguiu = (sit) => /PRODU|CONCLU|FATURAD/i.test(String(sit || ""));
+  const out = {};
+  for (const r of res) {
+    const p = peds[r.pedidoNumero];
+    const cod = r.chave.split("#")[0];
+    const ci = p && Array.isArray(p.cronoItens) ? p.cronoItens.find((x) => String(x.itemCode || "") === cod) : null;
+    if (!p || p.status !== "ANDAMENTO" || (ci ? seguiu(ci.situacao) : false)) { await db.compraItem.update({ where: { id: r.id }, data: { reservaLiberada: true } }); continue; }
+    for (const [a, q] of Object.entries(necessidade(r))) out[a] = r3((out[a] || 0) + q);
+  }
+  return out;
+}
+
+export async function disponivelEstoque(artigoIds, db = prisma) {
+  const ids = [...new Set(artigoIds.map(Number))];
+  const arts = await db.artigo.findMany({ where: { id: { in: ids } }, select: { id: true, quantidade: true } });
+  const reservas = await reservasEstoque(db);
+  const saldo = Object.fromEntries(arts.map((a) => [a.id, Number(a.quantidade) || 0]));
+  const disp = Object.fromEntries(ids.map((id) => [id, r3(Math.max(0, (saldo[id] || 0) - (reservas[id] || 0)))]));
+  return { saldo, reservas, disponivel: disp };
+}
+
+// ---------- v406 — integração com o PCP do Maycon (ele lê; nada é gravado no banco dele) ----------
+const K_EXT = "COMPRAS|EXT_TOKEN";
+export async function tokenExterno(db = prisma, renovar = false) {
+  if (process.env.COMPRAS_EXT_TOKEN && process.env.COMPRAS_EXT_TOKEN.length >= 16) return process.env.COMPRAS_EXT_TOKEN;
+  const atual = (await db.finConfig.findUnique({ where: { chave: K_EXT } }).catch(() => null))?.valor;
+  if (atual && !renovar) return atual;
+  const novo = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  await db.finConfig.upsert({ where: { chave: K_EXT }, create: { chave: K_EXT, valor: novo }, update: { valor: novo } });
+  return novo;
+}
+
+// itens liberados para programar, com o pedido completo (cabeçalho, grade, parâmetros da OP, FPP e materiais)
+export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
+  const where = { status: { in: ["ESTOQUE", "ENTREGUE"] }, liberadoEm: { not: null } };
+  if (desde) where.liberadoEm = { gte: new Date(desde) };
+  if (pedido) where.pedidoNumero = String(pedido);
+  const itens = await db.compraItem.findMany({ where, orderBy: { liberadoEm: "asc" } });
+  const peds = Object.fromEntries((await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] } } })).map((p) => [p.numero, p]));
+  const out = {};
+  for (const i of itens) {
+    const p = peds[i.pedidoNumero];
+    if (!p) continue;
+    const doPedido = itensDoPedido(p);
+    const idx = doPedido.findIndex((x) => x.chave === i.chave);
+    const bruto = idx >= 0 ? (p.itens || [])[idx] || {} : {};
+    const o = (out[p.numero] ||= {
+      pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
+      condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: doPedido.length, itens: [],
+    });
+    o.itens.push({
+      chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(i.quantidade),
+      grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [],
+      origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm, fppNumero: i.fppNumero,
+      materiais: (i.demanda || []).map((d) => ({ nome: d.nome, categoria: d.categoria, fornecedor: d.fornecedor, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade, obs: d.obs || null })),
+    });
+  }
+  return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens }));
+}

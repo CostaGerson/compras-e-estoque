@@ -1854,6 +1854,10 @@ model CompraItem {
   status        String    @default("LEVANTAMENTO") // LEVANTAMENTO | ESTOQUE | PIC | OC | NF | ENTREGUE
   demanda       Json      @default("[]")   // [{ papel, artigoId, nome, categoria, unidade, fornecedorId, fornecedor, cor, codigo, largura, consumoPorPeca, quantidade, valorUnitario, equiparadoA }]
   vinculadoPorNome String?
+  autorizadoEm  DateTime?                  // v406 — atendimento pelo estoque autorizado (ou OC entregue): liberado para o PCP
+  autorizadoPorNome String?
+  liberadoEm    DateTime?                  // v406 — quando ficou disponível para o sistema do Maycon programar
+  reservaLiberada Boolean  @default(false) // v406 — material do estoque já seguiu para produção (não reserva mais o saldo)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

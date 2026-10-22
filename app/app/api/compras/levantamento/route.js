@@ -1,13 +1,7 @@
 // v404 — Levantamento: todas as demandas registradas (por item de pedido), sugestões de equiparação e consolidado por artigo
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { montarLevantamento } from "@/lib/compras";
-
-async function itensAbertos() {
-  const itens = await prisma.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] });
-  const ativos = new Set((await prisma.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true } })).map((p) => p.numero));
-  return itens.filter((i) => ativos.has(i.pedidoNumero));
-}
+import { montarLevantamento, itensAbertos } from "@/lib/compras";
 
 export async function GET() {
   const itens = await itensAbertos();
