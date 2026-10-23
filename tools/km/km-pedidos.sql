@@ -3,7 +3,6 @@
 -- Entram: pedidos com saldo a entregar, dos últimos 45 dias ou alterados nos últimos 3 dias.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
 SELECT json_build_object('geradoEm', now(), 'pedidos', coalesce(json_agg(x), '[]'::json),
-  -- v408 — todas as NFs de saída não canceladas dos últimos 60 dias (crítica de NF emitida no KM sem XML/PDF no sistema)
   'nfsDesde', current_date - 60,
   'nfs', (SELECT coalesce(json_agg(json_build_object('numero', ls.nnumeronfsai::text, 'emissao', ls.demissenfsai, 'valor', ls.nnvalornfsai,
               'pedido', pn.ncodigopedid::text, 'cliente', coalesce(cn.cnomeclien, sn.cnomecliente, pn.cliente),
