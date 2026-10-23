@@ -1,5 +1,5 @@
 // v386 — recebe os pedidos lidos do banco do KM pelo agente do PC da fábrica (tools/km/km-sync.ps1)
-// POST /api/km/sync            { pedidos: [...] }  → aplica (PV + OP + entrada automática)
+// POST /api/km/sync            { pedidos: [...], nfs?: [...], nfsDesde? }  (v408: nfs = NFs de saída do KM dos últimos 60 dias)  → aplica (PV + OP + entrada automática)
 // POST /api/km/sync?previa=1   { pedidos: [...] }  → só mostra como cada pedido ficaria, não grava
 // GET  /api/km/sync                                 → últimas sincronizações
 // autenticação: cabeçalho x-km-token = KM_SYNC_TOKEN (.env da VPS)
@@ -21,7 +21,7 @@ export async function POST(req) {
   let b; try { b = await req.json(); } catch { return Response.json({ error: "JSON inválido." }, { status: 400 }); }
   const previa = new URL(req.url).searchParams.get("previa") === "1";
   try {
-    const r = await sincronizarKm(b?.pedidos, { previa });
+    const r = await sincronizarKm(b?.pedidos, { previa, nfs: b?.nfs, nfsDesde: b?.nfsDesde });
     return Response.json({ ok: true, previa, ...r });
   } catch (e) {
     console.log("km/sync:", e);

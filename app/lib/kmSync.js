@@ -123,7 +123,7 @@ export async function revisarFaturadosKm() {
 }
 
 // ---------- aplica um lote vindo do agente ----------
-export async function sincronizarKm(pedidos, { previa = false } = {}) {
+export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } = {}) {
   if (!previa) { try { await revisarFaturadosKm(); } catch (e) { console.log("km/revisao:", e.message); } }
   const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero);
   const nums = lista.map((k) => String(k.numero).trim());
@@ -200,6 +200,8 @@ export async function sincronizarKm(pedidos, { previa = false } = {}) {
     await prisma.kmPedido.upsert({ where: { numero: p.numero }, create: { numero: p.numero, hash: p.hash }, update: { hash: p.hash } });
   }
   try { const { efetivarFaturamentos } = await import("@/lib/pedidos"); res.faturados += (await efetivarFaturamentos()).length; } catch (e) { res.erros.push(`efetivar: ${e.message}`); }
+  // v408 — NFs emitidas no KM sem XML/PDF no sistema: crítica no movimento fiscal + mensagem
+  try { Object.assign(res, await (await import("@/lib/kmNfs")).processarNfsKm(lista, { nfs, nfsDesde })); } catch (e) { res.erros.push(`nfs do KM: ${e.message}`); }
   await prisma.kmSyncLog.create({ data: { recebidos: res.recebidos, novos: res.novos, atualizados: res.atualizados, iguais: res.iguais, entradas: res.entradas,
     erros: res.erros.length ? res.erros.slice(0, 50).join("\n") : null } });
   return res;

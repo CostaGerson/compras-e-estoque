@@ -98,19 +98,25 @@ export default function MovimentoFiscal({ user }) {
   useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [de, ate, tipo, busca]);
 
   const tot = useMemo(() => {
-    const l = lista || [];
+    const l = (lista || []).filter((n) => !n.km);   // v408 — NF do KM sem arquivo não entra nos totais
     const s = (f) => l.filter(f).reduce((a, n) => a + n.valor, 0);
     const cont = (t) => l.filter((n) => n.tipo === t).flatMap((n) => n.parcelas).filter((p) => p.situacao === "CRIADA").length;
     return {
       ent: l.filter((n) => n.tipo === "ENTRADA").length, entV: s((n) => n.tipo === "ENTRADA"),
       sai: l.filter((n) => n.tipo === "SAIDA").length, saiV: s((n) => n.tipo === "SAIDA"),
       reg: l.filter((n) => n.acao === "REGISTRADA").length, contab: l.filter((n) => n.critica).length, pagar: cont("ENTRADA"), receber: cont("SAIDA"),
+      km: (lista || []).filter((n) => n.km).length,
     };
   }, [lista]);
 
   const excluir = async (n) => {
     if (!confirm(`Excluir o registro da NF ${n.numero} (${n.parceiro})?\n\nAs contas criadas por esta importação vão para a lixeira do contas a pagar/receber.`)) return;
     try { const r = await api(`/api/fiscal/${n.id}`, "DELETE", { usuarioId: user.id }); setMsg(`NF ${n.numero} excluída${r.contas ? ` · ${r.contas} conta(s) na lixeira` : ""}.`); carregar(); }
+    catch (e) { alert(e.message); }
+  };
+  const vistarKm = async (n) => {   // v408
+    if (!confirm(`Vistar a NF ${n.numero} (${n.parceiro}) do KM?\n\nA crítica sai sem os arquivos no sistema.`)) return;
+    try { await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "vistarKm", id: n.kmId }); setMsg(`NF ${n.numero} do KM vistada.`); carregar(); }
     catch (e) { alert(e.message); }
   };
   const atalho = (k) => {
@@ -168,6 +174,7 @@ export default function MovimentoFiscal({ user }) {
         </div>
         {msg && <div className="mx-4 mt-3 p-2 rounded text-xs flex items-center gap-2" style={{ background: C.greenSoft, color: C.green }}><CheckCircle2 size={14} /> {msg}<button className="ml-auto" onClick={() => setMsg("")}><X size={13} /></button></div>}
         {erro && <div className="mx-4 mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+        {tot.km > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> {tot.km} NF(s) emitida(s) no KM sem XML/PDF no sistema — importe os arquivos aqui (a crítica some sozinha).</div>}
         {tot.contab > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold" style={{ background: C.redSoft, color: C.red }}>{tot.contab} NF(s) sem conta lançada — verificar contas (importe o XML da nota aqui para lançar as contas; o aviso some).</div>}
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -187,12 +194,16 @@ export default function MovimentoFiscal({ user }) {
                   <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, ...(n.critica ? { background: C.redSoft, color: C.red } : {}) }}>   {/* v360/v363 — crítica (sem conta lançada) */}
                     <td className="px-3 py-2"><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold" style={{ background: T.bg, color: T.c }}><T.I size={12} /> {T.t}</span></td>
                     <td className="px-3 py-2">{dBR(n.emissao)}</td>
-                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}{n.origem === "IMPORTAÇÃO CONTABILIDADE" && <div className="text-[10px] font-normal" style={{ color: C.sub }}>via contabilidade</div>}</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}{n.origem === "IMPORTAÇÃO CONTABILIDADE" && <div className="text-[10px] font-normal" style={{ color: C.sub }}>via contabilidade</div>}{n.km && <div className="text-[10px] font-normal" style={{ color: C.sub }}>emitida no KM</div>}</td>
                     <td className="px-3 py-2"><div className="font-semibold">{n.parceiro}</div><div style={{ color: C.sub }}>{fmtDoc(n.documento)}</div></td>
                     <td className="px-3 py-2" style={{ color: C.sub, maxWidth: 200 }}>{n.natureza || "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2">
-                      {n.critica
+                      {n.km
+                        ? <span className="font-semibold" style={{ color: C.red }}>{n.critica}{podeImportar(user, "contasReceber", "faturamento", "nfEntrada") && <span className="inline-flex gap-1 ml-1 align-middle">
+                            <button onClick={() => setImportar([])} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Importar</button>
+                            <button onClick={() => vistarKm(n)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green, background: "#fff" }}>Vistar</button></span>}</span>
+                        : n.critica
                         ? <span className="font-semibold" style={{ color: C.red }}>{n.critica}{podeImportar(user, "contasReceber", "faturamento", "nfEntrada") && <BotoesCritica user={user} n={n} onFeito={carregar} C={C} />}</span>
                         : n.acao === "REGISTRADA"
                         ? <span className="px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }} title={n.motivo || ""}>só registro</span>
@@ -206,7 +217,7 @@ export default function MovimentoFiscal({ user }) {
                       {n.temXml && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=xml&baixar=1`} className="inline-flex items-center gap-0.5 mr-2 font-semibold" style={{ color: C.blue }}><FileCode2 size={13} /> XML</a>}
                       {n.temPdf && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={13} /> PDF</a>}
                     </td>
-                    <td className="px-3 py-2">{podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
+                    <td className="px-3 py-2">{!n.km && podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>
                 );
               })}

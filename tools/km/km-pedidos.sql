@@ -1,8 +1,18 @@
--- v390 — pedidos do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
+-- v390/v408 — pedidos (e NFs de saída) do KM para o Compras & Estoque. SÓ LEITURA (usuário de consulta mentorbi).
 -- Sem as views pedido_mestre / pedido_item_detalhe (chamam prc_valor_pedido, que lê recpedid — sem permissão).
 -- Entram: pedidos com saldo a entregar, dos últimos 45 dias ou alterados nos últimos 3 dias.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
-SELECT json_build_object('geradoEm', now(), 'pedidos', coalesce(json_agg(x), '[]'::json))
+SELECT json_build_object('geradoEm', now(), 'pedidos', coalesce(json_agg(x), '[]'::json),
+  -- v408 — todas as NFs de saída não canceladas dos últimos 60 dias (crítica de NF emitida no KM sem XML/PDF no sistema)
+  'nfsDesde', current_date - 60,
+  'nfs', (SELECT coalesce(json_agg(json_build_object('numero', ls.nnumeronfsai::text, 'emissao', ls.demissenfsai, 'valor', ls.nnvalornfsai,
+              'pedido', pn.ncodigopedid::text, 'cliente', coalesce(cn.cnomeclien, sn.cnomecliente, pn.cliente),
+              'cnpj', coalesce(nullif(trim(cn.ccnpjclien),''), nullif(trim(cn.ccpfclien),''))) ORDER BY ls.demissenfsai), '[]'::json)
+          FROM livsaida ls
+          LEFT JOIN pedidos pn ON pn.nnumeropedid = ls.nnumeropedid
+          LEFT JOIN solpedid sn ON sn.nnumeropedid = ls.nnumeropedid
+          LEFT JOIN solclien cn ON cn.nnumeroclien = coalesce(sn.nnumeroclien, pn.nnumeroclien)
+          WHERE ls.demissenfsai >= current_date - 60 AND coalesce(ls.cnfcancnfsai,'N') <> 'S'))
 FROM (
   SELECT
     pe.ncodigopedid::text                  AS numero,

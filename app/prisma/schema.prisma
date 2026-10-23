@@ -1864,3 +1864,24 @@ model CompraItem {
   @@unique([pedidoNumero, chave])
   @@index([status])
 }
+
+// v408 — NFs de saída emitidas no KM (livsaida). Sem XML/PDF no sistema = crítica no Movimento fiscal + mensagem (uma vez)
+model KmNfSaida {
+  id          Int       @id @default(autoincrement())
+  chave       String    @unique                     // numero|AAAA-MM-DD da emissão
+  numero      String
+  emissao     DateTime? @db.Date
+  valor       Decimal   @default(0) @db.Decimal(14, 2)
+  pedido      String?
+  cliente     String?
+  cnpj        String?                               // só dígitos
+  arquivoEm   DateTime?                             // achou XML/PDF no movimento fiscal
+  avisadoEm   DateTime?                             // mensagem enviada
+  canceladaEm DateTime?                             // sumiu da lista do KM (cancelada)
+  vistoEm     DateTime?
+  vistoPor    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([numero])
+}

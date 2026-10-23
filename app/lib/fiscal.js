@@ -557,7 +557,7 @@ export async function vistarCritica(id, u) {
 }
 
 /* ---------------- 3) lista e exclusão ---------------- */
-export async function listar({ de, ate, tipo, busca }) {
+export async function listar({ de, ate, tipo, busca, km = false }) {
   await sincronizarSaidasContab().catch((e) => console.log("fiscal/sync contabilidade:", e.message));   // v363
   await revisarCriticasContab().catch((e) => console.log("fiscal/revisar críticas:", e.message));   // v365
   const where = {};
@@ -572,7 +572,10 @@ export async function listar({ de, ate, tipo, busca }) {
   const ids = [...new Set(l.flatMap((n) => (Array.isArray(n.parcelas) ? n.parcelas : []).map((p) => p.tituloId)).filter(Boolean))];
   const ts = ids.length ? await prisma.finTitulo.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, vencimento: true, valor: true, valorPago: true } }) : [];
   const porId = Object.fromEntries(ts.map((t) => [t.id, t]));
-  return l
+  // v408 — NFs emitidas no KM sem XML/PDF no sistema (só no Movimento fiscal)
+  let doKm = [];
+  if (km && tipo !== "ENTRADA") { try { doKm = await (await import("@/lib/kmNfs")).pendentesMovimento({ de, ate, busca }); } catch (e) { console.log("fiscal/km:", e.message); } }
+  const out = l
     .map((n) => ({
       ...n, valor: Number(n.valor), emissao: n.emissao ? new Date(n.emissao).toISOString().slice(0, 10) : null,
       origem: n.criadoPorNome === ORIGEM_CONTAB ? "IMPORTAÇÃO CONTABILIDADE" : "MOVIMENTO FISCAL",   // v363
@@ -584,6 +587,8 @@ export async function listar({ de, ate, tipo, busca }) {
       }),
     }))
     .filter((n) => !b || sem(`${n.numero} ${n.parceiro} ${n.documento || ""} ${n.natureza || ""} ${n.chave || ""}`).includes(b) || String(n.valor.toFixed(2)).includes(b.replace(",", ".")));
+  if (!doKm.length) return out;
+  return [...doKm, ...out].sort((a, c) => String(c.emissao || "").localeCompare(String(a.emissao || "")));
 }
 
 // apaga o registro: contas CRIADAS por ele vão para a lixeira (só se nenhuma estiver baixada);
