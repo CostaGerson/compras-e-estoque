@@ -91,8 +91,8 @@ async function clonarFpp(fpp, user, origemId) {
 }
 
 /* ============================================================ */
-export default function Comercial({ user, master }) {
-  const [view, setView] = useState(null); // null = landing (2 cards) | "fpp" | "acomp"
+export default function Comercial({ user, master, fppInicial }) {
+  const [view, setView] = useState(fppInicial?.id ? "fpp" : null); // null = landing (2 cards) | "fpp" | "acomp"
 
   if (view === "acomp") {   // v381
     return (
@@ -117,7 +117,7 @@ export default function Comercial({ user, master }) {
           <ChevronRight size={13} style={{ color: C.sub }} />
           <span className="font-semibold" style={{ color: C.text }}>Orçamentação (FPP)</span>
         </div>
-        <Fpp user={user} master={master} />
+        <Fpp user={user} master={master} abrirId={fppInicial?.id} />
       </div>
     );
   }
@@ -269,7 +269,7 @@ function fichaVazia(tipo) {
   };
 }
 
-function Fpp({ user, master }) {
+function Fpp({ user, master, abrirId }) {
   const [params, setParams] = useState(null);       // banco de dados (padrão)
   const [tipo, setTipo] = useState("MALHA");        // derivado da peça escolhida
   const [f, setF] = useState(() => fichaVazia("MALHA"));
@@ -477,6 +477,8 @@ function Fpp({ user, master }) {
     setAba("ficha");
     setMsg(`Editando a FPP ${fmtFpp(fpp.numero)} ✓`);
   }
+  // v420 — aberta a partir da Gestão da produção: carrega a FPP para edição
+  useEffect(() => { if (abrirId) fetch(`/api/fpp/${abrirId}`).then((r) => r.json()).then((x) => { if (x && x.id) carregarFicha(x); }).catch(() => {}); }, [abrirId]);
   // clona o que está na tela (inclusive alterações ainda não salvas) e passa a editar a cópia
   async function clonarAtual() {
     if (!f.item) return setMsg("Selecione o ITEM.");

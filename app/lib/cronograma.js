@@ -170,10 +170,10 @@ export function visaoDoPedido(g, ops, numero) {
 
 // ---------- sincronização ----------
 let rodando = null;
-export async function sincronizar({ forcar = false } = {}) {
+export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS } = {}) {   // v420 — gestão da produção lê a cada 1 min
   const st = await statusSync();
   if (!st.temToken) return { ok: false, erro: "Token do Cronograma não configurado.", ...st };
-  if (!forcar && st.em && Date.now() - new Date(st.em).getTime() < INTERVALO_MS && !st.erro) return { ok: true, pulado: true, ...st };
+  if (!forcar && st.em && Date.now() - new Date(st.em).getTime() < intervaloMs && !st.erro) return { ok: true, pulado: true, ...st };
   if (rodando) return rodando;
   rodando = (async () => {
     const res = { em: new Date().toISOString(), erro: null, itens: 0, etapas: 0, pedidosCrono: 0, casados: 0, semPedidoAqui: 0 };

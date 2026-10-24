@@ -1910,3 +1910,16 @@ model CompraDispensa {
   porNome      String?
   createdAt    DateTime @default(now())
 }
+
+// v420 — comentários do pedido (gestão da produção), com marcação de usuários
+model PedidoComentario {
+  id           Int      @id @default(autoincrement())
+  pedidoNumero String
+  autorId      Int?
+  autorNome    String?
+  texto        String
+  mencoes      Json     @default("[]")   // [{ id, nome }]
+  createdAt    DateTime @default(now())
+
+  @@index([pedidoNumero])
+}

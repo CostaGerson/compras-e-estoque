@@ -14,7 +14,8 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
+import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";
+import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
@@ -91,7 +92,7 @@ const MENU = [
     { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
-  { key: "producao", label: "Produção", icon: Factory, desc: "Pedidos de produção, análises, compras e estoque", filhos: [
+  { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
     { key: "pp", label: "Lançar PP", icon: FileText, desc: "Pedidos de produção com grade, foto e parâmetros de cada peça" },
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Pedidos", icon: ClipboardList, desc: "Itens de cada pedido do KM com a FPP base e a demanda de matéria-prima" },
@@ -146,6 +147,7 @@ const PODE = {
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
   pp: (u) => vePP(u),
   pic: (u) => tem(u, "pic"),
+  producao: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER") || tem(u, "pic") || vePP(u),   // v420 — gestão da produção
   comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
   levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   comprasCruzamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v415
@@ -190,11 +192,13 @@ export default function Home() {
   const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("gestao");
   const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
-  const [gestaoInicial, setGestaoInicial] = useState(null);   // v220: Matriz → Metas da Gestão direto
+  const [gestaoInicial, setGestaoInicial] = useState(null);
+  const [fppInicial, setFppInicial] = useState(null);   // v420   // v220: Matriz → Metas da Gestão direto
   useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); }, [view]);
   // v365 — outras telas pedem para abrir o contas a pagar/receber já filtrado (ex.: NF lançada pela crítica do movimento fiscal)
   useEffect(() => {
-    const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); } };
+    const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
+      if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, t: Date.now() }); setView("comercial"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);
   const [tab, setTab] = useState("lista");
@@ -327,10 +331,11 @@ export default function Home() {
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rota />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
-          {view === "comercial" && pode("comercial") && <Comercial user={user} master={master || tipo === "COMERCIAL"} />}
+          {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
+          {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} />}

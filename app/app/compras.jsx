@@ -42,7 +42,7 @@ function Modal({ titulo, onClose, children, largo }) {
 }
 
 // ---------- FPP resumida (janela central) ----------
-function FppResumo({ fppId, item, veValores, onClose, onUsar, usando }) {
+export function FppResumo({ fppId, item, veValores, onClose, onUsar, usando }) {
   const [f, setF] = useState(null);
   const [erro, setErro] = useState("");
   useEffect(() => {
