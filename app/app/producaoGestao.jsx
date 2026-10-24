@@ -29,7 +29,7 @@ function Pizza({ p, cor, tam = 92 }) {
     </svg>
   );
 }
-function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub }) {
+function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub, pecas }) {
   return (
     <button onClick={onClick} className="rounded-xl p-4 flex items-center gap-4 text-left w-full" style={{ background: C.panel, border: `1px solid ${ativo ? cor : C.line}`, borderTop: `3px solid ${cor}`, boxShadow: ativo ? `0 0 0 2px ${cor}33` : "none" }}>
       <Pizza p={total ? n / total : 0} cor={cor} />
@@ -37,6 +37,7 @@ function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub }) {
         <div className="text-xs font-semibold" style={{ color: C.sub }}>{rotulo}</div>
         <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>{n}</div>
         <div className="text-[11px]" style={{ color: C.sub }}>{sub || `de ${total} pedido(s)`}</div>
+        {pecas != null && <div className="text-xs font-semibold mt-0.5" style={{ color: C.text }}>{Number(pecas).toLocaleString("pt-BR")} peças</div>}
       </div>
     </button>
   );
@@ -72,6 +73,7 @@ export default function ProducaoGestao({ user, atalhos, ir }) {
     </th>
   );
   const k = d?.kpis;
+  const pc = (f) => (d ? d.pedidos.filter(f).reduce((s0, p) => s0 + (Number(p.pecas) || 0), 0) : 0);   // v422 — peças por card
   return (
     <div>
       <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -90,10 +92,10 @@ export default function ProducaoGestao({ user, atalhos, ir }) {
       {d && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <CardKpi rotulo="Pedidos em andamento" n={k.andamento} total={k.andamento} cor={C.navy} ativo={!filtro} onClick={() => setFiltro(null)} sub="total" />
-            <CardKpi rotulo="Em dia" n={k.emDia} total={k.andamento} cor={C.green} ativo={filtro === "emDia"} onClick={() => setFiltro(filtro === "emDia" ? null : "emDia")} />
-            <CardKpi rotulo="Atrasados" n={k.atrasados} total={k.andamento} cor={C.red} ativo={filtro === "atrasados"} onClick={() => setFiltro(filtro === "atrasados" ? null : "atrasados")} />
-            <CardKpi rotulo="Entrega na semana" n={k.semana} total={k.andamento} cor={C.accent} ativo={filtro === "semana"} onClick={() => setFiltro(filtro === "semana" ? null : "semana")} sub={`de ${k.andamento} · próximos 7 dias`} />
+            <CardKpi rotulo="Pedidos em andamento" n={k.andamento} total={k.andamento} cor={C.navy} ativo={!filtro} onClick={() => setFiltro(null)} sub="total" pecas={pc(() => true)} />
+            <CardKpi rotulo="Em dia" n={k.emDia} total={k.andamento} cor={C.green} ativo={filtro === "emDia"} onClick={() => setFiltro(filtro === "emDia" ? null : "emDia")} pecas={pc((p) => p.status === "EM DIA")} />
+            <CardKpi rotulo="Atrasados" n={k.atrasados} total={k.andamento} cor={C.red} ativo={filtro === "atrasados"} onClick={() => setFiltro(filtro === "atrasados" ? null : "atrasados")} pecas={pc((p) => p.status === "ATRASADO")} />
+            <CardKpi rotulo="Entrega na semana" n={k.semana} total={k.andamento} cor={C.accent} ativo={filtro === "semana"} onClick={() => setFiltro(filtro === "semana" ? null : "semana")} sub={`de ${k.andamento} · próximos 7 dias`} pecas={pc((p) => p.semana)} />
           </div>
           <div className="flex items-center gap-2 mb-2">
             <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana" }[filtro]}` : ""}</div>
