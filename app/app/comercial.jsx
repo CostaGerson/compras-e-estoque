@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
-import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum } from "@/lib/fppAv";   // v410
+import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao } from "@/lib/fppAv";   // v410
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
@@ -607,6 +607,7 @@ function Fpp({ user, master }) {
                 <div>
                   <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}><Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></AvComDet>
                   {num(f.botaoQtd) > 0 && <div className="mt-2"><SelAv label="Tipo de botão" value={f.botaoTipo} onChange={(v) => set("botaoTipo", v)} options={botaoTipos.map((g) => g.chave)} /></div>}
+                  {num(f.botaoQtd) > 0 && obsBotao(f.botaoTipo) && <div className="text-[11px] mt-1 font-semibold" style={{ color: /^NÃO/.test(obsBotao(f.botaoTipo)) ? C.green : C.red }}>Obs.: {obsBotao(f.botaoTipo).toLowerCase()}</div>}
                   {num(f.botaoQtd) > 0 && r && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{f.botaoQtd} un × R$ {fmtNum(r.botaoUn, 2)} = <b style={{ color: C.text }}>R$ {fmtNum(r.botaoUn * num(f.botaoQtd), 2)}/pç</b></div>}
                 </div>
               </div>

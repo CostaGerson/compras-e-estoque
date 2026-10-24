@@ -1,6 +1,6 @@
 // v404 — Compras: FPP base de cada item de pedido, demanda de matéria-prima e levantamento.
 import { prisma } from "./prisma";
-import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra } from "./fppAv";   // v410
+import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, obsBotao } from "./fppAv";   // v410
 
 export const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 const vazio = (v) => v == null || String(v).trim() === "";
@@ -114,7 +114,7 @@ export function materiaisDaFpp(fpp, params = []) {
     const det = avDet.BOTAO || {};
     out.push({ papel: "BOTAO", ref: { campo: "aviamentosDet", chave: "BOTAO" }, categoria: "AVIAMENTO", unidade: "UN", embalagem: GROSA,
       nome: e.botaoTipo ? `BOTÃO ${String(e.botaoTipo).toUpperCase()}` : "BOTÃO", det,   // v410 — tipo do botão
-      consumoPorPeca: botoes, valorUnitario: botaoUnit(get, e.botaoTipo) || null, base: `${botoes} un/peça · grosa de ${GROSA}`, obs: det.obs || null });
+      consumoPorPeca: botoes, valorUnitario: botaoUnit(get, e.botaoTipo) || null, base: `${botoes} un/peça · grosa de ${GROSA}`, obs: [obsBotao(e.botaoTipo), det.obs].filter(Boolean).join(" · ") || null });   // v413
   }
   (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).forEach((x, idx) => {
     if (vazio(x.desc)) return;

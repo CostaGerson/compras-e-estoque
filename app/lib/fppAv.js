@@ -56,3 +56,6 @@ export function botaoUnit(get, tipo) {
 
 export const nomeFaixaCompra = (tipo, cor) => [String(tipo || "").trim().toUpperCase(), faixaPedeCor(tipo) && cor ? String(cor).toUpperCase() : ""].filter(Boolean).join(" ");
 export const fmtNum = (v, d = 2) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: Math.max(d, 4) });
+
+// v413 — observação do material do botão
+export const obsBotao = (tipo) => (/LAT[AÃ]O/i.test(String(tipo || "")) ? "NÃO ENFERRUJA" : /FERRO/i.test(String(tipo || "")) ? "ENFERRUJA" : "");
