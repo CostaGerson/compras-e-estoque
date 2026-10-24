@@ -244,7 +244,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
               {ab ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente}{p.interno && <span className="ml-2"><Chip>interno</Chip></span>}</div>
-                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.fasePcp === "FORA" ? " · fora do PCP" : p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}</div>
+                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.fasePcp === "FORA" ? " · fora do PCP" : p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}{p.itensFora ? ` · ${p.itensFora} item(ns) já programado(s) não aparecem` : ""}</div>
               </div>
               <Chip cor={ok ? C.green : C.accent} fundo={ok ? C.greenSoft : C.accentSoft}>{p.comFpp}/{p.total} itens com FPP</Chip>
             </button>
@@ -374,6 +374,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
           <div className="text-sm font-semibold" style={{ color: C.text }}>{it.codigo ? `${it.codigo} · ` : ""}{it.descricao || "—"}</div>
           <div className="text-xs" style={{ color: C.sub }}>{it.qtd} peças{veValores && it.preco != null ? ` · ${brl(it.preco)}/pç` : ""}{it.grade?.length ? ` · ${it.grade.map((g) => `${g.tam}:${g.qtd}`).join(" ")}` : ""}</div>
         </div>
+        {it.colunaPcp && <Chip cor={C.navy} title="Coluna do item no PCP">PCP: {it.colunaPcp === "LEVANTAMENTO" ? "levantamento" : it.colunaPcp === "COMPRAS" ? "compras" : it.colunaPcp.toLowerCase()}</Chip>}
         {v ? <Chip cor={STATUS[v.status]?.[1] || C.green} fundo={STATUS[v.status]?.[2] || C.greenSoft}>{STATUS[v.status]?.[0] || v.status}</Chip> : <Chip cor={C.yellow} fundo={C.yellowSoft}>Sem FPP</Chip>}
       </div>
       {v ? (

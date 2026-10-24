@@ -1,7 +1,7 @@
 // v404 — Compras › Pedidos: pedidos do KM em andamento, desmembrados em itens, com a FPP base (ou sugestões)
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp } from "@/lib/compras";
+import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp } from "@/lib/compras";
 
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
@@ -25,6 +25,7 @@ export async function GET() {
     // v417 — só os pedidos em levantamento/compras no PCP (ou ainda fora dele); programado/produção/concluído já tem MP comprada
     const fase = faseCompraPcp(p);
     if (fase === "PRODUCAO") { emProducao++; continue; }
+    let itensFora = 0;   // v418 — itens do pedido já programados/em produção no PCP
     const itens = itensDoPedido(p);
     const chaves = new Set(itens.map((i) => i.chave));
     // item que saiu do pedido no KM e ainda estava só no levantamento: some do levantamento
@@ -32,6 +33,8 @@ export async function GET() {
       await prisma.compraItem.delete({ where: { id: v.id } }).catch(() => {});
     const lst = [];
     for (const it of itens) {
+      const fi = faseItemPcp(p, it.chave);
+      if (fi.fase === "PRODUCAO") { itensFora++; continue; }
       let v = porChave[`${p.numero}|${it.chave}`];
       // quantidade mudou no KM: refaz a demanda enquanto está no levantamento
       if (v && v.status === "LEVANTAMENTO" && Number(v.quantidade) !== it.qtd && v.fppId) {
@@ -42,12 +45,12 @@ export async function GET() {
             demanda: demanda.map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null })) } });
         }
       }
-      lst.push({ ...it, vinculo: v ? { id: v.id, fppId: v.fppId, fppNumero: v.fppNumero, status: v.status, demanda: v.demanda,
+      lst.push({ ...it, colunaPcp: fi.coluna, vinculo: v ? { id: v.id, fppId: v.fppId, fppNumero: v.fppNumero, status: v.status, demanda: v.demanda,
           fpp: v.fppId && fppPorId[v.fppId] ? { nomeComercial: fppPorId[v.fppId].nomeComercial, item: fppPorId[v.fppId].item, valorProposto: fppPorId[v.fppId].valorProposto } : null } : null,
         sugestoes: v ? [] : sugerirFpps(it, p, fpps, clientes) });
     }
     out.push({ id: p.id, numero: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: iso(p.emissao), entrega: iso(p.despacho), interno: p.interno,
-      situacaoPcp: p.cronoSituacao, fasePcp: fase, vendedor: p.vendedor, itens: lst,
+      situacaoPcp: p.cronoSituacao, fasePcp: fase, itensFora, vendedor: p.vendedor, itens: lst,
       comFpp: lst.filter((i) => i.vinculo).length, total: lst.length });
   }
   return Response.json({ pedidos: out, emProducao });

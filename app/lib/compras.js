@@ -355,11 +355,21 @@ export function faseCompraPcp(p) {
   return /LEVANTAMENTO|COMPRA/.test(sit) ? "COMPRAS" : "PRODUCAO";
 }
 
+// v418 — fase de um item no PCP (casado pelo código do item = itemCode); sem o item no PCP, vale a fase do pedido
+export function faseItemPcp(p, chave) {
+  const cod = String(chave || "").split("#")[0];
+  const ci = (Array.isArray(p.cronoItens) ? p.cronoItens : []).find((x) => String(x.itemCode || "") === cod);
+  if (!ci) return { fase: faseCompraPcp(p), coluna: null };
+  const t = `${ci.situacao || ""} ${ci.etapa || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  return { fase: /LEVANTAMENTO|COMPRA/.test(t) ? "COMPRAS" : "PRODUCAO", coluna: /LEVANTAMENTO/.test(t) ? "LEVANTAMENTO" : /COMPRA/.test(t) ? "COMPRAS" : String(ci.situacao || "").toUpperCase() };
+}
+
 export async function itensAbertos(db = prisma) {
   const itens = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] });
   const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true } });
-  const ativos = new Set(peds.filter((p) => faseCompraPcp(p) !== "PRODUCAO").map((p) => p.numero));   // v417 — programado/produção no PCP sai do levantamento
-  return itens.filter((i) => ativos.has(i.pedidoNumero));
+  const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
+  // v417/v418 — item programado/em produção no PCP sai do levantamento
+  return itens.filter((i) => porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO");
 }
 
 // reservas do estoque: itens atendidos pelo estoque cujo material ainda não seguiu para a produção.
