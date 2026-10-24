@@ -35,8 +35,17 @@ export const CATEGORIAS_COSTURA = [
   ...COM_SEM("CAMISETA_MC", "Camiseta MC"), ...COM_SEM("CAMISETA_ML", "Camiseta ML"),
   ["POLO_COMUM", "Polo comum", 0], ["POLO_RECORTE", "Polo com recorte", 0],
   ...COM_SEM("MOLETOM_NORMAL", "Moletom normal"), ...COM_SEM("MOLETOM_COLEGIAL", "Moletom colegial"),
-  ["JAQUETA", "Jaqueta", 0], ["CAMISA_SOCIAL", "Camisa social", 0], ["JALECO_OPERACIONAL", "Jaleco operacional", 0],
-  ["CALCA_OPERACIONAL", "Calça operacional", 0], ["CALCA_JEANS", "Calça jeans", 0], ["CALCA_SOCIAL", "Calça social", 0], ["AVENTAL", "Avental", 0],
+  ["JAQUETA", "Jaqueta", 0], ["CAMISA_SOCIAL", "Camisa social", 0],
+  // v411 — camisa social e jalecos com faixa refletiva; calças operacionais por acabamento, faixa e reforços
+  ["CAMISA_SOCIAL_FAIXA_TORAX", "Camisa social c/ faixa refletiva tórax", 0], ["CAMISA_SOCIAL_FAIXA_TORAX_MANGAS", "Camisa social c/ faixa refletiva tórax e mangas", 0],
+  ["JALECO_OPERACIONAL", "Jaleco operacional", 0],
+  ["JALECO_OPERACIONAL_FAIXA_TORAX", "Jaleco operacional c/ faixa refletiva tórax", 0], ["JALECO_OPERACIONAL_FAIXA_TORAX_MANGAS", "Jaleco operacional c/ faixa refletiva tórax e mangas", 0],
+  ["CALCA_OPERACIONAL", "Calça operacional", 0],
+  ["CALCA_OPERACIONAL_MEIO_COS", "Calça operacional meio cós", 0], ["CALCA_OPERACIONAL_PASSANTES", "Calça operacional c/ passantes", 0],
+  ["CALCA_OPERACIONAL_PASSANTES_PRESSAO", "Calça operacional c/ passantes e botão de pressão", 0], ["CALCA_OPERACIONAL_PASSANTES_FLEXIVEL", "Calça operacional c/ passantes e botão flexível", 0],
+  ["CALCA_OPERACIONAL_FAIXA", "Calça operacional c/ faixa refletiva", 0], ["CALCA_OPERACIONAL_REFORCO_ENTREPERNAS", "Calça operacional c/ reforço entrepernas", 0],
+  ["CALCA_OPERACIONAL_REFORCO_GOTA", "Calça operacional c/ reforço lateral tipo gota", 0], ["CALCA_OPERACIONAL_REFORCO_JOELHOS", "Calça operacional c/ reforço de joelhos matelado", 0],
+  ["CALCA_JEANS", "Calça jeans", 0], ["CALCA_SOCIAL", "Calça social", 0], ["AVENTAL", "Avental", 0],
   ["TOUCA", "Touca / máscara", 0],
 ];
 // v254 — personalização: grade peça × nível. Silk = nº de cores (1 a 6); bordado = milheiro de pontos (1 a 10 mil).

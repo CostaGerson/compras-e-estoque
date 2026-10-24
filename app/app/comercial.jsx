@@ -247,7 +247,8 @@ function fichaVazia(tipo) {
     artigoDet: null, artigoForroDet: null, aviamentosDet: {},   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
     mpValor: "", forroValor: "", consumoForro: "",   // v208: consumo do forro (m/peça) — vazio = estimado pelo fator
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
-    faixaTipo: "", faixaCor: "", botaoTipo: "",   // v410 — tipo da faixa (R$/m), cor do tactel/gorgurão, tipo do botão
+    faixaTipo: "", faixaCor: "", botaoTipo: "",
+    forrada: false, materiasExtras: [],   // v411 — forro só com peça forrada; matérias-primas adicionais [{ nome, det, custo, modo: CONSUMO|RENDIMENTO, qtd }]   // v410 — tipo da faixa (R$/m), cor do tactel/gorgurão, tipo do botão
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
@@ -322,7 +323,7 @@ function Fpp({ user, master }) {
   useEffect(() => {
     if (!f.item || !costuraOpcoes.length) return;
     const atual = costuraOpcoes.find((c) => c.k === f.faccaoTipo);
-    if (!atual && costuraOpcoes.length === 1) setF((s0) => ({ ...s0, faccaoTipo: costuraOpcoes[0].k, faccao: String(costuraOpcoes[0].valor).replace(".", ",") }));
+    if (!atual && costuraOpcoes.length === 1) setF((s0) => ({ ...s0, faccaoTipo: costuraOpcoes[0].k, faccao: costuraOpcoes[0].semValor ? s0.faccao : String(costuraOpcoes[0].valor).replace(".", ",") }));
   }, [costuraOpcoes]);
   const golas = params?.MALHA?.GOLA || [];
   const punhos = params?.MALHA?.PUNHO || [];
@@ -354,8 +355,9 @@ function Fpp({ user, master }) {
     let forro = 0;
     const consumoForroEst = cget("FORRO_FATOR") * rendCons;
     const consumoForro = num(f.consumoForro) > 0 ? num(f.consumoForro) : consumoForroEst;   // v208: informado na ficha ou estimado
-    if (!isMalha) forro = num(f.forroValor) * consumoForro;
-    const materiaPrima = mp + forro + linha;
+    if (!isMalha && f.forrada) forro = num(f.forroValor) * consumoForro;   // v411 — só peça forrada
+    const mpExtras = custoMpExtras(f.materiasExtras);
+    const materiaPrima = mp + forro + mpExtras + linha;
 
     // Aviamentos (sem a linha, que já entrou na matéria-prima)
     // v410 — elástico e faixa por metro (consumo × R$/m); botão pelo tipo
@@ -366,7 +368,7 @@ function Fpp({ user, master }) {
     const faixa = fx.valor;
     const botaoUn = botaoUnit(getP, f.botaoTipo);
     const botao = botaoUn * num(f.botaoQtd);
-    const extrasAv = somaExtras(f.extrasAviamentos);
+    const extrasAv = somaAvExtras(f.extrasAviamentos);   // v411
     const aviamentos = golaOuElast + punho + faixa + botao + extrasAv;
 
     // Produção
@@ -426,7 +428,7 @@ function Fpp({ user, master }) {
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -456,7 +458,7 @@ function Fpp({ user, master }) {
 
   function carregarFicha(fpp) {
     const e = fpp.entradas || {};
-    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
+    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, forrada: e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor) || num(e.consumoForro)), clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
     setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
     setOver(fpp.overrides || {});
@@ -551,16 +553,31 @@ function Fpp({ user, master }) {
             </Card>
 
             <Card title="Matéria-prima">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
-                  onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
-                <Inp label={tipo === "MALHA" ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
-                <Ref label={tipo === "MALHA" ? "Rendimento (peças/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                {tipo === "PLANO" && <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
-                  onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />}
-                {tipo === "PLANO" && <Inp label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />}
-                {tipo === "PLANO" && <Inp label="Consumo do forro (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
-                  placeholder={r ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")} — informe o real` : ""} />}
+              {/* v411 — linhas na mesma grade: artigo · custo · consumo/rendimento · (forrada) */}
+              <div className="space-y-3">
+                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (tipo === "PLANO" ? " 120px" : "") }}>
+                  <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
+                    onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
+                  <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
+                  <Ref full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                  {tipo === "PLANO" && (
+                    <div>
+                      <div className="text-xs mb-1" style={{ color: C.sub }}>Peça forrada</div>
+                      <div className="flex items-center" style={{ minHeight: 34 }}><Toggle on={!!f.forrada} onChange={(v) => set("forrada", v)} /></div>
+                    </div>
+                  )}
+                </div>
+                {tipo === "PLANO" && f.forrada && (
+                  <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px 120px" }}>
+                    <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
+                      onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />
+                    <Inp full label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />
+                    <Inp full label="Consumo (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
+                      placeholder={r ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")}` : ""} />
+                    <div />
+                  </div>
+                )}
+                <MpExtras lista={f.materiasExtras} onChange={(l) => set("materiasExtras", l)} cols={tipo === "PLANO"} />
               </div>
             </Card>
 
@@ -593,7 +610,7 @@ function Fpp({ user, master }) {
                   {num(f.botaoQtd) > 0 && r && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{f.botaoQtd} un × R$ {fmtNum(r.botaoUn, 2)} = <b style={{ color: C.text }}>R$ {fmtNum(r.botaoUn * num(f.botaoQtd), 2)}/pç</b></div>}
                 </div>
               </div>
-              <ExtrasCustos lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} comDet />
+              <AvExtras lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} />
             </Card>
 
             <Card title="Produção">
@@ -604,16 +621,16 @@ function Fpp({ user, master }) {
                     <div className="text-xs mb-1" style={{ color: C.sub }}>Costura · tipo de peça</div>
                     <select value={f.faccaoTipo || ""} onChange={(e) => {
                       const c = (params.OPERACIONAL.costura || []).find((x) => x.k === e.target.value);
-                      setF((s0) => ({ ...s0, faccaoTipo: e.target.value, faccao: c ? String(c.valor).replace(".", ",") : "" }));
+                      setF((s0) => ({ ...s0, faccaoTipo: e.target.value, faccao: c && !c.semValor ? String(c.valor).replace(".", ",") : "" }));
                     }} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
                       <option value="">Escolha…</option>
-                      {costuraOpcoes.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+                      {costuraOpcoes.map((c) => <option key={c.k} value={c.k}>{c.n}{c.semValor ? " (sem valor na análise)" : ""}</option>)}
                     </select>
                   </div>
                 )}
                 <div>
                   <div className="text-xs mb-1 flex items-center gap-1" style={{ color: C.sub }}>Facção (R$/peça){modoOverride && <Pencil size={11} />}</div>
-                  {modoOverride || !(params?.OPERACIONAL?.costura || []).length ? (
+                  {modoOverride || !(params?.OPERACIONAL?.costura || []).length || costuraOpcoes.find((c) => c.k === f.faccaoTipo)?.semValor || !f.faccaoTipo ? (
                     <input value={f.faccao} onChange={(e) => set("faccao", e.target.value)} inputMode="decimal"
                       className="px-2 py-1.5 rounded text-sm" style={{ width: 110, background: "#fff", border: `1px ${modoOverride ? "dashed" : "solid"} ${modoOverride ? C.accent : C.line}`, color: C.text }} />
                   ) : (
@@ -666,8 +683,8 @@ function Fpp({ user, master }) {
             </div>
 
             <Card title="Logística e embalagem">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Inp label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
+              <div className="grid gap-3" style={{ gridTemplateColumns: "150px minmax(0,1.4fr) minmax(0,1fr)" }}>
+                <Inp full label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
                 <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
                 <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
               </div>
@@ -1091,10 +1108,11 @@ async function imprimirFicha(f, master) {
 
   sec("Matéria-prima");
   if (isMalha) row("Artigo (malha)", e.nomeArtigo || "—");
-  else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); row("Artigo (forro)", e.nomeArtigoForro || "—"); }
+  else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); if ((e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Artigo (forro)", e.nomeArtigoForro || "—"); }
   row(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—");
-  if (!isMalha) row("Custo do forro (R$/m)", e.forroValor || "—");
-  if (!isMalha) row("Consumo do forro (m/peça)", e.consumoForro || (r.consumoForroEst != null ? `${Number(r.consumoForroEst).toFixed(2).replace(".", ",")} (estimado)` : "—"));
+  for (const x of (Array.isArray(e.materiasExtras) ? e.materiasExtras : []).filter((x) => x.nome)) row(`MP adicional: ${String(x.nome).toUpperCase()}`, `R$ ${x.custo || "—"} · ${x.qtd || "—"} ${x.modo === "RENDIMENTO" ? "pç/kg" : "m/peça"}`);   // v411
+  if (!isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Custo do forro (R$/m)", e.forroValor || "—");
+  if (!isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Consumo do forro (m/peça)", e.consumoForro || (r.consumoForroEst != null ? `${Number(r.consumoForroEst).toFixed(2).replace(".", ",")} (estimado)` : "—"));
   y += 2;
 
   sec("Aviamentos e produção");
@@ -1102,7 +1120,9 @@ async function imprimirFicha(f, master) {
   row("Faixa refletiva", e.faixa || "—");
   row("Qtde de botões", e.botaoQtd || "—");
   row("Facção (R$/peça)", e.faccao || "—");
-  for (const [rot, l] of [["Extra aviamento", e.extrasAviamentos], ["Extra produção", e.extrasProducao]])
+  for (const x of (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).filter((x) => x.unidade && x.desc))   // v411
+    row(`Aviamento: ${String(x.desc).toUpperCase()}`, `${x.consumo || "—"} ${x.unidade === "M" ? "m" : "un"}/peça × R$ ${x.preco || "—"}`);
+  for (const [rot, l] of [["Extra aviamento", (e.extrasAviamentos || []).filter((x) => !x.unidade)], ["Extra produção", e.extrasProducao]])
     for (const x of (Array.isArray(l) ? l : []).filter((x) => num(x.valor))) row(`${rot}: ${String(x.desc || "SEM DESCRIÇÃO").toUpperCase()} (R$/peça)`, String(x.valor));
   const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
   const pp = [];
@@ -1758,7 +1778,7 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
               </select></label>
           ) : (
-            <label className="text-[11px]" style={{ color: C.sub }}>Valor (R$/peça)
+            <label className="text-[11px]" style={{ color: C.sub }}>{a.metodo === "BORDADO" ? "Valor (R$/aplicação)" : "Valor (R$/peça)"}
               <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel} /></label>
           )}
           <div className="text-xs font-semibold pb-1.5" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>
@@ -1804,7 +1824,7 @@ function resumoDet(d, categoria, botao) {
     categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null,
     categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${d.obs}` : null].filter(Boolean);
 }
-function DetBotao({ det, categoria, nome, onDet, botao, titulo }) {
+function DetBotao({ det, categoria, nome, onDet, botao, titulo, semQtd }) {
   const [aberto, setAberto] = useState(false);
   const d = det || {};
   const resumo = resumoDet(d, categoria, botao);
@@ -1813,7 +1833,7 @@ function DetBotao({ det, categoria, nome, onDet, botao, titulo }) {
     <>
       <button type="button" onClick={() => setAberto(true)} title={titulo || "Fornecedor, cor, código e detalhes para compras"}
         className="px-2 rounded text-sm font-bold self-stretch" style={{ minWidth: 30, background: resumo.length ? (cheio ? C.greenSoft : C.accentSoft) : C.panel2, color: resumo.length ? (cheio ? C.green : C.accent) : C.sub, border: `1px solid ${resumo.length ? (cheio ? C.green : C.accent) : C.line}` }}>+</button>
-      {aberto && <ArtigoDetModal nome={nome} det={d} categoria={categoria} botao={botao} onClose={() => setAberto(false)} onSalvar={(x) => { onDet(x); setAberto(false); }} />}
+      {aberto && <ArtigoDetModal nome={nome} det={d} categoria={categoria} botao={botao} semQtd={semQtd} onClose={() => setAberto(false)} onSalvar={(x) => { onDet(x); setAberto(false); }} />}
     </>
   );
 }
@@ -1887,7 +1907,7 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
     </div>
   );
 }
-function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
+function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar }) {
   const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "", qtdPeca: det.qtdPeca || "", obs: det.obs || "" });
   const [forns, setForns] = useState(_fornCache || []);
   useEffect(() => { if (!_fornCache) fetch("/api/fornecedores").then((r) => r.json()).then((l) => { _fornCache = Array.isArray(l) ? l : []; setForns(_fornCache); }).catch(() => {}); }, []);
@@ -1903,7 +1923,7 @@ function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
     for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
     if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
     if (av) delete out.largura; else delete out.qtdPeca;
-    if (botao) delete out.qtdPeca;
+    if (botao || semQtd) delete out.qtdPeca;
     onSalvar(Object.keys(out).length ? out : null);
   };
   return (
@@ -1921,7 +1941,7 @@ function ArtigoDetModal({ nome, det, categoria, botao, onClose, onSalvar }) {
           {campo("Código", "codigo", "ex.: 8047")}
           {!av && campo("Largura (m)", "largura", "ex.: 1,60")}
           {categoria === "MALHA" && campo("Rendimento da malha (m/kg)", "rendimento", "ex.: 2,8")}
-          {av && !botao && campo("Qtd por peça (un)", "qtdPeca", "1")}
+          {av && !botao && !semQtd && campo("Qtd por peça (un)", "qtdPeca", "1")}
           {botao && <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Qtd por peça = Qtde de botões. Compra em grosa (144), arredondada para cima.</div>}
           {categoria === "MALHA" && (
             <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Tipo da malha</div>
@@ -1949,6 +1969,103 @@ function Card({ title, children }) {
 }
 /* custos extras (aviamentos / produção): sem limite de linhas, sempre em R$ por peça */
 const somaExtras = (l) => (Array.isArray(l) ? l : []).reduce((s, x) => s + num(x?.valor), 0);
+// v411 — matérias-primas adicionais: artigo (+ detalhe) · custo · consumo (m/peça) ou rendimento (peças/kg)
+function custoMpExtras(l) {
+  return (Array.isArray(l) ? l : []).reduce((s0, x) => {
+    const q = num(x?.qtd), c = num(x?.custo);
+    return s0 + (x?.modo === "RENDIMENTO" ? (q ? c / q : 0) : c * q);
+  }, 0);
+}
+function MpExtras({ lista, onChange, cols }) {
+  const l = Array.isArray(lista) ? lista : [];
+  const alt = (i, k, v) => onChange(l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const grid = { gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (cols ? " 120px" : " 28px") };
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  return (
+    <div>
+      {l.map((x, i) => {
+        const rend = x.modo === "RENDIMENTO";
+        return (
+          <div key={i} className="grid gap-3 items-start mb-3" style={grid}>
+            <ArtigoNomeDet label={`Matéria-prima adicional ${i + 1}`} nome={x.nome} det={x.det} categoria={rend ? "MALHA" : "TECIDO"}
+              onNome={(v) => alt(i, "nome", v.toUpperCase())} onDet={(d) => alt(i, "det", d)} />
+            <Inp full label={rend ? "Custo (R$/kg)" : "Custo (R$/m)"} value={x.custo ?? ""} onChange={(v) => alt(i, "custo", v)} />
+            <div>
+              <select value={rend ? "RENDIMENTO" : "CONSUMO"} onChange={(e) => alt(i, "modo", e.target.value)} className="text-xs mb-1 rounded px-1" style={{ ...sel, height: 18, padding: "0 2px" }}>
+                <option value="CONSUMO">Consumo (m/peça)</option><option value="RENDIMENTO">Rendimento (pç/kg)</option>
+              </select>
+              <input value={x.qtd ?? ""} onChange={(e) => alt(i, "qtd", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
+            </div>
+            <div className="flex items-end justify-between gap-1" style={{ minHeight: 54 }}>
+              <span className="text-[11px] pb-2" style={{ color: C.sub }}>{brl(custoMpExtras([x]))}/pç</span>
+              <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 pb-2" style={{ color: C.red }}><X size={15} /></button>
+            </div>
+          </div>
+        );
+      })}
+      <button onClick={() => onChange([...l, { nome: "", custo: "", modo: "CONSUMO", qtd: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+        <Plus size={14} /> Adicionar matéria-prima
+      </button>
+    </div>
+  );
+}
+// v411 — aviamentos adicionais: nome (+ fornecedor, cor, código) · unidade por peça (m/un) · consumo · R$ por unidade
+//   linha antiga (só R$/peça) continua valendo até ser editada
+const avExtraNorm = (x) => (x?.unidade ? x : { ...x, unidade: "UN", consumo: x?.det?.qtdPeca || (num(x?.valor) ? 1 : ""), preco: num(x?.valor) ? String(Math.round((num(x.valor) / (num(x?.det?.qtdPeca) || 1)) * 10000) / 10000).replace(".", ",") : "" });
+const custoAvExtra = (x) => (x?.unidade ? num(x.consumo) * num(x.preco) : num(x?.valor));
+const somaAvExtras = (l) => (Array.isArray(l) ? l : []).reduce((s0, x) => s0 + custoAvExtra(x), 0);
+function AvExtras({ lista, onChange }) {
+  const l = Array.isArray(lista) ? lista : [];
+  const alt = (i, k, v) => onChange(l.map((x, j) => {
+    if (j !== i) return x;
+    const n = { ...avExtraNorm(x), [k]: v };
+    delete n.valor;
+    if (n.det) { const { qtdPeca, ...d } = n.det; n.det = Object.keys(d).length ? d : null; }
+    return n;
+  }));
+  const grid = { gridTemplateColumns: "minmax(0,1fr) 110px 110px 120px 80px 24px" };
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  return (
+    <div className="mt-4">
+      {l.length > 0 && (
+        <div className="space-y-2 mb-2">
+          <div className="text-xs font-semibold" style={{ color: C.sub }}>Aviamentos adicionais</div>
+          <div className="grid gap-2 text-xs" style={{ ...grid, color: C.sub }}>
+            <span>Aviamento</span><span>Unidade</span><span>Consumo/peça</span><span>R$ por {"un/m"}</span><span className="text-right">R$/pç</span><span />
+          </div>
+          {l.map((x0, i) => {
+            const x = avExtraNorm(x0);
+            return (
+              <div key={i}>
+                <div className="grid gap-2 items-center" style={grid}>
+                  <div className="flex gap-1">
+                    <input value={x.desc || ""} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: ZÍPER, ETIQUETA, VELCRO…"
+                      className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
+                    {x.desc ? <DetBotao det={x.det} categoria="AVIAMENTO" nome={x.desc} semQtd onDet={(d) => alt(i, "det", d)} /> : null}
+                  </div>
+                  <select value={x.unidade} onChange={(e) => alt(i, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>
+                    <option value="UN">Unidades</option><option value="M">Metros</option>
+                  </select>
+                  <input value={x.consumo ?? ""} onChange={(e) => alt(i, "consumo", e.target.value)} inputMode="decimal" placeholder={x.unidade === "M" ? "m/peça" : "un/peça"}
+                    className="w-full px-2 py-1.5 rounded text-sm text-right" style={sel} />
+                  <input value={x.preco ?? ""} onChange={(e) => alt(i, "preco", e.target.value)} inputMode="decimal" placeholder={x.unidade === "M" ? "R$/m" : "R$/un"}
+                    className="w-full px-2 py-1.5 rounded text-sm text-right" style={sel} />
+                  <span className="text-sm text-right tabular-nums" style={{ color: C.text }}>{brl(custoAvExtra(x))}</span>
+                  <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
+                </div>
+                {x.desc && <ResumoDet det={x.det} categoria="AVIAMENTO" botao />}
+              </div>
+            );
+          })}
+          <div className="text-xs text-right" style={{ color: C.sub }}>Adicionais: <b style={{ color: C.navy }}>{brl(somaAvExtras(l))}</b> por peça</div>
+        </div>
+      )}
+      <button onClick={() => onChange([...l, { desc: "", unidade: "UN", consumo: "", preco: "" }])} className="flex items-center gap-1 text-xs font-semibold mt-2" style={{ color: C.accent }}>
+        <Plus size={14} /> Adicionar aviamento
+      </button>
+    </div>
+  );
+}
 function ExtrasCustos({ lista, onChange, comDet }) {
   const l = Array.isArray(lista) ? lista : [];
   const cols = comDet ? "1fr 160px 30px 28px" : "1fr 160px 28px";
@@ -2006,12 +2123,12 @@ function AvMetro({ c, semTipo }) {
     </div>
   );
 }
-function Inp({ label, value, onChange, destaque, text, placeholder }) {
+function Inp({ label, value, onChange, destaque, text, placeholder, full }) {
   return (
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <input value={value} onChange={(e) => onChange(e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
-        className={`px-2 py-1.5 rounded text-sm ${text ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
+        className={`px-2 py-1.5 rounded text-sm ${text || full ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
     </div>
   );
 }
@@ -2147,7 +2264,7 @@ function Sel({ label, value, onChange, children }) {
   );
 }
 // campo que mostra valor puxado do banco; permite override só nesta ficha
-function Ref({ label, grupo, chave, campo, pget, over, setOver, modo }) {
+function Ref({ label, grupo, chave, campo, pget, over, setOver, modo, full }) {
   const path = `${grupo}:${chave}:${campo}`;
   const base = pget(grupo, chave, campo);
   const val = over[path] != null && over[path] !== "" ? over[path] : "";
@@ -2156,9 +2273,9 @@ function Ref({ label, grupo, chave, campo, pget, over, setOver, modo }) {
       <div className="text-xs mb-1 flex items-center gap-1" style={{ color: C.sub }}>{label}{modo && <Pencil size={11} />}</div>
       {modo ? (
         <input value={val} placeholder={String(base)} onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))} inputMode="decimal"
-          className="w-36 px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
+          className={`${full ? "w-full" : "w-36"} px-2 py-1.5 rounded text-sm`} style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
       ) : (
-        <div className="w-36 px-2 py-1.5 rounded text-sm" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{base || "—"}</div>
+        <div className={`${full ? "w-full" : "w-36"} px-2 py-1.5 rounded text-sm`} style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text }}>{base || "—"}</div>
       )}
     </div>
   );

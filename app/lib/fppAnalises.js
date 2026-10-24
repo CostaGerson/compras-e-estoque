@@ -57,7 +57,7 @@ async function mediaPorCategoria(setor, meses, cats) {
 
 export async function mediasOperacionais() {
   const meses = await janelaFpp();
-  if (!meses.length) return { meses: [], corte: {}, expedicao: {}, costura: [], silkPorCor: SILK_POR_COR };
+  if (!meses.length) return { meses: [], corte: {}, expedicao: {}, costura: CATEGORIAS_COSTURA.filter(([k]) => k !== "PILOTO").map(([k, n]) => ({ k, n, valor: 0, semValor: true })), silkPorCor: SILK_POR_COR };
   const [corte, expedicao, costura] = await Promise.all([
     mediaPorCategoria("CORTE", meses, CATEGORIAS_CORTE), mediaPorCategoria("EXPEDICAO", meses, CATEGORIAS_EXPEDICAO),
     mediaPorCategoria("COSTURA", meses, CATEGORIAS_COSTURA),
@@ -68,7 +68,8 @@ export async function mediasOperacionais() {
   for (const a of silks) { const c = calcularCorte(a, 0, 0); vol += c.terceirizado; cores += c.unidades || 0; }
   return {
     meses, corte, expedicao,
-    costura: CATEGORIAS_COSTURA.filter(([k]) => costura[k] > 0).map(([k, n]) => ({ k, n, valor: costura[k] })),
+    // v411 — todos os tipos aparecem na FPP; sem valor na análise da costura, a facção é digitada na ficha
+    costura: CATEGORIAS_COSTURA.filter(([k]) => k !== "PILOTO").map(([k, n]) => ({ k, n, valor: costura[k] > 0 ? costura[k] : 0, semValor: !(costura[k] > 0) })),
     silkPorCor: cores ? r4(vol / cores) : SILK_POR_COR,
   };
 }

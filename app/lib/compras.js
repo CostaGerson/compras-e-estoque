@@ -65,11 +65,20 @@ export function materiaisDaFpp(fpp, params = []) {
       base: tipo === "MALHA" ? `${String(rendCons).replace(".", ",")} peças/kg` : `${String(rendCons).replace(".", ",")} m/peça` });
   }
   const nomeF = String(e.nomeArtigoForro || "").trim();
-  if (tipo === "PLANO" && nomeF) {
+  if (tipo === "PLANO" && nomeF && e.forrada !== false) {   // v411 — só peça forrada
     const cf = n0(e.consumoForro) || n0(r.consumoForro) || paramValor(params, "PLANO", "CONST", "FORRO_FATOR", ov) * rendCons;
     out.push({ papel: "FORRO", ref: { campo: "artigoForroDet" }, categoria: "TECIDO", unidade: "M", nome: nomeF.toUpperCase(), det: e.artigoForroDet || {},
       consumoPorPeca: cf, valorUnitario: n0(e.forroValor), base: `${String(r3(cf)).replace(".", ",")} m/peça` });
   }
+  // v411 — matérias-primas adicionais: consumo (m/peça → metros) ou rendimento (peças/kg → kg)
+  (Array.isArray(e.materiasExtras) ? e.materiasExtras : []).forEach((x, idx) => {
+    const nome = String(x.nome || "").trim();
+    const q = n0(x.qtd);
+    if (!nome || !(q > 0)) return;
+    const rend = x.modo === "RENDIMENTO";
+    out.push({ papel: `MP${idx}`, ref: { campo: "materiasExtras", idx }, categoria: rend ? "MALHA" : "TECIDO", unidade: rend ? "KG" : "M", nome: nome.toUpperCase(), det: x.det || {},
+      consumoPorPeca: rend ? 1 / q : q, valorUnitario: n0(x.custo), base: rend ? `${String(q).replace(".", ",")} peças/kg` : `${String(q).replace(".", ",")} m/peça` });
+  });
   const avDet = e.aviamentosDet || {};
   const get = (g, k, c = "valor") => paramGet(params, tipo, g, k, c, ov);
   for (const a of AVIAMENTOS) {
@@ -110,6 +119,13 @@ export function materiaisDaFpp(fpp, params = []) {
   (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).forEach((x, idx) => {
     if (vazio(x.desc)) return;
     const det = x.det || {};
+    if (x.unidade) {   // v411 — aviamento adicional: unidade (M/UN), consumo por peça e R$ por unidade
+      const qc = n0(x.consumo) || 0;
+      if (!(qc > 0)) return;
+      out.push({ papel: `EXTRA${idx}`, ref: { campo: "extrasAviamentos", idx }, categoria: "AVIAMENTO", unidade: x.unidade === "M" ? "M" : "UN", nome: String(x.desc).trim().toUpperCase(), det,
+        consumoPorPeca: qc, valorUnitario: n0(x.preco), base: `${String(qc).replace(".", ",")} ${x.unidade === "M" ? "m" : "un"}/peça`, obs: det.obs || null });
+      return;
+    }
     const q = n0(det.qtdPeca) || 1;
     const vp = n0(x.valor);
     out.push({ papel: `EXTRA${idx}`, ref: { campo: "extrasAviamentos", idx }, categoria: "AVIAMENTO", unidade: "UN", nome: String(x.desc).trim().toUpperCase(), det,
@@ -152,16 +168,17 @@ export async function artigoDaFpp(m, fpp, db = prisma) {
 }
 
 // chamada depois de salvar a FPP: garante o cadastro de cada artigo e grava o id no detalhe
-const lerDet = (e, ref) => (ref.campo === "extrasAviamentos" ? (e.extrasAviamentos?.[ref.idx]?.det || {}) : ref.chave ? (e[ref.campo]?.[ref.chave] || {}) : (e[ref.campo] || {}));
+// v411 — listas (extrasAviamentos, materiasExtras): ref.idx
+const lerDet = (e, ref) => (ref.idx != null ? (e[ref.campo]?.[ref.idx]?.det || {}) : ref.chave ? (e[ref.campo]?.[ref.chave] || {}) : (e[ref.campo] || {}));
 function gravarDet(e, ref, det) {
-  if (ref.campo === "extrasAviamentos") { const l = [...(e.extrasAviamentos || [])]; l[ref.idx] = { ...l[ref.idx], det }; return { ...e, extrasAviamentos: l }; }
+  if (ref.idx != null) { const l = [...(e[ref.campo] || [])]; l[ref.idx] = { ...l[ref.idx], det }; return { ...e, [ref.campo]: l }; }
   if (ref.chave) return { ...e, [ref.campo]: { ...(e[ref.campo] || {}), [ref.chave]: det } };
   return { ...e, [ref.campo]: det };
 }
 export async function sincronizarArtigosFpp(fpp, db = prisma) {
   let novas = { ...(fpp.entradas || {}) };
   let mudou = false;
-  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true } });
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
   for (const m of materiaisDaFpp(fpp, params)) {
     // só cadastra quando alguém abriu o "+" e preencheu algo (FPP de proposta não enche o cadastro);
     // sem detalhe, o cadastro pelo nome acontece quando a FPP vira base de um pedido (demandaDoItem)
@@ -222,7 +239,7 @@ export function sugerirFpps(item, pedido, fpps, clientes, max = 5) {
 
 // ---------- demanda ----------
 export async function demandaDoItem(fpp, qtd, db = prisma) {
-  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true } });
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
   const mats = materiaisDaFpp(fpp, params);
   const ids = mats.map((m) => (m.det || {}).artigoId).filter(Boolean);
   const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } }) : [];

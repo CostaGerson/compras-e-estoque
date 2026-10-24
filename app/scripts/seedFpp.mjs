@@ -22,6 +22,10 @@ const PECAS_PLANO = [
   ["CALÇA BRIM REFORÇADA",    1.40, 1.65, 1.15, 1.0],
   ["CALÇA JEANS",             1.32, 1.65, 2.65, 1.0],
   ["CALÇA TACTEL",            1.25, 1.65, 1.15, 1.2],
+  // v411 — calças operacionais com reforço: consumo a preencher no banco de dados (nas análises contam como calça operacional)
+  ["CALÇA OPERACIONAL REFORÇO ENTREPERNAS",      0, 1.65, 1.15, 1.0],
+  ["CALÇA OPERACIONAL REFORÇO LATERAL TIPO GOTA", 0, 1.65, 1.15, 1.0],
+  ["CALÇA OPERACIONAL REFORÇO JOELHOS MATELADO", 0, 1.65, 1.15, 1.0],
   ["BLUSÃO BRIM",             1.40, 2.20, 4.53, 0.6],
   ["JALECO MANGA CURTA",      1.30, 2.20, 4.53, 0.6],
   ["CAMISA SOCIAL M. LONGA",  1.50, 2.20, 4.53, 0.6],
