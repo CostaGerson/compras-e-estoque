@@ -14,7 +14,7 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento } from "./compras";   // v404
+import { ComprasPedidos, Levantamento, Atendidos, FasesCompras, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
@@ -96,6 +96,8 @@ const MENU = [
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Pedidos", icon: ClipboardList, desc: "Itens de cada pedido do KM com a FPP base e a demanda de matéria-prima" },
       { key: "levantamento", label: "Levantamento", icon: Layers, desc: "Demandas registradas, equiparações de artigos e demanda consolidada" },
+      { key: "comprasCruzamento", label: "Cruzamento com estoque", icon: Layers, desc: "Cruza o levantamento com o saldo de estoque e autoriza os atendimentos" },
+      { key: "comprasAtendidos", label: "Atendidos pelo estoque", icon: Layers, desc: "Itens autorizados pelo estoque; dá para devolver ao levantamento" },
       { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Pedido interno de compras consolidado do dia" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
@@ -146,6 +148,8 @@ const PODE = {
   pic: (u) => tem(u, "pic"),
   comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
   levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
+  comprasCruzamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v415
+  comprasAtendidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   fme: (u) => tem(u, "fme"),
@@ -237,6 +241,7 @@ export default function Home() {
   const caminho = caminhoMenu(menu, view) || [];
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
+  const fasesCompras = FASES_COMPRAS.map(([k]) => k).filter((k) => pode(k));   // v415
   // clicar em qualquer parte do caminho volta para a tela inicial daquele módulo
   const irInicio = (k) => { setView(k); setTab("lista"); setResetTick((t) => t + 1); };
   const money = (v) => (master ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
@@ -303,10 +308,12 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
-          {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
-          {view === "levantamento" && pode("levantamento") && <Levantamento user={user} veValores={veValoresPP(user)} />}
-          {view === "pic" && pode("pic") && <PIC />}
-          {view === "oc" && pode("oc") && <OC money={money} />}
+          {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
+          {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
+          {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
+          {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos fases={fasesCompras} ir={ir} />}
+          {view === "pic" && pode("pic") && <><FasesCompras atual="pic" fases={fasesCompras} ir={ir} /><PIC /></>}
+          {view === "oc" && pode("oc") && <><FasesCompras atual="oc" fases={fasesCompras} ir={ir} /><OC money={money} /></>}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}

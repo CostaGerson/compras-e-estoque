@@ -1,7 +1,7 @@
 "use client";
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -131,7 +131,48 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 }
 
 // ---------- Compras › Pedidos ----------
-export function ComprasPedidos({ user, veValores }) {
+// v415 — fases de compras na guia superior (troca de tela entre as fases)
+export const FASES_COMPRAS = [
+  ["comprasPedidos", "Pedidos", ClipboardList], ["levantamento", "Levantamento", Layers], ["comprasCruzamento", "Cruzamento com estoque", Boxes],
+  ["comprasAtendidos", "Atendidos pelo estoque", PackageCheck], ["pic", "PIC diário", ClipboardList], ["oc", "Ordens de compra", ShoppingCart],
+];
+export function FasesCompras({ atual, fases, ir }) {
+  if (!ir) return null;
+  const l = FASES_COMPRAS.filter(([k]) => !fases || fases.includes(k));
+  return (
+    <div className="flex gap-1 mb-4 overflow-x-auto" style={{ borderBottom: `1px solid ${C.line}` }}>
+      {l.map(([k, t, Ico], i) => (
+        <button key={k} onClick={() => k !== atual && ir(k)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap"
+          style={{ color: atual === k ? C.accent : C.sub, borderBottom: atual === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+          <span className="text-[11px] font-bold rounded-full inline-flex items-center justify-center" style={{ width: 18, height: 18, background: atual === k ? C.accent : C.panel2, color: atual === k ? "#fff" : C.sub }}>{i + 1}</span>
+          <Ico size={14} /> {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+// barra de seleção com a devolução para a fase anterior
+function BarraDevolver({ n, rotulo, onDevolver, onLimpar, ocupado }) {
+  if (!n) return null;
+  return (
+    <div className="flex items-center gap-2 sticky bottom-0 py-3 z-10" style={{ background: "#F7F8FA" }}>
+      <button disabled={ocupado} onClick={onDevolver} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}` }}>
+        {ocupado ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />} {rotulo} ({n})
+      </button>
+      <button onClick={onLimpar} className="text-xs" style={{ color: C.sub }}>limpar seleção</button>
+    </div>
+  );
+}
+async function devolverItens(ids, dest) {
+  const url = dest === "pedidos" ? "/api/compras/itens" : "/api/compras/cruzar";
+  const body = dest === "pedidos" ? { ids } : { itemIds: ids };
+  const r = await fetch(url, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const x = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(x.error || "Erro ao devolver.");
+  return x;
+}
+
+export function ComprasPedidos({ user, veValores, fases, ir }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState("pendentes");
@@ -178,6 +219,7 @@ export function ComprasPedidos({ user, veValores }) {
 
   return (
     <div className="max-w-5xl">
+      <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Cada item do pedido precisa de uma FPP base. Ao escolher a FPP, a demanda de matéria-prima do item vai para o <b>Levantamento</b>.</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`]].map(([k, l]) => (
@@ -268,11 +310,19 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
 }
 
 // ---------- Compras › Levantamento ----------
-export function Levantamento({ user, veValores }) {
+export function Levantamento({ user, veValores, fases, ir, fase }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
-  const [aba, setAba] = useState("consolidado");
+  const [aba, setAba] = useState(fase === "cruzamento" ? "cruzamento" : "consolidado");
   const [salvando, setSalvando] = useState(false);
+  const [marc, setMarc] = useState(new Set());   // v415 — itens marcados para devolver a Pedidos
+  const tog = (id) => setMarc((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  async function devolver() {
+    if (!confirm(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`)) return;
+    setSalvando(true);
+    try { await devolverItens([...marc], "pedidos"); setMarc(new Set()); carregar(); } catch (e) { alert(e.message); }
+    setSalvando(false);
+  }
   const carregar = () => fetch("/api/compras/levantamento").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, []);
 
@@ -292,12 +342,15 @@ export function Levantamento({ user, veValores }) {
   }, [d]);
   const nomeArt = useMemo(() => Object.fromEntries((d?.consolidado || []).map((c) => [c.artigoId, c])), [d]);
 
+  const barra = <FasesCompras atual={fase === "cruzamento" ? "comprasCruzamento" : "levantamento"} fases={fases} ir={ir} />;
+  if (fase === "cruzamento") return <div className="max-w-5xl">{barra}<Cruzamento user={user} veValores={veValores} onMudou={carregar} /></div>;
   if (erro) return <div className="text-sm" style={{ color: C.red }}>{erro}</div>;
-  if (!d) return <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando levantamento…</div>;
+  if (!d) return <div className="max-w-5xl">{barra}<div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando levantamento…</div></div>;
 
   const Kpi = ({ l, v }) => <div className="rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}><div className="text-xs" style={{ color: C.sub }}>{l}</div><div className="text-xl font-bold" style={{ color: C.navy }}>{v}</div></div>;
   return (
     <div className="max-w-5xl">
+      {barra}
       <p className="text-sm mb-3" style={{ color: C.sub }}>Todas as demandas de matéria-prima registradas nos itens dos pedidos, aguardando o cruzamento com o estoque.</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Kpi l="Pedidos" v={d.pedidos} /><Kpi l="Itens" v={d.itens} /><Kpi l="Artigos" v={d.consolidado.length} /><Kpi l="Equiparações sugeridas" v={d.equiparacoes.length} />
@@ -306,7 +359,7 @@ export function Levantamento({ user, veValores }) {
         {[["consolidado", "Demanda consolidada", Layers], ["equiparacoes", `Equiparações${d.equiparacoes.length ? ` (${d.equiparacoes.length})` : ""}`, Merge], ["itens", "Demandas por item", PackageSearch]].map(([k, t, Ico]) => (
           <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><Ico size={15} /> {t}</button>
         ))}
-        <button onClick={() => setAba("cruzamento")} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
+        <button onClick={() => (ir ? ir("comprasCruzamento") : setAba("cruzamento"))} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
       </div>
       {aba === "cruzamento" && <Cruzamento user={user} veValores={veValores} onMudou={carregar} />}
 
@@ -360,11 +413,16 @@ export function Levantamento({ user, veValores }) {
         </div>
       )}
 
+      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada).</div>}
       {aba === "itens" && porPedido.map((p) => (
         <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="px-4 py-2 text-sm font-semibold" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+          <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>
+            {(() => { const ids = [...new Set(p.linhas.map((l) => l.itemId))]; const todos = ids.every((x) => marc.has(x));
+              return <input type="checkbox" checked={todos} title="Marcar o pedido inteiro" onChange={() => setMarc((s0) => { const n = new Set(s0); ids.forEach((x) => (todos ? n.delete(x) : n.add(x))); return n; })} />; })()}
+            Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
           {p.linhas.map((l, i) => (
             <div key={i} className="flex px-4 py-2 text-xs gap-2" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
+              <input type="checkbox" checked={marc.has(l.itemId)} onChange={() => tog(l.itemId)} style={{ visibility: i && p.linhas[i - 1].itemId === l.itemId ? "hidden" : "visible" }} />
               <div className="w-56 truncate" style={{ color: C.text }} title={l.descricao}>{l.chave} · {l.descricao} <span style={{ color: C.sub }}>({l.qtdPecas} pç)</span></div>
               <div className="flex-1"><b>{l.nome}</b>{l.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(l)}{l.obs ? ` · obs: ${l.obs}` : ""}</span>{l.equiparadoA && <span style={{ color: C.green }}> → junto com {detArtigo(nomeArt[l.equiparadoA] || {})}</span>}</div>
               <div className="w-24 text-right font-semibold" style={{ color: C.accent }}>{qtdU(l.quantidade, l.unidade)}</div>
@@ -372,6 +430,55 @@ export function Levantamento({ user, veValores }) {
           ))}
         </div>
       ))}
+      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())} />}
+    </div>
+  );
+}
+
+// ---------- v415 — itens atendidos pelo estoque (podem voltar ao levantamento) ----------
+export function Atendidos({ fases, ir }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [marc, setMarc] = useState(new Set());
+  const [ocupado, setOcupado] = useState(false);
+  const carregar = () => fetch("/api/compras/cruzar?atendidos=1").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x.itens); }).catch((e) => setErro(e.message));
+  useEffect(() => { carregar(); }, []);
+  const tog = (id) => setMarc((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  async function devolver() {
+    if (!confirm(`Devolver ${marc.size} item(ns) para o levantamento? A reserva do estoque é desfeita.`)) return;
+    setOcupado(true);
+    try { await devolverItens([...marc], "levantamento"); setMarc(new Set()); carregar(); } catch (e) { alert(e.message); }
+    setOcupado(false);
+  }
+  const porPedido = useMemo(() => {
+    const m = {};
+    for (const i of d || []) (m[i.pedidoNumero] ||= { numero: i.pedidoNumero, cliente: i.cliente, entrega: i.entrega, itens: [] }).itens.push(i);
+    return Object.values(m);
+  }, [d]);
+  return (
+    <div className="max-w-5xl">
+      <FasesCompras atual="comprasAtendidos" fases={fases} ir={ir} />
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Itens autorizados para atender pelo estoque. Enquanto o material não seguiu para a produção, dá para devolver ao levantamento.</p>
+      {erro && <div className="text-sm" style={{ color: C.red }}>{erro}</div>}
+      {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {d && !d.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum item atendido pelo estoque.</div>}
+      {porPedido.map((p) => (
+        <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="px-4 py-2 text-sm font-semibold" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+          {p.itens.map((i) => (
+            <label key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}`, cursor: i.seguiu ? "default" : "pointer" }}>
+              <input type="checkbox" disabled={i.seguiu} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
+              <div className="flex-1">
+                <div className="text-sm" style={{ color: C.text }}>{i.chave} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
+                <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
+                <div style={{ color: C.sub }}>Autorizado {i.autorizadoEm ? new Date(i.autorizadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}{i.autorizadoPorNome ? ` por ${i.autorizadoPorNome}` : ""}</div>
+              </div>
+              {i.seguiu ? <Chip cor={C.sub}>material já na produção</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>reservado</Chip>}
+            </label>
+          ))}
+        </div>
+      ))}
+      <BarraDevolver n={marc.size} rotulo="Devolver para o levantamento" ocupado={ocupado} onDevolver={devolver} onLimpar={() => setMarc(new Set())} />
     </div>
   );
 }
@@ -447,6 +554,14 @@ function Cruzamento({ user, veValores, onMudou }) {
         </button>
         <button disabled title="Próxima versão: junta os artigos iguais dos itens não atendidos e agrupa por fornecedor" className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}`, cursor: "not-allowed" }}>
           <ShoppingCart size={15} /> Gerar PIC ({nCompra} itens) · em breve
+        </button>
+        <button disabled={salvando || !marc.size} onClick={async () => {
+          if (!confirm(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`)) return;
+          setSalvando(true);
+          try { await devolverItens([...marc], "pedidos"); onMudou?.(); carregar(); } catch (e) { alert(e.message); }
+          setSalvando(false);
+        }} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}`, opacity: marc.size ? 1 : 0.5 }}>
+          <Undo2 size={15} /> Devolver para Pedidos ({marc.size})
         </button>
         <button onClick={carregar} className="p-2 rounded-md" title="Refazer o cruzamento" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
         {veValores && <button onClick={() => fetch("/api/compras/integracao").then((r) => r.json()).then(setInteg)} className="ml-auto text-xs flex items-center gap-1" style={{ color: C.sub }}><KeyRound size={13} /> Integração PCP</button>}

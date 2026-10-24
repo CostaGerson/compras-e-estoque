@@ -24,6 +24,14 @@ export async function POST(req) {
 
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
+  // v415 — devolução em lote para Pedidos: { ids: [compraItem.id] } (só os que estão no levantamento)
+  if (Array.isArray(b.ids)) {
+    const ids = b.ids.map(Number).filter(Boolean);
+    const fora = await prisma.compraItem.findMany({ where: { id: { in: ids }, NOT: { status: "LEVANTAMENTO" } }, select: { pedidoNumero: true, chave: true, status: true } });
+    if (fora.length) return Response.json({ error: `Fora do levantamento: ${fora.map((x) => `${x.pedidoNumero} ${x.chave} (${x.status})`).join(", ")}.` }, { status: 409 });
+    const r = await prisma.compraItem.deleteMany({ where: { id: { in: ids }, status: "LEVANTAMENTO" } });
+    return Response.json({ ok: true, devolvidos: r.count });
+  }
   const v = await prisma.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: String(b.pedidoNumero || ""), chave: String(b.chave || "") } } });
   if (!v) return Response.json({ ok: true });
   if (v.status !== "LEVANTAMENTO") return Response.json({ error: `Item já está em ${v.status}.` }, { status: 409 });
