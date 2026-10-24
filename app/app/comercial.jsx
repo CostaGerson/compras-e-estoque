@@ -962,9 +962,12 @@ function BancoParams({ params, master, user, onReload }) {
       </div>
 
       {ordem.filter((g) => grupos[g]).map((g) => (
-        <GrupoParam key={g} grupo={g} rotulo={rotulos[g] || g} linhas={grupos[g]} os={os} user={user} onReload={onReload} />
+        <React.Fragment key={g}>
+          <GrupoParam grupo={g} rotulo={rotulos[g] || g} linhas={grupos[g]} os={os} user={user} onReload={onReload} />
+          {/* v412 — tipos de faixa (R$/m) logo abaixo das faixas */}
+          {g === "FAIXA" && params.COMUM?.FAIXA_TIPO && <GrupoParam grupo="FAIXA_TIPO" rotulo="Tipos de faixa refletiva — R$/m (vale para malha e plano)" linhas={params.COMUM.FAIXA_TIPO} os={os} user={user} onReload={onReload} />}
+        </React.Fragment>
       ))}
-      {params.COMUM?.FAIXA_TIPO && <GrupoParam grupo="FAIXA_TIPO" rotulo="Tipos de faixa refletiva — R$/m" linhas={params.COMUM.FAIXA_TIPO} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.BOTAO && <GrupoParam grupo="BOTAO" rotulo="Botões — R$/unidade" linhas={params.COMUM.BOTAO} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.EMB_INT && <GrupoParam grupo="EMB_INT" rotulo="Embalagens internas" linhas={params.COMUM.EMB_INT} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.CONST && <GrupoParam grupo="CONST" rotulo="Constantes gerais (imposto, operação financeira)" linhas={params.COMUM.CONST} os={os} user={user} onReload={onReload} />}
