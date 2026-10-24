@@ -151,6 +151,16 @@ const POS = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"]
 const LOCAIS_PERS = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."]];
 const METODOS_PERS = [["SILK", "Silk", true], ["BORDADO", "Bordado", true], ["DTF", "DTF", false], ["SUBLIMACAO", "Sublimação", false]];
 const TEC_DO_METODO = { SILK: "silk", DTF: "silk", BORDADO: "bordado", SUBLIMACAO: "sublimacao" };
+// v414 — FPP em "primeira maiúscula, demais minúsculas" (só na exibição; o valor gravado não muda)
+const SIGLAS_SC = new Set(["DTF", "DTG", "MC", "ML", "PA", "PU", "PVC", "EVA", "NF", "OP", "FPP", "CNPJ", "LTDA", "ME", "EPP", "SA", "UV"]);
+function sc(t) {
+  const s0 = String(t ?? "");
+  if (!s0.trim()) return s0;
+  const low = s0.toLocaleLowerCase("pt-BR").replace(/r\$/g, "R$")
+    .replace(/\p{L}+/gu, (w) => (SIGLAS_SC.has(w.toUpperCase()) ? w.toUpperCase() : w));
+  const i = low.search(/\p{L}/u);
+  return i < 0 ? low : low.slice(0, i) + low.charAt(i).toLocaleUpperCase("pt-BR") + low.slice(i + 1);
+}
 const nomeLocal = (k) => (LOCAIS_PERS.find((x) => x[0] === k) || [k, k])[1];
 const nomeMetodo = (k) => (METODOS_PERS.find((x) => x[0] === k) || [k, k])[1];
 const silkPorCorDe = (params) => Number(params?.OPERACIONAL?.silkPorCor) || 0.8;
@@ -677,7 +687,7 @@ function Fpp({ user, master }) {
             <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
               <div className="text-sm font-bold" style={{ color: C.navy }}>Lead time previsto</div>
               <div className="flex items-center gap-2">
-                <input value={f.leadTime} onChange={(e) => set("leadTime", e.target.value)} inputMode="numeric" className="px-2 py-1.5 rounded text-sm text-right" style={{ width: 80, background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                <input value={f.leadTime} onChange={(e) => set("leadTime", e.target.value)} inputMode="numeric" className="px-2 py-1.5 rounded text-sm" style={{ width: 80, background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
                 <span className="text-xs" style={{ color: C.sub }}>dias</span>
               </div>
               {num(f.leadTime) > 0 && <span className="text-xs" style={{ color: C.sub }}>entrega prevista em {new Date(Date.now() + num(f.leadTime) * 86400000).toLocaleDateString("pt-BR")}</span>}
@@ -754,7 +764,7 @@ function Fpp({ user, master }) {
                     const soft = m >= 0.3 ? C.greenSoft : m >= 0.16 ? "#FEF6E7" : "#FDECEC";
                     return (
                       <div className="rounded-md px-3 py-2 my-1 flex items-center justify-between" style={{ background: soft, border: `1px solid ${cor}` }}>
-                        <span className="text-xs font-bold tracking-wide" style={{ color: cor }}>MARGEM DE CONTRIBUIÇÃO</span>
+                        <span className="text-xs font-bold tracking-wide" style={{ color: cor }}>Margem de contribuição</span>
                         <span style={{ color: cor, fontWeight: 800, fontSize: 20, lineHeight: 1 }}>{pct(m)}</span>
                       </div>
                     );
@@ -853,7 +863,7 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
   function Secao({ titulo, children }) {
     return (
       <div className="mb-3">
-        <div className="text-xs font-bold uppercase mb-1" style={{ color: C.sub }}>{titulo}</div>
+        <div className="text-xs font-bold mb-1" style={{ color: C.sub }}>{sc(titulo)}</div>
         <div className="rounded-lg px-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>{children}</div>
       </div>
     );
@@ -949,7 +959,7 @@ function BancoParams({ params, master, user, onReload }) {
       <div className="flex items-center gap-3 mb-3 p-3 rounded-xl" style={{ background: os ? C.accentSoft : C.panel2, border: `1px solid ${os ? C.accent : C.line}` }}>
         {os ? <Unlock size={16} style={{ color: C.accent }} /> : <Lock size={16} style={{ color: C.sub }} />}
         <div className="flex-1">
-          <div className="text-sm font-bold" style={{ color: C.navy }}>ATUALIZAÇÃO DE PARÂMETROS GERAIS</div>
+          <div className="text-sm font-bold" style={{ color: C.navy }}>Atualização de parâmetros gerais</div>
           <div className="text-xs" style={{ color: C.sub }}>Desligado, o banco de dados fica imutável. Ligado, você redefine o padrão para todas as FPPs daqui em diante — cada alteração fica no histórico com data.</div>
         </div>
         {master ? <Toggle on={os} onChange={setOs} /> : <span className="text-xs" style={{ color: C.sub }}>Só o financeiro edita</span>}
@@ -958,7 +968,7 @@ function BancoParams({ params, master, user, onReload }) {
       <div className="flex gap-2 mb-3">
         {["MALHA", "PLANO"].map((t) => (
           <button key={t} onClick={() => setTipo(t)} className="px-3 py-1.5 rounded-lg text-sm font-semibold"
-            style={{ background: tipo === t ? C.navy : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.navy : C.line}` }}>{t}</button>
+            style={{ background: tipo === t ? C.navy : C.panel, color: tipo === t ? "#fff" : C.sub, border: `1px solid ${tipo === t ? C.navy : C.line}` }}>{sc(t)}</button>
         ))}
       </div>
 
@@ -1026,7 +1036,7 @@ function LinhaParam({ row, campos, os, user, onReload, onHist }) {
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
-      <div className="text-sm flex-1 min-w-[180px]" style={{ color: C.text }}>{row.rotulo || row.chave}</div>
+      <div className="text-sm flex-1 min-w-[180px]" style={{ color: C.text }}>{row.rotulo || sc(row.chave)}</div>
       {validos.map(([k, lbl]) => (
         <div key={k} className="flex flex-col">
           <span className="text-[10px]" style={{ color: C.sub }}>{lbl}</span>
@@ -1234,7 +1244,7 @@ const nPt = (n) => (Number(n) || 0).toLocaleString("pt-BR");
 function KpiFpp({ rotulo, valor, sub, cor }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{rotulo}</div>
+      <div className="text-xs font-semibold" style={{ color: C.sub }}>{rotulo}</div>
       <div className="text-xl font-bold mt-1" style={{ color: cor || C.navy }}>{valor}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
     </div>
@@ -1491,7 +1501,8 @@ function FichasSalvas({ master, onEditar, onClonar }) {
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
-                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{v}</button></td>;
+                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
+                  if (typeof v === "string" && /[A-ZÀ-Ý]{3}/.test(v) && !/^R\$/.test(v)) v = sc(v);   // v414
                   return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -1766,37 +1777,38 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   return (
     <div>
-      {lista.map((a, i) => (
-        <div key={i} className="flex flex-wrap items-end gap-2 mb-2 p-2 rounded" style={{ background: C.panel2 }}>
-          <label className="text-[11px]" style={{ color: C.sub }}>Local
-            <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="block px-2 py-1.5 rounded text-xs" style={sel}>
-              {LOCAIS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-            </select></label>
-          <label className="text-[11px]" style={{ color: C.sub }}>Método
-            <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="block px-2 py-1.5 rounded text-xs" style={sel}>
-              {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-            </select></label>
-          {a.metodo === "SILK" ? (
-            <label className="text-[11px]" style={{ color: C.sub }}>Cores
-              <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="block px-2 py-1.5 rounded text-xs" style={sel}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
-              </select></label>
-          ) : (
-            <label className="text-[11px]" style={{ color: C.sub }}>{a.metodo === "BORDADO" ? "Valor (R$/aplicação)" : "Valor (R$/peça)"}
-              <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel} /></label>
-          )}
-          <div className="text-xs font-semibold pb-1.5" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>
-          <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />
-          {/* v294 — arte/tela (silk/DTF) ou programa (bordado): valor total do pedido, sempre terceirizado, rateado ÷ qtde */}
-          {(a.metodo === "SILK" || a.metodo === "DTF" || a.metodo === "BORDADO") && (
-            <label className="text-[11px]" style={{ color: C.sub }}>{a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)
-              <input value={a.arte || ""} onChange={(e) => mud(i, "arte", e.target.value)} inputMode="decimal" className="block w-24 px-2 py-1.5 rounded text-xs" style={sel}
-                title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} /></label>
-          )}
-          {num(a.arte) > 0 && <div className="text-[11px] pb-1.5" style={{ color: C.sub }}>+{brl(num(a.arte) / Math.max(1, qtde || 1))}/pç</div>}
-          <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="ml-auto pb-1.5" style={{ color: C.sub }} title="Remover"><Trash2 size={13} /></button>
-        </div>
-      ))}
+      {/* v414 — grade fixa (colunas alinhadas entre as aplicações); lixeira fora do bloco cinza */}
+      {lista.map((a, i) => {
+        const temArte = a.metodo === "SILK" || a.metodo === "DTF" || a.metodo === "BORDADO";
+        const lbl = (t, el) => <label className="block min-w-0"><div className="text-[11px] mb-1" style={{ color: C.sub }}>{t}</div>{el}</label>;
+        return (
+          <div key={i} className="flex items-center gap-2 mb-2">
+            <div className="flex-1 grid gap-3 items-end p-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(110px,1fr) minmax(110px,1fr) 110px 120px 210px 130px" }}>
+              {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+                {LOCAIS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+              </select>)}
+              {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+                {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+              </select>)}
+              {a.metodo === "SILK"
+                ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
+                  </select>)
+                : lbl(a.metodo === "BORDADO" ? "R$/aplicação" : "R$/peça", <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel} />)}
+              {lbl("Valor/peça", <div className="py-1.5 text-sm font-semibold whitespace-nowrap" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>)}
+              {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
+              {temArte
+                ? lbl(`${a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)`, <>
+                    <input value={a.arte || ""} onChange={(e) => mud(i, "arte", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel}
+                      title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} />
+                    {num(a.arte) > 0 && <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>+{brl(num(a.arte) / Math.max(1, qtde || 1))}/pç</div>}
+                  </>)
+                : <div />}
+            </div>
+            <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="p-1.5 rounded shrink-0" style={{ color: C.sub }} title="Remover"><Trash2 size={15} /></button>
+          </div>
+        );
+      })}
       <button type="button" onClick={add} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>
         <Plus size={13} /> Aplicação
       </button>
@@ -1824,9 +1836,9 @@ function SeletorOrigem({ interno, onChange }) {
    Preenchido, o artigo entra no cadastro de Artigos com origem FPP ao salvar a ficha. Campo vazio não distingue um artigo do outro. */
 let _fornCache = null;
 function resumoDet(d, categoria, botao) {
-  return [d.fornecedorNome, d.cor, d.codigo, d.largura ? `${d.largura} m larg.` : null,
+  return [d.fornecedorNome && sc(d.fornecedorNome), d.cor && sc(d.cor), d.codigo, d.largura ? `${d.largura} m larg.` : null,
     categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null,
-    categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${d.obs}` : null].filter(Boolean);
+    categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${String(d.obs).toLocaleLowerCase("pt-BR")}` : null].filter(Boolean);
 }
 function DetBotao({ det, categoria, nome, onDet, botao, titulo, semQtd }) {
   const [aberto, setAberto] = useState(false);
@@ -1850,7 +1862,7 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <div className="flex gap-1">
-        <input value={nome || ""} onChange={(e) => onNome(e.target.value)} placeholder="Nome do artigo"
+        <input value={sc(nome || "")} onChange={(e) => onNome(e.target.value)} placeholder="Nome do artigo"
           className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
         <DetBotao det={det} categoria={categoria} nome={nome} onDet={onDet} />
       </div>
@@ -2035,7 +2047,7 @@ function AvExtras({ lista, onChange }) {
         <div className="space-y-2 mb-2">
           <div className="text-xs font-semibold" style={{ color: C.sub }}>Aviamentos adicionais</div>
           <div className="grid gap-2 text-xs" style={{ ...grid, color: C.sub }}>
-            <span>Aviamento</span><span>Unidade</span><span>Consumo/peça</span><span>R$ por {"un/m"}</span><span className="text-right">R$/pç</span><span />
+            <span>Aviamento</span><span>Unidade</span><span>Consumo/peça</span><span>R$ por un/m</span><span>R$/pç</span><span />
           </div>
           {l.map((x0, i) => {
             const x = avExtraNorm(x0);
@@ -2043,7 +2055,7 @@ function AvExtras({ lista, onChange }) {
               <div key={i}>
                 <div className="grid gap-2 items-center" style={grid}>
                   <div className="flex gap-1">
-                    <input value={x.desc || ""} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: ZÍPER, ETIQUETA, VELCRO…"
+                    <input value={sc(x.desc || "")} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: zíper, etiqueta, velcro…"
                       className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
                     {x.desc ? <DetBotao det={x.det} categoria="AVIAMENTO" nome={x.desc} semQtd onDet={(d) => alt(i, "det", d)} /> : null}
                   </div>
@@ -2051,17 +2063,17 @@ function AvExtras({ lista, onChange }) {
                     <option value="UN">Unidades</option><option value="M">Metros</option>
                   </select>
                   <input value={x.consumo ?? ""} onChange={(e) => alt(i, "consumo", e.target.value)} inputMode="decimal" placeholder={x.unidade === "M" ? "m/peça" : "un/peça"}
-                    className="w-full px-2 py-1.5 rounded text-sm text-right" style={sel} />
+                    className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
                   <input value={x.preco ?? ""} onChange={(e) => alt(i, "preco", e.target.value)} inputMode="decimal" placeholder={x.unidade === "M" ? "R$/m" : "R$/un"}
-                    className="w-full px-2 py-1.5 rounded text-sm text-right" style={sel} />
-                  <span className="text-sm text-right tabular-nums" style={{ color: C.text }}>{brl(custoAvExtra(x))}</span>
+                    className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
+                  <span className="text-sm tabular-nums" style={{ color: C.text }}>{brl(custoAvExtra(x))}</span>
                   <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
                 </div>
                 {x.desc && <ResumoDet det={x.det} categoria="AVIAMENTO" botao />}
               </div>
             );
           })}
-          <div className="text-xs text-right" style={{ color: C.sub }}>Adicionais: <b style={{ color: C.navy }}>{brl(somaAvExtras(l))}</b> por peça</div>
+          <div className="text-xs" style={{ color: C.sub }}>Adicionais: <b style={{ color: C.navy }}>{brl(somaAvExtras(l))}</b> por peça</div>
         </div>
       )}
       <button onClick={() => onChange([...l, { desc: "", unidade: "UN", consumo: "", preco: "" }])} className="flex items-center gap-1 text-xs font-semibold mt-2" style={{ color: C.accent }}>
@@ -2084,17 +2096,17 @@ function ExtrasCustos({ lista, onChange, comDet }) {
           {l.map((x, i) => (
             <React.Fragment key={i}>
             <div className="grid gap-2 items-center" style={{ gridTemplateColumns: cols }}>
-              <input value={x.desc || ""} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: ZÍPER, ETIQUETA, LAVAGEM…"
+              <input value={sc(x.desc || "")} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: zíper, etiqueta, lavagem…"
                 className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
               <input value={x.valor ?? ""} onChange={(e) => alt(i, "valor", e.target.value)} inputMode="decimal" placeholder="0,00 por peça"
-                className="w-full px-2 py-1.5 rounded text-sm text-right" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
               {comDet && (x.desc ? <DetBotao det={x.det} categoria="AVIAMENTO" nome={x.desc} onDet={(d) => alt(i, "det", d)} /> : <span />)}
               <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
             </div>
             {comDet && x.desc && <ResumoDet det={x.det} categoria="AVIAMENTO" />}
             </React.Fragment>
           ))}
-          <div className="text-xs text-right" style={{ color: C.sub }}>Extras: <b style={{ color: C.navy }}>{brl(somaExtras(l))}</b> por peça</div>
+          <div className="text-xs" style={{ color: C.sub }}>Extras: <b style={{ color: C.navy }}>{brl(somaExtras(l))}</b> por peça</div>
         </div>
       )}
       <button onClick={() => onChange([...l, { desc: "", valor: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
@@ -2111,7 +2123,7 @@ function SelAv({ label, value, onChange, options }) {
       <select value={value || ""} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm"
         style={{ background: "#fff", border: `1px solid ${value ? C.line : C.accent}`, color: C.text }}>
         <option value="">Escolha…</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o}>{sc(o)}</option>)}
       </select>
     </div>
   );
@@ -2186,14 +2198,14 @@ function Combo({ label, value, onChange, onPick, options, placeholder, livre }) 
   return (
     <div style={{ position: "relative" }}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
-      <input value={q} placeholder={placeholder} onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
+      <input value={sc(q)} placeholder={placeholder} onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
         onFocus={abrir} onBlur={() => setTimeout(() => setOpen(false), 150)}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
       {open && lista.length > 0 && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           {lista.map((o, idx) => (
             <button key={o} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(o); }}
-              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{o}</button>
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{sc(o)}</button>
           ))}
         </div>
       )}
@@ -2236,14 +2248,14 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
   return (
     <div style={{ position: "relative" }}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente</div>
-      <input value={q} placeholder="Buscar cliente…" onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
+      <input value={sc(q)} placeholder="Buscar cliente…" onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
         onFocus={() => { setSeed(q || ""); setHi(0); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 180)}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
       {open && (q || "").trim() !== "" && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           {lista.map((c, idx) => (
             <button key={c.id} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(c); }}
-              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{nome(c)}</button>
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{sc(nome(c))}</button>
           ))}
           {!exato && (
             <button tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); criar(); }} disabled={criando} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.accent, borderTop: lista.length ? `1px solid ${C.line}` : 0 }}>
