@@ -14,7 +14,7 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, FasesCompras, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
+import { ComprasPedidos, Levantamento, Atendidos, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
@@ -278,7 +278,24 @@ export default function Home() {
               </button>
             )}
             <div className="font-semibold flex items-center gap-1">
-              {caminho.length ? caminho.map((n, i) => (
+              {caminho.length && fasesCompras.includes(view) ? (
+                // v416 — fases de compras no próprio cabeçalho: a atual em negrito, as demais normais
+                <>
+                  {caminho.slice(0, -1).map((n) => (
+                    <React.Fragment key={n.key}>
+                      <button onClick={() => irInicio(n.key)} className="hover:underline font-normal" style={{ color: C.sub }}>{n.label}</button>
+                      <ChevronRight size={14} style={{ color: C.sub }} />
+                    </React.Fragment>
+                  ))}
+                  {FASES_COMPRAS.filter(([k]) => fasesCompras.includes(k)).map(([k, l], i) => (
+                    <React.Fragment key={k}>
+                      {i > 0 && <ChevronRight size={14} style={{ color: C.sub }} />}
+                      <button onClick={() => k !== view && ir(k)} className={`hover:underline ${k === view ? "font-bold" : "font-normal"}`}
+                        style={{ color: k === view ? C.text : C.sub }}>{l}</button>
+                    </React.Fragment>
+                  ))}
+                </>
+              ) : caminho.length ? caminho.map((n, i) => (
                 <React.Fragment key={n.key}>
                   {i > 0 && <ChevronRight size={14} style={{ color: C.sub }} />}
                   <button onClick={() => irInicio(n.key)} title="Voltar ao início desta página"
@@ -308,12 +325,12 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
-          {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
-          {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
-          {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} fases={fasesCompras} ir={ir} />}
-          {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos fases={fasesCompras} ir={ir} />}
-          {view === "pic" && pode("pic") && <><FasesCompras atual="pic" fases={fasesCompras} ir={ir} /><PIC /></>}
-          {view === "oc" && pode("oc") && <><FasesCompras atual="oc" fases={fasesCompras} ir={ir} /><OC money={money} /></>}
+          {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
+          {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
+          {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} />}
+          {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos />}
+          {view === "pic" && pode("pic") && <PIC />}
+          {view === "oc" && pode("oc") && <OC money={money} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}

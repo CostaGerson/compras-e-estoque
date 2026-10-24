@@ -310,7 +310,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
 }
 
 // ---------- Compras › Levantamento ----------
-export function Levantamento({ user, veValores, fases, ir, fase }) {
+export function Levantamento({ user, veValores, fases, ir, fase, irCruzar }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aba, setAba] = useState(fase === "cruzamento" ? "cruzamento" : "consolidado");
@@ -359,7 +359,7 @@ export function Levantamento({ user, veValores, fases, ir, fase }) {
         {[["consolidado", "Demanda consolidada", Layers], ["equiparacoes", `Equiparações${d.equiparacoes.length ? ` (${d.equiparacoes.length})` : ""}`, Merge], ["itens", "Demandas por item", PackageSearch]].map(([k, t, Ico]) => (
           <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><Ico size={15} /> {t}</button>
         ))}
-        <button onClick={() => (ir ? ir("comprasCruzamento") : setAba("cruzamento"))} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
+        <button onClick={() => (irCruzar ? irCruzar() : setAba("cruzamento"))} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
       </div>
       {aba === "cruzamento" && <Cruzamento user={user} veValores={veValores} onMudou={carregar} />}
 
