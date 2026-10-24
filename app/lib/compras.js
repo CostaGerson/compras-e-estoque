@@ -346,7 +346,11 @@ export function cruzarEstoque(itens, disponivel) {
 // itens no levantamento de pedidos ainda em andamento
 // v417 — fase do pedido no PCP do Maycon: só LEVANTAMENTO e COMPRAS estão em compras; programado, em produção ou concluído
 //   já tem a matéria-prima comprada. Sem informação do PCP (não está no cronograma) → "FORA"
+const semAc = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+// v421 — compra pendente no PCP (coluna Compras): casa o item pelo nome do produto
+const compraPendente = (p, produto) => (Array.isArray(p.cronoCompras) ? p.cronoCompras : []).some((c) => !produto || semAc(c.produto) === semAc(produto));
 export function faseCompraPcp(p) {
+  if (compraPendente(p)) return "COMPRAS";
   const its = (Array.isArray(p.cronoItens) ? p.cronoItens : []).filter((i) => !i.complemento);
   const txt = (i) => `${i.situacao || ""} ${i.etapa || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   if (its.length) return its.some((i) => /LEVANTAMENTO|COMPRA/.test(txt(i))) ? "COMPRAS" : "PRODUCAO";
@@ -360,6 +364,7 @@ export function faseItemPcp(p, chave) {
   const cod = String(chave || "").split("#")[0];
   const ci = (Array.isArray(p.cronoItens) ? p.cronoItens : []).find((x) => String(x.itemCode || "") === cod);
   if (!ci) return { fase: faseCompraPcp(p), coluna: null };
+  if (compraPendente(p, ci.produto)) return { fase: "COMPRAS", coluna: "COMPRAS" };   // v421
   const t = `${ci.situacao || ""} ${ci.etapa || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   return { fase: /LEVANTAMENTO|COMPRA/.test(t) ? "COMPRAS" : "PRODUCAO", coluna: /LEVANTAMENTO/.test(t) ? "LEVANTAMENTO" : /COMPRA/.test(t) ? "COMPRAS" : String(ci.situacao || "").toUpperCase() };
 }
@@ -399,7 +404,7 @@ export async function sincronizarAvulsa(c, db = prisma) {
 export async function itensAbertos(db = prisma) {
   const dispensados = await pedidosDispensados(db);   // v419
   const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
-  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true } });
+  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
   // v417/v418 — item programado/em produção no PCP sai do levantamento
   return itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));

@@ -193,17 +193,26 @@ export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS }
       res.opsAgrupamento = Object.values(g).filter((o) => o.agrupamento).length;
       res.opsEmProducao = Object.values(g).filter((o) => o.emProducao).length;
       res.pecasEmProducao = itens.filter((i) => i.pedido && !ehConcluido(i.situacao)).reduce((s, i) => s + i.pecas, 0);
+      // v421 — compras do PCP: pendentes por OP (coluna Compras) e compras avulsas
+      let jc = null; try { jc = await get("/api/ext/compras"); } catch (e) { res.avisoCompras = e.message; }
+      const pend = Array.isArray(jc?.pendentes) ? jc.pendentes : [];
+      const comprasPorOp = {};
+      for (const c of pend.filter((x) => !x.avulsa)) (comprasPorOp[soDig(c.orderNo)] ||= []).push({ produto: String(c.produto || ""), nome: String(c.nome || ""), fornecedor: String(c.fornecedor || "") || null, pedido: !!c.pedido, dataPedido: c.dataPedido || null });
+      res.comprasPendentes = pend.filter((x) => !x.avulsa).length;
+      if (jc) { try { res.avulsasPcp = await importarAvulsasPcp([...pend.filter((x) => x.avulsa), ...(Array.isArray(jc.concluidas) ? jc.concluidas.filter((x) => x.avulsa) : [])]); } catch (e) { res.avisoAvulsas = e.message; } }
       const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true, oc: true } });
       for (const p of aqui) {
         const c = visaoDoPedido(g, ix[soDig(p.numero)] || [], soDig(p.numero));
-        if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: "NÃO ESTÁ NO CRONOGRAMA", cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [] } }); continue; }
+        const ops = [...new Set([soDig(p.numero), ...(ix[soDig(p.numero)] || [])])];
+        const cc = ops.flatMap((o) => comprasPorOp[o] || []);   // v421
+        if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: "NÃO ESTÁ NO CRONOGRAMA", cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [], cronoCompras: cc } }); continue; }
         res.casados++;
         await prisma.pedidoVenda.update({ where: { id: p.id }, data: {
           entregaPrevista: c.entregaPrevista ? new Date(`${c.entregaPrevista}T00:00:00Z`) : null,
           cronoPrazo: c.prazo ? new Date(`${c.prazo}T00:00:00Z`) : null,
           cronoFimProgramado: c.fimProgramado ? new Date(`${c.fimProgramado}T00:00:00Z`) : null,
           ...(!p.oc && c.oc ? { oc: String(c.oc).slice(0, 60) } : {}),   // v375 — O.C. do PCP quando o PV não trouxe
-          cronoSituacao: (c.viaAgrupamento?.length ? `${c.situacao || "—"} · AGRUPADO NA OP ${c.viaAgrupamento.join("/")}` : c.situacao) || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo,
+          cronoSituacao: (c.viaAgrupamento?.length ? `${c.situacao || "—"} · AGRUPADO NA OP ${c.viaAgrupamento.join("/")}` : c.situacao) || null, cronoEtapa: c.etapa || null, cronoConcluido: c.concluido, cronoEm: new Date(res.em), cronoItens: c.resumo, cronoCompras: cc,
           // v373 — o PCP não fecha o pedido: concluído na produção continua em andamento no financeiro até a NF (faturarPelasNfs)
         } });
       }
@@ -216,6 +225,30 @@ export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS }
     return { ok: !res.erro, ...(await statusSync()) };
   })();
   try { return await rodando; } finally { rodando = null; }
+}
+
+// v421 — compras avulsas do PCP (orderNo 1210, 1310…): cria aqui (origem PCP) e acompanha comprada/recebida; itens editados aqui não são sobrescritos
+async function importarAvulsasPcp(lista) {
+  const { sincronizarAvulsa } = await import("@/lib/compras");
+  const por = {};
+  for (const x of lista) (por[String(x.orderNo || x.id)] ||= []).push(x);
+  let novas = 0;
+  for (const [num, its] of Object.entries(por)) {
+    its.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+    const status = its.every((i) => i.recebido) ? "RECEBIDA" : its.every((i) => i.pedido || i.recebido) ? "COMPRADA" : "ABERTA";
+    const ex = await prisma.compraAvulsa.findFirst({ where: { numero: num, origem: "PCP" } });
+    if (!ex) {
+      if (status === "RECEBIDA") continue;   // já encerrada no PCP antes da integração
+      const c = await prisma.compraAvulsa.create({ data: { numero: num, origem: "PCP", destino: "OPERACAO", obs: "Compra avulsa do PCP", status, criadoPorNome: "PCP (MAYCON)",
+        itens: its.map((i) => ({ nome: String(i.nome || "").replace(/\s+/g, " ").trim().toUpperCase(), quantidade: Number(i.qtd) || 0, unidade: "UN",
+          fornecedorId: null, fornecedorNome: String(i.fornecedor || "").trim().toUpperCase() || null, bomPara: null, recebido: !!i.recebido })) } });
+      await sincronizarAvulsa(c); novas++;
+    } else if (ex.status !== "CANCELADA" && ex.status !== status) {
+      const c = await prisma.compraAvulsa.update({ where: { id: ex.id }, data: { status } });
+      await sincronizarAvulsa(c);
+    }
+  }
+  return novas;
 }
 
 // mostra o que o Cronograma devolve (amostra crua + como foi lido)

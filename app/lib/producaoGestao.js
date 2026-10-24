@@ -16,7 +16,7 @@ export function faseDe(situacao, etapa) {
   const s = sem(situacao), e = sem(etapa);
   if (/CONCLU|FINALIZ|ENTREGUE|FATUR/.test(s)) return "CONCLUIDO";
   if (/EXPEDI|EMBAL/.test(e)) return "EXPEDICAO";
-  if (/COSTURA|ARREMATE|FACCAO/.test(e)) return "COSTURA";
+  if (/COSTURA|ARREMATE|ACABAMENTO|FACCAO|PASSADORIA/.test(e)) return "COSTURA";
   if (/SILK|DTF|BORDADO|SUBLIMA|PERSONALIZ|ESTAMP|TRANSFER/.test(e)) return "PERSONALIZACAO";
   if (/CORTE/.test(e)) return "CORTE";
   if (/PRODU/.test(s) && e) return "CORTE";
@@ -25,7 +25,9 @@ export function faseDe(situacao, etapa) {
 
 function resumoPedido(p, hoje) {
   const ci = (Array.isArray(p.cronoItens) ? p.cronoItens : []).filter((i) => !i.complemento);
-  const fases = ci.map((i) => faseDe(i.situacao, i.etapa));
+  const cp = Array.isArray(p.cronoCompras) ? p.cronoCompras : [];
+  const nz = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  const fases = ci.map((i) => (cp.some((c) => nz(c.produto) === nz(i.produto)) && !/CONCLU/i.test(String(i.situacao || "")) ? "COMPRAS" : faseDe(i.situacao, i.etapa)));   // v421
   const idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
   const fase = idx >= 0 ? FASES[idx] : "FORA";
   const prazo = iso(p.despacho) || iso(p.cronoPrazo);
@@ -44,7 +46,7 @@ function resumoPedido(p, hoje) {
 }
 
 const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
-  cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, createdAt: true, emissao: true };
+  cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true };
 
 export async function gestaoProducao() {
   let sync = null; try { sync = await sincronizar({ intervaloMs: 60 * 1000 }); } catch (e) { sync = { ok: false, erro: e.message }; }

@@ -23,7 +23,7 @@ const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 export async function GET() {
   const pedidos = await prisma.pedidoVenda.findMany({
     where: { status: "ANDAMENTO" },
-    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, despacho: true, itens: true, interno: true, cronoSituacao: true, cronoItens: true, cronoPrazo: true, vendedor: true, total: true },
+    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, despacho: true, itens: true, interno: true, cronoSituacao: true, cronoItens: true, cronoCompras: true, cronoPrazo: true, vendedor: true, total: true },
     orderBy: [{ despacho: "asc" }, { numero: "asc" }],
   });
   const numeros = pedidos.map((p) => p.numero);

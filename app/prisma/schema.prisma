@@ -1772,6 +1772,7 @@ model PedidoVenda {
   cronoFimProgramado DateTime? @db.Date     // v317 — maior fim planejado das etapas
   cronoConcluido Boolean  @default(false)
   cronoItens    Json?                       // resumo por item (itemCode, situação, etapa, entrega, fim programado)
+  cronoCompras  Json?                       // v421 — compras pendentes do PCP (/api/ext/compras) das OPs do pedido: [{ produto, nome, fornecedor, pedido, dataPedido }]
   pvPdf         String?                     // base64
   ppPdf         String?
   obs           String?
@@ -1889,6 +1890,7 @@ model KmNfSaida {
 // v417 — compras avulsas: material para a operação ou para completar um pedido (fora da FPP)
 model CompraAvulsa {
   id            Int      @id @default(autoincrement())
+  origem        String?                       // v421 — "PCP" quando veio das compras avulsas do PCP do Maycon
   numero        String?                       // nº de referência (ex.: o do PCP, 1210)
   destino       String   @default("OPERACAO") // OPERACAO | PEDIDO
   pedidoRef     String?                       // nº do pedido quando é para um pedido específico
