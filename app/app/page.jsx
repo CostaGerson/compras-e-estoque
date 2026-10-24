@@ -247,7 +247,7 @@ export default function Home() {
       <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
           <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
-            <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 30, width: "auto" }} />
+            <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
           </button>
           <button onClick={() => setCollapsed(true)} title="Recolher menu"
             className="px-3 py-4 flex items-center justify-center" style={{ color: C.sidebarSub }}>
@@ -509,7 +509,7 @@ function Login({ onEntrar }) {
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
       <form onSubmit={submit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
         <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
-          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 34, width: "auto" }} />
+          <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} />
         </div>
         <p className="text-center text-xs mb-6" style={{ color: C.sub }}>Gestão de Material &amp; Financeiro</p>
         <label className="text-xs" style={{ color: C.sub }}>Usuário</label>
@@ -530,7 +530,7 @@ function CaixaLogin({ titulo, children, onSubmit }) {
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
       <form onSubmit={onSubmit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
         <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
-          <img src="/meridian-logo.png" alt="MERIDIAN" style={{ height: 34, width: "auto" }} />
+          <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} />
         </div>
         <div className="flex items-center justify-center gap-2 font-semibold mb-4" style={{ color: C.text }}><KeyRound size={16} style={{ color: C.accent }} /> {titulo}</div>
         {children}
