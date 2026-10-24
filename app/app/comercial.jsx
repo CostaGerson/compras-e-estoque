@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
+import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum } from "@/lib/fppAv";   // v410
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
@@ -246,6 +247,7 @@ function fichaVazia(tipo) {
     artigoDet: null, artigoForroDet: null, aviamentosDet: {},   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
     mpValor: "", forroValor: "", consumoForro: "",   // v208: consumo do forro (m/peça) — vazio = estimado pelo fator
     gola: "", punho: "", elastico: "", faixa: "", botaoQtd: "",
+    faixaTipo: "", faixaCor: "", botaoTipo: "",   // v410 — tipo da faixa (R$/m), cor do tactel/gorgurão, tipo do botão
     faccao: "", faccaoInterna: false,   // processo interno: o valor volta para a operação
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
@@ -328,6 +330,9 @@ function Fpp({ user, master }) {
   const faixas = params?.[tipo]?.FAIXA || [];
   const embExts = params?.[tipo]?.EMB_EXT || [];
   const embInts = params?.COMUM?.EMB_INT || [];
+  const faixaTipos = params?.COMUM?.FAIXA_TIPO || [];   // v410
+  const botaoTipos = params?.COMUM?.BOTAO || [];
+  const getP = (g, k, c) => (g === "CONST" ? cget(k) : pget(g, k, c));
 
   // ---------------- CÁLCULO (fiel à planilha) ----------------
   const r = useMemo(() => {
@@ -353,10 +358,14 @@ function Fpp({ user, master }) {
     const materiaPrima = mp + forro + linha;
 
     // Aviamentos (sem a linha, que já entrou na matéria-prima)
-    const golaOuElast = isMalha ? pget("GOLA", f.gola) : pget("ELASTICO", f.elastico);
+    // v410 — elástico e faixa por metro (consumo × R$/m); botão pelo tipo
+    const elast = elasticoCalc(getP, f.elastico);
+    const golaOuElast = isMalha ? pget("GOLA", f.gola) : elast.valor;
     const punho = isMalha ? pget("PUNHO", f.punho) : 0;
-    const faixa = pget("FAIXA", f.faixa);
-    const botao = cget("BOTAO_UNIT") * num(f.botaoQtd);
+    const fx = faixaCalc(getP, f.faixa, f.faixaTipo);
+    const faixa = fx.valor;
+    const botaoUn = botaoUnit(getP, f.botaoTipo);
+    const botao = botaoUn * num(f.botaoQtd);
     const extrasAv = somaExtras(f.extrasAviamentos);
     const aviamentos = golaOuElast + punho + faixa + botao + extrasAv;
 
@@ -417,7 +426,7 @@ function Fpp({ user, master }) {
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over]);
 
   function montarBody() {
@@ -563,10 +572,26 @@ function Fpp({ user, master }) {
                     <AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                   </>
                 ) : (
-                  <AvComDet valor={f.elastico} det={f.aviamentosDet?.ELASTICO} onDet={(d) => setAvDet("ELASTICO", d)}><Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                  <div>
+                    <AvComDet valor={f.elastico} det={f.aviamentosDet?.ELASTICO} onDet={(d) => setAvDet("ELASTICO", d)}><Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                    <AvMetro c={r?.elast} />
+                  </div>
                 )}
-                <AvComDet valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
-                <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}><Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></AvComDet>
+                <div>
+                  <AvComDet valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva (aplicação)" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                  {!semAv(f.faixa) && (
+                    <div className="flex gap-2 mt-2">
+                      <SelAv label="Tipo de faixa" value={f.faixaTipo} onChange={(v) => setF((s0) => ({ ...s0, faixaTipo: v, faixaCor: faixaPedeCor(v) ? (s0.faixaCor || "") : "" }))} options={faixaTipos.map((g) => g.chave)} />
+                      {faixaPedeCor(f.faixaTipo) && <SelAv label={/PRONTA/i.test(f.faixaTipo) ? "Cor do gorgurão" : "Cor do tactel"} value={f.faixaCor} onChange={(v) => set("faixaCor", v)} options={FAIXA_CORES} />}
+                    </div>
+                  )}
+                  <AvMetro c={r?.fx} semTipo={!semAv(f.faixa) && !f.faixaTipo} />
+                </div>
+                <div>
+                  <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}><Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></AvComDet>
+                  {num(f.botaoQtd) > 0 && <div className="mt-2"><SelAv label="Tipo de botão" value={f.botaoTipo} onChange={(v) => set("botaoTipo", v)} options={botaoTipos.map((g) => g.chave)} /></div>}
+                  {num(f.botaoQtd) > 0 && r && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{f.botaoQtd} un × R$ {fmtNum(r.botaoUn, 2)} = <b style={{ color: C.text }}>R$ {fmtNum(r.botaoUn * num(f.botaoQtd), 2)}/pç</b></div>}
+                </div>
               </div>
               <ExtrasCustos lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} comDet />
             </Card>
@@ -845,8 +870,13 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
           <Secao titulo="Aviamentos">
             {isMalha && f.gola && <Campo label={`Gola · ${f.gola}`} path={`GOLA:${f.gola}:valor`} base={rawGrp("GOLA", f.gola)} />}
             {isMalha && f.punho && <Campo label={`Punho · ${f.punho}`} path={`PUNHO:${f.punho}:valor`} base={rawGrp("PUNHO", f.punho)} />}
-            {!isMalha && f.elastico && <Campo label={`Elástico · ${f.elastico}`} path={`ELASTICO:${f.elastico}:valor`} base={rawGrp("ELASTICO", f.elastico)} />}
-            {f.faixa && f.faixa !== "SEM FAIXA" && <Campo label={`Faixa · ${f.faixa}`} path={`FAIXA:${f.faixa}:valor`} base={rawGrp("FAIXA", f.faixa)} />}
+            {!isMalha && f.elastico && !semAv(f.elastico) && <>
+              <Campo label={`Elástico · ${f.elastico} · consumo (m/peça)`} path={`ELASTICO:${f.elastico}:consumo`} base={rawGrp("ELASTICO", f.elastico, "consumo")} />
+              <Campo label={`Elástico · ${f.elastico} · R$/m`} path={`ELASTICO:${f.elastico}:valorMetro`} base={rawGrp("ELASTICO", f.elastico, "valorMetro")} />
+            </>}
+            {f.faixa && !semAv(f.faixa) && <Campo label={`Faixa · ${f.faixa} · consumo (m/peça)`} path={`FAIXA:${f.faixa}:consumo`} base={rawGrp("FAIXA", f.faixa, "consumo")} />}
+            {f.faixa && !semAv(f.faixa) && f.faixaTipo && <Campo label={`${f.faixaTipo} · R$/m`} path={`FAIXA_TIPO:${f.faixaTipo}:valor`} base={rawGrp("FAIXA_TIPO", f.faixaTipo)} />}
+            {num(f.botaoQtd) > 0 && f.botaoTipo && <Campo label={`Botão ${f.botaoTipo} · R$/un`} path={`BOTAO:${f.botaoTipo}:valor`} base={rawGrp("BOTAO", f.botaoTipo)} />}
             {!f.gola && !f.punho && !f.elastico && (!f.faixa || f.faixa === "SEM FAIXA") &&
               <div className="text-xs py-2" style={{ color: C.sub }}>Nenhum aviamento selecionado nesta ficha.</div>}
           </Secao>
@@ -892,7 +922,7 @@ function BancoParams({ params, master, user, onReload }) {
   const grupos = params[tipo] || {};
   const rotulos = {
     PECA: tipo === "MALHA" ? "Peças — rendimento (peças/kg), corte, expedição, proporção volume" : "Peças — consumo (m/peça), corte, acabamento, proporção volume",
-    GOLA: "Golas", PUNHO: "Punhos", ELASTICO: "Elásticos", FAIXA: "Faixas refletivas",
+    GOLA: "Golas", PUNHO: "Punhos", ELASTICO: "Elásticos — consumo (m/peça) × R$/m = R$/peça", FAIXA: "Faixas refletivas — aplicação: consumo (m/peça); o R$/m vem do tipo de faixa",
     EMB_EXT: "Embalagens externas (valor, und/emb, fita)", CONST: "Constantes do cálculo",
   };
   const ordem = ["PECA", "GOLA", "PUNHO", "ELASTICO", "FAIXA", "EMB_EXT", "CONST"];
@@ -917,6 +947,8 @@ function BancoParams({ params, master, user, onReload }) {
       {ordem.filter((g) => grupos[g]).map((g) => (
         <GrupoParam key={g} grupo={g} rotulo={rotulos[g] || g} linhas={grupos[g]} os={os} user={user} onReload={onReload} />
       ))}
+      {params.COMUM?.FAIXA_TIPO && <GrupoParam grupo="FAIXA_TIPO" rotulo="Tipos de faixa refletiva — R$/m" linhas={params.COMUM.FAIXA_TIPO} os={os} user={user} onReload={onReload} />}
+      {params.COMUM?.BOTAO && <GrupoParam grupo="BOTAO" rotulo="Botões — R$/unidade" linhas={params.COMUM.BOTAO} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.EMB_INT && <GrupoParam grupo="EMB_INT" rotulo="Embalagens internas" linhas={params.COMUM.EMB_INT} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.CONST && <GrupoParam grupo="CONST" rotulo="Constantes gerais (imposto, operação financeira)" linhas={params.COMUM.CONST} os={os} user={user} onReload={onReload} />}
     </div>
@@ -929,6 +961,10 @@ function GrupoParam({ grupo, rotulo, linhas, os, user, onReload }) {
   const campos = grupo === "PECA"
     ? [["valor", "Valor"], ["corte", "Corte"], ["exped", "Exped."], ["acab", "Acab."], ["volProp", "Prop. vol."]]
     : grupo === "EMB_EXT" ? [["valor", "Valor emb."], ["und", "Und/emb"], ["fita", "Fita"]]
+    : grupo === "ELASTICO" ? [["consumo", "Consumo (m/pç)"], ["valorMetro", "R$/m"], ["valor", "R$/peça"]]   // v410
+    : grupo === "FAIXA" ? [["consumo", "Consumo (m/pç)"], ["valor", "R$/pç s/ tipo"]]
+    : grupo === "FAIXA_TIPO" ? [["valor", "R$/m"]]
+    : grupo === "BOTAO" ? [["valor", "R$/un"]]
     : [["valor", "Valor"]];
 
   return (
@@ -1501,7 +1537,7 @@ function FichaDetalhe({ f, master, onClose, onProposta }) {
 function detalhesItem(f) {
   const e = f.entradas || {};
   const parts = [];
-  if (e.faixa && e.faixa !== "SEM FAIXA") parts.push(e.faixa);
+  if (e.faixa && e.faixa !== "SEM FAIXA") parts.push([e.faixa, e.faixaTipo, faixaPedeCor(e.faixaTipo) ? e.faixaCor : ""].filter(Boolean).join(" · "));
   for (const [tec, lbl] of [["silk", "SILK"], ["bordado", "BORDADO"], ["sublimacao", "SUBLIMAÇÃO"]]) {
     const p = e[tec] || {};
     const pos = POS.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
@@ -1943,6 +1979,30 @@ function ExtrasCustos({ lista, onChange, comDet }) {
       <button onClick={() => onChange([...l, { desc: "", valor: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
         <Plus size={14} /> Adicionar custo extra (R$ por peça)
       </button>
+    </div>
+  );
+}
+// v410 — select simples (tipo de faixa, cor, tipo de botão)
+function SelAv({ label, value, onChange, options }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <select value={value || ""} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm"
+        style={{ background: "#fff", border: `1px solid ${value ? C.line : C.accent}`, color: C.text }}>
+        <option value="">Escolha…</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+// v410 — conta do aviamento por metro, embaixo do campo
+function AvMetro({ c, semTipo }) {
+  if (!c || (!c.valor && !c.consumo)) return null;
+  return (
+    <div className="text-[11px] mt-1" style={{ color: C.sub }}>
+      {c.porMetro
+        ? <>{fmtNum(c.consumo, 2)} m × R$ {fmtNum(c.metro, 2)}/m = <b style={{ color: C.text }}>R$ {fmtNum(c.valor, 2)}/pç</b></>
+        : <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {semTipo ? "escolha o tipo de faixa" : "sem consumo ou R$/m no banco de dados"}</span></>}
     </div>
   );
 }

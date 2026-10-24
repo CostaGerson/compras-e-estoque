@@ -1,5 +1,6 @@
 // v404 — Compras: FPP base de cada item de pedido, demanda de matéria-prima e levantamento.
 import { prisma } from "./prisma";
+import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra } from "./fppAv";   // v410
 
 export const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 const vazio = (v) => v == null || String(v).trim() === "";
@@ -37,6 +38,16 @@ function paramValor(params, tipo, grupo, chave, overrides) {
   return row ? Number(row.valor) || 0 : 0;
 }
 
+// v410 — parâmetro qualquer (valor ou campo do extra), com o override da ficha
+function paramGet(params, tipo, grupo, chave, campo, overrides) {
+  const path = `${grupo}:${chave}:${campo}`;
+  if (overrides && !vazio(overrides[path])) return n0(overrides[path]) || 0;
+  const row = params.find((p) => p.tipo === tipo && p.grupo === grupo && p.chave === chave)
+    || params.find((p) => p.tipo === "COMUM" && p.grupo === grupo && p.chave === chave);
+  if (!row) return 0;
+  return campo === "valor" ? Number(row.valor) || 0 : Number(row.extra?.[campo]) || 0;
+}
+
 // matérias-primas da FPP com consumo por peça (na unidade de compra)
 // ref diz onde o detalhe mora em entradas: { campo } | { campo, chave } | { campo, idx }
 export function materiaisDaFpp(fpp, params = []) {
@@ -60,11 +71,30 @@ export function materiaisDaFpp(fpp, params = []) {
       consumoPorPeca: cf, valorUnitario: n0(e.forroValor), base: `${String(r3(cf)).replace(".", ",")} m/peça` });
   }
   const avDet = e.aviamentosDet || {};
+  const get = (g, k, c = "valor") => paramGet(params, tipo, g, k, c, ov);
   for (const a of AVIAMENTOS) {
     if (a.tipo && a.tipo !== tipo) continue;
     const v = e[a.campo];
     if (ehSem(v)) continue;
     const det = avDet[a.chave] || {};
+    // v410 — elástico e faixa com consumo por metro: a compra sai em metros
+    if (a.chave === "ELASTICO") {
+      const c = elasticoCalc(get, v);
+      if (c.consumo > 0) {
+        out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "M", nome: nomeAv(a.prefixo, v), det,
+          consumoPorPeca: c.consumo, valorUnitario: c.metro || null, base: `${String(r3(c.consumo)).replace(".", ",")} m/peça`, obs: det.obs || null });
+        continue;
+      }
+    }
+    if (a.chave === "FAIXA") {
+      const c = faixaCalc(get, v, e.faixaTipo);
+      if (c.consumo > 0) {
+        const nome = e.faixaTipo ? nomeFaixaCompra(e.faixaTipo, e.faixaCor) : nomeAv(a.prefixo, v);
+        out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "M", nome, det,
+          consumoPorPeca: c.consumo, valorUnitario: c.metro || null, base: `${String(r3(c.consumo)).replace(".", ",")} m/peça · ${String(v).toUpperCase()}`, obs: det.obs || null });
+        continue;
+      }
+    }
     const q = n0(det.qtdPeca) || 1;
     const custoPeca = paramValor(params, tipo, a.chave, v, ov);
     out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "UN", nome: nomeAv(a.prefixo, v), det,
@@ -73,8 +103,9 @@ export function materiaisDaFpp(fpp, params = []) {
   const botoes = n0(e.botaoQtd);
   if (botoes > 0) {
     const det = avDet.BOTAO || {};
-    out.push({ papel: "BOTAO", ref: { campo: "aviamentosDet", chave: "BOTAO" }, categoria: "AVIAMENTO", unidade: "UN", embalagem: GROSA, nome: "BOTÃO", det,
-      consumoPorPeca: botoes, valorUnitario: paramValor(params, tipo, "CONST", "BOTAO_UNIT", ov) || null, base: `${botoes} un/peça · grosa de ${GROSA}`, obs: det.obs || null });
+    out.push({ papel: "BOTAO", ref: { campo: "aviamentosDet", chave: "BOTAO" }, categoria: "AVIAMENTO", unidade: "UN", embalagem: GROSA,
+      nome: e.botaoTipo ? `BOTÃO ${String(e.botaoTipo).toUpperCase()}` : "BOTÃO", det,   // v410 — tipo do botão
+      consumoPorPeca: botoes, valorUnitario: botaoUnit(get, e.botaoTipo) || null, base: `${botoes} un/peça · grosa de ${GROSA}`, obs: det.obs || null });
   }
   (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).forEach((x, idx) => {
     if (vazio(x.desc)) return;
@@ -98,7 +129,7 @@ const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura",
 // procura o artigo idêntico (mesma categoria, nome e mesmos campos de identificação, vazio = vazio); senão cria
 export async function artigoDaFpp(m, fpp, db = prisma) {
   const k = chaveDet(m.det || {});
-  const cands = await db.artigo.findMany({ where: { ativo: true, categoria: m.categoria, nome: { equals: m.nome, mode: "insensitive" } },
+  const cands = await db.artigo.findMany({ where: { ativo: true, categoria: m.categoria, unidade: m.unidade, nome: { equals: m.nome, mode: "insensitive" } },   // v410 — mesma unidade
     select: { id: true, fornecedorId: true, cor: true, codigo: true, origem: true } });
   const igual = cands.find((a) => (a.fornecedorId || null) === k.fornecedorId && (a.cor ? norm(a.cor) : null) === k.cor && (a.codigo ? norm(a.codigo) : null) === k.codigo);
   const d = m.det || {};
@@ -253,7 +284,8 @@ export function montarLevantamento(itens) {
     if (l.valorUnitario) c.valorEstimado += l.quantidade * l.valorUnitario;
   }
   const consolidado = Object.values(cons).map((c) => ({ ...c, quantidade: r3(c.quantidade),
-    compra: c.embalagem ? Math.ceil(r3(c.quantidade) / c.embalagem) : null,   // v405 — botão: grosas inteiras valorEstimado: Math.round(c.valorEstimado * 100) / 100,
+    compra: c.embalagem ? Math.ceil(r3(c.quantidade) / c.embalagem) : null,   // v405 — botão: grosas inteiras
+    valorEstimado: Math.round(c.valorEstimado * 100) / 100,
     pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]) })).sort((a, b) => a.nome.localeCompare(b.nome));
   return { linhas, equiparacoes, consolidado };
 }

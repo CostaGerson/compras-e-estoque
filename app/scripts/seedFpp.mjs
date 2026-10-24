@@ -32,6 +32,13 @@ const PECAS_PLANO = [
 
 const GOLA_MALHA = [["GOLA VIÉS", 0], ["GOLA RIBANA", 0.41952], ["GOLA POLO P.A", 2.1], ["GOLA POLIÉSTER", 2.3]];
 const PUNHO_MALHA = [["SEM PUNHO", 0], ["PUNHO RIBANA", 0.186453], ["PUNHO PA/POLIÉSTER", 1]];
+// v410 — tipos de faixa (R$/m) e de botão (R$/un)
+const FAIXA_TIPOS = [
+  "FAIXA SIMPLES 2,5CM", "FAIXA SIMPLES 5CM",
+  "FAIXA MONTADA C/ TACTEL 2,5CM (5CM TOTAL)", "FAIXA MONTADA C/ TACTEL 5CM (10CM TOTAL)",
+  "FAIXA PRONTA GORGURÃO 2,5CM (5CM TOTAL)", "FAIXA PRONTA GORGURÃO 5CM (10CM TOTAL)",
+];
+const BOTAO_TIPOS = ["MASSA 4 FUROS", "PRESSÃO /100 FERRO", "PRESSÃO /100 LATÃO", "PRESSÃO /80 FERRO", "PRESSÃO /80 LATÃO", "FLEXÍVEL PARA CALÇA"];
 const ELASTICO_PLANO = [["SEM ELÁSTICO", 0], ["CORDAO ELASTICO TOTAL", 0.53], ["MEIO CÓS", 0.28], ["PUNHOS E BARRAS", 0.75]];
 const FAIXA_MALHA = [
   ["SEM FAIXA", 0],
@@ -109,6 +116,16 @@ async function main() {
   o = 0; for (const [k, v, r] of CONST_MALHA) await up("MALHA", "CONST", k, v, null, o++, r);
   o = 0; for (const [k, v, r] of CONST_PLANO) await up("PLANO", "CONST", k, v, null, o++, r);
   o = 0; for (const [k, v, r] of CONST_COMUM) await up("COMUM", "CONST", k, v, null, o++, r);
+  // v410 — elástico e faixa por metro: abre os campos (consumo e R$/m) nas especificações que ainda não têm; tipos de faixa e de botão
+  for (const p of await prisma.fppParam.findMany({ where: { grupo: { in: ["ELASTICO", "FAIXA"] } } })) {
+    const ex = { ...(p.extra || {}) };
+    const campos = p.grupo === "ELASTICO" ? ["consumo", "valorMetro"] : ["consumo"];
+    if (campos.every((k) => ex[k] != null)) continue;
+    for (const k of campos) if (ex[k] == null) ex[k] = 0;
+    await prisma.fppParam.update({ where: { id: p.id }, data: { extra: ex } });
+  }
+  o = 0; for (const t of FAIXA_TIPOS) await up("COMUM", "FAIXA_TIPO", t, 0, null, o++);
+  o = 0; for (const t of BOTAO_TIPOS) await up("COMUM", "BOTAO", t, 0.06, null, o++);
   // v208 — acabamento da calça jeans e das calças sociais: R$ 2,65 (decisão do Igor, 14/10/2026) — uma vez, com histórico
   const flag = "AJUSTE|fpp-acab-calca-jeans-social-v208";
   if (!(await prisma.finConfig.findUnique({ where: { chave: flag } }).catch(() => null))) {
