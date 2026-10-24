@@ -206,6 +206,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
     if (!d) return [];
     const t = norm(q).split(/\s+/).filter(Boolean);
     return d.pedidos.filter((p) => {
+      if (filtro === "fora" && p.fasePcp !== "FORA") return false;
       if (filtro === "pendentes" && p.comFpp >= p.total) return false;
       if (filtro === "completos" && p.comFpp < p.total) return false;
       const hay = norm(`${p.numero} ${p.cliente} ${p.itens.map((i) => `${i.codigo} ${i.descricao}`).join(" ")}`);
@@ -220,9 +221,9 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   return (
     <div className="max-w-5xl">
       <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
-      <p className="text-sm mb-3" style={{ color: C.sub }}>Cada item do pedido precisa de uma FPP base. Ao escolher a FPP, a demanda de matéria-prima do item vai para o <b>Levantamento</b>.</p>
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`]].map(([k, l]) => (
+        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{l}</button>
         ))}
         <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
@@ -232,8 +233,9 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
         <button onClick={carregar} title="Atualizar" className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
 
-      {!lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
-      {lista.map((p) => {
+      {filtro === "avulsas" && <Avulsas user={user} />}
+      {filtro !== "avulsas" && !lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
+      {filtro !== "avulsas" && lista.map((p) => {
         const ab = aberto[p.numero] ?? (lista.length <= 3);
         const ok = p.comFpp >= p.total;
         return (
@@ -242,7 +244,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
               {ab ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente}{p.interno && <span className="ml-2"><Chip>interno</Chip></span>}</div>
-                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}</div>
+                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.fasePcp === "FORA" ? " · fora do PCP" : p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}</div>
               </div>
               <Chip cor={ok ? C.green : C.accent} fundo={ok ? C.greenSoft : C.accentSoft}>{p.comFpp}/{p.total} itens com FPP</Chip>
             </button>
@@ -261,6 +263,104 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
 
       {resumo && <FppResumo fppId={resumo.fppId} item={resumo.item} veValores={veValores} onClose={() => setResumo(null)} onUsar={resumo.so ? null : usar} usando={usando} />}
       {busca && <BuscarFpp cliente={busca.pedido.cliente} onClose={() => setBusca(null)} onEscolher={(id) => { setResumo({ fppId: id, item: busca.item, pedido: busca.pedido }); setBusca(null); }} />}
+    </div>
+  );
+}
+
+// ---------- v417 — compras avulsas (operação ou complemento de pedido) ----------
+const diasAte = (iso) => { if (!iso) return null; const h = new Date(); h.setHours(0, 0, 0, 0); return Math.round((new Date(`${iso}T00:00:00`) - h) / 86400000); };
+const corBomPara = (iso) => { const dd = diasAte(iso); if (dd == null) return null; return dd <= 2 ? [C.red, C.redSoft] : dd <= 5 ? [C.yellow, C.yellowSoft] : [C.green, C.greenSoft]; };
+const UNIDADES_AV = [["UN", "un"], ["M", "m"], ["KG", "kg"], ["PC", "pç"], ["CX", "cx"], ["RL", "rolo"]];
+let _fornAv = null;
+function Avulsas({ user }) {
+  const [l, setL] = useState(null);
+  const [ed, setEd] = useState(null);   // compra em edição (nova ou existente)
+  const [forns, setForns] = useState(_fornAv || []);
+  const carregar = () => fetch("/api/compras/avulsas").then((r) => r.json()).then(setL).catch(() => setL([]));
+  useEffect(() => { carregar(); if (!_fornAv) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornAv = Array.isArray(x) ? x : []; setForns(_fornAv); }).catch(() => {}); }, []);
+  const nomeF = (f) => f.nome || f.nomeFantasia || f.razaoSocial || "";
+  async function salvar() {
+    const r = await fetch("/api/compras/avulsas", { method: ed.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ed, quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok) return alert(x.error || "Erro ao salvar.");
+    setEd(null); carregar();
+  }
+  async function status(c, st) {
+    if (st === "CANCELADA" && !confirm("Cancelar esta compra avulsa?")) return;
+    await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st }) });
+    carregar();
+  }
+  const BomPara = ({ iso }) => { const c = corBomPara(iso); return iso ? <span className="px-2 py-0.5 rounded text-xs font-semibold" style={{ color: c[0], background: c[1] }}>{dBR(iso)}</span> : <span className="text-xs" style={{ color: C.sub }}>—</span>; };
+  const ST = { ABERTA: [C.accent, C.accentSoft, "aberta"], COMPRADA: [C.blue, C.blueSoft || C.panel2, "comprada"], RECEBIDA: [C.green, C.greenSoft, "recebida"] };
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  const setIt = (i, k, v) => setEd((e) => ({ ...e, itens: e.itens.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-xs flex-1" style={{ color: C.sub }}>Material para a operação ou para completar um pedido. <b>Bom para</b> = data máxima de chegada na fábrica: até 2 dias vermelho, até 5 amarelo, depois verde.</div>
+        <button onClick={() => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] })}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Compra avulsa</button>
+      </div>
+      {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma compra avulsa.</div>}
+      {(l || []).map((c) => {
+        const [cor, fundo, txt] = ST[c.status] || ST.ABERTA;
+        return (
+          <div key={c.id} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {c.destino === "PEDIDO" ? `para o pedido ${c.pedidoRef || "—"}` : "operação"}
+                {c.obs && <span className="font-normal text-xs" style={{ color: C.sub }}> · {c.obs}</span>}
+                <span className="font-normal text-xs" style={{ color: C.sub }}> · {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.criadoPorNome ? ` por ${c.criadoPorNome}` : ""}</span></div>
+              <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+              {c.status === "ABERTA" && <button onClick={() => status(c, "COMPRADA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.blue }}>marcar comprada</button>}
+              {c.status === "COMPRADA" && <button onClick={() => status(c, "RECEBIDA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.green }}>marcar recebida</button>}
+              {c.status !== "ABERTA" && <button onClick={() => status(c, c.status === "RECEBIDA" ? "COMPRADA" : "ABERTA")} title="Voltar para a fase anterior" className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>voltar</button>}
+              <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ",") })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
+              <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
+            </div>
+            {(c.itens || []).map((i, k) => (
+              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 120px 200px 120px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
+                <div style={{ color: C.text }}>{i.nome}</div>
+                <div className="font-semibold" style={{ color: C.accent }}>{qtdU(i.quantidade, i.unidade)}</div>
+                <div className="text-xs truncate" style={{ color: C.sub }}>{i.fornecedorNome || "—"}</div>
+                <div><span className="text-[11px] mr-1" style={{ color: C.sub }}>bom para</span><BomPara iso={i.bomPara} /></div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {ed && (
+        <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa"} onClose={() => setEd(null)} largo>
+          <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "140px 180px 160px minmax(0,1fr)" }}>
+            <label className="text-xs" style={{ color: C.sub }}>Nº (opcional)<input value={ed.numero || ""} onChange={(e) => setEd({ ...ed, numero: e.target.value })} placeholder="ex.: 1210" className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
+            <label className="text-xs" style={{ color: C.sub }}>Para<select value={ed.destino} onChange={(e) => setEd({ ...ed, destino: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel}><option value="OPERACAO">Operação</option><option value="PEDIDO">Pedido específico</option></select></label>
+            {ed.destino === "PEDIDO" ? <label className="text-xs" style={{ color: C.sub }}>Nº do pedido<input value={ed.pedidoRef || ""} onChange={(e) => setEd({ ...ed, pedidoRef: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label> : <div />}
+            <label className="text-xs" style={{ color: C.sub }}>Observação<input value={ed.obs || ""} onChange={(e) => setEd({ ...ed, obs: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
+          </div>
+          <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 200px 140px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Bom para</span><span /></div>
+          {ed.itens.map((i, k) => {
+            const c = corBomPara(i.bomPara);
+            return (
+              <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 200px 140px 24px" }}>
+                <input value={i.nome || ""} onChange={(e) => setIt(k, "nome", e.target.value)} placeholder="Nome do item" className="px-2 py-1.5 rounded text-sm" style={sel} />
+                <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" className="px-2 py-1.5 rounded text-sm" style={sel} />
+                <select value={i.unidade || "UN"} onChange={(e) => setIt(k, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>{UNIDADES_AV.map(([u, n]) => <option key={u} value={u}>{n}</option>)}</select>
+                <input list="forn-avulsa" value={i.fornecedorNome || ""} onChange={(e) => { const v = e.target.value; const f = forns.find((x) => nomeF(x).toUpperCase() === v.trim().toUpperCase()); setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, fornecedorNome: v, fornecedorId: f ? f.id : null } : x)) })); }}
+                  placeholder="opcional" className="px-2 py-1.5 rounded text-sm" style={sel} />
+                <input type="date" value={i.bomPara || ""} onChange={(e) => setIt(k, "bomPara", e.target.value)} className="px-2 py-1.5 rounded text-sm"
+                  style={{ ...sel, ...(c ? { color: c[0], background: c[1], border: `1px solid ${c[0]}`, fontWeight: 600 } : {}) }} />
+                <button onClick={() => setEd((e) => ({ ...e, itens: e.itens.filter((_, j) => j !== k) }))} style={{ color: C.red }}><X size={15} /></button>
+              </div>
+            );
+          })}
+          <datalist id="forn-avulsa">{forns.map((f) => <option key={f.id} value={nomeF(f)} />)}</datalist>
+          <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={salvar} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

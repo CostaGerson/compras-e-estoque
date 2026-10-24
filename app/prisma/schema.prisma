@@ -1885,3 +1885,19 @@ model KmNfSaida {
 
   @@index([numero])
 }
+
+// v417 — compras avulsas: material para a operação ou para completar um pedido (fora da FPP)
+model CompraAvulsa {
+  id            Int      @id @default(autoincrement())
+  numero        String?                       // nº de referência (ex.: o do PCP, 1210)
+  destino       String   @default("OPERACAO") // OPERACAO | PEDIDO
+  pedidoRef     String?                       // nº do pedido quando é para um pedido específico
+  obs           String?
+  status        String   @default("ABERTA")   // ABERTA | COMPRADA | RECEBIDA | CANCELADA
+  itens         Json     @default("[]")       // [{ nome, quantidade, unidade, fornecedorId, fornecedorNome, bomPara, recebido }]
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+}

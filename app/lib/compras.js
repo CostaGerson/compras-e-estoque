@@ -344,9 +344,21 @@ export function cruzarEstoque(itens, disponivel) {
 }
 
 // itens no levantamento de pedidos ainda em andamento
+// v417 — fase do pedido no PCP do Maycon: só LEVANTAMENTO e COMPRAS estão em compras; programado, em produção ou concluído
+//   já tem a matéria-prima comprada. Sem informação do PCP (não está no cronograma) → "FORA"
+export function faseCompraPcp(p) {
+  const its = (Array.isArray(p.cronoItens) ? p.cronoItens : []).filter((i) => !i.complemento);
+  const txt = (i) => `${i.situacao || ""} ${i.etapa || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (its.length) return its.some((i) => /LEVANTAMENTO|COMPRA/.test(txt(i))) ? "COMPRAS" : "PRODUCAO";
+  const sit = String(p.cronoSituacao || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (!sit || /NAO ESTA NO CRONOGRAMA/.test(sit)) return "FORA";
+  return /LEVANTAMENTO|COMPRA/.test(sit) ? "COMPRAS" : "PRODUCAO";
+}
+
 export async function itensAbertos(db = prisma) {
   const itens = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] });
-  const ativos = new Set((await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true } })).map((p) => p.numero));
+  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true } });
+  const ativos = new Set(peds.filter((p) => faseCompraPcp(p) !== "PRODUCAO").map((p) => p.numero));   // v417 — programado/produção no PCP sai do levantamento
   return itens.filter((i) => ativos.has(i.pedidoNumero));
 }
 
