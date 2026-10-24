@@ -19,7 +19,7 @@ export function faseDe(situacao, etapa) {
   if (/COSTURA|ARREMATE|ACABAMENTO|FACCAO|PASSADORIA/.test(e)) return "COSTURA";
   if (/SILK|DTF|BORDADO|SUBLIMA|PERSONALIZ|ESTAMP|TRANSFER/.test(e)) return "PERSONALIZACAO";
   if (/CORTE/.test(e)) return "CORTE";
-  if (/PRODU/.test(s) && e) return "CORTE";
+  if (/PRODU/.test(s)) return "CORTE";   // v423 — em produção sem etapa informada: já saiu de compras
   return "COMPRAS";   // levantamento, compras, a programar
 }
 
@@ -99,10 +99,11 @@ export async function detalhePedido(numero) {
     for (const e of pcp.etapas || []) {
       const f = faseDe("", e.etapa);
       const g = (porFase[f] ||= { inicio: null, fim: null, abertas: 0, etapas: new Set(), prestadores: new Set() });
-      const ini = e.entrada || e.inicio; const fim = e.concluida ? (e.saida || e.planejadoFim) : null;
+      const fechada = e.concluida || !!e.saida;   // v423 — etapa com saída registrada está encerrada
+      const ini = e.entrada || e.inicio; const fim = fechada ? (e.saida || e.planejadoFim) : null;
       if (ini && (!g.inicio || ini < g.inicio)) g.inicio = ini;
       if (fim && (!g.fim || fim > g.fim)) g.fim = fim;
-      if (!e.concluida) { g.abertas++; if (e.planejadoFim && (!g.prev || e.planejadoFim > g.prev)) g.prev = e.planejadoFim; }
+      if (!fechada) { g.abertas++; if (e.planejadoFim && (!g.prev || e.planejadoFim > g.prev)) g.prev = e.planejadoFim; }
       if (e.etapa) g.etapas.add(e.etapa);
       if (e.prestador) g.prestadores.add(e.prestador);
     }

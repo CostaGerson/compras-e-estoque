@@ -142,6 +142,7 @@ function PedidoTela({ numero, user, onClose }) {
   const [obs, setObs] = useState("");
   const [salvObs, setSalvObs] = useState(false);
   const [verFpp, setVerFpp] = useState(null);
+  const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [numero]);
   async function salvarObs() {
@@ -151,8 +152,8 @@ function PedidoTela({ numero, user, onClose }) {
   }
   const editarFpp = (id) => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "fpp", fppId: id } })); onClose(); };
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center p-3" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-7xl flex flex-col overflow-hidden" style={{ background: C.bg }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-6xl flex flex-col overflow-hidden shadow-2xl" style={{ background: C.bg, maxHeight: "90vh" }}>
         <div className="flex items-start gap-3 px-5 py-3" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -163,9 +164,38 @@ function PedidoTela({ numero, user, onClose }) {
           </div>
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
+        <div className="flex gap-1 px-5" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
+          {[["geral", "Visão geral"], ["financeiro", "Financeiro"]].map(([k, t]) => (
+            <button key={k} onClick={() => setGuia(k)} className="px-4 py-2 text-sm" style={{ color: guia === k ? C.accent : C.sub, fontWeight: guia === k ? 700 : 500, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>{t}</button>
+          ))}
+        </div>
         {erro && <div className="p-5 text-sm" style={{ color: C.red }}>{erro}</div>}
         {!p && !erro && <div className="p-5 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-        {p && (
+        {p && guia === "financeiro" && (
+          <div className="flex-1 overflow-auto p-4 space-y-4">
+            <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="grid gap-3 text-sm" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+                {[["Valor do pedido", brl(p.total)], ["Condição", p.condicao || "—"], ["Faturado", brl(p.faturamento.faturado)], ["Pendente a faturar", brl(p.faturamento.valorPendente)]].map(([l, v]) => (
+                  <div key={l}><div className="text-xs" style={{ color: C.sub }}>{l}</div><div className="font-semibold" style={{ color: C.text }}>{v}</div></div>
+                ))}
+              </div>
+            </div>
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Faturamento</div>
+                <div className="grid gap-3 mb-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
+                  <div><div className="text-xs" style={{ color: C.sub }}>Faturado</div><div className="font-semibold">{brl(p.faturamento.faturado)}</div></div>
+                  <div><div className="text-xs" style={{ color: C.sub }}>Peças pendentes de entrega</div><div className="font-semibold">{p.faturamento.pecasPendentes ?? "—"}</div></div>
+                  <div><div className="text-xs" style={{ color: C.sub }}>Valor pendente a faturar</div><div className="font-semibold" style={{ color: C.accent }}>{brl(p.faturamento.valorPendente)}</div></div>
+                </div>
+                {p.faturamento.nfs.length ? p.faturamento.nfs.map((n) => (
+                  <div key={n.numero} className="flex gap-3 text-xs py-1" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <span className="font-semibold">NF {n.numero}</span><span style={{ color: C.sub }}>{dOnly(n.emissao)}</span>{n.pecas ? <span style={{ color: C.sub }}>{n.pecas} pç</span> : null}<span className="ml-auto">{brl(n.valor)}</span>
+                  </div>
+                )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF emitida.</div>}
+              </div>
+          </div>
+        )}
+        {p && guia === "geral" && (
           <div className="flex-1 overflow-auto grid gap-4 p-4" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(320px,1fr)" }}>
             <div className="space-y-4 min-w-0">
               <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -201,19 +231,6 @@ function PedidoTela({ numero, user, onClose }) {
                 ))}
               </div>
 
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Faturamento</div>
-                <div className="grid gap-3 mb-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Faturado</div><div className="font-semibold">{brl(p.faturamento.faturado)}</div></div>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Peças pendentes de entrega</div><div className="font-semibold">{p.faturamento.pecasPendentes ?? "—"}</div></div>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Valor pendente a faturar</div><div className="font-semibold" style={{ color: C.accent }}>{brl(p.faturamento.valorPendente)}</div></div>
-                </div>
-                {p.faturamento.nfs.length ? p.faturamento.nfs.map((n) => (
-                  <div key={n.numero} className="flex gap-3 text-xs py-1" style={{ borderTop: `1px solid ${C.line}` }}>
-                    <span className="font-semibold">NF {n.numero}</span><span style={{ color: C.sub }}>{dOnly(n.emissao)}</span>{n.pecas ? <span style={{ color: C.sub }}>{n.pecas} pç</span> : null}<span className="ml-auto">{brl(n.valor)}</span>
-                  </div>
-                )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF emitida.</div>}
-              </div>
             </div>
 
             <div className="space-y-4 min-w-0">
