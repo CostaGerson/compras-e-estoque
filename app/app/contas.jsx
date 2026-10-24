@@ -10,6 +10,7 @@ import {
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
 } from "lucide-react";
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
 const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA", "ANTECIPACOES"];   // guias que não usam a lista principal
 
@@ -67,10 +68,10 @@ function valorBate(t, q) {
 }
 // conta que veio de NF de compra importada (XML no contas a pagar ou NF de entrada do Compras)
 // v203 — confirmação do "Excluir pagamento" (a conta volta para em aberto)
-function confirmaExcluirPgto(t, P) {
-  if (ehAntecipado(t) && !t.liquidadoEm) return confirm(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`);
+async function confirmaExcluirPgto(t, P) {
+  if (ehAntecipado(t) && !t.liquidadoEm) return (await confirmar(`Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`));
   const v = Number(t.valorPago ?? t.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  return confirm(`EXCLUIR ${P ? "PAGAMENTO" : "RECEBIMENTO"} de "${t.titulo}"?\n\n${P ? "Pago" : "Recebido"} em ${dBR(t.dataPagamento)} · R$ ${v}\n\nA conta volta a ficar EM ABERTO (a baixa pelo extrato ou comprovante é desfeita).`);
+  return (await confirmar(`EXCLUIR ${P ? "PAGAMENTO" : "RECEBIMENTO"} de "${t.titulo}"?\n\n${P ? "Pago" : "Recebido"} em ${dBR(t.dataPagamento)} · R$ ${v}\n\nA conta volta a ficar EM ABERTO (a baixa pelo extrato ou comprovante é desfeita).`));
 }
 const ehCompra = (t) => t.forma === "NF_XML" || !!t.nfId || String(t.chaveImport || "").startsWith("NFE|");
 const semRateio = (t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !(t.rateio || []).some((r) => r.contaId && r.pct > 0);
@@ -364,7 +365,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
     try { await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { setErro(e.message); }
   };
   const excluir = async (t) => {
-    if (!confirm(t.recorrenciaId ? `Cancelar "${t.titulo}" de ${nomeMes(t.competencia)}? (os outros meses da recorrência continuam)` : `Excluir "${t.titulo}"? Ela fica 30 dias na Lixeira.`)) return;
+    if (!(await confirmar(t.recorrenciaId ? `Cancelar "${t.titulo}" de ${nomeMes(t.competencia)}? (os outros meses da recorrência continuam)` : `Excluir "${t.titulo}"? Ela fica 30 dias na Lixeira.`))) return;
     try { await api(`/api/fin/titulos/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { setErro(e.message); }
   };
 
@@ -480,7 +481,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
               </span>
               {fSit === "CRITICA" && lista.length > 0 && (
                 <button onClick={async () => {
-                  if (!confirm(`Vistar as ${lista.length} crítica(s) listada(s)? As contas continuam em vermelho na lista, mas saem do botão Críticas.`)) return;
+                  if (!(await confirmar(`Vistar as ${lista.length} crítica(s) listada(s)? As contas continuam em vermelho na lista, mas saem do botão Críticas.`))) return;
                   try { const r = await api("/api/fin/titulos/lote", "POST", { usuarioId: user.id, acao: "vistarCritica", ids: lista.map((t) => t.id) }); setFSit("TODOS"); ok(`${r.feitos} crítica(s) vistada(s).`); } catch (e) { setErro(e.message); }
                 }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={13} /> Vistar críticas</button>
               )}
@@ -704,7 +705,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     <BotaoObs t={t} user={user} onFeito={onMudou} />
                     {!P && <BotaoRecompra t={t} user={user} onFeito={onMudou} />}
                     {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
-                    {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={() => { if (!confirmaExcluirPgto(t, P)) return; onAcao(t, "estornar"); }}
+                    {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={async () => { if (!(await confirmaExcluirPgto(t, P))) return; onAcao(t, "estornar"); }}
                       title={ehAntecipado(t) ? (t.liquidadoEm ? "Desfazer a baixa do cliente" : "Desfazer a antecipação") : P ? "Excluir pagamento" : "Excluir recebimento"} className="mr-2" style={{ color: C.red }}><Undo2 size={15} /></button>}
                     {t.status === "CANCELADO" ? <button onClick={() => onAcao(t, "reabrir")} title="Reabrir" className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>
                       : <button onClick={() => onEditar(t)} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={14} /></button>}
@@ -1687,7 +1688,7 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
     setEnviando(false);
   };
   const apagar = async (a) => {
-    if (!confirm(`Remover o anexo "${a.nome}"?`)) return;
+    if (!(await confirmar(`Remover o anexo "${a.nome}"?`))) return;
     try { await api(`/api/fin/titulos/${tituloId}/anexos`, "DELETE", { usuarioId: user.id, anexoId: a.id }); setL((x) => x.filter((y) => y.id !== a.id)); } catch (e) { setErro(e.message); }
   };
   const url = (a, baixar) => `/api/fin/titulos/${tituloId}/anexos?u=${user.id}&anexo=${a.id}${baixar ? "&baixar=1" : ""}`;
@@ -1791,7 +1792,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   };
   // v203 — excluir pagamento: a conta volta para em aberto
   const excluirPgto = async () => {
-    if (!confirmaExcluirPgto(item, P)) return;
+    if (!(await confirmaExcluirPgto(item, P))) return;
     setSalvando(true); setErro("");
     try {
       await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "estornar" });
@@ -2092,19 +2093,19 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
   const [edit, setEdit] = useState(null);   // { item? , grupo }
   const [baixa, setBaixa] = useState(null); // v271 — item em baixa
   const obs = async (it) => {
-    const t = prompt(`OBS de ${it.nome}:`, it.observacao || "");
+    const t = (await perguntar(`OBS de ${it.nome}:`, it.observacao || ""));
     if (t == null) return;
     try { setD(await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "obs", id: it.id, observacao: t })); } catch (e) { setErro(e.message); }
   };
   const desfazer = async (it) => {
-    if (!confirm(`Desfazer a baixa de ${it.nome} (${moeda(it.valor)})?`)) return;
+    if (!(await confirmar(`Desfazer a baixa de ${it.nome} (${moeda(it.valor)})?`))) return;
     try { setD(await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "desfazer", id: it.id, tituloId })); onMudou && onMudou(); } catch (e) { setErro(e.message); }
   };
   const carregar = () => api(`/api/fin/semana?u=${user.id}&titulo=${tituloId}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [tituloId]);
 
   const apagar = async (it) => {
-    if (!confirm(`Apagar o lançamento de ${it.nome}?`)) return;
+    if (!(await confirmar(`Apagar o lançamento de ${it.nome}?`))) return;
     try { setD(await api("/api/fin/semana", "DELETE", { usuarioId: user.id, id: it.id, tituloId })); onMudou && onMudou(); }
     catch (e) { setErro(e.message); }
   };
@@ -2233,7 +2234,7 @@ function ExcelFreelancers({ user, tituloId, onFeito, onErro }) {
       const linhas = sim.linhas || [];
       if (!linhas.length) throw new Error("Nenhuma linha com DIAS preenchido na planilha.");
       const txt = linhas.map((x) => `${x.ok ? "✓" : "✗"} ${x.nome} · ${x.dias} dia(s)${x.ok ? ` · R$ ${Number(x.valor).toFixed(2).replace(".", ",")}${x.novo ? " · NOVO CADASTRO" : ""}` : ` · ${x.erro}`}`).join("\n");
-      if (!confirm(`Lançar ${sim.lancadas} freelancer(s) nesta semana (R$ ${Number(sim.total).toFixed(2).replace(".", ",")})?${sim.erros ? ` ${sim.erros} linha(s) com erro ficam de fora.` : ""}\n\n${txt}`)) { setSt(""); return; }
+      if (!(await confirmar(`Lançar ${sim.lancadas} freelancer(s) nesta semana (R$ ${Number(sim.total).toFixed(2).replace(".", ",")})?${sim.erros ? ` ${sim.erros} linha(s) com erro ficam de fora.` : ""}\n\n${txt}`))) { setSt(""); return; }
       const j = await api("/api/fin/semana", "POST", { usuarioId: user.id, acao: "importar", tituloId, conteudo });
       onFeito(j);
       if (j.erros) onErro(`Importados ${j.lancadas}. Com erro: ${j.linhas.filter((x) => !x.ok).map((x) => `linha ${x.linha} ${x.nome}: ${x.erro}`).join(" · ")}`);
@@ -2821,7 +2822,7 @@ function NfsComprasModal({ user, onClose, onLancar }) {
           <div className="flex items-center gap-1 text-xs" style={{ color: C.sub }}>
             Não lançar as emitidas antes de
             <input type="date" value={antes} onChange={(e) => setAntes(e.target.value)} className="rounded px-2 py-1" style={inpS} />
-            <button disabled={!antes} onClick={() => { if (confirm("Marcar todas as notas pendentes emitidas antes dessa data para não lançar?")) acao("ignorarAntes", { data: antes }); }}
+            <button disabled={!antes} onClick={async () => { if ((await confirmar("Marcar todas as notas pendentes emitidas antes dessa data para não lançar?"))) acao("ignorarAntes", { data: antes }); }}
               className="px-2 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, opacity: antes ? 1 : 0.5 }}>Aplicar</button>
           </div>
         )}
@@ -2877,7 +2878,7 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
     } catch (e) { setErro(e.message); }
   };
   const encerrar = async (r) => {
-    if (!confirm(`Encerrar "${r.titulo}"? As previsões a partir deste mês que ainda não foram conferidas ou pagas serão removidas. As já pagas ficam.`)) return;
+    if (!(await confirmar(`Encerrar "${r.titulo}"? As previsões a partir deste mês que ainda não foram conferidas ou pagas serão removidas. As já pagas ficam.`))) return;
     try { await api(`/api/fin/recorrencias/${r.id}`, "DELETE", { usuarioId: user.id }); setL((x) => x.filter((y) => y.id !== r.id)); } catch (e) { setErro(e.message); }
   };
   const alt = (id, k, v) => setL((x) => x.map((y) => (y.id === id ? { ...y, [k]: v } : y)));
@@ -2885,7 +2886,7 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
   const recriar = async (r) => {
     try {
       const j = await api(`/api/fin/recorrencias/${r.id}`, "PATCH", { usuarioId: user.id, acao: "recriar", competencia: mesAtual() });
-      setErro(""); alert(j.geradas ? `Conta de ${nomeMes(mesAtual())} recriada. Feche e confira no contas a pagar.` : "Nada a recriar.");
+      setErro(""); alerta(j.geradas ? `Conta de ${nomeMes(mesAtual())} recriada. Feche e confira no contas a pagar.` : "Nada a recriar.");
     } catch (e) { setErro(e.message); }
   };
   return (
@@ -2951,7 +2952,7 @@ function Recorrentes({ user, contasPorId }) {
     const txt = acao === "usarMatriz"
       ? `Trazer o valor da Matriz (${moeda(r.valorMatriz)}) para a conta "${r.titulo}"?`
       : `Levar ${moeda(r.valor)} da conta "${r.titulo}" para a Matriz de custos?`;
-    if (!confirm(txt)) return;
+    if (!(await confirmar(txt))) return;
     try {
       const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, id: r.id, acao });
       setD(j);
@@ -2969,7 +2970,7 @@ function Recorrentes({ user, contasPorId }) {
       "Contas já pagas ou com valor conferido à mão ficam no histórico.",
       r.daMatriz ? "\nEsta conta vem da Matriz de custos: o item será desativado na Matriz e o contas a pagar acompanha." : "",
     ].join("\n");
-    if (!confirm(aviso)) return;
+    if (!(await confirmar(aviso))) return;
     try {
       const j = await api("/api/fin/recorrentes", "DELETE", { usuarioId: user.id, id: r.id });
       setD(j);
@@ -2986,7 +2987,7 @@ function Recorrentes({ user, contasPorId }) {
   const divergentes = d.recorrencias.filter((r) => r.divergente);
   const fora = d.recorrencias.filter((r) => r.foraMatriz);
   const excluirFora = async () => {
-    if (!confirm(`Excluir as ${fora.length} conta(s) recorrente(s) a pagar que NÃO vêm da Matriz de custos?\n\n${fora.map((r) => `• ${r.titulo} — ${moeda(r.valor)}`).join("\n")}\n\nAs previsões em aberto deste mês em diante são apagadas; contas pagas ficam no histórico.`)) return;
+    if (!(await confirmar(`Excluir as ${fora.length} conta(s) recorrente(s) a pagar que NÃO vêm da Matriz de custos?\n\n${fora.map((r) => `• ${r.titulo} — ${moeda(r.valor)}`).join("\n")}\n\nAs previsões em aberto deste mês em diante são apagadas; contas pagas ficam no histórico.`))) return;
     try {
       const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, acao: "excluirForaMatriz" });
       setD(j); setSoFora(false);
@@ -3460,7 +3461,7 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
     setRodando(false);
   };
   const apagar = async (id) => {
-    if (!confirm("Apagar esta análise salva?")) return;
+    if (!(await confirmar("Apagar esta análise salva?"))) return;
     await api(`/api/fin/titulos/ia/${id}`, "DELETE", { usuarioId: user.id }).catch(() => {});
     listar();
   };

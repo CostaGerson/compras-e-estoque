@@ -5,6 +5,7 @@ import { MarcaA, BotaoExcel, exportarExcel } from "./antecipacoes";
 import { CardCobrancaModal, EmailCobrancaModal } from "./cobranca";   // v205
 import { Mail, Image as ImageIcon } from "lucide-react";
 import { Loader2, Search, Gavel, Ban, Undo2, CheckCircle2, X, Paperclip, Upload, Trash2, Download, Plus, ChevronRight, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -387,8 +388,8 @@ function Execucao({ user, id, atrasadas, voltar, ok }) {
     for (const x of [...(fs || [])]) arquivos.push({ nome: x.name, mime: x.type || null, conteudo: await readB64(x) });
     if (arquivos.length) aplicar(await api(`/api/fin/execucoes/${id}`, "POST", { usuarioId: user.id, acao: "anexos", arquivos }));
   });
-  const apagarAnexo = (a) => confirm(`Excluir o arquivo ${a.nome}?`) && run("anexo", async () => aplicar(await api(`/api/fin/execucoes/${id}`, "DELETE", { usuarioId: user.id, anexoId: a.id })));
-  const voltarCobranca = (t) => confirm(`Tirar ${t.titulo} da execução e voltar para cobrança?`) && run("t", async () => { await api("/api/fin/atraso", "POST", { usuarioId: user.id, acao: "voltar", id: t.id }); await carregar(); ok("Conta voltou para cobrança."); });
+  const apagarAnexo = async (a) => (await confirmar(`Excluir o arquivo ${a.nome}?`)) && run("anexo", async () => aplicar(await api(`/api/fin/execucoes/${id}`, "DELETE", { usuarioId: user.id, anexoId: a.id })));
+  const voltarCobranca = async (t) => (await confirmar(`Tirar ${t.titulo} da execução e voltar para cobrança?`)) && run("t", async () => { await api("/api/fin/atraso", "POST", { usuarioId: user.id, acao: "voltar", id: t.id }); await carregar(); ok("Conta voltou para cobrança."); });
   const meses = [...new Set([hojeISO().slice(0, 7), ...e.evolucoes.map((v) => v.competencia)])].sort().reverse();
   const doCliente = atrasadas.filter((t) => !e.cliente || t.parceiro === e.cliente);
   return (
@@ -568,7 +569,7 @@ function ReceberExecucao({ user, t, onClose, onFeito }) {
 function Perdas({ user, d, ok, setErro }) {
   const { lista, Th } = useOrdem(d.perdas);
   const voltar = async (t) => {
-    if (!confirm(`Desfazer a perda de ${t.titulo} (${moeda(t.valor)})? A conta volta para cobrança e o lançamento sai da DRE.`)) return;
+    if (!(await confirmar(`Desfazer a perda de ${t.titulo} (${moeda(t.valor)})? A conta volta para cobrança e o lançamento sai da DRE.`))) return;
     try { await api("/api/fin/atraso", "POST", { usuarioId: user.id, acao: "voltar", id: t.id }); ok("Perda desfeita — conta voltou para cobrança."); }
     catch (e) { setErro(e.message); }
   };

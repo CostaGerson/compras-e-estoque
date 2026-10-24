@@ -2,6 +2,7 @@
 // v368 — Financeiro › Patrimônio: bens da empresa com valores (compra e atual) e a NF de compra
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, Paperclip, Search, Package, Save } from "lucide-react";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -48,7 +49,7 @@ export default function Patrimonio({ user }) {
   }, [itens]);
 
   const excluir = async (x) => {
-    if (!confirm(`Excluir ${x.descricao} do patrimônio?`)) return;
+    if (!(await confirmar(`Excluir ${x.descricao} do patrimônio?`))) return;
     await fetch("/api/fin/patrimonio", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, id: x.id }) });
     carregar();
   };

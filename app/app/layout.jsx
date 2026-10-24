@@ -1,5 +1,6 @@
 import "./globals.css";
 import OrdenarTabelas from "./ordenarTabelas";
+import Dialogos from "./dialogo";   // v424 — avisos e confirmações do sistema
 
 export const metadata = {
   title: "Compras & Estoque — Meridian",
@@ -9,7 +10,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>{children}<OrdenarTabelas /></body>
+      <body>{children}<OrdenarTabelas /><Dialogos /></body>
     </html>
   );
 }

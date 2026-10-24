@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085",
@@ -145,7 +146,7 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
     ["Atrasadas", lista.filter((t) => t.prazo < H), C.red], ["Hoje", lista.filter((t) => t.prazo === H), C.accent],
     ["Próximos 7 dias", lista.filter((t) => t.prazo > H && t.prazo <= somaDia(H, 7)), C.navy], ["Depois", lista.filter((t) => t.prazo > somaDia(H, 7)), C.sub],
   ] : [["", lista.slice().reverse(), C.sub]];
-  const acao = async (t, a, extra = {}) => { try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { alert(e.message); } };
+  const acao = async (t, a, extra = {}) => { try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { alerta(e.message); } };
 
   return (
     <div>
@@ -421,10 +422,10 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const agora = useAgora();
   const carregar = () => api(`/api/tarefas/${id}?u=${user.id}`).then(setT).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [id]);
-  const acao = async (a, extra = {}) => { try { await api(`/api/tarefas/${id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); await carregar(); onMudou?.(); } catch (e) { alert(e.message); } };
-  const excluir = async () => { if (!confirm("Excluir esta demanda?")) return; try { await api(`/api/tarefas/${id}`, "DELETE", { usuarioId: user.id }); onMudou?.(); onClose(); } catch (e) { alert(e.message); } };
-  const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alert(e.message); } } carregar(); onMudou?.(); };
-  const tirarArq = async (a) => { if (!confirm(`Excluir ${a.nome}?`)) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alert(e.message); } };
+  const acao = async (a, extra = {}) => { try { await api(`/api/tarefas/${id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); await carregar(); onMudou?.(); } catch (e) { alerta(e.message); } };
+  const excluir = async () => { if (!(await confirmar("Excluir esta demanda?"))) return; try { await api(`/api/tarefas/${id}`, "DELETE", { usuarioId: user.id }); onMudou?.(); onClose(); } catch (e) { alerta(e.message); } };
+  const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alerta(e.message); } } carregar(); onMudou?.(); };
+  const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   if (editar && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => setEditar(false)} onOk={() => { setEditar(false); carregar(); onMudou?.(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
@@ -434,7 +435,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
     <Janela gaveta titulo={t ? `Demanda #${t.id}` : "Demanda"} onClose={onClose} largura={700}
       rodape={t && <>
         {t.podeEditar && <button onClick={excluir} className="mr-auto text-xs flex items-center gap-1" style={{ color: C.red }}><Trash2 size={13} /> Excluir</button>}
-        {t.serieId && t.podeEditar && <Btn fundo={C.blueSoft} cor={C.blue} onClick={() => confirm("Encerrar a rotina? As próximas ocorrências em aberto são canceladas.") && acao("encerrarSerie")}><Repeat size={12} /> Encerrar rotina</Btn>}
+        {t.serieId && t.podeEditar && <Btn fundo={C.blueSoft} cor={C.blue} onClick={async () => (await confirmar("Encerrar a rotina? As próximas ocorrências em aberto são canceladas.")) && acao("encerrarSerie")}><Repeat size={12} /> Encerrar rotina</Btn>}
         {t.podeEditar && <Btn fundo={C.panel} cor={C.text} onClick={() => setEditar(true)} style={{ border: `1px solid ${C.line}` }}><Pencil size={12} /> Editar</Btn>}
         {meu && t.status !== "CONCLUIDA" && <Btn cor={rodando ? C.yellow : C.green} disabled={!rodando && t.bloqueada} onClick={() => acao(rodando ? "stop" : "play")}>{rodando ? <><Square size={11} fill="#fff" /> Encerrar</> : <><Play size={12} fill="#fff" /> Iniciar</>}</Btn>}
         {t.status !== "CONCLUIDA" ? (meu || t.podeEditar) && <Btn onClick={() => setConcluir(true)}><CheckCircle2 size={13} /> Concluir</Btn>
@@ -555,7 +556,7 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
   const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || CORES_PROJ[0], publico: inicial?.publico !== false });
   const [st, setSt] = useState(false), [erro, setErro] = useState("");
   const salvar = async () => { setSt(true); setErro(""); try { await api("/api/tarefas/projetos", "POST", { usuarioId: user.id, projeto: { id: inicial?.id, ...f } }); onOk(); } catch (e) { setErro(e.message); setSt(false); } };
-  const excluir = async () => { if (!confirm(`Excluir o projeto "${inicial.nome}"? As tarefas ficam, só saem do projeto.`)) return; try { await api("/api/tarefas/projetos", "DELETE", { usuarioId: user.id, id: inicial.id }); onOk(); } catch (e) { alert(e.message); } };
+  const excluir = async () => { if (!(await confirmar(`Excluir o projeto "${inicial.nome}"? As tarefas ficam, só saem do projeto.`))) return; try { await api("/api/tarefas/projetos", "DELETE", { usuarioId: user.id, id: inicial.id }); onOk(); } catch (e) { alerta(e.message); } };
   return (
     <Janela titulo={inicial?.id ? "Editar projeto" : "Novo projeto"} onClose={onClose} largura={460}
       rodape={<>
@@ -618,15 +619,15 @@ export function Agenda({ user }) {
   const soltar = async (dia) => {
     const t = arrastando; setArrastando(null); setSobre(null);
     if (!t || t.prazo === dia) return;
-    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: { prazo: dia } }); carregar(); } catch (e) { alert(e.message); }
+    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: { prazo: dia } }); carregar(); } catch (e) { alerta(e.message); }
   };
   const proj = projetoId ? P[projetoId] : null;
   const alternarConcluida = async (t) => {
-    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: t.status === "CONCLUIDA" ? "reabrir" : "concluir", retorno: "" }); carregar(); } catch (e) { alert(e.message); }
+    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: t.status === "CONCLUIDA" ? "reabrir" : "concluir", retorno: "" }); carregar(); } catch (e) { alerta(e.message); }
   };
   const excluirTarefa = async (t) => {
-    if (!confirm(`Excluir "${t.titulo}"?`)) return;
-    try { await api(`/api/tarefas/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { alert(e.message); }
+    if (!(await confirmar(`Excluir "${t.titulo}"?`))) return;
+    try { await api(`/api/tarefas/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { alerta(e.message); }
   };
   const Aba = ({ k, t, atual, set }) => (
     <button onClick={() => set(k)} className="relative px-3 py-1.5 text-sm font-semibold rounded-md"

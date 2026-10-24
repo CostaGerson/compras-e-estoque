@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ouvirColar, pdfsDoColar } from "./colarPdf";
 import { Upload, Loader2, FileText, ChevronDown, ChevronRight, Trash2, CheckCircle2, AlertTriangle, X, Receipt, Pencil, Save, Undo2, RefreshCw, Link2, Settings, Download } from "lucide-react";
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -68,17 +69,17 @@ export default function PedidosAndamento({ user }) {
   enviarRef.current = enviar;
   const salvar = async (id, dados) => {
     const r = await fetch("/api/fin/pedidos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, id, ...dados }) });
-    const j = await r.json(); if (!r.ok) return alert(j.error || "Erro"); carregar();
+    const j = await r.json(); if (!r.ok) return alerta(j.error || "Erro"); carregar();
   };
   const lancarEntrada = async (p) => {
     const pend = p.previsao.parcelas.find((x) => x.pendente);
-    const venc = prompt(`Vencimento da entrada de ${moeda(pend?.valor)} (AAAA-MM-DD):`, p.emissao || "");
+    const venc = (await perguntar(`Vencimento da entrada de ${moeda(pend?.valor)} (AAAA-MM-DD):`, p.emissao || ""));
     if (venc === null) return;
     const r = await fetch("/api/fin/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "entrada", id: p.id, vencimento: venc || undefined }) });
-    const j = await r.json(); if (!r.ok) return alert(j.error || "Erro"); carregar();
+    const j = await r.json(); if (!r.ok) return alerta(j.error || "Erro"); carregar();
   };
   const excluir = async (p) => {
-    if (!confirm(`Excluir o pedido ${p.numero} (${p.cliente})?`)) return;
+    if (!(await confirmar(`Excluir o pedido ${p.numero} (${p.cliente})?`))) return;
     const r = await fetch(`/api/fin/pedidos?u=${user.id}&id=${p.id}`, { method: "DELETE" }); if (r.ok) carregar();
   };
 
@@ -397,8 +398,8 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                 <div className="flex flex-wrap gap-2 mt-3">
                   {p.status === "ANDAMENTO" && v.parcelas.some((x) => x.pendente) && <Botao cor={C.accent} onClick={() => lancarEntrada(p)}><Receipt size={12} /> Lançar entrada no contas a receber</Botao>}
                   <Botao cor={C.sub} onClick={() => salvar(p.id, { interno: !p.interno })}>{p.interno ? "Não é interno (gera contas)" : "Interno (não gera contas)"}</Botao>
-                  {p.status === "ANDAMENTO" && !p.interno && <Botao cor={C.green} onClick={() => { const nf = prompt("Nº da NF do faturamento:", p.nfSugerida?.numero || ""); if (nf !== null) salvar(p.id, { status: "FATURADO", nfNumero: nf, faturadoEm: p.nfSugerida?.emissao }); }}><CheckCircle2 size={12} /> Marcar faturado{p.nfSugerida ? ` (NF ${p.nfSugerida.numero}?)` : ""}</Botao>}
-                  {p.status === "ANDAMENTO" && <Botao cor={C.sub} onClick={() => confirm(`Cancelar o pedido ${p.numero}?`) && salvar(p.id, { status: "CANCELADO" })}><X size={12} /> Cancelado</Botao>}
+                  {p.status === "ANDAMENTO" && !p.interno && <Botao cor={C.green} onClick={async () => { const nf = (await perguntar("Nº da NF do faturamento:", p.nfSugerida?.numero || "")); if (nf !== null) salvar(p.id, { status: "FATURADO", nfNumero: nf, faturadoEm: p.nfSugerida?.emissao }); }}><CheckCircle2 size={12} /> Marcar faturado{p.nfSugerida ? ` (NF ${p.nfSugerida.numero}?)` : ""}</Botao>}
+                  {p.status === "ANDAMENTO" && <Botao cor={C.sub} onClick={async () => (await confirmar(`Cancelar o pedido ${p.numero}?`)) && salvar(p.id, { status: "CANCELADO" })}><X size={12} /> Cancelado</Botao>}
                   {p.status !== "ANDAMENTO" && <Botao cor={C.navy} onClick={() => salvar(p.id, { status: "ANDAMENTO" })}><Undo2 size={12} /> Voltar para andamento</Botao>}
                   <Botao cor={C.red} onClick={() => excluir(p)}><Trash2 size={12} /> Excluir</Botao>
                 </div>

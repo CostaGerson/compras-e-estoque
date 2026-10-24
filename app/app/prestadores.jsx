@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, Search, Loader2, Phone, KeyRound, MapPin, Gauge, CheckCircle2 } from "lucide-react";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -184,7 +185,7 @@ export default function Prestadores({ user, tipo = "FREELANCER" }) {
   }, [d, busca, rotulo]);
 
   const excluir = async (p) => {
-    if (!confirm(`Excluir ${p.nome}?\n\nSe já houver lançamento no nome dele, o cadastro é só desativado para não perder o histórico.`)) return;
+    if (!(await confirmar(`Excluir ${p.nome}?\n\nSe já houver lançamento no nome dele, o cadastro é só desativado para não perder o histórico.`))) return;
     try {
       const j = await api("/api/prestadores", "DELETE", { usuarioId: user.id, tipo, id: p.id });
       setD((x) => ({ ...x, prestadores: j.prestadores }));

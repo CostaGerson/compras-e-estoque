@@ -30,6 +30,7 @@ import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -1249,7 +1250,7 @@ function LancarPP({ user }) {
             </div>
             <div className="w-28 flex justify-end gap-2">
               <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
-              {podeLancar && <button onClick={async () => { if (confirm("Excluir este PP?")) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
+              {podeLancar && <button onClick={async () => { if ((await confirmar("Excluir este PP?"))) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
             </div>
           </div>
         ))}
@@ -1372,7 +1373,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
     const r = await ppFetch("/api/pp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d = await r.json();
     setSalvando(false);
-    if (!r.ok) { alert(d.error || "Erro ao salvar."); return; }
+    if (!r.ok) { alerta(d.error || "Erro ao salvar."); return; }
     if (imprimirDepois) imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, veVal);
     onVoltar();
   };
@@ -1637,7 +1638,7 @@ function imprimirPP(f, itens, totalPecas, totalGeral, comValores = true) {
   </body></html>`;
 
   const w = window.open("", "_blank");
-  if (!w) { alert("Permita pop-ups para imprimir o PP."); return; }
+  if (!w) { alerta("Permita pop-ups para imprimir o PP."); return; }
   w.document.write(html); w.document.close();
 }
 
@@ -2434,7 +2435,7 @@ function FornecedorEditModal({ fornecedor, onClose, onSaved }) {
   };
 
   const inativar = async () => {
-    if (!confirm("Inativar este fornecedor? Ele deixa de aparecer na lista.")) return;
+    if (!(await confirmar("Inativar este fornecedor? Ele deixa de aparecer na lista."))) return;
     await fetch(`/api/fornecedores/${fornecedor.id}`, { method: "DELETE" });
     onSaved();
   };
@@ -2883,7 +2884,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   };
 
   const inativar = async () => {
-    if (!confirm("Inativar este artigo? Ele deixa de aparecer na lista.")) return;
+    if (!(await confirmar("Inativar este artigo? Ele deixa de aparecer na lista."))) return;
     await fetch(`/api/artigos/${artigo.id}`, { method: "DELETE" });
     onSaved();
   };
@@ -3358,7 +3359,7 @@ function ClienteHistoricoModal({ cliente, master, money, onClose, onChanged }) {
   const recarregar = () => fetch(`/api/clientes/${cliente.id}/notas`).then((r) => r.json()).then((d) => setNotas(Array.isArray(d) ? d : [])).catch(() => setNotas([]));
   useEffect(() => { recarregar(); }, [cliente.id]);
   const excluir = async (n) => {
-    if (!confirm(`Excluir a nota NF ${n.numero || ""} deste cliente?`)) return;
+    if (!(await confirmar(`Excluir a nota NF ${n.numero || ""} deste cliente?`))) return;
     const r = await fetch(`/api/cliente-notas/${n.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId() }) });
     if (r.ok) { recarregar(); onChanged && onChanged(); }
   };
@@ -3482,7 +3483,7 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
           <div>
             {!novo && (
               <button onClick={async () => {
-                if (!confirm(`Excluir o cliente "${f.razaoSocial || cliente.nomeFantasia || cliente.cnpj}" e todo o seu histórico? Esta ação não pode ser desfeita.`)) return;
+                if (!(await confirmar(`Excluir o cliente "${f.razaoSocial || cliente.nomeFantasia || cliente.cnpj}" e todo o seu histórico? Esta ação não pode ser desfeita.`))) return;
                 const r = await fetch(`/api/clientes/${cliente.id}`, { method: "DELETE" });
                 if (r.ok) onSaved(); else setErro("Não foi possível excluir.");
               }} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ color: "#D64545", border: `1px solid #F1C7C7` }}>
@@ -3732,7 +3733,7 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
           <div>
             {!novo && (
               <button onClick={async () => {
-                if (!confirm(`Inativar o fornecedor "${f.nome || fornecedor.razaoSocial}"? Ele sai da lista; as notas de compra e artigos permanecem no sistema.`)) return;
+                if (!(await confirmar(`Inativar o fornecedor "${f.nome || fornecedor.razaoSocial}"? Ele sai da lista; as notas de compra e artigos permanecem no sistema.`))) return;
                 const r = await fetch(`/api/fornecedores/${fornecedor.id}`, { method: "DELETE" });
                 if (r.ok) onSaved(); else setErro("Não foi possível excluir.");
               }} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ color: "#D64545", border: `1px solid #F1C7C7` }}>
@@ -3755,10 +3756,10 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
   const recarregar = () => fetch(`/api/fornecedores/${fornecedor.id}/nfs`).then((r) => r.json()).then(setDados).catch(() => setDados({ linhas: [] }));
   useEffect(() => { recarregar(); }, [fornecedor.id]);
   const excluir = async (n) => {
-    if (!confirm(`Excluir a NF ${n.numero} desta compra? O saldo em estoque dos artigos desta nota será revertido. Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirmar(`Excluir a NF ${n.numero} desta compra? O saldo em estoque dos artigos desta nota será revertido. Esta ação não pode ser desfeita.`))) return;
     const r = await fetch(`/api/nf/${n.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId() }) });
     if (r.ok) { recarregar(); onChanged && onChanged(); }
-    else { const j = await r.json().catch(() => ({})); alert(j.error || "Não foi possível excluir a NF."); }
+    else { const j = await r.json().catch(() => ({})); alerta(j.error || "Não foi possível excluir a NF."); }
   };
   const data = (v) => { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleDateString("pt-BR"); };
   const nBR = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3893,7 +3894,7 @@ function Usuarios({ master }) {
     carregar();
   };
   const excluir = async (u) => {
-    if (!window.confirm(`Excluir o usuário ${u.nome}? Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirmar(`Excluir o usuário ${u.nome}? Esta ação não pode ser desfeita.`))) return;
     await fetch(`/api/usuarios/${u.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId() }) });
     carregar();
   };

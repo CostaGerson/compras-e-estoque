@@ -4,6 +4,7 @@
 //  · EmailCobrancaModal: rascunho do e-mail de cobrança por cliente (envio pelo Resend fica para depois: hoje copia ou abre no e-mail)
 import React, { useState, useEffect, useMemo } from "react";
 import { Loader2, Download, Copy, Mail, X, Image as ImageIcon, Send, CheckCircle2 } from "lucide-react";
+import { alerta } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -162,7 +163,7 @@ export function CardCobrancaModal({ contas, onClose }) {
       const blob = await (await fetch(imgs[g.chave])).blob();
       await navigator.clipboard.write([new window.ClipboardItem({ "image/png": blob })]);
       setCopiado(g.chave); setTimeout(() => setCopiado(""), 2500);
-    } catch { alert("Seu navegador não deixou copiar a imagem — use Baixar PNG."); }
+    } catch { alerta("Seu navegador não deixou copiar a imagem — use Baixar PNG."); }
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -234,7 +235,7 @@ export function EmailCobrancaModal({ contas, onClose }) {
   const refazer = () => { lsSet("cobranca.assinatura", assinatura); setEd((x) => Object.fromEntries(grupos.map((g) => [g.chave, { ...x[g.chave], corpo: textoEmail(g, assinatura) }]))); };
   const copiar = async (g) => {
     const e = ed[g.chave];
-    try { await navigator.clipboard.writeText(`Assunto: ${e.assunto}\n\n${e.corpo}`); setCopiado(g.chave); setTimeout(() => setCopiado(""), 2500); } catch { alert("Não consegui copiar."); }
+    try { await navigator.clipboard.writeText(`Assunto: ${e.assunto}\n\n${e.corpo}`); setCopiado(g.chave); setTimeout(() => setCopiado(""), 2500); } catch { alerta("Não consegui copiar."); }
   };
   const abrir = (g) => { const e = ed[g.chave]; window.location.href = `mailto:${encodeURIComponent(e.para)}?subject=${encodeURIComponent(e.assunto)}&body=${encodeURIComponent(e.corpo)}`; };
   return (

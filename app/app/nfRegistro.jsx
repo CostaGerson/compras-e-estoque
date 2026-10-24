@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Search, ArrowDownLeft, ArrowUpRight, FileCode2, FileText, Loader2, ChevronUp, ChevronDown, X } from "lucide-react";
 import { CoresContas as C } from "./contas";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -208,11 +209,11 @@ export default function NfRegistro({ user }) {
 
 // v365 — nota com crítica: lançar contas (vai ao contas a receber) ou vistar (tira a crítica sem lançar)
 export async function acaoCritica(user, n, acao, onFeito) {
-  if (acao === "vistar" && !confirm(`Vistar a NF ${n.numero} (${n.parceiro})?\n\nA crítica sai e a nota fica só registrada, sem conta lançada.`)) return;
-  if (acao === "lancar" && !confirm(`Lançar as contas da NF ${n.numero} (${n.parceiro}) com as parcelas do XML?`)) return;
+  if (acao === "vistar" && !(await confirmar(`Vistar a NF ${n.numero} (${n.parceiro})?\n\nA crítica sai e a nota fica só registrada, sem conta lançada.`))) return;
+  if (acao === "lancar" && !(await confirmar(`Lançar as contas da NF ${n.numero} (${n.parceiro}) com as parcelas do XML?`))) return;
   const r = await fetch("/api/fiscal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: acao === "vistar" ? "vistar" : "lancarCritica", id: n.id }) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { alert(j.error || "Erro."); return; }
+  if (!r.ok) { alerta(j.error || "Erro."); return; }
   onFeito?.();
   if (acao === "lancar") window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pagrec", rec: { tipo: n.tipo === "ENTRADA" ? "PAGAR" : "RECEBER", busca: j.busca || n.parceiro, de: j.de, ate: j.ate } } }));
 }

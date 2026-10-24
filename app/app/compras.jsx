@@ -2,6 +2,7 @@
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck } from "lucide-react";
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -192,26 +193,26 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       body: JSON.stringify({ pedidoNumero: resumo.pedido.numero, chave: resumo.item.chave, fppId: fpp.id, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setUsando(false);
-    if (!r.ok) return alert(x.error || "Não foi possível vincular.");
+    if (!r.ok) return alerta(x.error || "Não foi possível vincular.");
     setResumo(null); carregar();
   }
   async function dispensar(p) {   // v419 — pedido só para faturamento
-    const motivo = prompt(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras e não entra no levantamento nem no cruzamento.\n\nMotivo (opcional):`, "Só para faturamento");
+    const motivo = (await perguntar(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras e não entra no levantamento nem no cruzamento.\n\nMotivo (opcional):`, "Só para faturamento"));
     if (motivo === null) return;
     const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, motivo, quem: nomeUser(user) }) });
-    if (!r.ok) return alert("Erro ao dispensar.");
+    if (!r.ok) return alerta("Erro ao dispensar.");
     carregar();
   }
   async function reativar(p) {
-    if (!confirm(`Voltar o pedido ${p.numero} para compras?`)) return;
+    if (!(await confirmar(`Voltar o pedido ${p.numero} para compras?`))) return;
     await fetch("/api/compras/pedidos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero }) });
     carregar();
   }
   async function desvincular(p, it) {
-    if (!confirm(`Tirar a FPP do item ${it.codigo || it.chave}? A demanda sai do levantamento.`)) return;
+    if (!(await confirmar(`Tirar a FPP do item ${it.codigo || it.chave}? A demanda sai do levantamento.`))) return;
     const r = await fetch("/api/compras/itens", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, chave: it.chave }) });
     const x = await r.json().catch(() => ({}));
-    if (!r.ok) return alert(x.error || "Erro.");
+    if (!r.ok) return alerta(x.error || "Erro.");
     carregar();
   }
 
@@ -312,11 +313,11 @@ export function Avulsas({ user }) {
   async function salvar() {
     const r = await fetch("/api/compras/avulsas", { method: ed.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ed, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
-    if (!r.ok) return alert(x.error || "Erro ao salvar.");
+    if (!r.ok) return alerta(x.error || "Erro ao salvar.");
     setEd(null); carregar();
   }
   async function status(c, st) {
-    if (st === "CANCELADA" && !confirm("Cancelar esta compra avulsa?")) return;
+    if (st === "CANCELADA" && !(await confirmar("Cancelar esta compra avulsa?"))) return;
     await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st }) });
     carregar();
   }
@@ -449,9 +450,9 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar }) {
   const [marc, setMarc] = useState(new Set());   // v415 — itens marcados para devolver a Pedidos
   const tog = (id) => setMarc((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function devolver() {
-    if (!confirm(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`)) return;
+    if (!(await confirmar(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`))) return;
     setSalvando(true);
-    try { await devolverItens([...marc], "pedidos"); setMarc(new Set()); carregar(); } catch (e) { alert(e.message); }
+    try { await devolverItens([...marc], "pedidos"); setMarc(new Set()); carregar(); } catch (e) { alerta(e.message); }
     setSalvando(false);
   }
   const carregar = () => fetch("/api/compras/levantamento").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); }).catch((e) => setErro(e.message));
@@ -461,7 +462,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar }) {
     setSalvando(true);
     const r = await fetch("/api/compras/levantamento", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ de, para }) });
     setSalvando(false);
-    if (!r.ok) { const x = await r.json().catch(() => ({})); return alert(x.error || "Erro."); }
+    if (!r.ok) { const x = await r.json().catch(() => ({})); return alerta(x.error || "Erro."); }
     carregar();
   }
 
@@ -576,9 +577,9 @@ export function Atendidos({ fases, ir }) {
   useEffect(() => { carregar(); }, []);
   const tog = (id) => setMarc((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function devolver() {
-    if (!confirm(`Devolver ${marc.size} item(ns) para o levantamento? A reserva do estoque é desfeita.`)) return;
+    if (!(await confirmar(`Devolver ${marc.size} item(ns) para o levantamento? A reserva do estoque é desfeita.`))) return;
     setOcupado(true);
-    try { await devolverItens([...marc], "levantamento"); setMarc(new Set()); carregar(); } catch (e) { alert(e.message); }
+    try { await devolverItens([...marc], "levantamento"); setMarc(new Set()); carregar(); } catch (e) { alerta(e.message); }
     setOcupado(false);
   }
   const porPedido = useMemo(() => {
@@ -626,12 +627,12 @@ function Cruzamento({ user, veValores, onMudou }) {
   const tog = (id) => setMarc((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function autorizar() {
     if (!marc.size) return;
-    if (!confirm(`Autorizar o atendimento pelo estoque de ${marc.size} item(ns)? Eles ficam liberados para o PCP programar.`)) return;
+    if (!(await confirmar(`Autorizar o atendimento pelo estoque de ${marc.size} item(ns)? Eles ficam liberados para o PCP programar.`))) return;
     setSalvando(true);
     const r = await fetch("/api/compras/cruzar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: [...marc], quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setSalvando(false);
-    if (!r.ok) return alert(x.error || "Erro.");
+    if (!r.ok) return alerta(x.error || "Erro.");
     onMudou?.(); carregar();
   }
   if (erro) return <div className="text-sm" style={{ color: C.red }}>{erro}</div>;
@@ -687,9 +688,9 @@ function Cruzamento({ user, veValores, onMudou }) {
           <ShoppingCart size={15} /> Gerar PIC ({nCompra} itens) · em breve
         </button>
         <button disabled={salvando || !marc.size} onClick={async () => {
-          if (!confirm(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`)) return;
+          if (!(await confirmar(`Devolver ${marc.size} item(ns) para Pedidos? A FPP base é desvinculada e a demanda sai do levantamento.`))) return;
           setSalvando(true);
-          try { await devolverItens([...marc], "pedidos"); onMudou?.(); carregar(); } catch (e) { alert(e.message); }
+          try { await devolverItens([...marc], "pedidos"); onMudou?.(); carregar(); } catch (e) { alerta(e.message); }
           setSalvando(false);
         }} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}`, opacity: marc.size ? 1 : 0.5 }}>
           <Undo2 size={15} /> Devolver para Pedidos ({marc.size})

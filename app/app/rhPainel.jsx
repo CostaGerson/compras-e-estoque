@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Soltar, ModalContas as Modal, CoresContas as C } from "./contas";
 import { podeImportar } from "@/lib/acesso";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -440,7 +441,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
   const toggle = (k) => setSel((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const desfazer = async (x) => { try { await api("/api/rh/ponto", "POST", { usuarioId: user.id, acao: "desfazer", chave: x.chave }); recarregar(); } catch (e) { setErro(e.message); } };
   const excluir = async (x) => {
-    if (!confirm(`Excluir o cartão de ${x.nome} (${dBR(x.inicio)} a ${dBR(x.fim)})? Os dias dele saem dos indicadores.`)) return;
+    if (!(await confirmar(`Excluir o cartão de ${x.nome} (${dBR(x.inicio)} a ${dBR(x.fim)})? Os dias dele saem dos indicadores.`))) return;
     try { await api("/api/rh/ponto", "DELETE", { usuarioId: user.id, id: x.id }); ok("Cartão excluído."); } catch (e) { setErro(e.message); }
   };
   return (

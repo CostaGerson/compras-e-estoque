@@ -6,6 +6,7 @@ import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
 } from "lucide-react";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -489,12 +490,12 @@ function Fpp({ user, master, abrirId }) {
       setEditId(nova.id); setEditNum(nova.numero);
       setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`);
       carregarNegs();
-    } catch (e) { setMsg(e.message); alert(`Não foi possível clonar: ${e.message}`); }
+    } catch (e) { setMsg(e.message); alerta(`Não foi possível clonar: ${e.message}`); }
     setSalvando(false);
   }
   async function clonarSalva(fpp) {
     try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); carregarNegs(); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
-    catch (e) { alert(`Não foi possível clonar: ${e.message}`); }
+    catch (e) { alerta(`Não foi possível clonar: ${e.message}`); }
   }
   function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setModoOverride(false); setEditId(null); setEditNum(null); setMsg(""); }
 
@@ -1025,7 +1026,7 @@ function LinhaParam({ row, campos, os, user, onReload, onHist }) {
 
   async function salvarPadrao() {
     if (!os || !mudou) return;
-    if (!confirm(`Redefinir o padrão de "${row.rotulo || row.chave}"? Fica no histórico.`)) return;
+    if (!(await confirmar(`Redefinir o padrão de "${row.rotulo || row.chave}"? Fica no histórico.`))) return;
     setSaving(true);
     const body = { usuarioId: user?.id, usuarioNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim() };
     if (num(ed.valor) !== Number(row.valor)) body.valor = num(ed.valor);
@@ -1277,7 +1278,7 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   useEffect(carregar, []);
 
   async function excluir(id) {
-    if (!confirm("Excluir esta ficha?")) return;
+    if (!(await confirmar("Excluir esta ficha?"))) return;
     await fetch(`/api/fpp/${id}`, { method: "DELETE" });
     setAberta(null); setSel((s) => { const n = new Set(s); n.delete(id); return n; }); carregar();
   }
@@ -1341,7 +1342,7 @@ function FichasSalvas({ master, onEditar, onClonar }) {
   function gerarPropostaSelecionadas() {
     if (selecionadas.length === 0) return;
     const nomes = [...new Set(selecionadas.map((f) => f.clienteNome || "—"))];
-    if (nomes.length > 1) { alert("Selecione FPPs de um mesmo cliente para gerar a proposta."); return; }
+    if (nomes.length > 1) { alerta("Selecione FPPs de um mesmo cliente para gerar a proposta."); return; }
     setProposta(selecionadas);
   }
 
@@ -1897,7 +1898,7 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
     const r = await fetch("/api/fornecedores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: q.trim().toUpperCase() }) });
     const f = await r.json().catch(() => ({}));
     setCriando(false);
-    if (!r.ok) return alert(f.error || "Não foi possível cadastrar.");
+    if (!r.ok) return alerta(f.error || "Não foi possível cadastrar.");
     setQ(nomeForn(f)); setOpen(false); onCriado(f);
   }
   return (

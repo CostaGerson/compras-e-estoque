@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { Loader2, X, Minus, Plus, Save, RotateCcw } from "lucide-react";
 import { calcularAjuste, freeDiaBase } from "@/lib/capAjuste";
 import CapacidadeMensal from "./capacidadeMensal";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", yellow: "#C08401", red: "#D92D20" };
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,7 +36,7 @@ export default function CapacidadeSimulacao({ user, dados, matrizId, sujo, onClo
   });
   const salvar = async () => {
     if (!matrizId) return;
-    if (sujo && !confirm("Há alterações não salvas na Matriz: ao salvar os freelancers a simulação é recarregada do que está gravado e essas alterações se perdem. Continuar?")) return;
+    if (sujo && !(await confirmar("Há alterações não salvas na Matriz: ao salvar os freelancers a simulação é recarregada do que está gravado e essas alterações se perdem. Continuar?"))) return;
     setSalvando(true); setErro("");
     try {
       const ajustes = {};

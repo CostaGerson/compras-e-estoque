@@ -19,6 +19,7 @@ import Transmissao from "./transmissao";
 import Uploads from "./uploads";
 import ConferenciaIntegracao from "./conferencia";
 import PedidosAndamento from "./pedidosAndamento";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -1283,7 +1284,7 @@ function PedidosPainelModal({ titulo, k, lista, mes, onClose }) {
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Pedidos");
       const nome = `${titulo.replace(/[()\/]/g, "").replace(/\s+/g, "_").toLowerCase()}.xlsx`;
       XLSX.writeFile(wb, nome);
-    } catch (e) { alert(`Erro ao gerar o Excel: ${e.message}`); }
+    } catch (e) { alerta(`Erro ao gerar o Excel: ${e.message}`); }
     setGerando(false);
   };
   return (
@@ -1432,16 +1433,16 @@ function PainelPrevisao({ user, comp, setComp }) {
 
   const abrirSalvo = async (idx, c = comp) => {
     const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${c}&acao=salvo&idx=${idx}`); const j = await r.json();
-    if (r.ok) setModal({ tipo: "salvo", s: j }); else alert(j.error || "Erro");
+    if (r.ok) setModal({ tipo: "salvo", s: j }); else alerta(j.error || "Erro");
   };
   const excluirSalvo = async (s) => {
-    if (!confirm(`Excluir o painel salvo em ${dataHora(s.em)}?`)) return;
+    if (!(await confirmar(`Excluir o painel salvo em ${dataHora(s.em)}?`))) return;
     const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&idx=${s.i}&em=${encodeURIComponent(s.em)}`, { method: "DELETE" }); const j = await r.json();
-    if (r.ok) { setP(j); setOk("Painel salvo excluído."); } else alert(j.error || "Erro");
+    if (r.ok) { setP(j); setOk("Painel salvo excluído."); } else alerta(j.error || "Erro");
   };
   const abrirComparacao = async () => {
     const r = await fetch(`/api/fin/painel?u=${user.id}&competencia=${comp}&acao=comparar`); const j = await r.json();
-    if (r.ok) setModal({ tipo: "comparar", c: j }); else alert(j.error || "Erro");
+    if (r.ok) setModal({ tipo: "comparar", c: j }); else alerta(j.error || "Erro");
   };
 
   const caixaBloco = "rounded-xl p-4";
@@ -1817,7 +1818,7 @@ function Importacao({ user, comp, setComp }) {
   const [pedirSenha, setPedirSenha] = useState(null); // { tipo, file, b64, errada }
   const [aviso, setAviso] = useState("");
   const descartarSobras = async (tipo) => {
-    if (!confirm(`Descartar os lançamentos dos parciais de ${tipo.banco} · ${tipo.documento} que não apareceram no mensal?`)) return;
+    if (!(await confirmar(`Descartar os lançamentos dos parciais de ${tipo.banco} · ${tipo.documento} que não apareceram no mensal?`))) return;
     await fetch("/api/fin/arquivos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "descartarSobras", competencia: comp, tipoId: tipo.id }) });
     carregar();
   };
@@ -1887,7 +1888,7 @@ function Importacao({ user, comp, setComp }) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.status === 423 && d.precisaSenha) { setPedirSenha({ tipo, file, b64, errada: !!d.senhaErrada }); return "senha"; }
-    if (!r.ok) { alert(`${file.name}: ${d.error || "erro ao enviar"}`); return "erro"; }
+    if (!r.ok) { alerta(`${file.name}: ${d.error || "erro ao enviar"}`); return "erro"; }
     const cs = d.consolidacao;
     setAviso([`${file.name}: ${d.leitura?.n ?? 0} lançamento(s) lido(s)`,
       cs && !cs.erro ? `${cs.aproveitados} já estavam nos parciais (mantida a identificação) · ${cs.novos} novo(s)${cs.descartadas ? ` · ${cs.descartadas} do parcial fora do mensal descartado(s)` : ""}${cs.sobras ? ` · ${cs.sobras} do parcial ainda sem par` : ""}` : "",
@@ -1897,7 +1898,7 @@ function Importacao({ user, comp, setComp }) {
 
   const onArquivos = async (tipo, files) => {
     for (const f of Array.from(files || [])) {
-      if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") { alert(`${f.name}: envie um PDF.`); continue; }
+      if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") { alerta(`${f.name}: envie um PDF.`); continue; }
       const b64 = await readB64(f);
       const res = await enviar(tipo, f, b64);
       if (res === "senha") break; // um PDF com senha por vez
@@ -1954,7 +1955,7 @@ function Importacao({ user, comp, setComp }) {
   };
 
   const excluir = async (a) => {
-    if (!confirm(`Excluir o arquivo ${a.nome}?\nOs lançamentos lidos dele (inclusive os já identificados) também serão excluídos.`)) return;
+    if (!(await confirmar(`Excluir o arquivo ${a.nome}?\nOs lançamentos lidos dele (inclusive os já identificados) também serão excluídos.`))) return;
     await fetch(`/api/fin/arquivos/${a.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -1962,7 +1963,7 @@ function Importacao({ user, comp, setComp }) {
   // OFX do extrato: não gera lançamento, vai direto para o pacote da contabilidade
   const enviarOfx = async (tipo, files) => {
     for (const f of Array.from(files || [])) {
-      if (!/\.ofx$/i.test(f.name)) { alert(`${f.name}: envie um arquivo .OFX.`); continue; }
+      if (!/\.ofx$/i.test(f.name)) { alerta(`${f.name}: envie um arquivo .OFX.`); continue; }
       const b64 = await readB64(f);
       const r = await fetch("/api/fin/contab", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1970,12 +1971,12 @@ function Importacao({ user, comp, setComp }) {
       });
       const d = await r.json().catch(() => ({}));
       const e = d.resultados?.find((x) => !x.ok);
-      if (!r.ok || e) alert(`${f.name}: ${e?.erro || d.error || "erro ao enviar"}`);
+      if (!r.ok || e) alerta(`${f.name}: ${e?.erro || d.error || "erro ao enviar"}`);
     }
     carregar();
   };
   const excluirOfx = async (o) => {
-    if (!confirm(`Excluir ${o.nome} do pacote da contabilidade?`)) return;
+    if (!(await confirmar(`Excluir ${o.nome} do pacote da contabilidade?`))) return;
     await fetch(`/api/fin/contab/${o.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -2348,7 +2349,7 @@ function Senhas({ user }) {
     setRotulo(""); setSenha(""); carregar();
   };
   const del = async (s) => {
-    if (!confirm(`Excluir a senha "${s.rotulo}"?`)) return;
+    if (!(await confirmar(`Excluir a senha "${s.rotulo}"?`))) return;
     await fetch(`/api/fin/senhas/${s.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -2525,7 +2526,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
       const falhas = d.arquivos.filter((x) => x.ok === false);
       const conf = d.conferencia || [];
       setAviso(`${d.arquivos.length} arquivo(s) lido(s) · ${n} itens${conf.length ? ` · conferência: ${conf.filter((c) => c.ok).length} ok, ${conf.filter((c) => !c.ok).length} com crítica` : ""}${falhas.length ? ` · ${falhas.length} com erro` : ""}`);
-    } catch (e) { alert(e.message); }
+    } catch (e) { alerta(e.message); }
     setLendo(false);
     carregar();
   };
@@ -2533,18 +2534,18 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
   const aplicarPalavras = async () => {
     setLendo(true);
     try { const d = await api("/api/fin/regras/aplicar", "POST", { usuarioId: user.id, competencia: comp }); setAviso(d.identificados ? `${d.identificados} lançamento(s) identificados por palavra-chave` : "Nenhuma palavra-chave casou com os lançamentos pendentes."); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
     setLendo(false); carregar();
   };
 
   const excluir = async (l) => {
     const msg = l.paiId ? "Excluir uma parte desfaz o desmembramento inteiro. Continuar?" : `Excluir o lançamento "${l.historico}"?`;
-    if (!confirm(msg)) return;
+    if (!(await confirmar(msg))) return;
     await fetch(`/api/fin/lancamentos/${l.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
   const excluirSel = async () => {
-    if (!confirm(`Excluir ${sel.size} lançamento(s)?`)) return;
+    if (!(await confirmar(`Excluir ${sel.size} lançamento(s)?`))) return;
     for (const id of sel) await fetch(`/api/fin/lancamentos/${id}?u=${user.id}`, { method: "DELETE" });
     setSel(new Set()); carregar();
   };
@@ -2812,7 +2813,7 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
 
   const acao = async (body, msg) => {
     try { await api("/api/fin/conciliar", "POST", { usuarioId: user.id, competencia: comp, ...body }); if (msg) setAviso(msg); onMudou(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const conferido = async (l) => { await api(`/api/fin/lancamentos/${l.id}`, "PATCH", { usuarioId: user.id, revisado: true }); onMudou(); };
 
@@ -2873,7 +2874,7 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
                     <CheckCircle2 size={12} style={{ color: C.green }} className="shrink-0" />
                     <div className="flex-1"><b>{c.rotulo}</b> · {c.msg}</div>
                     {!/já detalhados|Sem valores/.test(c.msg) && (
-                      <button onClick={() => { if (confirm("Desfazer esta troca? O lançamento consolidado volta para o extrato.")) acao({ acao: "desfazer", chave: c.chave }, "Troca desfeita."); }}
+                      <button onClick={async () => { if ((await confirmar("Desfazer esta troca? O lançamento consolidado volta para o extrato."))) acao({ acao: "desfazer", chave: c.chave }, "Troca desfeita."); }}
                         title="Desfazer" style={{ color: C.sub }}><Undo2 size={13} /></button>
                     )}
                   </div>
@@ -3021,7 +3022,7 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
     return fetch(`/api/fin/ia?u=${user.id}&competencia=${comp}`).then((r) => r.json()).then((l) => { setLista(Array.isArray(l) ? l : []); return l; });
   };
   const excluir = async (id) => {
-    if (!confirm("Apagar esta análise salva?")) return;
+    if (!(await confirmar("Apagar esta análise salva?"))) return;
     await api(`/api/fin/ia/${id}`, "DELETE", { usuarioId: user.id }).catch(() => {});
     listar();
   };
@@ -3444,7 +3445,7 @@ function PlanoContas({ user }) {
     try { await api("/api/fin/contas", "POST", { usuarioId: user.id, ...novo }); setNovo({ codigo: "", nome: "" }); carregar(); } catch (e) { setErro(e.message); }
   };
   const salvar = async (c, patch) => {
-    try { await api(`/api/fin/contas/${c.id}`, "PATCH", { usuarioId: user.id, ...patch }); setEdit((e) => { const n = { ...e }; delete n[c.id]; return n; }); carregar(); } catch (e) { alert(e.message); }
+    try { await api(`/api/fin/contas/${c.id}`, "PATCH", { usuarioId: user.id, ...patch }); setEdit((e) => { const n = { ...e }; delete n[c.id]; return n; }); carregar(); } catch (e) { alerta(e.message); }
   };
   const nat = (cod) => cod[0] === "1" ? ["RECEITA", C.green] : cod[0] === "2" ? ["DESPESA", C.red] : ["CONCILIAÇÃO", ROXO];
   const vis = lista.filter((c) => !busca || c.codigo.includes(busca) || normC(c.nome).includes(normC(busca)));
@@ -3516,7 +3517,7 @@ function Regras({ user, comp }) {
   useEffect(() => { carregar(); }, []);
 
   const patch = async (r, body) => { await api(`/api/fin/regras/${r.id}`, "PATCH", { usuarioId: user.id, ...body }); carregar(); };
-  const del = async (r) => { if (!confirm(`Excluir a palavra-chave "${r.termo}"?`)) return; await fetch(`/api/fin/regras/${r.id}?u=${user.id}`, { method: "DELETE" }); carregar(); };
+  const del = async (r) => { if (!(await confirmar(`Excluir a palavra-chave "${r.termo}"?`))) return; await fetch(`/api/fin/regras/${r.id}?u=${user.id}`, { method: "DELETE" }); carregar(); };
 
   const filtradas = !lista ? [] : lista.map((r, i) => ({ ...r, pos: i + 1 })).filter((r) => {
     if (fAtivo === "ativas" && !r.ativo) return false;
@@ -3760,7 +3761,7 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
   };
 
   const excluir = async (doc) => {
-    if (!confirm(`Excluir ${doc.nome} do pacote da contabilidade?`)) return;
+    if (!(await confirmar(`Excluir ${doc.nome} do pacote da contabilidade?`))) return;
     await fetch(`/api/fin/contab/${doc.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -3780,7 +3781,7 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
 
   const enviar = async () => {
     if (!email) { setAviso({ tipo: "erro", texto: "Preencha o e-mail da contabilidade." }); return; }
-    if (!confirm(`Enviar ${docs.length} arquivo(s) de ${nomeComp(comp)} para ${email}?`)) return;
+    if (!(await confirmar(`Enviar ${docs.length} arquivo(s) de ${nomeComp(comp)} para ${email}?`))) return;
     setEnviando(true);
     const r = await fetch("/api/fin/contab/enviar", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -4157,7 +4158,7 @@ function Recebimentos({ user, comp, setComp }) {
   const [sel, setSel] = useState(() => new Set());   // v362 — linhas marcadas para excluir juntas
   const marcar = (ids, on) => setSel((s0) => { const n = new Set(s0); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const excluirSel = async () => {
-    if (!sel.size || !confirm(`Excluir ${sel.size} linha(s) selecionada(s)?`)) return;
+    if (!sel.size || !(await confirmar(`Excluir ${sel.size} linha(s) selecionada(s)?`))) return;
     const r = await fetch("/api/fin/recebimentos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids: [...sel] }) });
     const j = await r.json().catch(() => ({}));
     setAviso(r.ok ? { tipo: "ok", texto: `${j.excluidas} linha(s) excluída(s).` } : { tipo: "erro", texto: j.error || "Erro ao excluir." });
@@ -4201,7 +4202,7 @@ function Recebimentos({ user, comp, setComp }) {
   };
 
   const excluir = async (l) => {
-    if (!confirm(`Excluir a linha de ${brl(l.valor)}?`)) return;
+    if (!(await confirmar(`Excluir a linha de ${brl(l.valor)}?`))) return;
     await fetch(`/api/fin/recebimentos/${l.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };

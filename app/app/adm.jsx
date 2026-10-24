@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { BotoesCritica } from "./nfRegistro";   // v365
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -110,14 +111,14 @@ export default function MovimentoFiscal({ user }) {
   }, [lista]);
 
   const excluir = async (n) => {
-    if (!confirm(`Excluir o registro da NF ${n.numero} (${n.parceiro})?\n\nAs contas criadas por esta importação vão para a lixeira do contas a pagar/receber.`)) return;
+    if (!(await confirmar(`Excluir o registro da NF ${n.numero} (${n.parceiro})?\n\nAs contas criadas por esta importação vão para a lixeira do contas a pagar/receber.`))) return;
     try { const r = await api(`/api/fiscal/${n.id}`, "DELETE", { usuarioId: user.id }); setMsg(`NF ${n.numero} excluída${r.contas ? ` · ${r.contas} conta(s) na lixeira` : ""}.`); carregar(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const vistarKm = async (n) => {   // v408
-    if (!confirm(`Vistar a NF ${n.numero} (${n.parceiro}) do KM?\n\nA crítica sai sem os arquivos no sistema.`)) return;
+    if (!(await confirmar(`Vistar a NF ${n.numero} (${n.parceiro}) do KM?\n\nA crítica sai sem os arquivos no sistema.`))) return;
     try { await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "vistarKm", id: n.kmId }); setMsg(`NF ${n.numero} do KM vistada.`); carregar(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const atalho = (k) => {
     const h = hojeISO();
@@ -553,11 +554,11 @@ export function DemandasAdm({ user, master }) {
 
   const mudar = async (dm, status) => {
     if (status === "CONCLUIDA") { setConcluir(dm); return; }
-    try { await api(`/api/adm/demandas/${dm.id}`, "PATCH", { usuarioId: user.id, status }); carregar(); } catch (e) { alert(e.message); }
+    try { await api(`/api/adm/demandas/${dm.id}`, "PATCH", { usuarioId: user.id, status }); carregar(); } catch (e) { alerta(e.message); }
   };
   const excluir = async (dm) => {
-    if (!confirm(`Excluir a demanda "${dm.titulo}"?`)) return;
-    try { await api(`/api/adm/demandas/${dm.id}`, "DELETE", { usuarioId: user.id }); setAbrir(null); carregar(); } catch (e) { alert(e.message); }
+    if (!(await confirmar(`Excluir a demanda "${dm.titulo}"?`))) return;
+    try { await api(`/api/adm/demandas/${dm.id}`, "DELETE", { usuarioId: user.id }); setAbrir(null); carregar(); } catch (e) { alerta(e.message); }
   };
   const todas = d?.demandas || [];
   const lista = todas.filter((x) => ver === "TODAS" || (ver === "ABERTAS" ? x.status !== "CONCLUIDA" : x.status === "CONCLUIDA"));

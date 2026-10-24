@@ -2,6 +2,7 @@
 // v139 — Lixeira de contas: excluídas ficam 30 dias para reativar ou excluir de vez
 import React, { useState, useEffect, useMemo } from "react";
 import { Loader2, Search, RotateCcw, Trash2 } from "lucide-react";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -42,7 +43,7 @@ export default function Lixeira({ user, onMudou }) {
   );
   const fazer = async (acao, ids) => {
     if (!ids.length) return;
-    if (acao === "excluir" && !confirm(`Excluir definitivamente ${ids.length} conta(s)? Não dá para desfazer.`)) return;
+    if (acao === "excluir" && !(await confirmar(`Excluir definitivamente ${ids.length} conta(s)? Não dá para desfazer.`))) return;
     setSt(acao); setMsg(null);
     try {
       const r = await api("/api/fin/lixeira", "POST", { usuarioId: user.id, acao, ids });

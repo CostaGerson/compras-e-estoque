@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Loader2, Plus, Users2, AlertTriangle, CheckCircle2, Trash2, Palmtree, ChevronLeft, ChevronRight } from "lucide-react";
 import { ModalContas as Modal, CoresContas as C } from "./contas";
 import { DEPTOS } from "@/lib/matriz";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -146,7 +147,7 @@ function FeriasModal({ user, d, coletiva: novaColetiva, ferias, pessoaId: pInici
     } catch (e) { setSt(false); setErro(e.message); }
   };
   const excluir = async () => {
-    if (!confirm(ferias.coletivaId && f.todaColetiva ? "Excluir estas férias coletivas de todos?" : "Excluir este período de férias?")) return;
+    if (!(await confirmar(ferias.coletivaId && f.todaColetiva ? "Excluir estas férias coletivas de todos?" : "Excluir este período de férias?"))) return;
     try { await api("/api/rh/ferias", "DELETE", { usuarioId: user.id, id: ferias.id, todaColetiva: f.todaColetiva }); onOk("Férias excluídas."); } catch (e) { setErro(e.message); }
   };
   const marcar = (ids, on) => setSel((x) => { const n = new Set(x); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });

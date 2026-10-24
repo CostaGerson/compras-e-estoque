@@ -3,6 +3,7 @@
 // liquidação (cliente pagou quem antecipou) e contrato de origem (o "A" amarelo).
 import React, { useState, useEffect, useMemo } from "react";
 import { X, Loader2, Search, CheckCircle2, Undo2, AlertTriangle, FileText, Plus, ChevronDown, ChevronRight, Download, Percent, FileSpreadsheet, ArrowLeftCircle, Plus as Mais, Trash2 } from "lucide-react";
+import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -28,9 +29,9 @@ const api = async (url, method = "GET", body) => {
 };
 // v187 — exporta para Excel as contas que estão na tela (na ordem da tela)
 export async function exportarExcel(user, ids, titulo, nome) {
-  if (!ids.length) { alert("Nenhuma conta na tela para exportar."); return; }
+  if (!ids.length) { alerta("Nenhuma conta na tela para exportar."); return; }
   const r = await fetch("/api/fin/titulos/xlsx", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids, titulo, nome }) });
-  if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro ao gerar o Excel."); return; }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); alerta(j.error || "Erro ao gerar o Excel."); return; }
   const url = URL.createObjectURL(await r.blob());
   const a = document.createElement("a"); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -136,7 +137,7 @@ function ObsModal({ t, user, onClose, onFeito }) {
       {notas.map((x, i) => (
         <div key={i} className="flex items-start gap-2 px-2 py-1.5 mb-1 rounded-lg text-xs" style={{ background: C.yellowSoft }}>
           <div className="flex-1">{x.texto}<div style={{ color: C.sub }}>{x.por || "—"} · {x.em ? new Date(x.em).toLocaleString("pt-BR") : ""}</div></div>
-          <button onClick={() => confirm("Apagar esta OBS?") && enviar("nota-excluir", { indice: i })} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>
+          <button onClick={async () => (await confirmar("Apagar esta OBS?")) && enviar("nota-excluir", { indice: i })} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>
         </div>
       ))}
       <textarea autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} placeholder="Escreva a observação…" className="w-full mt-2 rounded-lg px-3 py-2 text-sm outline-none" style={inpS} />
@@ -178,7 +179,7 @@ const Etq = ({ s }) => <span className="px-2 py-0.5 rounded-full text-[10px] fon
 
 async function abrirPdf(user, id) {
   const r = await fetch(`/api/fin/antecipacao?u=${user.id}&acao=pdf&id=${id}`);
-  if (!r.ok) { alert("Contrato sem arquivo."); return; }
+  if (!r.ok) { alerta("Contrato sem arquivo."); return; }
   const url = URL.createObjectURL(await r.blob());
   window.open(url, "_blank");
 }
@@ -438,7 +439,7 @@ export default function Antecipacoes({ user }) {
   };
   const desfazer = async (t) => {
     const liq = !!t.liquidadoEm;
-    if (!confirm(liq ? `Desfazer a baixa (pagamento do cliente) de "${t.titulo}"?` : `Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`)) return;
+    if (!(await confirmar(liq ? `Desfazer a baixa (pagamento do cliente) de "${t.titulo}"?` : `Desfazer a ANTECIPAÇÃO de "${t.titulo}"? Ele volta a ser conta a receber em aberto.`))) return;
     try { await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: liq ? "desliquidar" : "desfazer", id: t.id }); ok(liq ? "Baixa desfeita." : "Antecipação desfeita."); }
     catch (e) { setErro(e.message); }
   };

@@ -7,6 +7,7 @@ import {
 import { calcularMatriz, calcFuncionario, calcFreelancer, DEPTOS, REGIMES, FORMULAS } from "@/lib/matriz";
 import { compararComOficial, trazerDaOficial } from "@/lib/matrizCenario";
 import CapacidadeSimulacao from "./capacidadeSim";
+import { confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -200,9 +201,9 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
     } catch (e) { setErro(e.message); }
     setSalvando(false);
   };
-  const descartar = () => { if (confirm("Descartar as alterações não salvas?")) { setDados(doc.dados); setMexidos([]); } };
+  const descartar = async () => { if ((await confirmar("Descartar as alterações não salvas?"))) { setDados(doc.dados); setMexidos([]); } };
   const trocar = async (id) => {
-    if (sujo && !confirm("Há alterações não salvas. Trocar mesmo assim (elas serão perdidas)?")) return;
+    if (sujo && !(await confirmar("Há alterações não salvas. Trocar mesmo assim (elas serão perdidas)?"))) return;
     await abrir(Number(id)).catch((e) => setErro(e.message));
   };
   // v270 — ajuste da simulação à capacidade real (escolha por simulação: equipe atual, A ou B)
@@ -212,8 +213,8 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
   const ajustarCapacidade = async () => {
     const c = capSel || dados?.simulacaoCapacidade?.cenario || "ATUAL";
     const nomes = { ATUAL: "equipe de hoje e % de freelancer atual", A: "A (a necessidade extra vira freelancer)", B: "B (acima de 1 freelancer/dia vira contratação)" };
-    if (sujo && !confirm("Há alterações não salvas: o ajuste parte do que está gravado. Continuar?")) return;
-    if (!confirm(`Ajustar "${doc.nome}" à capacidade real — ${nomes[c]}?\n\nA simulação é refeita a partir da OFICIAL, mantendo a meta de peças (mês a mês), o ticket e a margem desta simulação. Edições manuais de pessoal e despesas desta simulação são substituídas (a versão anterior fica no Histórico).`)) return;
+    if (sujo && !(await confirmar("Há alterações não salvas: o ajuste parte do que está gravado. Continuar?"))) return;
+    if (!(await confirmar(`Ajustar "${doc.nome}" à capacidade real — ${nomes[c]}?\n\nA simulação é refeita a partir da OFICIAL, mantendo a meta de peças (mês a mês), o ticket e a margem desta simulação. Edições manuais de pessoal e despesas desta simulação são substituídas (a versão anterior fica no Histórico).`))) return;
     setAjustando(true); setErro("");
     try {
       const r = await api(`/api/fin/matriz/${doc.id}`, "POST", { usuarioId: user.id, acao: "capacidade", cenario: c });
@@ -225,14 +226,14 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
   const novoCenario = async () => {
     // v217 — por padrão o cenário nasce da OFICIAL (com tudo: dívidas, parcelamentos, pessoal e metas da Gestão)
     const of = (lista || []).find((x) => x.oficial);
-    const daOficial = doc.oficial || !of || confirm(`Copiar da matriz OFICIAL (atual)?\n\nOK = cópia da oficial · Cancelar = cópia deste cenário "${doc.nome}"`);
-    const nome = prompt(`Nome do cenário (cópia ${daOficial ? "da oficial" : `de "${doc.nome}"`}; alterações não salvas não entram):`, `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`);
+    const daOficial = doc.oficial || !of || (await confirmar(`Copiar da matriz OFICIAL (atual)?\n\nOK = cópia da oficial · Cancelar = cópia deste cenário "${doc.nome}"`));
+    const nome = (await perguntar(`Nome do cenário (cópia ${daOficial ? "da oficial" : `de "${doc.nome}"`}; alterações não salvas não entram):`, `CENÁRIO ${new Date().toLocaleDateString("pt-BR")}`));
     if (!nome) return;
     const r = await api("/api/fin/matriz", "POST", { usuarioId: user.id, nome, copiarDe: daOficial && of ? of.id : doc.id }).catch((e) => setErro(e.message));
     if (r) { await carregarLista(); await abrir(r.id); }
   };
   const resetar = async () => {
-    if (!confirm(`Resetar "${doc.nome}" para ficar exatamente igual à matriz oficial?\n\nTodas as alterações deste cenário serão substituídas. Depois clique em Salvar (a versão anterior fica no Histórico).`)) return;
+    if (!(await confirmar(`Resetar "${doc.nome}" para ficar exatamente igual à matriz oficial?\n\nTodas as alterações deste cenário serão substituídas. Depois clique em Salvar (a versão anterior fica no Histórico).`))) return;
     try {
       let of = oficialDados;
       const reg = (lista || []).find((x) => x.oficial);
@@ -243,13 +244,13 @@ export default function MatrizCustos({ user, irMetas, abrirId }) {
     } catch (e) { setErro(e.message); }
   };
   const renomear = async () => {
-    const nome = prompt("Novo nome:", doc.nome);
+    const nome = (await perguntar("Novo nome:", doc.nome));
     if (!nome) return;
     await api(`/api/fin/matriz/${doc.id}`, "PATCH", { usuarioId: user.id, nome });
     setDoc((d) => ({ ...d, nome: nome.toUpperCase() })); carregarLista();
   };
   const apagar = async () => {
-    if (!confirm(`Apagar o cenário "${doc.nome}"?`)) return;
+    if (!(await confirmar(`Apagar o cenário "${doc.nome}"?`))) return;
     await api(`/api/fin/matriz/${doc.id}`, "DELETE", { usuarioId: user.id }).catch((e) => setErro(e.message));
     const l = await carregarLista();
     setMexidos([]);
@@ -669,7 +670,7 @@ function Lista({ titulo, sub, itens = [], set, cdb }) {
   const total = itens.filter((i) => i.ativo !== false).reduce((s, i) => s + (Number(i.valor) || 0), 0);
   const alt = (id, k, v) => set((l) => l.map((i) => (i.id === id ? { ...i, [k]: v } : i)));
   const add = () => set((l) => [...(l || []), { id: novoId("i"), natureza: "", valor: 0, cdb: false, obs: "" }]);
-  const del = (it) => { if (confirm(`Remover "${it.natureza || "item"}"?`)) set((l) => l.filter((i) => i.id !== it.id)); };
+  const del = async (it) => { if ((await confirmar(`Remover "${it.natureza || "item"}"?`))) set((l) => l.filter((i) => i.id !== it.id)); };
   return (
     <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -822,7 +823,7 @@ function Pessoal({ dados, calc, muda, cenario }) {
         </table>
       </div>
       {edit && <EditarFuncionario p={edit} par={par} onClose={() => setEdit(null)} onSalvar={salvarP}
-        onExcluir={dados.pessoal.some((x) => x.id === edit.id) ? () => { if (confirm("Excluir este funcionário da matriz? (para manter o histórico, prefira Desligar)")) { muda("pessoal", (l) => l.filter((x) => x.id !== edit.id)); setEdit(null); } } : null} />}
+        onExcluir={dados.pessoal.some((x) => x.id === edit.id) ? async () => { if ((await confirmar("Excluir este funcionário da matriz? (para manter o histórico, prefira Desligar)"))) { muda("pessoal", (l) => l.filter((x) => x.id !== edit.id)); setEdit(null); } } : null} />}
     </div>
   );
 }
@@ -1063,7 +1064,7 @@ function Versoes({ user, doc, sujo, onClose, onRestaurado }) {
   const [erro, setErro] = useState("");
   useEffect(() => { api(`/api/fin/matriz/${doc.id}/versoes?u=${user.id}`).then(setL).catch((e) => setErro(e.message)); }, []);
   const restaurar = async (v) => {
-    if (!confirm(`Restaurar a versão de ${dataHora(v.createdAt)}?${sujo ? " As alterações não salvas serão perdidas." : ""} A versão atual fica guardada no histórico.`)) return;
+    if (!(await confirmar(`Restaurar a versão de ${dataHora(v.createdAt)}?${sujo ? " As alterações não salvas serão perdidas." : ""} A versão atual fica guardada no histórico.`))) return;
     try { await api(`/api/fin/matriz/${doc.id}/versoes`, "POST", { usuarioId: user.id, versaoId: v.id }); onRestaurado(); } catch (e) { setErro(e.message); }
   };
   return (

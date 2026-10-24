@@ -4,6 +4,7 @@ import {
   TrendingDown, CreditCard, Plus, Save, X, Trash2, AlertTriangle, CheckCircle2, Landmark,
   Grid3x3, Loader2, ChevronRight, Pencil, Info, Banknote,
 } from "lucide-react";
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -53,7 +54,7 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
 
   const sincronizar = async () => {
     const novos = (d.previaMatriz || []).filter((p) => p.estado !== "IGUAL").length;
-    if (!confirm(`Levar ${d.previaMatriz.length} contrato(s) para a aba Dívidas da Matriz oficial?\n${novos} item(ns) serão criados ou atualizados.\n\nDe lá, as parcelas seguem para o contas a pagar pelo caminho que já existe.`)) return;
+    if (!(await confirmar(`Levar ${d.previaMatriz.length} contrato(s) para a aba Dívidas da Matriz oficial?\n${novos} item(ns) serão criados ou atualizados.\n\nDe lá, as parcelas seguem para o contas a pagar pelo caminho que já existe.`))) return;
     setSincronizando(true);
     try {
       const r = await api("/api/fin/alavancagem/matriz", "POST", { usuarioId: user.id });
@@ -104,11 +105,11 @@ export default function Alavancagem({ user, master, aba = "dividas" }) {
 function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, abrirPagar, sincronizar, sincronizando }) {
   const t = d.totais;
   const novoTributo = async () => {
-    const descricao = prompt("Descrição do tributo (ex.: PARCELAMENTO FEDERAL 4)");
+    const descricao = (await perguntar("Descrição do tributo (ex.: PARCELAMENTO FEDERAL 4)"));
     if (!descricao) return;
-    const grupo = (prompt("Órgão: RFB, PGFN, ESTADUAL ou OUTRO", "RFB") || "OUTRO").toUpperCase();
+    const grupo = ((await perguntar("Órgão: RFB, PGFN, ESTADUAL ou OUTRO", "RFB")) || "OUTRO").toUpperCase();
     try { await api("/api/fin/alavancagem/tributos", "POST", { usuarioId: user.id, grupo, descricao, valor: "", parcelado: true }); onMudou(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const val = (v) => (master ? compacto(v) : "•••••");
   const pendentes = (d.previaMatriz || []).filter((p) => p.estado !== "IGUAL").length;
@@ -262,7 +263,7 @@ function Dividas({ user, master, d, fatias, onMudou, abrirNovo, abrirEditar, abr
 function LinhaContrato({ c, master, user, onMudou, onEditar, onPagar }) {
   const [abrindo, setAbrindo] = useState(false);
   const excluir = async () => {
-    if (!confirm(`Excluir o contrato ${c.nome}?\nEle também sai da aba Dívidas da Matriz na próxima sincronização.`)) return;
+    if (!(await confirmar(`Excluir o contrato ${c.nome}?\nEle também sai da aba Dívidas da Matriz na próxima sincronização.`))) return;
     await fetch(`/api/fin/alavancagem?u=${user.id}&id=${c.id}`, { method: "DELETE" });
     onMudou();
   };
@@ -379,10 +380,10 @@ function LinhaTributo({ x, grupo, master, user, onMudou }) {
   const c = x.calculo || {};
   const editar = async (campo, valor) => {
     try { await api("/api/fin/alavancagem/tributos", "PUT", { usuarioId: user.id, id: x.id, campo, valor }); onMudou(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const excluir = async () => {
-    if (!confirm(`Excluir ${x.descricao}?`)) return;
+    if (!(await confirmar(`Excluir ${x.descricao}?`))) return;
     await fetch(`/api/fin/alavancagem/tributos?u=${user.id}&id=${x.id}`, { method: "DELETE" });
     onMudou();
   };
@@ -497,10 +498,10 @@ function Credito({ user, master, d, onMudou, abrirNovo }) {
 
   const editar = async (id, campo, valor) => {
     try { await api("/api/fin/alavancagem/limites", "PUT", { usuarioId: user.id, id, campo, valor }); onMudou(); }
-    catch (e) { alert(e.message); }
+    catch (e) { alerta(e.message); }
   };
   const excluir = async (c) => {
-    if (!confirm(`Excluir ${c.banco} · ${c.produto}?`)) return;
+    if (!(await confirmar(`Excluir ${c.banco} · ${c.produto}?`))) return;
     await fetch(`/api/fin/alavancagem/limites?u=${user.id}&id=${c.id}`, { method: "DELETE" });
     onMudou();
   };
@@ -660,8 +661,8 @@ function ContratoModal({ user, catalogos, contrato, onClose, onSalvo }) {
   };
 
   // apaga os números que vieram da planilha: o contrato passa a valer só pelo cálculo
-  const usarCalculo = () => {
-    if (!confirm("Descartar os números que vieram da planilha e deixar o contrato valer pelo cálculo do sistema?")) return;
+  const usarCalculo = async () => {
+    if (!(await confirmar("Descartar os números que vieram da planilha e deixar o contrato valer pelo cálculo do sistema?"))) return;
     salvar({ debitoTotalInformado: "", aVencerInformado: "", pagarAteInformado: "",
              valorAPagarInformado: "", jurosTotaisInformado: "", jurosMesInformado: "", parcelasPagasInformadas: "" });
   };
@@ -819,7 +820,7 @@ function PagamentoExtraModal({ user, contrato, onClose, onAplicado }) {
 
   const aplicar = async (modo) => {
     const txt = modo === "PRAZO" ? "abater o prazo" : modo === "PARCELA" ? "reduzir a parcela" : "abater o capital";
-    if (!confirm(`Confirma o pagamento de R$ ${brl(valor)} em ${contrato.nome} para ${txt}?`)) return;
+    if (!(await confirmar(`Confirma o pagamento de R$ ${brl(valor)} em ${contrato.nome} para ${txt}?`))) return;
     setAplicando(modo); setErro("");
     try {
       await api("/api/fin/alavancagem/pagamento", "POST", { usuarioId: user.id, contratoId: contrato.id, valor, data, modo });

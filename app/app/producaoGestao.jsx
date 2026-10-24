@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle } from "lucide-react";
 import { FppResumo } from "./compras";
+import { alerta } from "./dialogo";   // v424 — popups do sistema
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -289,7 +290,7 @@ function Comentarios({ numero, user, lista, onNovo }) {
     const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ acao: "comentar", numero, texto: txt, mencoes: ativos.map((m) => m.id), autorId: user?.id, autorNome: nomeU(user) }) });
     setEnv(false);
-    if (!r.ok) return alert("Não foi possível comentar.");
+    if (!r.ok) return alerta("Não foi possível comentar.");
     setTxt(""); setMencoes([]); onNovo();
   }
   const sugs = sug != null ? us.filter((u) => sem(nomeU(u)).includes(sem(sug))).slice(0, 6) : [];

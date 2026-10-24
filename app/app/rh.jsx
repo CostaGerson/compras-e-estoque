@@ -16,6 +16,7 @@ import PlanoFerias from "./rhFerias";
 import Transmissao from "./transmissao";   // v204 — transmissão de arquivos também no RH (TRCT, cartões de ponto, folha, guias…)
 import { Palmtree } from "lucide-react";
 import { Fingerprint, Award } from "lucide-react";
+import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -448,7 +449,7 @@ function FichaModal({ user, pessoa, onClose }) {
     setSt("");
   };
   const apagar = async (doc) => {
-    if (!confirm(`Remover "${doc.nome}"?`)) return;
+    if (!(await confirmar(`Remover "${doc.nome}"?`))) return;
     try { await api(url, "DELETE", { usuarioId: user.id, docId: doc.id }); await carregar(); } catch (e) { setErro(e.message); }
   };
   return (
