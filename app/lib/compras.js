@@ -364,12 +364,45 @@ export function faseItemPcp(p, chave) {
   return { fase: /LEVANTAMENTO|COMPRA/.test(t) ? "COMPRAS" : "PRODUCAO", coluna: /LEVANTAMENTO/.test(t) ? "LEVANTAMENTO" : /COMPRA/.test(t) ? "COMPRAS" : String(ci.situacao || "").toUpperCase() };
 }
 
+export const ehAvulsa = (num) => /^AV\d+$/.test(String(num || ""));   // v419 — itens de compra avulsa (pedidoNumero "AV<id>")
+export async function pedidosDispensados(db = prisma) {
+  return new Set((await db.compraDispensa.findMany({ select: { pedidoNumero: true } }).catch(() => [])).map((x) => x.pedidoNumero));
+}
+
+// v419 — compra avulsa → itens no levantamento (um por linha), com artigo achado ou criado pelo nome + unidade (+ fornecedor)
+export async function sincronizarAvulsa(c, db = prisma) {
+  const num = `AV${c.id}`;
+  const atuais = await db.compraItem.findMany({ where: { pedidoNumero: num } });
+  if (c.status === "CANCELADA") { await db.compraItem.deleteMany({ where: { pedidoNumero: num } }); return; }
+  const statusDe = { ABERTA: "LEVANTAMENTO", COMPRADA: "OC", RECEBIDA: "ENTREGUE" }[c.status] || "LEVANTAMENTO";
+  const its = (Array.isArray(c.itens) ? c.itens : []).filter((i) => i.nome && Number(i.quantidade) > 0);
+  const chaves = new Set();
+  for (const [idx, i] of its.entries()) {
+    const chave = `ITEM${idx + 1}`; chaves.add(chave);
+    const unidade = ["UN", "M", "KG", "PC"].includes(i.unidade) ? i.unidade : "UN";
+    const forn = i.fornecedorId ? Number(i.fornecedorId) : null;
+    let art = await db.artigo.findFirst({ where: { ativo: true, unidade, fornecedorId: forn, nome: { equals: i.nome, mode: "insensitive" } }, select: { id: true, categoria: true } });
+    if (!art) art = await db.artigo.create({ data: { categoria: "OUTROS", nome: i.nome, unidade, fornecedorId: forn, origem: "AVULSA" }, select: { id: true, categoria: true } });
+    const destino = c.destino === "PEDIDO" ? `PEDIDO ${c.pedidoRef || ""}`.trim() : "OPERAÇÃO";
+    const dados = { descricao: i.nome, quantidade: Number(i.quantidade), cliente: `AVULSA ${c.numero || `#${c.id}`} · ${destino}`,
+      entrega: i.bomPara ? new Date(`${i.bomPara}T00:00:00Z`) : null, status: statusDe,
+      demanda: [{ papel: "AVULSA", artigoId: art.id, nome: i.nome, categoria: art.categoria, unidade, fornecedorId: forn, fornecedor: i.fornecedorNome || null,
+        cor: null, codigo: null, largura: null, consumoPorPeca: 1, quantidade: Number(i.quantidade), valorUnitario: null, embalagem: null, obs: null, equiparadoA: null }] };
+    const ex = atuais.find((x) => x.chave === chave);
+    if (ex) { if (ex.status === "LEVANTAMENTO" || ["OC", "ENTREGUE", "LEVANTAMENTO"].includes(ex.status)) await db.compraItem.update({ where: { id: ex.id }, data: dados }); }
+    else await db.compraItem.create({ data: { pedidoNumero: num, chave, ...dados } });
+  }
+  const sobra = atuais.filter((x) => !chaves.has(x.chave)).map((x) => x.id);
+  if (sobra.length) await db.compraItem.deleteMany({ where: { id: { in: sobra } } });
+}
+
 export async function itensAbertos(db = prisma) {
-  const itens = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] });
+  const dispensados = await pedidosDispensados(db);   // v419
+  const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
   const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true } });
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
   // v417/v418 — item programado/em produção no PCP sai do levantamento
-  return itens.filter((i) => porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO");
+  return itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));
 }
 
 // reservas do estoque: itens atendidos pelo estoque cujo material ainda não seguiu para a produção.

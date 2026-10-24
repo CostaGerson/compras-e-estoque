@@ -1901,3 +1901,12 @@ model CompraAvulsa {
 
   @@index([status])
 }
+
+// v419 — pedido do KM só para faturamento: compras dispensadas (sai de pedidos, levantamento e cruzamento)
+model CompraDispensa {
+  id           Int      @id @default(autoincrement())
+  pedidoNumero String   @unique
+  motivo       String?
+  porNome      String?
+  createdAt    DateTime @default(now())
+}

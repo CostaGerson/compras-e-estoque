@@ -14,7 +14,7 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
+import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
@@ -315,6 +315,12 @@ export default function Home() {
         <div className="flex-1 overflow-auto px-5 py-3">
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
+          {view === "compras" && pode("comprasPedidos") && (   // v419 — compra avulsa já na entrada de Compras
+            <div className="mt-6 max-w-5xl rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Compra avulsa</div>
+              <Avulsas user={user} />
+            </div>
+          )}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}

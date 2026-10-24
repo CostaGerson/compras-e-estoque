@@ -16,6 +16,7 @@ const qtdG = (v, u, emb) => (emb ? `${qtdU(v, u)} · ${Math.ceil((Number(v) || 0
 const tipoMat = (m) => (m.papel === "FORRO" ? "forro" : m.categoria === "MALHA" ? "malha" : m.categoria === "AVIAMENTO" ? "aviamento" : "tecido");
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+const rotPed = (n, cli) => (/^AV\d+$/.test(String(n || "")) ? `Compra avulsa · ${cli || ""}` : `Pedido ${n} · ${cli || ""}`);   // v419
 const nomeUser = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
 const detArtigo = (d) => [d.fornecedor, d.cor, d.codigo, d.largura ? `${String(d.largura).replace(".", ",")} m` : null].filter(Boolean).join(" · ");
 
@@ -194,6 +195,18 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
     if (!r.ok) return alert(x.error || "Não foi possível vincular.");
     setResumo(null); carregar();
   }
+  async function dispensar(p) {   // v419 — pedido só para faturamento
+    const motivo = prompt(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras e não entra no levantamento nem no cruzamento.\n\nMotivo (opcional):`, "Só para faturamento");
+    if (motivo === null) return;
+    const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, motivo, quem: nomeUser(user) }) });
+    if (!r.ok) return alert("Erro ao dispensar.");
+    carregar();
+  }
+  async function reativar(p) {
+    if (!confirm(`Voltar o pedido ${p.numero} para compras?`)) return;
+    await fetch("/api/compras/pedidos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero }) });
+    carregar();
+  }
   async function desvincular(p, it) {
     if (!confirm(`Tirar a FPP do item ${it.codigo || it.chave}? A demanda sai do levantamento.`)) return;
     const r = await fetch("/api/compras/itens", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, chave: it.chave }) });
@@ -223,7 +236,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"]].map(([k, l]) => (
+        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"], ["dispensadas", `Compras dispensadas (${(d.dispensados || []).length})`]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{l}</button>
         ))}
         <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
@@ -234,8 +247,23 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       </div>
 
       {filtro === "avulsas" && <Avulsas user={user} />}
-      {filtro !== "avulsas" && !lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
-      {filtro !== "avulsas" && lista.map((p) => {
+      {filtro === "dispensadas" && (
+        <div>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>Pedidos lançados no KM só para faturamento: não entram em compras, levantamento nem cruzamento.</div>
+          {!(d.dispensados || []).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido dispensado.</div>}
+          {(d.dispensados || []).map((p) => (
+            <div key={p.numero} className="flex items-center gap-3 px-4 py-3 rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente}</div>
+                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)}{p.motivo ? ` · ${p.motivo}` : ""} · dispensado {new Date(p.em).toLocaleDateString("pt-BR")}{p.porNome ? ` por ${p.porNome}` : ""}</div>
+              </div>
+              <button onClick={() => reativar(p)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.line}`, color: C.accent }}><Undo2 size={13} /> Voltar para compras</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {!["avulsas", "dispensadas"].includes(filtro) && !lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
+      {!["avulsas", "dispensadas"].includes(filtro) && lista.map((p) => {
         const ab = aberto[p.numero] ?? (lista.length <= 3);
         const ok = p.comFpp >= p.total;
         return (
@@ -247,6 +275,8 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                 <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.fasePcp === "FORA" ? " · fora do PCP" : p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}{p.itensFora ? ` · ${p.itensFora} item(ns) já programado(s) não aparecem` : ""}</div>
               </div>
               <Chip cor={ok ? C.green : C.accent} fundo={ok ? C.greenSoft : C.accentSoft}>{p.comFpp}/{p.total} itens com FPP</Chip>
+              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras"
+                className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</span>
             </button>
             {ab && (
               <div className="px-4 pb-3 space-y-2">
@@ -270,9 +300,9 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
 // ---------- v417 — compras avulsas (operação ou complemento de pedido) ----------
 const diasAte = (iso) => { if (!iso) return null; const h = new Date(); h.setHours(0, 0, 0, 0); return Math.round((new Date(`${iso}T00:00:00`) - h) / 86400000); };
 const corBomPara = (iso) => { const dd = diasAte(iso); if (dd == null) return null; return dd <= 2 ? [C.red, C.redSoft] : dd <= 5 ? [C.yellow, C.yellowSoft] : [C.green, C.greenSoft]; };
-const UNIDADES_AV = [["UN", "un"], ["M", "m"], ["KG", "kg"], ["PC", "pç"], ["CX", "cx"], ["RL", "rolo"]];
+const UNIDADES_AV = [["UN", "un"], ["M", "m"], ["KG", "kg"], ["PC", "pç"]];
 let _fornAv = null;
-function Avulsas({ user }) {
+export function Avulsas({ user }) {
   const [l, setL] = useState(null);
   const [ed, setEd] = useState(null);   // compra em edição (nova ou existente)
   const [forns, setForns] = useState(_fornAv || []);
@@ -297,7 +327,7 @@ function Avulsas({ user }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <div className="text-xs flex-1" style={{ color: C.sub }}>Material para a operação ou para completar um pedido. <b>Bom para</b> = data máxima de chegada na fábrica: até 2 dias vermelho, até 5 amarelo, depois verde.</div>
+        <div className="text-xs flex-1" style={{ color: C.sub }}>Material para a operação ou para completar um pedido. Aberta, a compra entra no <b>Levantamento</b>. <b>Bom para</b> = data máxima de chegada na fábrica: até 2 dias vermelho, até 5 amarelo, depois verde.</div>
         <button onClick={() => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] })}
           className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Compra avulsa</button>
       </div>
@@ -520,7 +550,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar }) {
           <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>
             {(() => { const ids = [...new Set(p.linhas.map((l) => l.itemId))]; const todos = ids.every((x) => marc.has(x));
               return <input type="checkbox" checked={todos} title="Marcar o pedido inteiro" onChange={() => setMarc((s0) => { const n = new Set(s0); ids.forEach((x) => (todos ? n.delete(x) : n.add(x))); return n; })} />; })()}
-            Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+            {rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
           {p.linhas.map((l, i) => (
             <div key={i} className="flex px-4 py-2 text-xs gap-2" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
               <input type="checkbox" checked={marc.has(l.itemId)} onChange={() => tog(l.itemId)} style={{ visibility: i && p.linhas[i - 1].itemId === l.itemId ? "hidden" : "visible" }} />
@@ -565,7 +595,7 @@ export function Atendidos({ fases, ir }) {
       {d && !d.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum item atendido pelo estoque.</div>}
       {porPedido.map((p) => (
         <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="px-4 py-2 text-sm font-semibold" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+          <div className="px-4 py-2 text-sm font-semibold" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>{rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
           {p.itens.map((i) => (
             <label key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}`, cursor: i.seguiu ? "default" : "pointer" }}>
               <input type="checkbox" disabled={i.seguiu} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
@@ -632,7 +662,7 @@ function Cruzamento({ user, veValores, onMudou }) {
         return (
           <div key={p.numero} className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
             </div>
             {p.itens.map((i) => (

@@ -3,6 +3,21 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp } from "@/lib/compras";
 
+// v419 — dispensar compras (pedido só para faturamento): POST { pedidoNumero, motivo, quem } · DELETE { pedidoNumero } reativa
+export async function POST(req) {
+  const b = await req.json().catch(() => ({}));
+  const n = String(b.pedidoNumero || "").trim();
+  if (!n) return Response.json({ error: "Pedido?" }, { status: 400 });
+  await prisma.compraDispensa.upsert({ where: { pedidoNumero: n }, create: { pedidoNumero: n, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
+  await prisma.compraItem.deleteMany({ where: { pedidoNumero: n, OR: [{ status: "LEVANTAMENTO" }, { status: "ESTOQUE", reservaLiberada: false }] } });
+  return Response.json({ ok: true });
+}
+export async function DELETE(req) {
+  const b = await req.json().catch(() => ({}));
+  await prisma.compraDispensa.deleteMany({ where: { pedidoNumero: String(b.pedidoNumero || "") } });
+  return Response.json({ ok: true });
+}
+
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
 export async function GET() {
@@ -21,7 +36,10 @@ export async function GET() {
   const fppPorId = Object.fromEntries(fpps.map((f) => [f.id, f]));
   const out = [];
   let emProducao = 0;
+  const disp = Object.fromEntries((await prisma.compraDispensa.findMany()).map((x) => [x.pedidoNumero, x]));   // v419
+  const dispensados = [];
   for (const p of pedidos) {
+    if (disp[p.numero]) { dispensados.push({ numero: p.numero, cliente: p.cliente, entrega: iso(p.despacho), total: p.total, motivo: disp[p.numero].motivo, porNome: disp[p.numero].porNome, em: disp[p.numero].createdAt }); continue; }
     // v417 — só os pedidos em levantamento/compras no PCP (ou ainda fora dele); programado/produção/concluído já tem MP comprada
     const fase = faseCompraPcp(p);
     if (fase === "PRODUCAO") { emProducao++; continue; }
@@ -53,5 +71,5 @@ export async function GET() {
       situacaoPcp: p.cronoSituacao, fasePcp: fase, itensFora, vendedor: p.vendedor, itens: lst,
       comFpp: lst.filter((i) => i.vinculo).length, total: lst.length });
   }
-  return Response.json({ pedidos: out, emProducao });
+  return Response.json({ pedidos: out, emProducao, dispensados });
 }
