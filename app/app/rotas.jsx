@@ -178,7 +178,7 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
       if (!vivo || !ref.current) return;
       if (!mapa.current) {
         mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { attribution: "© OpenStreetMap © CARTO", subdomains: "abcd", maxZoom: 19 }).addTo(mapa.current);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(mapa.current);   // v428 — CARTO passou a exigir chave
         camada.current = L.layerGroup().addTo(mapa.current);
       }
       const m = mapa.current; camada.current.clearLayers();
