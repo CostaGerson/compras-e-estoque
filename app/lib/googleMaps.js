@@ -28,8 +28,26 @@ export async function autocompletar(texto, sessao) {
   }));
 }
 
+// v432 — número digitado pelo usuário (ex.: "rua mato grosso, 676" → "676")
+function numeroDigitado(t, rua) {
+  const daRua = new Set(String(rua || "").match(/\d+/g) || []);   // "Rua 2" → o 2 é nome da rua, não o número
+  for (const m of String(t || "").matchAll(/(?:,|\bn[º°o.]?\s*|\s)(\d{1,6})(?=\s*(?:[,\-–]|$|\s+[a-zA-Z]))/gi)) if (!daRua.has(m[1])) return m[1];
+  return null;
+}
+
 // lugar escolhido: endereço completo + coordenadas
-export async function lugar(placeId, sessao) {
+// v432 — quando o Google sugere só a rua (sem número), junta o número digitado e localiza o endereço exato
+export async function lugar(placeId, sessao, digitado) {
+  const g = await lugarBase(placeId, sessao);
+  if (!g || g.numero) return g;
+  const num = numeroDigitado(digitado, g.rua);
+  if (!num || !g.rua) return g;
+  const completo = [`${g.rua}, ${num}`, g.bairro, g.municipio && g.uf ? `${g.municipio} - ${g.uf}` : g.municipio].filter(Boolean).join(", ");
+  const x = await geocodificar(completo).catch(() => null);
+  if (x?.endereco && x.numero) return { ...g, endereco: x.endereco, lat: x.lat, lng: x.lng, numero: x.numero };
+  return { ...g, endereco: `${g.rua}, ${num}${g.endereco.startsWith(g.rua) ? g.endereco.slice(g.rua.length) : ` - ${g.endereco}`}` };
+}
+async function lugarBase(placeId, sessao) {
   if (!temGoogle() || !placeId) return null;
   const r = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=pt-BR${sessao ? `&sessionToken=${encodeURIComponent(sessao)}` : ""}`, {
     cache: "no-store", headers: { "X-Goog-Api-Key": KEY(), "X-Goog-FieldMask": "formattedAddress,location,addressComponents,displayName" },
@@ -40,6 +58,8 @@ export async function lugar(placeId, sessao) {
     endereco: j.formattedAddress || "", lat: j.location?.latitude ?? null, lng: j.location?.longitude ?? null, nome: j.displayName?.text || null,
     municipio: compDe(j.addressComponents, "administrative_area_level_2") || compDe(j.addressComponents, "locality"),
     uf: compDe(j.addressComponents, "administrative_area_level_1", true),
+    numero: compDe(j.addressComponents, "street_number"), rua: compDe(j.addressComponents, "route"),
+    bairro: compDe(j.addressComponents, "sublocality_level_1") || compDe(j.addressComponents, "sublocality"),
   };
 }
 
@@ -51,7 +71,7 @@ export async function geocodificar(endereco) {
   if (j.status === "ZERO_RESULTS") return null;
   if (j.status !== "OK") throw new Error(`Google: ${j.status}${j.error_message ? ` · ${j.error_message}` : ""}`);
   const x = j.results[0];
-  return { lat: x.geometry.location.lat, lng: x.geometry.location.lng,
+  return { lat: x.geometry.location.lat, lng: x.geometry.location.lng, endereco: x.formatted_address, numero: compDe(x.address_components, "street_number"),
     municipio: compDe(x.address_components, "administrative_area_level_2") || compDe(x.address_components, "locality"), uf: compDe(x.address_components, "administrative_area_level_1", true) };
 }
 

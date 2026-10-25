@@ -24,7 +24,7 @@ export async function GET(req) {
   if (q.get("destinatarios")) return Response.json(await listarDestinatarios());   // v430
   // v427 — autocomplete de endereço do Google
   if (q.get("auto") != null) { try { return Response.json(await autocompletar(q.get("auto"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
-  if (q.get("lugar")) { try { return Response.json(await lugar(q.get("lugar"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
+  if (q.get("lugar")) { try { return Response.json(await lugar(q.get("lugar"), q.get("sessao"), q.get("digitado"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
   const de = q.get("de"), ate = q.get("ate");
   if (!de || !ate) return Response.json({ error: "Período?" }, { status: 400 });
   return Response.json({ ...(await painel({ de, ate })), podeMontar: podeMontar(u), pessoaId: u.pessoaId, google: temGoogle() });

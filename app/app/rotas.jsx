@@ -249,7 +249,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder =
   const escolher = async (x) => {
     setAberto(false); setSug([]); digitou.current = false;
     try {
-      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}`);
+      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}&digitado=${encodeURIComponent(value || "")}`);
       sessao.current = null;
       if (g?.endereco) { onChange(g.endereco); onGeo?.(g); } else onChange(x.texto);
     } catch { onChange(x.texto); }
