@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ExternalLink, Undo2, Home } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -643,7 +643,38 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
 }
 
 // ---------- blocos (rotas montadas) ----------
+// v443 — mensagem da rota: reenviar no WhatsApp ou copiar
+function MensagemRota({ user, id, onClose }) {
+  const [m, setM] = useState(null);
+  const [copiou, setCopiou] = useState(false);
+  useEffect(() => { api("/api/rotas", "POST", { usuarioId: user.id, acao: "mensagem", id }).then(setM).catch((e) => { alerta(e.message); onClose(); }); }, [id]);
+  const copiar = async () => { try { await navigator.clipboard.writeText(m.texto); setCopiou(true); setTimeout(() => setCopiou(false), 2000); } catch { alerta("Não consegui copiar. Selecione o texto e copie."); } };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-lg shadow-2xl" style={{ background: C.panel }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <MessageCircle size={18} style={{ color: C.accent }} />
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>Mensagem da rota {id}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        {!m ? <div className="p-5 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Montando a mensagem…</div> : (
+          <div className="p-5 space-y-3">
+            {m.whatsapp ? <a href={m.whatsapp} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={15} /> Enviar no WhatsApp de {sc(m.bloco.motoristaNome)}</a>
+              : <div className="text-xs px-3 py-2 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>{sc(m.bloco.motoristaNome)} não tem telefone cadastrado. Copie a mensagem abaixo.</div>}
+            <textarea readOnly value={m.texto} rows={10} className="w-full px-2 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, color: C.sub }} />
+            <div className="flex justify-end gap-2">
+              <button onClick={copiar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Copy size={14} /> {copiou ? "Copiada!" : "Copiar mensagem"}</button>
+              <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
+  const [msg, setMsg] = useState(false);   // v443
   const l = [...demandas].sort((a, z) => (a.ordem || 0) - (z.ordem || 0));
   const feitas = l.filter((x) => x.status === "CONCLUIDA").length;
   const cor = b.status === "EM_EXECUCAO" ? C.accent : b.status === "CONCLUIDO" ? C.green : C.yellow;
@@ -672,6 +703,8 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
       <div className="flex flex-wrap items-center gap-2 px-4 py-2" style={{ borderTop: `1px solid ${C.line}` }}>
         {(b.links || []).map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1" style={{ color: C.blue }}><ExternalLink size={12} /> Maps{b.links.length > 1 ? ` ${i + 1}` : ""}</a>)}
         <div className="flex-1" />
+        {pode && <button onClick={() => setMsg(true)} className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><MessageCircle size={12} /> Mensagem</button>}
+        {msg && <MensagemRota user={user} id={b.id} onClose={() => setMsg(false)} />}
         {b.status === "MONTAGEM" && pode && <>
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
           <button onClick={onEditar} className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir / despachar</button>

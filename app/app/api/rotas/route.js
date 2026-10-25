@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -60,6 +60,7 @@ export async function POST(req) {
         await prisma.mensagem.create({ data: { deId: u.id, paraId: x.usuarioMotorista, texto: x.texto.slice(0, 2000) } }).catch(() => null);
       return r(x);
     }
+    case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443
     case "desfazerBloco": if (!podeMontar(u)) return negado(); return r(await desfazerBloco(b.id));
     case "parada": case "retorno": {
       // o motorista da rota (pelo usuário ligado à folha) ou quem monta as rotas

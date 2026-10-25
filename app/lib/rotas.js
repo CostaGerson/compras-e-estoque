@@ -426,6 +426,18 @@ export async function despachar(id) {
   return { ok: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto, usuarioMotorista: usu?.id || null };
 }
 
+// v443 — mensagem da rota (para copiar ou reenviar no WhatsApp) a qualquer momento, sem mudar o status
+export async function mensagemBloco(id) {
+  const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
+  if (!bl) return { error: "Rota não encontrada." };
+  const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  const fab = await fabrica();
+  const links = bl.links?.length ? bl.links : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
+  const texto = mensagemWhats(bl, ds, links);
+  const tel = telefoneWa(bl.telefone);
+  return { ok: true, bloco: { ...bl, data: iso(bl.data), links }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
+}
+
 export async function concluirParada(id, u, desfazer = false) {
   const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
   if (!d || !d.blocoId) return { error: "Parada não encontrada." };
