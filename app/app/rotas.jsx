@@ -116,7 +116,7 @@ export default function Rotas({ user }) {
             if (i >= 5 && !fds.has(i)) return null;   // v436 — fim de semana recolhido
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
-                style={{ flex: grande ? 2.2 : 1, background: grande ? "#FFF8F3" : C.panel, border: `${sel ? 2 : 1}px solid ${sel ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
+                style={{ flex: grande ? 2.2 : 1, background: C.panel, border: `${sel || grande ? 2 : 1}px solid ${sel || grande ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
                 <div className="flex items-baseline gap-1 mb-1.5">
                   <span className="text-xs font-semibold" style={{ color: grande ? C.accent : C.sub }}>{DIAS[i]}</span>
                   <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
@@ -154,7 +154,7 @@ export default function Rotas({ user }) {
             const l = ordenar(porDia[x] || []);
             const fora = x.slice(5, 7) !== ref.slice(5, 7);
             return (
-              <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: x === H ? "#FFF8F3" : C.panel, border: `${x === dia ? 2 : 1}px solid ${x === dia ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
+              <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: C.panel, border: `${x === dia || x === H ? 2 : 1}px solid ${x === dia || x === H ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
                 <div className="text-xs font-bold mb-1" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}</div>
                 {l.slice(0, 3).map((y) => <MiniDemanda key={y.id} x={y} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
@@ -267,7 +267,7 @@ function MapasDia({ demandas, fabrica }) {
 }
 
 // v427 — campo de endereço com sugestões do Google Maps enquanto digita (sem a chave, é um campo comum)
-function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder = "Rua, número, bairro, cidade - UF" }) {
+function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, placeholder = "Rua, número, bairro, cidade - UF" }) {
   const [sug, setSug] = useState([]);
   const [aberto, setAberto] = useState(false);
   const [errG, setErrG] = useState("");   // v431 — erro do Google aparece embaixo do campo
@@ -285,8 +285,24 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder =
     }, 350);
     return () => clearTimeout(t.current);
   }, [value]);
+  // v438 — endereço vindo do cadastro: procura no Google o correspondente (sem CEP); sem endereço, procura pelo nome
+  const [doCad, setDoCad] = useState(false);
+  useEffect(() => {
+    if (!buscar) return;
+    const limpo = String(buscar.texto || "").replace(/,?\s*CEP\s*[\d.\-]+/i, "").trim();
+    const consultas = [limpo, limpo && buscar.nome ? `${buscar.nome} ${limpo.split(",").slice(-1)[0]}` : buscar.nome].filter((x) => x && x.trim().length >= 3);
+    if (!consultas.length) return;
+    if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    (async () => {
+      for (const c of consultas) {
+        const l = await fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(c)}&sessao=${sessao.current}`).then((r) => r.json()).catch(() => null);
+        if (Array.isArray(l) && l.length) { setErrG(""); setSug(l); setDoCad(true); setAberto(true); return; }
+        if (l && !Array.isArray(l)) { setErrG(l.error || "Google não respondeu."); return; }
+      }
+    })();
+  }, [buscar?.t]);
   const escolher = async (x) => {
-    setAberto(false); setSug([]); digitou.current = false;
+    setAberto(false); setSug([]); setDoCad(false); digitou.current = false;
     try {
       const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}&digitado=${encodeURIComponent(value || "")}`);
       sessao.current = null;
@@ -295,10 +311,11 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder =
   };
   return (
     <div className="relative">
-      <input autoFocus={autoFocus} value={value || ""} onChange={(e) => { digitou.current = true; onChange(e.target.value); onGeo?.(null); }} onFocus={() => sug.length && setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
+      <input autoFocus={autoFocus} value={value || ""} onChange={(e) => { digitou.current = true; setDoCad(false); onChange(e.target.value); onGeo?.(null); }} onFocus={() => sug.length && setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
         placeholder={placeholder} className={inp} style={inpS} />
       {aberto && sug.length > 0 && (
         <div className="absolute z-30 left-0 right-0 mt-1 rounded-md shadow-lg max-h-64 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {doCad && <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold" style={{ color: C.accent }}>ESCOLHA O ENDEREÇO DO CADASTRO NO GOOGLE (ATUALIZA O CADASTRO)</div>}
           {sug.map((x) => (
             <button key={x.placeId} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(x); }} className="flex items-start gap-2 w-full text-left px-3 py-1.5 hover:bg-gray-50">
               <MapPin size={14} className="mt-0.5 shrink-0" style={{ color: C.sub }} />
@@ -338,9 +355,15 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const [erro, setErro] = useState("");
   useEffect(() => { if (!_destinos) api(`/api/rotas?u=${user.id}&destinos=1`).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const sug = useMemo(() => { const t = sem(q).trim(); return t.length < 2 ? [] : lista.filter((x) => sem(`${x.nome} ${x.endereco}`).includes(t)).slice(0, 8); }, [q, lista]);
+  // v438 — busca também pela razão social/CNPJ; quem começa com o texto vem primeiro
+  const sug = useMemo(() => { const t = sem(q).trim(); if (t.length < 2) return [];
+    const td = t.replace(/\D/g, "");
+    const l = lista.filter((x) => sem(`${x.nome} ${x.busca || ""} ${x.endereco}`).includes(t) || (td.length >= 5 && String(x.busca || "").replace(/\D/g, "").includes(td)));
+    return l.sort((a, b) => (sem(b.nome).startsWith(t) - sem(a.nome).startsWith(t))).slice(0, 10); }, [q, lista]);
+  const [buscaEnd, setBuscaEnd] = useState(null);   // v438 — pede ao Google o endereço do cadastro escolhido
   const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco,
-    geo: x.lat != null ? { endereco: x.endereco, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf } : null, contato: x.contato || "", telefone: x.telefone || "" })); };
+    geo: x.lat != null ? { endereco: x.endereco, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf } : null, contato: x.contato || "", telefone: x.telefone || "" }));
+    if (x.lat == null) setBuscaEnd({ t: Date.now(), texto: x.endereco || "", nome: x.nome }); };
   // v430 — estabelecimentos do Google pelo nome (vira destinatário novo ao salvar)
   const [sugG, setSugG] = useState([]);
   const [errQ, setErrQ] = useState("");   // v431
@@ -415,7 +438,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           </div>
           <L t="O que fazer lá" span><input value={f.tarefa || ""} onChange={(e) => set("tarefa", e.target.value)} placeholder="ex.: buscar 300 camisas cortadas · levar NF 1234 · comprar linha" className={inp} style={inpS} /></L>
           <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
-            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} /></div>
+            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} buscar={buscaEnd} /></div>
           <L t="Contato"><input value={f.contato || ""} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Telefone"><input value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Data"><input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} style={inpS} /></L>
@@ -787,7 +810,7 @@ function DestinatarioForm({ user, inicial, onClose, onOk }) {
         <div className="p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <L t="Nome" span><input autoFocus value={f.nome} onChange={(e) => set("nome", e.target.value.toUpperCase())} className={inp} style={inpS} /></L>
           <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo || (f.lat != null && f.endereco === inicial.endereco) ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
-            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} /></div>
+            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} buscar={buscaEnd} /></div>
           <L t="Contato"><input value={f.contato || ""} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Telefone"><input value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Observação" span><textarea value={f.obs || ""} onChange={(e) => set("obs", e.target.value)} rows={2} className={inp} style={inpS} /></L>

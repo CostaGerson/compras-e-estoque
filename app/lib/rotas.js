@@ -79,14 +79,16 @@ export async function destinos() {
   const [fs, ps, cs, dsx] = await Promise.all([
     prisma.fornecedor.findMany({ where: { ativo: true }, select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true, logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true, contato: true, preposto: true, telefone: true, telefones: true } }),
     prisma.prestador.findMany({ where: { ativo: true, tipo: "TERCEIRIZADO" }, select: { id: true, nome: true, endereco: true, telefone: true } }),
-    prisma.cliente.findMany({ where: { ativo: true }, select: { id: true, razaoSocial: true, nomeFantasia: true, logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true, preposto: true, telefones: true } }),
+    prisma.cliente.findMany({ where: { ativo: true }, select: { id: true, cnpj: true, razaoSocial: true, nomeFantasia: true, logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true, preposto: true, telefones: true } }),
     prisma.destinatario.findMany({ where: { ativo: true } }),   // v430
   ]);
   return [
     ...dsx.map((x) => ({ tipo: "DESTINATARIO", id: x.id, nome: up(x.nome), endereco: x.endereco || "", contato: x.contato || null, telefone: x.telefone || null, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf })),
     ...ps.map((p) => ({ tipo: "TERCEIRIZADO", id: p.id, nome: up(p.nome), endereco: p.endereco || "", contato: null, telefone: p.telefone || null })),
-    ...fs.map((f) => ({ tipo: "FORNECEDOR", id: f.id, nome: up(f.nome || f.nomeFantasia || f.razaoSocial), endereco: juntaEnd(f), contato: f.contato || f.preposto || null, telefone: f.telefone || f.telefones || null })),
-    ...cs.map((c) => ({ tipo: "CLIENTE", id: c.id, nome: up(c.nomeFantasia || c.razaoSocial), endereco: juntaEnd(c), contato: c.preposto || null, telefone: c.telefones || null })),
+    ...fs.map((f) => ({ tipo: "FORNECEDOR", id: f.id, nome: up(f.nome || f.nomeFantasia || f.razaoSocial), endereco: juntaEnd(f), contato: f.contato || f.preposto || null, telefone: f.telefone || f.telefones || null,
+      busca: [f.nome, f.nomeFantasia, f.razaoSocial].filter(Boolean).join(" ") })),
+    ...cs.map((c) => ({ tipo: "CLIENTE", id: c.id, nome: up(c.nomeFantasia || c.razaoSocial), endereco: juntaEnd(c), contato: c.preposto || null, telefone: c.telefones || null,
+      busca: [c.nomeFantasia, c.razaoSocial, c.cnpj].filter(Boolean).join(" ") })),   // v438 — acha o cliente pela razão social, fantasia ou CNPJ
   ].filter((x) => x.nome).sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
