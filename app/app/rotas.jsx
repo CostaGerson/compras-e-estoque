@@ -450,7 +450,9 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           </L>
           {["FIXO", "ATE", "APOS", "ENTRE"].includes(f.horarioTipo) && <L t={f.horarioTipo === "ENTRE" ? "De" : f.horarioTipo === "FIXO" ? "Às" : f.horarioTipo === "ATE" ? "Até as" : "Após as"}><input type="time" value={f.hora1 || ""} onChange={(e) => set("hora1", e.target.value)} className={inp} style={inpS} /></L>}
           {f.horarioTipo === "ENTRE" && <L t="Até"><input type="time" value={f.hora2 || ""} onChange={(e) => set("hora2", e.target.value)} className={inp} style={inpS} /></L>}
-          {["FIXO", "ATE", "APOS"].includes(f.horarioTipo) && <div />}
+          {/* v442 — tempo previsto no local (entra na previsão da rota) */}
+          <L t="Tempo previsto no local (min)"><input type="number" min="0" step="5" value={f.tempoLocal ?? 15} onChange={(e) => set("tempoLocal", e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value, 10) || 0))} className={inp} style={inpS} /></L>
+          {!["FIXO", "ATE", "APOS"].includes(f.horarioTipo) && <div />}
 
           <div className="col-span-2 flex items-center gap-4 pt-1">
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.urgente ? C.red : C.sub }}><input type="checkbox" checked={!!f.urgente} onChange={(e) => set("urgente", e.target.checked)} /> Urgente</label>
