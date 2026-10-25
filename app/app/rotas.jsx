@@ -25,7 +25,20 @@ const api = async (url, method = "GET", body) => {
 };
 const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag] };
 const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXECUCAO: ["em execução", C.accent], CONCLUIDA: ["concluída", C.green] };
-const corDemanda = (d) => (d.status === "CONCLUIDA" ? { bg: C.greenSoft, bd: C.green, tx: C.text } : d.urgente ? { bg: C.redSoft, bd: C.red, tx: C.red } : d.frete ? { bg: C.blueSoft, bd: C.blue, tx: C.blue } : { bg: C.panel, bd: C.line, tx: C.text });
+// v435 — cor por tipo: coleta cinza, entrega azul claro, compra amarela, frete por transportadora azul escuro;
+// concluída verde; urgente mantém a cor do tipo com borda vermelha
+const TIPO_COR = {
+  COLETA: { bg: "#EEF0F3", bd: "#98A2B3", tx: "#344054", sb: "#667085", pin: "#98A2B3" },
+  ENTREGA: { bg: "#E3F0FC", bd: "#5BA4E6", tx: "#1D4F80", sb: "#4A6B8C", pin: "#5BA4E6" },
+  COMPRA: { bg: "#FFF4CC", bd: "#E0A800", tx: "#6B4D00", sb: "#8A6D1F", pin: "#E0A800" },
+  TRANSP: { bg: "#001E41", bd: "#001E41", tx: "#FFFFFF", sb: "#B8C4D6", pin: "#001E41" },
+};
+const tipoCor = (d) => (d.frete && d.freteTipo === "TRANSPORTADORA" ? TIPO_COR.TRANSP : TIPO_COR[d.objetivo] || TIPO_COR.COLETA);
+const corDemanda = (d) => {
+  if (d.status === "CONCLUIDA") return { bg: C.greenSoft, bd: C.green, tx: C.text, sb: C.sub, bw: 1 };
+  const t = tipoCor(d);
+  return d.urgente ? { ...t, bd: C.red, bw: 2 } : { ...t, bw: 1 };
+};
 // v434 — card: NOME CURTO - Tarefa ("ALPINO LINHAS E AVIAMENTOS LTDA" + "COLETAR PEDIDO" → "ALPINO - Coletar pedido")
 const nomeCurto = (n) => { const p = String(n || "").toUpperCase().trim().split(/\s+/).filter(Boolean); return p.length > 1 && p[0].length <= 3 ? `${p[0]} ${p[1]}` : p[0] || ""; };
 const frase = (t) => { const s0 = String(t || "").trim().toLowerCase(); return s0 ? s0[0].toUpperCase() + s0.slice(1) : ""; };
@@ -151,12 +164,12 @@ function MiniDemanda({ x, grande, onClick }) {
   const c = corDemanda(x);
   const Ico = OBJ[x.objetivo]?.[1] || MapPin;
   return (
-    <button onClick={onClick} className="w-full text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `1px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.7 : 1 }}>
+    <button onClick={onClick} className="w-full text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.7 : 1 }}>
       <div className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: c.tx }}>
         {x.status === "CONCLUIDA" ? <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} /> : <Ico size={11} className="shrink-0" />}
         <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""}`} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
-      {grande && <div className="text-[10px] truncate" style={{ color: C.sub }}>{OBJ[x.objetivo]?.[0]} · {x.horario}{x.motoristaNome ? ` · ${sc(x.motoristaNome.split(" ")[0])}` : ""}</div>}
+      {grande && <div className="text-[10px] truncate" style={{ color: c.sb }}>{OBJ[x.objetivo]?.[0]} · {x.horario}{x.motoristaNome ? ` · ${sc(x.motoristaNome.split(" ")[0])}` : ""}</div>}
     </button>
   );
 }
@@ -208,7 +221,7 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
   return <div ref={ref} className="rounded-lg overflow-hidden" style={{ height: altura, background: "#E9EDF3", zIndex: 0 }} />;
 }
 function MapasDia({ demandas, fabrica }) {
-  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : x.frete ? C.blue : C.accent });
+  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : tipoCor(x).pin });
   const com = demandas.filter((x) => x.lat != null);
   const rmbh = com.filter((x) => x.regiao === "RMBH" || !x.regiao).map(ponto);
   const mg = com.filter((x) => x.regiao === "MG").map(ponto);
