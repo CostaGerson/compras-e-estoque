@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -21,6 +21,7 @@ export async function GET(req) {
   const u = await quem(q.get("u"));
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
+  if (q.get("minhas")) return Response.json({ ...(await minhasRotas(u.pessoaId)), pessoaId: u.pessoaId, nome: u.nome });   // v452 — app do motorista
   if (q.get("destinatarios")) return Response.json(await listarDestinatarios());   // v430
   // v427 — autocomplete de endereço do Google
   if (q.get("auto") != null) { try { return Response.json(await autocompletar(q.get("auto"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
@@ -62,6 +63,13 @@ export async function POST(req) {
     }
     case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443
     case "desfazerBloco": if (!podeMontar(u)) return negado(); return r(await desfazerBloco(b.id));
+    case "perna": {   // v452 — motorista inicia a perna (até a parada ou a volta)
+      const bid = b.volta ? Number(b.blocoId) : (await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) }, select: { blocoId: true } }))?.blocoId;
+      const bl = bid ? await prisma.rotaBloco.findUnique({ where: { id: bid } }) : null;
+      if (!bl) return r({ error: "Rota não encontrada." });
+      if (!podeMontar(u) && bl.motoristaId !== u.pessoaId) return negado("Só o motorista da rota.");
+      return r(await iniciarPerna(b));
+    }
     case "parada": case "retorno": {
       // o motorista da rota (pelo usuário ligado à folha) ou quem monta as rotas
       const bl = b.acao === "retorno" ? await prisma.rotaBloco.findUnique({ where: { id: Number(b.id) } })

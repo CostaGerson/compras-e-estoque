@@ -476,6 +476,37 @@ export async function concluirParada(id, u, desfazer = false) {
   return { ok: true };
 }
 
+// v452 — app do motorista: as rotas dele (em execução e as próximas montadas), com as paradas em ordem
+export async function minhasRotas(pessoaId) {
+  if (!pessoaId) return { rotas: [], fabrica: await fabrica() };
+  const hoje = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+  const bs = await prisma.rotaBloco.findMany({ where: { motoristaId: pessoaId, OR: [{ status: "EM_EXECUCAO" }, { status: "MONTAGEM", data: { gte: dUTC(hoje) } }, { status: "CONCLUIDO", data: { gte: dUTC(hoje) } }] },
+    orderBy: [{ data: "asc" }, { id: "asc" }] });
+  const ds = bs.length ? await prisma.rotaDemanda.findMany({ where: { blocoId: { in: bs.map((b) => b.id) }, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } }) : [];
+  const ordemSt = { EM_EXECUCAO: 0, MONTAGEM: 1, CONCLUIDO: 2 };
+  return {
+    fabrica: await fabrica(),
+    rotas: bs.sort((a, b) => (ordemSt[a.status] - ordemSt[b.status]) || (a.data - b.data)).map((b) => ({ ...b, data: iso(b.data), paradas: ds.filter((d) => d.blocoId === b.id).map(demandaOut) })),
+  };
+}
+// v452 — o motorista inicia uma perna: até a parada (id) ou a volta à fábrica (volta)
+export async function iniciarPerna({ id, blocoId, volta }) {
+  if (volta) {
+    const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(blocoId) } });
+    if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
+    const faltam = await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: { not: "CONCLUIDA" } } });
+    if (faltam) return { error: `Ainda falta concluir ${faltam} parada(s).` };
+    await prisma.rotaBloco.update({ where: { id: bl.id }, data: { voltaIniciadaEm: bl.voltaIniciadaEm || new Date() } });
+    return { ok: true };
+  }
+  const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
+  if (!d?.blocoId) return { error: "Parada não encontrada." };
+  const bl = await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } });
+  if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota ainda não foi despachada." };
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { iniciadaEm: d.iniciadaEm || new Date() } });
+  return { ok: true };
+}
+
 export async function registrarRetorno(id) {
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
   if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };

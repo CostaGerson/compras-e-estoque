@@ -14,6 +14,7 @@ import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm } from "./adm";
 import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
+import MotoristaApp from "./motorista";   // v452 — usuário do setor Logística (motorista): só a rota dele, no celular
 import NfRegistro from "./nfRegistro";
 import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
@@ -238,6 +239,8 @@ export default function Home() {
   if (!carregouSessao) return null;
   if (tokenReset) return <RedefinirSenha token={tokenReset} onFim={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch {} setTokenReset(null); }} />;
   if (!user) return <Login onEntrar={entrar} />;
+  // v452 — motorista (setor Logística, sem chave master/diretoria) vê só o app da rota dele
+  if (user.setor === "LOGISTICA" && !user.isMaster && !user.diretoria) return <MotoristaApp user={user} onSair={sair} />;
 
   const masterReal = ehMasterU(user);              // v170 — só a chave "Usuário master": gerencia usuários e permissões
   const diretor = ehDiretor(user);                 // chave Diretoria: todos os painéis e funções

@@ -1967,6 +1967,7 @@ model RotaDemanda {
   blocoId        Int?
   ordem          Int?
   tempoLocal     Int?                         // v439 — minutos previstos no local (padrão 15)
+  iniciadaEm     DateTime?                    // v452 — motorista iniciou a perna até esta parada
   concluidaEm    DateTime?
   concluidaPorNome String?
   criadoPorId    Int?
@@ -1990,6 +1991,7 @@ model RotaBloco {
   distanciaKm   Float?
   links         Json      @default("[]")      // links do Google Maps (até 9 paradas por link)
   despachadoEm  DateTime?
+  voltaIniciadaEm DateTime?                   // v452 — motorista iniciou a perna de volta à fábrica
   retornoEm     DateTime?
   criadoPorNome String?
   createdAt     DateTime  @default(now())
