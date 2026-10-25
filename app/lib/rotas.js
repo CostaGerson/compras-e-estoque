@@ -439,13 +439,20 @@ export async function despachar(id) {
   const links = fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
   const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "EM_EXECUCAO", despachadoEm: new Date(), links } });
   await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id }, data: { status: "EM_EXECUCAO" } });
-  const tel = telefoneWa(bl.telefone);
+  const tel = telefoneWa(await telefoneAtual(bl));   // v449
   const texto = mensagemWhats(n, ds, links, await estimativa(n, ds, fab));
   // motorista com usuário no sistema também recebe a rota por mensagem
   const usu = bl.motoristaId && !bl.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: bl.motoristaId }, select: { id: true } }) : null;
   return { ok: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto, usuarioMotorista: usu?.id || null };
 }
 
+// v449 — telefone do motorista lido na hora (ficha do RH ou freelancer); atualiza a rota se mudou
+async function telefoneAtual(bl) {
+  const m = (await motoristas().catch(() => [])).find((x) => x.id === bl.motoristaId);
+  const t = m?.telefone || bl.telefone || null;
+  if (t && t !== bl.telefone) await prisma.rotaBloco.update({ where: { id: bl.id }, data: { telefone: t } }).catch(() => null);
+  return t;
+}
 // v443 — mensagem da rota (para copiar ou reenviar no WhatsApp) a qualquer momento, sem mudar o status
 export async function mensagemBloco(id) {
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
@@ -454,7 +461,7 @@ export async function mensagemBloco(id) {
   const fab = await fabrica();
   const links = bl.links?.length ? bl.links : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
   const texto = mensagemWhats(bl, ds, links, await estimativa(bl, ds, fab));
-  const tel = telefoneWa(bl.telefone);
+  const tel = telefoneWa(await telefoneAtual(bl));   // v449 — telefone atual da ficha (pode ter sido cadastrado depois da rota)
   return { ok: true, bloco: { ...bl, data: iso(bl.data), links }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
 
