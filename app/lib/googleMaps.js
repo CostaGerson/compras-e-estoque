@@ -13,7 +13,8 @@ function compDe(comps, tipo, curto = false) {
 
 // sugestões enquanto digita
 export async function autocompletar(texto, sessao) {
-  if (!temGoogle() || String(texto || "").trim().length < 3) return [];
+  if (String(texto || "").trim().length < 3) return [];
+  if (!temGoogle()) throw new Error("Chave do Google não configurada na VPS (GOOGLE_MAPS_KEY no .env).");   // v431
   const r = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
     method: "POST", cache: "no-store",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": KEY() },

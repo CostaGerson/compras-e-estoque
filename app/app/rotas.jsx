@@ -231,6 +231,7 @@ function MapasDia({ demandas, fabrica }) {
 function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder = "Rua, número, bairro, cidade - UF" }) {
   const [sug, setSug] = useState([]);
   const [aberto, setAberto] = useState(false);
+  const [errG, setErrG] = useState("");   // v431 — erro do Google aparece embaixo do campo
   const sessao = useRef(null);
   const t = useRef(null);
   const digitou = useRef(false);
@@ -241,7 +242,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder =
     if (q.length < 4) { setSug([]); return; }
     t.current = setTimeout(() => {
       if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(q)}&sessao=${sessao.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setSug(l); setAberto(true); } }).catch(() => {});
+      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(q)}&sessao=${sessao.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrG(""); setSug(l); setAberto(true); } else setErrG(l?.error || "Google não respondeu."); }).catch((e) => setErrG(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(t.current);
   }, [value]);
@@ -268,6 +269,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder =
           <div className="px-3 py-1 text-[10px] text-right" style={{ color: "#9AA3B2" }}>Google</div>
         </div>
       )}
+      {errG && <div className="text-[11px] mt-1" style={{ color: "#B42318" }}>Sugestões do Google indisponíveis: {errG}</div>}
     </div>
   );
 }
@@ -302,6 +304,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     geo: x.lat != null ? { endereco: x.endereco, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf } : null, contato: x.contato || "", telefone: x.telefone || "" })); };
   // v430 — estabelecimentos do Google pelo nome (vira destinatário novo ao salvar)
   const [sugG, setSugG] = useState([]);
+  const [errQ, setErrQ] = useState("");   // v431
   const sessaoG = useRef(null), tG = useRef(null), digitouQ = useRef(false);
   useEffect(() => {
     if (!digitouQ.current) return;
@@ -310,7 +313,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     if (t.length < 3) { setSugG([]); return; }
     tG.current = setTimeout(() => {
       if (!sessaoG.current) sessaoG.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`).then((r) => r.json()).then((l) => setSugG(Array.isArray(l) ? l.slice(0, 6) : [])).catch(() => {});
+      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrQ(""); setSugG(l.slice(0, 6)); setAberto(true); } else { setSugG([]); setErrQ(l?.error || "Google não respondeu."); } }).catch((e) => setErrQ(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(tG.current);
   }, [q]);
@@ -369,6 +372,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
                 ))}
               </div>
             )}
+            {errQ && <div className="text-[11px] mt-1" style={{ color: "#B42318" }}>Locais do Google indisponíveis: {errQ}</div>}
           </div>
           <L t="O que fazer lá" span><input value={f.tarefa || ""} onChange={(e) => set("tarefa", e.target.value)} placeholder="ex.: buscar 300 camisas cortadas · levar NF 1234 · comprar linha" className={inp} style={inpS} /></L>
           <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
