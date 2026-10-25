@@ -220,6 +220,8 @@ export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS }
       // v353 — OP do PCP sem PV aqui: não conta se ela própria ou algum pedido agrupado nela casou; só produção em aberto
       res.semPedidoAqui = Object.values(g).filter((o) => o.emProducao && !nums.has(o.pedido) && !o.pedidosAgrupados.some((n) => nums.has(n))).length;
       // v321 — pedidos em andamento no PCP que ainda não têm PV aqui (para saber o que falta subir)
+      // v450 — concluído no PCP → FATURAR; NF com contas → tarefa de entrega
+      try { const { fluxoFaturamento } = await import("@/lib/faturamentoFluxo"); res.fluxo = await fluxoFaturamento(); } catch (e) { res.avisoFluxo = e.message; }
     } catch (e) { res.erro = e.message; }
     await prisma.finConfig.upsert({ where: { chave: K_SYNC }, create: { chave: K_SYNC, valor: JSON.stringify(res) }, update: { valor: JSON.stringify(res) } });
     return { ok: !res.erro, ...(await statusSync()) };

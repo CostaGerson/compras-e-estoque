@@ -100,5 +100,10 @@ export async function faturarPeloUpload(n) {
     }
   }
   try { await efetivarFaturamentos(); await faturarPelasNfs(); } catch (e) { console.log("fiscal/faturar:", e.message); }
+  // v450 — NF subida pelo "Incluir faturamento" do pedido e que nenhuma regra ligou: vai para este pedido
+  if (n.pedidoNumero && !feito) {
+    try { const { vincularNfAoPedido } = await import("@/lib/faturamentoFluxo"); const v = await vincularNfAoPedido(n.pedidoNumero, n); if (v && !v.jaLigada) { await efetivarFaturamentos(); feito = { pedido: v.pedido, status: v.completo ? "FATURADO" : "PARCIAL" }; } }
+    catch (e) { console.log("fiscal/vincular:", e.message); }
+  }
   return feito;
 }

@@ -1508,6 +1508,9 @@ model AdmDemanda {
   tipo             String?                       // v425 — COTACAO_FRETE (demanda criada pela rota com frete por transportadora)
   rotaDemandaId    Int?                          // v425 — demanda de rota de origem
   cotacao          Json?                         // v425 — { valor, prazo, transportadoras, anexoNome, anexoMime, anexo (base64) }
+  pedidoNumero     String?                       // v450 — FATURAR / PROGRAMAR ENTREGA / ENTREGA POR TRANSPORTADORA|FRETEBRAS / PROGRAMAR RETIRADA
+  ref              String?                       // v450 — NFs da tarefa (ex.: "NF:123,124") — evita repetir
+  dados            Json?                         // v450 — { forma, nfs, parcial, pecasPendentes, valorPendente }
   concluidaEm      DateTime?
   concluidaPorNome String?
   criadoPorId      Int?
@@ -1775,6 +1778,7 @@ model PedidoVenda {
   cronoFimProgramado DateTime? @db.Date     // v317 — maior fim planejado das etapas
   cronoConcluido Boolean  @default(false)
   cronoItens    Json?                       // resumo por item (itemCode, situação, etapa, entrega, fim programado)
+  formaEntrega  String?                     // v450 — PROPRIA | TRANSPORTADORA | FRETEBRAS | RETIRADA (da FPP ou escolhida na tarefa)
   cronoCompras  Json?                       // v421 — compras pendentes do PCP (/api/ext/compras) das OPs do pedido: [{ produto, nome, fornecedor, pedido, dataPedido }]
   pvPdf         String?                     // base64
   ppPdf         String?

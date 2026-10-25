@@ -45,7 +45,7 @@ const frase = (t) => { const s0 = String(t || "").trim().toLowerCase(); return s
 const nomeTarefa = (x) => `${nomeCurto(x.destinoNome)}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""}`;
 const ordenar = (l) => [...l].sort((a, b) => (b.urgente - a.urgente) || ((a.ordem ?? 99) - (b.ordem ?? 99)) || (a.janela?.[0] || "").localeCompare(b.janela?.[0] || "") || a.id - b.id);
 
-export default function Rotas({ user }) {
+export default function Rotas({ user, nova }) {
   const H = hojeISO();
   // v436 — sábado/domingo: o foco (card grande) vai para a segunda seguinte
   const dowH = dUTC(H).getUTCDay();
@@ -53,7 +53,9 @@ export default function Rotas({ user }) {
   const [modo, setModo] = useState("semana");
   const [ref, setRef] = useState(FOCO);
   const [dia, setDia] = useState(FOCO);
-  const [verRota, setVerRota] = useState(null);   // v444 — rota aberta pelo botão R
+  const [verRota, setVerRota] = useState(null);
+  // v450 — vindo da tarefa PROGRAMAR ENTREGA: abre a demanda de rota já preenchida (cliente, endereço, "ENTREGA PEDIDO N")
+  useEffect(() => { if (nova?.t) { const { t, ...x } = nova; setDia(FOCO); setForm({ data: FOCO, horarioTipo: "LIVRE", ...x }); } }, [nova?.t]);   // v444 — rota aberta pelo botão R
   const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D)
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);

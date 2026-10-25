@@ -370,6 +370,8 @@ export async function salvarDemanda(b, u) {
   };
   let d = ant ? await prisma.rotaDemanda.update({ where: { id: ant.id }, data: dados })
     : await prisma.rotaDemanda.create({ data: { ...dados, criadoPorId: u.id, criadoPorNome: nomeU(u) } });
+  // v450 — criada pela tarefa PROGRAMAR ENTREGA do pedido: a tarefa conclui
+  if (b.admOrigemId) { try { const { rotaCriada } = await import("@/lib/faturamentoFluxo"); await rotaCriada(b.admOrigemId, d); } catch (e) { console.log("rotas/adm:", e.message); } }
   // transportadora: demanda ADM de cotação (uma por demanda de rota)
   if (freteTipo === "TRANSPORTADORA" && !d.admDemandaId) {
     const dBR = b.data.split("-").reverse().join("/");

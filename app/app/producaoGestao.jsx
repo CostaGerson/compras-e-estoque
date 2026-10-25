@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta } from "./dialogo";   // v424 — popups do sistema
+import { ImportarNfs } from "./adm";   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -44,23 +45,26 @@ function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub, pecas }) {
   );
 }
 const Chip = ({ cor, fundo, children }) => <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ color: cor, background: fundo || C.panel2 }}>{children}</span>;
+// v450 — a faturar / NF aguardando contas / crítica
+const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.accent}>A faturar</Chip> : f === "NF_SEM_CONTAS" ? <Chip cor={C.yellow} fundo={C.yellowSoft}>NF sem contas</Chip> : null);
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
 
-export default function ProducaoGestao({ user, atalhos, ir }) {
+export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState(null);
   const [q, setQ] = useState("");
   const [ord, setOrd] = useState({ k: "fase", dir: 1 });
   const [aberto, setAberto] = useState(null);
+  useEffect(() => { if (abrirPedido?.numero) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
   const carregar = () => fetch("/api/producao/gestao").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 60 * 1000); return () => clearInterval(t); }, []);
 
   const lista = useMemo(() => {
     if (!d) return [];
     const termos = sem(q).split(/\s+/).filter(Boolean);
-    let l = d.pedidos.filter((p) => !filtro || (filtro === "emDia" ? p.status === "EM DIA" : filtro === "atrasados" ? p.status === "ATRASADO" : filtro === "semana" ? p.semana : true));
+    let l = d.pedidos.filter((p) => !filtro || (filtro === "emDia" ? p.status === "EM DIA" : filtro === "atrasados" ? p.status === "ATRASADO" : filtro === "semana" ? p.semana : filtro === "faturar" ? p.faturar === "A_FATURAR" : filtro === "criticas" ? !!p.critica : true));
     if (termos.length) l = l.filter((p) => { const hay = sem(`${p.numero} ${p.cliente} ${p.oc || ""} ${p.itensTxt} ${p.total.toFixed(2)} ${p.total.toFixed(2).replace(".", ",")}`); return termos.every((t) => hay.includes(t)); });
     const val = { fase: (p) => (p.faseIdx < 0 ? 99 : p.faseIdx), numero: (p) => p.numero, cliente: (p) => p.cliente || "", pecas: (p) => p.pecas, total: (p) => p.total,
       prazo: (p) => p.prazo || "9", previsto: (p) => p.previsto || "9", status: (p) => (p.status === "ATRASADO" ? 0 : 1) };
@@ -92,14 +96,15 @@ export default function ProducaoGestao({ user, atalhos, ir }) {
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Lendo o PCP…</div>}
       {d && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             <CardKpi rotulo="Pedidos em andamento" n={k.andamento} total={k.andamento} cor={C.navy} ativo={!filtro} onClick={() => setFiltro(null)} sub="total" pecas={pc(() => true)} />
             <CardKpi rotulo="Em dia" n={k.emDia} total={k.andamento} cor={C.green} ativo={filtro === "emDia"} onClick={() => setFiltro(filtro === "emDia" ? null : "emDia")} pecas={pc((p) => p.status === "EM DIA")} />
             <CardKpi rotulo="Atrasados" n={k.atrasados} total={k.andamento} cor={C.red} ativo={filtro === "atrasados"} onClick={() => setFiltro(filtro === "atrasados" ? null : "atrasados")} pecas={pc((p) => p.status === "ATRASADO")} />
             <CardKpi rotulo="Entrega na semana" n={k.semana} total={k.andamento} cor={C.accent} ativo={filtro === "semana"} onClick={() => setFiltro(filtro === "semana" ? null : "semana")} sub={`de ${k.andamento} · próximos 7 dias`} pecas={pc((p) => p.semana)} />
+            <CardKpi rotulo="A faturar" n={k.faturar || 0} total={k.andamento} cor={C.accent} ativo={filtro === "faturar"} onClick={() => setFiltro(filtro === "faturar" ? null : "faturar")} sub={k.criticas ? `${k.criticas} com crítica` : "concluídos no PCP"} pecas={pc((p) => p.faturar === "A_FATURAR")} />
           </div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana" }[filtro]}` : ""}</div>
+            <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
             <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
               <Search size={14} style={{ color: C.sub }} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, nº do pedido, valor ou item…" className="py-1.5 text-sm outline-none w-72" />
@@ -121,7 +126,7 @@ export default function ProducaoGestao({ user, atalhos, ir }) {
                     <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}{p.semana && <span className="ml-1 text-[10px] font-bold" style={{ color: C.accent }}>semana</span>}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.previsto && p.prazo && p.previsto > p.prazo ? C.red : C.text }}>{dBR(p.previsto)}</td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
-                    <td className="px-3 py-2"><ChipStatus s={p.status} /></td>
+                    <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
                   </tr>
                 ))}
                 {!lista.length && <tr><td colSpan={8} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
@@ -144,6 +149,7 @@ function PedidoTela({ numero, user, onClose }) {
   const [salvObs, setSalvObs] = useState(false);
   const [verFpp, setVerFpp] = useState(null);
   const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro
+  const [fatura, setFatura] = useState(false);   // v450 — Incluir faturamento
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [numero]);
   async function salvarObs() {
@@ -159,12 +165,15 @@ function PedidoTela({ numero, user, onClose }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-lg font-bold" style={{ color: C.navy }}>Pedido {numero}</span>
-              {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}
+              {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}{p && <ChipFaturar f={p.faturar} />}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
+          {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
+        {p?.critica && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={15} /> {p.critica}</div>}
+        {p?.parcial && !p?.critica && p.faturamento?.valorPendente > 0 && <div className="px-5 py-2 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>Faturamento parcial: falta{p.faturamento.pecasPendentes != null ? ` ${p.faturamento.pecasPendentes} peça(s) ·` : ""} {brl(p.faturamento.valorPendente)} — o saldo segue acompanhado no PCP do Maycon.</div>}
         <div className="flex gap-1 px-5" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
           {[["geral", "Visão geral"], ["financeiro", "Financeiro"]].map(([k, t]) => (
             <button key={k} onClick={() => setGuia(k)} className="px-4 py-2 text-sm" style={{ color: guia === k ? C.accent : C.sub, fontWeight: guia === k ? 700 : 500, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>{t}</button>
@@ -259,6 +268,7 @@ function PedidoTela({ numero, user, onClose }) {
           </div>
         )}
         {verFpp && <FppResumo fppId={verFpp.fppId} item={verFpp} veValores onClose={() => setVerFpp(null)} onUsar={null} />}
+        {fatura && <ImportarNfs user={user} pedidoNumero={numero} onClose={() => { setFatura(false); carregar(); }} onFim={() => { setFatura(false); carregar(); }} />}
       </div>
     </div>
   );

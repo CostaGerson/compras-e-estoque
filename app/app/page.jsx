@@ -196,12 +196,16 @@ export default function Home() {
   const [view, setView] = useState("gestao");
   const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
   const [gestaoInicial, setGestaoInicial] = useState(null);
-  const [fppInicial, setFppInicial] = useState(null);   // v420   // v220: Matriz → Metas da Gestão direto
+  const [fppInicial, setFppInicial] = useState(null);
+  const [pedidoInicial, setPedidoInicial] = useState(null);   // v450 — tarefa FATURAR → abre o pedido na Gestão da produção
+  const [rotaInicial, setRotaInicial] = useState(null);       // v450 — tarefa PROGRAMAR ENTREGA → demanda de rota preenchida   // v420   // v220: Matriz → Metas da Gestão direto
   useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); }, [view]);
   // v365 — outras telas pedem para abrir o contas a pagar/receber já filtrado (ex.: NF lançada pela crítica do movimento fiscal)
   useEffect(() => {
     const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
-      if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, t: Date.now() }); setView("comercial"); } };   // v420 — Gestão da produção → editar a FPP
+      if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, t: Date.now() }); setView("comercial"); }
+      if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
+      if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);
   const [tab, setTab] = useState("lista");
@@ -332,14 +336,14 @@ export default function Home() {
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
-          {view === "rota" && <Rotas user={user} />}
+          {view === "rota" && <Rotas user={user} nova={rotaInicial} />}
           {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
-          {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} />}
+          {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} />}
@@ -3977,7 +3981,10 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     permAlteraStatus: usuario?.permAlteraStatus ?? false, permVeValores: usuario?.permVeValores ?? false,
     diretoria: usuario?.diretoria ?? false,
     permissoes: Array.isArray(usuario?.permissoes) ? usuario.permissoes : null,   // v170 — null = todas as do tipo
+    pessoaId: usuario?.pessoaId || "",   // v451 — funcionário da folha
   });
+  const [pessoas, setPessoas] = useState([]);
+  useEffect(() => { if (!self) fetch(`/api/usuarios?u=${sessaoId()}&pessoas=1`).then((r) => r.json()).then((l) => setPessoas(Array.isArray(l) ? l : [])).catch(() => {}); }, []);
   const [verSenha, setVerSenha] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -4064,6 +4071,14 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
             </div>
           </div>
 
+          {!self && (
+            <div className="mb-4">
+              <Sel label="Funcionário da folha (Matriz) — liga o usuário ao motorista, ao ponto e ao RH" value={f.pessoaId} onChange={(e) => set("pessoaId", e.target.value)}>
+                <option value="">— nenhum —</option>
+                {pessoas.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.cargo ? ` · ${x.cargo}` : ""}</option>)}
+              </Sel>
+            </div>
+          )}
           {!self && (
             <>
               {(() => {   // v170 — tipo pelo setor + chaves; cada tipo tem as suas permissões

@@ -264,7 +264,7 @@ function fichaVazia(tipo) {
     extrasAviamentos: [], extrasProducao: [],   // custos extras, já em R$ por peça: [{ desc, valor }]
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     personalizacoes: [], arteTotal: "", faccaoTipo: "",   // v272
-    freteVolume: "", embExt: "", embInt: "SIMPLES",
+    freteVolume: "", embExt: "", embInt: "SIMPLES", formaEntrega: "",   // v450 — PROPRIA | TRANSPORTADORA | FRETEBRAS | RETIRADA
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "", repassarTaxas: false, paramsAlterados: false,
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
   };
@@ -701,6 +701,16 @@ function Fpp({ user, master, abrirId }) {
                 <Inp full label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
                 <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
                 <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
+              </div>
+              {/* v450 — forma de entrega: define a tarefa depois do faturamento (rota própria, transportadora, Fretebras ou retirada) */}
+              <div className="mt-3">
+                <div className="text-xs mb-1" style={{ color: C.sub }}>Forma de entrega</div>
+                <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+                  {[["PROPRIA", "Própria"], ["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"], ["RETIRADA", "Retirada"]].map(([k, t]) => (
+                    <button key={k} type="button" onClick={() => set("formaEntrega", f.formaEntrega === k ? "" : k)} className="flex-1 px-2 py-1.5 text-xs font-semibold"
+                      style={{ background: f.formaEntrega === k ? C.accent : "#fff", color: f.formaEntrega === k ? "#fff" : C.sub }}>{t}</button>
+                  ))}
+                </div>
               </div>
               <div className="text-[11px] mt-2" style={{ color: C.sub }}>Frete e embalagem são sempre externos — não voltam para a operação. Só a logística base volta.</div>
             </Card>

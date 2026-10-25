@@ -35,7 +35,16 @@ function resumoPedido(p, hoje) {
   const atrasado = fase !== "CONCLUIDO" && !!prazo && (prazo < hoje || (!!previsto && previsto > prazo));
   const semana = !!prazo && prazo >= hoje && prazo <= somaDias(hoje, 6);
   const itens = itensDoPedido(p);
+  // v450 — concluído na expedição (PCP) = a faturar; NF subida sem contas = aguardando contas;
+  // parcial com saldo e o pedido fora do PCP do Maycon = crítica
+  const parcial = Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0;
+  const saldoPecas = p.qtEntregar != null ? Number(p.qtEntregar) : null;
+  const saldoValor = p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total);
+  const faturar = p.faturamentoPendente ? "NF_SEM_CONTAS" : p.cronoConcluido ? "A_FATURAR" : null;
+  const critica = parcial && (saldoPecas == null ? saldoValor > 0 : saldoPecas > 0) && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA"
+    ? `Faturamento parcial: o saldo (${saldoPecas != null ? `${saldoPecas} peça(s), ` : ""}${saldoValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) não está no PCP do Maycon` : null;
   return {
+    faturar, critica, parcial,
     numero: p.numero, cliente: p.cliente, oc: p.oc || null, vendedor: p.vendedor || null, total: r2(p.total),
     aFaturar: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total),
     pecas: itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0), nItens: itens.length,
@@ -46,7 +55,8 @@ function resumoPedido(p, hoje) {
 }
 
 const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
-  cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true };
+  cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
+  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true };   // v450
 
 export async function gestaoProducao() {
   let sync = null; try { sync = await sincronizar({ intervaloMs: 60 * 1000 }); } catch (e) { sync = { ok: false, erro: e.message }; }
@@ -60,7 +70,8 @@ export async function gestaoProducao() {
   const cont = (f) => lista.filter(f).length;
   return {
     hoje, sync: sync ? { ok: sync.ok !== false, erro: sync.erro || null, em: sync.em || null } : null,
-    kpis: { andamento: total, emDia: cont((p) => p.status === "EM DIA"), atrasados: cont((p) => p.status === "ATRASADO"), semana: cont((p) => p.semana) },
+    kpis: { andamento: total, emDia: cont((p) => p.status === "EM DIA"), atrasados: cont((p) => p.status === "ATRASADO"), semana: cont((p) => p.semana),
+      faturar: cont((p) => p.faturar === "A_FATURAR"), criticas: cont((p) => !!p.critica) },   // v450
     pedidos: lista,
   };
 }

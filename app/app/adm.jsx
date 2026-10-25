@@ -249,7 +249,7 @@ export function juntarNotas(antigas, novas) {
   });
 }
 
-export function ImportarNfs({ user, iniciais, onClose, onFim }) {
+export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero }) {   // v450 — pedidoNumero: "Incluir faturamento" do pedido
   const [arqs, setArqs] = useState([]);       // arquivos já lidos, aguardando conferência
   const [notas, setNotas] = useState(null);
   const [erros, setErros] = useState([]);
@@ -323,7 +323,7 @@ export function ImportarNfs({ user, iniciais, onClose, onFim }) {
   }, [notas]);
 
   const mandar = async (lote) => {
-    try { return (await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: lote })).resultados || []; }
+    try { return (await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: pedidoNumero ? lote.map((n) => ({ ...n, pedidoNumero })) : lote })).resultados || []; }
     catch (e) { return lote.map((n) => ({ numero: n.numero, situacao: "ERRO", motivo: e.message })); }
   };
   // tira da fila a nota gravada e os arquivos dela (para não voltar numa nova conferência)
@@ -592,7 +592,7 @@ export function DemandasAdm({ user, master }) {
           {COLS.filter(([k]) => lista.some((x) => x.status === k)).map(([k, t, cor]) => (
             <div key={k}>
               <div className="px-4 pt-3 pb-1 text-xs font-bold uppercase" style={{ color: cor }}>{t} · {lista.filter((x) => x.status === k).length}</div>
-              {lista.filter((x) => x.status === k).map((x) => <LinhaDemanda key={x.id} x={x} hoje={hoje} onAbrir={() => setAbrir(x)} onMudar={mudar} />)}
+              {lista.filter((x) => x.status === k).map((x) => <LinhaDemanda key={x.id} x={x} hoje={hoje} onAbrir={() => setAbrir(x)} onMudar={mudar} user={user} onMudou={carregar} />)}
             </div>
           ))}
           {!lista.length && <div className="px-4 py-8 text-center text-xs" style={{ color: C.sub }}>{master ? "Nenhuma demanda aqui. Crie em Nova demanda." : "Nenhuma demanda para você."}</div>}
@@ -643,6 +643,7 @@ export function DemandasAdm({ user, master }) {
             <span>Criada por {abrir.criadoPorNome} em {dBR(abrir.createdAt)}</span>
           </div>
           <div className="text-sm whitespace-pre-wrap mb-3">{abrir.descricao || <span style={{ color: C.sub }}>Sem descrição.</span>}</div>
+          <AcoesPedido user={user} dm={abrir} onMudou={async () => { const l = await api(`/api/adm/demandas?u=${user.id}`).catch(() => null); if (l) { setD(l); setAbrir((l.demandas || []).find((y) => y.id === abrir.id) || null); } }} />
           {abrir.cotacao && (
             <div className="rounded-lg p-3 text-sm mb-3" style={{ background: C.panel2 }}>
               <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>COTAÇÃO DE FRETE</div>
@@ -670,7 +671,41 @@ function Prazo({ x, hoje }) {
   return <span className="inline-flex items-center gap-0.5 font-semibold" style={{ color: atras ? C.red : hj ? C.green : C.sub }}><CalendarDays size={11} /> {hj ? "Hoje" : dBR(x.prazo)}{atras ? " · atrasada" : ""}</span>;
 }
 
-function LinhaDemanda({ x, hoje, onAbrir, onMudar }) {
+// v450 — tarefas do pedido: abrir o pedido (FATURAR), escolher a forma de entrega e criar a demanda de rota (PROGRAMAR ENTREGA)
+const FORMAS_ENT = [["PROPRIA", "Própria"], ["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"], ["RETIRADA", "Retirada"]];
+const TIPOS_PED = ["FATURAR", "PROGRAMAR_ENTREGA", "ENTREGA_TRANSPORTADORA", "ENTREGA_FRETEBRAS", "PROGRAMAR_RETIRADA"];
+const irPara = (detail) => window.dispatchEvent(new CustomEvent("ce:ir", { detail }));
+export function AcoesPedido({ user, dm, compacto, onMudou }) {
+  const [oc, setOc] = useState(false);
+  if (!dm.pedidoNumero || !TIPOS_PED.includes(dm.tipo)) return null;
+  const aberta = dm.status !== "CONCLUIDA";
+  const forma = dm.dados?.forma || null;
+  const criarRota = async () => {
+    setOc(true);
+    try { const r = await api(`/api/adm/demandas/${dm.id}?u=${user.id}&prefill=1`); irPara({ v: "rota", nova: r.nova }); } catch (e) { alerta(e.message); }
+    setOc(false);
+  };
+  const escolher = async (f) => {
+    setOc(true);
+    try { await api(`/api/adm/demandas/${dm.id}`, "PATCH", { usuarioId: user.id, acao: "forma", forma: f }); onMudou?.(); } catch (e) { alerta(e.message); }
+    setOc(false);
+  };
+  const btn = "px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 whitespace-nowrap";
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${compacto ? "" : "mb-3"}`} onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => irPara({ v: "pedido", numero: dm.pedidoNumero })} className={btn} style={{ background: dm.tipo === "FATURAR" ? C.accent : C.panel2, color: dm.tipo === "FATURAR" ? "#fff" : C.text }}>
+        <FileText size={12} /> {dm.tipo === "FATURAR" && !compacto ? "Abrir pedido · Incluir faturamento" : `Pedido ${dm.pedidoNumero}`}</button>
+      {aberta && dm.tipo === "PROGRAMAR_ENTREGA" && forma === "PROPRIA" && <button disabled={oc} onClick={criarRota} className={btn} style={{ background: C.navy, color: "#fff" }}>Criar demanda de rota</button>}
+      {aberta && dm.tipo === "PROGRAMAR_ENTREGA" && !forma && !compacto && <>
+        <span className="text-xs" style={{ color: C.sub }}>Forma de entrega:</span>
+        {FORMAS_ENT.map(([k, t]) => <button key={k} disabled={oc} onClick={() => escolher(k)} className={btn} style={{ border: `1px solid ${C.line}`, color: C.text }}>{t}</button>)}
+      </>}
+      {aberta && dm.tipo === "PROGRAMAR_ENTREGA" && !forma && compacto && <span className="text-[11px] font-semibold" style={{ color: C.yellow }}>escolher forma</span>}
+    </div>
+  );
+}
+
+function LinhaDemanda({ x, hoje, onAbrir, onMudar, user, onMudou }) {
   const feita = x.status === "CONCLUIDA";
   return (
     <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
@@ -681,6 +716,7 @@ function LinhaDemanda({ x, hoje, onAbrir, onMudar }) {
         {x.titulo}{x.descricao && <span className="ml-2 text-xs" style={{ color: C.sub }}>· {x.descricao.slice(0, 80)}{x.descricao.length > 80 ? "…" : ""}</span>}
       </button>
       {x.prioridade === "URGENTE" && <span className="px-1.5 rounded text-[10px] font-semibold" style={{ background: C.redSoft, color: C.red }}>URGENTE</span>}
+      {user && <AcoesPedido user={user} dm={x} compacto onMudou={onMudou} />}
       <span className="text-xs w-40 truncate" style={{ color: C.sub }}>{x.responsavelNome || "ADMINISTRATIVO"}</span>
       <span className="text-xs w-28"><Prazo x={x} hoje={hoje} /></span>
       {x.status === "A_FAZER" && <button onClick={() => onMudar(x, "FAZENDO")} title="Iniciar" style={{ color: C.yellow }}><CirclePlay size={16} /></button>}

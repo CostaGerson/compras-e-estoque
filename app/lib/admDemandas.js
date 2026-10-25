@@ -31,6 +31,9 @@ export const demandaOut = (d) => {
 };
 
 export async function listar(u) {
+  // v450 — tarefas automáticas do faturamento/entrega (FATURAR, PROGRAMAR ENTREGA…) ficam em dia ao abrir as demandas
+  try { const { fluxoFaturamento } = await import("@/lib/faturamentoFluxo"); await fluxoFaturamento(); } catch (e) { console.log("adm/fluxo:", e.message); }
+  import("@/lib/cronograma").then(({ sincronizar }) => sincronizar()).catch(() => null);
   const where = ehGestor(u) ? {} : { OR: [{ responsavelId: null }, { responsavelId: u.id }] };
   const l = await prisma.admDemanda.findMany({ where, orderBy: [{ status: "asc" }, { prazo: "asc" }, { id: "desc" }] });
   const equipe = await prisma.usuario.findMany({ where: { ativo: true, setor: "ADMINISTRATIVO" }, select: { id: true, nome: true, sobrenome: true }, orderBy: { nome: "asc" } });
