@@ -47,9 +47,13 @@ const ordenar = (l) => [...l].sort((a, b) => (b.urgente - a.urgente) || ((a.orde
 
 export default function Rotas({ user }) {
   const H = hojeISO();
+  // v436 — sábado/domingo: o foco (card grande) vai para a segunda seguinte
+  const dowH = dUTC(H).getUTCDay();
+  const FOCO = dowH === 6 ? somaDia(H, 2) : dowH === 0 ? somaDia(H, 1) : H;
   const [modo, setModo] = useState("semana");
-  const [ref, setRef] = useState(H);
-  const [dia, setDia] = useState(H);
+  const [ref, setRef] = useState(FOCO);
+  const [dia, setDia] = useState(FOCO);
+  const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D)
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);
   const [marc, setMarc] = useState(new Set());
@@ -69,7 +73,7 @@ export default function Rotas({ user }) {
   useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t); }, [de, ate]);
   const porDia = useMemo(() => (d?.demandas || []).reduce((a, x) => { (a[x.data] ||= []).push(x); return a; }, {}), [d]);
   const doDia = ordenar(porDia[dia] || []);
-  const blocosDia = (d?.blocos || []).filter((b) => b.data === dia || (b.status === "EM_EXECUCAO" && b.data < dia && dia === H));
+  const blocosDia = (d?.blocos || []).filter((b) => b.data === dia || (b.status === "EM_EXECUCAO" && b.data < dia && (dia === H || dia === FOCO)));
   const mover = (n) => setRef(modo === "semana" ? somaDia(ref, 7 * n) : new Date(Date.UTC(ano, mes - 1 + n, 1)).toISOString().slice(0, 10));
   const titulo = modo === "semana" ? `${dBR(dias[0])} a ${dBR(dias[6])} · ${MESES[Number(dias[3].slice(5, 7)) - 1]} ${dias[3].slice(0, 4)}` : `${MESES[mes - 1]} de ${ano}`;
   const pode = !!d?.podeMontar;
@@ -88,7 +92,7 @@ export default function Rotas({ user }) {
           {[["semana", "Semana"], ["mes", "Mês"]].map(([k, t]) => <button key={k} onClick={() => setModo(k)} className="px-3 py-1.5 text-xs font-semibold" style={{ background: modo === k ? C.navy : C.panel, color: modo === k ? "#fff" : C.sub }}>{t}</button>)}
         </div>
         <button onClick={() => mover(-1)} className="p-1.5 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><ChevronLeft size={15} /></button>
-        <button onClick={() => { setRef(H); setDia(H); }} className="px-3 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel }}>Hoje</button>
+        <button onClick={() => { setRef(FOCO); setDia(FOCO); }} className="px-3 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel }}>Hoje</button>
         <button onClick={() => mover(1)} className="p-1.5 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><ChevronRight size={15} /></button>
         <div className="text-sm font-semibold" style={{ color: C.text }}>{titulo}</div>
         <div className="ml-auto flex items-center gap-2">
@@ -104,18 +108,20 @@ export default function Rotas({ user }) {
 
       {/* calendário */}
       {!d ? <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div> : modo === "semana" ? (
-        <div className="flex gap-2" style={{ minHeight: 230 }}>
+        <div className="flex gap-2" style={{ minHeight: 320 }}>
           {dias.map((x, i) => {
             const l = ordenar(porDia[x] || []);
-            const grande = x === H;
+            const grande = x === FOCO;
             const sel = x === dia;
+            if (i >= 5 && !fds.has(i)) return null;   // v436 — fim de semana recolhido
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
                 style={{ flex: grande ? 2.2 : 1, background: grande ? "#FFF8F3" : C.panel, border: `${sel ? 2 : 1}px solid ${sel ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
                 <div className="flex items-baseline gap-1 mb-1.5">
                   <span className="text-xs font-semibold" style={{ color: grande ? C.accent : C.sub }}>{DIAS[i]}</span>
                   <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
-                  {grande && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>hoje</span>}
+                  {grande && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>{x === H ? "hoje" : "próximo dia útil"}</span>}
+                  {i >= 5 && <button type="button" onClick={(e) => { e.stopPropagation(); setFds((s0) => { const n = new Set(s0); n.delete(i); return n; }); }} title="Recolher" className="text-[11px] px-1" style={{ color: C.sub }}>✕</button>}
                   {l.length > 0 && <span className="ml-auto text-[11px]" style={{ color: C.sub }}>{l.length}</span>}
                 </div>
                 <div className="space-y-1 flex-1">
@@ -126,6 +132,20 @@ export default function Rotas({ user }) {
               </div>
             );
           })}
+          {/* v436 — S e D: abrem o sábado e o domingo */}
+          {[5, 6].filter((i) => !fds.has(i)).length > 0 && (
+            <div className="flex flex-col gap-2 shrink-0" style={{ width: 34 }}>
+              {[5, 6].filter((i) => !fds.has(i)).map((i) => {
+                const n = (porDia[dias[i]] || []).length;
+                return (
+                  <button key={i} type="button" onClick={() => setFds((s0) => new Set(s0).add(i))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(dias[i])}${n ? ` · ${n} demanda(s)` : ""}`}
+                    className="flex-1 rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ background: C.panel, border: `1px solid ${n ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
+                    {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(7, minmax(0,1fr))" }}>
@@ -211,8 +231,10 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
           .bindTooltip(p.rotulo, { direction: "top", offset: [0, -12] }).addTo(camada.current);
         pts.push([p.lat, p.lng]);
       }
-      m.fitBounds(LIMITES[area], { padding: [8, 8] });
-      if (pts.length && area !== "BR") { const b = L.latLngBounds(pts); if (pts.length > 1) m.fitBounds(b.pad(0.25), { maxZoom: 13 }); }
+      // v436 — zoom o mais perto possível mostrando todos os pontos
+      if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 16 });
+      else if (pts.length === 1) m.setView(pts[0], 15);
+      else m.fitBounds(LIMITES[area], { padding: [8, 8] });
       setTimeout(() => m.invalidateSize(), 50);
     }).catch(() => {});
     return () => { vivo = false; };
