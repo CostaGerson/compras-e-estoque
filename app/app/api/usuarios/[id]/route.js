@@ -38,6 +38,7 @@ export async function PATCH(req, { params }) {
   if ("setor" in b) data.setor = b.setor || "PCP";
   if ("isMaster" in b) data.isMaster = bool(b.isMaster);
   if ("ativo" in b) data.ativo = bool(b.ativo);
+  if ("pessoaId" in b && a.isMaster) data.pessoaId = txt(b.pessoaId) || null;   // v451 — funcionário da folha
   for (const p of PERMS) if (p in b) data[p] = bool(b[p]);
   if ("diretoria" in b) data.diretoria = bool(b.diretoria);
   aplicaDiretoria(data);

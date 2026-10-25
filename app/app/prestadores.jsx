@@ -184,6 +184,14 @@ export default function Prestadores({ user, tipo = "FREELANCER" }) {
     return (d?.prestadores || []).filter((p) => !b || semAc(`${p.nome} ${p.telefone || ""} ${p.chavePix} ${(p.servicos || []).map((s) => rotulo[s] || s).join(" ")}`).includes(b));
   }, [d, busca, rotulo]);
 
+  // v451 — inativar/reativar sem apagar
+  const alternar = async (p) => {
+    try {
+      const j = await api("/api/prestadores", "PATCH", { usuarioId: user.id, tipo, id: p.id, ativo: !p.ativo });
+      setD((x) => ({ ...x, prestadores: j.prestadores }));
+      setAviso(`${p.nome} ${p.ativo ? "inativado" : "reativado"}.`);
+    } catch (e) { setErro(e.message); }
+  };
   const excluir = async (p) => {
     if (!(await confirmar(`Excluir ${p.nome}?\n\nSe já houver lançamento no nome dele, o cadastro é só desativado para não perder o histórico.`))) return;
     try {
@@ -249,6 +257,7 @@ export default function Prestadores({ user, tipo = "FREELANCER" }) {
                 {!free && <td className="px-2 py-1.5" style={{ color: p.endereco ? C.sub : C.yellow, maxWidth: 260 }}>{p.endereco || "sem endereço"}</td>}
                 <td className="px-2 whitespace-nowrap">
                   <button onClick={() => setModal({ prestador: p })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
+                  <button onClick={() => alternar(p)} title={p.ativo ? "Inativar" : "Reativar"} className="mr-2 text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ border: `1px solid ${C.line}`, color: p.ativo ? C.sub : C.green }}>{p.ativo ? "Inativar" : "Reativar"}</button>
                   <button onClick={() => excluir(p)} title="Excluir" style={{ color: C.sub }}><Trash2 size={13} /></button>
                 </td>
               </tr>

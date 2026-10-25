@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioAtivoFin, negado as negadoFin } from "@/lib/fin";
 import { gerencial, tipoDe } from "@/lib/acesso";
+import { prisma } from "@/lib/prisma";   // v451
 // v170 — cadastro de freelancers e terceirizados: master, diretoria, produção, administrativo e financeiro
 const usuarioMaster = async (id) => { const u = await usuarioAtivoFin(id); return u && (gerencial(u) || ["PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"].includes(tipoDe(u))) ? u : null; };
 const negado = () => Response.json({ error: "Sem permissão para o cadastro de prestadores." }, { status: 403 });
@@ -56,4 +57,14 @@ export async function DELETE(req) {
   if (!u) return negado();
   const r = await excluir(b.id);
   return Response.json({ ...r, prestadores: await listar(b.tipo), catalogos: CATALOGOS });
+}
+
+// v451 — PATCH { usuarioId, tipo, id, ativo } → inativa/reativa o cadastro (some das listas de escolha, como motoristas)
+export async function PATCH(req) {
+  let b;
+  try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
+  const u = await usuarioMaster(b?.usuarioId);
+  if (!u) return negado();
+  await prisma.prestador.update({ where: { id: Number(b.id) }, data: { ativo: !!b.ativo } });
+  return Response.json({ ok: true, prestadores: await listar(b.tipo) });
 }

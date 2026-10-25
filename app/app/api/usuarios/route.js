@@ -13,6 +13,14 @@ const semSegredos = (u) => { if (!u) return u; const { resetHash, resetExpira, .
 export async function GET(req) {
   const a = await ator(new URL(req.url).searchParams.get("u"));
   if (!a?.isMaster) return soMasterUsuarios();
+  // v451 — pessoas da folha (Matriz oficial) para ligar ao usuário (motorista vê "Minha rota", RH, ponto…)
+  if (new URL(req.url).searchParams.get("pessoas")) {
+    const m = await prisma.finMatriz.findFirst({ where: { oficial: true }, select: { dados: true } });
+    const folha = (m?.dados?.pessoal || []).filter((p) => p && p.id && p.ativo !== false);
+    const fichas = await prisma.rhFuncionario.findMany({ where: { pessoaId: { in: folha.map((p) => p.id) } }, select: { pessoaId: true, nomeCompleto: true } });
+    const fi = Object.fromEntries(fichas.map((f) => [f.pessoaId, f.nomeCompleto]));
+    return Response.json(folha.map((p) => ({ id: p.id, nome: String(fi[p.id] || p.nome || "").toUpperCase(), cargo: p.cargo || "" })).sort((x, y) => x.nome.localeCompare(y.nome)));
+  }
   const usuarios = await prisma.usuario.findMany({ orderBy: [{ isMaster: "desc" }, { nome: "asc" }] });
   return Response.json(usuarios.map(semSegredos));
 }
@@ -32,6 +40,7 @@ export async function POST(req) {
     setor: b.setor || "PCP",
     isMaster: bool(b.isMaster),
     ativo: b.ativo === undefined ? true : bool(b.ativo),
+    pessoaId: txt(b.pessoaId) || null,   // v451
   };
   for (const p of PERMS) data[p] = bool(b[p]);
   data.diretoria = bool(b.diretoria);
