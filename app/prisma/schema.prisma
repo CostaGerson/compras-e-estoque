@@ -1505,6 +1505,9 @@ model AdmDemanda {
   prioridade       String    @default("NORMAL") // NORMAL | URGENTE
   status           String    @default("A_FAZER") // A_FAZER | FAZENDO | CONCLUIDA
   retorno          String?                       // o que foi feito (obrigatório ao concluir)
+  tipo             String?                       // v425 — COTACAO_FRETE (demanda criada pela rota com frete por transportadora)
+  rotaDemandaId    Int?                          // v425 — demanda de rota de origem
+  cotacao          Json?                         // v425 — { valor, prazo, transportadoras, anexoNome, anexoMime, anexo (base64) }
   concluidaEm      DateTime?
   concluidaPorNome String?
   criadoPorId      Int?
@@ -1924,4 +1927,79 @@ model PedidoComentario {
   createdAt    DateTime @default(now())
 
   @@index([pedidoNumero])
+}
+
+// v425 — Logística › Rotas: demandas de rota (coleta, entrega, compra) e blocos despachados para o motorista
+model RotaDemanda {
+  id             Int       @id @default(autoincrement())
+  data           DateTime  @db.Date
+  objetivo       String                       // COLETA | ENTREGA | COMPRA
+  destinoTipo    String?                      // FORNECEDOR | TERCEIRIZADO | CLIENTE | OUTRO
+  destinoId      Int?
+  destinoNome    String
+  endereco       String
+  contato        String?
+  telefone       String?
+  lat            Float?
+  lng            Float?
+  municipio      String?
+  uf             String?
+  regiao         String?                      // RMBH | MG | BR
+  horarioTipo    String    @default("PERIODO") // FIXO | MANHA | TARDE | ATE | APOS | ENTRE | LIVRE
+  hora1          String?                      // HH:MM
+  hora2          String?
+  motoristaId    String?                      // pessoa da Matriz (p28…) ou F<id> (freelancer)
+  motoristaNome  String?
+  veiculo        String?                      // CARRO | MOTO
+  urgente        Boolean   @default(false)
+  frete          Boolean   @default(false)
+  freteTipo      String?                      // TRANSPORTADORA | FRETEBRAS
+  freteValorMax  Decimal?  @db.Decimal(14, 2)
+  freteVolumes   Int?
+  admDemandaId   Int?
+  obs            String?
+  status         String    @default("ABERTA") // ABERTA | NO_BLOCO | EM_EXECUCAO | CONCLUIDA | CANCELADA
+  blocoId        Int?
+  ordem          Int?
+  concluidaEm    DateTime?
+  concluidaPorNome String?
+  criadoPorId    Int?
+  criadoPorNome  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([data])
+  @@index([status])
+}
+
+model RotaBloco {
+  id            Int       @id @default(autoincrement())
+  data          DateTime  @db.Date
+  motoristaId   String
+  motoristaNome String
+  telefone      String?
+  veiculo       String    @default("CARRO")
+  saida         String?                       // HH:MM de saída da fábrica
+  status        String    @default("MONTAGEM") // MONTAGEM | EM_EXECUCAO | CONCLUIDO | CANCELADO
+  distanciaKm   Float?
+  links         Json      @default("[]")      // links do Google Maps (até 9 paradas por link)
+  despachadoEm  DateTime?
+  retornoEm     DateTime?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([data])
+  @@index([status])
+}
+
+// v425 — endereços já localizados (OpenStreetMap / Nominatim): não consulta de novo
+model GeoCache {
+  id        Int      @id @default(autoincrement())
+  chave     String   @unique                  // endereço normalizado
+  lat       Float?
+  lng       Float?
+  municipio String?
+  uf        String?
+  createdAt DateTime @default(now())
 }

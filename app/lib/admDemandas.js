@@ -25,7 +25,10 @@ const equipeAdm = async () => (await prisma.usuario.findMany({ where: { ativo: t
 const gestores = async () => (await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { diretoria: true }] }, select: { id: true } })).map((x) => x.id);
 const dBR = (d) => (d ? new Date(d).toISOString().slice(0, 10).split("-").reverse().join("/") : "SEM PRAZO");
 
-export const demandaOut = (d) => ({ ...d, prazo: d.prazo ? new Date(d.prazo).toISOString().slice(0, 10) : null });
+export const demandaOut = (d) => {
+  const { anexo, ...cot } = d.cotacao || {};   // v425 — o arquivo da cotação sai por download
+  return { ...d, prazo: d.prazo ? new Date(d.prazo).toISOString().slice(0, 10) : null, cotacao: d.cotacao ? { ...cot, temAnexo: !!anexo } : null };
+};
 
 export async function listar(u) {
   const where = ehGestor(u) ? {} : { OR: [{ responsavelId: null }, { responsavelId: u.id }] };
@@ -75,7 +78,19 @@ export async function atualizar(id, b, u) {
   }
   if (b.status !== undefined) {
     if (!STATUS.includes(b.status)) return { error: "Andamento inválido." };
-    if (b.status === "CONCLUIDA") {
+    if (b.status === "CONCLUIDA" && d.tipo === "COTACAO_FRETE") {
+      // v425 — cotação de frete: anexo + valor + prazo de entrega + transportadoras cotadas
+      const c = b.cotacao || {};
+      const valor = Number(String(c.valor ?? "").replace(/\./g, "").replace(",", ".")) || 0;
+      if (!c.anexo && !d.cotacao?.anexo) return { error: "Anexe o documento da cotação." };
+      if (!(valor > 0)) return { error: "Informe o valor do frete." };
+      if (!String(c.prazo || "").trim()) return { error: "Informe o prazo de entrega." };
+      if (!String(c.transportadoras || "").trim()) return { error: "Informe as transportadoras cotadas." };
+      const cot = { valor, prazo: String(c.prazo).trim().slice(0, 100), transportadoras: String(c.transportadoras).trim().slice(0, 500),
+        anexoNome: c.anexo ? String(c.anexoNome || "cotacao").slice(0, 150) : d.cotacao?.anexoNome, anexoMime: c.anexo ? String(c.anexoMime || "application/pdf") : d.cotacao?.anexoMime, anexo: c.anexo || d.cotacao?.anexo };
+      const ret = String(b.retorno || "").trim() || `COTAÇÃO: R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · PRAZO ${cot.prazo} · ${cot.transportadoras}`;
+      Object.assign(data, { status: "CONCLUIDA", retorno: ret.slice(0, 4000), cotacao: cot, concluidaEm: new Date(), concluidaPorNome: nomeU(u) });
+    } else if (b.status === "CONCLUIDA") {
       const ret = String(b.retorno ?? d.retorno ?? "").trim();
       if (!ret) return { error: "Escreva o retorno: o que foi feito." };
       Object.assign(data, { status: "CONCLUIDA", retorno: ret.slice(0, 4000), concluidaEm: new Date(), concluidaPorNome: nomeU(u) });

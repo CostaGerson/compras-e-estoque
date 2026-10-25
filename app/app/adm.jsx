@@ -643,6 +643,14 @@ export function DemandasAdm({ user, master }) {
             <span>Criada por {abrir.criadoPorNome} em {dBR(abrir.createdAt)}</span>
           </div>
           <div className="text-sm whitespace-pre-wrap mb-3">{abrir.descricao || <span style={{ color: C.sub }}>Sem descrição.</span>}</div>
+          {abrir.cotacao && (
+            <div className="rounded-lg p-3 text-sm mb-3" style={{ background: C.panel2 }}>
+              <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>COTAÇÃO DE FRETE</div>
+              <div>Valor: <b>{moeda(abrir.cotacao.valor)}</b> · Prazo: <b>{abrir.cotacao.prazo}</b></div>
+              <div>Transportadoras: {abrir.cotacao.transportadoras}</div>
+              {abrir.cotacao.temAnexo && <a href={`/api/adm/demandas/${abrir.id}?u=${user.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-1 font-semibold" style={{ color: C.blue }}><FileText size={13} /> {abrir.cotacao.anexoNome || "cotação"}</a>}
+            </div>
+          )}
           {abrir.status === "CONCLUIDA" && (
             <div className="rounded-lg p-3 text-sm" style={{ background: C.greenSoft }}>
               <div className="text-[11px] font-semibold mb-1" style={{ color: C.green }}>RETORNO · {abrir.concluidaPorNome} em {dBR(abrir.concluidaEm)}</div>
@@ -724,11 +732,35 @@ function ConcluirModal({ user, dm, onClose, onOk }) {
   const [ret, setRet] = useState(dm.retorno || "");
   const [st, setSt] = useState(false);
   const [erro, setErro] = useState("");
+  const cotar = dm.tipo === "COTACAO_FRETE";   // v425 — cotação de frete
+  const [cot, setCot] = useState({ valor: "", prazo: "", transportadoras: "", anexo: null, anexoNome: "", anexoMime: "" });
+  const lerArq = (f) => { if (!f) return; const r = new FileReader(); r.onload = () => setCot((c) => ({ ...c, anexo: String(r.result).split(",")[1], anexoNome: f.name, anexoMime: f.type || "application/octet-stream" })); r.readAsDataURL(f); };
+  const pronto = cotar ? !!(cot.anexo && cot.valor && cot.prazo.trim() && cot.transportadoras.trim()) : !!ret.trim();
   const ok = async () => {
     setSt(true); setErro("");
-    try { await api(`/api/adm/demandas/${dm.id}`, "PATCH", { usuarioId: user.id, status: "CONCLUIDA", retorno: ret }); onOk(); }
+    try { await api(`/api/adm/demandas/${dm.id}`, "PATCH", { usuarioId: user.id, status: "CONCLUIDA", retorno: ret, ...(cotar ? { cotacao: cot } : {}) }); onOk(); }
     catch (e) { setErro(e.message); setSt(false); }
   };
+  if (cotar) return (
+    <Modal titulo={`Concluir: ${dm.titulo}`} icone={CheckCircle2} onClose={onClose} largura={560}
+      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={ok} disabled={st || !pronto}>{st && <Loader2 size={14} className="animate-spin" />} Concluir cotação</BtnP></>}>
+      <div className="grid gap-3">
+        <Campo t="Documento da cotação (PDF ou imagem)">
+          <label className="flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm" style={{ border: `1px dashed ${cot.anexo ? C.green : C.line}`, color: cot.anexo ? C.green : C.sub }}>
+            <Upload size={15} /> {cot.anexoNome || "Escolher arquivo"}
+            <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => lerArq(e.target.files?.[0])} />
+          </label>
+        </Campo>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <Campo t="Valor do frete (R$)"><input value={cot.valor} onChange={(e) => setCot({ ...cot, valor: e.target.value })} inputMode="decimal" className={inp} style={inpS} /></Campo>
+          <Campo t="Prazo de entrega"><input value={cot.prazo} onChange={(e) => setCot({ ...cot, prazo: e.target.value })} placeholder="ex.: 3 dias úteis" className={inp} style={inpS} /></Campo>
+        </div>
+        <Campo t="Transportadoras cotadas"><textarea value={cot.transportadoras} onChange={(e) => setCot({ ...cot, transportadoras: e.target.value })} rows={2} placeholder="ex.: Braspress R$ 320 · Jamef R$ 290 (escolhida)" className={inp} style={inpS} /></Campo>
+        <Campo t="Observação (opcional)"><textarea value={ret} onChange={(e) => setRet(e.target.value)} rows={2} className={inp} style={inpS} /></Campo>
+        {erro && <div className="p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      </div>
+    </Modal>
+  );
   return (
     <Modal titulo={`Concluir: ${dm.titulo}`} icone={CheckCircle2} onClose={onClose} largura={520}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={ok} disabled={st || !ret.trim()}>{st && <Loader2 size={14} className="animate-spin" />} Concluir</BtnP></>}>

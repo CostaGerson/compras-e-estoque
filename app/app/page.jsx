@@ -12,7 +12,8 @@ import Gestao from "./gestao";
 import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
-import MovimentoFiscal, { DemandasAdm, Rota } from "./adm";
+import MovimentoFiscal, { DemandasAdm } from "./adm";
+import Rotas from "./rotas";   // v425
 import NfRegistro from "./nfRegistro";
 import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
@@ -119,7 +120,7 @@ const MENU = [
     ] },
   ] },
   { key: "logistica", label: "Logística", icon: Truck, desc: "Rotas de entrega e coleta", filhos: [
-    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota (em construção)" },
+    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
   ] },
   { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, notas fiscais, dados financeiros e uploads", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
@@ -330,7 +331,7 @@ export default function Home() {
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
-          {view === "rota" && <Rota />}
+          {view === "rota" && <Rotas user={user} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
