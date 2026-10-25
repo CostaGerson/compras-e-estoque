@@ -625,7 +625,7 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
                   </div>
                 );
               })}
-              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av ? ` · ${av.retorno}` : ""}</div>
+              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av ? ` · ${av.retorno}` : ""}{av?.volta ? ` (${av.volta.min} min de viagem · ${String(av.volta.km).replace(".", ",")} km)` : ""}</div>
             </div>
             <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas, Google Maps" : "distância estimada em linha reta"} + o tempo previsto em cada local). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>
             <div className="flex justify-end gap-2 pt-1">

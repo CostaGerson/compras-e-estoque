@@ -176,7 +176,7 @@ function simular(seq, origem, saida, vel, medir) {
     t += fica; pos = d;
   }
   const volta = trecho(pos, origem); km += volta.km; t += volta.min;
-  return { km: Math.round(km * 10) / 10, atraso, retorno: hhmm(t), etas };
+  return { km: Math.round(km * 10) / 10, atraso, retorno: hhmm(t), etas, volta: { km: Math.round(volta.km * 10) / 10, min: Math.round(volta.min) } };   // v440
 }
 const custo = (s) => s.km + s.atraso * 2;   // 1 min de atraso pesa como 2 km
 export function otimizar(demandas, origem, { saida = "08:00", veiculo = "CARRO", medir } = {}) {
