@@ -76,12 +76,14 @@ export async function geolocalizar(endereco) {
 // ---------- cadastros ----------
 const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 export async function destinos() {
-  const [fs, ps, cs] = await Promise.all([
+  const [fs, ps, cs, dsx] = await Promise.all([
     prisma.fornecedor.findMany({ where: { ativo: true }, select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true, logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true, contato: true, preposto: true, telefone: true, telefones: true } }),
     prisma.prestador.findMany({ where: { ativo: true, tipo: "TERCEIRIZADO" }, select: { id: true, nome: true, endereco: true, telefone: true } }),
     prisma.cliente.findMany({ where: { ativo: true }, select: { id: true, razaoSocial: true, nomeFantasia: true, logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true, preposto: true, telefones: true } }),
+    prisma.destinatario.findMany({ where: { ativo: true } }),   // v430
   ]);
   return [
+    ...dsx.map((x) => ({ tipo: "DESTINATARIO", id: x.id, nome: up(x.nome), endereco: x.endereco || "", contato: x.contato || null, telefone: x.telefone || null, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf })),
     ...ps.map((p) => ({ tipo: "TERCEIRIZADO", id: p.id, nome: up(p.nome), endereco: p.endereco || "", contato: null, telefone: p.telefone || null })),
     ...fs.map((f) => ({ tipo: "FORNECEDOR", id: f.id, nome: up(f.nome || f.nomeFantasia || f.razaoSocial), endereco: juntaEnd(f), contato: f.contato || f.preposto || null, telefone: f.telefone || f.telefones || null })),
     ...cs.map((c) => ({ tipo: "CLIENTE", id: c.id, nome: up(c.nomeFantasia || c.razaoSocial), endereco: juntaEnd(c), contato: c.preposto || null, telefone: c.telefones || null })),
@@ -284,8 +286,20 @@ export async function salvarDemanda(b, u) {
   // v427 — endereço escolhido no autocomplete do Google já vem com as coordenadas
   if (b.geo && b.geo.endereco === endereco && b.geo.lat != null) geo = { lat: Number(b.geo.lat), lng: Number(b.geo.lng), municipio: b.geo.municipio || null, uf: b.geo.uf || null };
   if (!geo) geo = await geolocalizar(endereco);
+  // v430 — destinatário novo (fora dos cadastros) entra em Dados › Destinatários
+  let destinoTipo = b.destinoTipo || "OUTRO", destinoId = b.destinoId ? Number(b.destinoId) : null;
+  if (destinoTipo === "OUTRO" || destinoTipo === "GOOGLE") {
+    const ex = await prisma.destinatario.findUnique({ where: { nome: destinoNome } }).catch(() => null);
+    const dd = { endereco, lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null,
+      contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null };
+    const x = ex ? await prisma.destinatario.update({ where: { id: ex.id }, data: { ...dd, ativo: true } })
+      : await prisma.destinatario.create({ data: { nome: destinoNome, ...dd, criadoPorNome: nomeU(u) } });
+    destinoTipo = "DESTINATARIO"; destinoId = x.id;
+  } else if (destinoTipo === "DESTINATARIO" && destinoId && geo?.lat != null) {
+    await prisma.destinatario.update({ where: { id: destinoId }, data: { endereco, lat: geo.lat, lng: geo.lng, municipio: geo.municipio || null, uf: geo.uf || null } }).catch(() => null);
+  }
   const dados = {
-    data: dUTC(b.data), objetivo, destinoTipo: b.destinoTipo || "OUTRO", destinoId: b.destinoId ? Number(b.destinoId) : null, destinoNome, tarefa: tarefa.slice(0, 200), endereco,
+    data: dUTC(b.data), objetivo, destinoTipo, destinoId, destinoNome, tarefa: tarefa.slice(0, 200), endereco,
     contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null,
     lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null, regiao: geo ? regiaoDe(geo.municipio, geo.uf) : null,
     horarioTipo, hora1: b.hora1 || null, hora2: horarioTipo === "ENTRE" ? b.hora2 || null : null,
@@ -389,5 +403,30 @@ export async function desfazerBloco(id) {
   if (bl.status === "EM_EXECUCAO" && (await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: "CONCLUIDA" } }))) return { error: "Já há parada concluída nessa rota." };
   await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id }, data: { blocoId: null, ordem: null, status: "ABERTA" } });
   await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "CANCELADO" } });
+  return { ok: true };
+}
+
+// v430 — Dados › Destinatários
+export async function listarDestinatarios() {
+  const l = await prisma.destinatario.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } });
+  const usos = await prisma.rotaDemanda.groupBy({ by: ["destinoId"], where: { destinoTipo: "DESTINATARIO" }, _count: { _all: true } }).catch(() => []);
+  const n = Object.fromEntries(usos.map((x) => [x.destinoId, x._count._all]));
+  return l.map((x) => ({ ...x, demandas: n[x.id] || 0 }));
+}
+export async function salvarDestinatario(b, u) {
+  const nome = up(b.nome), endereco = String(b.endereco || "").trim();
+  if (!nome) return { error: "Informe o nome." };
+  if (!endereco) return { error: "Informe o endereço." };
+  const ant = b.id ? await prisma.destinatario.findUnique({ where: { id: Number(b.id) } }) : null;
+  let geo = b.geo && b.geo.endereco === endereco && b.geo.lat != null ? b.geo : ant && ant.endereco === endereco ? ant : await geolocalizar(endereco);
+  const data = { nome, endereco, lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null,
+    contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null, obs: String(b.obs || "").trim() || null };
+  try {
+    const x = ant ? await prisma.destinatario.update({ where: { id: ant.id }, data }) : await prisma.destinatario.create({ data: { ...data, criadoPorNome: nomeU(u) } });
+    return { ok: true, destinatario: x, semMapa: x.lat == null };
+  } catch (e) { if (String(e.code) === "P2002") return { error: "Já existe um destinatário com esse nome." }; throw e; }
+}
+export async function excluirDestinatario(id) {
+  await prisma.destinatario.update({ where: { id: Number(id) }, data: { ativo: false } });
   return { ok: true };
 }

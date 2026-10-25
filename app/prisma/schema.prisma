@@ -2013,3 +2013,21 @@ model RotaTrecho {
   segundos  Int
   createdAt DateTime @default(now())
 }
+
+// v430 — destinatários de rota que não são fornecedor, terceirizado nem cliente (Dados › Destinatários)
+model Destinatario {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique
+  endereco  String
+  lat       Float?
+  lng       Float?
+  municipio String?
+  uf        String?
+  contato   String?
+  telefone  String?
+  obs       String?
+  ativo     Boolean  @default(true)
+  criadoPorNome String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

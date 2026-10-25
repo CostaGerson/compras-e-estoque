@@ -297,12 +297,38 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const [erro, setErro] = useState("");
   useEffect(() => { if (!_destinos) api(`/api/rotas?u=${user.id}&destinos=1`).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const sug = useMemo(() => { const t = sem(q).trim(); return t.length < 2 ? [] : lista.filter((x) => sem(`${x.nome} ${x.endereco}`).includes(t)).slice(0, 12); }, [q, lista]);
-  const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco, geo: null, contato: x.contato || "", telefone: x.telefone || "" })); };
+  const sug = useMemo(() => { const t = sem(q).trim(); return t.length < 2 ? [] : lista.filter((x) => sem(`${x.nome} ${x.endereco}`).includes(t)).slice(0, 8); }, [q, lista]);
+  const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco,
+    geo: x.lat != null ? { endereco: x.endereco, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf } : null, contato: x.contato || "", telefone: x.telefone || "" })); };
+  // v430 — estabelecimentos do Google pelo nome (vira destinatário novo ao salvar)
+  const [sugG, setSugG] = useState([]);
+  const sessaoG = useRef(null), tG = useRef(null), digitouQ = useRef(false);
+  useEffect(() => {
+    if (!digitouQ.current) return;
+    clearTimeout(tG.current);
+    const t = String(q || "").trim();
+    if (t.length < 3) { setSugG([]); return; }
+    tG.current = setTimeout(() => {
+      if (!sessaoG.current) sessaoG.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`).then((r) => r.json()).then((l) => setSugG(Array.isArray(l) ? l.slice(0, 6) : [])).catch(() => {});
+    }, 350);
+    return () => clearTimeout(tG.current);
+  }, [q]);
+  const escolherGoogle = async (x) => {
+    setAberto(false); digitouQ.current = false;
+    try {
+      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessaoG.current || ""}`);
+      sessaoG.current = null;
+      const nome = String(g?.nome || x.principal || x.texto).toUpperCase();
+      setQ(nome);
+      setF((s0) => ({ ...s0, destinoTipo: "GOOGLE", destinoId: null, destinoNome: nome, endereco: g?.endereco || x.texto, geo: g?.lat != null ? g : null }));
+    } catch { setQ(x.principal || x.texto); }
+  };
   async function salvar() {
     setSalv(true); setErro("");
     try {
       const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "demanda", demanda: { ...f, destinoNome: f.destinoNome || q } });
+      _destinos = null;   // v430 — destinatário novo entra na lista
       if (r.semMapa) await alerta("Demanda salva, mas o endereço não foi encontrado no mapa. Confira rua, número, cidade e UF para ela aparecer no mapa e entrar no cálculo da rota.");
       onOk();
     } catch (e) { setErro(e.message); setSalv(false); }
@@ -322,15 +348,23 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
         <fieldset disabled={trava} className="p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <L t="Objetivo" span><Seg v={f.objetivo} opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COMPRA", "Compra"]]} on={(v) => set("objetivo", v)} /></L>
           <div className="col-span-2 relative">
-            <div className="text-xs mb-1" style={{ color: C.sub }}>Destinatário <span style={{ color: "#9AA3B2" }}>· terceirizados, fornecedores e clientes cadastrados</span></div>
-            <input value={q} onChange={(e) => { setQ(e.target.value); set("destinoNome", e.target.value.toUpperCase()); set("destinoId", null); set("destinoTipo", "OUTRO"); setAberto(true); }} onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Destinatário <span style={{ color: "#9AA3B2" }}>· cadastrados ou locais do Google Maps; um nome novo fica salvo em Dados › Destinatários</span></div>
+            <input value={q} onChange={(e) => { digitouQ.current = true; setQ(e.target.value); set("destinoNome", e.target.value.toUpperCase()); set("destinoId", null); set("destinoTipo", "OUTRO"); setAberto(true); }} onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
               placeholder="Digite o nome…" className={inp} style={inpS} />
-            {aberto && sug.length > 0 && (
-              <div className="absolute z-20 left-0 right-0 mt-1 rounded-md shadow-lg max-h-64 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+            {aberto && (sug.length > 0 || sugG.length > 0) && (
+              <div className="absolute z-20 left-0 right-0 mt-1 rounded-md shadow-lg max-h-80 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+                {sug.length > 0 && <div className="px-3 pt-1.5 text-[10px] font-semibold" style={{ color: "#9AA3B2" }}>CADASTRADOS</div>}
                 {sug.map((x) => (
                   <button key={`${x.tipo}${x.id}`} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(x); }} className="block w-full text-left px-3 py-1.5 hover:bg-gray-50">
                     <div className="text-sm" style={{ color: C.text }}>{sc(x.nome)} <span className="text-[10px] px-1.5 rounded" style={{ background: C.panel2, color: C.sub }}>{sc(x.tipo)}</span></div>
                     <div className="text-[11px] truncate" style={{ color: x.endereco ? C.sub : C.yellow }}>{x.endereco || "sem endereço no cadastro"}</div>
+                  </button>
+                ))}
+                {sugG.length > 0 && <div className="px-3 pt-1.5 text-[10px] font-semibold" style={{ color: "#9AA3B2", borderTop: sug.length ? `1px solid ${C.line}` : "none" }}>NO GOOGLE MAPS</div>}
+                {sugG.map((x) => (
+                  <button key={x.placeId} type="button" onMouseDown={(e) => { e.preventDefault(); escolherGoogle(x); }} className="flex items-start gap-2 w-full text-left px-3 py-1.5 hover:bg-gray-50">
+                    <MapPin size={14} className="mt-0.5 shrink-0" style={{ color: C.sub }} />
+                    <span className="min-w-0"><span className="block text-sm truncate" style={{ color: C.text }}>{x.principal || x.texto}</span><span className="block text-[11px] truncate" style={{ color: C.sub }}>{x.secundario}</span></span>
                   </button>
                 ))}
               </div>
@@ -640,6 +674,84 @@ function FabricaModal({ user, atual, onClose, onOk }) {
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
           <button onClick={salvar} disabled={ocup || !e.trim()} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup && <Loader2 size={14} className="animate-spin" />} Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- v430 — Dados › Destinatários ----------
+export function Destinatarios({ user }) {
+  const [l, setL] = useState(null);
+  const [q, setQ] = useState("");
+  const [ed, setEd] = useState(null);
+  const carregar = () => api(`/api/rotas?u=${user.id}&destinatarios=1`).then(setL).catch(() => setL([]));
+  useEffect(() => { carregar(); }, []);
+  const lista = (l || []).filter((x) => !q || sem(`${x.nome} ${x.endereco} ${x.contato || ""}`).includes(sem(q)));
+  const excluir = async (x) => {
+    if (!(await confirmar(`Excluir o destinatário ${sc(x.nome)}?`))) return;
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "excluirDestinatario", id: x.id }); _destinos = null; carregar(); } catch (e) { alerta(e.message); }
+  };
+  return (
+    <div className="max-w-5xl">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex-1">
+          <div className="text-lg font-bold" style={{ color: C.navy }}>Destinatários</div>
+          <div className="text-xs" style={{ color: C.sub }}>Locais das demandas de rota que não são fornecedor, terceirizado nem cliente. Um nome novo na demanda de rota entra aqui sozinho.</div>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="px-3 py-1.5 rounded-md text-sm w-56" style={{ border: `1px solid ${C.line}` }} />
+        <button onClick={() => setEd({})} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo</button>
+      </div>
+      <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        {!l && <div className="p-4 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+        {l && !lista.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum destinatário.</div>}
+        {lista.map((x) => (
+          <div key={x.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderTop: `1px solid ${C.line}` }}>
+            <MapPin size={16} style={{ color: x.lat != null ? C.green : C.yellow }} title={x.lat != null ? "Localizado no mapa" : "Fora do mapa"} />
+            <button onClick={() => setEd(x)} className="flex-1 text-left min-w-0">
+              <div className="text-sm font-semibold" style={{ color: C.text }}>{sc(x.nome)}</div>
+              <div className="text-xs truncate" style={{ color: C.sub }}>{x.endereco}</div>
+              {(x.contato || x.telefone) && <div className="text-xs" style={{ color: C.sub }}>{[x.contato, x.telefone].filter(Boolean).join(" · ")}</div>}
+            </button>
+            <span className="text-xs whitespace-nowrap" style={{ color: C.sub }}>{x.demandas} demanda(s)</span>
+            <button onClick={() => excluir(x)} title="Excluir" style={{ color: C.sub }}><X size={15} /></button>
+          </div>
+        ))}
+      </div>
+      {ed && <DestinatarioForm user={user} inicial={ed} onClose={() => setEd(null)} onOk={() => { setEd(null); _destinos = null; carregar(); }} />}
+    </div>
+  );
+}
+function DestinatarioForm({ user, inicial, onClose, onOk }) {
+  const [f, setF] = useState({ nome: "", endereco: "", contato: "", telefone: "", obs: "", ...inicial });
+  const [ocup, setOcup] = useState(false);
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const salvar = async () => {
+    setOcup(true);
+    try {
+      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "destinatario", destinatario: f });
+      if (r.semMapa) await alerta("Salvo, mas o endereço não foi encontrado no mapa. Escolha uma das sugestões do Google para localizar.");
+      onOk();
+    } catch (e) { alerta(e.message); setOcup(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-lg shadow-2xl" style={{ background: C.panel }}>
+        <div className="flex items-center px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{inicial.id ? "Destinatário" : "Novo destinatário"}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <L t="Nome" span><input autoFocus value={f.nome} onChange={(e) => set("nome", e.target.value.toUpperCase())} className={inp} style={inpS} /></L>
+          <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo || (f.lat != null && f.endereco === inicial.endereco) ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
+            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} /></div>
+          <L t="Contato"><input value={f.contato || ""} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
+          <L t="Telefone"><input value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} className={inp} style={inpS} /></L>
+          <L t="Observação" span><textarea value={f.obs || ""} onChange={(e) => set("obs", e.target.value)} rows={2} className={inp} style={inpS} /></L>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={salvar} disabled={ocup || !f.nome.trim() || !String(f.endereco || "").trim()} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup && <Loader2 size={14} className="animate-spin" />} Salvar</button>
         </div>
       </div>
     </div>

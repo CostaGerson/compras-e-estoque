@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -21,6 +21,7 @@ export async function GET(req) {
   const u = await quem(q.get("u"));
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
+  if (q.get("destinatarios")) return Response.json(await listarDestinatarios());   // v430
   // v427 — autocomplete de endereço do Google
   if (q.get("auto") != null) { try { return Response.json(await autocompletar(q.get("auto"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
   if (q.get("lugar")) { try { return Response.json(await lugar(q.get("lugar"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
@@ -37,6 +38,8 @@ export async function POST(req) {
   switch (b.acao) {
     case "demanda": return r(await salvarDemanda(b.demanda || {}, u));
     case "cancelar": return r(await cancelarDemanda(b.id));
+    case "destinatario": return r(await salvarDestinatario(b.destinatario || {}, u));   // v430
+    case "excluirDestinatario": return r(await excluirDestinatario(b.id));
     case "fabrica": if (!podeMontar(u)) return negado(); return r(await salvarFabrica(b.endereco, b.geo));
     case "otimizar": case "avaliar": {
       if (!podeMontar(u)) return negado();

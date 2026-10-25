@@ -13,7 +13,7 @@ import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm } from "./adm";
-import Rotas from "./rotas";   // v425
+import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
 import NfRegistro from "./nfRegistro";
 import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
@@ -128,6 +128,7 @@ const MENU = [
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
+    { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
     { key: "uploads", label: "Uploads", icon: FolderUp, perfis: [...GESTAO_TODOS, "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
@@ -159,6 +160,7 @@ const PODE = {
   fme: (u) => tem(u, "fme"),
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
   rota: () => true,
+  destinatarios: () => true,   // v430
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
   artigos: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
@@ -332,6 +334,7 @@ export default function Home() {
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rotas user={user} />}
+          {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
