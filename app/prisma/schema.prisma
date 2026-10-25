@@ -1937,6 +1937,7 @@ model RotaDemanda {
   destinoTipo    String?                      // FORNECEDOR | TERCEIRIZADO | CLIENTE | OUTRO
   destinoId      Int?
   destinoNome    String
+  tarefa         String?                      // v429 — o que fazer lá (calendário: destinatário - tarefa)
   endereco       String
   contato        String?
   telefone       String?

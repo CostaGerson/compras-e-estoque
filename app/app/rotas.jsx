@@ -26,6 +26,7 @@ const api = async (url, method = "GET", body) => {
 const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag] };
 const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXECUCAO: ["em execução", C.accent], CONCLUIDA: ["concluída", C.green] };
 const corDemanda = (d) => (d.status === "CONCLUIDA" ? { bg: C.greenSoft, bd: C.green, tx: C.text } : d.urgente ? { bg: C.redSoft, bd: C.red, tx: C.red } : d.frete ? { bg: C.blueSoft, bd: C.blue, tx: C.blue } : { bg: C.panel, bd: C.line, tx: C.text });
+const nomeTarefa = (x) => `${sc(x.destinoNome)}${x.tarefa ? ` - ${x.tarefa}` : ""}`;   // v429 — destinatário - tarefa
 const ordenar = (l) => [...l].sort((a, b) => (b.urgente - a.urgente) || ((a.ordem ?? 99) - (b.ordem ?? 99)) || (a.janela?.[0] || "").localeCompare(b.janela?.[0] || "") || a.id - b.id);
 
 export default function Rotas({ user }) {
@@ -150,7 +151,7 @@ function MiniDemanda({ x, grande, onClick }) {
     <button onClick={onClick} className="w-full text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `1px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.7 : 1 }}>
       <div className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: c.tx }}>
         {x.status === "CONCLUIDA" ? <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} /> : <Ico size={11} className="shrink-0" />}
-        <span className="truncate" style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{sc(x.destinoNome)}</span>
+        <span className="truncate" title={nomeTarefa(x)} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
       {grande && <div className="text-[10px] truncate" style={{ color: C.sub }}>{OBJ[x.objetivo]?.[0]} · {x.horario}{x.motoristaNome ? ` · ${sc(x.motoristaNome.split(" ")[0])}` : ""}</div>}
     </button>
@@ -204,7 +205,7 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
   return <div ref={ref} className="rounded-lg overflow-hidden" style={{ height: altura, background: "#E9EDF3", zIndex: 0 }} />;
 }
 function MapasDia({ demandas, fabrica }) {
-  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${x.destinoNome} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : x.frete ? C.blue : C.accent });
+  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : x.frete ? C.blue : C.accent });
   const com = demandas.filter((x) => x.lat != null);
   const rmbh = com.filter((x) => x.regiao === "RMBH" || !x.regiao).map(ponto);
   const mg = com.filter((x) => x.regiao === "MG").map(ponto);
@@ -287,7 +288,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const novo = !inicial.id;
   const trava = ["EM_EXECUCAO", "CONCLUIDA"].includes(inicial.status);
   const [f, setF] = useState({ objetivo: "ENTREGA", destinoTipo: "", destinoId: null, destinoNome: "", endereco: "", contato: "", telefone: "", horarioTipo: "MANHA", hora1: "", hora2: "",
-    motoristaId: "", motoristaNome: "", veiculo: "CARRO", urgente: false, frete: false, freteTipo: "", obs: "", ...inicial,
+    tarefa: "", motoristaId: "", motoristaNome: "", veiculo: "CARRO", urgente: false, frete: false, freteTipo: "", obs: "", ...inicial,
     freteValorMax: inicial.freteValorMax != null ? String(inicial.freteValorMax).replace(".", ",") : "", freteVolumes: inicial.freteVolumes ?? "" });
   const [lista, setLista] = useState(_destinos || []);
   const [q, setQ] = useState(inicial.destinoNome || "");
@@ -335,6 +336,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
               </div>
             )}
           </div>
+          <L t="O que fazer lá" span><input value={f.tarefa || ""} onChange={(e) => set("tarefa", e.target.value)} placeholder="ex.: buscar 300 camisas cortadas · levar NF 1234 · comprar linha" className={inp} style={inpS} /></L>
           <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
             <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} /></div>
           <L t="Contato"><input value={f.contato || ""} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
@@ -408,7 +410,7 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
                 <label key={x.id} className="flex items-start gap-3 px-5 py-2 cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente ? C.redSoft : undefined }}>
                   <input type="checkbox" checked={m.has(x.id)} onChange={() => tog(x.id)} className="mt-1" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold flex items-center gap-1" style={{ color: x.urgente ? C.red : C.text }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}{x.urgente ? " · URGENTE" : ""}</div>
+                    <div className="text-sm font-semibold flex items-center gap-1" style={{ color: x.urgente ? C.red : C.text }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}{x.urgente ? " · URGENTE" : ""}</div>
                     <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                     <div className="text-[11px]" style={{ color: C.sub }}>{sc(x.horario)}{x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}{x.lat == null ? " · sem localização" : ""}</div>
                   </div>
@@ -506,7 +508,7 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
                   <div key={id} className="flex items-center gap-2 px-3 py-2" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente ? C.redSoft : undefined }}>
                     <span className="rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ width: 22, height: 22, background: C.accent, color: "#fff" }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate" style={{ color: x.urgente ? C.red : C.text }}>{OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}</div>
+                      <div className="text-sm font-semibold truncate" style={{ color: x.urgente ? C.red : C.text }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</div>
                       <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                       <div className="text-[11px]" style={{ color: e?.atrasoMin ? C.red : C.sub }}>{sc(x.horario)}{e ? ` · chegada prevista ${e.chegada}${e.atrasoMin ? ` · ${e.atrasoMin} min fora do horário` : ""}` : ""}{x.lat == null ? " · sem localização (estimado)" : ""}</div>
                     </div>
@@ -552,7 +554,7 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
             {b.status === "EM_EXECUCAO" && (pode || meu)
               ? <button onClick={() => acao({ acao: "parada", id: x.id, desfazer: x.status === "CONCLUIDA" })} style={{ color: x.status === "CONCLUIDA" ? C.green : C.sub }}>{x.status === "CONCLUIDA" ? <CheckCircle2 size={15} /> : <Circle size={15} />}</button>
               : <span className="font-bold w-4 text-center" style={{ color: C.sub }}>{x.ordem}</span>}
-            <span className="truncate" style={{ color: C.text, textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}</span>
+            <span className="truncate" style={{ color: C.text, textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</span>
             <span className="ml-auto whitespace-nowrap" style={{ color: C.sub }}>{x.horario}</span>
           </div>
         ))}
@@ -589,7 +591,7 @@ function MinhaRota({ bloco, demandas, user, onMudou }) {
           <div key={x.id} className="rounded-lg px-3 py-2 flex items-center gap-3" style={{ background: x.status === "CONCLUIDA" ? "rgba(255,255,255,.08)" : x.id === prox?.id ? "#fff" : "rgba(255,255,255,.15)", color: x.id === prox?.id ? C.text : "#fff" }}>
             <span className="rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ width: 24, height: 24, background: x.status === "CONCLUIDA" ? C.green : C.accent, color: "#fff" }}>{x.ordem}</span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold" style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}{x.urgente ? " · URGENTE" : ""}</div>
+              <div className="text-sm font-semibold" style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}{x.urgente ? " · URGENTE" : ""}</div>
               <div className="text-xs opacity-80 truncate">{x.endereco}</div>
               <div className="text-xs opacity-80">{sc(x.horario)}{x.telefone ? ` · ${[x.contato, x.telefone].filter(Boolean).join(" · ")}` : ""}{x.obs ? ` · ${x.obs}` : ""}</div>
             </div>

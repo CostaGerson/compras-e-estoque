@@ -236,7 +236,7 @@ export function telefoneWa(t) {
   return d.length >= 10 ? d : null;
 }
 export function mensagemWhats(bloco, paradas, links) {
-  const linhas = paradas.map((d, i) => `${i + 1}. ${d.objetivo} · ${d.destinoNome}${d.urgente ? " (URGENTE)" : ""}\n   ${d.endereco}${d.telefone ? `\n   Contato: ${[d.contato, d.telefone].filter(Boolean).join(" · ")}` : ""}\n   Horário: ${horarioTxt(d)}${d.obs ? `\n   Obs: ${d.obs}` : ""}`);
+  const linhas = paradas.map((d, i) => `${i + 1}. ${d.objetivo} · ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}${d.urgente ? " (URGENTE)" : ""}\n   ${d.endereco}${d.telefone ? `\n   Contato: ${[d.contato, d.telefone].filter(Boolean).join(" · ")}` : ""}\n   Horário: ${horarioTxt(d)}${d.obs ? `\n   Obs: ${d.obs}` : ""}`);
   return [`*Rota ${bloco.id} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${bloco.saida ? ` · saída ${bloco.saida}` : ""}`, "",
     ...linhas, "", `Volta à fábrica no final.`, "", ...links.map((l, i) => `Mapa${links.length > 1 ? ` (parte ${i + 1})` : ""}: ${l}`), "", "Marque cada parada como concluída no sistema (Logística › Rotas)."].join("\n");
 }
@@ -266,6 +266,8 @@ export async function salvarDemanda(b, u) {
   const destinoNome = up(b.destinoNome);
   const endereco = String(b.endereco || "").trim();
   if (!destinoNome) return { error: "Informe o destinatário." };
+  const tarefa = String(b.tarefa || "").replace(/\s+/g, " ").trim();
+  if (!tarefa) return { error: "Informe o que fazer lá." };
   if (!endereco) return { error: "Informe o endereço." };
   const horarioTipo = HORARIOS.includes(b.horarioTipo) ? b.horarioTipo : "LIVRE";
   if (["FIXO", "ATE", "APOS", "ENTRE"].includes(horarioTipo) && !min(b.hora1)) return { error: "Informe o horário." };
@@ -283,7 +285,7 @@ export async function salvarDemanda(b, u) {
   if (b.geo && b.geo.endereco === endereco && b.geo.lat != null) geo = { lat: Number(b.geo.lat), lng: Number(b.geo.lng), municipio: b.geo.municipio || null, uf: b.geo.uf || null };
   if (!geo) geo = await geolocalizar(endereco);
   const dados = {
-    data: dUTC(b.data), objetivo, destinoTipo: b.destinoTipo || "OUTRO", destinoId: b.destinoId ? Number(b.destinoId) : null, destinoNome, endereco,
+    data: dUTC(b.data), objetivo, destinoTipo: b.destinoTipo || "OUTRO", destinoId: b.destinoId ? Number(b.destinoId) : null, destinoNome, tarefa: tarefa.slice(0, 200), endereco,
     contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null,
     lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null, regiao: geo ? regiaoDe(geo.municipio, geo.uf) : null,
     horarioTipo, hora1: b.hora1 || null, hora2: horarioTipo === "ENTRE" ? b.hora2 || null : null,
@@ -297,7 +299,7 @@ export async function salvarDemanda(b, u) {
   if (freteTipo === "TRANSPORTADORA" && !d.admDemandaId) {
     const dBR = b.data.split("-").reverse().join("/");
     const adm = await prisma.admDemanda.create({ data: {
-      titulo: `COTAR FRETE · ${objetivo} · ${destinoNome}`.slice(0, 200), tipo: "COTACAO_FRETE", rotaDemandaId: d.id,
+      titulo: `COTAR FRETE · ${objetivo} · ${destinoNome} - ${tarefa}`.slice(0, 200), tipo: "COTACAO_FRETE", rotaDemandaId: d.id,
       descricao: [`Demanda de rota #${d.id} para ${dBR} (${horarioTxt(d)}).`, `Destino: ${endereco}`, dados.freteVolumes ? `Volumes: ${dados.freteVolumes}` : null, dados.obs ? `Obs: ${dados.obs}` : null,
         "Concluir anexando a cotação, com valor, prazo de entrega e as transportadoras cotadas."].filter(Boolean).join("\n"),
       prazo: dUTC(b.data), prioridade: d.urgente ? "URGENTE" : "NORMAL", criadoPorId: u.id, criadoPorNome: nomeU(u) } });
