@@ -213,9 +213,15 @@ export function avaliarOrdem(seq, origem, { saida = "08:00", veiculo = "CARRO", 
   return { ordem: seq.map((d) => d.id), ...simular(seq, origem || seq[0], min(saida) ?? DIA_INI, veiculo === "MOTO" ? 34 : 28, medir) };
 }
 // v427 — medidor por ruas (Google Routes, com cache); moto ~15% mais rápida que o carro no tempo
-export async function medidorRuas(pontos, veiculo) {
+// v441 — data (YYYY-MM-DD) + saída (HH:MM) → trânsito previsto do Google para aquele dia e horário
+export function quandoSai(data, saida) {
+  const d = data instanceof Date ? data.toISOString().slice(0, 10) : String(data || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return `${d}T${/^\d{2}:\d{2}$/.test(String(saida || "")) ? saida : "08:00"}:00-03:00`;
+}
+export async function medidorRuas(pontos, veiculo, quando) {
   let m = {};
-  try { m = await matrizRuas(pontos); } catch (e) { console.log("rotas/matriz google:", e.message); return { medir: null, erro: e.message }; }
+  try { m = await matrizRuas(pontos, quando); } catch (e) { console.log("rotas/matriz google:", e.message); return { medir: null, erro: e.message }; }
   if (!Object.keys(m).length) return { medir: null };
   const f = veiculo === "MOTO" ? 0.85 : 1;
   return { medir: (a, b) => { if (a?.lat == null || b?.lat == null) return null; const x = m[chaveTrecho(a, b)]; return x ? { km: x.km, min: x.min * f } : null; }, porRuas: true };
@@ -386,7 +392,7 @@ export async function salvarBloco(b, u) {
   const tl = tempos(b.tempos);   // v439 — tempo previsto no local
   const seq = ids.map((i) => porId[i]).filter(Boolean).map((d) => (tl[d.id] != null ? { ...d, tempoLocal: tl[d.id] } : d));
   const fab = await fabrica();
-  const { medir } = await medidorRuas([fab, ...seq], b.veiculo);
+  const { medir } = await medidorRuas([fab, ...seq], b.veiculo, quandoSai(seq[0].data, b.saida));
   const av = avaliarOrdem(seq, fab, { saida: b.saida, veiculo: b.veiculo, medir });
   const dados = { data: seq[0].data, motoristaId: mot.id, motoristaNome: mot.nome, telefone: mot.telefone || null, veiculo: VEICULOS.includes(b.veiculo) ? b.veiculo : "CARRO",
     saida: b.saida || null, distanciaKm: av.km, links: fab ? linksMaps(fab, seq) : linksMaps(seq[0], seq.slice(1)) };

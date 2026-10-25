@@ -77,37 +77,53 @@ export async function geocodificar(endereco) {
 }
 
 // distância e tempo por ruas entre todos os pontos (com cache de cada trecho)
+// v441 — com "quando" (data/hora de saída no futuro) usa o trânsito previsto pelo Google (TRAFFIC_AWARE);
+// o cache passa a ser por dia da semana + hora (ex.: |1-08 = segunda às 8h)
 const k5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
-export async function matrizRuas(pontos) {
+function faixa(quando) {
+  if (!quando) return null;
+  const d = new Date(quando);
+  if (isNaN(d)) return null;
+  const br = new Date(d.getTime() - 3 * 3600e3);   // horário de Brasília
+  return `${br.getUTCDay()}-${String(br.getUTCHours()).padStart(2, "0")}`;
+}
+export async function matrizRuas(pontos, quando) {
   const out = {};
   const ok = pontos.filter((p) => p && p.lat != null && p.lng != null);
   if (!temGoogle() || ok.length < 2) return out;
+  let saida = quando ? new Date(quando) : null;
+  if (saida && !isNaN(saida) && saida.getTime() < Date.now() + 60e3) saida = new Date(Date.now() + 2 * 60e3);   // passado: usa agora
+  const transito = !!saida && !isNaN(saida);
+  const fx = transito ? faixa(saida) : null;
+  const ch = (a, b) => `${k5(a)}|${k5(b)}${fx ? `|${fx}` : ""}`;
   const uniq = [...new Map(ok.map((p) => [k5(p), p])).values()];
-  const chaves = []; for (const a of uniq) for (const b of uniq) if (a !== b) chaves.push(`${k5(a)}|${k5(b)}`);
+  const chaves = []; for (const a of uniq) for (const b of uniq) if (a !== b) chaves.push(ch(a, b));
   const cache = await prisma.rotaTrecho.findMany({ where: { chave: { in: chaves } } }).catch(() => []);
-  for (const c of cache) out[c.chave] = { km: c.metros / 1000, min: c.segundos / 60 };
+  const porCh = Object.fromEntries(cache.map((c) => [c.chave, c]));
+  for (const a of uniq) for (const b of uniq) if (a !== b) { const c = porCh[ch(a, b)]; if (c) out[`${k5(a)}|${k5(b)}`] = { km: c.metros / 1000, min: c.segundos / 60 }; }
   const faltaOrig = uniq.filter((a) => uniq.some((b) => a !== b && !out[`${k5(a)}|${k5(b)}`]));
   if (!faltaOrig.length) return out;
   const wp = (p) => ({ waypoint: { location: { latLng: { latitude: p.lat, longitude: p.lng } } } });
-  // até 25 origens × 25 destinos por chamada
-  for (let i = 0; i < faltaOrig.length; i += 25) {
-    const origs = faltaOrig.slice(i, i + 25);
+  // limite por chamada: 625 elementos sem trânsito, 100 com trânsito
+  const passo = transito ? 10 : 25;
+  for (let i = 0; i < faltaOrig.length; i += passo) for (let j = 0; j < uniq.length; j += passo) {
+    const origs = faltaOrig.slice(i, i + passo), dests = uniq.slice(j, j + passo);
     const r = await fetch("https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", {
       method: "POST", cache: "no-store",
       headers: { "Content-Type": "application/json", "X-Goog-Api-Key": KEY(), "X-Goog-FieldMask": "originIndex,destinationIndex,distanceMeters,duration,condition" },
-      body: JSON.stringify({ origins: origs.map(wp), destinations: uniq.slice(0, 25).map(wp), travelMode: "DRIVE", routingPreference: "TRAFFIC_UNAWARE" }),
+      body: JSON.stringify({ origins: origs.map(wp), destinations: dests.map(wp), travelMode: "DRIVE",
+        ...(transito ? { routingPreference: "TRAFFIC_AWARE", departureTime: saida.toISOString() } : { routingPreference: "TRAFFIC_UNAWARE" }) }),
     });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !Array.isArray(j)) throw new Error(j?.error?.message || j?.[0]?.error?.message || `Google rotas: HTTP ${r.status}`);
+    const jj = await r.json().catch(() => null);
+    if (!r.ok || !Array.isArray(jj)) throw new Error(jj?.error?.message || jj?.[0]?.error?.message || `Google rotas: HTTP ${r.status}`);
     const novos = [];
-    for (const e of j) {
+    for (const e of jj) {
       if (e.condition && e.condition !== "ROUTE_EXISTS") continue;
-      const a = origs[e.originIndex], b = uniq[e.destinationIndex];
+      const a = origs[e.originIndex], b = dests[e.destinationIndex];
       if (!a || !b || a === b) continue;
-      const chave = `${k5(a)}|${k5(b)}`;
       const seg = parseInt(String(e.duration || "0").replace("s", ""), 10) || 0;
-      out[chave] = { km: (e.distanceMeters || 0) / 1000, min: seg / 60 };
-      novos.push({ chave, metros: e.distanceMeters || 0, segundos: seg });
+      out[`${k5(a)}|${k5(b)}`] = { km: (e.distanceMeters || 0) / 1000, min: seg / 60 };
+      novos.push({ chave: ch(a, b), metros: e.distanceMeters || 0, segundos: seg });
     }
     if (novos.length) await prisma.rotaTrecho.createMany({ data: novos, skipDuplicates: true }).catch(() => null);
   }
