@@ -89,9 +89,11 @@ const MENU = [
   // v226 — Agenda saiu do menu lateral: abre pelo ícone de calendário ao lado da foto (topo); Tarefas é um botão dentro da Agenda
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
-  { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída) e demandas administrativas", filhos: [
+  { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída), demandas administrativas e rotas", filhos: [
     { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
     { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
+    // v448 — Rota saiu da aba Logística (removida) e entrou no ADM
+    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
@@ -118,9 +120,6 @@ const MENU = [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Saídas, retornos e ajustes por setor" },
     ] },
-  ] },
-  { key: "logistica", label: "Logística", icon: Truck, desc: "Rotas de entrega e coleta", filhos: [
-    { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
   ] },
   { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, notas fiscais, dados financeiros e uploads", filhos: [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
