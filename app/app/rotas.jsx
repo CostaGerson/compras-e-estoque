@@ -119,13 +119,13 @@ export default function Rotas({ user }) {
           const esq = fp, dir = fp >= 0 ? cols.length - 1 - fp : 0;
           const ladoMapa = dir >= esq ? "dir" : "esq";
           const colMapa = fp < 0 ? null : ladoMapa === "dir" ? `${fp + 2} / ${cols.length + 1}` : `1 / ${fp + 1}`;
-          const colOutro = fp < 0 ? null : ladoMapa === "dir" ? (esq > 0 ? `1 / ${fp + 1}` : null) : (dir > 0 ? `${fp + 2} / ${cols.length + 1}` : null);
           const card = (i, pos) => {
             const x = dias[i];
             const l = ordenar(porDia[x] || []);
             const grande = x === FOCO;
             const sel = x === dia;
-            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onRota={setVerRota} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
+            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
+            const lista = (ll) => agruparRota(ll, mini, setVerRota);
             const tarde = (y) => String(y.janela?.[0] || "") >= "12:00";
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
@@ -143,7 +143,7 @@ export default function Rotas({ user }) {
                       <div key={t} className="flex-1 flex flex-col rounded-lg p-1.5" style={{ background: C.panel2 }}>
                         <div className="text-[10px] font-bold mb-1 tracking-wide" style={{ color: C.sub }}>{t.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
                         <div className="space-y-1 flex-1">
-                          {ll.map(mini)}
+                          {lista(ll)}
                           {!ll.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
                         </div>
                       </div>
@@ -151,7 +151,7 @@ export default function Rotas({ user }) {
                   </div>
                 ) : (
                   <div className="space-y-1 flex-1">
-                    {l.slice(0, 6).map(mini)}
+                    {lista(l.slice(0, 6))}
                     {l.length > 6 && <div className="text-[11px]" style={{ color: C.sub }}>+{l.length - 6}</div>}
                     {!l.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
                   </div>
@@ -159,11 +159,6 @@ export default function Rotas({ user }) {
               </div>
             );
           };
-          const rotasDia = blocosDia.length > 0 && (
-            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-              {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
-            </div>
-          );
           return (
             <>
               <div className="grid gap-2" style={{ gridTemplateColumns: tpl }}>
@@ -184,12 +179,11 @@ export default function Rotas({ user }) {
                 {colMapa && (
                   <div className="min-w-0 space-y-3" style={{ gridColumn: colMapa, gridRow: 2 }}>
                     <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />
-                    {!colOutro && rotasDia}
                   </div>
                 )}
-                {colOutro && <div className="min-w-0" style={{ gridColumn: colOutro, gridRow: 2 }}>{rotasDia}</div>}
+
               </div>
-              {!colMapa && <><MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />{rotasDia}</>}
+              {!colMapa && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
             </>
           );
         })()
@@ -202,7 +196,7 @@ export default function Rotas({ user }) {
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: C.panel, border: `${x === dia || x === H ? 2 : 1}px solid ${x === dia || x === H ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
                 <div className="text-xs font-bold mb-1" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}</div>
-                {l.slice(0, 3).map((y) => <MiniDemanda key={y.id} x={y} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />)}
+                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />, setVerRota)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
               </div>
             );
@@ -212,11 +206,6 @@ export default function Rotas({ user }) {
 
       {/* v426 — mapa em largura total; rotas do dia logo abaixo */}
       {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
-      {d && modo !== "semana" && blocosDia.length > 0 && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
-          {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
-        </div>
-      )}
 
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
@@ -238,6 +227,27 @@ export default function Rotas({ user }) {
       {cfgFab && <FabricaModal user={user} atual={d?.fabrica} onClose={() => setCfgFab(false)} onOk={() => { setCfgFab(false); carregar(); }} />}
     </div>
   );
+}
+
+// v445 — demandas da mesma rota ficam juntas, com um único botão R<nº> ao lado do grupo
+function agruparRota(l, render, onRota) {
+  const grupos = [], porBloco = {};
+  for (const y of l) {
+    if (y.blocoId) { if (!porBloco[y.blocoId]) { porBloco[y.blocoId] = { bloco: y.blocoId, itens: [] }; grupos.push(porBloco[y.blocoId]); } porBloco[y.blocoId].itens.push(y); }
+    else grupos.push({ itens: [y] });
+  }
+  return grupos.map((g) => {
+    if (!g.bloco) return render(g.itens[0]);
+    const it = [...g.itens].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
+    const st = it.every((y) => y.status === "CONCLUIDA") ? "CONCLUIDA" : it.some((y) => y.status === "EM_EXECUCAO" || y.status === "CONCLUIDA") ? "EM_EXECUCAO" : "NO_BLOCO";
+    return (
+      <div key={`R${g.bloco}`} className="flex items-stretch gap-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
+          style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : C.navy, color: "#fff" }}>R{g.bloco}</button>
+      </div>
+    );
+  });
 }
 
 function MiniDemanda({ x, grande, onClick, onRota }) {
