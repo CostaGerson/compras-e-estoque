@@ -53,6 +53,7 @@ export default function Rotas({ user }) {
   const [modo, setModo] = useState("semana");
   const [ref, setRef] = useState(FOCO);
   const [dia, setDia] = useState(FOCO);
+  const [verRota, setVerRota] = useState(null);   // v444 — rota aberta pelo botão R
   const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D)
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);
@@ -108,15 +109,27 @@ export default function Rotas({ user }) {
 
       {/* calendário */}
       {!d ? <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div> : modo === "semana" ? (
-        <div className="flex gap-2" style={{ minHeight: 320 }}>
-          {dias.map((x, i) => {
+        (() => {
+          // v444 — grade da semana: o card do dia em foco desce até o fim da página (manhã e tarde);
+          // o mapa e as rotas do dia ficam ao lado dele, embaixo dos outros dias
+          const cols = [0, 1, 2, 3, 4, 5, 6].filter((i) => i < 5 || fds.has(i));
+          const fecha = [5, 6].filter((i) => !fds.has(i));
+          const fp = cols.findIndex((i) => dias[i] === FOCO);
+          const tpl = cols.map((i) => (dias[i] === FOCO ? "minmax(0,2.2fr)" : "minmax(0,1fr)")).join(" ") + (fecha.length ? " 34px" : "");
+          const esq = fp, dir = fp >= 0 ? cols.length - 1 - fp : 0;
+          const ladoMapa = dir >= esq ? "dir" : "esq";
+          const colMapa = fp < 0 ? null : ladoMapa === "dir" ? `${fp + 2} / ${cols.length + 1}` : `1 / ${fp + 1}`;
+          const colOutro = fp < 0 ? null : ladoMapa === "dir" ? (esq > 0 ? `1 / ${fp + 1}` : null) : (dir > 0 ? `${fp + 2} / ${cols.length + 1}` : null);
+          const card = (i, pos) => {
+            const x = dias[i];
             const l = ordenar(porDia[x] || []);
             const grande = x === FOCO;
             const sel = x === dia;
-            if (i >= 5 && !fds.has(i)) return null;   // v436 — fim de semana recolhido
+            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onRota={setVerRota} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
+            const tarde = (y) => String(y.janela?.[0] || "") >= "12:00";
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
-                style={{ flex: grande ? 2.2 : 1, background: C.panel, border: `${sel || grande ? 2 : 1}px solid ${sel || grande ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
+                style={{ gridColumn: pos + 1, gridRow: grande && colMapa ? "1 / span 2" : 1, minHeight: 260, background: C.panel, border: `${sel || grande ? 2 : 1}px solid ${sel || grande ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
                 <div className="flex items-baseline gap-1 mb-1.5">
                   <span className="text-xs font-semibold" style={{ color: grande ? C.accent : C.sub }}>{DIAS[i]}</span>
                   <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
@@ -124,29 +137,62 @@ export default function Rotas({ user }) {
                   {i >= 5 && <button type="button" onClick={(e) => { e.stopPropagation(); setFds((s0) => { const n = new Set(s0); n.delete(i); return n; }); }} title="Recolher" className="text-[11px] px-1" style={{ color: C.sub }}>✕</button>}
                   {l.length > 0 && <span className="ml-auto text-[11px]" style={{ color: C.sub }}>{l.length}</span>}
                 </div>
-                <div className="space-y-1 flex-1">
-                  {l.slice(0, grande ? 12 : 6).map((y) => <MiniDemanda key={y.id} x={y} grande={grande} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />)}
-                  {l.length > (grande ? 12 : 6) && <div className="text-[11px]" style={{ color: C.sub }}>+{l.length - (grande ? 12 : 6)}</div>}
-                  {!l.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
-                </div>
+                {grande ? (
+                  <div className="flex-1 flex flex-col gap-2">
+                    {[["Manhã", l.filter((y) => !tarde(y))], ["Tarde", l.filter(tarde)]].map(([t, ll]) => (
+                      <div key={t} className="flex-1 flex flex-col rounded-lg p-1.5" style={{ background: C.panel2 }}>
+                        <div className="text-[10px] font-bold mb-1 tracking-wide" style={{ color: C.sub }}>{t.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
+                        <div className="space-y-1 flex-1">
+                          {ll.map(mini)}
+                          {!ll.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-1 flex-1">
+                    {l.slice(0, 6).map(mini)}
+                    {l.length > 6 && <div className="text-[11px]" style={{ color: C.sub }}>+{l.length - 6}</div>}
+                    {!l.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
+                  </div>
+                )}
               </div>
             );
-          })}
-          {/* v436 — S e D: abrem o sábado e o domingo */}
-          {[5, 6].filter((i) => !fds.has(i)).length > 0 && (
-            <div className="flex flex-col gap-2 shrink-0" style={{ width: 34 }}>
-              {[5, 6].filter((i) => !fds.has(i)).map((i) => {
-                const n = (porDia[dias[i]] || []).length;
-                return (
-                  <button key={i} type="button" onClick={() => setFds((s0) => new Set(s0).add(i))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(dias[i])}${n ? ` · ${n} demanda(s)` : ""}`}
-                    className="flex-1 rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ background: C.panel, border: `1px solid ${n ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
-                    {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
-                  </button>
-                );
-              })}
+          };
+          const rotasDia = blocosDia.length > 0 && (
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+              {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
             </div>
-          )}
-        </div>
+          );
+          return (
+            <>
+              <div className="grid gap-2" style={{ gridTemplateColumns: tpl }}>
+                {cols.map((i, pos) => card(i, pos))}
+                {fecha.length > 0 && (
+                  <div className="flex flex-col gap-2" style={{ gridColumn: cols.length + 1, gridRow: 1 }}>
+                    {fecha.map((i) => {
+                      const n = (porDia[dias[i]] || []).length;
+                      return (
+                        <button key={i} type="button" onClick={() => setFds((s0) => new Set(s0).add(i))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(dias[i])}${n ? ` · ${n} demanda(s)` : ""}`}
+                          className="flex-1 rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ background: C.panel, border: `1px solid ${n ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
+                          {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {colMapa && (
+                  <div className="min-w-0 space-y-3" style={{ gridColumn: colMapa, gridRow: 2 }}>
+                    <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />
+                    {!colOutro && rotasDia}
+                  </div>
+                )}
+                {colOutro && <div className="min-w-0" style={{ gridColumn: colOutro, gridRow: 2 }}>{rotasDia}</div>}
+              </div>
+              {!colMapa && <><MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />{rotasDia}</>}
+            </>
+          );
+        })()
       ) : (
         <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(7, minmax(0,1fr))" }}>
           {DIAS.map((x) => <div key={x} className="text-[11px] font-semibold px-1" style={{ color: C.sub }}>{x}</div>)}
@@ -165,8 +211,8 @@ export default function Rotas({ user }) {
       )}
 
       {/* v426 — mapa em largura total; rotas do dia logo abaixo */}
-      {d && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
-      {d && blocosDia.length > 0 && (
+      {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
+      {d && modo !== "semana" && blocosDia.length > 0 && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
           {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
         </div>
@@ -175,22 +221,45 @@ export default function Rotas({ user }) {
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
       {escolher && <EscolherDemandas dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
+      {verRota && (() => {
+        const b = (d?.blocos || []).find((x) => x.id === verRota);
+        if (!b) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={() => setVerRota(null)}>
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-xl max-h-[92vh] overflow-auto">
+              <div className="flex justify-end mb-1"><button onClick={() => setVerRota(null)} className="rounded-full p-1" style={{ background: C.panel }}><X size={16} style={{ color: C.sub }} /></button></div>
+              <BlocoCard b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar}
+                onEditar={() => { setVerRota(null); setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b }); }} />
+              <div className="text-[11px] mt-1 text-center" style={{ color: "#fff" }}>Atualiza sozinho a cada 30 s</div>
+            </div>
+          </div>
+        );
+      })()}
       {cfgFab && <FabricaModal user={user} atual={d?.fabrica} onClose={() => setCfgFab(false)} onOk={() => { setCfgFab(false); carregar(); }} />}
     </div>
   );
 }
 
-function MiniDemanda({ x, grande, onClick }) {
+function MiniDemanda({ x, grande, onClick, onRota }) {
   const c = corDemanda(x);
   const Ico = OBJ[x.objetivo]?.[1] || MapPin;
-  return (
-    <button onClick={onClick} className="w-full text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.7 : 1 }}>
+  const naRota = !!x.blocoId;   // v444 — em rota: mais opaca e com o botão R<nº>
+  const btn = (
+    <button onClick={onClick} className="flex-1 text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.55 : naRota ? 0.6 : 1 }}>
       <div className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: c.tx }}>
         {x.status === "CONCLUIDA" ? <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} /> : <Ico size={11} className="shrink-0" />}
         <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""}`} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
       {grande && <div className="text-[10px] truncate" style={{ color: c.sb }}>{OBJ[x.objetivo]?.[0]} · {x.horario}{x.motoristaNome ? ` · ${sc(x.motoristaNome.split(" ")[0])}` : ""}</div>}
     </button>
+  );
+  if (!naRota || !onRota) return btn;
+  return (
+    <div className="flex items-stretch gap-1 min-w-0">
+      {btn}
+      <button type="button" onClick={(e) => { e.stopPropagation(); onRota(x.blocoId); }} title={`Ver a rota ${x.blocoId}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
+        style={{ background: x.status === "EM_EXECUCAO" ? C.accent : x.status === "CONCLUIDA" ? C.green : C.navy, color: "#fff" }}>R{x.blocoId}</button>
+    </div>
   );
 }
 
