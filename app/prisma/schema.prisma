@@ -1962,6 +1962,7 @@ model RotaDemanda {
   status         String    @default("ABERTA") // ABERTA | NO_BLOCO | EM_EXECUCAO | CONCLUIDA | CANCELADA
   blocoId        Int?
   ordem          Int?
+  tempoLocal     Int?                         // v439 — minutos previstos no local (padrão 15)
   concluidaEm    DateTime?
   concluidaPorNome String?
   criadoPorId    Int?

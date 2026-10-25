@@ -541,13 +541,17 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
   const [av, setAv] = useState(null);
   const [ocup, setOcup] = useState(false);
   const [desp, setDesp] = useState(null);   // resultado do despacho (link do WhatsApp)
-  const calc = async (acao, l = ordem) => {
+  // v439 — tempo previsto em cada local (min), entra na previsão de chegada e de retorno
+  const [tempos, setTempos] = useState(() => Object.fromEntries(ids.map((i) => [i, porId[i]?.tempoLocal ?? 15])));
+  const calc = async (acao, l = ordem, tp = tempos) => {
     setOcup(true);
-    try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l, saida, veiculo: veic }); setAv(r); if (acao === "otimizar") setOrdem(r.ordem); } catch (e) { alerta(e.message); }
+    try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l, saida, veiculo: veic, tempos: tp }); setAv(r); if (acao === "otimizar") setOrdem(r.ordem); } catch (e) { alerta(e.message); }
     setOcup(false);
   };
   useEffect(() => { calc(bloco ? "avaliar" : "otimizar", ids); }, []);
   useEffect(() => { if (av) calc("avaliar"); }, [saida, veic]);
+  const tT = useRef(null);
+  const mudarTempo = (id, v) => { const tp = { ...tempos, [id]: v === "" ? "" : Math.max(0, parseInt(v, 10) || 0) }; setTempos(tp); clearTimeout(tT.current); tT.current = setTimeout(() => calc("avaliar", ordem, tp), 500); };
   const mexer = (i, dir) => { const l = [...ordem]; const j = i + dir; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; setOrdem(l); calc("avaliar", l); };
   const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
   const m = motoristas.find((x) => x.id === mot);
@@ -556,7 +560,7 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
     if (despachar && m?.emRota && m.emRota !== bloco?.id) return alerta(`${sc(m.nome)} ainda está em outra rota. Ele fica disponível quando registrar o retorno à fábrica.`);
     setOcup(true);
     try {
-      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "bloco", id: bloco?.id, ordem, motoristaId: mot, veiculo: veic, saida });
+      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "bloco", id: bloco?.id, ordem, motoristaId: mot, veiculo: veic, saida, tempos });
       if (despachar) {
         const x = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "despachar", id: r.bloco.id });
         setDesp(x); setOcup(false); return;
@@ -610,8 +614,12 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate" style={{ color: x.urgente ? C.red : C.text }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</div>
                       <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
-                      <div className="text-[11px]" style={{ color: e?.atrasoMin ? C.red : C.sub }}>{sc(x.horario)}{e ? ` · chegada prevista ${e.chegada}${e.atrasoMin ? ` · ${e.atrasoMin} min fora do horário` : ""}` : ""}{x.lat == null ? " · sem localização (estimado)" : ""}</div>
+                      <div className="text-[11px]" style={{ color: e?.atrasoMin ? C.red : C.sub }}>{sc(x.horario)}{e ? ` · chegada prevista ${e.chegada} · sai ${e.saida}${e.atrasoMin ? ` · ${e.atrasoMin} min fora do horário` : ""}` : ""}{x.lat == null ? " · sem localização (estimado)" : ""}</div>
                     </div>
+                    <label className="flex flex-col items-center shrink-0" title="Tempo previsto no local (min)">
+                      <span className="text-[10px]" style={{ color: C.sub }}>no local</span>
+                      <span className="flex items-center gap-0.5"><input type="number" min="0" step="5" value={tempos[id] ?? 15} onChange={(ev) => mudarTempo(id, ev.target.value)} className="w-12 px-1 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-[10px]" style={{ color: C.sub }}>min</span></span>
+                    </label>
                     <button onClick={() => mexer(i, -1)} disabled={i === 0} className="p-1 rounded" style={{ color: i === 0 ? "#C9CED6" : C.sub }}><ArrowUp size={14} /></button>
                     <button onClick={() => mexer(i, 1)} disabled={i === ordem.length - 1} className="p-1 rounded" style={{ color: i === ordem.length - 1 ? "#C9CED6" : C.sub }}><ArrowDown size={14} /></button>
                   </div>
@@ -619,7 +627,7 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
               })}
               <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av ? ` · ${av.retorno}` : ""}</div>
             </div>
-            <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas, Google Maps" : "distância estimada em linha reta"}, 15 min por parada). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>
+            <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas, Google Maps" : "distância estimada em linha reta"} + o tempo previsto em cada local). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
               <button onClick={() => salvar(false)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Salvar rota</button>

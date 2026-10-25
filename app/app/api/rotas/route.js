@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -45,7 +45,8 @@ export async function POST(req) {
       if (!podeMontar(u)) return negado();
       const ds = await prisma.rotaDemanda.findMany({ where: { id: { in: (b.ids || []).map(Number) } } });
       const por = Object.fromEntries(ds.map((d) => [d.id, d]));
-      const seq = (b.ids || []).map((i) => por[Number(i)]).filter(Boolean);
+      const tl = tempos(b.tempos);   // v439
+      const seq = (b.ids || []).map((i) => por[Number(i)]).filter(Boolean).map((d) => (tl[d.id] != null ? { ...d, tempoLocal: tl[d.id] } : d));
       const fab = await fabrica();
       const { medir, porRuas, erro } = await medidorRuas([fab, ...seq], b.veiculo);   // v427 — distância e tempo por ruas
       const o = { saida: b.saida, veiculo: b.veiculo, medir };

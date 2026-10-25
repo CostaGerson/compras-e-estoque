@@ -171,8 +171,9 @@ function simular(seq, origem, saida, vel, medir) {
     const [a, b] = janela(d);
     if (t < a) t = a;                       // espera abrir a janela
     const at = Math.max(0, t - b); atraso += at;
-    etas.push({ id: d.id, chegada: hhmm(t), atrasoMin: Math.round(at), janela: [hhmm(a), hhmm(b)] });
-    t += PARADA_MIN; pos = d;
+    const fica = Number.isFinite(Number(d.tempoLocal)) && d.tempoLocal != null ? Math.max(0, Number(d.tempoLocal)) : PARADA_MIN;   // v439
+    etas.push({ id: d.id, chegada: hhmm(t), saida: hhmm(t + fica), tempoLocal: fica, atrasoMin: Math.round(at), janela: [hhmm(a), hhmm(b)] });
+    t += fica; pos = d;
   }
   const volta = trecho(pos, origem); km += volta.km; t += volta.min;
   return { km: Math.round(km * 10) / 10, atraso, retorno: hhmm(t), etas };
@@ -366,6 +367,12 @@ export async function cancelarDemanda(id) {
   return { ok: true };
 }
 
+// v439 — { id: minutos } vindo da tela (0 a 600 min)
+export function tempos(t) {
+  const o = {};
+  for (const [k, v] of Object.entries(t || {})) { const n = parseInt(v, 10); if (Number.isFinite(n)) o[Number(k)] = Math.min(600, Math.max(0, n)); }
+  return o;
+}
 // monta (ou remonta) um bloco com a ordem escolhida
 export async function salvarBloco(b, u) {
   const ids = (b.ordem || []).map(Number).filter(Boolean);
@@ -376,7 +383,8 @@ export async function salvarBloco(b, u) {
   if (ds.some((d) => d.frete)) return { error: "Demanda de frete é contratada à parte e não entra na rota." };
   if (ds.some((d) => ["EM_EXECUCAO", "CONCLUIDA", "CANCELADA"].includes(d.status) || (d.blocoId && d.blocoId !== Number(b.id || 0)))) return { error: "Alguma demanda já está em outra rota ou foi concluída." };
   const porId = Object.fromEntries(ds.map((d) => [d.id, d]));
-  const seq = ids.map((i) => porId[i]).filter(Boolean);
+  const tl = tempos(b.tempos);   // v439 — tempo previsto no local
+  const seq = ids.map((i) => porId[i]).filter(Boolean).map((d) => (tl[d.id] != null ? { ...d, tempoLocal: tl[d.id] } : d));
   const fab = await fabrica();
   const { medir } = await medidorRuas([fab, ...seq], b.veiculo);
   const av = avaliarOrdem(seq, fab, { saida: b.saida, veiculo: b.veiculo, medir });
@@ -389,7 +397,7 @@ export async function salvarBloco(b, u) {
     await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id, id: { notIn: ids } }, data: { blocoId: null, ordem: null, status: "ABERTA" } });
     bl = await prisma.rotaBloco.update({ where: { id: bl.id }, data: dados });
   } else bl = await prisma.rotaBloco.create({ data: { ...dados, criadoPorNome: nomeU(u) } });
-  for (const [i, d] of seq.entries()) await prisma.rotaDemanda.update({ where: { id: d.id }, data: { blocoId: bl.id, ordem: i + 1, status: "NO_BLOCO", motoristaId: mot.id, motoristaNome: mot.nome, veiculo: dados.veiculo } });
+  for (const [i, d] of seq.entries()) await prisma.rotaDemanda.update({ where: { id: d.id }, data: { blocoId: bl.id, ordem: i + 1, status: "NO_BLOCO", tempoLocal: d.tempoLocal ?? null, motoristaId: mot.id, motoristaNome: mot.nome, veiculo: dados.veiculo } });
   return { ok: true, bloco: { ...bl, data: iso(bl.data) }, avaliacao: av };
 }
 
