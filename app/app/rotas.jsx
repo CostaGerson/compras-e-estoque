@@ -221,7 +221,8 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
       const m = mapa.current; camada.current.clearLayers();
       const pts = [];
       if (fabrica?.lat != null && area === "RMBH") {
-        L.marker([fabrica.lat, fabrica.lng], { icon: L.divIcon({ className: "", html: `<div style="background:#001E41;color:#fff;border-radius:6px;padding:2px 6px;font:600 11px Montserrat,sans-serif;white-space:nowrap;box-shadow:0 1px 3px #0005">Fábrica</div>`, iconAnchor: [24, 10] }) }).addTo(camada.current);
+        L.marker([fabrica.lat, fabrica.lng], { zIndexOffset: 1000, icon: L.divIcon({ className: "", iconSize: [92, 34], iconAnchor: [46, 34],   // v437 — logo da Meridian
+          html: `<div style="display:flex;flex-direction:column;align-items:center"><img src="/meridian-logo.png" alt="Fábrica" style="height:26px;width:auto;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px #0006;display:block"/><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid #001E41;margin-top:-1px"></div></div>` }) }).bindTooltip("Fábrica", { direction: "top", offset: [0, -30] }).addTo(camada.current);
         pts.push([fabrica.lat, fabrica.lng]);
       }
       for (const p of pontos) {
