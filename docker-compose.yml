@@ -31,6 +31,7 @@ services:
       CRONO_URL: ${CRONO_URL:-}
       CRONO_TOKEN: ${CRONO_TOKEN:-}
       KM_SYNC_TOKEN: ${KM_SYNC_TOKEN:-}
+      GOOGLE_MAPS_KEY: ${GOOGLE_MAPS_KEY:-}
     ports:
       - "3010:3000"
     volumes:

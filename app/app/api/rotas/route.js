@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas } from "@/lib/rotas";
+import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
 const podeMontar = (u) => !!u && (u.isMaster || !!u.diretoria || ["ADMINISTRATIVO", "LOGISTICA", "FINANCEIRO"].includes(u.setor));
@@ -20,9 +21,12 @@ export async function GET(req) {
   const u = await quem(q.get("u"));
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
+  // v427 — autocomplete de endereço do Google
+  if (q.get("auto") != null) { try { return Response.json(await autocompletar(q.get("auto"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
+  if (q.get("lugar")) { try { return Response.json(await lugar(q.get("lugar"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
   const de = q.get("de"), ate = q.get("ate");
   if (!de || !ate) return Response.json({ error: "Período?" }, { status: 400 });
-  return Response.json({ ...(await painel({ de, ate })), podeMontar: podeMontar(u), pessoaId: u.pessoaId });
+  return Response.json({ ...(await painel({ de, ate })), podeMontar: podeMontar(u), pessoaId: u.pessoaId, google: temGoogle() });
 }
 
 export async function POST(req) {
@@ -33,14 +37,16 @@ export async function POST(req) {
   switch (b.acao) {
     case "demanda": return r(await salvarDemanda(b.demanda || {}, u));
     case "cancelar": return r(await cancelarDemanda(b.id));
-    case "fabrica": if (!podeMontar(u)) return negado(); return r(await salvarFabrica(b.endereco));
+    case "fabrica": if (!podeMontar(u)) return negado(); return r(await salvarFabrica(b.endereco, b.geo));
     case "otimizar": case "avaliar": {
       if (!podeMontar(u)) return negado();
       const ds = await prisma.rotaDemanda.findMany({ where: { id: { in: (b.ids || []).map(Number) } } });
       const por = Object.fromEntries(ds.map((d) => [d.id, d]));
       const seq = (b.ids || []).map((i) => por[Number(i)]).filter(Boolean);
       const fab = await fabrica();
-      return r(b.acao === "otimizar" ? otimizar(seq, fab, { saida: b.saida, veiculo: b.veiculo }) : avaliarOrdem(seq, fab, { saida: b.saida, veiculo: b.veiculo }));
+      const { medir, porRuas, erro } = await medidorRuas([fab, ...seq], b.veiculo);   // v427 — distância e tempo por ruas
+      const o = { saida: b.saida, veiculo: b.veiculo, medir };
+      return r({ ...(b.acao === "otimizar" ? otimizar(seq, fab, o) : avaliarOrdem(seq, fab, o)), porRuas: !!porRuas, avisoRuas: erro || null });
     }
     case "bloco": if (!podeMontar(u)) return negado(); return r(await salvarBloco(b, u));
     case "despachar": {

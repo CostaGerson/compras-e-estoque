@@ -1,5 +1,6 @@
 // v425 — Logística › Rotas: demandas de rota, geolocalização, melhor sequência (com janelas de horário), blocos e despacho
 import { prisma } from "@/lib/prisma";
+import { temGoogle, geocodificar, matrizRuas, chaveTrecho } from "@/lib/googleMaps";   // v427
 
 const up = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -44,7 +45,16 @@ export async function geolocalizar(endereco) {
   const chave = sem(endereco).slice(0, 300);
   if (!chave) return null;
   const c = await prisma.geoCache.findUnique({ where: { chave } }).catch(() => null);
-  if (c) return c.lat != null ? c : null;
+  if (c && (c.lat != null || !temGoogle())) return c.lat != null ? c : null;
+  // v427 — com a chave do Google, usa o Geocoding do Google
+  if (temGoogle()) {
+    let g = null; try { g = await geocodificar(endereco); } catch (e) { console.log("rotas/geo google:", e.message); }
+    if (g) {
+      await prisma.geoCache.upsert({ where: { chave }, create: { chave, lat: g.lat, lng: g.lng, municipio: g.municipio || null, uf: g.uf || null }, update: { lat: g.lat, lng: g.lng, municipio: g.municipio || null, uf: g.uf || null } }).catch(() => null);
+      return g;
+    }
+    if (c) return null;
+  }
   const tarefa = filaGeo.then(async () => {
     let g = null;
     try {
@@ -99,10 +109,10 @@ export async function fabrica() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_FABRICA } }).catch(() => null);
   try { return c?.valor ? JSON.parse(c.valor) : null; } catch { return null; }
 }
-export async function salvarFabrica(endereco) {
+export async function salvarFabrica(endereco, geo) {
   const e = String(endereco || "").trim();
   if (!e) return { error: "Informe o endereço da fábrica." };
-  const g = await geolocalizar(e);
+  const g = geo && geo.endereco === e && geo.lat != null ? geo : await geolocalizar(e);
   if (!g) return { error: "Não encontrei esse endereço no mapa. Confira rua, número, cidade e UF." };
   const v = { endereco: e, lat: g.lat, lng: g.lng };
   await prisma.finConfig.upsert({ where: { chave: K_FABRICA }, create: { chave: K_FABRICA, valor: JSON.stringify(v) }, update: { valor: JSON.stringify(v) } });
@@ -147,28 +157,30 @@ export function kmEntre(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h)) * 1.35;
 }
 const PARADA_MIN = 15;
-function simular(seq, origem, saida, vel) {
+// v427 — medir(a, b) → { km, min } por ruas (Google) quando houver; senão linha reta × 1,35 na velocidade média
+function simular(seq, origem, saida, vel, medir) {
   let t = saida, km = 0, atraso = 0, pos = origem;
   const etas = [];
+  const trecho = (a, b) => { const m = medir?.(a, b); if (m) return m; const k = kmEntre(a, b); return { km: k, min: (k / vel) * 60 }; };
   for (const d of seq) {
-    const dk = kmEntre(pos, d); km += dk; t += (dk / vel) * 60;
+    const tr = trecho(pos, d); km += tr.km; t += tr.min;
     const [a, b] = janela(d);
     if (t < a) t = a;                       // espera abrir a janela
     const at = Math.max(0, t - b); atraso += at;
     etas.push({ id: d.id, chegada: hhmm(t), atrasoMin: Math.round(at), janela: [hhmm(a), hhmm(b)] });
     t += PARADA_MIN; pos = d;
   }
-  const volta = kmEntre(pos, origem); km += volta; t += (volta / vel) * 60;
+  const volta = trecho(pos, origem); km += volta.km; t += volta.min;
   return { km: Math.round(km * 10) / 10, atraso, retorno: hhmm(t), etas };
 }
 const custo = (s) => s.km + s.atraso * 2;   // 1 min de atraso pesa como 2 km
-export function otimizar(demandas, origem, { saida = "08:00", veiculo = "CARRO" } = {}) {
+export function otimizar(demandas, origem, { saida = "08:00", veiculo = "CARRO", medir } = {}) {
   const vel = veiculo === "MOTO" ? 34 : 28;
   const t0 = min(saida) ?? DIA_INI;
   const o = origem || demandas[0] || { lat: null, lng: null };
   const lista = [...demandas];
   let melhor = null;
-  const avaliar = (seq) => { const s = simular(seq, o, t0, vel); if (!melhor || custo(s) < custo(melhor.s)) melhor = { seq: [...seq], s }; };
+  const avaliar = (seq) => { const s = simular(seq, o, t0, vel, medir); if (!melhor || custo(s) < custo(melhor.s)) melhor = { seq: [...seq], s }; };
   if (lista.length <= 7) {
     const perm = (arr, k = 0) => { if (k === arr.length) return avaliar(arr); for (let i = k; i < arr.length; i++) { [arr[k], arr[i]] = [arr[i], arr[k]]; perm(arr, k + 1); [arr[k], arr[i]] = [arr[i], arr[k]]; } };
     perm(lista);
@@ -192,8 +204,16 @@ export function otimizar(demandas, origem, { saida = "08:00", veiculo = "CARRO" 
   return { ordem: melhor.seq.map((d) => d.id), ...melhor.s };
 }
 // mesma conta para uma ordem escolhida pelo usuário
-export function avaliarOrdem(seq, origem, { saida = "08:00", veiculo = "CARRO" } = {}) {
-  return { ordem: seq.map((d) => d.id), ...simular(seq, origem || seq[0], min(saida) ?? DIA_INI, veiculo === "MOTO" ? 34 : 28) };
+export function avaliarOrdem(seq, origem, { saida = "08:00", veiculo = "CARRO", medir } = {}) {
+  return { ordem: seq.map((d) => d.id), ...simular(seq, origem || seq[0], min(saida) ?? DIA_INI, veiculo === "MOTO" ? 34 : 28, medir) };
+}
+// v427 — medidor por ruas (Google Routes, com cache); moto ~15% mais rápida que o carro no tempo
+export async function medidorRuas(pontos, veiculo) {
+  let m = {};
+  try { m = await matrizRuas(pontos); } catch (e) { console.log("rotas/matriz google:", e.message); return { medir: null, erro: e.message }; }
+  if (!Object.keys(m).length) return { medir: null };
+  const f = veiculo === "MOTO" ? 0.85 : 1;
+  return { medir: (a, b) => { if (a?.lat == null || b?.lat == null) return null; const x = m[chaveTrecho(a, b)]; return x ? { km: x.km, min: x.min * f } : null; }, porRuas: true };
 }
 
 // ---------- despacho: Google Maps (até 9 paradas por link) + mensagem de WhatsApp ----------
@@ -259,6 +279,8 @@ export async function salvarDemanda(b, u) {
   const ant = b.id ? await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) } }) : null;
   if (ant && ["EM_EXECUCAO", "CONCLUIDA"].includes(ant.status)) return { error: "Demanda em rota ou concluída não pode ser alterada." };
   let geo = ant && ant.endereco === endereco ? { lat: ant.lat, lng: ant.lng, municipio: ant.municipio, uf: ant.uf } : null;
+  // v427 — endereço escolhido no autocomplete do Google já vem com as coordenadas
+  if (b.geo && b.geo.endereco === endereco && b.geo.lat != null) geo = { lat: Number(b.geo.lat), lng: Number(b.geo.lng), municipio: b.geo.municipio || null, uf: b.geo.uf || null };
   if (!geo) geo = await geolocalizar(endereco);
   const dados = {
     data: dUTC(b.data), objetivo, destinoTipo: b.destinoTipo || "OUTRO", destinoId: b.destinoId ? Number(b.destinoId) : null, destinoNome, endereco,
@@ -307,7 +329,8 @@ export async function salvarBloco(b, u) {
   const porId = Object.fromEntries(ds.map((d) => [d.id, d]));
   const seq = ids.map((i) => porId[i]).filter(Boolean);
   const fab = await fabrica();
-  const av = avaliarOrdem(seq, fab, { saida: b.saida, veiculo: b.veiculo });
+  const { medir } = await medidorRuas([fab, ...seq], b.veiculo);
+  const av = avaliarOrdem(seq, fab, { saida: b.saida, veiculo: b.veiculo, medir });
   const dados = { data: seq[0].data, motoristaId: mot.id, motoristaNome: mot.nome, telefone: mot.telefone || null, veiculo: VEICULOS.includes(b.veiculo) ? b.veiculo : "CARRO",
     saida: b.saida || null, distanciaKm: av.km, links: fab ? linksMaps(fab, seq) : linksMaps(seq[0], seq.slice(1)) };
   let bl;

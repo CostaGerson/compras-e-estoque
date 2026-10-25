@@ -2003,3 +2003,12 @@ model GeoCache {
   uf        String?
   createdAt DateTime @default(now())
 }
+
+// v427 — distância e tempo por ruas entre dois pontos (Google Routes), para não consultar de novo
+model RotaTrecho {
+  id        Int      @id @default(autoincrement())
+  chave     String   @unique                  // "lat,lng|lat,lng" (5 casas)
+  metros    Int
+  segundos  Int
+  createdAt DateTime @default(now())
+}

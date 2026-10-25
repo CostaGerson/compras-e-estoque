@@ -226,6 +226,51 @@ function MapasDia({ demandas, fabrica }) {
   );
 }
 
+// v427 — campo de endereço com sugestões do Google Maps enquanto digita (sem a chave, é um campo comum)
+function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, placeholder = "Rua, número, bairro, cidade - UF" }) {
+  const [sug, setSug] = useState([]);
+  const [aberto, setAberto] = useState(false);
+  const sessao = useRef(null);
+  const t = useRef(null);
+  const digitou = useRef(false);
+  useEffect(() => {
+    if (!digitou.current) return;
+    clearTimeout(t.current);
+    const q = String(value || "").trim();
+    if (q.length < 4) { setSug([]); return; }
+    t.current = setTimeout(() => {
+      if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(q)}&sessao=${sessao.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setSug(l); setAberto(true); } }).catch(() => {});
+    }, 350);
+    return () => clearTimeout(t.current);
+  }, [value]);
+  const escolher = async (x) => {
+    setAberto(false); setSug([]); digitou.current = false;
+    try {
+      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}`);
+      sessao.current = null;
+      if (g?.endereco) { onChange(g.endereco); onGeo?.(g); } else onChange(x.texto);
+    } catch { onChange(x.texto); }
+  };
+  return (
+    <div className="relative">
+      <input autoFocus={autoFocus} value={value || ""} onChange={(e) => { digitou.current = true; onChange(e.target.value); onGeo?.(null); }} onFocus={() => sug.length && setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
+        placeholder={placeholder} className={inp} style={inpS} />
+      {aberto && sug.length > 0 && (
+        <div className="absolute z-30 left-0 right-0 mt-1 rounded-md shadow-lg max-h-64 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {sug.map((x) => (
+            <button key={x.placeId} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(x); }} className="flex items-start gap-2 w-full text-left px-3 py-1.5 hover:bg-gray-50">
+              <MapPin size={14} className="mt-0.5 shrink-0" style={{ color: C.sub }} />
+              <span className="min-w-0"><span className="block text-sm truncate" style={{ color: C.text }}>{x.principal || x.texto}</span><span className="block text-[11px] truncate" style={{ color: C.sub }}>{x.secundario}</span></span>
+            </button>
+          ))}
+          <div className="px-3 py-1 text-[10px] text-right" style={{ color: "#9AA3B2" }}>Google</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- demanda de rota ----------
 const inp = "w-full px-2.5 py-1.5 rounded-md text-sm";
 const inpS = { border: `1px solid ${C.line}`, color: C.text, background: "#fff" };
@@ -252,7 +297,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   useEffect(() => { if (!_destinos) api(`/api/rotas?u=${user.id}&destinos=1`).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const sug = useMemo(() => { const t = sem(q).trim(); return t.length < 2 ? [] : lista.filter((x) => sem(`${x.nome} ${x.endereco}`).includes(t)).slice(0, 12); }, [q, lista]);
-  const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco, contato: x.contato || "", telefone: x.telefone || "" })); };
+  const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco, geo: null, contato: x.contato || "", telefone: x.telefone || "" })); };
   async function salvar() {
     setSalv(true); setErro("");
     try {
@@ -290,7 +335,8 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
               </div>
             )}
           </div>
-          <L t="Endereço" span><input value={f.endereco} onChange={(e) => set("endereco", e.target.value)} placeholder="Rua, número, bairro, cidade - UF" className={inp} style={inpS} /></L>
+          <div className="col-span-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Endereço{f.geo ? <span style={{ color: C.green }}> · localizado no mapa ✓</span> : ""}</div>
+            <EnderecoGoogle user={user} value={f.endereco} onChange={(v) => set("endereco", v)} onGeo={(g) => set("geo", g)} /></div>
           <L t="Contato"><input value={f.contato || ""} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Telefone"><input value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} className={inp} style={inpS} /></L>
           <L t="Data"><input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} style={inpS} /></L>
@@ -471,7 +517,7 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
               })}
               <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av ? ` · ${av.retorno}` : ""}</div>
             </div>
-            <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda (distância estimada em linha reta, 15 min por parada). Use as setas para ajustar.</div>
+            <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas, Google Maps" : "distância estimada em linha reta"}, 15 min por parada). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
               <button onClick={() => salvar(false)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Salvar rota</button>
@@ -577,17 +623,18 @@ function Motoristas({ l }) {
 
 function FabricaModal({ user, atual, onClose, onOk }) {
   const [e, setE] = useState(atual?.endereco || "");
+  const [geo, setGeo] = useState(null);
   const [ocup, setOcup] = useState(false);
   const salvar = async () => {
     setOcup(true);
-    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "fabrica", endereco: e }); onOk(); } catch (x) { alerta(x.message); setOcup(false); }
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "fabrica", endereco: e, geo }); onOk(); } catch (x) { alerta(x.message); setOcup(false); }
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(ev) => ev.stopPropagation()} className="rounded-xl w-full max-w-lg shadow-2xl p-5" style={{ background: C.panel }}>
         <div className="text-base font-bold mb-1" style={{ color: C.navy }}>Endereço da fábrica</div>
         <div className="text-xs mb-3" style={{ color: C.sub }}>Ponto de saída e de retorno de todas as rotas.</div>
-        <input autoFocus value={e} onChange={(ev) => setE(ev.target.value)} placeholder="Rua, número, bairro, cidade - UF" className="w-full px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }} />
+        <EnderecoGoogle user={user} autoFocus value={e} onChange={setE} onGeo={setGeo} />
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
           <button onClick={salvar} disabled={ocup || !e.trim()} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup && <Loader2 size={14} className="animate-spin" />} Salvar</button>
