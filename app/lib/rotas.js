@@ -261,6 +261,34 @@ export async function painel({ de, ate }) {
 }
 
 // ---------- gravação ----------
+// v433 — grava o endereço compatível com o Google no cadastro de origem (e deixa o ponto no cache do mapa)
+async function guardarGeo(endereco, g) {
+  const chave = sem(endereco).slice(0, 300);
+  if (!chave || g.lat == null) return;
+  const v = { lat: Number(g.lat), lng: Number(g.lng), municipio: g.municipio || null, uf: g.uf || null };
+  await prisma.geoCache.upsert({ where: { chave }, create: { chave, ...v }, update: v }).catch(() => null);
+}
+export async function atualizarCadastroEndereco(tipo, id, g) {
+  id = Number(id);
+  if (tipo === "TERCEIRIZADO") {
+    const p = await prisma.prestador.findUnique({ where: { id }, select: { endereco: true } });
+    if (!p || p.endereco === g.endereco) return;
+    await prisma.prestador.update({ where: { id }, data: { endereco: g.endereco } });
+    return guardarGeo(g.endereco, g);
+  }
+  if (!g.rua) return;   // sem a rua separada não dá para preencher os campos do cadastro
+  const U = (v) => (v ? String(v).toUpperCase().trim() : null);
+  const cep = g.cep ? String(g.cep).replace(/\D/g, "") : null;
+  const modelo = tipo === "FORNECEDOR" ? prisma.fornecedor : tipo === "CLIENTE" ? prisma.cliente : null;
+  if (!modelo) return;
+  const a = await modelo.findUnique({ where: { id }, select: { logradouro: true, numero: true, complemento: true, bairro: true, municipio: true, uf: true, cep: true } });
+  if (!a) return;
+  const novo = { logradouro: U(g.rua), numero: g.numero || a.numero || null, bairro: U(g.bairro) || a.bairro, municipio: U(g.municipio) || a.municipio, uf: U(g.uf) || a.uf, cep: cep || a.cep };
+  if (Object.keys(novo).every((k) => String(novo[k] || "") === String(a[k] || ""))) return;
+  await modelo.update({ where: { id }, data: novo });
+  return guardarGeo(juntaEnd({ ...a, ...novo }), g);
+}
+
 export async function salvarDemanda(b, u) {
   const objetivo = OBJETIVOS.includes(b.objetivo) ? b.objetivo : null;
   if (!objetivo) return { error: "Escolha o objetivo: coleta, entrega ou compra." };
@@ -298,6 +326,9 @@ export async function salvarDemanda(b, u) {
   } else if (destinoTipo === "DESTINATARIO" && destinoId && geo?.lat != null) {
     await prisma.destinatario.update({ where: { id: destinoId }, data: { endereco, lat: geo.lat, lng: geo.lng, municipio: geo.municipio || null, uf: geo.uf || null } }).catch(() => null);
   }
+  // v433 — endereço escolhido no Google atualiza o cadastro do terceirizado, fornecedor ou cliente
+  if (b.geo && b.geo.endereco === endereco && b.geo.lat != null && destinoId && ["TERCEIRIZADO", "FORNECEDOR", "CLIENTE"].includes(destinoTipo))
+    await atualizarCadastroEndereco(destinoTipo, destinoId, b.geo).catch((e) => console.log("rotas/cadastro endereço:", e.message));
   const dados = {
     data: dUTC(b.data), objetivo, destinoTipo, destinoId, destinoNome, tarefa: tarefa.slice(0, 200), endereco,
     contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null,

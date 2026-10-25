@@ -44,8 +44,8 @@ export async function lugar(placeId, sessao, digitado) {
   if (!num || !g.rua) return g;
   const completo = [`${g.rua}, ${num}`, g.bairro, g.municipio && g.uf ? `${g.municipio} - ${g.uf}` : g.municipio].filter(Boolean).join(", ");
   const x = await geocodificar(completo).catch(() => null);
-  if (x?.endereco && x.numero) return { ...g, endereco: x.endereco, lat: x.lat, lng: x.lng, numero: x.numero };
-  return { ...g, endereco: `${g.rua}, ${num}${g.endereco.startsWith(g.rua) ? g.endereco.slice(g.rua.length) : ` - ${g.endereco}`}` };
+  if (x?.endereco && x.numero) return { ...g, endereco: x.endereco, lat: x.lat, lng: x.lng, numero: x.numero, cep: x.cep || g.cep };
+  return { ...g, numero: num, endereco: `${g.rua}, ${num}${g.endereco.startsWith(g.rua) ? g.endereco.slice(g.rua.length) : ` - ${g.endereco}`}` };
 }
 async function lugarBase(placeId, sessao) {
   if (!temGoogle() || !placeId) return null;
@@ -60,6 +60,7 @@ async function lugarBase(placeId, sessao) {
     uf: compDe(j.addressComponents, "administrative_area_level_1", true),
     numero: compDe(j.addressComponents, "street_number"), rua: compDe(j.addressComponents, "route"),
     bairro: compDe(j.addressComponents, "sublocality_level_1") || compDe(j.addressComponents, "sublocality"),
+    cep: compDe(j.addressComponents, "postal_code"),   // v433
   };
 }
 
@@ -71,7 +72,7 @@ export async function geocodificar(endereco) {
   if (j.status === "ZERO_RESULTS") return null;
   if (j.status !== "OK") throw new Error(`Google: ${j.status}${j.error_message ? ` · ${j.error_message}` : ""}`);
   const x = j.results[0];
-  return { lat: x.geometry.location.lat, lng: x.geometry.location.lng, endereco: x.formatted_address, numero: compDe(x.address_components, "street_number"),
+  return { lat: x.geometry.location.lat, lng: x.geometry.location.lng, endereco: x.formatted_address, numero: compDe(x.address_components, "street_number"), cep: compDe(x.address_components, "postal_code"),
     municipio: compDe(x.address_components, "administrative_area_level_2") || compDe(x.address_components, "locality"), uf: compDe(x.address_components, "administrative_area_level_1", true) };
 }
 
