@@ -38,6 +38,7 @@ export default function Rotas({ user }) {
   const [marc, setMarc] = useState(new Set());
   const [montar, setMontar] = useState(null);   // { ids, bloco? }
   const [cfgFab, setCfgFab] = useState(false);
+  const [escolher, setEscolher] = useState(false);   // v426 — escolher as demandas do dia para a rota
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
   const dias = useMemo(() => {
     if (modo === "semana") { const i = inicioSemana(ref); return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
@@ -75,6 +76,7 @@ export default function Rotas({ user }) {
         <div className="text-sm font-semibold" style={{ color: C.text }}>{titulo}</div>
         <div className="ml-auto flex items-center gap-2">
           {pode && <button onClick={() => setCfgFab(true)} title="Endereço da fábrica (saída e retorno das rotas)" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Settings size={13} /> Fábrica</button>}
+          {pode && <button onClick={() => setEscolher(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}><IcoRota size={15} /> Montar rota</button>}
           <button onClick={() => novaNoDia(dia)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Demanda de rota</button>
         </div>
       </div>
@@ -125,47 +127,17 @@ export default function Rotas({ user }) {
         </div>
       )}
 
-      {/* mapa e demandas do dia */}
-      {d && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(320px,1fr)" }}>
-          <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />
-          <div className="space-y-3 min-w-0">
-            <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
-                <div className="text-sm font-bold flex-1" style={{ color: C.navy }}>{dia === H ? "Hoje" : dBR(dia)} · {doDia.length} demanda(s)</div>
-                {pode && marc.size > 0 && <button onClick={() => setMontar({ ids: [...marc] })} className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold" style={{ background: C.navy, color: "#fff" }}><IcoRota size={13} /> Montar rota ({marc.size})</button>}
-              </div>
-              {!doDia.length && <div className="px-4 py-6 text-center text-xs" style={{ color: C.sub }}>Nenhuma demanda. Clique no dia do calendário para criar.</div>}
-              {doDia.map((x) => {
-                const livre = x.status === "ABERTA" && !x.frete;
-                const [stT, stC] = ST[x.status] || ST.ABERTA;
-                const Ico = OBJ[x.objetivo]?.[1] || MapPin;
-                const c = corDemanda(x);
-                return (
-                  <div key={x.id} className="flex items-start gap-2 px-3 py-2" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente && x.status !== "CONCLUIDA" ? C.redSoft : x.frete ? C.blueSoft : undefined }}>
-                    {pode ? <input type="checkbox" disabled={!livre} checked={marc.has(x.id)} onChange={() => tog(x.id)} className="mt-1" title={livre ? "Selecionar para montar a rota" : x.frete ? "Frete: contratado à parte" : "Já está numa rota"} /> : <span className="w-3" />}
-                    <button onClick={() => setForm(x)} className="flex-1 text-left min-w-0">
-                      <div className="text-sm font-semibold flex items-center gap-1" style={{ color: c.tx }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}{x.urgente && <span className="text-[10px] font-bold ml-1">URGENTE</span>}</div>
-                      <div className="text-[11px] truncate" style={{ color: C.sub }} title={x.endereco}>{x.endereco}</div>
-                      <div className="text-[11px]" style={{ color: C.sub }}>
-                        {sc(x.horario)}
-                        {x.frete ? ` · frete ${x.freteTipo === "FRETEBRAS" ? `Fretebras (até R$ ${Number(x.freteValorMax || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · ${x.freteVolumes} vol.)` : `transportadora${x.cotacao ? (x.cotacao.status === "CONCLUIDA" ? ` · cotado R$ ${Number(x.cotacao.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · ${x.cotacao.prazo}` : " · aguardando cotação") : ""}`}` : x.motoristaNome ? ` · ${sc(x.motoristaNome)}${x.veiculo ? ` (${x.veiculo === "MOTO" ? "moto" : "carro"})` : ""}` : ""}
-                        {x.lat == null && <span style={{ color: C.yellow }}> · fora do mapa</span>}
-                      </div>
-                    </button>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ color: stC, background: C.panel2 }}>{stT}{x.ordem ? ` · ${x.ordem}ª` : ""}</span>
-                  </div>
-                );
-              })}
-            </div>
-            {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
-            <Motoristas l={d.motoristas || []} />
-          </div>
+      {/* v426 — mapa em largura total; rotas do dia logo abaixo */}
+      {d && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
+      {d && blocosDia.length > 0 && (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
+          {blocosDia.map((b) => <BlocoCard key={b.id} b={b} demandas={(d.demandas || []).filter((x) => x.blocoId === b.id)} pode={pode} meu={d.pessoaId && b.motoristaId === d.pessoaId} user={user} onMudou={carregar} onEditar={() => setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b })} />)}
         </div>
       )}
 
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
+      {escolher && <EscolherDemandas dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
       {cfgFab && <FabricaModal user={user} atual={d?.fabrica} onClose={() => setCfgFab(false)} onOk={() => { setCfgFab(false); carregar(); }} />}
     </div>
   );
@@ -239,15 +211,15 @@ function MapasDia({ demandas, fabrica }) {
   const br = com.filter((x) => x.regiao === "BR").map(ponto);
   const lateral = br.length ? "BR" : mg.length ? "MG" : null;
   return (
-    <div className="rounded-xl p-3 grid gap-3" style={{ background: C.panel, border: `1px solid ${C.line}`, gridTemplateColumns: lateral ? "minmax(0,1.6fr) minmax(0,1fr)" : "1fr" }}>
+    <div className="rounded-xl p-3 grid gap-3" style={{ background: C.panel, border: `1px solid ${C.line}`, gridTemplateColumns: lateral ? "minmax(0,2.4fr) minmax(0,1fr)" : "1fr" }}>
       <div className="min-w-0">
         <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>{TITULO_MAPA.RMBH} · {rmbh.length} ponto(s)</div>
-        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} altura={lateral ? 380 : 420} />
+        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} altura={520} />
       </div>
       {lateral && (
         <div className="min-w-0">
           <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>Fora da RMBH · {TITULO_MAPA[lateral]} · {lateral === "BR" ? br.length + mg.length : mg.length} ponto(s)</div>
-          <Mapa area={lateral} pontos={lateral === "BR" ? [...br, ...mg] : mg} altura={380} />
+          <Mapa area={lateral} pontos={lateral === "BR" ? [...br, ...mg] : mg} altura={520} />
         </div>
       )}
     </div>
@@ -364,6 +336,44 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
           {!trava && <button onClick={salvar} disabled={salv} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{salv && <Loader2 size={14} className="animate-spin" />} Salvar</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// v426 — escolher as demandas do dia que entram na rota
+function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
+  const [m, setM] = useState(new Set(lista.map((x) => x.id)));
+  const tog = (id) => setM((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-xl max-h-[85vh] overflow-auto shadow-2xl" style={{ background: C.panel }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <IcoRota size={18} style={{ color: C.accent }} />
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>Montar rota · {dia === hoje ? "hoje" : dBR(dia)}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        {!lista.length ? <div className="px-5 py-8 text-center text-sm" style={{ color: C.sub }}>Nenhuma demanda aberta neste dia para entrar numa rota (as de frete são contratadas à parte).</div> : (
+          <div className="py-1">
+            {ordenar(lista).map((x) => {
+              const Ico = OBJ[x.objetivo]?.[1] || MapPin;
+              return (
+                <label key={x.id} className="flex items-start gap-3 px-5 py-2 cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente ? C.redSoft : undefined }}>
+                  <input type="checkbox" checked={m.has(x.id)} onChange={() => tog(x.id)} className="mt-1" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold flex items-center gap-1" style={{ color: x.urgente ? C.red : C.text }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {sc(x.destinoNome)}{x.urgente ? " · URGENTE" : ""}</div>
+                    <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
+                    <div className="text-[11px]" style={{ color: C.sub }}>{sc(x.horario)}{x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}{x.lat == null ? " · sem localização" : ""}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button disabled={!m.size} onClick={() => onOk(ordenar(lista).filter((x) => m.has(x.id)).map((x) => x.id))} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: m.size ? 1 : 0.5 }}>Calcular rota ({m.size})</button>
         </div>
       </div>
     </div>
