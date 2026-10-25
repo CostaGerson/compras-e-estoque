@@ -783,6 +783,14 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
         {(b.links || []).map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1" style={{ color: C.blue }}><ExternalLink size={12} /> Maps{b.links.length > 1 ? ` ${i + 1}` : ""}</a>)}
         <div className="flex-1" />
         {pode && <button onClick={() => setMsg(true)} className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><MessageCircle size={12} /> Mensagem</button>}
+        {pode && <button onClick={async () => {   // v447 — envia direto no WhatsApp do motorista
+          const w = window.open("", "_blank");
+          try {
+            const m = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "mensagem", id: b.id });
+            if (m.whatsapp && w) w.location.href = m.whatsapp;
+            else { w?.close(); if (m.whatsapp) window.open(m.whatsapp, "_blank"); else { alerta(`${sc(b.motoristaNome)} não tem telefone cadastrado. Use Mensagem para copiar o texto.`); } }
+          } catch (e) { w?.close(); alerta(e.message); }
+        }} className="text-xs flex items-center gap-1 px-2.5 py-1 rounded font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={12} /> WhatsApp</button>}
         {msg && <MensagemRota user={user} id={b.id} onClose={() => setMsg(false)} />}
         {b.status === "MONTAGEM" && pode && <>
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
