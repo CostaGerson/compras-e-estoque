@@ -246,10 +246,30 @@ export function telefoneWa(t) {
   if (d.length === 10 || d.length === 11) return `55${d}`;
   return d.length >= 10 ? d : null;
 }
-export function mensagemWhats(bloco, paradas, links) {
-  const linhas = paradas.map((d, i) => `${i + 1}. ${d.objetivo} · ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}${d.urgente ? " (URGENTE)" : ""}\n   ${d.endereco}${d.telefone ? `\n   Contato: ${[d.contato, d.telefone].filter(Boolean).join(" · ")}` : ""}\n   Horário: ${horarioTxt(d)}${d.obs ? `\n   Obs: ${d.obs}` : ""}`);
+// v446 — mensagem: título de cada parada em negrito, uma linha em branco entre paradas, sem CEP,
+// tempo previsto no local e horário estimado de volta à fábrica
+const semCep = (e) => String(e || "").replace(/,?\s*(CEP\s*)?\d{5}-?\d{3}\b/gi, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").trim();
+export function mensagemWhats(bloco, paradas, links, av) {
+  const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
+  const blocos = paradas.map((d, i) => {
+    const fica = eta[d.id]?.tempoLocal ?? d.tempoLocal ?? PARADA_MIN;
+    return [
+      `*${i + 1}. ${d.objetivo} · ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}${d.urgente ? " (URGENTE)" : ""}*`,
+      semCep(d.endereco),
+      d.telefone ? `Contato: ${[d.contato, d.telefone].filter(Boolean).join(" · ")}` : null,
+      `Horário: ${horarioTxt(d)}${eta[d.id]?.chegada ? ` · chegada prevista ${eta[d.id].chegada}` : ""}`,
+      `Tempo previsto no local: ${fica} min`,
+      d.obs ? `Obs: ${d.obs}` : null,
+    ].filter(Boolean).join("\n");
+  });
   return [`*Rota ${bloco.id} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${bloco.saida ? ` · saída ${bloco.saida}` : ""}`, "",
-    ...linhas, "", `Volta à fábrica no final.`, "", ...links.map((l, i) => `Mapa${links.length > 1 ? ` (parte ${i + 1})` : ""}: ${l}`), "", "Marque cada parada como concluída no sistema (Logística › Rotas)."].join("\n");
+    blocos.join("\n\n"), "", `*Volta à fábrica no final${av?.retorno ? ` · previsão ${av.retorno}` : ""}.*`, "", ...links.map((l, i) => `Mapa${links.length > 1 ? ` (parte ${i + 1})` : ""}: ${l}`), "", "Marque cada parada como concluída no sistema (Logística › Rotas)."].join("\n");
+}
+async function estimativa(bl, ds, fab) {
+  try {
+    const { medir } = await medidorRuas([fab, ...ds], bl.veiculo, quandoSai(bl.data, bl.saida));
+    return avaliarOrdem(ds, fab, { saida: bl.saida, veiculo: bl.veiculo, medir });
+  } catch { return null; }
 }
 
 // ---------- leitura ----------
@@ -420,7 +440,7 @@ export async function despachar(id) {
   const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "EM_EXECUCAO", despachadoEm: new Date(), links } });
   await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id }, data: { status: "EM_EXECUCAO" } });
   const tel = telefoneWa(bl.telefone);
-  const texto = mensagemWhats(n, ds, links);
+  const texto = mensagemWhats(n, ds, links, await estimativa(n, ds, fab));
   // motorista com usuário no sistema também recebe a rota por mensagem
   const usu = bl.motoristaId && !bl.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: bl.motoristaId }, select: { id: true } }) : null;
   return { ok: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto, usuarioMotorista: usu?.id || null };
@@ -433,7 +453,7 @@ export async function mensagemBloco(id) {
   const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
   const fab = await fabrica();
   const links = bl.links?.length ? bl.links : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
-  const texto = mensagemWhats(bl, ds, links);
+  const texto = mensagemWhats(bl, ds, links, await estimativa(bl, ds, fab));
   const tel = telefoneWa(bl.telefone);
   return { ok: true, bloco: { ...bl, data: iso(bl.data), links }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
