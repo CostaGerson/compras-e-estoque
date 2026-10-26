@@ -108,7 +108,9 @@ export async function escolherForma(id, forma) {
 export async function prefillRota(id) {
   const d = await prisma.admDemanda.findUnique({ where: { id: Number(id) } });
   if (!d?.pedidoNumero) return { error: "Tarefa sem pedido." };
-  const p = await prisma.pedidoVenda.findFirst({ where: { numero: d.pedidoNumero }, select: { numero: true, cliente: true, cnpj: true } });
+  const p = await prisma.pedidoVenda.findFirst({ where: { numero: d.pedidoNumero }, select: { numero: true, cliente: true, cnpj: true, nfNumero: true, kmNfs: true, nfsFaturadas: true } });
+  // v479 — pedido com NF emitida: o número da NF vai no "o que fazer" da rota
+  const nfs = [...new Set([p?.nfNumero, ...(Array.isArray(p?.kmNfs) ? p.kmNfs.map((x) => x.numero) : []), ...(Array.isArray(p?.nfsFaturadas) ? p.nfsFaturadas.map((x) => x.numero) : [])].filter(Boolean).map(String))];
   const cn = dig(p?.cnpj);
   let c = null;
   if (cn) {
@@ -118,7 +120,7 @@ export async function prefillRota(id) {
   if (!c && p?.cliente) c = await prisma.cliente.findFirst({ where: { ativo: true, OR: [{ razaoSocial: { equals: p.cliente, mode: "insensitive" } }, { nomeFantasia: { equals: p.cliente, mode: "insensitive" } }] } });
   return { ok: true, nova: {
     objetivo: "ENTREGA", destinoTipo: c ? "CLIENTE" : "OUTRO", destinoId: c?.id || null, destinoNome: sem(c ? c.nomeFantasia || c.razaoSocial : p?.cliente || ""),
-    endereco: c ? juntaEnd(c) : "", contato: c?.preposto || "", telefone: c?.telefones || "", tarefa: `ENTREGA PEDIDO ${d.pedidoNumero}`, admOrigemId: d.id,
+    endereco: c ? juntaEnd(c) : "", contato: c?.preposto || "", telefone: c?.telefones || "", tarefa: `ENTREGA PEDIDO ${d.pedidoNumero}${nfs.length ? ` · NF ${nfs.join(", ")}` : ""}`, admOrigemId: d.id,
   } };
 }
 

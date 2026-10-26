@@ -872,7 +872,7 @@ export function PicCompras({ user, fases, ir }) {
     const pics = [...new Set(alvo.map((i) => i.picNumero))].join(", ");
     const grupos = Object.values(g);
     fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "criar", grupos, pics, quem: nomeUser(user) }) })
-      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) grupos[k].numero = c.numero; }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); })
+      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) { grupos[k].numero = c.numero; grupos[k].id = c.id; } }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); })
       .catch(() => setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }));
   }
   const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -949,7 +949,7 @@ export function PicCompras({ user, fases, ir }) {
 }
 
 // ---------- v469 — ordens de compra (uma por fornecedor) ----------
-const ST_OC = { ABERTA: ["aberta", C.accent, C.accentSoft], ENVIADA: ["enviada ao fornecedor", C.blue, C.blueSoft], RECEBIDA: ["recebida", C.green, C.greenSoft], CANCELADA: ["cancelada", C.sub, C.panel2] };
+const ST_OC = { ABERTA: ["aberta", C.accent, C.accentSoft], ENVIADA: ["enviada ao fornecedor", C.blue, C.blueSoft], NF_EMITIDA: ["NF emitida", C.yellow, C.yellowSoft], RECEBIDA: ["recebida", C.green, C.greenSoft], CANCELADA: ["cancelada", C.sub, C.panel2] };
 function imprimirOc(o) {
   const linhas = o.itens.map((i) => `<tr><td>${i.nome}${i.cor ? ` · ${i.cor}` : ""}${i.codigo ? ` · ${i.codigo}` : ""}</td><td class="n">${qtdU(i.quantidade, i.unidade)}</td><td class="n">${brl(i.valorUnitario)}</td><td class="n">${brl(i.quantidade * i.valorUnitario)}</td></tr>`).join("");
   const dt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—");
@@ -961,7 +961,7 @@ function imprimirOc(o) {
     <div style="text-align:right;font-size:13px"><b>${o.fornecedor.razaoSocial || o.fornecedor.nome}</b><br>${[o.fornecedor.contato, o.fornecedor.telefone, o.fornecedor.email].filter(Boolean).join(" · ")}<br><span class="k">Emitida em ${dt(o.createdAt)}${o.pic ? ` · ${o.pic}` : ""}</span></div></div>
     <table><tr><th>Artigo</th><th class="n">Quantidade</th><th class="n">Valor unit.</th><th class="n">Total</th></tr>${linhas}
     <tr><td colspan="3" class="n tot">Total</td><td class="n tot">${brl(o.total)}</td></tr></table>
-    <p style="font-size:13px;margin-top:18px">Condição de faturamento: <b>${o.condicaoFaturamento || "—"}</b> · Prazo na fábrica: <b>${dt(o.prazoFabrica)}</b>${o.obs ? `<br>Obs.: ${o.obs}` : ""}</p>
+    <p style="font-size:13px;margin-top:18px">Condição de faturamento: <b>${o.condicaoFaturamento || "—"}</b> · Prazo de entrega: <b>${dt(o.prazoFabrica)}</b>${o.formaRecebimento ? ` · Recebimento: <b>${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}</b>${o.diasAposFaturamento ? ` (${o.diasAposFaturamento} dias após o faturamento)` : ""}` : ""}${o.nfNumero ? `<br>NF ${o.nfNumero}` : ""}${o.obs ? `<br>Obs.: ${o.obs}` : ""}</p>
     <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
   const w = window.open("", "_blank"); if (!w) return alerta("Permita pop-ups para imprimir a OC."); w.document.write(html); w.document.close();
 }
@@ -976,12 +976,13 @@ export function OrdensCompra({ fases, ir }) {
     const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
     carregar();
   };
-  const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA"].includes(o.status) : true));
+  const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : true));
+  const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   return (
     <div className="max-w-5xl">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
       <div className="flex items-center gap-2 mb-3">
-        {[["ativas", "Abertas e enviadas"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
+        {[["ativas", "Em andamento"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
         <span className="text-sm ml-auto" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
@@ -996,7 +997,7 @@ export function OrdensCompra({ fases, ir }) {
               {aberto ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>{o.numero} · {o.fornecedor.nome}</div>
-                <div className="text-xs" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.cotacao ? ` · ${o.cotacao}` : ""}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}` : ""}{o.nfNumero ? ` · NF ${o.nfNumero}` : ""}{o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
               </div>
               <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
@@ -1013,6 +1014,19 @@ export function OrdensCompra({ fases, ir }) {
                   <label className="text-xs" style={{ color: C.sub }}>Condição de faturamento<input defaultValue={o.condicaoFaturamento || ""} onBlur={(e) => e.target.value !== (o.condicaoFaturamento || "") && salvar(o, { condicaoFaturamento: e.target.value })} placeholder="ex.: 30 dias" className="block mt-1 px-2 py-1 rounded text-sm w-40" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Prazo na fábrica<input type="date" defaultValue={o.prazoFabrica ? String(o.prazoFabrica).slice(0, 10) : ""} onChange={(e) => salvar(o, { prazoFabrica: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+                  <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+                  {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
+                  {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
+                </div>
+                {/* v479 — NF do fornecedor */}
+                <div className="flex flex-wrap items-end gap-3 pt-3 mt-3" style={{ borderTop: `1px dashed ${C.line}` }}>
+                  {(() => { const v = nf[o.id] || { numero: o.nfNumero || "", emissao: o.nfEmissao || "" }; const setV = (k, x) => setNf((n) => ({ ...n, [o.id]: { ...v, [k]: x } }));
+                    return <>
+                      <label className="text-xs" style={{ color: C.sub }}>NF do fornecedor<input value={v.numero} onChange={(e) => setV("numero", e.target.value)} placeholder="nº da NF" className="block mt-1 px-2 py-1 rounded text-sm w-32" style={{ border: `1px solid ${o.nfNumero ? C.green : C.line}`, color: C.text }} /></label>
+                      <label className="text-xs" style={{ color: C.sub }}>Emissão<input type="date" value={v.emissao} onChange={(e) => setV("emissao", e.target.value)} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+                      <button onClick={() => { salvar(o, { nfNumero: v.numero, nfEmissao: v.emissao || null }); setNf((n) => { const m = { ...n }; delete m[o.id]; return m; }); }} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>{o.nfNumero ? "Atualizar NF" : "Inserir NF"}</button>
+                      {o.nfNumero && <span className="text-xs" style={{ color: C.green }}>NF {o.nfNumero} registrada · compra com status NF emitida</span>}
+                    </>; })()}
                   <button onClick={() => imprimirOc(o)} className="ml-auto text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
                 </div>
               </div>
@@ -1070,12 +1084,13 @@ function CotacaoCard({ g, pic }) {
   const [cv, setCv] = useState(null);
   const [msg, setMsg] = useState("");
   useEffect(() => { desenharCotacao(g, pic).then((c) => { setCv(c); setImg(c.toDataURL("image/png")); }); }, []);
-  const nomeArq = `cotacao-${nomeFornCad(g.fornecedor).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  const nomeArq = `${g.numero ? `${g.numero.replace(/\s+/g, "")}-` : ""}cotacao-${nomeFornCad(g.fornecedor).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
   const blob = () => new Promise((ok) => cv.toBlob(ok, "image/png"));
   const avisar = (t) => { setMsg(t); setTimeout(() => setMsg(""), 2500); };
+  const enviada = () => { if (g.id) fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "enviada", id: g.id }) }).catch(() => {}); };   // v479
   const baixar = (href, nome) => { const a = document.createElement("a"); a.href = href; a.download = nome; a.click(); };
   async function copiar() {
-    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); avisar("Imagem copiada! Cole no WhatsApp (Ctrl+V)."); }
+    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); enviada(); avisar("Imagem copiada! Cole no WhatsApp (Ctrl+V)."); }
     catch { alerta("O navegador não deixou copiar a imagem. Use Baixar PNG."); }
   }
   async function pdf() {
@@ -1083,11 +1098,11 @@ function CotacaoCard({ g, pic }) {
       const { jsPDF } = await carregarJsPdf();
       const w = 210, h = (cv.height / cv.width) * w;
       const d = new jsPDF({ unit: "mm", format: [w, Math.max(h, 100)] });
-      d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`);
+      d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`); enviada();
     } catch { alerta("Não consegui gerar o PDF. Use Baixar PNG."); }
   }
   async function compartilhar() {
-    try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: "Cotação Meridian" }); } catch {}
+    try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: "Cotação Meridian" }); enviada(); } catch {}
   }
   const tel = telWa(g.fornecedor.telefone || g.fornecedor.telefones);
   const podeShare = typeof navigator !== "undefined" && !!navigator.canShare && (() => { try { return navigator.canShare({ files: [new File([""], "a.png", { type: "image/png" })] }); } catch { return false; } })();
@@ -1103,9 +1118,9 @@ function CotacaoCard({ g, pic }) {
       {img && <div className="flex flex-wrap gap-2 mt-2">
         {podeShare && <button onClick={compartilhar} className={b} style={{ background: "#25D366", color: "#fff" }}>Compartilhar (WhatsApp)</button>}
         <button onClick={copiar} className={b} style={{ background: C.navy, color: "#fff" }}><Copy size={13} /> Copiar imagem</button>
-        <button onClick={() => baixar(img, `${nomeArq}.png`)} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
+        <button onClick={() => { baixar(img, `${nomeArq}.png`); enviada(); }} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
         <button onClick={pdf} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={13} /> Baixar PDF</button>
-        <a href={tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer" className={b} style={{ border: "1px solid #25D366", color: "#128C7E" }} title={tel ? `WhatsApp ${tel}` : "Fornecedor sem telefone no cadastro: escolha o contato no WhatsApp"}>Abrir WhatsApp{tel ? "" : " (sem telefone)"}</a>
+        <a href={tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer" onClick={enviada} className={b} style={{ border: "1px solid #25D366", color: "#128C7E" }} title={tel ? `WhatsApp ${tel}` : "Fornecedor sem telefone no cadastro: escolha o contato no WhatsApp"}>Abrir WhatsApp{tel ? "" : " (sem telefone)"}</a>
       </div>}
     </div>
   );
@@ -1121,12 +1136,67 @@ function CotacaoModal({ cot, onClose }) {
 }
 
 // ---------- v478 — Compras › Cotações: resposta dos fornecedores e aplicação do preço no PIC ----------
-const ST_COT = { ENVIADA: ["aguardando resposta", C.yellow, C.yellowSoft], RESPONDIDA: ["respondida", C.blue, C.blueSoft], APLICADA: ["aplicada no PIC", C.green, C.greenSoft] };
-export function Cotacoes({ fases, ir }) {
+const ST_COT = { GERADA: ["gerada · não enviada", C.sub, C.panel2], ENVIADA: ["enviada · aguardando resposta", C.yellow, C.yellowSoft], RESPONDIDA: ["respondida", C.blue, C.blueSoft], OC: ["OC gerada", C.green, C.greenSoft], APLICADA: ["aplicada no PIC", C.green, C.greenSoft] };
+const FORMAS_REC = [["COLETA", "Coleta (nós buscamos)"], ["TRANSPORTADORA", "Entrega por transportadora"], ["ENTREGA_PROPRIA", "Entrega própria do fornecedor"]];
+// v479 — rota de coleta a partir da OC: abre a demanda de rota preenchida (fornecedor, endereço, "COLETA OC x · NF y")
+export function criarRotaColeta(o) {
+  window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "rota", nova: { objetivo: "COLETA", destinoTipo: "FORNECEDOR", destinoId: o.fornecedor.id, destinoNome: String(o.fornecedor.nome || "").toUpperCase(),
+    endereco: o.fornecedor.endereco || "", contato: o.fornecedor.contato || "", telefone: o.fornecedor.telefone || "", horarioTipo: "LIVRE",
+    tarefa: `COLETA ${o.numero}${o.nfNumero ? ` · NF ${o.nfNumero}` : ""}` } } }));
+}
+function GerarOcCotacao({ c, user, onClose, onOk }) {
+  const [f, setF] = useState({ itens: c.itens.map((i) => ({ valorNegociado: numBR(i.valorUnitario) })), prazoEntrega: c.prazoEntrega || "", forma: "", dias: "", condicao: c.condicao || "" });
+  const [oc, setOc] = useState(false);
+  const tot = c.itens.reduce((s0, i, k) => s0 + (lerNum(f.itens[k]?.valorNegociado) || 0) * (Number(i.quantidade) || 0), 0);
+  async function gerar() {
+    if (!f.forma) return alerta("Escolha a forma de recebimento.");
+    setOc(true);
+    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", id: c.id, itens: f.itens, prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({}));
+    setOc(false);
+    if (!r.ok) return alerta(x.error || "Erro ao gerar a OC.");
+    if (x.forma === "COLETA" && (await confirmar(`${x.oc.numero} gerada. Criar agora a rota de coleta no fornecedor?`))) {
+      const l = await fetch("/api/compras/oc").then((rr) => rr.json()).catch(() => []);
+      const o = (Array.isArray(l) ? l : []).find((y) => y.id === x.oc.id);
+      onOk(); if (o) criarRotaColeta(o);
+      return;
+    }
+    await alerta(`${x.oc.numero} gerada. Ela está em Compras › Ordens de compra.`);
+    onOk();
+  }
+  const inp = "px-2 py-1 rounded text-sm outline-none";
+  return (
+    <Modal titulo={`Gerar OC · ${c.numero} · ${c.fornecedorNome}`} onClose={onClose} largo>
+      <div className="flex px-1 py-1 text-xs font-semibold gap-2" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-24 text-right">Cotado</div><div className="w-28 text-right">Negociado</div></div>
+      {c.itens.map((i, k) => (
+        <div key={k} className="flex px-1 py-1.5 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+          <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{i.det}</span></div>
+          <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
+          <div className="w-24 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div>
+          <div className="w-28 text-right"><input value={f.itens[k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} /></div>
+        </div>
+      ))}
+      <div className="text-right text-sm font-bold py-2" style={{ color: C.navy }}>Total negociado {brl(tot)}</div>
+      <div className="grid gap-3 mt-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <label className="text-xs" style={{ color: C.sub }}>Forma de recebimento<select value={f.forma} onChange={(e) => setF({ ...f, forma: e.target.value })} className={`${inp} block w-full mt-1`} style={{ border: `1px solid ${f.forma ? C.line : C.accent}`, color: C.text }}><option value="">Escolha…</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+        <label className="text-xs" style={{ color: C.sub }}>Prazo de entrega<input type="date" value={f.prazoEntrega} onChange={(e) => setF({ ...f, prazoEntrega: e.target.value })} className={`${inp} block w-full mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+        {f.forma === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Entrega após o faturamento (dias)<input value={f.dias} onChange={(e) => setF({ ...f, dias: e.target.value.replace(/\D/g, "") })} placeholder="ex.: 5" className={`${inp} block w-full mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
+        <label className="text-xs" style={{ color: C.sub }}>Condição de pagamento<input value={f.condicao} onChange={(e) => setF({ ...f, condicao: e.target.value })} placeholder="ex.: 30/60 dias" className={`${inp} block w-full mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+      </div>
+      {f.forma === "COLETA" && <div className="text-xs mt-3 px-3 py-2 rounded" style={{ background: C.blueSoft, color: C.blue }}>Coleta: depois de gerar a OC você pode criar a rota de coleta no fornecedor (também pelo botão da OC).</div>}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+        <button disabled={oc} onClick={gerar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OC</button>
+      </div>
+    </Modal>
+  );
+}
+export function Cotacoes({ user, fases, ir }) {
   const [l, setL] = useState(null);
-  const [filtro, setFiltro] = useState("abertas");
+  const [filtro, setFiltro] = useState("todas");
   const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
   const [card, setCard] = useState(null);
+  const [gerOc, setGerOc] = useState(null);   // v479
   const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: numBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "" })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
@@ -1134,21 +1204,25 @@ export function Cotacoes({ fases, ir }) {
   const post = async (body, ok) => { const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const x = await r.json().catch(() => ({})); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (ok) await alerta(ok(x)); carregar(); return x; };
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
   const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null) { const k = `${i.nome}|${i.det}|${i.unidade}`; if (!m[k] || i.valorUnitario < m[k].v) m[k] = { v: i.valorUnitario, f: c.fornecedorNome, n: c.numero }; } return m; }, [l]);
-  const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "abertas" ? c.status !== "APLICADA" : c.status === "APLICADA"));
+  const ehOc = (c) => c.status === "OC" || c.status === "APLICADA";
+  const ABAS = [["GERADA", "Geradas"], ["ENVIADA", "Enviadas"], ["RESPONDIDA", "Respondidas"], ["OC", "Com OC"], ["todas", "Todas"]];
+  const conta = (k) => (l || []).filter((c) => (k === "OC" ? ehOc(c) : c.status === k)).length;
+  const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "OC" ? ehOc(c) : c.status === filtro));
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
     <div className="max-w-6xl">
       <FasesCompras atual="comprasCotacoes" fases={fases} ir={ir} />
-      <p className="text-sm mb-3" style={{ color: C.sub }}>Cotações geradas no <b>PIC</b> (botão Gerar cotação), uma por fornecedor. Quando o fornecedor responder, registre o <b>valor unitário</b> e o prazo de cada item e clique em <b>Aplicar no PIC</b>: o fornecedor e o preço vão para os itens do PIC, prontos para a OC. O menor preço entre as cotações de cada artigo aparece em verde.</p>
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Todas as cotações geradas no <b>PIC</b>, uma por fornecedor: <b>geradas</b>, <b>enviadas</b> (ao copiar, baixar ou abrir no WhatsApp), <b>respondidas</b> (quando você registra o valor) e <b>com OC</b>. Na respondida, <b>Gerar OC</b> pede o valor negociado, o prazo e a forma de recebimento. O menor preço entre as cotações de cada artigo aparece em verde.</p>
       <div className="flex items-center gap-2 mb-3">
-        {[["abertas", `Em andamento (${(l || []).filter((c) => c.status !== "APLICADA").length})`], ["aplicadas", "Aplicadas"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
+        {ABAS.map(([k, t0]) => [k, k === "todas" ? t0 : `${t0} (${conta(k)})`]).map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
         <button onClick={carregar} className="p-2 rounded-md ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma cotação aqui. Gere pelo PIC (botão Gerar cotação).</div>}
-      {card && <CotacaoModal cot={card} onClose={() => setCard(null)} />}
+      {card && <CotacaoModal cot={card} onClose={() => { setCard(null); carregar(); }} />}
+      {gerOc && <GerarOcCotacao c={gerOc} user={user} onClose={() => setGerOc(null)} onOk={() => { setGerOc(null); carregar(); }} />}
       {vis.map((c) => {
-        const d = dados(c), trav = c.status === "APLICADA";
+        const d = dados(c), trav = ehOc(c);
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
         const tot = c.itens.reduce((s0, i, k) => s0 + (lerNum(d.itens[k]?.valorUnitario) || 0) * (Number(i.quantidade) || 0), 0);
         return (
@@ -1182,14 +1256,16 @@ export function Cotacoes({ fases, ir }) {
               <label className="text-xs" style={{ color: C.sub }}>Condição de pagamento<input disabled={trav} value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-40`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
               <label className="text-xs" style={{ color: C.sub }}>Entrega prevista<input disabled={trav} type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
               <label className="text-xs flex-1 min-w-[160px]" style={{ color: C.sub }}>Obs.<input disabled={trav} value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-              <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
+              {c.status === "GERADA" && <button onClick={() => post({ acao: "enviada", id: c.id })} className="text-xs px-2.5 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>Marcar enviada</button>}
+              <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ id: c.id, numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
               {!trav && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>}
               {!trav && <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>}
-              {!trav && <button onClick={async () => {
-                if (!(await confirmar(`Aplicar os preços da ${c.numero} (${c.fornecedorNome}) nos itens do PIC? O fornecedor e o valor unitário vão para esses itens.`))) return;
+              {!trav && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
+                if (!d.itens.some((x) => lerNum(x.valorUnitario) > 0)) return alerta("Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
                 const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
-                post({ acao: "aplicar", id: c.id }, (y) => `${y.aplicados} item(ns) do PIC atualizados com ${c.fornecedorNome}.${y.emOc ? ` ${y.emOc} já estavam em OC.` : ""} Gere as OCs no PIC.`);
-              }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><CheckCircle2 size={14} /> Aplicar no PIC</button>}
+                setGerOc({ ...c, ...x.cotacao, itens: x.cotacao.itens });
+              }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
+              {trav && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
             </div>
           </div>
         );

@@ -1,6 +1,7 @@
 // v469 — PIC (pedido interno de compras) a partir do cruzamento com o estoque e OCs agrupadas por fornecedor
 import { prisma } from "@/lib/prisma";
 import { simularCruzamento, necessidade, ehAvulsa } from "@/lib/compras";
+const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 const num = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
@@ -119,9 +120,12 @@ export async function listarOcs() {
   for (const o of l) piPorOc[o.id] = [...new Set(o.itens.map((i) => i.picItem?.picId).filter(Boolean))];
   const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];
   const pics = Object.fromEntries((await prisma.pic.findMany({ where: { id: { in: picIds } }, select: { id: true, numero: true } })).map((p) => [p.id, p.numero]));
+  const cots = Object.fromEntries((await prisma.cotacao.findMany({ where: { id: { in: l.map((o) => o.cotacaoId).filter(Boolean) } }, select: { id: true, numero: true } })).map((c) => [c.id, c.numero]));
   return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
-    fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato, telefone: o.fornecedor.telefone, email: o.fornecedor.email },
+    fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
+    cotacao: cots[o.cotacaoId] || null, formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
+    nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
 }
@@ -134,7 +138,33 @@ export async function salvarOc(b) {
     ...(b.prazoFabrica !== undefined ? { prazoFabrica: dt(b.prazoFabrica) } : {}),
     ...(b.prazoTransportadora !== undefined ? { prazoTransportadora: dt(b.prazoTransportadora) } : {}),
     ...(b.obs !== undefined ? { obs: String(b.obs || "").trim() || null } : {}),
-    ...(["ABERTA", "ENVIADA", "RECEBIDA", "CANCELADA"].includes(b.status) ? { status: b.status } : {}),
+    ...(["ABERTA", "ENVIADA", "NF_EMITIDA", "RECEBIDA", "CANCELADA"].includes(b.status) ? { status: b.status } : {}),
+    ...(b.formaRecebimento !== undefined ? { formaRecebimento: ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.formaRecebimento) ? b.formaRecebimento : null } : {}),
+    ...(b.diasAposFaturamento !== undefined ? { diasAposFaturamento: parseInt(b.diasAposFaturamento, 10) || null } : {}),
   } });
+  // v479 — NF do fornecedor na OC: OC = NF emitida e os itens de compra dos artigos dela = NF
+  if (b.nfNumero !== undefined) {
+    const nf = String(b.nfNumero || "").trim();
+    await prisma.ordemCompra.update({ where: { id: o.id }, data: nf
+      ? { nfNumero: nf, nfEmissao: dt(b.nfEmissao), nfEm: new Date(), ...(["ABERTA", "ENVIADA"].includes(o.status) ? { status: "NF_EMITIDA" } : {}) }
+      : { nfNumero: null, nfEmissao: null, nfEm: null, ...(o.status === "NF_EMITIDA" ? { status: "ENVIADA" } : {}) } });
+    await statusNfItens(o.id);
+  }
   return { ok: true };
+}
+
+// v479 — item de compra passa a "NF emitida" quando todos os artigos dele estão em OCs com NF (e volta a "OC" se a NF sair)
+async function statusNfItens(ocId) {
+  const oc = await prisma.ordemCompra.findUnique({ where: { id: ocId }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });
+  const picIds = [...new Set(oc.itens.map((i) => i.picItem?.picId).filter(Boolean))];
+  for (const pid of picIds) {
+    const ocis = await prisma.ocItem.findMany({ where: { picItem: { picId: pid } }, include: { oc: { select: { nfNumero: true, status: true } } } });
+    const comNf = new Set(ocis.filter((x) => x.oc.nfNumero && x.oc.status !== "CANCELADA").map((x) => x.artigoId));
+    const its = await prisma.compraItem.findMany({ where: { picId: pid, status: { in: ["OC", "NF"] } } });
+    for (const it of its) {
+      const arts = Object.keys(necessidade(it)).map(Number);
+      const st = arts.length && arts.every((a) => comNf.has(a)) ? "NF" : "OC";
+      if (st !== it.status) await prisma.compraItem.update({ where: { id: it.id }, data: { status: st } });
+    }
+  }
 }

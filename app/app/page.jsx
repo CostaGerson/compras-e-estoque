@@ -356,7 +356,7 @@ export default function Home() {
             </div>
           )}
           {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}
-          {view === "comprasCotacoes" && pode("comprasCotacoes") && <Cotacoes />}
+          {view === "comprasCotacoes" && pode("comprasCotacoes") && <Cotacoes user={user} />}
           {view === "oc" && pode("oc") && <OrdensCompra />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}

@@ -390,8 +390,14 @@ model OrdemCompra {
   condicaoFaturamento String?
   prazoFabrica        DateTime?
   prazoTransportadora DateTime?
-  status              String    @default("ABERTA")   // ABERTA | ENVIADA | RECEBIDA | CANCELADA
+  status              String    @default("ABERTA")   // ABERTA | ENVIADA | NF_EMITIDA | RECEBIDA | CANCELADA
   picId               Int?                          // v469
+  cotacaoId           Int?                          // v479 — cotação que originou a OC
+  formaRecebimento    String?                       // v479 — COLETA | TRANSPORTADORA | ENTREGA_PROPRIA (o fornecedor entrega)
+  diasAposFaturamento Int?                          // v479 — transportadora: dias para entregar depois do faturamento
+  nfNumero            String?                       // v479 — NF do fornecedor
+  nfEmissao           DateTime? @db.Date
+  nfEm                DateTime?
   obs                 String?
   criadoPorNome       String?
   createdAt           DateTime  @default(now())
@@ -2072,7 +2078,9 @@ model Cotacao {
   numero         String    @unique
   fornecedorId   Int?
   fornecedorNome String
-  status         String    @default("ENVIADA")   // ENVIADA | RESPONDIDA | APLICADA | CANCELADA
+  status         String    @default("GERADA")    // GERADA | ENVIADA | RESPONDIDA | OC | CANCELADA (v479)
+  enviadaEm      DateTime?
+  ocId           Int?
   pics           String?                         // PICs de origem (texto)
   itens          Json      @default("[]")        // [{ nome, det, quantidade, unidade, picItemIds, valorUnitario, prazo, obs }]
   condicao       String?                         // condição de pagamento informada
