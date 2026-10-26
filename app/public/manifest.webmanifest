@@ -1,6 +1,6 @@
 {
-  "name": "Meridian — Sistema",
-  "short_name": "Meridian",
+  "name": "ERP Meridian",
+  "short_name": "ERP Meridian",
   "description": "Compras, estoque, rotas e financeiro da Meridian",
   "start_url": "/",
   "scope": "/",
