@@ -1331,6 +1331,9 @@ export function Cotacoes({ user, fases, ir }) {
   const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
   const [card, setCard] = useState(null);
   const [gerOc, setGerOc] = useState(null);   // v479
+  const [forns, setForns] = useState(_fornPic || []);   // v491 — para ligar a cotação ao cadastro
+  useEffect(() => { if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
+  const [vinc, setVinc] = useState({});
   const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: numBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "", naoTem: !!i.naoTem })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
@@ -1362,7 +1365,14 @@ export function Cotacoes({ user, fases, ir }) {
         return (
           <div key={c.id} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{c.numero} · {c.fornecedorNome} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.pics ? ` · ${c.pics}` : ""}{c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""}{!c.fornecedorId ? " · fornecedor fora do cadastro" : ""}</span></div>
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{c.numero} · {c.fornecedorNome} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.pics ? ` · ${c.pics}` : ""}{c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""}</span></div>
+              {!c.fornecedorId && (   // v491 — sem cadastro não gera OC: liga ao cadastro aqui
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold" style={{ color: C.red }}>fora do cadastro ·</span>
+                  <div className="w-56"><BuscaFornecedor valor={vinc[c.id] ?? ""} forns={forns} placeholder="ligar ao fornecedor do cadastro" estilo={{ border: `1px solid ${C.red}`, fontSize: 12, padding: "3px 8px" }}
+                    onEscolher={async (f, txt) => { setVinc((m) => ({ ...m, [c.id]: f ? nomeFornCad(f) : txt })); if (f) { const x = await post({ acao: "vincular", id: c.id, fornecedorId: f.id }); if (x?.cotacoes > 1) alerta(`${x.cotacoes} cotações de ${c.fornecedorNome} ligadas a ${nomeFornCad(f)}.`); } }} /></div>
+                </div>
+              )}
               {tot > 0 && <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>}
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
             </div>

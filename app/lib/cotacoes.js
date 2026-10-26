@@ -118,3 +118,13 @@ export async function gerarOcDaCotacao(b) {
   for (const { c, its } of novos) await prisma.cotacao.update({ where: { id: c.id }, data: { status: "OC", ocId: oc.id, itens: its, aplicadaEm: new Date() } });
   return { ok: true, oc: { id: oc.id, numero: oc.numero }, forma, cotacoes: novos.map(({ c }) => c.numero) };
 }
+
+// v491 — liga a cotação (e as outras com o mesmo nome de fornecedor) ao cadastro de fornecedores
+export async function vincularFornecedor(id, fornecedorId) {
+  const c = await prisma.cotacao.findUnique({ where: { id: Number(id) } });
+  const f = await prisma.fornecedor.findUnique({ where: { id: Number(fornecedorId) || 0 } });
+  if (!c || !f) return { error: "Cotação ou fornecedor não encontrado." };
+  const nome = String(f.nomeFantasia || f.nome || f.razaoSocial || "").toUpperCase();
+  const r = await prisma.cotacao.updateMany({ where: { OR: [{ id: c.id }, { fornecedorId: null, fornecedorNome: c.fornecedorNome }] }, data: { fornecedorId: f.id, fornecedorNome: nome } });
+  return { ok: true, cotacoes: r.count };
+}
