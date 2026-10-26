@@ -1371,7 +1371,7 @@ function ArquivosCotacao({ c, user, onMudou }) {
   }
   const arqs = c.arquivos || [];
   return (
-    <div className="px-4 py-2.5 flex flex-wrap items-center gap-2" style={{ borderTop: `1px solid ${C.line}`, background: arr ? C.accentSoft : undefined }}
+    <div className="px-5 py-2.5 flex flex-wrap items-center gap-2" style={{ borderTop: `1px solid ${C.line}`, background: arr ? C.accentSoft : undefined }}
       onDragOver={(e) => { e.preventDefault(); setArr(true); }} onDragLeave={() => setArr(false)} onDrop={(e) => { e.preventDefault(); setArr(false); if (e.dataTransfer.files?.length) anexar([...e.dataTransfer.files]); }}>
       <span className="text-xs font-semibold" style={{ color: C.sub }}>📎 Arquivos ({arqs.length})</span>
       {arqs.map((a) => (
@@ -1399,6 +1399,7 @@ export function Cotacoes({ user, fases, ir }) {
   const [forns, setForns] = useState(_fornPic || []);   // v491 — para ligar a cotação ao cadastro
   useEffect(() => { if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const [vinc, setVinc] = useState({});
+  const [abertos, setAbertos] = useState({});   // v509
   const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: numBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "", naoTem: !!i.naoTem })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
@@ -1427,63 +1428,96 @@ export function Cotacoes({ user, fases, ir }) {
         const d = dados(c), trav = false, comOc = ehOc(c);   // v487 — cotação sempre editável
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
         const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * (Number(i.quantidade) || 0), 0);
+        const aberto = abertos[c.id] ?? !comOc;   // v509 — com OC começa recolhida
+        const resp = c.itens.filter((i, k) => d.itens[k]?.naoTem || lerNum(d.itens[k]?.valorUnitario) > 0).length;
+        const lbl = "text-[10px] font-semibold uppercase tracking-wide";
         return (
-          <div key={c.id} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{c.numero} · {c.fornecedorNome} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.pics ? ` · ${c.pics}` : ""}{c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""}</span></div>
+          <div key={c.id} className="rounded-xl mb-5 overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `5px solid ${cor}`, boxShadow: "0 1px 3px rgba(16,24,40,.06)" }}>
+            {/* v509 — cabeçalho limpo: nº grande + fornecedor, resumo à direita; clique abre/fecha */}
+            <div onClick={() => setAbertos((m) => ({ ...m, [c.id]: !aberto }))} className="flex items-center gap-4 px-5 py-3.5 cursor-pointer select-none" style={{ background: aberto ? "#FAFBFC" : C.panel }}>
+              {aberto ? <ChevronDown size={18} style={{ color: C.sub }} /> : <ChevronRight size={18} style={{ color: C.sub }} />}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: fundo, color: cor }}>{c.numero}</span>
+                  <span className="text-base font-bold truncate" style={{ color: C.navy }}>{c.fornecedorNome}</span>
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: C.sub }}>{new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.pics ? ` · ${c.pics}` : ""}{c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""} · {c.itens.length} item(ns) · {resp}/{c.itens.length} respondido(s){(c.arquivos || []).length ? ` · 📎 ${c.arquivos.length}` : ""}</div>
+              </div>
               {!c.fornecedorId && (   // v491 — sem cadastro não gera OC: liga ao cadastro aqui
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold" style={{ color: C.red }}>fora do cadastro ·</span>
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[11px] font-semibold" style={{ color: C.red }}>fora do cadastro</span>
                   <div className="w-56"><BuscaFornecedor valor={vinc[c.id] ?? ""} forns={forns} placeholder="ligar ao fornecedor do cadastro" estilo={{ border: `1px solid ${C.red}`, fontSize: 12, padding: "3px 8px" }}
                     onEscolher={async (f, txt) => { setVinc((m) => ({ ...m, [c.id]: f ? nomeFornCad(f) : txt })); if (f) { const x = await post({ acao: "vincular", id: c.id, fornecedorId: f.id }); if (x?.cotacoes > 1) alerta(`${x.cotacoes} cotações de ${c.fornecedorNome} ligadas a ${nomeFornCad(f)}.`); } }} /></div>
                 </div>
               )}
-              {tot > 0 && <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>}
-              <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+              <div className="text-right shrink-0">
+                <div className={lbl} style={{ color: C.sub }}>Total</div>
+                <div className="text-lg font-bold leading-tight" style={{ color: tot > 0 ? C.navy : C.sub }}>{tot > 0 ? brl(tot) : "—"}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+                {comOc && c.ocNumero && <span className="text-[11px] font-bold" style={{ color: C.green }}>{c.ocNumero}</span>}
+              </div>
             </div>
-            <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
-              <div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-28 text-right">Valor unit.</div><div className="w-36">Prazo</div><div className="w-20 text-center">Não tem</div><div className="w-28 text-right">Total</div>
-            </div>
-            {c.itens.map((i, k) => {
-              const di = d.itens[k] || {}; const v = lerNum(di.valorUnitario);
-              const m = melhor[`${i.nome}|${i.det}|${i.unidade}`];
-              const eMelhor = m && v != null && v <= m.v + 1e-9;
-              return (
-                <div key={k} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: di.naoTem ? 0.55 : 1 }}>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
-                    {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
-                    {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f} ({m.n})</div>}
-                  </div>
-                  <div className="w-28 text-right">{qtdU(i.quantidade, i.unidade)}</div>
-                  <div className="w-28 text-right">{di.naoTem ? <span className="text-xs" style={{ color: C.red }}>não tem</span> : trav ? brl(i.valorUnitario) : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : C.panel }} />}</div>
-                  <div className="w-36">{di.naoTem ? "" : trav ? (i.prazo ? dBR(i.prazo) : "—") : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}` }} />}</div>
-                  <div className="w-20 text-center">{/* v484 */}<input type="checkbox" disabled={trav} checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
-                  <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{v && !di.naoTem ? brl(v * (Number(i.quantidade) || 0)) : "—"}</div>
+
+            {aberto && <>
+              {/* itens */}
+              <div className="px-5 pb-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="flex gap-3 pt-3 pb-1.5" style={{ color: C.sub }}>
+                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-28 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className={`w-36 ${lbl}`}>Prazo</div><div className={`w-16 text-center ${lbl}`}>Não tem</div><div className={`w-28 text-right ${lbl}`}>Total</div>
                 </div>
-              );
-            })}
-            <ArquivosCotacao c={c} user={user} onMudou={() => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => Array.isArray(x) && setL(x)).catch(() => {})} />
-            <div className="flex flex-wrap items-end gap-3 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
-              <label className="text-xs" style={{ color: C.sub }}>Condição de pagamento<input disabled={trav} value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-40`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-              <label className="text-xs" style={{ color: C.sub }}>Entrega prevista<input disabled={trav} type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-              <label className="text-xs flex-1 min-w-[160px]" style={{ color: C.sub }}>Obs.<input disabled={trav} value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-              {c.status === "GERADA" && <button onClick={() => post({ acao: "enviada", id: c.id })} className="text-xs px-2.5 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>Marcar enviada</button>}
-              <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ id: c.id, numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
-              {!comOc && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>}
-              {!trav && <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>}
-              {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
-                if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
-                const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
-                const atual = { ...c, ...x.cotacao, itens: x.cotacao.itens };
-                // v488 — outras cotações respondidas do mesmo fornecedor, ainda sem OC: juntar numa OC só
-                const irmas = (l || []).filter((y) => y.id !== c.id && y.fornecedorId && y.fornecedorId === c.fornecedorId && y.status === "RESPONDIDA" && y.itens.some((i) => !i.naoTem && i.valorUnitario != null));
-                if (irmas.length && (await confirmar(`${c.fornecedorNome} também respondeu ${irmas.map((y) => y.numero).join(", ")}. Juntar tudo numa OC só?`))) setGerOc([atual, ...irmas]);
-                else setGerOc([atual]);
-              }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
-              {comOc && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
-              {comOc && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
-            </div>
+                {c.itens.map((i, k) => {
+                  const di = d.itens[k] || {}; const v = lerNum(di.valorUnitario);
+                  const m = melhor[`${i.nome}|${i.det}|${i.unidade}`];
+                  const eMelhor = m && v != null && v <= m.v + 1e-9;
+                  return (
+                    <div key={k} className="flex gap-3 items-center text-sm rounded-lg px-2 -mx-2 py-2.5" style={{ background: k % 2 ? "transparent" : "#F8F9FB", opacity: di.naoTem ? 0.55 : 1 }}>
+                      <div className="flex-1 min-w-0 flex items-start gap-2.5">
+                        <span className="shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5" style={{ width: 22, height: 22, background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>{k + 1}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }} title={i.nome}>{i.nome}</div>
+                          {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
+                          {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
+                          {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
+                        </div>
+                      </div>
+                      <div className="w-28 text-right" style={{ color: C.text }}>{qtdU(i.quantidade, i.unidade)}</div>
+                      <div className="w-28 text-right">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}</div>
+                      <div className="w-36">{di.naoTem ? "" : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}`, background: "#fff" }} />}</div>
+                      <div className="w-16 text-center">{/* v484 */}<input type="checkbox" checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
+                      <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * (Number(i.quantidade) || 0)) : "—"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* resposta do fornecedor */}
+              <div className="px-5 py-3 grid gap-3" style={{ borderTop: `1px solid ${C.line}`, background: "#FAFBFC", gridTemplateColumns: "180px 170px minmax(0,1fr)" }}>
+                <label className={lbl} style={{ color: C.sub }}>Condição de pagamento<input value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
+                <label className={lbl} style={{ color: C.sub }}>Entrega prevista<input type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
+                <label className={lbl} style={{ color: C.sub }}>Observação<input value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
+              </div>
+              <ArquivosCotacao c={c} user={user} onMudou={() => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => Array.isArray(x) && setL(x)).catch(() => {})} />
+
+              {/* ações: secundárias à esquerda, principais à direita */}
+              <div className="flex flex-wrap items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+                <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ id: c.id, numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-3 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
+                {c.status === "GERADA" && <button onClick={() => post({ acao: "enviada", id: c.id })} className="text-xs px-3 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>Marcar enviada</button>}
+                {!comOc && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-3 py-1.5 rounded-md" style={{ color: C.red, background: "transparent" }}>Cancelar cotação</button>}
+                {comOc && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
+                <div className="flex-1" />
+                <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-4 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>
+                {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
+                  if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
+                  const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
+                  const atual = { ...c, ...x.cotacao, itens: x.cotacao.itens };
+                  // v488 — outras cotações respondidas do mesmo fornecedor, ainda sem OC: juntar numa OC só
+                  const irmas = (l || []).filter((y) => y.id !== c.id && y.fornecedorId && y.fornecedorId === c.fornecedorId && y.status === "RESPONDIDA" && y.itens.some((i) => !i.naoTem && i.valorUnitario != null));
+                  if (irmas.length && (await confirmar(`${c.fornecedorNome} também respondeu ${irmas.map((y) => y.numero).join(", ")}. Juntar tudo numa OC só?`))) setGerOc([atual, ...irmas]);
+                  else setGerOc([atual]);
+                }} className="text-sm px-4 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
+              </div>
+            </>}
           </div>
         );
       })}
