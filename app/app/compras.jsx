@@ -904,7 +904,7 @@ export function PicCompras({ user, fases, ir }) {
               <Chip cor={p.status === "OC" ? C.green : C.accent} fundo={p.status === "OC" ? C.greenSoft : C.accentSoft}>{p.status === "OC" ? "OCs geradas" : `${abertos.length} sem OC`}</Chip>
             </div>
             <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
-              <div className="w-5" /><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
+              <div className="w-5">{abertos.length > 0 && <input type="checkbox" title="Marcar todos deste PIC" checked={abertos.every((i) => sel.has(i.id))} onChange={(e) => setSel((s0) => { const n = new Set(s0); abertos.forEach((i) => (e.target.checked ? n.add(i.id) : n.delete(i.id))); return n; })} />}</div><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
             </div>
             {p.itens.map((i) => {
               const v = val(i), trav = !!i.oc, inf = i.info || {};
@@ -938,6 +938,7 @@ export function PicCompras({ user, fases, ir }) {
       })}
       {todosAbertos.length > 0 && (   // v477 — barra única: itens de PICs diferentes na mesma cotação/OC
         <div className="flex flex-wrap items-center gap-2 sticky bottom-0 py-3 px-3 rounded-lg" style={{ background: "#F7F8FA", border: `1px solid ${C.line}` }}>
+          <label className="flex items-center gap-1.5 text-sm font-semibold cursor-pointer" style={{ color: C.navy }}><input type="checkbox" checked={sel.size === todosAbertos.length} onChange={(e) => setSel(e.target.checked ? new Set(todosAbertos.map((i) => i.id)) : new Set())} /> Todos</label>   {/* v480 */}
           <div className="flex-1 text-sm" style={{ color: C.sub }}>{sel.size ? <><b style={{ color: C.navy }}>{sel.size}</b> item(ns) escolhido(s) de {new Set(alvo.map((i) => i.picNumero)).size} PIC(s) · <button onClick={() => setSel(new Set())} className="underline">limpar</button></> : <>Sem escolha: vale para <b style={{ color: C.navy }}>todos os {todosAbertos.length}</b> itens sem OC. Marque itens (de qualquer PIC) para escolher.</>}</div>
           <button disabled={oc} onClick={() => acaoItens("salvarItens")} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar</button>
           <button disabled={oc} onClick={cotacao} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
