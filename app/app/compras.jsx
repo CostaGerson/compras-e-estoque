@@ -137,7 +137,7 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 // ---------- Compras › Pedidos ----------
 // v415 — fases de compras na guia superior (troca de tela entre as fases)
 export const FASES_COMPRAS = [
-  ["comprasPedidos", "Pedidos", ClipboardList], ["levantamento", "Levantamento e estoque", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
+  ["comprasPedidos", "Sincronização de pedidos", ClipboardList], ["levantamento", "Levantamento e estoque", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
   ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
 ];
 export function FasesCompras({ atual, fases, ir }) {
@@ -180,6 +180,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState("pendentes");
+  const [ordem, setOrdem] = useState({ k: "entrega", d: 1 });   // v498
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState({});
   const [resumo, setResumo] = useState(null);   // { fppId, item, pedido }
@@ -266,33 +267,55 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
         </div>
       )}
       {!["avulsas", "dispensadas"].includes(filtro) && !lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
-      {!["avulsas", "dispensadas"].includes(filtro) && lista.map((p) => {
-        const ab = aberto[p.numero] ?? (lista.length <= 3);
-        const ok = p.comFpp >= p.total;
+      {/* v498 — sincronização de pedidos: lista ordenável; clicar no pedido abre os itens para ligar à FPP */}
+      {!["avulsas", "dispensadas"].includes(filtro) && lista.length > 0 && (() => {
+        const sitPcp = (p) => (p.fasePcp === "FORA" ? "Fora do PCP" : /PROGRAMAR/i.test(p.situacaoPcp || "") ? "A programar" : p.fasePcp === "COMPRAS" ? "Compras" : p.situacaoPcp || "—");
+        const val = { numero: (p) => p.numero, cliente: (p) => p.cliente || "", entrega: (p) => p.entrega || "9999", situacao: (p) => sitPcp(p), itens: (p) => p.total, fpp: (p) => p.comFpp };
+        const ord = [...lista].sort((a, z) => { const x = val[ordem.k](a), y = val[ordem.k](z); return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR", { numeric: true })) * ordem.d; });
+        const Th = ({ k, t, cls = "" }) => <th onClick={() => setOrdem((o) => ({ k, d: o.k === k ? -o.d : 1 }))} className={`px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap ${cls}`} title="Ordenar">{t}{ordem.k === k ? (ordem.d > 0 ? " ▲" : " ▼") : ""}</th>;
         return (
-          <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <button onClick={() => setAberto((s) => ({ ...s, [p.numero]: !ab }))} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-              {ab ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>Pedido {p.numero} · {p.cliente}{p.interno && <span className="ml-2"><Chip>interno</Chip></span>}</div>
-                <div className="text-xs" style={{ color: C.sub }}>Entrega {dBR(p.entrega)} · emitido {dBR(p.emissao)}{p.fasePcp === "FORA" ? " · fora do PCP" : p.situacaoPcp ? ` · PCP: ${p.situacaoPcp}` : ""}{p.itensFora ? ` · ${p.itensFora} item(ns) já programado(s) não aparecem` : ""}</div>
-              </div>
-              <Chip cor={ok ? C.green : C.accent} fundo={ok ? C.greenSoft : C.accentSoft}>{p.comFpp}/{p.total} itens com FPP</Chip>
-              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras"
-                className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</span>
-            </button>
-            {ab && (
-              <div className="px-4 pb-3 space-y-2">
-                {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores}
-                  onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
-                  onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
-                  onBuscar={() => setBusca({ item: it, pedido: p })}
-                  onDesvincular={() => desvincular(p, it)} />)}
-              </div>
-            )}
+          <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <table className="w-full text-sm" data-sem-ordenar>
+              <thead><tr className="text-xs" style={{ color: C.sub, background: C.panel2 }}>
+                <th className="w-8" /><Th k="numero" t="Pedido" cls="text-left" /><Th k="cliente" t="Cliente" cls="text-left" /><Th k="entrega" t="Entrega" cls="text-center" /><Th k="situacao" t="Situação no PCP" cls="text-center" /><Th k="itens" t="Itens" cls="text-center" /><Th k="fpp" t="Itens com FPP" cls="text-center" /><th className="px-3 py-2" />
+              </tr></thead>
+              <tbody>
+                {ord.map((p) => {
+                  const ab = !!aberto[p.numero];
+                  const ok = p.comFpp >= p.total;
+                  const sit = sitPcp(p);
+                  return (
+                    <React.Fragment key={p.numero}>
+                      <tr onClick={() => setAberto((s0) => ({ ...s0, [p.numero]: !ab }))} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}`, background: ab ? C.accentSoft : undefined }}>
+                        <td className="pl-3">{ab ? <ChevronDown size={15} style={{ color: C.sub }} /> : <ChevronRight size={15} style={{ color: C.sub }} />}</td>
+                        <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{p.numero}{p.interno && <span className="ml-1"><Chip>interno</Chip></span>}</td>
+                        <td className="px-3 py-2 truncate max-w-[320px]" title={p.cliente}>{p.cliente}</td>
+                        <td className="px-3 py-2 text-center text-xs" style={{ color: C.sub }}>{dBR(p.entrega)}</td>
+                        <td className="px-3 py-2 text-center"><Chip cor={sit === "Fora do PCP" ? C.sub : sit === "Compras" ? C.accent : C.blue} fundo={sit === "Fora do PCP" ? C.panel2 : sit === "Compras" ? C.accentSoft : C.blueSoft}>{sit}</Chip></td>
+                        <td className="px-3 py-2 text-center">{p.total}</td>
+                        <td className="px-3 py-2 text-center font-semibold" style={{ color: ok ? C.green : C.accent }}>{p.comFpp}/{p.total}</td>
+                        <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras" className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button></td>
+                      </tr>
+                      {ab && (
+                        <tr><td colSpan={8} className="px-4 pb-3 pt-1" style={{ background: "#FCFCFD" }}>
+                          {p.itensFora ? <div className="text-[11px] mb-1" style={{ color: C.sub }}>{p.itensFora} item(ns) já programado(s) no PCP não aparecem.</div> : null}
+                          <div className="space-y-2">
+                            {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores}
+                              onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
+                              onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
+                              onBuscar={() => setBusca({ item: it, pedido: p })}
+                              onDesvincular={() => desvincular(p, it)} />)}
+                          </div>
+                        </td></tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         );
-      })}
+      })()}
 
       {resumo && <FppResumo fppId={resumo.fppId} item={resumo.item} veValores={veValores} onClose={() => setResumo(null)} onUsar={resumo.so ? null : usar} usando={usando} />}
       {busca && <BuscarFpp cliente={busca.pedido.cliente} onClose={() => setBusca(null)} onEscolher={(id) => { setResumo({ fppId: id, item: busca.item, pedido: busca.pedido }); setBusca(null); }} />}
