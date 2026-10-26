@@ -1056,6 +1056,7 @@ export function OrdensCompra({ fases, ir }) {
                 <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>{o.numero} · {o.fornecedor.nome}</div>
                 <div className="text-xs" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.cotacao ? ` · ${o.cotacao}` : ""}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}` : ""}{o.nfNumero ? ` · NF ${o.nfNumero}` : ""}{o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
               </div>
+              <ChipRota r={o.rota} forma={o.formaRecebimento} />
               <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
             </button>
@@ -1073,7 +1074,7 @@ export function OrdensCompra({ fases, ir }) {
                   <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
-                  {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
+                  {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && !o.rota && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
                 </div>
                 {/* v479 — NF do fornecedor */}
                 <div className="flex flex-wrap items-end gap-3 pt-3 mt-3" style={{ borderTop: `1px dashed ${C.line}` }}>
@@ -1084,6 +1085,9 @@ export function OrdensCompra({ fases, ir }) {
                       <button onClick={() => { salvar(o, { nfNumero: v.numero, nfEmissao: v.emissao || null }); setNf((n) => { const m = { ...n }; delete m[o.id]; return m; }); }} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>{o.nfNumero ? "Atualizar NF" : "Inserir NF"}</button>
                       {o.nfNumero && <span className="text-xs" style={{ color: C.green }}>NF {o.nfNumero} registrada · compra com status NF emitida</span>}
                     </>; })()}
+                </div>
+                <ArquivosNfOc o={o} onMudou={carregar} />   {/* v486 — XML e PDF da NF */}
+                <div>
                   <button onClick={() => imprimirOc(o)} className="ml-auto text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
                 </div>
               </div>
@@ -1199,7 +1203,15 @@ const FORMAS_REC = [["COLETA", "Coleta (nós buscamos)"], ["TRANSPORTADORA", "En
 export function criarRotaColeta(o) {
   window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "rota", nova: { objetivo: "COLETA", destinoTipo: "FORNECEDOR", destinoId: o.fornecedor.id, destinoNome: String(o.fornecedor.nome || "").toUpperCase(),
     endereco: o.fornecedor.endereco || "", contato: o.fornecedor.contato || "", telefone: o.fornecedor.telefone || "", horarioTipo: "LIVRE",
-    tarefa: `COLETA ${o.numero}${o.nfNumero ? ` · NF ${o.nfNumero}` : ""}` } } }));
+    tarefa: `COLETA ${o.numero}${o.nfNumero ? ` · NF ${o.nfNumero}` : ""}`, ocId: o.id } } }));
+}
+// v486 — situação da rota de coleta de uma OC
+const ST_ROTA = { ABERTA: "a montar", NO_BLOCO: "na rota", EM_EXECUCAO: "em execução", CONCLUIDA: "coletada" };
+function ChipRota({ r, forma }) {
+  if (forma !== "COLETA" && !r) return null;
+  if (!r) return <Chip cor={C.red} fundo={C.redSoft} title="Coleta sem demanda de rota">sem rota de coleta</Chip>;
+  const ok = r.status === "CONCLUIDA";
+  return <Chip cor={ok ? C.green : C.blue} fundo={ok ? C.greenSoft : C.blueSoft} title={`Demanda de rota #${r.id}`}>🚚 coleta {dBR(r.data).slice(0, 5)} · {ST_ROTA[r.status] || r.status}{r.blocoId ? ` R${r.blocoId}` : ""}</Chip>;
 }
 function GerarOcCotacao({ c, user, onClose, onOk }) {
   const [f, setF] = useState({ itens: c.itens.map((i) => ({ valorNegociado: numBR(i.valorUnitario) })), prazoEntrega: c.prazoEntrega || "", forma: "", dias: "", condicao: c.condicao || "" });
@@ -1367,10 +1379,116 @@ export function Cotacoes({ user, fases, ir }) {
                 setGerOc({ ...c, ...x.cotacao, itens: x.cotacao.itens });
               }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
               {trav && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
+              {trav && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------- v486 — XML e PDF da NF na OC (o XML preenche o nº e a emissão) ----------
+function ArquivosNfOc({ o, onMudou }) {
+  const [env, setEnv] = useState(false);
+  async function anexar(fs) {
+    setEnv(true);
+    for (const f of fs) {
+      try {
+        const r = await fetch("/api/compras/oc/arquivos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ocId: o.id, nome: f.name, mime: f.type, conteudo: await lerB64(f) }) });
+        const x = await r.json().catch(() => ({}));
+        if (!r.ok) alerta(x.error || `Erro ao anexar ${f.name}.`);
+        else if (x.nf) alerta(`XML lido: NF ${x.nf.numero}${x.nf.emissao ? ` de ${dBR(x.nf.emissao)}` : ""} registrada na OC.`);
+      } catch { alerta(`Erro ao ler ${f.name}.`); }
+    }
+    setEnv(false); onMudou();
+  }
+  const tirar = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; await fetch("/api/compras/oc/arquivos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); onMudou(); };
+  const arqs = o.arquivos || [];
+  const tem = (t) => arqs.some((a) => a.tipo === t);
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-2" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) anexar([...e.dataTransfer.files]); }}>
+      <span className="text-xs font-semibold" style={{ color: C.sub }}>Arquivos da NF:</span>
+      <Chip cor={tem("XML") ? C.green : C.sub} fundo={tem("XML") ? C.greenSoft : C.panel2}>XML {tem("XML") ? "✓" : "—"}</Chip>
+      <Chip cor={tem("PDF") ? C.green : C.sub} fundo={tem("PDF") ? C.greenSoft : C.panel2}>PDF {tem("PDF") ? "✓" : "—"}</Chip>
+      {arqs.map((a) => (
+        <span key={a.id} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+          <FileText size={12} style={{ color: a.tipo === "XML" ? C.blue : C.red }} />
+          <a href={`/api/compras/oc/arquivos?id=${a.id}`} target="_blank" rel="noreferrer" className="max-w-[200px] truncate" style={{ color: C.blue }}>{a.nome}</a>
+          <button onClick={() => tirar(a)} style={{ color: C.sub }}><X size={12} /></button>
+        </span>
+      ))}
+      <label className="text-xs px-2.5 py-1 rounded-md font-semibold cursor-pointer flex items-center gap-1" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>
+        {env ? <Loader2 size={12} className="animate-spin" /> : "+"} Anexar XML / PDF
+        <input type="file" multiple accept=".xml,.pdf,application/pdf,text/xml,application/xml" className="hidden" onChange={(e) => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) anexar(fs); }} />
+      </label>
+    </div>
+  );
+}
+
+// ---------- v486 — painel de compras: tudo que está em PIC e a etapa de cada item ----------
+const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
+  ["EM_TRANSPORTADORA", "Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
+export function PainelCompras({ ir }) {
+  const [l, setL] = useState(null);
+  const [f, setF] = useState(null);
+  const [q, setQ] = useState("");
+  const carregar = () => fetch("/api/compras/demandas").then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
+  useEffect(() => { carregar(); }, []);
+  const conta = (k) => (l || []).filter((i) => i.etapa === k).length;
+  const t = norm(q);
+  const vis = (l || []).filter((i) => (f ? i.etapa === f : i.etapa !== "RECEBIDA") && (!t || norm(`${i.nome} ${i.det} ${i.fornecedor || ""} ${i.pic} ${i.oc?.numero || ""} ${i.pedidos.join(" ")}`).includes(t)));
+  return (
+    <div className="mt-6 max-w-6xl">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-base font-bold" style={{ color: C.navy }}>Demandas de compra</div>
+        <span className="text-xs" style={{ color: C.sub }}>tudo que está em PIC, por etapa</span>
+        <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={14} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artigo, fornecedor, OC, pedido…" className="py-1.5 text-sm outline-none w-56" /></div>
+        <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
+      </div>
+      {/* trilha das etapas */}
+      <div className="flex items-stretch gap-1 mb-3 overflow-x-auto">
+        {ETAPAS.map(([k, t0, cor, fundo], n) => (
+          <React.Fragment key={k}>
+            {n > 0 && <div className="flex items-center text-sm" style={{ color: C.sub }}>›</div>}
+            <button onClick={() => setF(f === k ? null : k)} className="flex-1 min-w-[120px] rounded-lg px-3 py-2 text-left" style={{ background: f === k ? cor : fundo, color: f === k ? "#fff" : cor, border: `1px solid ${cor}55` }}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide">{t0}</div>
+              <div className="text-xl font-bold">{l ? conta(k) : "…"}</div>
+            </button>
+          </React.Fragment>
+        ))}
+      </div>
+      {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {l && !vis.length && <div className="text-sm py-6 text-center rounded-lg" style={{ color: C.sub, background: C.panel, border: `1px solid ${C.line}` }}>{l.length ? "Nada nesta etapa." : "Nenhuma demanda de compra. Elas nascem no Levantamento (Gerar PIC)."}</div>}
+      {vis.length > 0 && (
+        <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="flex px-4 py-2 text-xs font-semibold gap-3" style={{ color: C.sub, background: C.panel2 }}>
+            <div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-44">Fornecedor</div><div className="w-28">PIC / OC</div><div className="w-52">Etapa</div>
+          </div>
+          {vis.map((i) => {
+            const e = ETAPAS.find((x) => x[0] === i.etapa) || ETAPAS[0];
+            const cotTxt = i.etapa === "EM_COTACAO" ? (i.cotacoes.length ? `${i.cotacoes.filter((c) => c.s === "VALOR").length}/${i.cotacoes.length} cotação(ões) respondida(s)${i.cotacoes.length && i.cotacoes.every((c) => c.s === "NAO_TEM") ? " · ninguém tem" : ""}` : "cotação não gerada") : null;
+            return (
+              <div key={i.id} className="flex px-4 py-2 gap-3 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
+                  <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.pedidos.join(" · ")}</div></div>
+                <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
+                <div className="w-44 text-xs truncate" style={{ color: i.fornecedor ? C.text : C.sub }}>{i.fornecedor || "—"}</div>
+                <div className="w-28 text-xs" style={{ color: C.sub }}>{i.pic}{i.oc ? <div className="font-semibold" style={{ color: C.navy }}>{i.oc.numero}{i.oc.nf ? ` · NF ${i.oc.nf}` : ""}</div> : null}</div>
+                <div className="w-52">
+                  <Chip cor={e[2]} fundo={e[3]}>{e[1]}</Chip>
+                  <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
+                    {cotTxt}
+                    {i.etapa === "EM_COLETA" && (i.rota ? `rota ${dBR(i.rota.data).slice(0, 5)} · ${ST_ROTA[i.rota.status] || i.rota.status}${i.rota.blocoId ? ` R${i.rota.blocoId}` : ""}` : "sem rota de coleta")}
+                    {["EM_TRANSPORTADORA", "ENTREGA_FORNECEDOR", "AGUARDANDO_NF"].includes(i.etapa) && i.previsao ? `previsão ${dBR(i.previsao)}` : ""}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {ir && <div className="flex gap-3 mt-2 text-xs">{[["pic", "Abrir PIC"], ["comprasCotacoes", "Abrir cotações"], ["oc", "Abrir ordens de compra"]].map(([k, t0]) => <button key={k} onClick={() => ir(k)} className="underline" style={{ color: C.accent }}>{t0}</button>)}</div>}
     </div>
   );
 }

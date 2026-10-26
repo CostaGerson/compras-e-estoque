@@ -16,7 +16,7 @@ import MovimentoFiscal, { DemandasAdm } from "./adm";
 import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
 import MotoristaApp from "./motorista";   // v452 — usuário do setor Logística (motorista): só a rota dele, no celular
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra, Cotacoes } from "./compras";
+import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra, Cotacoes, PainelCompras } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
@@ -331,6 +331,7 @@ export default function Home() {
         <div className="flex-1 overflow-auto px-5 py-3">
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
+          {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}

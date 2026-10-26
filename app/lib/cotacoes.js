@@ -1,6 +1,6 @@
 // v478 — cotações: geradas no PIC (uma por fornecedor), resposta do fornecedor e aplicação do preço nos itens do PIC
 import { prisma } from "@/lib/prisma";
-import { gerarOcsItens } from "@/lib/pic";   // v479
+import { gerarOcsItens, rotasDeColeta } from "@/lib/pic";   // v479 · v486
 
 const num = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
 const out = (c) => ({ ...c, prazoEntrega: c.prazoEntrega ? c.prazoEntrega.toISOString().slice(0, 10) : null });
@@ -23,9 +23,12 @@ export async function listarCotacoes() {
   const l = await prisma.cotacao.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { id: "desc" }, take: 150 });
   const fIds = [...new Set(l.map((c) => c.fornecedorId).filter(Boolean))];
   const fs = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, f]));
-  const ocs = Object.fromEntries((await prisma.ordemCompra.findMany({ where: { id: { in: l.map((c) => c.ocId).filter(Boolean) } }, select: { id: true, numero: true } })).map((o) => [o.id, o.numero]));
+  const ocL = await prisma.ordemCompra.findMany({ where: { id: { in: l.map((c) => c.ocId).filter(Boolean) } }, select: { id: true, numero: true, formaRecebimento: true } });
+  const ocs = Object.fromEntries(ocL.map((o) => [o.id, o.numero]));
+  const rotasOc = await rotasDeColeta(ocL);   // v486
+  const formaOc = Object.fromEntries(ocL.map((o) => [o.id, o.formaRecebimento]));
   const arqs = await prisma.cotacaoArquivo.findMany({ where: { cotacaoId: { in: l.map((c) => c.id) } }, select: { id: true, cotacaoId: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } });   // v481
-  return l.map((c) => ({ ...out(c), arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
+  return l.map((c) => ({ ...out(c), arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, ocForma: formaOc[c.ocId] || null, rota: rotasOc[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
 }
 
 // resposta do fornecedor: { id, itens: [{ valorUnitario, prazo, obs }] (mesma ordem), condicao, prazoEntrega, obs }

@@ -369,6 +369,7 @@ export async function salvarDemanda(b, u) {
     motoristaId: frete ? null : b.motoristaId || null, motoristaNome: frete ? null : up(b.motoristaNome) || null, veiculo: frete ? null : VEICULOS.includes(b.veiculo) ? b.veiculo : null,
     urgente: !!b.urgente, frete, freteTipo, freteValorMax: freteTipo === "FRETEBRAS" ? vMax : null, freteVolumes: frete ? vol : null,
     obs: String(b.obs || "").trim() || null,
+    ...(b.ocId ? { ocId: Number(b.ocId) || null } : {}),   // v486 — rota de coleta criada pela OC
     tempoLocal: b.tempoLocal === "" || b.tempoLocal == null ? null : Math.min(600, Math.max(0, parseInt(b.tempoLocal, 10) || 0)),   // v442
   };
   let d = ant ? await prisma.rotaDemanda.update({ where: { id: ant.id }, data: dados })

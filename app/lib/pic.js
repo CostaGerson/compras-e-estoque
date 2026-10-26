@@ -139,10 +139,12 @@ export async function listarOcs() {
   const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];
   const pics = Object.fromEntries((await prisma.pic.findMany({ where: { id: { in: picIds } }, select: { id: true, numero: true } })).map((p) => [p.id, p.numero]));
   const cots = Object.fromEntries((await prisma.cotacao.findMany({ where: { id: { in: l.map((o) => o.cotacaoId).filter(Boolean) } }, select: { id: true, numero: true } })).map((c) => [c.id, c.numero]));
+  const rotas = await rotasDeColeta(l);   // v486
+  const arqs = await prisma.ocArquivo.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, tipo: true, nome: true, tamanho: true, createdAt: true }, orderBy: { id: "asc" } });
   return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
-    cotacao: cots[o.cotacaoId] || null, formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
+    cotacao: cots[o.cotacaoId] || null, rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
@@ -185,4 +187,49 @@ async function statusNfItens(ocId) {
       if (st !== it.status) await prisma.compraItem.update({ where: { id: it.id }, data: { status: st } });
     }
   }
+}
+
+// v486 — rota de coleta de cada OC (pelo vínculo ocId ou pelo "COLETA OC 000x" no o que fazer)
+export async function rotasDeColeta(ocs) {
+  if (!ocs.length) return {};
+  const ds = await prisma.rotaDemanda.findMany({ where: { status: { not: "CANCELADA" }, OR: [{ ocId: { in: ocs.map((o) => o.id) } }, ...ocs.map((o) => ({ tarefa: { contains: `COLETA ${o.numero}`, mode: "insensitive" } }))] },
+    select: { id: true, ocId: true, tarefa: true, data: true, status: true, blocoId: true, concluidaEm: true }, orderBy: { id: "desc" } });
+  const out = {};
+  for (const o of ocs) {
+    const d = ds.find((x) => x.ocId === o.id) || ds.find((x) => String(x.tarefa || "").toUpperCase().includes(`COLETA ${o.numero}`.toUpperCase()));
+    if (d) out[o.id] = { id: d.id, data: d.data.toISOString().slice(0, 10), status: d.status, blocoId: d.blocoId, concluidaEm: d.concluidaEm };
+  }
+  return out;
+}
+
+// v486 — painel de compras: todos os itens de PIC com a etapa em que estão
+// EM_COTACAO (sem OC) → AGUARDANDO_NF (OC sem NF) → EM_COLETA / EM_TRANSPORTADORA / ENTREGA_FORNECEDOR (OC com NF) → RECEBIDA
+export async function painelDemandas() {
+  const its = await prisma.picItem.findMany({ where: { pic: { status: { not: "CANCELADO" } } }, orderBy: { id: "desc" }, take: 500,
+    include: { pic: { select: { numero: true, data: true } }, ocItens: { include: { oc: true } } } });
+  const ocs = [...new Map(its.flatMap((i) => i.ocItens.map((x) => [x.oc.id, x.oc]))).values()];
+  const rotas = await rotasDeColeta(ocs);
+  const fIds = [...new Set([...its.map((i) => i.fornecedorId), ...ocs.map((o) => o.fornecedorId)].filter(Boolean))];
+  const forn = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, nomeForn(f)]));
+  const cots = await prisma.cotacao.findMany({ where: { status: { not: "CANCELADA" } }, select: { numero: true, fornecedorNome: true, itens: true } });
+  const cotPor = {};
+  for (const c of cots) for (const i of Array.isArray(c.itens) ? c.itens : []) for (const pid of i.picItemIds || []) (cotPor[pid] ||= []).push({ n: c.numero, f: c.fornecedorNome, s: i.naoTem ? "NAO_TEM" : i.valorUnitario != null ? "VALOR" : "AGUARDANDO" });
+  const dt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+  return its.map((i) => {
+    const oc = i.ocItens[0]?.oc || null, inf = i.info || {};
+    let etapa = "EM_COTACAO", previsao = null;
+    if (oc) {
+      if (oc.status === "CANCELADA") etapa = "EM_COTACAO";
+      else if (oc.status === "RECEBIDA") etapa = "RECEBIDA";
+      else if (!oc.nfNumero) etapa = "AGUARDANDO_NF";
+      else if (oc.formaRecebimento === "TRANSPORTADORA") { etapa = "EM_TRANSPORTADORA"; if (oc.nfEmissao && oc.diasAposFaturamento) previsao = dt(new Date(oc.nfEmissao.getTime() + oc.diasAposFaturamento * 86400e3)); }
+      else if (oc.formaRecebimento === "ENTREGA_PROPRIA") etapa = "ENTREGA_FORNECEDOR";
+      else etapa = "EM_COLETA";
+    }
+    return { id: i.id, pic: i.pic.numero, picData: i.pic.data, nome: inf.nome || `Artigo #${i.artigoId}`, det: [inf.cor, inf.codigo].filter(Boolean).join(" · "), quantidade: Number(i.quantidade), unidade: inf.unidade,
+      pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)))],
+      fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao: previsao || dt(oc?.prazoFabrica),
+      oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
+      rota: oc ? rotas[oc.id] || null : null, cotacoes: cotPor[i.id] || [] };
+  });
 }

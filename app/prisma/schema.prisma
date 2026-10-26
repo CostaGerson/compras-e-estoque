@@ -1979,6 +1979,7 @@ model RotaDemanda {
   freteValorMax  Decimal?  @db.Decimal(14, 2)
   freteVolumes   Int?
   admDemandaId   Int?
+  ocId           Int?                         // v486 — rota de coleta de uma OC
   obs            String?
   status         String    @default("ABERTA") // ABERTA | NO_BLOCO | EM_EXECUCAO | CONCLUIDA | CANCELADA
   blocoId        Int?
@@ -2112,4 +2113,19 @@ model CotacaoArquivo {
   createdAt     DateTime @default(now())
 
   @@index([cotacaoId])
+}
+
+// v486 — arquivos da NF do fornecedor na OC (XML e PDF)
+model OcArquivo {
+  id            Int      @id @default(autoincrement())
+  ocId          Int
+  tipo          String                           // XML | PDF | OUTRO
+  nome          String
+  mime          String?
+  tamanho       Int      @default(0)
+  conteudo      String                           // base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([ocId])
 }
