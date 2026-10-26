@@ -101,6 +101,7 @@ const MENU = [
     { key: "pp", label: "Lançar PP", icon: FileText, desc: "Pedidos de produção com grade, foto e parâmetros de cada peça" },
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Pedidos", icon: ClipboardList, desc: "Itens de cada pedido do KM com a FPP base e a demanda de matéria-prima" },
+      { key: "comprasAvulsas", label: "Compras avulsas", icon: ShoppingCart, desc: "Demandas de compra avulsa (operação ou complemento de pedido): lançar, editar e marcar comprada" },   // v468
       { key: "levantamento", label: "Levantamento", icon: Layers, desc: "Demandas registradas, equiparações de artigos e demanda consolidada" },
       { key: "comprasCruzamento", label: "Cruzamento com estoque", icon: Layers, desc: "Cruza o levantamento com o saldo de estoque e autoriza os atendimentos" },
       { key: "comprasAtendidos", label: "Atendidos pelo estoque", icon: Layers, desc: "Itens autorizados pelo estoque; dá para devolver ao levantamento" },
@@ -154,6 +155,7 @@ const PODE = {
   comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
   levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   comprasCruzamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v415
+  comprasAvulsas: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v468 — mesmo acesso de Pedidos
   comprasAtendidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
@@ -329,12 +331,6 @@ export default function Home() {
         <div className="flex-1 overflow-auto px-5 py-3">
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
-          {view === "compras" && pode("comprasPedidos") && (   // v419 — compra avulsa já na entrada de Compras
-            <div className="mt-6 max-w-5xl rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Compra avulsa</div>
-              <Avulsas user={user} />
-            </div>
-          )}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
@@ -351,6 +347,12 @@ export default function Home() {
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} />}
           {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos />}
+          {view === "comprasAvulsas" && pode("comprasAvulsas") && (   // v468 — card próprio em Compras
+            <div className="max-w-5xl">
+              <div className="text-lg font-bold mb-3" style={{ color: C.navy }}>Compras avulsas</div>
+              <Avulsas user={user} />
+            </div>
+          )}
           {view === "pic" && pode("pic") && <PIC />}
           {view === "oc" && pode("oc") && <OC money={money} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
