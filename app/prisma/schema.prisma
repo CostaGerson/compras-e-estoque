@@ -399,6 +399,7 @@ model OrdemCompra {
   nfNumero            String?                       // v479 — NF do fornecedor
   nfEmissao           DateTime? @db.Date
   nfEm                DateTime?
+  previsaoEntrega     DateTime? @db.Date          // v497 — previsão de chegada (NF/transportadora/fornecedor); coleta usa a data da rota
   cnpjsAceitos        Json      @default("[]")  // v494 — CNPJs de emitente aceitos para esta OC (fora do cadastro do fornecedor)
   obs                 String?
   criadoPorNome       String?

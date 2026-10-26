@@ -1077,6 +1077,7 @@ export function OrdensCompra({ user, fases, ir }) {
               <ChipRota r={o.rota} forma={o.formaRecebimento} />
               <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+              <ChipEntrega e={o.entrega} />   {/* v497 */}
             </button>
             {aberto && (
               <div className="px-4 pb-3">
@@ -1106,6 +1107,7 @@ export function OrdensCompra({ user, fases, ir }) {
                   <label className="text-xs" style={{ color: C.sub }}>Condição de faturamento<input defaultValue={o.condicaoFaturamento || ""} onBlur={(e) => e.target.value !== (o.condicaoFaturamento || "") && salvar(o, { condicaoFaturamento: e.target.value })} placeholder="ex.: 30 dias" className="block mt-1 px-2 py-1 rounded text-sm w-40" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Prazo na fábrica<input type="date" defaultValue={o.prazoFabrica ? String(o.prazoFabrica).slice(0, 10) : ""} onChange={(e) => salvar(o, { prazoFabrica: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+                  {o.formaRecebimento && o.formaRecebimento !== "COLETA" && <label className="text-xs" style={{ color: C.sub }}>Previsão de chegada<input type="date" defaultValue={o.previsaoEntrega || ""} onChange={(e) => salvar(o, { previsaoEntrega: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}   {/* v497 */}
                   <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
                   {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && !o.rota && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
@@ -1248,6 +1250,19 @@ function ChipRota({ r, forma }) {
   return <Chip cor={ok ? C.green : C.blue} fundo={ok ? C.greenSoft : C.blueSoft} title={`Demanda de rota #${r.id}`}>🚚 coleta {dBR(r.data).slice(0, 5)} · {ST_ROTA[r.status] || r.status}{r.blocoId ? ` R${r.blocoId}` : ""}</Chip>;
 }
 // v488 — várias cotações do mesmo fornecedor viram uma OC só
+// v497 — situação de entrega da OC + previsão de chegada
+const ST_ENT = { EM_COLETA: ["Em coleta", C.blue, C.blueSoft], COLETADA: ["Coletada", C.green, C.greenSoft], EM_TRANSPORTADORA: ["Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ENTREGA_FORNECEDOR: ["Entrega do fornecedor", "#0E9384", "#E6F6F4"], RECEBIDA: ["Recebida", C.green, C.greenSoft] };
+function ChipEntrega({ e }) {
+  if (!e?.status) return null;
+  const [t, cor, fundo] = ST_ENT[e.status] || [e.status, C.sub, C.panel2];
+  const atraso = e.previsao && !["RECEBIDA", "COLETADA"].includes(e.status) && e.previsao < new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+  return (
+    <span className="flex flex-col items-center leading-tight" title={e.fonte === "rota" ? "Previsão = data da rota de coleta" : e.fonte === "calculada" ? "Previsão = emissão da NF + dias após o faturamento" : e.fonte === "informada" ? "Previsão informada na NF/OC" : "Previsão = prazo da OC"}>
+      <Chip cor={cor} fundo={fundo}>{t}</Chip>
+      <span className="text-[10px] mt-0.5 font-semibold" style={{ color: atraso ? C.red : C.sub }}>{e.previsao ? `${e.status === "COLETADA" ? "em" : "prev."} ${dBR(e.previsao).slice(0, 5)}${atraso ? " · atrasada" : ""}` : "sem previsão"}</span>
+    </span>
+  );
+}
 function GerarOcCotacao({ cs, user, onClose, onOk }) {
   const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
@@ -1652,6 +1667,12 @@ function NfsDaOc({ o, user, onMudou }) {
           <button onClick={() => excluir(n)} className="ml-auto flex items-center gap-1" style={{ color: C.red }}><X size={12} /> excluir</button>
         </div>
       ))}
+      {nfs.length > 0 && o.formaRecebimento && o.formaRecebimento !== "COLETA" && (   // v497 — previsão informada junto com a NF
+        <label className="flex items-center gap-2 mt-2 text-xs" style={{ color: C.sub }}>Previsão de chegada{o.formaRecebimento === "TRANSPORTADORA" ? " (transportadora)" : ""}:
+          <input type="date" defaultValue={o.previsaoEntrega || o.entrega?.previsao || ""} onChange={(e) => post({ acao: "previsao", previsaoEntrega: e.target.value || null })} className="px-2 py-0.5 rounded text-xs" style={{ border: `1px solid ${o.previsaoEntrega ? C.green : C.accent}`, color: C.text }} />
+          {!o.previsaoEntrega && <span style={{ color: C.accent }}>informe a data que o fornecedor/transportadora passou</span>}
+        </label>
+      )}
       {conf && !conf.error && nfs.length > 0 && (
         <div className="mt-2 rounded p-2" style={{ background: crit.length ? C.redSoft : C.greenSoft }}>
           {!crit.length ? <div className="text-xs font-semibold flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={13} /> NF confere com a OC: itens, quantidades, valores, prazo e CNPJ.</div> : <>

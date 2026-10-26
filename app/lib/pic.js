@@ -147,6 +147,7 @@ export async function listarOcs() {
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
     cotacao: cotsDaOc(o), rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id),
+    entrega: entregaDaOc(o, rotas[o.id]), previsaoEntrega: o.previsaoEntrega ? o.previsaoEntrega.toISOString().slice(0, 10) : null,   // v497
     nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
@@ -173,6 +174,7 @@ export async function salvarOc(b) {
     ...(b.condicaoFaturamento !== undefined ? { condicaoFaturamento: String(b.condicaoFaturamento || "").trim() || null } : {}),
     ...(b.prazoFabrica !== undefined ? { prazoFabrica: dt(b.prazoFabrica) } : {}),
     ...(b.prazoTransportadora !== undefined ? { prazoTransportadora: dt(b.prazoTransportadora) } : {}),
+    ...(b.previsaoEntrega !== undefined ? { previsaoEntrega: dt(b.previsaoEntrega) } : {}),   // v497
     ...(b.obs !== undefined ? { obs: String(b.obs || "").trim() || null } : {}),
     ...(["ABERTA", "ENVIADA", "NF_EMITIDA", "RECEBIDA", "CANCELADA"].includes(b.status) ? { status: b.status } : {}),
     ...(b.formaRecebimento !== undefined ? { formaRecebimento: ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.formaRecebimento) ? b.formaRecebimento : null } : {}),
@@ -246,16 +248,17 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
       if (oc.status === "CANCELADA") etapa = "EM_COTACAO";
       else if (oc.status === "RECEBIDA") etapa = "RECEBIDA";
       else if (!oc.nfNumero) etapa = "AGUARDANDO_NF";
-      else if (oc.formaRecebimento === "TRANSPORTADORA") { etapa = "EM_TRANSPORTADORA"; if (oc.nfEmissao && oc.diasAposFaturamento) previsao = dt(new Date(oc.nfEmissao.getTime() + oc.diasAposFaturamento * 86400e3)); }
+      else if (oc.formaRecebimento === "TRANSPORTADORA") etapa = "EM_TRANSPORTADORA";
       else if (oc.formaRecebimento === "ENTREGA_PROPRIA") etapa = "ENTREGA_FORNECEDOR";
       else etapa = "EM_COLETA";
     }
+    if (oc) previsao = entregaDaOc(oc, rotas[oc.id])?.previsao || null;   // v497 — mesma previsão da OC
     return { id: i.id, pic: i.pic.numero, picData: i.pic.data, nome: inf.nome || `Artigo #${i.artigoId}`, det: [inf.cor, inf.codigo].filter(Boolean).join(" · "), quantidade: Number(i.quantidade), unidade: inf.unidade,
       pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)))],
       // v489 — destino: pedido(s) indexado(s) ou operação (avulsa sem pedido)
       destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const p = avMap[`${x.pedido}|${x.chave}`]; return p ? `PED ${p}` : "OPERACAO"; }))],
       origens: (inf.pedidos || []).map((x) => `${x.pedido}|${x.chave}`),   // v493
-      fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao: previsao || dt(oc?.prazoFabrica),
+      fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao,
       oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
       rota: oc ? rotas[oc.id] || null : null, cotacoes: cotPor[i.id] || [],
       origem: (inf.pedidos || []).some((x) => !x.avulsa) ? ((inf.pedidos || []).some((x) => x.avulsa) ? "AP" : "P") : "A" };   // v495 — A avulsa · P pedido
@@ -290,4 +293,22 @@ export async function sincronizarCotacaoDaOc(ocId) {
   });
   await prisma.cotacao.update({ where: { id: c.id }, data: { itens, condicao: o.condicaoFaturamento || c.condicao, prazoEntrega: o.prazoFabrica || c.prazoEntrega } });
   }
+}
+
+// v497 — situação de entrega da OC e a previsão de chegada
+// coleta: a data da rota (reagendou a coleta, muda aqui) · transportadora/fornecedor: a previsão informada na NF/OC,
+// ou emissão da NF + dias após o faturamento, ou o prazo da OC
+export function entregaDaOc(o, rota) {
+  const dt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+  if (o.status === "CANCELADA") return null;
+  if (o.status === "RECEBIDA") return { status: "RECEBIDA", previsao: null };
+  if (o.formaRecebimento === "COLETA") {
+    if (rota?.status === "CONCLUIDA") return { status: "COLETADA", previsao: dt(rota.concluidaEm) || rota.data, fonte: "rota" };
+    return { status: "EM_COLETA", previsao: rota?.data || dt(o.previsaoEntrega) || dt(o.prazoFabrica), fonte: rota ? "rota" : "oc" };
+  }
+  const calc = o.nfEmissao && o.diasAposFaturamento ? dt(new Date(new Date(o.nfEmissao).getTime() + o.diasAposFaturamento * 86400e3)) : null;
+  const previsao = dt(o.previsaoEntrega) || calc || dt(o.prazoFabrica);
+  if (o.formaRecebimento === "TRANSPORTADORA") return { status: "EM_TRANSPORTADORA", previsao, fonte: o.previsaoEntrega ? "informada" : calc ? "calculada" : "oc" };
+  if (o.formaRecebimento === "ENTREGA_PROPRIA") return { status: "ENTREGA_FORNECEDOR", previsao, fonte: o.previsaoEntrega ? "informada" : "oc" };
+  return { status: null, previsao };
 }

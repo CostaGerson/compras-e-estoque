@@ -22,6 +22,7 @@ export async function POST(req) {
   switch (b.acao) {
     case "corrigir": return r(await corrigirOcPelaNf(b));
     case "aceitarCnpj": return r(await aceitarCnpj(b.ocId, b.cnpj, b.razao));
+    case "previsao": { const { salvarOc } = await import("@/lib/pic"); return r(await salvarOc({ id: b.ocId, previsaoEntrega: b.previsaoEntrega })); }   // v497
     case "excluir": return r(await desligarNfOc(b.ocId, b.fiscalNotaId, !!b.excluirRegistro, b.quem));
     default: return Response.json({ error: "Ação?" }, { status: 400 });
   }
