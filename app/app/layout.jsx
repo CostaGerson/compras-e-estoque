@@ -2,6 +2,7 @@ import "./globals.css";
 import OrdenarTabelas from "./ordenarTabelas";
 import Dialogos from "./dialogo";   // v424 — avisos e confirmações do sistema
 import Pwa from "./pwa";   // v454 — instalável como app no celular
+import CliqueFora from "./cliqueFora";   // v508
 
 export const metadata = {
   title: "ERP Meridian",   // v456
@@ -17,7 +18,7 @@ export const viewport = { themeColor: "#001E41", width: "device-width", initialS
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>{children}<OrdenarTabelas /><Dialogos /><Pwa /></body>
+      <body>{children}<OrdenarTabelas /><Dialogos /><Pwa /><CliqueFora /></body>
     </html>
   );
 }
