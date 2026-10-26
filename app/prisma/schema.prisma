@@ -2042,3 +2042,16 @@ model Destinatario {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// v466 — notificações no celular (Web Push): uma inscrição por aparelho/navegador do usuário
+model PushInscricao {
+  id         Int      @id @default(autoincrement())
+  usuarioId  Int
+  endpoint   String   @unique
+  chaves     Json                                // { p256dh, auth }
+  aparelho   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([usuarioId])
+}

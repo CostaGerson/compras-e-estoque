@@ -1,6 +1,7 @@
 // v425 — Logística › Rotas: demandas de rota, geolocalização, melhor sequência (com janelas de horário), blocos e despacho
 import { prisma } from "@/lib/prisma";
 import { temGoogle, geocodificar, matrizRuas, chaveTrecho } from "@/lib/googleMaps";   // v427
+import { notificar } from "@/lib/push";   // v466
 
 const up = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -436,6 +437,7 @@ export async function alterarBloco(b, u) {
   const texto = mensagemWhats(n, seq, links, null, canceladas);
   const tel = telefoneWa(await telefoneAtual(n));
   const usu = n.motoristaId && !n.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: n.motoristaId }, select: { id: true } }) : null;
+  if (usu) await notificar(usu.id, { titulo: `Rota R${n.id} alterada`, texto: canceladas.length ? `Cancelada: ${canceladas.join("; ")}. Veja a nova ordem.` : "Veja a nova ordem das paradas.", tag: `rota-${n.id}` }).catch(() => null);   // v466
   if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `SUA ROTA ${n.id} FOI ALTERADA${canceladas.length ? ` (CANCELADA: ${canceladas.join("; ").toUpperCase()})` : ""}. VEJA A NOVA ORDEM NO APP.` } }).catch(() => null);
   return { ok: true, alterada: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
@@ -582,7 +584,7 @@ export async function despachar(id) {
   const texto = mensagemWhats(n, ds, links, await estimativa(n, ds, fab));
   // motorista com usuário no sistema também recebe a rota por mensagem
   const usu = bl.motoristaId && !bl.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: bl.motoristaId }, select: { id: true } }) : null;
-  return { ok: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto, usuarioMotorista: usu?.id || null };
+  return { ok: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto, usuarioMotorista: usu?.id || null, nParadas: ds.length };
 }
 
 // v449 — telefone do motorista lido na hora (ficha do RH ou freelancer); atualiza a rota se mudou

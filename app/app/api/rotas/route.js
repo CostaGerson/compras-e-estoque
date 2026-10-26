@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
 import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, reativarDemanda, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
+import { notificar } from "@/lib/push";   // v466
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
 const podeMontar = (u) => !!u && (u.isMaster || !!u.diretoria || ["ADMINISTRATIVO", "LOGISTICA", "FINANCEIRO"].includes(u.setor));
@@ -66,6 +67,8 @@ export async function POST(req) {
       const x = await despachar(b.id);
       if (x.ok && x.usuarioMotorista && x.usuarioMotorista !== u.id)
         await prisma.mensagem.create({ data: { deId: u.id, paraId: x.usuarioMotorista, texto: x.texto.slice(0, 2000) } }).catch(() => null);
+      // v466 — notificação na tela do celular do motorista
+      if (x.ok && x.usuarioMotorista) await notificar(x.usuarioMotorista, { titulo: `Nova rota R${x.bloco.id} 🚚`, texto: `${x.nParadas || ""} parada(s)${x.bloco.saida ? ` · saída ${x.bloco.saida}` : ""}. Toque para abrir.`, tag: `rota-${x.bloco.id}` }).catch(() => null);
       return r(x);
     }
     case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443

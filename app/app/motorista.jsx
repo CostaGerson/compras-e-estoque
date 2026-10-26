@@ -4,6 +4,7 @@
 // No fim, a volta à fábrica e "CHEGUEI NA FÁBRICA".
 import React, { useEffect, useState } from "react";
 import { Loader2, Phone, LogOut, RefreshCw, Undo2, Clock, MapPin } from "lucide-react";
+import AvisosPush from "./avisosPush";   // v466
 
 const C = { navy: "#001E41", accent: "#FF6B1A", green: "#12A150", greenSoft: "#E7F6EE", bg: "#F2F4F7", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", red: "#D92D20", waze: "#33CCFF", yellow: "#C08401", yellowSoft: "#FFF6DD" };
 const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COMPRA: ["🛒", "Compra"] };
@@ -94,6 +95,7 @@ export default function MotoristaApp({ user, onSair }) {
       </div>
 
       <div className="max-w-md mx-auto px-4 pt-4 space-y-4">
+        <AvisosPush user={user} C={C} />
         {erro && <div className="rounded-xl px-4 py-3 text-base font-semibold" style={{ background: "#FDECEA", color: C.red }}>{erro}</div>}
         {!d && !erro && <div className="flex items-center justify-center gap-2 py-16 text-lg" style={{ color: C.sub }}><Loader2 className="animate-spin" /> Carregando sua rota…</div>}
         {d && !d.pessoaId && <div className="rounded-2xl p-6 text-center text-lg" style={{ background: C.panel }}>Seu usuário ainda não está ligado ao seu cadastro de motorista. Peça ao escritório para ligar em Usuários › Funcionário da folha.</div>}
