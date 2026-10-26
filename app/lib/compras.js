@@ -369,6 +369,12 @@ export function faseItemPcp(p, chave) {
   return { fase: /LEVANTAMENTO|COMPRA/.test(t) ? "COMPRAS" : "PRODUCAO", coluna: /LEVANTAMENTO/.test(t) ? "LEVANTAMENTO" : /COMPRA/.test(t) ? "COMPRAS" : String(ci.situacao || "").toUpperCase() };
 }
 
+// v496 — pedido de um item da avulsa: o do próprio item; o do cabeçalho só vale para avulsa antiga (itens sem o campo)
+export function pedidoDoItemAvulsa(c, i) {
+  const temCampo = (Array.isArray(c.itens) ? c.itens : []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef"));
+  if (temCampo) return i.pedidoRef || null;
+  return c.destino === "PEDIDO" ? c.pedidoRef || null : null;
+}
 export const ehAvulsa = (num) => /^AV\d+$/.test(String(num || ""));   // v419 — itens de compra avulsa (pedidoNumero "AV<id>")
 export async function pedidosDispensados(db = prisma) {
   return new Set((await db.compraDispensa.findMany({ select: { pedidoNumero: true } }).catch(() => [])).map((x) => x.pedidoNumero));
@@ -388,7 +394,7 @@ export async function sincronizarAvulsa(c, db = prisma) {
     const forn = i.fornecedorId ? Number(i.fornecedorId) : null;
     let art = await db.artigo.findFirst({ where: { ativo: true, unidade, fornecedorId: forn, nome: { equals: i.nome, mode: "insensitive" } }, select: { id: true, categoria: true } });
     if (!art) art = await db.artigo.create({ data: { categoria: "OUTROS", nome: i.nome, unidade, fornecedorId: forn, origem: "AVULSA" }, select: { id: true, categoria: true } });
-    const ref = i.pedidoRef || (c.destino === "PEDIDO" ? c.pedidoRef : null);   // v475 — pedido por item
+    const ref = pedidoDoItemAvulsa(c, i);   // v475 — pedido por item · v496 — sem herdar o do cabeçalho
     const destino = ref ? `PEDIDO ${ref}` : "OPERAÇÃO";
     const dados = { descricao: i.nome, quantidade: Number(i.quantidade), cliente: `AVULSA ${c.numero || `#${c.id}`} · ${destino}`,
       entrega: i.bomPara ? new Date(`${i.bomPara}T00:00:00Z`) : null, status: statusDe,

@@ -1,6 +1,6 @@
 // v469 — PIC (pedido interno de compras) a partir do cruzamento com o estoque e OCs agrupadas por fornecedor
 import { prisma } from "@/lib/prisma";
-import { simularCruzamento, necessidade, ehAvulsa } from "@/lib/compras";
+import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa } from "@/lib/compras";
 const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -232,6 +232,13 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
   const cotPor = {};
   for (const c of cots) for (const i of Array.isArray(c.itens) ? c.itens : []) for (const pid of i.picItemIds || []) (cotPor[pid] ||= []).push({ n: c.numero, f: c.fornecedorNome, s: i.naoTem ? "NAO_TEM" : i.valorUnitario != null ? "VALOR" : "AGUARDANDO" });
   const dt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+  // v496 — pedido de cada item de avulsa lido da própria avulsa (não do texto gravado no PIC)
+  const avIds = [...new Set(its.flatMap((i) => (i.info?.pedidos || []).filter((x) => x.avulsa).map((x) => Number(String(x.pedido).slice(2)))).filter(Boolean))];
+  const avMap = {};
+  for (const c of await prisma.compraAvulsa.findMany({ where: { id: { in: avIds } } })) {
+    let k = 0;
+    for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && Number(it.quantidade) > 0) avMap[`AV${c.id}|ITEM${++k}`] = pedidoDoItemAvulsa(c, it);
+  }
   const linhas = its.map((i) => {
     const oc = i.ocItens[0]?.oc || null, inf = i.info || {};
     let etapa = "EM_COTACAO", previsao = null;
@@ -246,7 +253,7 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
     return { id: i.id, pic: i.pic.numero, picData: i.pic.data, nome: inf.nome || `Artigo #${i.artigoId}`, det: [inf.cor, inf.codigo].filter(Boolean).join(" · "), quantidade: Number(i.quantidade), unidade: inf.unidade,
       pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)))],
       // v489 — destino: pedido(s) indexado(s) ou operação (avulsa sem pedido)
-      destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const m = /PEDIDO\s+(\S+)/i.exec(String(x.cliente || "")); return m ? `PED ${m[1]}` : "OPERACAO"; }))],
+      destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const p = avMap[`${x.pedido}|${x.chave}`]; return p ? `PED ${p}` : "OPERACAO"; }))],
       origens: (inf.pedidos || []).map((x) => `${x.pedido}|${x.chave}`),   // v493
       fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao: previsao || dt(oc?.prazoFabrica),
       oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
@@ -257,11 +264,13 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
   // v495 — compras avulsas ainda antes do PIC (levantamento, atendidas pelo estoque, reprovadas)
   const abertos = await prisma.compraItem.findMany({ where: { pedidoNumero: { startsWith: "AV" }, status: { in: ["LEVANTAMENTO", "ESTOQUE", "REPROVADO"] } }, orderBy: { id: "desc" } });
   const avs = Object.fromEntries((await prisma.compraAvulsa.findMany({ where: { id: { in: abertos.map((x) => Number(x.pedidoNumero.slice(2))).filter(Boolean) } }, select: { id: true, numero: true, status: true } })).map((a) => [a.id, a]));
+  const avFull = Object.fromEntries((await prisma.compraAvulsa.findMany({ where: { id: { in: Object.keys(avs).map(Number) } } })).map((c) => [c.id, c]));
+  const pedAv = (num, chave) => { const c = avFull[Number(num.slice(2))]; if (!c) return null; let k = 0; for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && Number(it.quantidade) > 0 && `ITEM${++k}` === chave) return pedidoDoItemAvulsa(c, it); return null; };
   const extra = abertos.filter((x) => avs[Number(x.pedidoNumero.slice(2))] && avs[Number(x.pedidoNumero.slice(2))].status !== "CANCELADA").map((x) => {
     const d = (Array.isArray(x.demanda) ? x.demanda : [])[0] || {};
-    const m = /PEDIDO\s+(\S+)/i.exec(String(x.cliente || ""));
+    const pr = pedAv(x.pedidoNumero, x.chave);
     return { id: `C${x.id}`, pic: null, nome: x.descricao || d.nome, det: "", quantidade: Number(x.quantidade), unidade: d.unidade,
-      pedidos: [`Avulsa ${avs[Number(x.pedidoNumero.slice(2))]?.numero || x.pedidoNumero}`], destinos: [m ? `PED ${m[1]}` : "OPERACAO"], origens: [`${x.pedidoNumero}|${x.chave}`],
+      pedidos: [`Avulsa ${avs[Number(x.pedidoNumero.slice(2))]?.numero || x.pedidoNumero}`], destinos: [pr ? `PED ${pr}` : "OPERACAO"], origens: [`${x.pedidoNumero}|${x.chave}`],
       fornecedor: d.fornecedor || null, etapa: x.status, previsao: x.entrega ? x.entrega.toISOString().slice(0, 10) : null, oc: null, rota: null, cotacoes: [], origem: "A" };
   });
   return [...extra, ...linhas.filter((l) => l.origem !== "P")];

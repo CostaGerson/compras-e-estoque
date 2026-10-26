@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { painelDemandas } from "@/lib/pic";   // v493
+import { pedidoDoItemAvulsa } from "@/lib/compras";   // v496
 import { notificar } from "@/lib/push";   // v472
 import { sincronizarAvulsa } from "@/lib/compras";   // v419 — vai para o levantamento
 
@@ -59,7 +60,18 @@ export async function GET(req) {
   }
   const l = await prisma.compraAvulsa.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { createdAt: "desc" } });
   // v493 — etapa de cada item (a mesma do painel de compras)
-  const cis = await prisma.compraItem.findMany({ where: { pedidoNumero: { in: l.map((c) => `AV${c.id}`) } }, select: { pedidoNumero: true, chave: true, status: true } });
+  const cis = await prisma.compraItem.findMany({ where: { pedidoNumero: { in: l.map((c) => `AV${c.id}`) } }, select: { id: true, pedidoNumero: true, chave: true, status: true, cliente: true } });
+  // v496 — corrige o "cliente" gravado nos itens (antes todos herdavam o pedido do cabeçalho)
+  for (const c of l) {
+    let k = 0;
+    for (const it of Array.isArray(c.itens) ? c.itens : []) {
+      if (!(it.nome && Number(it.quantidade) > 0)) continue;
+      const chave = `ITEM${++k}`, ref = pedidoDoItemAvulsa(c, it);
+      const certo = `AVULSA ${c.numero || `#${c.id}`} · ${ref ? `PEDIDO ${ref}` : "OPERAÇÃO"}`;
+      const ci = cis.find((x) => x.pedidoNumero === `AV${c.id}` && x.chave === chave);
+      if (ci && ci.cliente !== certo) await prisma.compraItem.update({ where: { id: ci.id }, data: { cliente: certo } }).catch(() => null);
+    }
+  }
   const painel = cis.some((x) => ["PIC", "OC", "NF", "ENTREGUE"].includes(x.status)) ? await painelDemandas().catch(() => []) : [];
   const porOrigem = {};
   for (const p of painel) for (const o of p.origens || []) porOrigem[o] = p;
