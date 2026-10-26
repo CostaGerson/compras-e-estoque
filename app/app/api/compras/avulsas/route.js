@@ -15,11 +15,23 @@ function limpar(b) {
   }));
   return {
     numero: String(b.numero || "").trim() || null, destino: b.destino === "PEDIDO" ? "PEDIDO" : "OPERACAO",
-    pedidoRef: b.destino === "PEDIDO" ? String(b.pedidoRef || "").trim() || null : null, obs: String(b.obs || "").trim() || null, itens,
+    pedidoRef: b.destino === "PEDIDO" ? String(b.pedidoRef || "").trim() || null : null,
+    pedidoCliente: b.destino === "PEDIDO" ? String(b.pedidoCliente || "").trim() || null : null,   // v471
+    obs: String(b.obs || "").trim() || null, itens,
   };
 }
 
-export async function GET() {
+export async function GET(req) {
+  // v471 — busca de pedidos em andamento (nº ou cliente) para ligar a avulsa ao pedido
+  const q = new URL(req.url).searchParams.get("pedidos");
+  if (q != null) {
+    const t = String(q).trim();
+    const l = await prisma.pedidoVenda.findMany({
+      where: { status: "ANDAMENTO", ...(t ? { OR: [{ numero: { contains: t, mode: "insensitive" } }, { cliente: { contains: t, mode: "insensitive" } }] } : {}) },
+      orderBy: [{ emissao: "desc" }], take: 15, select: { numero: true, cliente: true, qtd: true, total: true, emissao: true },
+    });
+    return Response.json(l.map((p) => ({ ...p, total: Number(p.total), emissao: p.emissao ? p.emissao.toISOString().slice(0, 10) : null })));
+  }
   const l = await prisma.compraAvulsa.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { createdAt: "desc" } });
   return Response.json(l);
 }

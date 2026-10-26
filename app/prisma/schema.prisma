@@ -1910,6 +1910,7 @@ model CompraAvulsa {
   numero        String?                       // nº de referência (ex.: o do PCP, 1210)
   destino       String   @default("OPERACAO") // OPERACAO | PEDIDO
   pedidoRef     String?                       // nº do pedido quando é para um pedido específico
+  pedidoCliente String?                       // v471 — cliente do pedido (para a DRE do pedido)
   obs           String?
   status        String   @default("ABERTA")   // ABERTA | COMPRADA | RECEBIDA | CANCELADA
   itens         Json     @default("[]")       // [{ nome, quantidade, unidade, fornecedorId, fornecedorNome, bomPara, recebido }]

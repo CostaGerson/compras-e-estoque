@@ -298,6 +298,37 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   );
 }
 
+// ---------- v471 — busca do pedido da avulsa: nº ou cliente, só pedidos em andamento ----------
+function BuscaPedido({ valor, cliente, onEscolher, sel }) {
+  const [q, setQ] = useState(valor ? `${valor}${cliente ? ` · ${cliente}` : ""}` : "");
+  const [l, setL] = useState([]);
+  const [ab, setAb] = useState(false);
+  const t = React.useRef(null);
+  const buscar = (v) => { clearTimeout(t.current); t.current = setTimeout(() => fetch(`/api/compras/avulsas?pedidos=${encodeURIComponent(v)}`).then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([])), 250); };
+  const brl0 = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return (
+    <label className="text-xs relative block" style={{ color: C.sub }}>Pedido (nº ou cliente)
+      <input value={q} onFocus={() => { setAb(true); buscar(valor ? "" : q); }} onBlur={() => setTimeout(() => setAb(false), 200)}
+        onChange={(e) => { setQ(e.target.value); setAb(true); buscar(e.target.value); if (!e.target.value) onEscolher(null); }}
+        placeholder="Digite o nº do pedido ou o cliente" className="w-full px-2 py-1.5 rounded text-sm mt-1" style={{ ...sel, ...(valor ? { borderColor: C.green } : {}) }} />
+      {ab && l.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-md shadow-lg max-h-72 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: 460 }}>
+          {l.map((p) => (
+            <button key={p.numero} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onEscolher(p); setQ(`${p.numero} · ${p.cliente}`); setAb(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <b style={{ color: C.navy }}>{p.numero}</b>
+              <span className="flex-1 min-w-0 truncate" style={{ color: C.text }}>{p.cliente}</span>
+              <span className="text-xs whitespace-nowrap" style={{ color: C.sub }} title="Data de lançamento do pedido">{p.emissao ? dBR(p.emissao) : ""}</span>
+              <span className="text-xs whitespace-nowrap" style={{ color: C.sub }}>{(p.qtd || 0).toLocaleString("pt-BR")} pç</span>
+              <span className="text-xs font-semibold whitespace-nowrap" style={{ color: C.accent }}>{brl0(p.total)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </label>
+  );
+}
+
 // ---------- v417 — compras avulsas (operação ou complemento de pedido) ----------
 const diasAte = (iso) => { if (!iso) return null; const h = new Date(); h.setHours(0, 0, 0, 0); return Math.round((new Date(`${iso}T00:00:00`) - h) / 86400000); };
 const corBomPara = (iso) => { const dd = diasAte(iso); if (dd == null) return null; return dd <= 2 ? [C.red, C.redSoft] : dd <= 5 ? [C.yellow, C.yellowSoft] : [C.green, C.greenSoft]; };
@@ -345,7 +376,7 @@ export function Avulsas({ user }) {
         return (
           <div key={c.id} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {c.destino === "PEDIDO" ? `para o pedido ${c.pedidoRef || "—"}` : "operação"}
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {c.destino === "PEDIDO" ? `pedido ${c.pedidoRef || "—"}${c.pedidoCliente ? ` · ${c.pedidoCliente}` : ""}` : "operação"}
                 {c.obs && <span className="font-normal text-xs" style={{ color: C.sub }}> · {c.obs}</span>}
                 <span className="font-normal text-xs" style={{ color: C.sub }}> · {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.criadoPorNome ? ` por ${c.criadoPorNome}` : ""}</span></div>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
@@ -371,10 +402,10 @@ export function Avulsas({ user }) {
       })}
       {ed && (
         <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa"} onClose={() => setEd(null)} largo>
-          <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "140px 180px 160px minmax(0,1fr)" }}>
+          <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "120px 190px minmax(0,1.4fr) minmax(0,1fr)" }}>
             <label className="text-xs" style={{ color: C.sub }}>Nº (opcional)<input value={ed.numero || ""} onChange={(e) => setEd({ ...ed, numero: e.target.value })} placeholder="ex.: 1210" className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
-            <label className="text-xs" style={{ color: C.sub }}>Para<select value={ed.destino} onChange={(e) => setEd({ ...ed, destino: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel}><option value="OPERACAO">Operação</option><option value="PEDIDO">Pedido específico</option></select></label>
-            {ed.destino === "PEDIDO" ? <label className="text-xs" style={{ color: C.sub }}>Nº do pedido<input value={ed.pedidoRef || ""} onChange={(e) => setEd({ ...ed, pedidoRef: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label> : <div />}
+            <label className="text-xs" style={{ color: C.sub }}>Para<select value={ed.destino} onChange={(e) => setEd({ ...ed, destino: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel}><option value="OPERACAO">Operação</option><option value="PEDIDO">Faz parte de um pedido</option></select></label>
+            {ed.destino === "PEDIDO" ? <BuscaPedido valor={ed.pedidoRef} cliente={ed.pedidoCliente} onEscolher={(p) => setEd((e) => ({ ...e, pedidoRef: p?.numero || "", pedidoCliente: p?.cliente || "" }))} sel={sel} /> : <div />}
             <label className="text-xs" style={{ color: C.sub }}>Observação<input value={ed.obs || ""} onChange={(e) => setEd({ ...ed, obs: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
           </div>
           <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 200px 140px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Bom para</span><span /></div>
