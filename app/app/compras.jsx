@@ -405,7 +405,7 @@ const diasAte = (iso) => { if (!iso) return null; const h = new Date(); h.setHou
 const corBomPara = (iso) => { const dd = diasAte(iso); if (dd == null) return null; return dd <= 2 ? [C.red, C.redSoft] : dd <= 5 ? [C.yellow, C.yellowSoft] : [C.green, C.greenSoft]; };
 const UNIDADES_AV = [["UN", "un"], ["M", "m"], ["KG", "kg"], ["PC", "pç"]];
 let _fornAv = null;
-export function Avulsas({ user }) {
+export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão + a janela (a lista é o painel)
   const [l, setL] = useState(null);
   const [ed, setEd] = useState(null);   // compra em edição (nova ou existente)
   const [forns, setForns] = useState(_fornAv || []);
@@ -418,8 +418,14 @@ export function Avulsas({ user }) {
     const r = await fetch("/api/compras/avulsas", { method: ed.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ed, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     if (!r.ok) return alerta(x.error || "Erro ao salvar.");
-    setEd(null); carregar();
+    setEd(null); carregar(); window.dispatchEvent(new Event("ce:avulsasMudou"));
   }
+  const abrirEdicao = (c) => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) });
+  // v502 — o painel pede para abrir uma avulsa (clique no "Avulsa 0000x")
+  useEffect(() => {
+    const f = async (e) => { const id = e.detail?.id; let ll = l; if (!ll) { ll = await fetch("/api/compras/avulsas").then((r) => r.json()).catch(() => []); setL(ll); } const c = (ll || []).find((x) => x.id === id); if (c) abrirEdicao(c); };
+    window.addEventListener("ce:editarAvulsa", f); return () => window.removeEventListener("ce:editarAvulsa", f);
+  }, [l]);
   async function bomPara(c, k, v) {   // v470
     setL((ll) => ll.map((x) => (x.id === c.id ? { ...x, itens: x.itens.map((i, j) => (j === k ? { ...i, bomPara: v } : i)) } : x)));
     const r = await fetch("/api/compras/avulsas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...c, itens: c.itens.map((i, j) => (j === k ? { ...i, bomPara: v } : i)), quem: nomeUser(user) }) });
@@ -429,15 +435,18 @@ export function Avulsas({ user }) {
   async function status(c, st) {
     if (st === "CANCELADA" && !(await confirmar("Cancelar esta compra avulsa?"))) return;
     await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st, usuarioId: user?.id }) });
-    carregar();
+    carregar(); window.dispatchEvent(new Event("ce:avulsasMudou"));
   }
   const vis = (l || []).filter((c) => (aba === "arquivadas" ? c.status === "RECEBIDA" : c.status !== "RECEBIDA"));   // v472
   const BomPara = ({ iso }) => { const c = corBomPara(iso); return iso ? <span className="px-2 py-0.5 rounded text-xs font-semibold" style={{ color: c[0], background: c[1] }}>{dBR(iso)}</span> : <span className="text-xs" style={{ color: C.sub }}>—</span>; };
   const ST = { ABERTA: [C.accent, C.accentSoft, "aberta"], COMPRADA: [C.blue, C.blueSoft || C.panel2, "comprada"], RECEBIDA: [C.green, C.greenSoft, "recebida"] };
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   const setIt = (i, k, v) => setEd((e) => ({ ...e, itens: e.itens.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const novaAv = () => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: "", pedidoCliente: "", bomPara: "", obs: "" }] });
   return (
     <div>
+      {soBotao && <button onClick={novaAv} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Compra avulsa</button>}
+      {!soBotao && <>
       <div className="flex items-center gap-2 mb-3">
         <div className="text-xs flex-1" style={{ color: C.sub }}>Material para a operação ou para completar um pedido. Aberta, a compra entra no <b>Levantamento</b>. <b>Bom para</b> = data máxima de chegada na fábrica: até 2 dias vermelho, até 5 amarelo, depois verde.</div>
         <button onClick={() => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: "", pedidoCliente: "", bomPara: "", obs: "" }] })}
@@ -482,6 +491,7 @@ export function Avulsas({ user }) {
           </div>
         );
       })}
+      </>}
       {ed && (
         <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa · o nº sai ao salvar"} onClose={() => setEd(null)} largo="xl">
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)" }}>
@@ -509,7 +519,8 @@ export function Avulsas({ user }) {
           })}
           <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: e.itens[e.itens.length - 1]?.pedidoRef || "", pedidoCliente: e.itens[e.itens.length - 1]?.pedidoCliente || "", bomPara: "", obs: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+            {ed.id && <button onClick={async () => { await status(ed, "CANCELADA"); setEd(null); }} className="mr-auto px-3 py-2 rounded-md text-sm" style={{ color: C.red }}>Cancelar esta compra avulsa</button>}
+            <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
             <button onClick={salvar} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
           </div>
         </Modal>
@@ -1519,16 +1530,16 @@ function ArquivosNfOc({ o, onMudou }) {
 }
 
 // ---------- v486 — painel de compras: tudo que está em PIC e a etapa de cada item ----------
-const ETAPAS_PRE = [["LEVANTAMENTO", "Levantamento", C.blue, C.blueSoft], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
+const ETAPAS_PRE = [["LEVANTAMENTO", "Pendente", C.blue, C.blueSoft], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
 const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
   ["EM_TRANSPORTADORA", "Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
-export function PainelCompras({ ir, soAvulsas }) {   // v495 — soAvulsas: o mesmo painel só com as compras avulsas
+export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsas: o mesmo painel só com as compras avulsas
   const [l, setL] = useState(null);
   const [jan, setJan] = useState(null);   // v490 — PIC ou OC em janela central
   const [f, setF] = useState(null);
   const [q, setQ] = useState("");
   const carregar = () => fetch(`/api/compras/demandas${soAvulsas ? "?avulsas=1" : ""}`).then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(); const f = () => carregar(); window.addEventListener("ce:avulsasMudou", f); return () => window.removeEventListener("ce:avulsasMudou", f); }, []);
   const conta = (k) => (l || []).filter((i) => i.etapa === k).length;
   const t = norm(q);
   const vis = (l || []).filter((i) => (f ? i.etapa === f : i.etapa !== "RECEBIDA") && (!t || norm(`${i.nome} ${i.det} ${i.fornecedor || ""} ${i.pic} ${i.oc?.numero || ""} ${i.pedidos.join(" ")}`).includes(t)));
@@ -1539,6 +1550,7 @@ export function PainelCompras({ ir, soAvulsas }) {   // v495 — soAvulsas: o me
         <span className="text-xs" style={{ color: C.sub }}>{soAvulsas ? "do lançamento ao recebimento, por etapa" : "tudo que está em PIC, por etapa"}</span>
         <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={14} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artigo, fornecedor, OC, pedido…" className="py-1.5 text-sm outline-none w-56" /></div>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
+        {acoes}
       </div>
       {/* trilha das etapas */}
       <div className="flex items-stretch gap-1 mb-3 overflow-x-auto">
@@ -1565,7 +1577,11 @@ export function PainelCompras({ ir, soAvulsas }) {   // v495 — soAvulsas: o me
             return (
               <div key={i.id} className="flex px-4 py-2 gap-3 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
-                  <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.pedidos.join(" · ")}</div></div>
+                  <div className="text-[11px] truncate" style={{ color: C.sub }}>
+                    {(i.origens || []).filter((o) => o.startsWith("AV")).length && soAvulsas
+                      ? [...new Set(i.origens.filter((o) => o.startsWith("AV")).map((o) => Number(o.split("|")[0].slice(2))))].map((id, k2) => <button key={id} onClick={() => window.dispatchEvent(new CustomEvent("ce:editarAvulsa", { detail: { id } }))} className="underline decoration-dotted mr-1.5" title="Abrir a compra avulsa">{i.pedidos[k2] || `Avulsa #${id}`}</button>)
+                      : i.pedidos.join(" · ")}
+                    {i.criadoEm ? <span> · criada em {dBR(String(i.criadoEm).slice(0, 10))}</span> : null}</div></div>
                 <div className="w-8 flex flex-col items-center gap-0.5">{/* v495 — A laranja avulsa · P azul pedido */}
                   {i.origem?.includes("A") && <span title="Compra avulsa" className="rounded font-extrabold text-[11px] flex items-center justify-center" style={{ width: 18, height: 18, background: C.accent, color: "#fff" }}>A</span>}
                   {i.origem?.includes("P") && <span title="Pedido" className="rounded font-extrabold text-[11px] flex items-center justify-center" style={{ width: 18, height: 18, background: C.blue, color: "#fff" }}>P</span>}</div>

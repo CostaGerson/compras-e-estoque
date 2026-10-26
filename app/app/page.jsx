@@ -359,9 +359,7 @@ export default function Home() {
           {view === "comprasAvulsas" && pode("comprasAvulsas") && (   // v468 — card próprio em Compras
             <div>
               <div className="text-lg font-bold mb-3" style={{ color: C.navy }}>Compras avulsas</div>
-              <PainelCompras ir={ir} soAvulsas />   {/* v495 — mesma visão do painel de compras */}
-              <div className="text-base font-bold mb-2" style={{ color: C.navy }}>Lançamentos</div>
-              <Avulsas user={user} />
+              <PainelCompras ir={ir} soAvulsas acoes={<Avulsas user={user} soBotao />} />   {/* v502 — uma lista só; o botão fica no canto */}
             </div>
           )}
           {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}

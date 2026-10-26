@@ -251,6 +251,9 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
     let k = 0;
     for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && Number(it.quantidade) > 0) avMap[`AV${c.id}|ITEM${++k}`] = pedidoDoItemAvulsa(c, it);
   }
+  // v502 — data de criação da demanda (o item de compra mais antigo que originou a linha)
+  const cisPic = await prisma.compraItem.findMany({ where: { picId: { in: [...new Set(its.map((i) => i.picId))] } }, select: { pedidoNumero: true, chave: true, createdAt: true } });
+  const criadoPor = Object.fromEntries(cisPic.map((x) => [`${x.pedidoNumero}|${x.chave}`, x.createdAt]));
   const linhas = its.map((i) => {
     const oc = i.ocItens[0]?.oc || null, inf = i.info || {};
     let etapa = "EM_COTACAO", previsao = null;
@@ -268,6 +271,7 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
       // v489 — destino: pedido(s) indexado(s) ou operação (avulsa sem pedido)
       destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const p = avMap[`${x.pedido}|${x.chave}`]; return p ? `PED ${p}` : "OPERACAO"; }))],
       origens: (inf.pedidos || []).map((x) => `${x.pedido}|${x.chave}`),   // v493
+      criadoEm: (inf.pedidos || []).map((x) => criadoPor[`${x.pedido}|${x.chave}`]).filter(Boolean).sort((a, b) => a - b)[0] || i.pic.data,
       fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao,
       oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
       rota: oc ? rotas[oc.id] || null : null, cotacoes: cotPor[i.id] || [],
@@ -284,7 +288,7 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
     const pr = pedAv(x.pedidoNumero, x.chave);
     return { id: `C${x.id}`, pic: null, nome: x.descricao || d.nome, det: "", quantidade: Number(x.quantidade), unidade: d.unidade,
       pedidos: [`Avulsa ${avs[Number(x.pedidoNumero.slice(2))]?.numero || x.pedidoNumero}`], destinos: [pr ? `PED ${pr}` : "OPERACAO"], origens: [`${x.pedidoNumero}|${x.chave}`],
-      fornecedor: d.fornecedor || null, etapa: x.status, previsao: x.entrega ? x.entrega.toISOString().slice(0, 10) : null, oc: null, rota: null, cotacoes: [], origem: "A" };
+      fornecedor: d.fornecedor || null, etapa: x.status, previsao: x.entrega ? x.entrega.toISOString().slice(0, 10) : null, oc: null, rota: null, cotacoes: [], origem: "A", criadoEm: x.createdAt };
   });
   return [...extra, ...linhas.filter((l) => l.origem !== "P")];
 }
