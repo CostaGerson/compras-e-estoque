@@ -263,7 +263,7 @@ function agruparRota(l, render, onRota) {
 
 function MiniDemanda({ x, grande, onClick, onRota }) {
   const c = corDemanda(x);
-  const Ico = OBJ[x.objetivo]?.[1] || MapPin;
+  const Ico = x.frete ? Truck : x.veiculo === "MOTO" ? Bike : Car;   // v460 — ícone do veículo (o tipo já está na cor)
   const naRota = !!x.blocoId;   // v444 — em rota: mais opaca e com o botão R<nº>
   const btn = (
     <button onClick={onClick} className="flex-1 text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.55 : naRota ? 0.6 : 1 }}>
