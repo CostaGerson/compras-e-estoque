@@ -629,6 +629,10 @@ export function Agenda({ user }) {
     if (!(await confirmar(`Excluir "${t.titulo}"?`))) return;
     try { await api(`/api/tarefas/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { alerta(e.message); }
   };
+  // v510 — lateral recolhida (lembra neste navegador)
+  const [latFechada, setLatFechada] = useState(false);
+  useEffect(() => { try { setLatFechada(localStorage.getItem("ce_agenda_lat") === "0"); } catch {} }, []);
+  const alternarLat = (fechar) => { setLatFechada(fechar); try { localStorage.setItem("ce_agenda_lat", fechar ? "0" : "1"); } catch {} };
   const Aba = ({ k, t, atual, set }) => (
     <button onClick={() => set(k)} className="relative px-3 py-1.5 text-sm font-semibold rounded-md"
       style={{ color: atual === k ? A.azul : A.texto, background: atual === k ? A.azulSoft : "transparent", transition: "all .18s" }}>{t}</button>
@@ -636,10 +640,16 @@ export function Agenda({ user }) {
 
   return (
     <div className="flex gap-0 -m-6 anim-entrar" style={{ minHeight: "calc(100vh - 64px)", background: A.fundo }}>
-      {/* lateral: projetos */}
-      <aside className="shrink-0 py-4 px-2" style={{ width: 220, borderRight: `1px solid ${A.linha}`, background: A.fundo2 }}>
-        <button onClick={() => setProjetoId(null)} className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
-          style={{ background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
+      {/* lateral: projetos — v510 recolhível pela seta (os dias ficam maiores) */}
+      {latFechada ? (
+        <div className="shrink-0 flex flex-col items-center pt-4" style={{ width: 34, borderRight: `1px solid ${A.linha}`, background: A.fundo2 }}>
+          <button onClick={() => alternarLat(false)} title="Mostrar projetos" className="rounded-md p-1" style={{ color: A.sub, background: A.fundo }}><ChevronRight size={18} /></button>
+        </div>
+      ) : (
+      <aside className="shrink-0 py-4 px-2 relative" style={{ width: 220, borderRight: `1px solid ${A.linha}`, background: A.fundo2 }}>
+        <button onClick={() => alternarLat(true)} title="Esconder projetos" className="absolute rounded-md p-1" style={{ top: 10, right: 6, color: A.sub, zIndex: 1 }}><ChevronLeft size={18} /></button>
+        <button onClick={() => setProjetoId(null)} className="text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+          style={{ width: "calc(100% - 30px)", background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
         <div className="flex items-center px-3 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: A.sub }}>
           <span className="flex-1">Projetos</span>
           <button onClick={() => setProjForm({})} title="Novo projeto" style={{ color: A.sub }}><Plus size={14} /></button>
@@ -657,6 +667,7 @@ export function Agenda({ user }) {
         ))}
         {!projetos.length && <div className="px-3 text-[11px]" style={{ color: A.sub }}>Nenhum projeto. Crie no +.</div>}
       </aside>
+      )}
 
       <div className="flex-1 min-w-0 flex flex-col">
         {/* cabeçalho */}
