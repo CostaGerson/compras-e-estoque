@@ -266,12 +266,11 @@ function MiniDemanda({ x, grande, onClick, onRota }) {
   const Ico = x.frete ? Truck : x.veiculo === "MOTO" ? Bike : Car;   // v460 — ícone do veículo (o tipo já está na cor)
   const naRota = !!x.blocoId;   // v444 — em rota: mais opaca e com o botão R<nº>
   const btn = (
-    <button onClick={onClick} className="flex-1 text-left rounded-md px-1.5 py-1 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.55 : naRota ? 0.6 : 1 }}>
+    <button onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} className="flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.55 : naRota ? 0.6 : 1 }}>
       <div className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: c.tx }}>
         {x.status === "CONCLUIDA" ? <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} /> : <Ico size={11} className="shrink-0" />}
-        <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""}`} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
+        <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""} · ${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
-      {grande && <div className="text-[10px] truncate" style={{ color: c.sb }}>{OBJ[x.objetivo]?.[0]} · {x.horario}{x.motoristaNome ? ` · ${sc(x.motoristaNome.split(" ")[0])}` : ""}</div>}
     </button>
   );
   if (!naRota || !onRota) return btn;
