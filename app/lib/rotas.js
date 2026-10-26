@@ -440,6 +440,68 @@ export async function alterarBloco(b, u) {
   return { ok: true, alterada: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
 
+// v463 — posição do celular do motorista (app aberto) na rota em execução dele
+export async function registrarPosicao(pessoaId, lat, lng) {
+  const la = Number(lat), lo = Number(lng);
+  if (!pessoaId || !Number.isFinite(la) || !Number.isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return { ok: false };
+  const r = await prisma.rotaBloco.updateMany({ where: { motoristaId: pessoaId, status: "EM_EXECUCAO" }, data: { posLat: la, posLng: lo, posEm: new Date() } });
+  return { ok: true, rotas: r.count };
+}
+// v463 — painel ao vivo: o que cada motorista em rota está fazendo agora e a previsão de volta à fábrica
+const POS_FRESCA_MIN = 10;
+export async function aoVivo() {
+  const bs = await prisma.rotaBloco.findMany({ where: { status: "EM_EXECUCAO" }, orderBy: { despachadoEm: "asc" } });
+  if (!bs.length) return { rotas: [] };
+  const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: { in: bs.map((b) => b.id) }, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  const fab = await fabrica();
+  const agora = new Date(), agoraMin = (() => { const x = new Date(agora.getTime() - 3 * 3600e3); return x.getUTCHours() * 60 + x.getUTCMinutes(); })();
+  const desde = (d) => (d ? (agora - new Date(d)) / 60000 : 0);
+  const rotas = [];
+  for (const bl of bs) {
+    const l = ds.filter((d) => d.blocoId === bl.id);
+    const feitas = l.filter((d) => d.status === "CONCLUIDA"), pend = l.filter((d) => d.status !== "CONCLUIDA");
+    const ultima = feitas.length ? feitas[feitas.length - 1] : null;
+    const prox = pend[0] || null;
+    const gpsMin = bl.posEm ? desde(bl.posEm) : null;
+    const gps = gpsMin != null && gpsMin <= POS_FRESCA_MIN ? { lat: bl.posLat, lng: bl.posLng } : null;
+    const vel = bl.veiculo === "MOTO" ? 34 : 28;
+    let medir = null;
+    try { ({ medir } = await medidorRuas([fab, ...l].filter(Boolean), bl.veiculo, quandoSai(bl.data, bl.saida))); } catch { medir = null; }
+    const trecho = (a, b) => { const m = medir?.(a, b); if (m) return m; const k = kmEntre(a, b); return { km: k, min: (k / vel) * 60 }; };
+    // fase atual
+    let fase, alvo = null;
+    if (prox) {
+      if (prox.iniciadaEm) { fase = "INDO"; alvo = prox.id; }
+      else if (ultima) fase = "NA_PARADA";
+      else fase = "SAINDO";
+    } else fase = bl.voltaIniciadaEm ? "VOLTANDO" : "FIM_PARADAS";
+    // previsão a partir de agora (posição do celular quando houver)
+    let t = agoraMin, pos = gps || ultima || fab;
+    const etas = {};
+    pend.forEach((d, i) => {
+      const tr = trecho(pos, d);
+      let m = tr.min;
+      if (i === 0 && !gps && d.iniciadaEm) m = Math.max(2, m - desde(d.iniciadaEm));   // já está a caminho
+      t += m;
+      const [a] = janela(d); if (t < a) t = a;
+      etas[d.id] = hhmm(t);
+      t += d.tempoLocal != null ? Math.max(0, Number(d.tempoLocal)) : PARADA_MIN;
+      pos = d;
+    });
+    let volta = fab ? trecho(pos, fab).min : 0;
+    if (!pend.length && bl.voltaIniciadaEm && !gps) volta = Math.max(2, volta - desde(bl.voltaIniciadaEm));
+    t += volta;
+    rotas.push({
+      id: bl.id, motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo, despachadoEm: bl.despachadoEm, alterada: !!bl.alteradaEm,
+      fase, alvo, retornoPrevisto: fab ? hhmm(t) : null,
+      posicao: bl.posEm ? { lat: bl.posLat, lng: bl.posLng, minAtras: Math.round(gpsMin), fresca: !!gps } : null,
+      paradas: l.map((d) => ({ id: d.id, nome: d.destinoNome, tarefa: d.tarefa, objetivo: d.objetivo, status: d.status === "CONCLUIDA" ? "FEITA" : d.id === alvo ? "INDO" : "PENDENTE",
+        concluidaEm: d.concluidaEm, eta: etas[d.id] || null })),
+    });
+  }
+  return { rotas, agora: hhmm(agoraMin) };
+}
+
 // v461 — "motorista está na fábrica": encerra as rotas em execução dele (lançadas por engano ou esquecidas).
 // Paradas concluídas ficam; as que faltam voltam a ficar abertas para outra rota.
 export async function liberarMotorista(motoristaId, u) {

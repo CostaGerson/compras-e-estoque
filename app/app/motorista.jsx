@@ -69,6 +69,20 @@ export default function MotoristaApp({ user, onSair }) {
   const volta = !!rota && idx < 0;
   const fab = d?.fabrica;
   const nFeitas = paradas.filter((p) => p.status === "CONCLUIDA").length;
+  // v463 — com rota em execução, o celular manda a posição para o escritório acompanhar ao vivo (no máx. 1 por minuto)
+  const [gps, setGps] = useState(null);   // null | "ok" | "negado"
+  const ult = React.useRef(0);
+  useEffect(() => {
+    if (!rota || typeof navigator === "undefined" || !navigator.geolocation) return;
+    const enviar = (p) => {
+      setGps("ok");
+      if (Date.now() - ult.current < 55000) return;
+      ult.current = Date.now();
+      fetch("/api/rotas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "posicao", lat: p.coords.latitude, lng: p.coords.longitude }) }).catch(() => {});
+    };
+    const w = navigator.geolocation.watchPosition(enviar, (e) => { if (e.code === 1) setGps("negado"); }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 60000 });
+    return () => navigator.geolocation.clearWatch(w);
+  }, [rota?.id]);
 
   return (
     <div className="min-h-screen pb-10" style={{ background: C.bg, fontFamily: "Montserrat, system-ui, sans-serif" }}>
@@ -100,6 +114,8 @@ export default function MotoristaApp({ user, onSair }) {
                 <div className="text-sm font-bold" style={{ color: C.green }}>{nFeitas}/{paradas.length} feitas</div>
               </div>
               <Trilha paradas={paradas} atual={idx} volta={volta} fim={false} />
+              {gps === "negado" && <div className="mt-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>📍 Libere a localização para o escritório acompanhar sua rota (configurações do celular › navegador › localização).</div>}
+              {gps === "ok" && <div className="mt-1 text-xs text-center" style={{ color: C.sub }}>📍 Localização ligada · deixe o app aberto durante a rota</div>}
             </div>
 
             {atual && (() => {

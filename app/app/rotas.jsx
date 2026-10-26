@@ -116,6 +116,8 @@ export default function Rotas({ user, nova }) {
       {d?.erro && <div className="text-sm" style={{ color: C.red }}>{d.erro}</div>}
       {pode && d && !d.fabrica && <div className="text-xs px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={14} /> Cadastre o endereço da fábrica (botão Fábrica): é o ponto de saída e de retorno das rotas.</div>}
 
+      <AoVivo user={user} onRota={setVerRota} />   {/* v463 — motoristas em rota, ao vivo */}
+
       {minhaRota && <MinhaRota bloco={minhaRota} demandas={(d?.demandas || []).filter((x) => x.blocoId === minhaRota.id)} user={user} onMudou={carregar} />}
 
       {/* calendário */}
@@ -873,6 +875,85 @@ function MinhaRota({ bloco, demandas, user, onMudou }) {
         ))}
         <button disabled={feitas < l.length} onClick={() => acao({ acao: "retorno", id: bloco.id }, "Confirmar o retorno à fábrica? A rota fecha.")} className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
           style={{ background: feitas < l.length ? "rgba(255,255,255,.15)" : C.accent, color: "#fff", opacity: feitas < l.length ? 0.6 : 1 }}><Home size={15} /> Cheguei na fábrica</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- v463 — ao vivo: o que cada motorista em rota está fazendo agora ----------
+const curtoNome = (n) => sc(String(n || "").split(" ")[0]);
+function AoVivo({ user, onRota }) {
+  const [v, setV] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    const ler = () => api(`/api/rotas?u=${user.id}&aovivo=1`).then((x) => vivo && setV(x)).catch(() => {});
+    ler(); const t = setInterval(ler, 30000);
+    return () => { vivo = false; clearInterval(t); };
+  }, []);
+  if (!v?.rotas?.length) return null;
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 px-4 py-2" style={{ background: C.navy, color: "#fff" }}>
+        <span className="relative flex" style={{ width: 9, height: 9 }}><span className="absolute inline-flex h-full w-full rounded-full animate-ping" style={{ background: C.accent, opacity: 0.7 }} /><span className="relative inline-flex rounded-full" style={{ width: 9, height: 9, background: C.accent }} /></span>
+        <span className="text-xs font-bold uppercase tracking-wide">Ao vivo</span>
+        <span className="text-[11px]" style={{ color: "#B9C6D8" }}>· atualiza a cada 30 s{v.agora ? ` · ${v.agora}` : ""}</span>
+      </div>
+      <div className="divide-y" style={{ borderColor: C.line }}>
+        {v.rotas.map((r) => <AoVivoRota key={r.id} r={r} onRota={onRota} />)}
+      </div>
+    </div>
+  );
+}
+function AoVivoRota({ r, onRota }) {
+  const Vei = r.veiculo === "MOTO" ? Bike : Car;
+  const ps = r.paradas;
+  const iInd = ps.findIndex((p) => p.status === "INDO");
+  const iPend = ps.findIndex((p) => p.status !== "FEITA");
+  const ultima = [...ps].reverse().find((p) => p.status === "FEITA");
+  const nm = (p) => `${p.nome}${p.tarefa ? ` - ${frase(p.tarefa)}` : ""}`;
+  const hm = (d) => (d ? new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : "");
+  const txt = {
+    INDO: <>A caminho de <b>{nm(ps[iInd] || {})}</b>{ps[iInd]?.eta ? <> · chega por volta das <b>{ps[iInd].eta}</b></> : null}</>,
+    NA_PARADA: <>Em <b>{ultima ? nm(ultima) : "parada"}</b>{ultima?.concluidaEm ? ` (concluiu às ${hm(ultima.concluidaEm)})` : ""} · ainda não saiu para a próxima</>,
+    SAINDO: <>Despachado{r.despachadoEm ? ` às ${hm(r.despachadoEm)}` : ""} · ainda não iniciou a 1ª parada</>,
+    VOLTANDO: <>Voltando à fábrica</>,
+    FIM_PARADAS: <>Concluiu todas as paradas · ainda não iniciou a volta</>,
+  }[r.fase];
+  // trilha: fábrica → paradas → fábrica; a perna atual fica laranja com o veículo
+  const pernaAtual = r.fase === "INDO" ? iInd : r.fase === "VOLTANDO" ? ps.length : -1;   // índice do ponto de chegada da perna
+  const pontos = [{ k: "f0", t: "🏭", nome: "Fábrica", feito: true }, ...ps.map((p, i) => ({ k: p.id, t: String(i + 1), nome: nm(p), feito: p.status === "FEITA", eta: p.eta, alvo: p.status === "INDO" })), { k: "f1", t: "🏭", nome: "Fábrica", feito: false, eta: r.retornoPrevisto, alvo: r.fase === "VOLTANDO" }];
+  const aqui = r.fase === "NA_PARADA" ? ps.indexOf(ultima) + 1 : r.fase === "SAINDO" ? 0 : r.fase === "FIM_PARADAS" ? ps.length : -1;   // parado neste ponto
+  const pos = r.posicao;
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Vei size={16} style={{ color: C.accent }} />
+        <span className="text-sm font-bold" style={{ color: C.navy }}>{curtoNome(r.motoristaNome)}</span>
+        <span className="text-sm" style={{ color: C.sub }}>cumprindo</span>
+        <button onClick={() => onRota?.(r.id)} className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: C.accent, color: "#fff" }}>R{r.id}</button>
+        {r.alterada && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>ALTERADA</span>}
+        <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.text }}>{txt}</span>
+        {pos ? <a href={`https://www.google.com/maps?q=${pos.lat},${pos.lng}`} target="_blank" rel="noreferrer" title="Ver no Google Maps" className="text-[11px] flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: pos.fresca ? C.greenSoft : C.panel2, color: pos.fresca ? C.green : C.sub }}><MapPin size={11} /> {pos.minAtras < 1 ? "agora" : `há ${pos.minAtras} min`}</a>
+          : <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }} title="O app do motorista manda a localização enquanto está aberto">sem localização</span>}
+        {r.retornoPrevisto && <span className="text-xs font-semibold flex items-center gap-1" style={{ color: C.navy }}><Home size={12} /> volta ~{r.retornoPrevisto}</span>}
+      </div>
+      <div className="flex items-start mt-2.5 overflow-x-auto pb-1">
+        {pontos.map((p, i) => (
+          <React.Fragment key={p.k}>
+            {i > 0 && <div className="flex-1 relative" style={{ minWidth: 28, height: 26 }}>
+              <div className="absolute left-0 right-0 rounded-full" style={{ top: 11, height: 4, background: p.feito ? C.green : i === pernaAtual ? C.accent : C.line, ...(i === pernaAtual ? { backgroundImage: `repeating-linear-gradient(90deg, ${C.accent} 0 6px, #FFD2B8 6px 10px)` } : {}) }} />
+              {i === pernaAtual && <span className="absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center" style={{ top: 1, width: 24, height: 24, background: "#fff", border: `2px solid ${C.accent}` }}><Vei size={13} style={{ color: C.accent }} /></span>}
+            </div>}
+            <div className="flex flex-col items-center shrink-0" style={{ width: 64 }} title={p.nome}>
+              <div className="rounded-full flex items-center justify-center text-[11px] font-bold relative" style={{ width: 26, height: 26, background: p.feito ? C.green : p.alvo ? "#fff" : C.panel, color: p.feito ? "#fff" : p.alvo ? C.accent : C.sub, border: `2px solid ${p.feito ? C.green : p.alvo || i === aqui ? C.accent : C.line}`, boxShadow: i === aqui ? `0 0 0 4px ${C.accentSoft}` : "none" }}>
+                {p.feito && p.t !== "🏭" ? "✓" : p.t}
+                {i === aqui && <span className="absolute -top-2 -right-2 rounded-full flex items-center justify-center" style={{ width: 16, height: 16, background: C.accent }}><Vei size={9} style={{ color: "#fff" }} /></span>}
+              </div>
+              <div className="text-[10px] mt-0.5 w-full text-center truncate" style={{ color: p.feito ? C.green : C.sub }}>{p.t === "🏭" ? "Fábrica" : curtoNome(p.nome)}</div>
+              {!p.feito && p.eta && i > 0 && <div className="text-[10px] font-semibold" style={{ color: p.alvo ? C.accent : C.text }}>~{p.eta}</div>}
+            </div>
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );

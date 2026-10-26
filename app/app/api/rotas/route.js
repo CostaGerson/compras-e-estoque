@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -24,6 +24,7 @@ export async function GET(req) {
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
   if (q.get("minhas")) return Response.json({ ...(await minhasRotas(u.pessoaId)), pessoaId: u.pessoaId, nome: u.nome });   // v452 — app do motorista
+  if (q.get("aovivo")) return Response.json(await aoVivo());   // v463 — motoristas em rota, ao vivo
   if (q.get("destinatarios")) return Response.json(await listarDestinatarios());   // v430
   // v427 — autocomplete de endereço do Google
   if (q.get("auto") != null) { try { return Response.json(await autocompletar(q.get("auto"), q.get("sessao"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
@@ -56,6 +57,7 @@ export async function POST(req) {
       return r({ ...(b.acao === "otimizar" ? otimizar(seq, fab, o) : avaliarOrdem(seq, fab, o)), porRuas: !!porRuas, avisoRuas: erro || null });
     }
     case "bloco": if (!podeMontar(u)) return negado(); return r(await salvarBloco(b, u));
+    case "posicao": return r(await registrarPosicao(u.pessoaId, b.lat, b.lng));   // v463 — app do motorista
     case "liberarMotorista": if (!podeLiberar(u)) return negado("Só master, diretoria ou administrativo."); return r(await liberarMotorista(b.motoristaId, u));   // v461
     case "alterar": if (!podeMontar(u)) return negado(); return r(await alterarBloco(b, u));   // v454
     case "despachar": {

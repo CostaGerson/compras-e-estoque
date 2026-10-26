@@ -1993,6 +1993,9 @@ model RotaBloco {
   despachadoEm  DateTime?
   voltaIniciadaEm DateTime?                   // v452 — motorista iniciou a perna de volta à fábrica
   alteradaEm    DateTime?                     // v454 — rota alterada depois de despachada (parada cancelada)
+  posLat        Float?                        // v463 — última posição do celular do motorista (app aberto)
+  posLng        Float?
+  posEm         DateTime?
   retornoEm     DateTime?
   criadoPorNome String?
   createdAt     DateTime  @default(now())
