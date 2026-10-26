@@ -22,7 +22,7 @@ import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
-import { KeyRound, ShieldCheck, Lightbulb, ArrowRight } from "lucide-react";
+import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { ouvirColar } from "./colarPdf";
@@ -552,11 +552,11 @@ function Login({ onEntrar }) {
   };
 
   return (
-    <LoginMoldura titulo="Entrar" onSubmit={submit}>
+    <LoginMoldura titulo="Entre com seu usuário e senha" onSubmit={submit}>
       <label className="lg-lbl">Usuário</label>
-      <input value={login} onChange={(e) => setLogin(e.target.value)} autoFocus autoComplete="username" autoCapitalize="none" className="lg-inp" />
+      <div className="lg-campo"><UserRound /><input value={login} onChange={(e) => setLogin(e.target.value)} autoFocus autoComplete="username" autoCapitalize="none" placeholder="Seu usuário" className="lg-inp" /></div>
       <label className="lg-lbl">Senha</label>
-      <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" className="lg-inp" />
+      <div className="lg-campo"><Lock /><input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" placeholder="Sua senha" className="lg-inp" /></div>
       {erro && <div className="lg-erro">{erro}</div>}
       <button type="submit" disabled={entrando} className="lg-btn">{entrando ? "Entrando…" : <>Entrar <ArrowRight size={16} /></>}</button>
       <button type="button" onClick={() => setEsqueci(true)} className="lg-link">Esqueci minha senha</button>
@@ -564,32 +564,36 @@ function Login({ onEntrar }) {
   );
 }
 
-// v457 — moldura das telas de acesso no estilo do site (meridianpro.com.br): fundo MERIDIAN, título grande e card à direita
+// v458 — moldura das telas de acesso: painel azul-marinho à esquerda (estilo Bidfy) e card à direita, identidade da Meridian
 function LoginMoldura({ titulo, icone, children, onSubmit }) {
   return (
     <div className="lg">
-      <div className="lg-in">
-        <div className="lg-hero">
-          <img src="/meridian-wordmark.svg" alt="MERIDIAN" className="lg-logo" />
-          <div className="lg-eyebrow">ERP Meridian · uso interno</div>
-          <h1>A fábrica inteira<br />num <span className="o">só lugar<svg viewBox="0 0 200 14" preserveAspectRatio="none"><path d="M2 9 Q 50 2 100 8 T 198 6" /></svg></span>.</h1>
-          <p className="lg-sub">Compras, estoque, produção, rotas e financeiro da Meridian, do pedido à entrega.</p>
-        </div>
+      <aside className="lg-painel">
+        <div className="lg-aneis" /><div className="lg-faixa f1" /><div className="lg-faixa f2" />
+        <svg className="lg-fio" viewBox="0 0 1000 120" preserveAspectRatio="none"><path d="M0 90 C 220 20, 420 120, 640 60 S 920 10, 1000 40" /></svg>
+        <img src="/meridian-emblema.svg" alt="" className="lg-emb" />
+        <div className="lg-eyebrow">ERP · uso interno</div>
+        <h1>Bem-vindo ao <span className="o">ERP Meridian</span></h1>
+        <p className="lg-sub">Compras, estoque, produção, rotas e financeiro da fábrica num só lugar, do pedido à entrega.</p>
+        <div className="lg-rodape">19°55′14″S 43°56′57″W<br /><b>MERIDIAN</b> — BELO HORIZONTE / MG</div>
+      </aside>
+      <main className="lg-lado">
         <form onSubmit={onSubmit} className="lg-card">
-          <img src="/meridian-wordmark.svg" alt="MERIDIAN" className="lg-logo-m" />
-          <div className="lg-k">ERP Meridian</div>
-          <h2 style={{ marginTop: 8 }}>{icone}{titulo}</h2>
+          <div className="lg-topo">
+            <img src="/meridian-wordmark.svg" alt="MERIDIAN" className="lg-logo" />
+            <div className="lg-k">ERP</div>
+            <div className="lg-tit">{icone}{titulo}</div>
+          </div>
           {children}
         </form>
-      </div>
-      <div className="lg-coords">19°55′14″S 43°56′57″W<br /><b>MERIDIAN</b> — BELO HORIZONTE / MG</div>
+      </main>
     </div>
   );
 }
 
 /* ===== v167 — redefinir senha pelo e-mail cadastrado ===== */
 function CaixaLogin({ titulo, children, onSubmit }) {
-  return <LoginMoldura titulo={titulo} icone={<KeyRound size={18} style={{ color: "#ee6500" }} />} onSubmit={onSubmit}>{children}</LoginMoldura>;   // v457
+  return <LoginMoldura titulo={titulo} icone={<KeyRound size={16} style={{ color: "#ee6500" }} />} onSubmit={onSubmit}>{children}</LoginMoldura>;   // v457
 }
 
 function EsqueciSenha({ inicial, onVoltar }) {
@@ -609,7 +613,7 @@ function EsqueciSenha({ inicial, onVoltar }) {
   return (
     <CaixaLogin titulo="Esqueci minha senha" onSubmit={enviar}>
       {!enviado && <>
-        <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Informe seu usuário ou e-mail. Enviamos um link para o e-mail cadastrado para você criar uma nova senha.</p>
+        <p className="lg-txt">Informe seu usuário ou e-mail. Enviamos um link para o e-mail cadastrado para você criar uma nova senha.</p>
         <label className="lg-lbl">Usuário ou e-mail</label>
         <input value={chave} onChange={(e) => setChave(e.target.value)} autoFocus className="lg-inp" />
       </>}
@@ -643,10 +647,10 @@ function RedefinirSenha({ token, onFim }) {
   const feito = st && st !== "salvando" && st.ok;
   return (
     <CaixaLogin titulo="Criar nova senha" onSubmit={salvar}>
-      {valido === null && <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Conferindo o link…</p>}
+      {valido === null && <p className="lg-txt">Conferindo o link…</p>}
       {valido && !valido.ok && <div className="lg-erro">{valido.erro}</div>}
       {valido?.ok && !feito && <>
-        <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Usuário <b style={{ color: "#0c2342" }}>{valido.login}</b></p>
+        <p className="lg-txt">Usuário <b style={{ color: "#0c2342" }}>{valido.login}</b></p>
         <label className="lg-lbl">Nova senha</label>
         <div className="lg-inp flex items-center gap-2" style={{ padding: "0 14px 0 0" }}>
           <input type={ver ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} autoFocus className="flex-1 outline-none" style={{ background: "transparent", color: "#0c2342", padding: "13px 16px", font: "inherit", fontSize: 15 }} />
