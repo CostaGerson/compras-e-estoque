@@ -130,3 +130,22 @@ export async function matrizRuas(pontos, quando) {
   return out;
 }
 export const chaveTrecho = (a, b) => `${k5(a)}|${k5(b)}`;
+
+// v485 — endereço da posição do motorista (rua e bairro): Google, ou OpenStreetMap sem chave
+export async function enderecoReverso(lat, lng) {
+  const curto = (rua, bairro, cidade) => [rua, bairro || cidade].filter(Boolean).join(", ") || null;
+  if (temGoogle()) {
+    try {
+      const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=pt-BR&result_type=street_address|route|premise&key=${KEY()}`, { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      const x = j.results?.[0];
+      if (x) return curto(compDe(x.address_components, "route"), compDe(x.address_components, "sublocality_level_1") || compDe(x.address_components, "sublocality") || compDe(x.address_components, "neighborhood"),
+        compDe(x.address_components, "administrative_area_level_2") || compDe(x.address_components, "locality"));
+    } catch {}
+  }
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&addressdetails=1&lat=${lat}&lon=${lng}`, { cache: "no-store", headers: { "User-Agent": "ERP-Meridian/1.0 (contato@meridianpro.com.br)", "Accept-Language": "pt-BR" } });
+    const a = (await r.json().catch(() => ({}))).address || {};
+    return curto(a.road || a.pedestrian, a.suburb || a.neighbourhood || a.quarter || a.city_district, a.city || a.town);
+  } catch { return null; }
+}

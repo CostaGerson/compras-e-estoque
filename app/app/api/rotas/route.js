@@ -58,7 +58,7 @@ export async function POST(req) {
       return r({ ...(b.acao === "otimizar" ? otimizar(seq, fab, o) : avaliarOrdem(seq, fab, o)), porRuas: !!porRuas, avisoRuas: erro || null });
     }
     case "bloco": if (!podeMontar(u)) return negado(); return r(await salvarBloco(b, u));
-    case "posicao": return r(await registrarPosicao(u.pessoaId, b.lat, b.lng));   // v463 — app do motorista
+    case "posicao": return r(await registrarPosicao(u.pessoaId, b.lat, b.lng, b.rumo));   // v463 — app do motorista
     case "consolidar": return r(await consolidarDemandas(b.ids, u));   // v467
     case "reativar": if (!podeMontar(u)) return negado(); return r(await reativarDemanda(b.id, u));   // v465
     case "liberarMotorista": if (!podeLiberar(u)) return negado("Só master, diretoria ou administrativo."); return r(await liberarMotorista(b.motoristaId, u));   // v461

@@ -54,6 +54,7 @@ export default function Rotas({ user, nova }) {
   const [ref, setRef] = useState(FOCO);
   const [dia, setDia] = useState(FOCO);
   const [verRota, setVerRota] = useState(null);
+  const [vivo, setVivo] = useState(null);   // v485 — posição dos motoristas em rota (para o mapa)
   // v450 — vindo da tarefa PROGRAMAR ENTREGA: abre a demanda de rota já preenchida (cliente, endereço, "ENTREGA PEDIDO N")
   useEffect(() => { if (nova?.t) { const { t, ...x } = nova; setDia(FOCO); setForm({ data: FOCO, horarioTipo: "LIVRE", ...x }); } }, [nova?.t]);   // v444 — rota aberta pelo botão R
   const [verConc, setVerConc] = useState(new Set());   // v464 — dias com as demandas concluídas à mostra
@@ -122,7 +123,7 @@ export default function Rotas({ user, nova }) {
       {d?.erro && <div className="text-sm" style={{ color: C.red }}>{d.erro}</div>}
       {pode && d && !d.fabrica && <div className="text-xs px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={14} /> Cadastre o endereço da fábrica (botão Fábrica): é o ponto de saída e de retorno das rotas.</div>}
 
-      <AoVivo user={user} onRota={setVerRota} />   {/* v463 — motoristas em rota, ao vivo */}
+      <AoVivo user={user} onRota={setVerRota} onDados={setVivo} />   {/* v463 — motoristas em rota, ao vivo */}
 
       {minhaRota && <MinhaRota bloco={minhaRota} demandas={(d?.demandas || []).filter((x) => x.blocoId === minhaRota.id)} user={user} onMudou={carregar} />}
 
@@ -198,12 +199,12 @@ export default function Rotas({ user, nova }) {
                 )}
                 {colMapa && (
                   <div className="min-w-0 space-y-3" style={{ gridColumn: colMapa, gridRow: 2 }}>
-                    <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />
+                    <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />
                   </div>
                 )}
 
               </div>
-              {!colMapa && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
+              {!colMapa && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />}
             </>
           );
         })()
@@ -226,7 +227,7 @@ export default function Rotas({ user, nova }) {
       )}
 
       {/* v426 — mapa em largura total; rotas do dia logo abaixo */}
-      {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
+      {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />}
 
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={(c) => { setForm(null); if (c?.blocoId) abrirAlteracao(c); carregar(); }} />}
       {montar && <MontarRota user={user} podeLiberar={!!d?.podeLiberar} onRecarregar={carregar} ids={montar.ids} bloco={montar.bloco} canceladas={montar.canceladas} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
@@ -306,8 +307,8 @@ function carregarLeaflet() {
 }
 const LIMITES = { RMBH: [[-20.4, -44.45], [-19.5, -43.6]], MG: [[-22.95, -51.05], [-14.2, -39.85]], BR: [[-33.8, -73.9], [5.3, -34.8]] };
 const TITULO_MAPA = { RMBH: "Região metropolitana de BH", MG: "Minas Gerais", BR: "Brasil" };
-function Mapa({ area, pontos, fabrica, altura = 360 }) {
-  const ref = useRef(null), mapa = useRef(null), camada = useRef(null);
+function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
+  const ref = useRef(null), mapa = useRef(null), camada = useRef(null), enq = useRef("");
   useEffect(() => {
     let vivo = true;
     carregarLeaflet().then((L) => {
@@ -331,18 +332,30 @@ function Mapa({ area, pontos, fabrica, altura = 360 }) {
           .bindTooltip(p.rotulo, { direction: "top", offset: [0, -12] }).addTo(camada.current);
         pts.push([p.lat, p.lng]);
       }
+      // v485 — motorista em rota: seta laranja apontando a direção
+      for (const mo of motoristas) {
+        L.marker([mo.lat, mo.lng], { zIndexOffset: 2000, icon: L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17],
+          html: `<div style="width:34px;height:34px;border-radius:17px;background:${mo.fresca ? "#FFF0E6" : "#EEF0F3"};border:2px solid #fff;box-shadow:0 1px 6px #0007;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(${mo.rumo}deg)"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="${mo.fresca ? "#FF6B1A" : "#98A2B3"}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></div>` }) })
+          .bindTooltip(mo.rotulo, { direction: "top", offset: [0, -16], permanent: true, className: "" }).addTo(camada.current);
+        pts.push([mo.lat, mo.lng]);
+      }
       // v436 — zoom o mais perto possível mostrando todos os pontos
+      // v485 — a posição do motorista atualiza sem mexer no zoom (só reenquadra quando mudam os pontos do dia)
+      const chave = `${area}|${JSON.stringify(pontos)}|${fabrica?.lat}|${motoristas.length}`;
+      if (enq.current === chave) { setTimeout(() => m.invalidateSize(), 50); return; }
+      enq.current = chave;
       if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 16 });
       else if (pts.length === 1) m.setView(pts[0], 15);
       else m.fitBounds(LIMITES[area], { padding: [8, 8] });
       setTimeout(() => m.invalidateSize(), 50);
     }).catch(() => {});
     return () => { vivo = false; };
-  }, [area, JSON.stringify(pontos), fabrica?.lat]);
+  }, [area, JSON.stringify(pontos), fabrica?.lat, JSON.stringify(motoristas)]);
   useEffect(() => () => { mapa.current?.remove(); mapa.current = null; }, []);
   return <div ref={ref} className="rounded-lg overflow-hidden" style={{ height: altura, background: "#E9EDF3", zIndex: 0 }} />;
 }
-function MapasDia({ demandas, fabrica }) {
+function MapasDia({ demandas, fabrica, vivos }) {
+  const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
   const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : tipoCor(x).pin });
   const com = demandas.filter((x) => x.lat != null);
   const rmbh = com.filter((x) => x.regiao === "RMBH" || !x.regiao).map(ponto);
@@ -353,7 +366,7 @@ function MapasDia({ demandas, fabrica }) {
     <div className="rounded-xl p-3 grid gap-3" style={{ background: C.panel, border: `1px solid ${C.line}`, gridTemplateColumns: lateral ? "minmax(0,2.4fr) minmax(0,1fr)" : "1fr" }}>
       <div className="min-w-0">
         <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>{TITULO_MAPA.RMBH} · {rmbh.length} ponto(s)</div>
-        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} altura={520} />
+        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} motoristas={mots} altura={520} />
       </div>
       {lateral && (
         <div className="min-w-0">
@@ -904,11 +917,11 @@ function MinhaRota({ bloco, demandas, user, onMudou }) {
 
 // ---------- v463 — ao vivo: o que cada motorista em rota está fazendo agora ----------
 const curtoNome = (n) => sc(String(n || "").split(" ")[0]);
-function AoVivo({ user, onRota }) {
+function AoVivo({ user, onRota, onDados }) {
   const [v, setV] = useState(null);
   useEffect(() => {
     let vivo = true;
-    const ler = () => api(`/api/rotas?u=${user.id}&aovivo=1`).then((x) => vivo && setV(x)).catch(() => {});
+    const ler = () => api(`/api/rotas?u=${user.id}&aovivo=1`).then((x) => { if (vivo) { setV(x); onDados?.(x); } }).catch(() => {});
     ler(); const t = setInterval(ler, 30000);
     return () => { vivo = false; clearInterval(t); };
   }, []);
@@ -959,6 +972,11 @@ function AoVivoRota({ r, onRota }) {
           : <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.sub }} title="O app do motorista manda a localização enquanto está aberto">sem localização</span>}
         {r.retornoPrevisto && <span className="text-xs font-semibold flex items-center gap-1" style={{ color: C.navy }}><Home size={12} /> volta ~{r.retornoPrevisto}</span>}
       </div>
+      {pos && <div className="text-xs mt-1 flex items-center gap-1" style={{ color: pos.fresca ? C.text : C.sub }}>   {/* v485 — onde o motorista está */}
+        <svg width="12" height="12" viewBox="0 0 24 24" style={{ transform: `rotate(${pos.rumo || 0}deg)` }}><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill={C.accent} /></svg>
+        <span className="truncate">{pos.endereco || `${Number(pos.lat).toFixed(5)}, ${Number(pos.lng).toFixed(5)}`}</span>
+        <span style={{ color: C.sub }}>· {pos.minAtras < 1 ? "agora" : `há ${pos.minAtras} min`}{!pos.fresca ? " · posição antiga (app do motorista fechado?)" : ""}</span>
+      </div>}
       <div className="flex items-start mt-2.5 overflow-x-auto pb-1">
         {pontos.map((p, i) => (
           <React.Fragment key={p.k}>

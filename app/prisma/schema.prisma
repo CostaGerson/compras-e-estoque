@@ -2013,6 +2013,10 @@ model RotaBloco {
   posLat        Float?                        // v463 — última posição do celular do motorista (app aberto)
   posLng        Float?
   posEm         DateTime?
+  posRumo       Float?                        // v485 — direção em graus (0 = norte), para a seta no mapa
+  posEndereco   String?                       // v485 — rua e bairro da última posição
+  posEndLat     Float?
+  posEndLng     Float?
   retornoEm     DateTime?
   criadoPorNome String?
   createdAt     DateTime  @default(now())

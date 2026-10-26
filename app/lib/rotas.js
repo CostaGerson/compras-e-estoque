@@ -1,6 +1,6 @@
 // v425 — Logística › Rotas: demandas de rota, geolocalização, melhor sequência (com janelas de horário), blocos e despacho
 import { prisma } from "@/lib/prisma";
-import { temGoogle, geocodificar, matrizRuas, chaveTrecho } from "@/lib/googleMaps";   // v427
+import { temGoogle, geocodificar, matrizRuas, chaveTrecho, enderecoReverso } from "@/lib/googleMaps";   // v427 · v485
 import { notificar } from "@/lib/push";   // v466
 
 const up = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -474,10 +474,26 @@ export async function alterarBloco(b, u) {
 }
 
 // v463 — posição do celular do motorista (app aberto) na rota em execução dele
-export async function registrarPosicao(pessoaId, lat, lng) {
+export async function registrarPosicao(pessoaId, lat, lng, rumo) {
   const la = Number(lat), lo = Number(lng);
   if (!pessoaId || !Number.isFinite(la) || !Number.isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return { ok: false };
-  const r = await prisma.rotaBloco.updateMany({ where: { motoristaId: pessoaId, status: "EM_EXECUCAO" }, data: { posLat: la, posLng: lo, posEm: new Date() } });
+  const bs = await prisma.rotaBloco.findMany({ where: { motoristaId: pessoaId, status: "EM_EXECUCAO" } });
+  if (!bs.length) return { ok: true, rotas: 0 };
+  const a = bs[0];
+  const novo = { lat: la, lng: lo };
+  // v485 — direção: a do celular quando vem; senão, calculada pelo deslocamento desde a última posição
+  let dir = Number.isFinite(Number(rumo)) && rumo !== null && rumo !== "" ? Number(rumo) : null;
+  if (dir == null && a.posLat != null && kmEntre({ lat: a.posLat, lng: a.posLng }, novo) > 0.015) {
+    const rad = (x) => (x * Math.PI) / 180, y = Math.sin(rad(lo - a.posLng)) * Math.cos(rad(la)), x = Math.cos(rad(a.posLat)) * Math.sin(rad(la)) - Math.sin(rad(a.posLat)) * Math.cos(rad(la)) * Math.cos(rad(lo - a.posLng));
+    dir = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  }
+  // rua e bairro: só consulta de novo quando andou mais de 40 m
+  let end = {};
+  if (!a.posEndereco || a.posEndLat == null || kmEntre({ lat: a.posEndLat, lng: a.posEndLng }, novo) > 0.04) {
+    const e = await enderecoReverso(la, lo).catch(() => null);
+    if (e) end = { posEndereco: e, posEndLat: la, posEndLng: lo };
+  }
+  const r = await prisma.rotaBloco.updateMany({ where: { motoristaId: pessoaId, status: "EM_EXECUCAO" }, data: { posLat: la, posLng: lo, posEm: new Date(), ...(dir != null ? { posRumo: Math.round(dir) } : {}), ...end } });
   return { ok: true, rotas: r.count };
 }
 // v463 — painel ao vivo: o que cada motorista em rota está fazendo agora e a previsão de volta à fábrica
@@ -527,7 +543,7 @@ export async function aoVivo() {
     rotas.push({
       id: bl.id, motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo, despachadoEm: bl.despachadoEm, alterada: !!bl.alteradaEm,
       fase, alvo, retornoPrevisto: fab ? hhmm(t) : null,
-      posicao: bl.posEm ? { lat: bl.posLat, lng: bl.posLng, minAtras: Math.round(gpsMin), fresca: !!gps } : null,
+      posicao: bl.posEm ? { lat: bl.posLat, lng: bl.posLng, minAtras: Math.round(gpsMin), fresca: !!gps, rumo: bl.posRumo, endereco: bl.posEndereco || null } : null,
       paradas: l.map((d) => ({ id: d.id, nome: d.destinoNome, tarefa: d.tarefa, objetivo: d.objetivo, status: d.status === "CONCLUIDA" ? "FEITA" : d.id === alvo ? "INDO" : "PENDENTE",
         concluidaEm: d.concluidaEm, eta: etas[d.id] || null })),
     });

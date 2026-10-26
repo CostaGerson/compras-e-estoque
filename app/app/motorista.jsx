@@ -77,9 +77,9 @@ export default function MotoristaApp({ user, onSair }) {
     if (!rota || typeof navigator === "undefined" || !navigator.geolocation) return;
     const enviar = (p) => {
       setGps("ok");
-      if (Date.now() - ult.current < 55000) return;
+      if (Date.now() - ult.current < 30000) return;   // v485 — a cada 30 s
       ult.current = Date.now();
-      fetch("/api/rotas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "posicao", lat: p.coords.latitude, lng: p.coords.longitude }) }).catch(() => {});
+      fetch("/api/rotas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "posicao", lat: p.coords.latitude, lng: p.coords.longitude, rumo: Number.isFinite(p.coords.heading) && p.coords.speed > 0.5 ? p.coords.heading : null }) }).catch(() => {});
     };
     const w = navigator.geolocation.watchPosition(enviar, (e) => { if (e.code === 1) setGps("negado"); }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 60000 });
     return () => navigator.geolocation.clearWatch(w);
