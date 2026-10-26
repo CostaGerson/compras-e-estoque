@@ -245,6 +245,7 @@ export async function painelDemandas() {
       pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)))],
       // v489 — destino: pedido(s) indexado(s) ou operação (avulsa sem pedido)
       destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const m = /PEDIDO\s+(\S+)/i.exec(String(x.cliente || "")); return m ? `PED ${m[1]}` : "OPERACAO"; }))],
+      origens: (inf.pedidos || []).map((x) => `${x.pedido}|${x.chave}`),   // v493
       fornecedor: forn[oc?.fornecedorId || i.fornecedorId] || null, etapa, previsao: previsao || dt(oc?.prazoFabrica),
       oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
       rota: oc ? rotas[oc.id] || null : null, cotacoes: cotPor[i.id] || [] };

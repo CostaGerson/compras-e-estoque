@@ -362,6 +362,18 @@ function BuscaPedido({ valor, cliente, onEscolher, sel, rotulo = "Pedido (nº ou
   );
 }
 
+// v493 — etapa de cada item da avulsa (mesma régua do painel de compras)
+const ETAPA_AV = { LEVANTAMENTO: ["Levantamento", C.blue, C.blueSoft], ESTOQUE: ["Atendido pelo estoque", C.green, C.greenSoft], REPROVADO: ["Vai para compra", C.red, C.redSoft],
+  EM_COTACAO: ["Em cotação", C.accent, C.accentSoft], AGUARDANDO_NF: ["Aguardando NF", C.yellow, C.yellowSoft], EM_COLETA: ["Em coleta", C.blue, C.blueSoft],
+  EM_TRANSPORTADORA: ["Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ENTREGA_FORNECEDOR: ["Entrega do fornecedor", "#0E9384", "#E6F6F4"], RECEBIDA: ["Recebida", C.green, C.greenSoft],
+  PIC: ["Em cotação", C.accent, C.accentSoft], OC: ["Aguardando NF", C.yellow, C.yellowSoft], NF: ["NF emitida", C.yellow, C.yellowSoft], ENTREGUE: ["Recebida", C.green, C.greenSoft] };
+function EtapaItemAv({ i }) {
+  if (!i.etapa) return <div />;
+  const [t, cor, fundo] = ETAPA_AV[i.etapa] || [i.etapa, C.sub, C.panel2];
+  const det = [i.pic, i.oc?.numero, i.oc?.nf ? `NF ${i.oc.nf}` : null, i.etapa === "EM_COLETA" ? (i.rota ? `rota ${dBR(i.rota.data).slice(0, 5)}` : "sem rota") : null, i.previsao && ["EM_TRANSPORTADORA", "ENTREGA_FORNECEDOR", "AGUARDANDO_NF"].includes(i.etapa) ? `prev. ${dBR(i.previsao).slice(0, 5)}` : null].filter(Boolean).join(" · ");
+  return <div className="text-center leading-tight"><span className="text-[10px] font-semibold px-1.5 py-px rounded whitespace-nowrap" style={{ background: fundo, color: cor }}>{t}</span>{det && <div className="text-[10px] truncate" style={{ color: C.sub }}>{det}</div>}</div>;
+}
+
 // ---------- v417 — compras avulsas (operação ou complemento de pedido) ----------
 const diasAte = (iso) => { if (!iso) return null; const h = new Date(); h.setHours(0, 0, 0, 0); return Math.round((new Date(`${iso}T00:00:00`) - h) / 86400000); };
 const corBomPara = (iso) => { const dd = diasAte(iso); if (dd == null) return null; return dd <= 2 ? [C.red, C.redSoft] : dd <= 5 ? [C.yellow, C.yellowSoft] : [C.green, C.greenSoft]; };
@@ -429,11 +441,12 @@ export function Avulsas({ user }) {
               <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
             </div>
             {(c.itens || []).map((i, k) => (
-              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 110px 260px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
+              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 100px 200px 150px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
                 <div style={{ color: C.text }}>{i.nome}{i.obs ? <div className="text-[11px]" style={{ color: C.sub }}>{i.obs}</div> : null}</div>
                 <div className="font-semibold" style={{ color: C.accent }}>{qtdU(i.quantidade, i.unidade)}</div>
                 <div className="text-xs truncate" style={{ color: C.sub }} title={[i.fornecedorNome, i.pedidoRef ? `Pedido ${i.pedidoRef} · ${i.pedidoCliente || ""}` : null].filter(Boolean).join("\n")}>
                   {i.pedidoRef ? <span className="font-semibold mr-1.5 px-1.5 py-0.5 rounded" style={{ background: C.blueSoft, color: C.blue }}>Ped. {i.pedidoRef}</span> : null}{i.fornecedorNome || ""}</div>
+                <EtapaItemAv i={i} />   {/* v493 */}
                 {/* v470 — bom para preenchido direto na lista */}
                 <label className="flex items-center gap-1"><span className="text-[11px]" style={{ color: C.sub }}>bom para</span>
                   {(() => { const cb = corBomPara(i.bomPara); return <input type="date" value={i.bomPara || ""} disabled={c.status === "CANCELADA"} onChange={(e) => bomPara(c, k, e.target.value)} className="px-1.5 py-0.5 rounded text-xs" style={{ border: `1px solid ${cb ? cb[0] : C.line}`, color: cb ? cb[0] : C.sub, background: cb ? cb[1] : C.panel, fontWeight: cb ? 600 : 400 }} />; })()}

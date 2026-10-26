@@ -1,6 +1,7 @@
 // v417 — compras avulsas (operação ou complemento de um pedido): itens com nome, quantidade, fornecedor e "bom para"
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { painelDemandas } from "@/lib/pic";   // v493
 import { notificar } from "@/lib/push";   // v472
 import { sincronizarAvulsa } from "@/lib/compras";   // v419 — vai para o levantamento
 
@@ -57,7 +58,24 @@ export async function GET(req) {
     return Response.json(l.map((p) => ({ ...p, total: Number(p.total), emissao: p.emissao ? p.emissao.toISOString().slice(0, 10) : null })));
   }
   const l = await prisma.compraAvulsa.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { createdAt: "desc" } });
-  return Response.json(l);
+  // v493 — etapa de cada item (a mesma do painel de compras)
+  const cis = await prisma.compraItem.findMany({ where: { pedidoNumero: { in: l.map((c) => `AV${c.id}`) } }, select: { pedidoNumero: true, chave: true, status: true } });
+  const painel = cis.some((x) => ["PIC", "OC", "NF", "ENTREGUE"].includes(x.status)) ? await painelDemandas().catch(() => []) : [];
+  const porOrigem = {};
+  for (const p of painel) for (const o of p.origens || []) porOrigem[o] = p;
+  const out = l.map((c) => {
+    let k = 0;
+    const itens = (Array.isArray(c.itens) ? c.itens : []).map((i) => {
+      if (!(i.nome && Number(i.quantidade) > 0)) return i;
+      const chave = `ITEM${++k}`, num = `AV${c.id}`;
+      const ci = cis.find((x) => x.pedidoNumero === num && x.chave === chave);
+      const p = porOrigem[`${num}|${chave}`];
+      const etapa = !ci ? null : p ? p.etapa : ci.status;
+      return { ...i, etapa, pic: p?.pic || null, oc: p?.oc ? { id: p.oc.id, numero: p.oc.numero, nf: p.oc.nf } : null, rota: p?.rota || null, previsao: p?.previsao || null };
+    });
+    return { ...c, itens };
+  });
+  return Response.json(out);
 }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
