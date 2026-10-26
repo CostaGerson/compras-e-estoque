@@ -211,12 +211,22 @@ export async function statusNfItens(ocId) {
 // v486 — rota de coleta de cada OC (pelo vínculo ocId ou pelo "COLETA OC 000x" no o que fazer)
 export async function rotasDeColeta(ocs) {
   if (!ocs.length) return {};
-  const ds = await prisma.rotaDemanda.findMany({ where: { status: { not: "CANCELADA" }, OR: [{ ocId: { in: ocs.map((o) => o.id) } }, ...ocs.map((o) => ({ tarefa: { contains: `COLETA ${o.numero}`, mode: "insensitive" } }))] },
-    select: { id: true, ocId: true, tarefa: true, data: true, status: true, blocoId: true, concluidaEm: true }, orderBy: { id: "desc" } });
-  const out = {};
+  const sel = { id: true, ocId: true, tarefa: true, data: true, status: true, blocoId: true, concluidaEm: true, destinoTipo: true, destinoId: true, createdAt: true };
+  const ds = await prisma.rotaDemanda.findMany({ where: { status: { not: "CANCELADA" }, OR: [{ ocId: { in: ocs.map((o) => o.id) } }, ...ocs.map((o) => ({ tarefa: { contains: `COLETA ${o.numero}`, mode: "insensitive" } }))] }, select: sel, orderBy: { id: "desc" } });
+  // v499 — coleta criada à mão (sem "COLETA OC x"): demanda de coleta no mesmo fornecedor, criada depois da OC
+  const fIds = [...new Set(ocs.filter((o) => o.fornecedorId && o.formaRecebimento === "COLETA").map((o) => o.fornecedorId))];
+  const porForn = fIds.length ? await prisma.rotaDemanda.findMany({ where: { status: { not: "CANCELADA" }, objetivo: "COLETA", destinoTipo: "FORNECEDOR", destinoId: { in: fIds }, ocId: null }, select: sel, orderBy: { data: "asc" } }) : [];
+  const out = {}, usados = new Set();
+  const fmt = (d) => ({ id: d.id, data: d.data.toISOString().slice(0, 10), status: d.status, blocoId: d.blocoId, concluidaEm: d.concluidaEm });
   for (const o of ocs) {
     const d = ds.find((x) => x.ocId === o.id) || ds.find((x) => String(x.tarefa || "").toUpperCase().includes(`COLETA ${o.numero}`.toUpperCase()));
-    if (d) out[o.id] = { id: d.id, data: d.data.toISOString().slice(0, 10), status: d.status, blocoId: d.blocoId, concluidaEm: d.concluidaEm };
+    if (d) { out[o.id] = fmt(d); usados.add(d.id); }
+  }
+  for (const o of [...ocs].sort((a, z) => new Date(a.createdAt || 0) - new Date(z.createdAt || 0))) {
+    if (out[o.id] || o.formaRecebimento !== "COLETA" || !o.fornecedorId) continue;
+    const ini = o.createdAt ? new Date(new Date(o.createdAt).getTime() - 2 * 86400e3) : null;
+    const d = porForn.find((x) => !usados.has(x.id) && x.destinoId === o.fornecedorId && (!ini || x.createdAt >= ini || x.data >= ini));
+    if (d) { out[o.id] = fmt(d); usados.add(d.id); }
   }
   return out;
 }

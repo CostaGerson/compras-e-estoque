@@ -23,7 +23,7 @@ export async function listarCotacoes() {
   const l = await prisma.cotacao.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { id: "desc" }, take: 150 });
   const fIds = [...new Set(l.map((c) => c.fornecedorId).filter(Boolean))];
   const fs = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, f]));
-  const ocL = await prisma.ordemCompra.findMany({ where: { id: { in: l.map((c) => c.ocId).filter(Boolean) } }, select: { id: true, numero: true, formaRecebimento: true } });
+  const ocL = await prisma.ordemCompra.findMany({ where: { id: { in: l.map((c) => c.ocId).filter(Boolean) } }, select: { id: true, numero: true, formaRecebimento: true, fornecedorId: true, createdAt: true } });
   const ocs = Object.fromEntries(ocL.map((o) => [o.id, o.numero]));
   const rotasOc = await rotasDeColeta(ocL);   // v486
   const formaOc = Object.fromEntries(ocL.map((o) => [o.id, o.formaRecebimento]));

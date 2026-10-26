@@ -1097,7 +1097,6 @@ export function OrdensCompra({ user, fases, ir }) {
                 <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>{o.numero} · {o.fornecedor.nome}</div>
                 <div className="text-xs" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.cotacao ? ` · ${o.cotacao}` : ""}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}` : ""}{o.nfNumero ? ` · NF ${o.nfNumero}` : ""}{o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
               </div>
-              <ChipRota r={o.rota} forma={o.formaRecebimento} />
               <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
               <ChipEntrega e={o.entrega} />   {/* v497 */}
@@ -1282,7 +1281,7 @@ function ChipEntrega({ e }) {
   return (
     <span className="flex flex-col items-center leading-tight" title={e.fonte === "rota" ? "Previsão = data da rota de coleta" : e.fonte === "calculada" ? "Previsão = emissão da NF + dias após o faturamento" : e.fonte === "informada" ? "Previsão informada na NF/OC" : "Previsão = prazo da OC"}>
       <Chip cor={cor} fundo={fundo}>{t}</Chip>
-      <span className="text-[10px] mt-0.5 font-semibold" style={{ color: atraso ? C.red : C.sub }}>{e.previsao ? `${e.status === "COLETADA" ? "em" : "prev."} ${dBR(e.previsao).slice(0, 5)}${atraso ? " · atrasada" : ""}` : "sem previsão"}</span>
+      <span className="text-[10px] mt-0.5 font-semibold" style={{ color: atraso || (e.status === "EM_COLETA" && e.fonte !== "rota") ? C.red : C.sub }}>{e.status === "EM_COLETA" && e.fonte !== "rota" ? "sem rota de coleta" : e.previsao ? `${e.status === "COLETADA" ? "em" : "prev."} ${dBR(e.previsao).slice(0, 5)}${atraso ? " · atrasada" : ""}` : "sem previsão"}</span>
     </span>
   );
 }
