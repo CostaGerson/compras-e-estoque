@@ -353,8 +353,10 @@ export default function Home() {
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} irPic={() => ir("pic")} />}
           {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos />}
           {view === "comprasAvulsas" && pode("comprasAvulsas") && (   // v468 — card próprio em Compras
-            <div className="max-w-5xl">
+            <div>
               <div className="text-lg font-bold mb-3" style={{ color: C.navy }}>Compras avulsas</div>
+              <PainelCompras ir={ir} soAvulsas />   {/* v495 — mesma visão do painel de compras */}
+              <div className="text-base font-bold mb-2" style={{ color: C.navy }}>Lançamentos</div>
               <Avulsas user={user} />
             </div>
           )}
@@ -484,7 +486,7 @@ function CardsGrupo({ grupo, ir, user }) {
         </div>
       </div>
       {/* v284 — análises: 8 colunas compactas (5 setores + bruta + líquida + vaga do bordado) */}
-      <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
+      <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : grupo.key === "compras" ? "repeat(auto-fit, minmax(170px, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
           const I = f.icon;
           return (

@@ -1482,29 +1482,30 @@ function ArquivosNfOc({ o, onMudou }) {
 }
 
 // ---------- v486 — painel de compras: tudo que está em PIC e a etapa de cada item ----------
+const ETAPAS_PRE = [["LEVANTAMENTO", "Levantamento", C.blue, C.blueSoft], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
 const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
   ["EM_TRANSPORTADORA", "Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
-export function PainelCompras({ ir }) {
+export function PainelCompras({ ir, soAvulsas }) {   // v495 — soAvulsas: o mesmo painel só com as compras avulsas
   const [l, setL] = useState(null);
   const [jan, setJan] = useState(null);   // v490 — PIC ou OC em janela central
   const [f, setF] = useState(null);
   const [q, setQ] = useState("");
-  const carregar = () => fetch("/api/compras/demandas").then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
+  const carregar = () => fetch(`/api/compras/demandas${soAvulsas ? "?avulsas=1" : ""}`).then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const conta = (k) => (l || []).filter((i) => i.etapa === k).length;
   const t = norm(q);
   const vis = (l || []).filter((i) => (f ? i.etapa === f : i.etapa !== "RECEBIDA") && (!t || norm(`${i.nome} ${i.det} ${i.fornecedor || ""} ${i.pic} ${i.oc?.numero || ""} ${i.pedidos.join(" ")}`).includes(t)));
   return (
-    <div className="mt-6 max-w-6xl">
+    <div className={soAvulsas ? "mb-6" : "mt-6"}>   {/* v495 — largura da página toda */}
       <div className="flex items-center gap-2 mb-2">
-        <div className="text-base font-bold" style={{ color: C.navy }}>Demandas de compra</div>
-        <span className="text-xs" style={{ color: C.sub }}>tudo que está em PIC, por etapa</span>
+        <div className="text-base font-bold" style={{ color: C.navy }}>{soAvulsas ? "Itens das compras avulsas" : "Demandas de compra"}</div>
+        <span className="text-xs" style={{ color: C.sub }}>{soAvulsas ? "do lançamento ao recebimento, por etapa" : "tudo que está em PIC, por etapa"}</span>
         <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={14} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artigo, fornecedor, OC, pedido…" className="py-1.5 text-sm outline-none w-56" /></div>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
       {/* trilha das etapas */}
       <div className="flex items-stretch gap-1 mb-3 overflow-x-auto">
-        {ETAPAS.map(([k, t0, cor, fundo], n) => (
+        {(soAvulsas ? [...ETAPAS_PRE, ...ETAPAS] : ETAPAS).map(([k, t0, cor, fundo], n) => (
           <React.Fragment key={k}>
             {n > 0 && <div className="flex items-center text-sm" style={{ color: C.sub }}>›</div>}
             <button onClick={() => setF(f === k ? null : k)} className="flex-1 min-w-[120px] rounded-lg px-3 py-2 text-left" style={{ background: f === k ? cor : fundo, color: f === k ? "#fff" : cor, border: `1px solid ${cor}55` }}>
@@ -1519,19 +1520,22 @@ export function PainelCompras({ ir }) {
       {vis.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex px-4 py-2 text-xs font-semibold gap-3 items-center" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-28 text-center">PIC / OC</div><div className="w-32 text-center">Para</div><div className="w-36 text-center">Etapa</div>
+            <div className="flex-1">Artigo</div><div className="w-8 text-center" title="A = compra avulsa · P = pedido">Orig.</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-28 text-center">PIC / OC</div><div className="w-32 text-center">Para</div><div className="w-36 text-center">Etapa</div>
           </div>
           {vis.map((i) => {
-            const e = ETAPAS.find((x) => x[0] === i.etapa) || ETAPAS[0];
+            const e = [...ETAPAS_PRE, ...ETAPAS].find((x) => x[0] === i.etapa) || ETAPAS[0];
             const cotTxt = i.etapa === "EM_COTACAO" ? (i.cotacoes.length ? `${i.cotacoes.filter((c) => c.s === "VALOR").length}/${i.cotacoes.length} cotação(ões) respondida(s)${i.cotacoes.length && i.cotacoes.every((c) => c.s === "NAO_TEM") ? " · ninguém tem" : ""}` : "cotação não gerada") : null;
             return (
               <div key={i.id} className="flex px-4 py-2 gap-3 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
                   <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.pedidos.join(" · ")}</div></div>
+                <div className="w-8 flex flex-col items-center gap-0.5">{/* v495 — A laranja avulsa · P azul pedido */}
+                  {i.origem?.includes("A") && <span title="Compra avulsa" className="rounded font-extrabold text-[11px] flex items-center justify-center" style={{ width: 18, height: 18, background: C.accent, color: "#fff" }}>A</span>}
+                  {i.origem?.includes("P") && <span title="Pedido" className="rounded font-extrabold text-[11px] flex items-center justify-center" style={{ width: 18, height: 18, background: C.blue, color: "#fff" }}>P</span>}</div>
                 <div className="w-24 text-center">{qtdU(i.quantidade, i.unidade)}</div>
                 <div className="w-40 text-xs truncate text-center" style={{ color: i.fornecedor ? C.text : C.sub }} title={i.fornecedor || ""}>{i.fornecedor || "—"}</div>
                 <div className="w-28 text-xs text-center" style={{ color: C.sub }}>   {/* v490 — clicar abre o PIC ou a OC */}
-                  <button onClick={() => (ir ? irPara(ir, "pic", i.pic) : setJan({ tipo: "pic", numero: i.pic }))} className="underline decoration-dotted hover:text-black" title="Abrir este PIC">{i.pic}</button>
+                  {i.pic ? <button onClick={() => (ir ? irPara(ir, "pic", i.pic) : setJan({ tipo: "pic", numero: i.pic }))} className="underline decoration-dotted hover:text-black" title="Abrir este PIC">{i.pic}</button> : "—"}
                   {i.oc ? <div><button onClick={() => (ir ? irPara(ir, "oc", i.oc.id) : setJan({ tipo: "oc", id: i.oc.id }))} title="Abrir esta OC" className="font-semibold underline decoration-dotted" style={{ color: C.navy }}>{i.oc.numero}</button>{i.oc.nf ? <span style={{ color: C.navy }}> · NF {i.oc.nf}</span> : ""}</div> : null}</div>
                 <div className="w-32 flex flex-wrap gap-1 justify-center">{(i.destinos || []).map((x) => x === "OPERACAO"   // v489 — operação (interno) ou pedido indexado
                   ? <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.panel2, color: C.sub }}>Operação</span>
