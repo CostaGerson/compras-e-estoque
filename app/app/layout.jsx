@@ -7,6 +7,7 @@ export const metadata = {
   title: "ERP Meridian",   // v456
   description: "Sistema de gestão de material e financeiro",
   // v454 — ícone na tela inicial do celular (Android e iPhone)
+  referrer: "strict-origin-when-cross-origin",   // v459 — o mapa (OpenStreetMap) exige o Referer
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/favicon.ico", sizes: "any" }, { url: "/favicon.png", type: "image/png" }], apple: "/apple-touch-icon.png" },   // v456 — aba: só a montanha, azul-marinho
   appleWebApp: { capable: true, title: "ERP Meridian", statusBarStyle: "black-translucent" },
