@@ -1459,6 +1459,7 @@ const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARD
   ["EM_TRANSPORTADORA", "Em entrega transportadora", "#7A5AF8", "#F1EDFF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
 export function PainelCompras({ ir }) {
   const [l, setL] = useState(null);
+  const [jan, setJan] = useState(null);   // v490 — PIC ou OC em janela central
   const [f, setF] = useState(null);
   const [q, setQ] = useState("");
   const carregar = () => fetch("/api/compras/demandas").then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
@@ -1490,8 +1491,8 @@ export function PainelCompras({ ir }) {
       {l && !vis.length && <div className="text-sm py-6 text-center rounded-lg" style={{ color: C.sub, background: C.panel, border: `1px solid ${C.line}` }}>{l.length ? "Nada nesta etapa." : "Nenhuma demanda de compra. Elas nascem no Levantamento (Gerar PIC)."}</div>}
       {vis.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="flex px-4 py-2 text-xs font-semibold gap-3" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-40">Fornecedor</div><div className="w-28">PIC / OC</div><div className="w-32">Para</div><div className="w-36">Etapa</div>
+          <div className="flex px-4 py-2 text-xs font-semibold gap-3 items-center" style={{ color: C.sub, background: C.panel2 }}>
+            <div className="flex-1">Artigo</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-28 text-center">PIC / OC</div><div className="w-32 text-center">Para</div><div className="w-36 text-center">Etapa</div>
           </div>
           {vis.map((i) => {
             const e = ETAPAS.find((x) => x[0] === i.etapa) || ETAPAS[0];
@@ -1500,13 +1501,15 @@ export function PainelCompras({ ir }) {
               <div key={i.id} className="flex px-4 py-2 gap-3 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
                   <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.pedidos.join(" · ")}</div></div>
-                <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
-                <div className="w-40 text-xs truncate" style={{ color: i.fornecedor ? C.text : C.sub }}>{i.fornecedor || "—"}</div>
-                <div className="w-28 text-xs" style={{ color: C.sub }}>{i.pic}{i.oc ? <div className="font-semibold" style={{ color: C.navy }}>{i.oc.numero}{i.oc.nf ? ` · NF ${i.oc.nf}` : ""}</div> : null}</div>
-                <div className="w-32 flex flex-wrap gap-1">{(i.destinos || []).map((x) => x === "OPERACAO"   // v489 — operação (interno) ou pedido indexado
+                <div className="w-24 text-center">{qtdU(i.quantidade, i.unidade)}</div>
+                <div className="w-40 text-xs truncate text-center" style={{ color: i.fornecedor ? C.text : C.sub }} title={i.fornecedor || ""}>{i.fornecedor || "—"}</div>
+                <div className="w-28 text-xs text-center" style={{ color: C.sub }}>   {/* v490 — clicar abre o PIC ou a OC */}
+                  <button onClick={() => setJan({ tipo: "pic", numero: i.pic })} className="underline decoration-dotted hover:text-black">{i.pic}</button>
+                  {i.oc ? <div><button onClick={() => setJan({ tipo: "oc", id: i.oc.id })} className="font-semibold underline decoration-dotted" style={{ color: C.navy }}>{i.oc.numero}</button>{i.oc.nf ? <span style={{ color: C.navy }}> · NF {i.oc.nf}</span> : ""}</div> : null}</div>
+                <div className="w-32 flex flex-wrap gap-1 justify-center">{(i.destinos || []).map((x) => x === "OPERACAO"   // v489 — operação (interno) ou pedido indexado
                   ? <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.panel2, color: C.sub }}>Operação</span>
                   : <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.blueSoft, color: C.blue }}>{x.replace("PED ", "Ped. ")}</span>)}</div>
-                <div className="w-36 min-w-0">
+                <div className="w-36 min-w-0 text-center">
                   <span className="text-[10px] font-semibold px-1.5 py-px rounded whitespace-nowrap" style={{ background: e[3], color: e[2] }}>{e[1]}</span>
                   <div className="text-[10px] mt-0.5 truncate" style={{ color: C.sub }}>
                     {cotTxt}
@@ -1519,7 +1522,60 @@ export function PainelCompras({ ir }) {
           })}
         </div>
       )}
+      {jan && <JanelaPicOc jan={jan} onClose={() => setJan(null)} ir={ir} />}
       {ir && <div className="flex gap-3 mt-2 text-xs">{[["pic", "Abrir PIC"], ["comprasCotacoes", "Abrir cotações"], ["oc", "Abrir ordens de compra"]].map(([k, t0]) => <button key={k} onClick={() => ir(k)} className="underline" style={{ color: C.accent }}>{t0}</button>)}</div>}
     </div>
+  );
+}
+
+// ---------- v490 — PIC ou OC em janela central (a partir do painel de compras) ----------
+function JanelaPicOc({ jan, onClose, ir }) {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    if (jan.tipo === "pic") fetch("/api/compras/pic").then((r) => r.json()).then((l) => setD((Array.isArray(l) ? l : []).find((p) => p.numero === jan.numero) || { vazio: true })).catch(() => setD({ vazio: true }));
+    else fetch("/api/compras/oc").then((r) => r.json()).then((l) => setD((Array.isArray(l) ? l : []).find((o) => o.id === jan.id) || { vazio: true })).catch(() => setD({ vazio: true }));
+  }, []);
+  const titulo = jan.tipo === "pic" ? jan.numero : d?.numero || "OC";
+  const linha = "flex gap-2 py-1.5 text-sm items-center";
+  return (
+    <Modal titulo={d && !d.vazio && jan.tipo === "oc" ? `${d.numero} · ${d.fornecedor.nome}` : titulo} onClose={onClose} largo>
+      {!d && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {d?.vazio && <div className="text-sm" style={{ color: C.sub }}>Não encontrado.</div>}
+      {d && !d.vazio && jan.tipo === "pic" && (
+        <>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>{new Date(d.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{d.criadoPorNome ? ` · ${d.criadoPorNome}` : ""} · {d.itens.length} artigo(s) · {d.status === "OC" ? "todas em OC" : `${d.itens.filter((i) => !i.oc).length} sem OC`}</div>
+          <div className="flex gap-2 py-1 text-xs font-semibold" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-24 text-center">Valor</div><div className="w-20 text-center">OC</div></div>
+          {d.itens.map((i) => (
+            <div key={i.id} className={linha} style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-0"><div className="truncate font-semibold">{i.info?.nome}</div><div className="text-[11px] truncate" style={{ color: C.sub }}>{(i.info?.pedidos || []).map((x) => (x.avulsa ? "Avulsa" : `Ped. ${x.pedido}`)).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}</div></div>
+              <div className="w-24 text-center">{qtdU(i.quantidade, i.info?.unidade)}</div>
+              <div className="w-40 text-center text-xs truncate">{i.fornecedor || "—"}</div>
+              <div className="w-24 text-center">{i.valorUnitario ? brl(i.valorUnitario) : "—"}</div>
+              <div className="w-20 text-center text-xs font-semibold" style={{ color: i.oc ? C.green : C.sub }}>{i.oc?.numero || "—"}</div>
+            </div>
+          ))}
+        </>
+      )}
+      {d && !d.vazio && jan.tipo === "oc" && (
+        <>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>{new Date(d.createdAt).toLocaleDateString("pt-BR")}{d.cotacao ? ` · ${d.cotacao}` : ""}{d.pic ? ` · ${d.pic}` : ""} · {(ST_OC[d.status] || [])[0]}{d.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === d.formaRecebimento) || [])[1]}` : ""}{d.condicaoFaturamento ? ` · ${d.condicaoFaturamento}` : ""}{d.prazoFabrica ? ` · entrega ${new Date(d.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}{d.nfNumero ? ` · NF ${d.nfNumero}` : ""}</div>
+          <div className="flex gap-2 py-1 text-xs font-semibold" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-28 text-center">Qtd</div><div className="w-28 text-center">Valor unit.</div><div className="w-28 text-center">Total</div></div>
+          {d.itens.map((i) => (
+            <div key={i.id} className={linha} style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span></div>
+              <div className="w-28 text-center">{qtdU(i.quantidade, i.unidade)}</div><div className="w-28 text-center">{brl(i.valorUnitario)}</div><div className="w-28 text-center font-semibold">{brl(i.quantidade * i.valorUnitario)}</div>
+            </div>
+          ))}
+          <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${C.line}` }}>
+            <ChipRota r={d.rota} forma={d.formaRecebimento} />
+            <span className="ml-auto text-sm font-bold" style={{ color: C.accent }}>Total {brl(d.total)}</span>
+          </div>
+        </>
+      )}
+      <div className="flex justify-end gap-2 mt-4">
+        {ir && <button onClick={() => { onClose(); ir(jan.tipo === "pic" ? "pic" : "oc"); }} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Abrir {jan.tipo === "pic" ? "a tela do PIC" : "Ordens de compra"}</button>}
+        <button onClick={onClose} className="px-3 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
+      </div>
+    </Modal>
   );
 }

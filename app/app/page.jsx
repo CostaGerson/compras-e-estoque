@@ -212,6 +212,7 @@ export default function Home() {
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);
   const [tab, setTab] = useState("lista");
+  useEffect(() => { try { sessionStorage.setItem("ce_tab", tab); } catch {} }, [tab]);   // v490
   const [collapsed, setCollapsed] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
@@ -219,6 +220,9 @@ export default function Home() {
   const bumpBadges = () => setBadgeTick((x) => x + 1);
 
   const [tokenReset, setTokenReset] = useState(null);   // v167 — link "redefinir senha" do e-mail
+  // v490 — ao atualizar a página, volta para a tela em que estava (guardada nesta aba do navegador)
+  useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t); } catch {} }, []);
+  useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
   useEffect(() => {
     setUser(lerSessao()); setCarregouSessao(true);
     try { setTokenReset(new URLSearchParams(window.location.search).get("redefinir")); } catch {}
