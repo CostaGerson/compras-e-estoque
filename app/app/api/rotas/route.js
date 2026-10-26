@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -14,6 +14,8 @@ async function quem(id) {
   const x = await prisma.usuario.findUnique({ where: { id: u.id }, select: { pessoaId: true } });
   return { ...u, pessoaId: x?.pessoaId || null };
 }
+// v461 — liberar motorista (encerrar rota em curso por engano): master, diretoria e administrativo
+const podeLiberar = (u) => !!u && (u.isMaster || !!u.diretoria || u.setor === "ADMINISTRATIVO");
 const negado = (m = "Sem acesso.") => Response.json({ error: m }, { status: 403 });
 
 export async function GET(req) {
@@ -28,7 +30,7 @@ export async function GET(req) {
   if (q.get("lugar")) { try { return Response.json(await lugar(q.get("lugar"), q.get("sessao"), q.get("digitado"))); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
   const de = q.get("de"), ate = q.get("ate");
   if (!de || !ate) return Response.json({ error: "Período?" }, { status: 400 });
-  return Response.json({ ...(await painel({ de, ate })), podeMontar: podeMontar(u), pessoaId: u.pessoaId, google: temGoogle() });
+  return Response.json({ ...(await painel({ de, ate })), podeMontar: podeMontar(u), podeLiberar: podeLiberar(u), pessoaId: u.pessoaId, google: temGoogle() });
 }
 
 export async function POST(req) {
@@ -54,6 +56,7 @@ export async function POST(req) {
       return r({ ...(b.acao === "otimizar" ? otimizar(seq, fab, o) : avaliarOrdem(seq, fab, o)), porRuas: !!porRuas, avisoRuas: erro || null });
     }
     case "bloco": if (!podeMontar(u)) return negado(); return r(await salvarBloco(b, u));
+    case "liberarMotorista": if (!podeLiberar(u)) return negado("Só master, diretoria ou administrativo."); return r(await liberarMotorista(b.motoristaId, u));   // v461
     case "alterar": if (!podeMontar(u)) return negado(); return r(await alterarBloco(b, u));   // v454
     case "despachar": {
       if (!podeMontar(u)) return negado();

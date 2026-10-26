@@ -219,7 +219,7 @@ export default function Rotas({ user, nova }) {
       {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
 
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={(c) => { setForm(null); if (c?.blocoId) abrirAlteracao(c); carregar(); }} />}
-      {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} canceladas={montar.canceladas} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
+      {montar && <MontarRota user={user} podeLiberar={!!d?.podeLiberar} onRecarregar={carregar} ids={montar.ids} bloco={montar.bloco} canceladas={montar.canceladas} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
       {escolher && <EscolherDemandas dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
       {verRota && (() => {
         const b = (d?.blocos || []).find((x) => x.id === verRota);
@@ -625,7 +625,7 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
 }
 
 // ---------- montar a rota: melhor sequência, ajuste da ordem e despacho ----------
-function MontarRota({ user, ids, bloco, canceladas, demandas, motoristas, dia, onClose, onOk }) {
+function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, demandas, motoristas, dia, onClose, onOk }) {
   const alt = bloco?.status === "EM_EXECUCAO";   // v454 — rota já despachada: só reordena o que falta e reenvia
   const porId = Object.fromEntries(demandas.map((x) => [x.id, x]));
   const sugMot = bloco?.motoristaId || demandas.find((x) => ids.includes(x.id) && x.motoristaId)?.motoristaId || "";
@@ -656,10 +656,25 @@ function MontarRota({ user, ids, bloco, canceladas, demandas, motoristas, dia, o
     setOcup(false);
   }
   const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
-  const m = motoristas.find((x) => x.id === mot);
+  const [liberados, setLiberados] = useState(new Set());   // v461 — motoristas liberados nesta janela
+  const m0 = motoristas.find((x) => x.id === mot);
+  const m = m0 && liberados.has(m0.id) ? { ...m0, emRota: null } : m0;
+  // v461 — master/diretoria/adm: "está na fábrica" encerra a rota em curso por engano
+  async function liberar() {
+    if (!(await confirmar(`${sc(m.nome)} consta na rota ${m.emRota}. Ele já está disponível na fábrica? A rota é encerrada: paradas concluídas ficam registradas e as que faltam voltam a ficar abertas.`))) return false;
+    try {
+      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "liberarMotorista", motoristaId: m.id });
+      setLiberados((s) => new Set(s).add(m.id)); onRecarregar?.();
+      if (r.reabertas) alerta(`Rota ${r.rotas.join(", ")} encerrada. ${r.reabertas} parada(s) voltaram a ficar abertas.`);
+      return true;
+    } catch (e) { alerta(e.message); return false; }
+  }
   async function salvar(despachar) {
     if (!mot) return alerta("Escolha o motorista.");
-    if (despachar && m?.emRota && m.emRota !== bloco?.id) return alerta(`${sc(m.nome)} ainda está em outra rota. Ele fica disponível quando registrar o retorno à fábrica.`);
+    if (despachar && m?.emRota && m.emRota !== bloco?.id) {
+      if (!podeLiberar) return alerta(`${sc(m.nome)} ainda está em outra rota. Ele fica disponível quando registrar o retorno à fábrica. Se ele já está na fábrica, peça para o administrativo, a diretoria ou um master liberar.`);
+      if (!(await liberar())) return;
+    }
     setOcup(true);
     try {
       const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "bloco", id: bloco?.id, ordem, motoristaId: mot, veiculo: veic, saida, tempos });
@@ -697,8 +712,10 @@ function MontarRota({ user, ids, bloco, canceladas, demandas, motoristas, dia, o
               <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>Motorista</div>
                 <select value={mot} onChange={(e) => setMot(e.target.value)} className="w-full px-2.5 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>
                   <option value="">Escolha…</option>
-                  {motoristas.map((x) => <option key={x.id} value={x.id}>{sc(x.nome)}{x.emRota && x.emRota !== bloco?.id ? " · em rota" : " · disponível"}</option>)}
-                </select></label>
+                  {motoristas.map((x) => <option key={x.id} value={x.id}>{sc(x.nome)}{x.emRota && x.emRota !== bloco?.id && !liberados.has(x.id) ? " · em rota" : " · disponível"}</option>)}
+                </select>
+                {podeLiberar && m?.emRota && m.emRota !== bloco?.id && <button type="button" onClick={liberar} className="text-[11px] mt-1 font-semibold" style={{ color: C.accent }}>Já está na fábrica? Liberar motorista</button>}
+                </label>
               <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>Veículo</div>
                 <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
                   {[["CARRO", Car], ["MOTO", Bike]].map(([k, I]) => <button key={k} onClick={() => setVeic(k)} className="flex-1 py-1.5 flex justify-center" style={{ background: veic === k ? C.accent : "#fff", color: veic === k ? "#fff" : C.sub }}><I size={15} /></button>)}

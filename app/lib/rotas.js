@@ -402,6 +402,8 @@ export async function cancelarDemanda(id, u) {
     const bl = await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } });
     if (bl && bl.status === "EM_EXECUCAO") {
       const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+      // v461 — rota ficou sem nenhuma parada: encerra sozinha e o motorista volta a ficar disponível
+      if (!ds.length) { await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "CANCELADO", links: [] } }); return { ok: true, blocoId: null, rotaEncerrada: bl.id }; }
       const fab = await fabrica();
       const links = !ds.length ? [] : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
       await prisma.rotaBloco.update({ where: { id: bl.id }, data: { links } }).catch(() => null);
@@ -436,6 +438,21 @@ export async function alterarBloco(b, u) {
   const usu = n.motoristaId && !n.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: n.motoristaId }, select: { id: true } }) : null;
   if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `SUA ROTA ${n.id} FOI ALTERADA${canceladas.length ? ` (CANCELADA: ${canceladas.join("; ").toUpperCase()})` : ""}. VEJA A NOVA ORDEM NO APP.` } }).catch(() => null);
   return { ok: true, alterada: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
+}
+
+// v461 — "motorista está na fábrica": encerra as rotas em execução dele (lançadas por engano ou esquecidas).
+// Paradas concluídas ficam; as que faltam voltam a ficar abertas para outra rota.
+export async function liberarMotorista(motoristaId, u) {
+  if (!motoristaId) return { error: "Motorista?" };
+  const bs = await prisma.rotaBloco.findMany({ where: { motoristaId: String(motoristaId), status: "EM_EXECUCAO" } });
+  let reabertas = 0;
+  for (const bl of bs) {
+    const r = await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, data: { blocoId: null, ordem: null, status: "ABERTA", iniciadaEm: null } });
+    reabertas += r.count;
+    const feitas = await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: "CONCLUIDA" } });
+    await prisma.rotaBloco.update({ where: { id: bl.id }, data: feitas ? { status: "CONCLUIDO", retornoEm: new Date() } : { status: "CANCELADO" } });
+  }
+  return { ok: true, rotas: bs.map((b) => b.id), reabertas, porNome: nomeU(u) };
 }
 
 // v439 — { id: minutos } vindo da tela (0 a 600 min)
