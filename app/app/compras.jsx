@@ -23,6 +23,7 @@ const detArtigo = (d) => [d.fornecedor, d.cor, d.codigo, d.largura ? `${String(d
 
 const STATUS = {
   LEVANTAMENTO: ["No levantamento", C.blue, C.blueSoft], ESTOQUE: ["Atendido pelo estoque · liberado p/ PCP", C.green, C.greenSoft],
+  REPROVADO: ["Reprovado no estoque · vai para compra", C.red, C.redSoft],   // v483
   PIC: ["Em PIC", C.accent, C.accentSoft], OC: ["OC emitida", C.accent, C.accentSoft], NF: ["NF emitida", C.yellow, C.yellowSoft], ENTREGUE: ["Entregue · liberado p/ PCP", C.green, C.greenSoft],
 };
 function Chip({ cor = C.sub, fundo = C.panel2, children, title }) {
@@ -135,8 +136,8 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 // ---------- Compras › Pedidos ----------
 // v415 — fases de compras na guia superior (troca de tela entre as fases)
 export const FASES_COMPRAS = [
-  ["comprasPedidos", "Pedidos", ClipboardList], ["levantamento", "Levantamento", Layers], ["comprasCruzamento", "Cruzamento com estoque", Boxes],
-  ["comprasAtendidos", "Atendidos pelo estoque", PackageCheck], ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
+  ["comprasPedidos", "Pedidos", ClipboardList], ["levantamento", "Levantamento e estoque", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
+  ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
 ];
 export function FasesCompras({ atual, fases, ir }) {
   if (!ir) return null;
@@ -565,19 +566,20 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
   return (
     <div className="max-w-5xl">
       {barra}
-      <p className="text-sm mb-3" style={{ color: C.sub }}>Todas as demandas de matéria-prima registradas nos itens dos pedidos, aguardando o cruzamento com o estoque.</p>
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Demandas de matéria-prima dos pedidos e das compras avulsas. Clique em <b>Cruzar com estoque</b>: o sistema mostra o que o estoque atende e você <b>autoriza</b> (fica atendido pelo estoque e o Leandro é avisado) ou <b>reprova</b> (vira demanda de compra, entra no PIC).</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Kpi l="Pedidos" v={d.pedidos} /><Kpi l="Itens" v={d.itens} /><Kpi l="Artigos" v={d.consolidado.length} /><Kpi l="Equiparações sugeridas" v={d.equiparacoes.length} />
       </div>
       <div className="flex gap-1 mb-3 items-center" style={{ borderBottom: `1px solid ${C.line}` }}>
-        {[["consolidado", "Demanda consolidada", Layers], ["equiparacoes", `Equiparações${d.equiparacoes.length ? ` (${d.equiparacoes.length})` : ""}`, Merge], ["itens", "Demandas por item", PackageSearch]].map(([k, t, Ico]) => (
+        {[["consolidado", "Demanda consolidada", Layers], ["equiparacoes", `Equiparações${d.equiparacoes.length ? ` (${d.equiparacoes.length})` : ""}`, Merge], ["itens", "Demandas por item", PackageSearch], ["atendidos", "Atendidos pelo estoque", PackageCheck]].map(([k, t, Ico]) => (
           <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><Ico size={15} /> {t}</button>
         ))}
-        <button onClick={() => (irCruzar ? irCruzar() : setAba("cruzamento"))} disabled={!d.linhas.length} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff", opacity: d.linhas.length ? 1 : 0.5 }}><Boxes size={14} /> Cruzar com estoque</button>
+        <button onClick={() => setAba("cruzamento")} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff" }}><Boxes size={14} /> Cruzar com estoque</button>
       </div>
       {aba === "cruzamento" && <Cruzamento user={user} veValores={veValores} onMudou={carregar} irPic={irPic} />}
+      {aba === "atendidos" && <Atendidos />}   {/* v483 */}
 
-      {aba !== "cruzamento" && !d.linhas.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma demanda no levantamento. Vincule a FPP base nos itens em Compras › Pedidos.</div>}
+      {!["cruzamento", "atendidos"].includes(aba) && !d.linhas.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma demanda no levantamento. Vincule a FPP base nos itens em Compras › Pedidos.</div>}
 
       {aba === "consolidado" && d.consolidado.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -711,7 +713,19 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
     if (!marc.size) return;
     if (!(await confirmar(`Autorizar o atendimento pelo estoque de ${marc.size} item(ns)? Eles ficam liberados para o PCP programar.`))) return;
     setSalvando(true);
-    const r = await fetch("/api/compras/cruzar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: [...marc], quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/cruzar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: [...marc], quem: nomeUser(user), usuarioId: user?.id }) });
+    const x = await r.json().catch(() => ({}));
+    setSalvando(false);
+    if (!r.ok) return alerta(x.error || "Erro.");
+    await alerta(`${x.itens} item(ns) atendido(s) pelo estoque. O Leandro foi avisado.`);
+    onMudou?.(); carregar();
+  }
+  // v483 — reprovar: o item vai para compra (próximo PIC) mesmo que o estoque atenda
+  async function reprovar(ids, desfazer) {
+    if (!ids.length) return;
+    if (!desfazer && !(await confirmar(`Reprovar o atendimento pelo estoque de ${ids.length} item(ns)? Eles viram demanda de compra e entram no próximo PIC.`))) return;
+    setSalvando(true);
+    const r = await fetch("/api/compras/cruzar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: desfazer ? "desfazerReprovacao" : "reprovar", itemIds: ids, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setSalvando(false);
     if (!r.ok) return alerta(x.error || "Erro.");
@@ -720,7 +734,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
   if (erro) return <div className="text-sm" style={{ color: C.red }}>{erro}</div>;
   if (!d) return <div className="flex items-center gap-2 text-sm py-4" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Cruzando com o estoque…</div>;
   const SIT = { COMPLETO: [C.green, C.greenSoft, "atendido completo"], PARCIAL: [C.yellow, C.yellowSoft, "parcial"], COMPRA: [C.accent, C.accentSoft, "vai para compra"], "SEM DEMANDA": [C.sub, C.panel2, "sem demanda"] };
-  const nCompra = d.pedidos.flatMap((p) => p.itens).filter((i) => !i.atendido && !i.semDemanda).length;
+  const nCompra = d.pedidos.flatMap((p) => p.itens).filter((i) => !i.atendido && !i.semDemanda).length + (d.reprovados || []).length;
   return (
     <div className="space-y-4">
       <div className="text-xs" style={{ color: C.sub }}>Sugestão: primeiro os pedidos que o estoque atende por inteiro, em ordem de entrega; depois itens inteiros com o que sobrar. Item nunca é atendido pela metade. Disponível = saldo − reservas de itens já autorizados que ainda não entraram em produção.</div>
@@ -755,16 +769,36 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
                   <div className="text-sm" style={{ color: C.text }}>{i.chave} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
                   <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
                 </div>
-                {!i.semDemanda && (i.atendido ? <Chip cor={C.green} fundo={C.greenSoft}>estoque</Chip> : <Chip cor={C.accent} fundo={C.accentSoft}>compra</Chip>)}
+                {!i.semDemanda && (i.atendido ? <span className="flex items-center gap-1.5"><Chip cor={C.green} fundo={C.greenSoft}>estoque atende</Chip>
+                  <button type="button" onClick={(e) => { e.preventDefault(); reprovar([i.id]); }} className="text-[11px] px-2 py-0.5 rounded font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red }}>reprovar</button></span>
+                  : <Chip cor={C.accent} fundo={C.accentSoft}>sem estoque · compra</Chip>)}
               </label>
             ))}
           </div>
         );
       })}
 
+      {(d.reprovados || []).length > 0 && (
+        <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.red}55` }}>
+          <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.red, borderBottom: `1px solid ${C.line}` }}>Reprovados no estoque · vão para compra ({d.reprovados.length})</div>
+          {d.reprovados.map((i) => (
+            <div key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1">
+                <div className="text-sm" style={{ color: C.text }}>{rotPed(i.pedidoNumero, i.cliente)} · {i.chave} · {i.descricao}</div>
+                <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}{i.autorizadoPorNome ? ` · reprovado por ${i.autorizadoPorNome}` : ""}</div>
+              </div>
+              <button onClick={() => reprovar([i.id], true)} className="text-[11px] px-2 py-0.5 rounded flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.sub }}><Undo2 size={11} /> desfazer</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 sticky bottom-0 py-3" style={{ background: "#F7F8FA" }}>
         <button disabled={salvando || !marc.size} onClick={autorizar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.green, color: "#fff", opacity: marc.size ? 1 : 0.5 }}>
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Autorizar atendimento pelo estoque ({marc.size})
+        </button>
+        <button disabled={salvando || !marc.size} onClick={() => reprovar([...marc])} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}`, opacity: marc.size ? 1 : 0.5 }}>
+          <X size={15} /> Reprovar · vai para compra ({marc.size})
         </button>
         <button disabled={salvando || !nCompra} onClick={async () => {   // v469 — PIC com o que o estoque não atende
           if (!(await confirmar(`Gerar o PIC com os ${nCompra} item(ns) que o estoque não atende? Os artigos iguais são somados e os itens saem do levantamento.`))) return;

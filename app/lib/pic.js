@@ -11,12 +11,23 @@ const nomeForn = (f) => (f ? f.nomeFantasia || f.nome || f.razaoSocial || `#${f.
 export async function gerarPic(quem) {
   const { artigos, atendidos, itens } = await simularCruzamento();
   const at = new Set(atendidos);
-  const compra = itens.filter((i) => !at.has(i.id) && Object.keys(necessidade(i)).length);
+  const doCruz = itens.filter((i) => !at.has(i.id) && Object.keys(necessidade(i)).length);
+  // v483 — itens reprovados no cruzamento (o operador mandou comprar mesmo havendo estoque)
+  const reprov = (await prisma.compraItem.findMany({ where: { status: "REPROVADO" } })).filter((i) => Object.keys(necessidade(i)).length);
+  const compra = [...doCruz, ...reprov];
   if (!compra.length) return { error: "Nenhum item para comprar: o estoque atende todo o levantamento." };
   // pedidos de origem por artigo
   const origem = {};
-  for (const i of compra) for (const [a, q] of Object.entries(necessidade(i))) (origem[a] ||= []).push({ pedido: i.pedidoNumero, chave: i.chave, cliente: i.cliente, quantidade: r3(q), avulsa: ehAvulsa(i.pedidoNumero) });
-  const linhas = artigos.filter((a) => a.comprar > 0 && origem[a.artigoId]);
+  for (const i of compra) for (const [a, q] of Object.entries(necessidade(i))) (origem[a] ||= []).push({ pedido: i.pedidoNumero, chave: i.chave, cliente: i.cliente, quantidade: r3(q), avulsa: ehAvulsa(i.pedidoNumero), reprovado: i.status === "REPROVADO" });
+  const porArt = Object.fromEntries(artigos.map((a) => [String(a.artigoId), { ...a }]));
+  for (const i of reprov) {
+    for (const [a, q] of Object.entries(necessidade(i))) {
+      if (!porArt[a]) { const d = (i.demanda || []).find((x) => String(x.equiparadoA || x.artigoId) === a) || {};
+        porArt[a] = { artigoId: Number(a), nome: d.nome, cor: d.cor, codigo: d.codigo, largura: d.largura, unidade: d.unidade, embalagem: d.embalagem || null, fornecedorId: d.fornecedorId, comprar: 0, paraCompra: 0, sobra: 0 }; }
+      porArt[a].comprar = r3((porArt[a].comprar || 0) + q); porArt[a].paraCompra = r3((porArt[a].paraCompra || 0) + q);
+    }
+  }
+  const linhas = Object.values(porArt).filter((a) => a.comprar > 0 && origem[a.artigoId]);
   if (!linhas.length) return { error: "O que falta já está coberto pela sobra do estoque." };
   const arts = Object.fromEntries((await prisma.artigo.findMany({ where: { id: { in: linhas.map((a) => a.artigoId) } }, select: { id: true, fornecedorId: true, valorUnitario: true } })).map((a) => [a.id, a]));
   const pic = await prisma.pic.create({ data: { numero: `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, criadoPorNome: quem || null } });
