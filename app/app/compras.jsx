@@ -1491,7 +1491,7 @@ export function PainelCompras({ ir }) {
       {vis.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex px-4 py-2 text-xs font-semibold gap-3" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-44">Fornecedor</div><div className="w-28">PIC / OC</div><div className="w-52">Etapa</div>
+            <div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-40">Fornecedor</div><div className="w-28">PIC / OC</div><div className="w-32">Para</div><div className="w-36">Etapa</div>
           </div>
           {vis.map((i) => {
             const e = ETAPAS.find((x) => x[0] === i.etapa) || ETAPAS[0];
@@ -1501,11 +1501,14 @@ export function PainelCompras({ ir }) {
                 <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
                   <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.pedidos.join(" · ")}</div></div>
                 <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
-                <div className="w-44 text-xs truncate" style={{ color: i.fornecedor ? C.text : C.sub }}>{i.fornecedor || "—"}</div>
+                <div className="w-40 text-xs truncate" style={{ color: i.fornecedor ? C.text : C.sub }}>{i.fornecedor || "—"}</div>
                 <div className="w-28 text-xs" style={{ color: C.sub }}>{i.pic}{i.oc ? <div className="font-semibold" style={{ color: C.navy }}>{i.oc.numero}{i.oc.nf ? ` · NF ${i.oc.nf}` : ""}</div> : null}</div>
-                <div className="w-52">
-                  <Chip cor={e[2]} fundo={e[3]}>{e[1]}</Chip>
-                  <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>
+                <div className="w-32 flex flex-wrap gap-1">{(i.destinos || []).map((x) => x === "OPERACAO"   // v489 — operação (interno) ou pedido indexado
+                  ? <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.panel2, color: C.sub }}>Operação</span>
+                  : <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.blueSoft, color: C.blue }}>{x.replace("PED ", "Ped. ")}</span>)}</div>
+                <div className="w-36 min-w-0">
+                  <span className="text-[10px] font-semibold px-1.5 py-px rounded whitespace-nowrap" style={{ background: e[3], color: e[2] }}>{e[1]}</span>
+                  <div className="text-[10px] mt-0.5 truncate" style={{ color: C.sub }}>
                     {cotTxt}
                     {i.etapa === "EM_COLETA" && (i.rota ? `rota ${dBR(i.rota.data).slice(0, 5)} · ${ST_ROTA[i.rota.status] || i.rota.status}${i.rota.blocoId ? ` R${i.rota.blocoId}` : ""}` : "sem rota de coleta")}
                     {["EM_TRANSPORTADORA", "ENTREGA_FORNECEDOR", "AGUARDANDO_NF"].includes(i.etapa) && i.previsao ? `previsão ${dBR(i.previsao)}` : ""}
