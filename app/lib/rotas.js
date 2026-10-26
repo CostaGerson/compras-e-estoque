@@ -388,11 +388,25 @@ export async function salvarDemanda(b, u) {
   return { ok: true, demanda: demandaOut(d), semMapa: d.lat == null };
 }
 
-export async function cancelarDemanda(id) {
+// v453 — pode cancelar mesmo em rota em execução: sai da rota, os links do Maps são refeitos e o motorista é avisado
+export async function cancelarDemanda(id, u) {
   const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
   if (!d) return { error: "Demanda não encontrada." };
-  if (d.status === "EM_EXECUCAO") return { error: "Está numa rota em execução." };
-  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { status: "CANCELADA", blocoId: null } });
+  if (d.status === "CONCLUIDA") return { error: "Demanda já concluída." };
+  if (d.status === "CANCELADA") return { ok: true };
+  const obs = d.status === "EM_EXECUCAO" ? [d.obs, `Cancelada em rota por ${nomeU(u) || "?"}`].filter(Boolean).join(" · ") : d.obs;
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { status: "CANCELADA", blocoId: null, ordem: null, obs } });
+  if (d.status === "EM_EXECUCAO" && d.blocoId) {
+    const bl = await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } });
+    if (bl && bl.status === "EM_EXECUCAO") {
+      const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+      const fab = await fabrica();
+      const links = !ds.length ? [] : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
+      await prisma.rotaBloco.update({ where: { id: bl.id }, data: { links } }).catch(() => null);
+      const usu = bl.motoristaId && !bl.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: bl.motoristaId }, select: { id: true } }) : null;
+      if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `PARADA CANCELADA NA SUA ROTA: ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}. NÃO PRECISA MAIS IR LÁ.` } }).catch(() => null);
+    }
+  }
   return { ok: true };
 }
 

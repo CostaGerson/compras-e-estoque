@@ -480,7 +480,8 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     } catch (e) { setErro(e.message); setSalv(false); }
   }
   async function cancelar() {
-    if (!(await confirmar(`Cancelar a demanda de ${inicial.destinoNome}?`))) return;
+    const emRota = inicial.status === "EM_EXECUCAO";
+    if (!(await confirmar(emRota ? `A demanda de ${inicial.destinoNome} está numa rota em andamento. Cancelar mesmo assim? Ela sai da rota e o motorista é avisado.` : `Cancelar a demanda de ${inicial.destinoNome}?`))) return;
     try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "cancelar", id: inicial.id }); onOk(); } catch (e) { setErro(e.message); }
   }
   return (
@@ -563,7 +564,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           {erro && <div className="col-span-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
         </fieldset>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
-          {!novo && !trava && <button onClick={cancelar} className="text-xs flex items-center gap-1" style={{ color: C.red }}><X size={13} /> Cancelar demanda</button>}
+          {!novo && inicial.status !== "CONCLUIDA" && <button onClick={cancelar} className="text-xs flex items-center gap-1" style={{ color: C.red }}><X size={13} /> Cancelar demanda</button>}
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
           {!trava && <button onClick={salvar} disabled={salv} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{salv && <Loader2 size={14} className="animate-spin" />} Salvar</button>}

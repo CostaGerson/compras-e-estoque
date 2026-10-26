@@ -38,7 +38,7 @@ export async function POST(req) {
   const r = (x) => Response.json(x, { status: x?.error ? 400 : 200 });
   switch (b.acao) {
     case "demanda": return r(await salvarDemanda(b.demanda || {}, u));
-    case "cancelar": return r(await cancelarDemanda(b.id));
+    case "cancelar": return r(await cancelarDemanda(b.id, u));
     case "destinatario": return r(await salvarDestinatario(b.destinatario || {}, u));   // v430
     case "excluirDestinatario": return r(await excluirDestinatario(b.id));
     case "fabrica": if (!podeMontar(u)) return negado(); return r(await salvarFabrica(b.endereco, b.geo));
