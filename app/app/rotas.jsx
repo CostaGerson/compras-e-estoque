@@ -70,6 +70,15 @@ export default function Rotas({ user, nova }) {
   const [montar, setMontar] = useState(null);   // { ids, bloco? }
   const [cfgFab, setCfgFab] = useState(false);
   const [escolher, setEscolher] = useState(false);   // v426 — escolher as demandas do dia para a rota
+  // v507 — concluir (ou reabrir) a demanda direto no calendário, mesmo sem rota
+  async function concluirDem(y) {
+    if (y.status === "CONCLUIDA") {
+      if (!(await confirmar(`Reabrir a demanda de ${y.destinoNome}?`))) return;
+      try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "reativar", id: y.id }); carregar(); } catch (e) { alerta(e.message); }
+      return;
+    }
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "concluirDemanda", id: y.id }); carregar(); } catch (e) { alerta(e.message); }
+  }
   // v454 — parada cancelada numa rota despachada: abre a montagem já sem ela, para mandar a rota alterada ao motorista
   async function abrirAlteracao(c) {
     const b = (d?.blocos || []).find((x) => x.id === c.blocoId);
@@ -145,7 +154,7 @@ export default function Rotas({ user, nova }) {
             const l = visiveis(x, lTudo);   // v464 — concluídas ocultas até clicar em "mostrar concluídas"
             const grande = x === FOCO;
             const sel = x === dia;
-            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
+            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
             const lista = (ll) => agruparRota(ll, mini, setVerRota);
             const tarde = (y) => String(y.janela?.[0] || "") >= "12:00";
             return (
@@ -218,7 +227,7 @@ export default function Rotas({ user, nova }) {
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: C.panel, border: `${x === dia || x === H ? 2 : 1}px solid ${x === dia || x === H ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
                 <div className="text-xs font-bold mb-1 flex items-center" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}<span className="ml-auto">{btnConc(x, lTudo, true)}</span></div>
-                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />, setVerRota)}
+                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />, setVerRota)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
               </div>
             );
@@ -272,17 +281,27 @@ function agruparRota(l, render, onRota) {
   });
 }
 
-function MiniDemanda({ x, grande, onClick, onRota }) {
+function MiniDemanda({ x, grande, onClick, onRota, onConcluir }) {
   const c = corDemanda(x);
   const Ico = x.frete ? Truck : x.veiculo === "MOTO" ? Bike : Car;   // v460 — ícone do veículo (o tipo já está na cor)
   const naRota = !!x.blocoId;   // v444 — em rota: mais opaca e com o botão R<nº>
+  const feita = x.status === "CONCLUIDA";
+  // v507 — igual ao calendário: no hover aparece o check à esquerda e o texto desliza
   const btn = (
-    <button onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} className="flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: x.status === "CONCLUIDA" ? 0.55 : naRota ? 0.6 : 1 }}>
-      <div className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: c.tx }}>
-        {x.status === "CONCLUIDA" ? <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} /> : <Ico size={11} className="shrink-0" />}
-        <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""} · ${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
+    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`}
+      className="group relative flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0 overflow-hidden cursor-pointer" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: feita ? 0.55 : naRota ? 0.6 : 1 }}>
+      {onConcluir && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onConcluir(x); }} title={feita ? "Reabrir" : "Concluir"}
+          className={`absolute left-1 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full ${feita ? "" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"}`}
+          style={{ width: 15, height: 15, border: `1.5px solid ${feita ? "#5DA283" : "#6D6E6F"}`, background: feita ? "#5DA283" : "rgba(255,255,255,.85)", transition: "all .18s ease", zIndex: 1 }}>
+          <svg width="9" height="9" viewBox="0 0 12 12"><path d="M2.5 6.2l2.2 2.2 4.8-4.9" fill="none" stroke={feita ? "#fff" : "#6D6E6F"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+      )}
+      <div className={`flex items-center gap-1 text-[11px] font-semibold min-w-0 ${onConcluir ? (feita ? "translate-x-4" : "group-hover:translate-x-4") : ""}`} style={{ color: c.tx, transition: "transform .18s ease" }}>
+        {feita ? (onConcluir ? null : <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} />) : <Ico size={11} className="shrink-0" />}
+        <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""} · ${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} style={{ textDecoration: feita ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
-    </button>
+    </div>
   );
   if (!naRota || !onRota) return btn;
   return (

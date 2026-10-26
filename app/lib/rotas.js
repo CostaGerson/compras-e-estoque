@@ -568,6 +568,20 @@ export async function reativarDemanda(id, u) {
   return { ok: true, naRota: null };
 }
 
+// v507 — concluir a demanda direto no calendário, mesmo sem rota (ex.: alguém resolveu por fora)
+export async function concluirDemandaAvulsa(id, u) {
+  const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
+  if (!d) return { error: "Demanda não encontrada." };
+  if (d.status === "CONCLUIDA") return { ok: true };
+  if (d.status === "CANCELADA") return { error: "Demanda cancelada." };
+  if (d.status === "EM_EXECUCAO") return concluirParada(d.id, u);   // está numa rota em andamento: conclui como parada
+  const sai = d.blocoId && d.status === "NO_BLOCO" ? d.blocoId : null;   // estava numa rota ainda em montagem: sai dela
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), blocoId: null, ordem: null,
+    obs: [d.obs, `Concluída sem rota por ${nomeU(u) || "?"}`].filter(Boolean).join(" · ") } });
+  if (sai && !(await prisma.rotaDemanda.count({ where: { blocoId: sai } }))) await prisma.rotaBloco.update({ where: { id: sai }, data: { status: "CANCELADO" } }).catch(() => null);
+  return { ok: true };
+}
+
 // v461 — "motorista está na fábrica": encerra as rotas em execução dele (lançadas por engano ou esquecidas).
 // Paradas concluídas ficam; as que faltam voltam a ficar abertas para outra rota.
 export async function liberarMotorista(motoristaId, u) {
