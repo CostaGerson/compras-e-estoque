@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, reativarDemanda, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 
 // monta e despacha rotas: master, diretoria, administrativo e logística
@@ -58,6 +58,7 @@ export async function POST(req) {
     }
     case "bloco": if (!podeMontar(u)) return negado(); return r(await salvarBloco(b, u));
     case "posicao": return r(await registrarPosicao(u.pessoaId, b.lat, b.lng));   // v463 — app do motorista
+    case "reativar": if (!podeMontar(u)) return negado(); return r(await reativarDemanda(b.id, u));   // v465
     case "liberarMotorista": if (!podeLiberar(u)) return negado("Só master, diretoria ou administrativo."); return r(await liberarMotorista(b.motoristaId, u));   // v461
     case "alterar": if (!podeMontar(u)) return negado(); return r(await alterarBloco(b, u));   // v454
     case "despachar": {

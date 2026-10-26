@@ -502,6 +502,22 @@ export async function aoVivo() {
   return { rotas, agora: hhmm(agoraMin) };
 }
 
+// v465 — reativar demanda concluída por engano: volta para a rota se ela ainda está em execução; senão fica aberta para outra rota
+export async function reativarDemanda(id, u) {
+  const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
+  if (!d) return { error: "Demanda não encontrada." };
+  if (d.status !== "CONCLUIDA") return { error: "Só demanda concluída pode ser reativada." };
+  const bl = d.blocoId ? await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } }) : null;
+  const nota = [d.obs, `Reativada por ${nomeU(u) || "?"}`].filter(Boolean).join(" · ");
+  if (bl?.status === "EM_EXECUCAO") {
+    await prisma.rotaDemanda.update({ where: { id: d.id }, data: { status: "EM_EXECUCAO", concluidaEm: null, concluidaPorNome: null, obs: nota } });
+    if (bl.voltaIniciadaEm) await prisma.rotaBloco.update({ where: { id: bl.id }, data: { voltaIniciadaEm: null } });
+    return { ok: true, naRota: bl.id };
+  }
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { status: "ABERTA", blocoId: null, ordem: null, iniciadaEm: null, concluidaEm: null, concluidaPorNome: null, obs: nota } });
+  return { ok: true, naRota: null };
+}
+
 // v461 — "motorista está na fábrica": encerra as rotas em execução dele (lançadas por engano ou esquecidas).
 // Paradas concluídas ficam; as que faltam voltam a ficar abertas para outra rota.
 export async function liberarMotorista(motoristaId, u) {

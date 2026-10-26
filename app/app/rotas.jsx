@@ -497,6 +497,11 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
       onOk();
     } catch (e) { setErro(e.message); setSalv(false); }
   }
+  // v465 — concluída por engano
+  async function reativar() {
+    if (!(await confirmar(`Reativar a demanda de ${inicial.destinoNome}? Se a rota dela ainda está em andamento ela volta para a rota; senão fica aberta para entrar em outra rota.`))) return;
+    try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "reativar", id: inicial.id }); onOk(); alerta(r.naRota ? `Demanda reativada na rota ${r.naRota}.` : "Demanda reativada: está aberta para entrar numa rota."); } catch (e) { setErro(e.message); }
+  }
   async function cancelar() {
     const emRota = inicial.status === "EM_EXECUCAO";
     if (!(await confirmar(emRota ? `A demanda de ${inicial.destinoNome} está numa rota em andamento. Cancelar mesmo assim? Ela sai da rota e o motorista é avisado.` : `Cancelar a demanda de ${inicial.destinoNome}?`))) return;
@@ -585,6 +590,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           {erro && <div className="col-span-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
         </fieldset>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          {inicial.status === "CONCLUIDA" && <button onClick={reativar} className="text-xs flex items-center gap-1 font-semibold" style={{ color: C.accent }}><Undo2 size={13} /> Reativar demanda</button>}
           {!novo && inicial.status !== "CONCLUIDA" && <button onClick={cancelar} className="text-xs flex items-center gap-1" style={{ color: C.red }}><X size={13} /> Cancelar demanda</button>}
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
