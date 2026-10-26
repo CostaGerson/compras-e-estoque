@@ -236,7 +236,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   const nPend = d.pedidos.filter((p) => p.comFpp < p.total).length;
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -597,13 +597,13 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
   const nomeArt = useMemo(() => Object.fromEntries((d?.consolidado || []).map((c) => [c.artigoId, c])), [d]);
 
   const barra = <FasesCompras atual={fase === "cruzamento" ? "comprasCruzamento" : "levantamento"} fases={fases} ir={ir} />;
-  if (fase === "cruzamento") return <div className="max-w-5xl">{barra}<Cruzamento user={user} veValores={veValores} onMudou={carregar} irPic={irPic} /></div>;
+  if (fase === "cruzamento") return <div className="w-full">{barra}<Cruzamento user={user} veValores={veValores} onMudou={carregar} irPic={irPic} /></div>;
   if (erro) return <div className="text-sm" style={{ color: C.red }}>{erro}</div>;
-  if (!d) return <div className="max-w-5xl">{barra}<div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando levantamento…</div></div>;
+  if (!d) return <div className="w-full">{barra}<div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando levantamento…</div></div>;
 
   const Kpi = ({ l, v }) => <div className="rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}><div className="text-xs" style={{ color: C.sub }}>{l}</div><div className="text-xl font-bold" style={{ color: C.navy }}>{v}</div></div>;
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       {barra}
       <p className="text-sm mb-3" style={{ color: C.sub }}>Demandas de matéria-prima dos pedidos e das compras avulsas. Clique em <b>Cruzar com estoque</b>: o sistema mostra o que o estoque atende e você <b>autoriza</b> (fica atendido pelo estoque e o Leandro é avisado) ou <b>reprova</b> (vira demanda de compra, entra no PIC).</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -711,7 +711,7 @@ export function Atendidos({ fases, ir }) {
     return Object.values(m);
   }, [d]);
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <FasesCompras atual="comprasAtendidos" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Itens autorizados para atender pelo estoque. Enquanto o material não seguiu para a produção, dá para devolver ao levantamento.</p>
       {erro && <div className="text-sm" style={{ color: C.red }}>{erro}</div>}
@@ -966,7 +966,7 @@ export function PicCompras({ user, fases, ir }) {
   }
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
-    <div className="max-w-6xl">
+    <div className="w-full">
       <FasesCompras atual="pic" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
@@ -1077,7 +1077,7 @@ export function OrdensCompra({ user, fases, ir }) {
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
       <div className="flex items-center gap-2 mb-3">
         {[["ativas", "Em andamento"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
@@ -1401,7 +1401,7 @@ export function Cotacoes({ user, fases, ir }) {
   const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "OC" ? ehOc(c) : c.status === filtro));
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
-    <div className="max-w-6xl">
+    <div className="w-full">
       <FasesCompras atual="comprasCotacoes" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Todas as cotações geradas no <b>PIC</b>, uma por fornecedor: <b>geradas</b>, <b>enviadas</b> (ao copiar, baixar ou abrir no WhatsApp), <b>respondidas</b> (quando você registra o valor) e <b>com OC</b>. Na respondida, <b>Gerar OC</b> pede o valor negociado, o prazo e a forma de recebimento. O menor preço entre as cotações de cada artigo aparece em verde.</p>
       <div className="flex items-center gap-2 mb-3">
