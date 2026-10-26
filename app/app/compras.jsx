@@ -338,6 +338,8 @@ export function Avulsas({ user }) {
   const [l, setL] = useState(null);
   const [ed, setEd] = useState(null);   // compra em edição (nova ou existente)
   const [forns, setForns] = useState(_fornAv || []);
+  const [aba, setAba] = useState("pendentes");   // v472
+
   const carregar = () => fetch("/api/compras/avulsas").then((r) => r.json()).then(setL).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornAv) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornAv = Array.isArray(x) ? x : []; setForns(_fornAv); }).catch(() => {}); }, []);
   const nomeF = (f) => f.nome || f.nomeFantasia || f.razaoSocial || "";
@@ -355,9 +357,10 @@ export function Avulsas({ user }) {
   }
   async function status(c, st) {
     if (st === "CANCELADA" && !(await confirmar("Cancelar esta compra avulsa?"))) return;
-    await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st }) });
+    await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st, usuarioId: user?.id }) });
     carregar();
   }
+  const vis = (l || []).filter((c) => (aba === "arquivadas" ? c.status === "RECEBIDA" : c.status !== "RECEBIDA"));   // v472
   const BomPara = ({ iso }) => { const c = corBomPara(iso); return iso ? <span className="px-2 py-0.5 rounded text-xs font-semibold" style={{ color: c[0], background: c[1] }}>{dBR(iso)}</span> : <span className="text-xs" style={{ color: C.sub }}>—</span>; };
   const ST = { ABERTA: [C.accent, C.accentSoft, "aberta"], COMPRADA: [C.blue, C.blueSoft || C.panel2, "comprada"], RECEBIDA: [C.green, C.greenSoft, "recebida"] };
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
@@ -370,8 +373,14 @@ export function Avulsas({ user }) {
           className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Compra avulsa</button>
       </div>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-      {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma compra avulsa.</div>}
-      {(l || []).map((c) => {
+      {/* v472 — recebidas vão para Arquivadas */}
+      {l && <div className="flex gap-2 mb-3">
+        {[["pendentes", `Pendentes (${l.filter((c) => c.status !== "RECEBIDA").length})`], ["arquivadas", `Arquivadas · recebidas (${l.filter((c) => c.status === "RECEBIDA").length})`]].map(([k, t]) => (
+          <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: aba === k ? C.accent : C.panel, color: aba === k ? "#fff" : C.sub, border: `1px solid ${aba === k ? C.accent : C.line}` }}>{t}</button>
+        ))}
+      </div>}
+      {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{aba === "arquivadas" ? "Nenhuma compra avulsa recebida." : "Nenhuma compra avulsa pendente."}</div>}
+      {vis.map((c) => {
         const [cor, fundo, txt] = ST[c.status] || ST.ABERTA;
         return (
           <div key={c.id} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>

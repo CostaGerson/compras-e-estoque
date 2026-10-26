@@ -1,6 +1,7 @@
 // v417 — compras avulsas (operação ou complemento de um pedido): itens com nome, quantidade, fornecedor e "bom para"
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { notificar } from "@/lib/push";   // v472
 import { sincronizarAvulsa } from "@/lib/compras";   // v419 — vai para o levantamento
 
 const up = (s) => String(s || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -19,6 +20,20 @@ function limpar(b) {
     pedidoCliente: b.destino === "PEDIDO" ? String(b.pedidoCliente || "").trim() || null : null,   // v471
     obs: String(b.obs || "").trim() || null, itens,
   };
+}
+
+// v472 — avulsa recebida: aviso ao Leandro (encarregado do PCP) por mensagem e notificação no celular
+async function avisarRecebida(c, porId) {
+  const us = (await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, sobrenome: true } }))
+    .filter((u) => /(^|\s)LEANDRO(\s|$)/.test(`${u.nome || ""} ${u.sobrenome || ""}`.toUpperCase()));
+  if (!us.length) return;
+  const itens = (Array.isArray(c.itens) ? c.itens : []).map((i) => `${i.nome} (${String(i.quantidade).replace(".", ",")} ${String(i.unidade || "").toLowerCase()})`);
+  const nome = `AVULSA ${c.numero || `#${c.id}`}${c.destino === "PEDIDO" && c.pedidoRef ? ` · PEDIDO ${c.pedidoRef}` : ""}`;
+  for (const u of us) {
+    const de = Number(porId) || u.id;
+    await prisma.mensagem.create({ data: { deId: de, paraId: u.id, texto: `COMPRA ${nome} RECEBIDA NA FÁBRICA: ${itens.join("; ")}.`.slice(0, 2000) } }).catch(() => null);
+    await notificar(u.id, { titulo: `Compra ${nome} recebida ✅`, texto: itens.slice(0, 3).join("; ") + (itens.length > 3 ? ` e mais ${itens.length - 3}` : ""), tag: `avulsa-${c.id}` }).catch(() => null);
+  }
 }
 
 export async function GET(req) {
@@ -48,8 +63,10 @@ export async function PATCH(req) {
   const id = Number(b.id);
   const data = b.itens ? limpar(b) : {};
   if (STATUS.includes(b.status)) data.status = b.status;
+  const ant = await prisma.compraAvulsa.findUnique({ where: { id }, select: { status: true } });
   const c = await prisma.compraAvulsa.update({ where: { id }, data });
   await sincronizarAvulsa(c);
+  if (c.status === "RECEBIDA" && ant?.status !== "RECEBIDA") await avisarRecebida(c, b.usuarioId).catch((e) => console.log("avulsa/aviso:", e.message));   // v472
   return Response.json(c);
 }
 export async function DELETE(req) {
