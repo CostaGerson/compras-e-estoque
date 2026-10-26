@@ -249,7 +249,7 @@ export function telefoneWa(t) {
 // v446 — mensagem: título de cada parada em negrito, uma linha em branco entre paradas, sem CEP,
 // tempo previsto no local e horário estimado de volta à fábrica
 const semCep = (e) => String(e || "").replace(/,?\s*(CEP\s*)?\d{5}-?\d{3}\b/gi, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").trim();
-export function mensagemWhats(bloco, paradas, links, av) {
+export function mensagemWhats(bloco, paradas, links, av, canceladas = []) {
   const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
   const blocos = paradas.map((d, i) => {
     const fica = eta[d.id]?.tempoLocal ?? d.tempoLocal ?? PARADA_MIN;
@@ -262,7 +262,9 @@ export function mensagemWhats(bloco, paradas, links, av) {
       d.obs ? `Obs: ${d.obs}` : null,
     ].filter(Boolean).join("\n");
   });
-  return [`*Rota ${bloco.id} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${bloco.saida ? ` · saída ${bloco.saida}` : ""}`, "",
+  const alt = !!bloco.alteradaEm;   // v454 — rota alterada depois de despachada
+  return [`*Rota ${bloco.id}${alt ? " ALTERADA" : ""} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${!alt && bloco.saida ? ` · saída ${bloco.saida}` : ""}`,
+    ...(alt ? [canceladas.length ? `*Cancelada${canceladas.length > 1 ? "s" : ""}: ${canceladas.join("; ")}* (não precisa mais ir)` : null, "Paradas que faltam, na nova ordem:"].filter(Boolean) : []), "",
     blocos.join("\n\n"), "", `*Volta à fábrica no final${av?.retorno ? ` · previsão ${av.retorno}` : ""}.*`, "", ...links.map((l, i) => `Mapa${links.length > 1 ? ` (parte ${i + 1})` : ""}: ${l}`), "", "Marque cada parada como concluída no sistema (Logística › Rotas)."].join("\n");
 }
 async function estimativa(bl, ds, fab) {
@@ -407,7 +409,33 @@ export async function cancelarDemanda(id, u) {
       if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `PARADA CANCELADA NA SUA ROTA: ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}. NÃO PRECISA MAIS IR LÁ.` } }).catch(() => null);
     }
   }
-  return { ok: true };
+  return { ok: true, blocoId: d.status === "EM_EXECUCAO" ? d.blocoId : null };
+}
+
+// v454 — rota em execução alterada (ex.: parada cancelada): nova ordem das paradas que faltam, links do Maps
+// partindo de onde o motorista está e mensagem nova com o título "Rota N ALTERADA"
+export async function alterarBloco(b, u) {
+  const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(b.id) } });
+  if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
+  const todas = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  const feitas = todas.filter((d) => d.status === "CONCLUIDA");
+  const pend = todas.filter((d) => d.status !== "CONCLUIDA");
+  const ids = (b.ordem || []).map(Number).filter(Boolean);
+  const porId = Object.fromEntries(pend.map((d) => [d.id, d]));
+  if (ids.length !== pend.length || ids.some((i) => !porId[i])) return { error: "A rota mudou enquanto você editava. Feche e abra de novo." };
+  const tl = tempos(b.tempos);
+  const seq = ids.map((i) => (tl[i] != null ? { ...porId[i], tempoLocal: tl[i] } : porId[i]));
+  for (const [i, d] of seq.entries()) await prisma.rotaDemanda.update({ where: { id: d.id }, data: { ordem: feitas.length + i + 1, tempoLocal: d.tempoLocal ?? null } });
+  const fab = await fabrica();
+  // o 1º link sai da posição atual do motorista (sem origem, o Google Maps usa a localização do celular)
+  const links = !seq.length ? [] : (fab ? linksMaps(fab, seq) : linksMaps(seq[0], seq.slice(1))).map((l, i) => (i === 0 && fab ? l.replace(/&origin=[^&]*/, "") : l));
+  const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { links, alteradaEm: new Date() } });
+  const canceladas = (b.canceladas || []).map((x) => String(x).trim()).filter(Boolean).slice(0, 20);
+  const texto = mensagemWhats(n, seq, links, null, canceladas);
+  const tel = telefoneWa(await telefoneAtual(n));
+  const usu = n.motoristaId && !n.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: n.motoristaId }, select: { id: true } }) : null;
+  if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `SUA ROTA ${n.id} FOI ALTERADA${canceladas.length ? ` (CANCELADA: ${canceladas.join("; ").toUpperCase()})` : ""}. VEJA A NOVA ORDEM NO APP.` } }).catch(() => null);
+  return { ok: true, alterada: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
 
 // v439 — { id: minutos } vindo da tela (0 a 600 min)
@@ -473,10 +501,11 @@ async function telefoneAtual(bl) {
 export async function mensagemBloco(id) {
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
   if (!bl) return { error: "Rota não encontrada." };
-  const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  let ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
   const fab = await fabrica();
+  if (bl.alteradaEm) ds = ds.filter((d) => d.status !== "CONCLUIDA");   // v454 — rota alterada: só o que falta
   const links = bl.links?.length ? bl.links : fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
-  const texto = mensagemWhats(bl, ds, links, await estimativa(bl, ds, fab));
+  const texto = mensagemWhats(bl, ds, links, bl.alteradaEm ? null : await estimativa(bl, ds, fab));
   const tel = telefoneWa(await telefoneAtual(bl));   // v449 — telefone atual da ficha (pode ter sido cadastrado depois da rota)
   return { ok: true, bloco: { ...bl, data: iso(bl.data), links }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }

@@ -63,6 +63,15 @@ export default function Rotas({ user, nova }) {
   const [montar, setMontar] = useState(null);   // { ids, bloco? }
   const [cfgFab, setCfgFab] = useState(false);
   const [escolher, setEscolher] = useState(false);   // v426 — escolher as demandas do dia para a rota
+  // v454 — parada cancelada numa rota despachada: abre a montagem já sem ela, para mandar a rota alterada ao motorista
+  async function abrirAlteracao(c) {
+    const b = (d?.blocos || []).find((x) => x.id === c.blocoId);
+    const ids = (d?.demandas || []).filter((x) => x.blocoId === c.blocoId && x.id !== c.id && x.status === "EM_EXECUCAO").sort((a, z) => a.ordem - z.ordem).map((x) => x.id);
+    if (!b) return;
+    if (!pode) return alerta(`Demanda cancelada. A rota ${b.id} já foi avisada ao motorista; quem monta as rotas pode reenviar a ordem nova.`);
+    if (!ids.length) return alerta(`Demanda cancelada. A rota ${b.id} não tem mais paradas pendentes: o motorista já pode voltar à fábrica.`);
+    setDia(b.data); setMontar({ ids, bloco: b, canceladas: [c.nome] });
+  }
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
   const dias = useMemo(() => {
     if (modo === "semana") { const i = inicioSemana(ref); return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
@@ -209,8 +218,8 @@ export default function Rotas({ user, nova }) {
       {/* v426 — mapa em largura total; rotas do dia logo abaixo */}
       {d && modo !== "semana" && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} />}
 
-      {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
-      {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
+      {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={(c) => { setForm(null); if (c?.blocoId) abrirAlteracao(c); carregar(); }} />}
+      {montar && <MontarRota user={user} ids={montar.ids} bloco={montar.bloco} canceladas={montar.canceladas} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
       {escolher && <EscolherDemandas dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
       {verRota && (() => {
         const b = (d?.blocos || []).find((x) => x.id === verRota);
@@ -482,7 +491,10 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   async function cancelar() {
     const emRota = inicial.status === "EM_EXECUCAO";
     if (!(await confirmar(emRota ? `A demanda de ${inicial.destinoNome} está numa rota em andamento. Cancelar mesmo assim? Ela sai da rota e o motorista é avisado.` : `Cancelar a demanda de ${inicial.destinoNome}?`))) return;
-    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "cancelar", id: inicial.id }); onOk(); } catch (e) { setErro(e.message); }
+    try {
+      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "cancelar", id: inicial.id });
+      onOk(r?.blocoId ? { blocoId: r.blocoId, id: inicial.id, nome: [inicial.destinoNome, inicial.tarefa].filter(Boolean).join(" - ") } : null);   // v454 — estava em rota despachada
+    } catch (e) { setErro(e.message); }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -613,7 +625,8 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
 }
 
 // ---------- montar a rota: melhor sequência, ajuste da ordem e despacho ----------
-function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk }) {
+function MontarRota({ user, ids, bloco, canceladas, demandas, motoristas, dia, onClose, onOk }) {
+  const alt = bloco?.status === "EM_EXECUCAO";   // v454 — rota já despachada: só reordena o que falta e reenvia
   const porId = Object.fromEntries(demandas.map((x) => [x.id, x]));
   const sugMot = bloco?.motoristaId || demandas.find((x) => ids.includes(x.id) && x.motoristaId)?.motoristaId || "";
   const agora = new Date(); const hoje = hojeISO() === dia;
@@ -632,11 +645,16 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
     try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l, saida, veiculo: veic, tempos: tp }); setAv(r); if (acao === "otimizar") setOrdem(r.ordem); } catch (e) { alerta(e.message); }
     setOcup(false);
   };
-  useEffect(() => { calc(bloco ? "avaliar" : "otimizar", ids); }, []);
-  useEffect(() => { if (av) calc("avaliar"); }, [saida, veic]);
+  useEffect(() => { if (!alt) calc(bloco ? "avaliar" : "otimizar", ids); }, []);
+  useEffect(() => { if (av && !alt) calc("avaliar"); }, [saida, veic]);
   const tT = useRef(null);
-  const mudarTempo = (id, v) => { const tp = { ...tempos, [id]: v === "" ? "" : Math.max(0, parseInt(v, 10) || 0) }; setTempos(tp); clearTimeout(tT.current); tT.current = setTimeout(() => calc("avaliar", ordem, tp), 500); };
-  const mexer = (i, dir) => { const l = [...ordem]; const j = i + dir; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; setOrdem(l); calc("avaliar", l); };
+  const mudarTempo = (id, v) => { const tp = { ...tempos, [id]: v === "" ? "" : Math.max(0, parseInt(v, 10) || 0) }; setTempos(tp); if (alt) return; clearTimeout(tT.current); tT.current = setTimeout(() => calc("avaliar", ordem, tp), 500); };
+  const mexer = (i, dir) => { const l = [...ordem]; const j = i + dir; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; setOrdem(l); if (!alt) calc("avaliar", l); };
+  async function enviarAlterada() {
+    setOcup(true);
+    try { const x = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "alterar", id: bloco.id, ordem, tempos, canceladas: canceladas || [] }); setDesp(x); } catch (e) { alerta(e.message); }
+    setOcup(false);
+  }
   const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
   const m = motoristas.find((x) => x.id === mot);
   async function salvar(despachar) {
@@ -657,14 +675,14 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
       <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto shadow-2xl" style={{ background: C.panel }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <IcoRota size={18} style={{ color: C.accent }} />
-          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{bloco ? `Rota ${bloco.id}` : "Montar rota"} · {dBR(dia)}</div>
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{bloco ? `Rota ${bloco.id}${alt ? " · alterada" : ""}` : "Montar rota"} · {dBR(dia)}</div>
           <button onClick={desp ? onOk : onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         {desp ? (
           <div className="p-5 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.green }}><CheckCircle2 size={18} /> Rota {desp.bloco.id} despachada · em execução</div>
+            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.green }}><CheckCircle2 size={18} /> Rota {desp.bloco.id} {desp.alterada ? "alterada" : "despachada"} · em execução</div>
             {desp.whatsapp ? (
-              <a href={desp.whatsapp} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={15} /> Enviar a rota no WhatsApp de {sc(desp.bloco.motoristaNome)}</a>
+              <a href={desp.whatsapp} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={15} /> Enviar a rota {desp.alterada ? "alterada " : ""}no WhatsApp de {sc(desp.bloco.motoristaNome)}</a>
             ) : <div className="text-xs px-3 py-2 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>{sc(desp.bloco.motoristaNome)} não tem telefone cadastrado (ficha do RH ou cadastro do freelancer). Copie a mensagem abaixo.</div>}
             {(desp.bloco.links || []).map((l, i) => <a key={i} href={l} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm" style={{ color: C.blue }}><ExternalLink size={13} /> Abrir no Google Maps{desp.bloco.links.length > 1 ? ` (parte ${i + 1})` : ""}</a>)}
             <textarea readOnly value={desp.texto} rows={8} className="w-full px-2 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, color: C.sub }} />
@@ -672,7 +690,10 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
           </div>
         ) : (
           <div className="p-5 space-y-3">
-            <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 110px" }}>
+            {alt && <div className="text-xs px-3 py-2 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>
+              Rota em andamento com {sc(bloco.motoristaNome)}.{canceladas?.length ? <> Cancelada: <b>{canceladas.join("; ")}</b>.</> : null} Ajuste a ordem das paradas que faltam e envie a rota alterada. O link do Maps sai de onde o motorista está.
+            </div>}
+            {!alt && <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 110px" }}>
               <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>Motorista</div>
                 <select value={mot} onChange={(e) => setMot(e.target.value)} className="w-full px-2.5 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>
                   <option value="">Escolha…</option>
@@ -683,13 +704,13 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
                   {[["CARRO", Car], ["MOTO", Bike]].map(([k, I]) => <button key={k} onClick={() => setVeic(k)} className="flex-1 py-1.5 flex justify-center" style={{ background: veic === k ? C.accent : "#fff", color: veic === k ? "#fff" : C.sub }}><I size={15} /></button>)}
                 </div></label>
               <label className="block"><div className="text-xs mb-1" style={{ color: C.sub }}>Saída</div><input type="time" value={saida} onChange={(e) => setSaida(e.target.value)} className="w-full px-2 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
-            </div>
-            <div className="flex items-center gap-2 text-xs" style={{ color: C.sub }}>
+            </div>}
+            {!alt && <div className="flex items-center gap-2 text-xs" style={{ color: C.sub }}>
               <span className="flex-1">{ocup ? <Loader2 size={13} className="animate-spin inline" /> : av ? <>Percurso estimado <b style={{ color: C.text }}>{String(av.km).replace(".", ",")} km</b> · retorno à fábrica por volta das <b style={{ color: C.text }}>{av.retorno}</b></> : ""}</span>
               <button onClick={() => calc("otimizar")} className="px-2.5 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.accent }}>Sugerir melhor ordem</button>
-            </div>
+            </div>}
             <div className="rounded-lg" style={{ border: `1px solid ${C.line}` }}>
-              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2 }}><Home size={13} /> Saída da fábrica · {saida}</div>
+              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2 }}><Home size={13} /> {alt ? "Posição atual do motorista" : `Saída da fábrica · ${saida}`}</div>
               {ordem.map((id, i) => {
                 const x = porId[id]; if (!x) return null; const e = eta[id];
                 return (
@@ -709,13 +730,14 @@ function MontarRota({ user, ids, bloco, demandas, motoristas, dia, onClose, onOk
                   </div>
                 );
               })}
-              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av ? ` · ${av.retorno}` : ""}{av?.volta ? ` (${av.volta.min} min de viagem · ${String(av.volta.km).replace(".", ",")} km)` : ""}</div>
+              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av && !alt ? ` · ${av.retorno}` : ""}{av?.volta ? ` (${av.volta.min} min de viagem · ${String(av.volta.km).replace(".", ",")} km)` : ""}</div>
             </div>
-            <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas com o trânsito previsto para o dia e a hora de saída, Google Maps" : "distância estimada em linha reta"} + o tempo previsto em cada local). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>
+            {!alt && <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas com o trânsito previsto para o dia e a hora de saída, Google Maps" : "distância estimada em linha reta"} + o tempo previsto em cada local). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>}
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+              {alt ? <button onClick={enviarAlterada} disabled={ocup || !ordem.length} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar rota alterada</button> : <>
               <button onClick={() => salvar(false)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Salvar rota</button>
-              <button onClick={() => salvar(true)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Send size={14} /> Despachar</button>
+              <button onClick={() => salvar(true)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Send size={14} /> Despachar</button></>}
             </div>
           </div>
         )}

@@ -1992,6 +1992,7 @@ model RotaBloco {
   links         Json      @default("[]")      // links do Google Maps (até 9 paradas por link)
   despachadoEm  DateTime?
   voltaIniciadaEm DateTime?                   // v452 — motorista iniciou a perna de volta à fábrica
+  alteradaEm    DateTime?                     // v454 — rota alterada depois de despachada (parada cancelada)
   retornoEm     DateTime?
   criadoPorNome String?
   createdAt     DateTime  @default(now())

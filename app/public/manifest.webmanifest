@@ -1,0 +1,16 @@
+{
+  "name": "Meridian — Sistema",
+  "short_name": "Meridian",
+  "description": "Compras, estoque, rotas e financeiro da Meridian",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#001E41",
+  "theme_color": "#001E41",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
