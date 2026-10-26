@@ -1035,6 +1035,7 @@ export function OrdensCompra({ fases, ir }) {
   };
   const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : true));
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
+  const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
   return (
     <div className="max-w-5xl">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
@@ -1062,12 +1063,28 @@ export function OrdensCompra({ fases, ir }) {
             </button>
             {aberto && (
               <div className="px-4 pb-3">
-                {o.itens.map((i) => (
-                  <div key={i.id} className="flex gap-2 py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
-                    <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span></div>
-                    <div className="w-28 text-right">{qtdU(i.quantidade, i.unidade)}</div><div className="w-28 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div><div className="w-28 text-right font-semibold">{brl(i.quantidade * i.valorUnitario)}</div>
-                  </div>
-                ))}
+                {(() => {   // v487 — itens editáveis (atualiza o PIC e a cotação de origem)
+                  const pode = !["RECEBIDA", "CANCELADA"].includes(o.status);
+                  const e = edIt[o.id] || Object.fromEntries(o.itens.map((i) => [i.id, { q: numBR(i.quantidade), v: numBR(i.valorUnitario) }]));
+                  const setE = (id, k, x) => setEdIt((m) => ({ ...m, [o.id]: { ...e, [id]: { ...e[id], [k]: x } } }));
+                  const mudou = !!edIt[o.id];
+                  const tot = o.itens.reduce((s0, i) => s0 + (lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0), 0);
+                  return <>
+                    {o.itens.map((i) => (
+                      <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
+                        <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span></div>
+                        <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
+                        <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
+                        <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>
+                      </div>
+                    ))}
+                    {pode && mudou && <div className="flex items-center justify-end gap-2 py-2">
+                      <span className="text-sm font-bold mr-2" style={{ color: C.navy }}>Novo total {brl(tot)}</span>
+                      <button onClick={() => setEdIt((m) => { const n = { ...m }; delete n[o.id]; return n; })} className="text-xs px-2.5 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}` }}>Descartar</button>
+                      <button onClick={async () => { await salvar(o, { itens: o.itens.map((i) => ({ id: i.id, quantidade: e[i.id]?.q, valorUnitario: e[i.id]?.v })) }); setEdIt((m) => { const n = { ...m }; delete n[o.id]; return n; }); }} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar itens{o.cotacao ? ` (atualiza a ${o.cotacao})` : ""}</button>
+                    </div>}
+                  </>;
+                })()}
                 <div className="flex flex-wrap items-end gap-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                   <label className="text-xs" style={{ color: C.sub }}>Condição de faturamento<input defaultValue={o.condicaoFaturamento || ""} onBlur={(e) => e.target.value !== (o.condicaoFaturamento || "") && salvar(o, { condicaoFaturamento: e.target.value })} placeholder="ex.: 30 dias" className="block mt-1 px-2 py-1 rounded text-sm w-40" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Prazo na fábrica<input type="date" defaultValue={o.prazoFabrica ? String(o.prazoFabrica).slice(0, 10) : ""} onChange={(e) => salvar(o, { prazoFabrica: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
@@ -1333,7 +1350,7 @@ export function Cotacoes({ user, fases, ir }) {
       {card && <CotacaoModal cot={card} onClose={() => { setCard(null); carregar(); }} />}
       {gerOc && <GerarOcCotacao c={gerOc} user={user} onClose={() => setGerOc(null)} onOk={() => { setGerOc(null); carregar(); }} />}
       {vis.map((c) => {
-        const d = dados(c), trav = ehOc(c);
+        const d = dados(c), trav = false, comOc = ehOc(c);   // v487 — cotação sempre editável
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
         const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * (Number(i.quantidade) || 0), 0);
         return (
@@ -1354,6 +1371,7 @@ export function Cotacoes({ user, fases, ir }) {
                 <div key={k} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: di.naoTem ? 0.55 : 1 }}>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
+                    {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                     {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f} ({m.n})</div>}
                   </div>
                   <div className="w-28 text-right">{qtdU(i.quantidade, i.unidade)}</div>
@@ -1371,15 +1389,15 @@ export function Cotacoes({ user, fases, ir }) {
               <label className="text-xs flex-1 min-w-[160px]" style={{ color: C.sub }}>Obs.<input disabled={trav} value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
               {c.status === "GERADA" && <button onClick={() => post({ acao: "enviada", id: c.id })} className="text-xs px-2.5 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>Marcar enviada</button>}
               <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ id: c.id, numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
-              {!trav && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>}
+              {!comOc && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>}
               {!trav && <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>}
-              {!trav && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
+              {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
                 if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
                 const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
                 setGerOc({ ...c, ...x.cotacao, itens: x.cotacao.itens });
               }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
-              {trav && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
-              {trav && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
+              {comOc && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
+              {comOc && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
             </div>
           </div>
         );

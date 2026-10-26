@@ -153,6 +153,19 @@ export async function salvarOc(b) {
   const o = await prisma.ordemCompra.findUnique({ where: { id: Number(b.id) } });
   if (!o) return { error: "OC não encontrada." };
   const dt = (v) => (v ? new Date(`${String(v).slice(0, 10)}T12:00:00Z`) : null);
+  // v487 — itens da OC (quantidade e valor unitário): atualiza o item do PIC, o preço do artigo e a cotação de origem
+  if (Array.isArray(b.itens)) {
+    if (["RECEBIDA", "CANCELADA"].includes(o.status)) return { error: "OC recebida ou cancelada não pode ser alterada." };
+    const its = await prisma.ocItem.findMany({ where: { ocId: o.id } });
+    for (const x of b.itens) {
+      const i = its.find((y) => y.id === Number(x.id)); if (!i) continue;
+      const q = num(x.quantidade), v = num(x.valorUnitario);
+      if (!(q > 0) || !(v > 0)) return { error: "Quantidade e valor unitário precisam ser maiores que zero." };
+      await prisma.ocItem.update({ where: { id: i.id }, data: { quantidade: r3(q), valorUnitario: v } });
+      if (i.picItemId) await prisma.picItem.update({ where: { id: i.picItemId }, data: { quantidade: r3(q), valorUnitario: v } }).catch(() => null);
+      await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: v } }).catch(() => null);
+    }
+  }
   await prisma.ordemCompra.update({ where: { id: o.id }, data: {
     ...(b.condicaoFaturamento !== undefined ? { condicaoFaturamento: String(b.condicaoFaturamento || "").trim() || null } : {}),
     ...(b.prazoFabrica !== undefined ? { prazoFabrica: dt(b.prazoFabrica) } : {}),
@@ -162,6 +175,7 @@ export async function salvarOc(b) {
     ...(b.formaRecebimento !== undefined ? { formaRecebimento: ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.formaRecebimento) ? b.formaRecebimento : null } : {}),
     ...(b.diasAposFaturamento !== undefined ? { diasAposFaturamento: parseInt(b.diasAposFaturamento, 10) || null } : {}),
   } });
+  if (o.cotacaoId) await sincronizarCotacaoDaOc(o.id).catch((e) => console.log("oc→cotação:", e.message));   // v487
   // v479 — NF do fornecedor na OC: OC = NF emitida e os itens de compra dos artigos dela = NF
   if (b.nfNumero !== undefined) {
     const nf = String(b.nfNumero || "").trim();
@@ -232,4 +246,19 @@ export async function painelDemandas() {
       oc: oc ? { id: oc.id, numero: oc.numero, nf: oc.nfNumero, forma: oc.formaRecebimento, valor: Number(i.ocItens[0].valorUnitario) } : null,
       rota: oc ? rotas[oc.id] || null : null, cotacoes: cotPor[i.id] || [] };
   });
+}
+
+// v487 — a cotação que originou a OC acompanha a OC: valor negociado, quantidade, prazo e condição
+export async function sincronizarCotacaoDaOc(ocId) {
+  const o = await prisma.ordemCompra.findUnique({ where: { id: ocId }, include: { itens: true } });
+  if (!o?.cotacaoId) return;
+  const c = await prisma.cotacao.findUnique({ where: { id: o.cotacaoId } });
+  if (!c) return;
+  const porPi = Object.fromEntries(o.itens.filter((i) => i.picItemId).map((i) => [i.picItemId, i]));
+  const itens = (Array.isArray(c.itens) ? c.itens : []).map((ci) => {
+    const ois = (ci.picItemIds || []).map((p) => porPi[p]).filter(Boolean);
+    if (!ois.length) return ci;
+    return { ...ci, quantidade: r3(ois.reduce((s0, x) => s0 + Number(x.quantidade), 0)), valorNegociado: Number(ois[0].valorUnitario) };
+  });
+  await prisma.cotacao.update({ where: { id: c.id }, data: { itens, condicao: o.condicaoFaturamento || c.condicao, prazoEntrega: o.prazoFabrica || c.prazoEntrega } });
 }
