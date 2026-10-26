@@ -13,6 +13,7 @@ import Prestadores from "./prestadores";
 import Rh from "./rh";
 import Uploads from "./uploads";
 import MovimentoFiscal, { DemandasAdm } from "./adm";
+import FaccoesPcp from "./faccoesPcp";   // v501
 import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
 import MotoristaApp from "./motorista";   // v452 — usuário do setor Logística (motorista): só a rota dele, no celular
 import NfRegistro from "./nfRegistro";
@@ -92,6 +93,7 @@ const MENU = [
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída), demandas administrativas e rotas", filhos: [
     { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
+    { key: "faccoesPcp", label: "Facções a pagar (PCP)", icon: Receipt, perfis: ["FINANCEIRO"], desc: "OS de facção fechadas no Cronograma: conferir e lançar nos terceirizados da semana" },   // v501
     { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
     // v448 — Rota saiu da aba Logística (removida) e entrou no ADM
     { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
@@ -146,6 +148,7 @@ const PODE = {
   comercial: (u) => temAlguma(u, "fpp", "proposta", "crm", "pedidoVenda"),
   financeiro: (u) => temAlguma(u, "contasPagar", "contasReceber", "docsFinanceiros"),
   movfiscal: (u) => temAlguma(u, "nfEntrada", "faturamento", "contasReceber"),
+  faccoesPcp: (u) => temAlguma(u, "contasPagar"),   // v501
   demandas: (u) => gerencial(u) || T(u, "ADMINISTRATIVO"),
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
   pp: (u) => vePP(u),
@@ -339,6 +342,7 @@ export default function Home() {
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
+          {view === "faccoesPcp" && pode("faccoesPcp") && <FaccoesPcp user={user} />}
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && <Rotas user={user} nova={rotaInicial} />}
           {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}

@@ -29,6 +29,7 @@ export async function statusSync() {
   return { url, temToken: !!token, tokenFim: token ? token.slice(-4) : "", ...s };
 }
 
+export const getPcp = (path) => get(path);   // v501 — leitura de outros endereços do PCP (facções)
 async function get(path) {
   const { url, token } = await conexao();
   if (!token) throw new Error("Token do Cronograma não configurado.");

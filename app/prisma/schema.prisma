@@ -2132,3 +2132,16 @@ model OcArquivo {
 
   @@index([ocId])
 }
+
+// v501 — OS de facção do Cronograma PCP (FECHADA) lançadas no contas a pagar: uma OS nunca é lançada duas vezes
+model FaccaoOsPcp {
+  id            Int      @id @default(autoincrement())
+  os            Int      @unique
+  dados         Json                              // a OS como veio do PCP
+  semanaItemId  Int?                              // item dos terceirizados da semana criado
+  tituloId      Int?
+  prestadorId   Int?
+  valor         Decimal  @db.Decimal(14, 2)
+  lancadoPorNome String?
+  createdAt     DateTime @default(now())
+}
