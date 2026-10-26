@@ -136,7 +136,7 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 // v415 — fases de compras na guia superior (troca de tela entre as fases)
 export const FASES_COMPRAS = [
   ["comprasPedidos", "Pedidos", ClipboardList], ["levantamento", "Levantamento", Layers], ["comprasCruzamento", "Cruzamento com estoque", Boxes],
-  ["comprasAtendidos", "Atendidos pelo estoque", PackageCheck], ["pic", "PIC diário", ClipboardList], ["oc", "Ordens de compra", ShoppingCart],
+  ["comprasAtendidos", "Atendidos pelo estoque", PackageCheck], ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
 ];
 export function FasesCompras({ atual, fases, ir }) {
   if (!ir) return null;
@@ -864,11 +864,16 @@ export function PicCompras({ user, fases, ir }) {
   function cotacao() {
     const g = {};
     for (const i of alvo) { const v = val(i); const nome = v.fornecedor.trim(); if (!nome) continue; const f = porNome[nome.toUpperCase()]; const k = f ? `F${f.id}` : `N${nome.toUpperCase()}`;
-      (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade }); }
+      (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade, picItemIds: [i.id] }); }
     if (!Object.keys(g).length) return alerta("Escolha o fornecedor dos itens para gerar a cotação.");
     // o mesmo artigo vindo de PICs diferentes vira uma linha só
-    for (const x of Object.values(g)) { const m = {}; for (const it of x.itens) { const k = `${it.nome}|${it.det}|${it.unidade}`; if (m[k]) m[k].quantidade += Number(it.quantidade) || 0; else m[k] = { ...it, quantidade: Number(it.quantidade) || 0 }; } x.itens = Object.values(m); }
-    setCot({ pic: [...new Set(alvo.map((i) => i.picNumero))].join(", "), grupos: Object.values(g), semF: alvo.filter((i) => !val(i).fornecedor.trim()).length });
+    for (const x of Object.values(g)) { const m = {}; for (const it of x.itens) { const k = `${it.nome}|${it.det}|${it.unidade}`; if (m[k]) { m[k].quantidade += Number(it.quantidade) || 0; m[k].picItemIds.push(...it.picItemIds); } else m[k] = { ...it, quantidade: Number(it.quantidade) || 0, picItemIds: [...it.picItemIds] }; } x.itens = Object.values(m); }
+    // v478 — cada card vira uma cotação registrada (guia Cotações), com número próprio
+    const pics = [...new Set(alvo.map((i) => i.picNumero))].join(", ");
+    const grupos = Object.values(g);
+    fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "criar", grupos, pics, quem: nomeUser(user) }) })
+      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) grupos[k].numero = c.numero; }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); })
+      .catch(() => setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }));
   }
   const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function desfazer(p) {
@@ -1091,7 +1096,7 @@ function CotacaoCard({ g, pic }) {
   return (
     <div className="rounded-lg p-3" style={{ border: `1px solid ${C.line}` }}>
       <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{nomeFornCad(g.fornecedor)} <span className="text-xs font-normal" style={{ color: C.sub }}>· {g.itens.length} item(ns){!g.fornecedor.id ? " · não cadastrado" : ""}</span></div>
+        <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{g.numero ? `${g.numero} · ` : ""}{nomeFornCad(g.fornecedor)} <span className="text-xs font-normal" style={{ color: C.sub }}>· {g.itens.length} item(ns){!g.fornecedor.id ? " · não cadastrado" : ""}</span></div>
         {msg && <span className="text-xs font-semibold" style={{ color: C.green }}>{msg}</span>}
       </div>
       {img ? <img src={img} alt="Cotação" className="w-full rounded" style={{ border: `1px solid ${C.line}` }} /> : <div className="flex items-center gap-2 text-sm py-6" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Montando…</div>}
@@ -1109,7 +1114,86 @@ function CotacaoModal({ cot, onClose }) {
   return (
     <Modal titulo={`Cotação · ${cot.pic} · ${cot.grupos.length} fornecedor(es)`} onClose={onClose} largo>
       <div className="text-xs mb-3" style={{ color: C.sub }}>Um card por fornecedor com os artigos e as quantidades (sem preço). <b>Copiar imagem</b> e colar na conversa do WhatsApp, ou baixar em PNG/PDF.{cot.semF ? ` ${cot.semF} item(ns) sem fornecedor ficaram de fora.` : ""}</div>
-      <div className="space-y-4">{cot.grupos.map((g, k) => <CotacaoCard key={k} g={g} pic={cot.pic} />)}</div>
+      <div className="space-y-4">{cot.grupos.map((g, k) => <CotacaoCard key={k} g={g} pic={[g.numero, cot.pic].filter(Boolean).join(" · ")} />)}</div>
+      <div className="text-xs mt-3" style={{ color: C.sub }}>As cotações ficam em <b>Compras › Cotações</b>, onde você registra a resposta de cada fornecedor e aplica o preço no PIC.</div>
     </Modal>
+  );
+}
+
+// ---------- v478 — Compras › Cotações: resposta dos fornecedores e aplicação do preço no PIC ----------
+const ST_COT = { ENVIADA: ["aguardando resposta", C.yellow, C.yellowSoft], RESPONDIDA: ["respondida", C.blue, C.blueSoft], APLICADA: ["aplicada no PIC", C.green, C.greenSoft] };
+export function Cotacoes({ fases, ir }) {
+  const [l, setL] = useState(null);
+  const [filtro, setFiltro] = useState("abertas");
+  const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
+  const [card, setCard] = useState(null);
+  const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
+  useEffect(() => { carregar(); }, []);
+  const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: numBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "" })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
+  const setD = (c, f) => setEd((e) => ({ ...e, [c.id]: f(dados(c)) }));
+  const post = async (body, ok) => { const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const x = await r.json().catch(() => ({})); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (ok) await alerta(ok(x)); carregar(); return x; };
+  // menor preço de cada artigo entre as cotações (para comparar fornecedores)
+  const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null) { const k = `${i.nome}|${i.det}|${i.unidade}`; if (!m[k] || i.valorUnitario < m[k].v) m[k] = { v: i.valorUnitario, f: c.fornecedorNome, n: c.numero }; } return m; }, [l]);
+  const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "abertas" ? c.status !== "APLICADA" : c.status === "APLICADA"));
+  const inp = "px-2 py-1 rounded text-sm outline-none";
+  return (
+    <div className="max-w-6xl">
+      <FasesCompras atual="comprasCotacoes" fases={fases} ir={ir} />
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Cotações geradas no <b>PIC</b> (botão Gerar cotação), uma por fornecedor. Quando o fornecedor responder, registre o <b>valor unitário</b> e o prazo de cada item e clique em <b>Aplicar no PIC</b>: o fornecedor e o preço vão para os itens do PIC, prontos para a OC. O menor preço entre as cotações de cada artigo aparece em verde.</p>
+      <div className="flex items-center gap-2 mb-3">
+        {[["abertas", `Em andamento (${(l || []).filter((c) => c.status !== "APLICADA").length})`], ["aplicadas", "Aplicadas"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
+        <button onClick={carregar} className="p-2 rounded-md ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
+      </div>
+      {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma cotação aqui. Gere pelo PIC (botão Gerar cotação).</div>}
+      {card && <CotacaoModal cot={card} onClose={() => setCard(null)} />}
+      {vis.map((c) => {
+        const d = dados(c), trav = c.status === "APLICADA";
+        const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
+        const tot = c.itens.reduce((s0, i, k) => s0 + (lerNum(d.itens[k]?.valorUnitario) || 0) * (Number(i.quantidade) || 0), 0);
+        return (
+          <div key={c.id} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{c.numero} · {c.fornecedorNome} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.pics ? ` · ${c.pics}` : ""}{c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""}{!c.fornecedorId ? " · fornecedor fora do cadastro" : ""}</span></div>
+              {tot > 0 && <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>}
+              <Chip cor={cor} fundo={fundo}>{txt}</Chip>
+            </div>
+            <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
+              <div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-28 text-right">Valor unit.</div><div className="w-36">Prazo</div><div className="w-28 text-right">Total</div>
+            </div>
+            {c.itens.map((i, k) => {
+              const di = d.itens[k] || {}; const v = lerNum(di.valorUnitario);
+              const m = melhor[`${i.nome}|${i.det}|${i.unidade}`];
+              const eMelhor = m && v != null && v <= m.v + 1e-9;
+              return (
+                <div key={k} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
+                    {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f} ({m.n})</div>}
+                  </div>
+                  <div className="w-28 text-right">{qtdU(i.quantidade, i.unidade)}</div>
+                  <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : C.panel }} />}</div>
+                  <div className="w-36">{trav ? (i.prazo ? dBR(i.prazo) : "—") : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}` }} />}</div>
+                  <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{v ? brl(v * (Number(i.quantidade) || 0)) : "—"}</div>
+                </div>
+              );
+            })}
+            <div className="flex flex-wrap items-end gap-3 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+              <label className="text-xs" style={{ color: C.sub }}>Condição de pagamento<input disabled={trav} value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-40`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+              <label className="text-xs" style={{ color: C.sub }}>Entrega prevista<input disabled={trav} type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+              <label className="text-xs flex-1 min-w-[160px]" style={{ color: C.sub }}>Obs.<input disabled={trav} value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
+              <button onClick={() => setCard({ pic: c.pics || "", grupos: [{ numero: c.numero, fornecedor: c.fornecedor, itens: c.itens }] })} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Card / WhatsApp</button>
+              {!trav && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>}
+              {!trav && <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>}
+              {!trav && <button onClick={async () => {
+                if (!(await confirmar(`Aplicar os preços da ${c.numero} (${c.fornecedorNome}) nos itens do PIC? O fornecedor e o valor unitário vão para esses itens.`))) return;
+                const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
+                post({ acao: "aplicar", id: c.id }, (y) => `${y.aplicados} item(ns) do PIC atualizados com ${c.fornecedorNome}.${y.emOc ? ` ${y.emOc} já estavam em OC.` : ""} Gere as OCs no PIC.`);
+              }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><CheckCircle2 size={14} /> Aplicar no PIC</button>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -16,7 +16,7 @@ import MovimentoFiscal, { DemandasAdm } from "./adm";
 import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
 import MotoristaApp from "./motorista";   // v452 — usuário do setor Logística (motorista): só a rota dele, no celular
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra } from "./compras";
+import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra, Cotacoes } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
@@ -106,6 +106,7 @@ const MENU = [
       { key: "comprasCruzamento", label: "Cruzamento com estoque", icon: Layers, desc: "Cruza o levantamento com o saldo de estoque e autoriza os atendimentos" },
       { key: "comprasAtendidos", label: "Atendidos pelo estoque", icon: Layers, desc: "Itens autorizados pelo estoque; dá para devolver ao levantamento" },
       { key: "pic", label: "PIC", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Itens que o estoque não atende: fornecedor e valor de cada artigo e geração das OCs" },
+      { key: "comprasCotacoes", label: "Cotações", icon: FileText, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Cotações enviadas aos fornecedores, respostas e aplicação do preço no PIC" },   // v478
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
@@ -151,6 +152,7 @@ const PODE = {
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
   pp: (u) => vePP(u),
   pic: (u) => tem(u, "pic"),
+  comprasCotacoes: (u) => tem(u, "pic"),   // v478
   producao: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER") || tem(u, "pic") || vePP(u),   // v420 — gestão da produção
   comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
   levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
@@ -354,6 +356,7 @@ export default function Home() {
             </div>
           )}
           {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}
+          {view === "comprasCotacoes" && pode("comprasCotacoes") && <Cotacoes />}
           {view === "oc" && pode("oc") && <OrdensCompra />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}

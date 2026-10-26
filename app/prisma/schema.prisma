@@ -2065,3 +2065,24 @@ model PushInscricao {
 
   @@index([usuarioId])
 }
+
+// v478 — cotações enviadas aos fornecedores (geradas no PIC) e as respostas deles
+model Cotacao {
+  id             Int       @id @default(autoincrement())
+  numero         String    @unique
+  fornecedorId   Int?
+  fornecedorNome String
+  status         String    @default("ENVIADA")   // ENVIADA | RESPONDIDA | APLICADA | CANCELADA
+  pics           String?                         // PICs de origem (texto)
+  itens          Json      @default("[]")        // [{ nome, det, quantidade, unidade, picItemIds, valorUnitario, prazo, obs }]
+  condicao       String?                         // condição de pagamento informada
+  prazoEntrega   DateTime? @db.Date
+  obs            String?
+  criadoPorNome  String?
+  respondidaEm   DateTime?
+  aplicadaEm     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+}
