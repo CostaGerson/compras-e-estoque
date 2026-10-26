@@ -56,6 +56,12 @@ export default function Rotas({ user, nova }) {
   const [verRota, setVerRota] = useState(null);
   // v450 — vindo da tarefa PROGRAMAR ENTREGA: abre a demanda de rota já preenchida (cliente, endereço, "ENTREGA PEDIDO N")
   useEffect(() => { if (nova?.t) { const { t, ...x } = nova; setDia(FOCO); setForm({ data: FOCO, horarioTipo: "LIVRE", ...x }); } }, [nova?.t]);   // v444 — rota aberta pelo botão R
+  const [verConc, setVerConc] = useState(new Set());   // v464 — dias com as demandas concluídas à mostra
+  const alternaConc = (x) => setVerConc((s0) => { const n = new Set(s0); n.has(x) ? n.delete(x) : n.add(x); return n; });
+  const visiveis = (x, l) => (verConc.has(x) ? l : l.filter((y) => y.status !== "CONCLUIDA"));
+  const btnConc = (x, l, peq) => { const n = l.filter((y) => y.status === "CONCLUIDA").length; if (!n) return null;
+    return <button type="button" onClick={(e) => { e.stopPropagation(); alternaConc(x); }} className={`${peq ? "text-[10px]" : "text-[11px]"} font-semibold flex items-center gap-0.5 px-1 rounded`} style={{ color: C.green }} title={verConc.has(x) ? "Ocultar as concluídas" : "Mostrar as concluídas"}>
+      <CheckCircle2 size={peq ? 10 : 11} /> {verConc.has(x) ? (peq ? "ocultar" : "Ocultar concluídas") : peq ? n : `Mostrar concluídas (${n})`}</button>; };
   const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D)
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);
@@ -134,7 +140,8 @@ export default function Rotas({ user, nova }) {
           const colMapa = fp < 0 ? null : ladoMapa === "dir" ? `${fp + 2} / ${cols.length + 1}` : `1 / ${fp + 1}`;
           const card = (i, pos) => {
             const x = dias[i];
-            const l = ordenar(porDia[x] || []);
+            const lTudo = ordenar(porDia[x] || []);
+            const l = visiveis(x, lTudo);   // v464 — concluídas ocultas até clicar em "mostrar concluídas"
             const grande = x === FOCO;
             const sel = x === dia;
             const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
@@ -148,7 +155,7 @@ export default function Rotas({ user, nova }) {
                   <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
                   {grande && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>{x === H ? "hoje" : "próximo dia útil"}</span>}
                   {i >= 5 && <button type="button" onClick={(e) => { e.stopPropagation(); setFds((s0) => { const n = new Set(s0); n.delete(i); return n; }); }} title="Recolher" className="text-[11px] px-1" style={{ color: C.sub }}>✕</button>}
-                  {l.length > 0 && <span className="ml-auto text-[11px]" style={{ color: C.sub }}>{l.length}</span>}
+                  <span className="ml-auto flex items-center gap-1">{btnConc(x, lTudo, !grande)}{l.length > 0 && <span className="text-[11px]" style={{ color: C.sub }}>{l.length}</span>}</span>
                 </div>
                 {grande ? (
                   <div className="flex-1 flex flex-col gap-2">
@@ -204,11 +211,12 @@ export default function Rotas({ user, nova }) {
         <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(7, minmax(0,1fr))" }}>
           {DIAS.map((x) => <div key={x} className="text-[11px] font-semibold px-1" style={{ color: C.sub }}>{x}</div>)}
           {dias.map((x) => {
-            const l = ordenar(porDia[x] || []);
+            const lTudo = ordenar(porDia[x] || []);
+            const l = visiveis(x, lTudo);   // v464
             const fora = x.slice(5, 7) !== ref.slice(5, 7);
             return (
               <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: C.panel, border: `${x === dia || x === H ? 2 : 1}px solid ${x === dia || x === H ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
-                <div className="text-xs font-bold mb-1" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}</div>
+                <div className="text-xs font-bold mb-1 flex items-center" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}<span className="ml-auto">{btnConc(x, lTudo, true)}</span></div>
                 {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />, setVerRota)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
               </div>
