@@ -399,6 +399,7 @@ model OrdemCompra {
   nfNumero            String?                       // v479 — NF do fornecedor
   nfEmissao           DateTime? @db.Date
   nfEm                DateTime?
+  cnpjsAceitos        Json      @default("[]")  // v494 — CNPJs de emitente aceitos para esta OC (fora do cadastro do fornecedor)
   obs                 String?
   criadoPorNome       String?
   createdAt           DateTime  @default(now())
@@ -1499,6 +1500,7 @@ model FiscalNota {
   pdfNome       String?
   hashPdf       String?
   temPdf        Boolean   @default(false)
+  ocId          Int?                             // v494 — NF de compra ligada a uma OC
   parcelas      Json?                            // [{ parcela, vencimento, valor, tituloId, situacao: CRIADA|LIGADA|JA_LANCADA }]
   criadoPorId   Int?
   criadoPorNome String?

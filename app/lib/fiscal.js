@@ -335,6 +335,7 @@ function validarNota(n) {
 export async function gravar(notas, u) {
   const quem = nomeU(u);
   const res = [];
+  const paraOc = [];   // v494 — notas subidas pela OC
   for (const n0 of notas || []) {
     const n = { ...n0, parceiro: up(n0.parceiro), documento: so(n0.documento) || null, numero: String(n0.numero || "").trim().replace(/^0+(?=\d)/, ""), valor: r2(n0.valor) };
     if (n.decisao === "IGNORAR") { res.push({ numero: n.numero, situacao: "IGNORADA" }); continue; }
@@ -343,6 +344,7 @@ export async function gravar(notas, u) {
       const prest = so(n.tipo === "SAIDA" ? n.emitDoc : n.documento);
       n.chaveRegistro = n.chave ? `NFE|${n.chave}` : prest && n.numero ? `NFSE|${prest}|${n.numero}` : `ARQ|${n.hashPdf || n.hashXml}`;
     }
+    if (n0.ocId) paraOc.push({ ocId: Number(n0.ocId), chaveRegistro: n.chaveRegistro });
     const tipoT = tipoTitulo(n.tipo);
     const arqs = arquivosDa(n);
 
@@ -445,6 +447,10 @@ export async function gravar(notas, u) {
       await prisma.finNfSaida.upsert({ where: { chave }, create: { chave, ...dados }, update: dados }).catch(() => null);
     }
     res.push(r);
+  }
+  // v494 — liga as notas subidas pela OC (também as que já estavam importadas)
+  for (const x of paraOc) {
+    try { const reg = await prisma.fiscalNota.findUnique({ where: { chaveRegistro: x.chaveRegistro }, select: { id: true } }); if (reg) { const { ligarNfOc } = await import("@/lib/ocNf"); await ligarNfOc(x.ocId, reg.id); } } catch (e) { console.log("fiscal→oc:", e.message); }
   }
   // v373 — NF de saída lançada: o pedido correspondente sai de "em andamento" (total) ou fica só com o saldo (parcial)
   if (res.some((r) => r.tipo === "SAIDA" && ["LANCADA", "REGISTRADA"].includes(r.situacao))) {

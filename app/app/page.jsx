@@ -360,7 +360,7 @@ export default function Home() {
           )}
           {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}
           {view === "comprasCotacoes" && pode("comprasCotacoes") && <Cotacoes user={user} />}
-          {view === "oc" && pode("oc") && <OrdensCompra />}
+          {view === "oc" && pode("oc") && <OrdensCompra user={user} />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}

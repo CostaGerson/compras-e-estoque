@@ -249,7 +249,7 @@ export function juntarNotas(antigas, novas) {
   });
 }
 
-export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero }) {   // v450 — pedidoNumero: "Incluir faturamento" do pedido
+export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId }) {   // v494 — ocId: NF subida pela OC   // v450 — pedidoNumero: "Incluir faturamento" do pedido
   const [arqs, setArqs] = useState([]);       // arquivos já lidos, aguardando conferência
   const [notas, setNotas] = useState(null);
   const [erros, setErros] = useState([]);
@@ -323,7 +323,7 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero }) { 
   }, [notas]);
 
   const mandar = async (lote) => {
-    try { return (await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: pedidoNumero ? lote.map((n) => ({ ...n, pedidoNumero })) : lote })).resultados || []; }
+    try { return (await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "gravar", notas: lote.map((n) => ({ ...n, ...(pedidoNumero ? { pedidoNumero } : {}), ...(ocId ? { ocId } : {}) })) })).resultados || []; }
     catch (e) { return lote.map((n) => ({ numero: n.numero, situacao: "ERRO", motivo: e.message })); }
   };
   // tira da fila a nota gravada e os arquivos dela (para não voltar numa nova conferência)

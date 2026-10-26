@@ -141,11 +141,13 @@ export async function listarOcs() {
   const cotL = await prisma.cotacao.findMany({ where: { OR: [{ id: { in: l.map((o) => o.cotacaoId).filter(Boolean) } }, { ocId: { in: l.map((o) => o.id) } }] }, select: { id: true, numero: true, ocId: true } });   // v488
   const cotsDaOc = (o) => [...new Set(cotL.filter((c) => c.ocId === o.id || c.id === o.cotacaoId).map((c) => c.numero))].sort().join(", ") || null;
   const rotas = await rotasDeColeta(l);   // v486
+  const fnL = await prisma.fiscalNota.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, numero: true, emissao: true, valor: true, temXml: true, temPdf: true, acao: true, parcelas: true, parceiro: true }, orderBy: { emissao: "asc" } });   // v494
   const arqs = await prisma.ocArquivo.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, tipo: true, nome: true, tamanho: true, createdAt: true }, orderBy: { id: "asc" } });
   return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
-    cotacao: cotsDaOc(o), rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
+    cotacao: cotsDaOc(o), rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id),
+    nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
@@ -189,7 +191,7 @@ export async function salvarOc(b) {
 }
 
 // v479 — item de compra passa a "NF emitida" quando todos os artigos dele estão em OCs com NF (e volta a "OC" se a NF sair)
-async function statusNfItens(ocId) {
+export async function statusNfItens(ocId) {
   const oc = await prisma.ordemCompra.findUnique({ where: { id: ocId }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });
   const picIds = [...new Set(oc.itens.map((i) => i.picItem?.picId).filter(Boolean))];
   for (const pid of picIds) {

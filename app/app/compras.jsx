@@ -2,7 +2,8 @@
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck } from "lucide-react";
-import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
+import { alerta, confirmar, perguntar } from "./dialogo";
+import { ImportarNfs } from "./adm";   // v494 — NF subida pela OC passa pelo mesmo lançamento do movimento fiscal   // v424 — popups do sistema
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -305,7 +306,9 @@ function BuscaFornecedor({ valor, idAtual, forns, onEscolher, estilo, placeholde
   const [ab, setAb] = useState(false);
   const t = norm(valor || "");
   const l = useMemo(() => {
-    const x = forns.filter((f) => !t || norm(`${nomeFornCad(f)} ${f.razaoSocial || ""} ${f.nome || ""} ${f.municipio || ""} ${(f.cnpjs || []).map((c) => c.cnpj).join(" ")}`).includes(t));
+    // v494 — busca por palavras em qualquer ordem: nome fantasia/comercial, razão social, nome, cidade e CNPJ (com ou sem pontuação)
+    const pal = t.split(/\s+/).filter(Boolean);
+    const x = forns.filter((f) => { if (!pal.length) return true; const h = norm(`${f.nomeFantasia || ""} ${f.nome || ""} ${f.razaoSocial || ""} ${f.municipio || ""} ${(f.cnpjs || []).map((c) => `${c.cnpj} ${String(c.cnpj).replace(/\D/g, "")} ${c.razaoSocial || ""}`).join(" ")}`); return pal.every((p) => h.includes(p)); });
     return x.slice(0, 40);
   }, [forns, t]);
   const semCad = !!(valor || "").trim() && !idAtual;
@@ -321,7 +324,7 @@ function BuscaFornecedor({ valor, idAtual, forns, onEscolher, estilo, placeholde
             <button key={f.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onEscolher(f, nomeFornCad(f)); setAb(false); }}
               className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
               <div className="font-semibold truncate" style={{ color: C.navy }}>{nomeFornCad(f)}</div>
-              <div className="text-[11px] truncate" style={{ color: C.sub }}>{[f.razaoSocial && f.razaoSocial !== nomeFornCad(f) ? f.razaoSocial : null, [f.municipio, f.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ") || "—"}</div>
+              <div className="text-[11px] truncate" style={{ color: C.sub }}>{[f.nomeFantasia && f.nome && f.nome !== f.nomeFantasia ? f.nome : null, f.razaoSocial && f.razaoSocial !== nomeFornCad(f) ? f.razaoSocial : null, [f.municipio, f.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ") || "—"}</div>
             </button>
           ))}
         </div>
@@ -1035,7 +1038,7 @@ function imprimirOc(o) {
     <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
   const w = window.open("", "_blank"); if (!w) return alerta("Permita pop-ups para imprimir a OC."); w.document.write(html); w.document.close();
 }
-export function OrdensCompra({ fases, ir }) {
+export function OrdensCompra({ user, fases, ir }) {
   const [l, setL] = useState(null);
   const [ab, setAb] = useState({});
   const [filtro, setFiltro] = useState("ativas");
@@ -1109,7 +1112,7 @@ export function OrdensCompra({ fases, ir }) {
                 </div>
                 {/* v479 — NF do fornecedor */}
                 <div className="flex flex-wrap items-end gap-3 pt-3 mt-3" style={{ borderTop: `1px dashed ${C.line}` }}>
-                  {(() => { const v = nf[o.id] || { numero: o.nfNumero || "", emissao: o.nfEmissao || "" }; const setV = (k, x) => setNf((n) => ({ ...n, [o.id]: { ...v, [k]: x } }));
+                  {!(o.nfs || []).length && (() => { const v = nf[o.id] || { numero: o.nfNumero || "", emissao: o.nfEmissao || "" }; const setV = (k, x) => setNf((n) => ({ ...n, [o.id]: { ...v, [k]: x } }));
                     return <>
                       <label className="text-xs" style={{ color: C.sub }}>NF do fornecedor<input value={v.numero} onChange={(e) => setV("numero", e.target.value)} placeholder="nº da NF" className="block mt-1 px-2 py-1 rounded text-sm w-32" style={{ border: `1px solid ${o.nfNumero ? C.green : C.line}`, color: C.text }} /></label>
                       <label className="text-xs" style={{ color: C.sub }}>Emissão<input type="date" value={v.emissao} onChange={(e) => setV("emissao", e.target.value)} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
@@ -1117,7 +1120,7 @@ export function OrdensCompra({ fases, ir }) {
                       {o.nfNumero && <span className="text-xs" style={{ color: C.green }}>NF {o.nfNumero} registrada · compra com status NF emitida</span>}
                     </>; })()}
                 </div>
-                <ArquivosNfOc o={o} onMudou={carregar} />   {/* v486 — XML e PDF da NF */}
+                <NfsDaOc o={o} user={user} onMudou={carregar} />   {/* v494 — NFs da OC: movimento fiscal, contas, conferência */}
                 <div>
                   <button onClick={() => imprimirOc(o)} className="ml-auto text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
                 </div>
@@ -1607,5 +1610,63 @@ function JanelaPicOc({ jan, onClose, ir }) {
         <button onClick={onClose} className="px-3 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
       </div>
     </Modal>
+  );
+}
+
+// ---------- v494 — NFs da OC: sobe pelo lançamento do movimento fiscal, confere com a OC e permite corrigir ----------
+function NfsDaOc({ o, user, onMudou }) {
+  const [imp, setImp] = useState(null);
+  const [arr, setArr] = useState(false);
+  const [conf, setConf] = useState(null);
+  const [oc2, setOc2] = useState(false);
+  const nfs = o.nfs || [];
+  const conferir = () => fetch(`/api/compras/oc/nf?oc=${o.id}`).then((r) => r.json()).then(setConf).catch(() => setConf(null));
+  useEffect(() => { if (nfs.length) conferir(); else setConf(null); }, [nfs.map((n) => n.id).join(",")]);
+  const post = async (body, msg) => { setOc2(true); const r = await fetch("/api/compras/oc/nf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ocId: o.id, ...body }) }); const x = await r.json().catch(() => ({})); setOc2(false); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (msg) await alerta(msg(x)); onMudou(); conferir(); return x; };
+  async function excluir(n) {
+    if (!(await confirmar(`Tirar a NF ${n.numero} desta OC?`))) return;
+    const tudo = await confirmar(`Excluir também a NF ${n.numero} do movimento fiscal? As contas lançadas por ela vão para a lixeira do contas a pagar.\n\n(Cancelar = só tira da OC e a nota continua no movimento fiscal.)`);
+    post({ acao: "excluir", fiscalNotaId: n.id, excluirRegistro: tudo, quem: nomeUser(user) }, (x) => `NF ${n.numero} retirada da OC${tudo ? ` e excluída do movimento fiscal${x.contas ? ` (${x.contas} conta(s) na lixeira)` : ""}` : ""}.`);
+  }
+  const crit = conf?.criticas || [];
+  const corrigiveis = crit.filter((c) => ["QTD", "VALOR", "PRAZO", "TOTAL"].includes(c.tipo));
+  const cnpjs = crit.filter((c) => c.tipo === "CNPJ");
+  return (
+    <div className="mt-3 rounded-lg p-3" style={{ border: `${arr ? 2 : 1}px dashed ${arr ? C.accent : C.line}`, background: arr ? C.accentSoft : C.panel }}
+      onDragOver={(e) => { e.preventDefault(); setArr(true); }} onDragLeave={() => setArr(false)} onDrop={(e) => { e.preventDefault(); setArr(false); if (e.dataTransfer.files?.length) setImp([...e.dataTransfer.files]); }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold" style={{ color: C.navy }}>Notas fiscais do fornecedor</span>
+        <button onClick={() => setImp([])} className="text-xs px-2.5 py-1 rounded-md font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Subir NF (XML / PDF)</button>
+        <span className="text-[11px]" style={{ color: C.sub }}>ou arraste os arquivos aqui · a nota entra no movimento fiscal e em Dados › Notas fiscais e você lança as contas</span>
+      </div>
+      {nfs.map((n) => (
+        <div key={n.id} className="flex flex-wrap items-center gap-2 mt-2 text-xs px-2 py-1.5 rounded" style={{ background: C.panel2 }}>
+          <b style={{ color: C.navy }}>NF {n.numero}</b><span style={{ color: C.sub }}>{dBR(n.emissao)} · {brl(n.valor)} · {n.parceiro}</span>
+          {n.temXml ? <a href={`/api/compras/oc/nf?id=${n.id}&arq=xml`} target="_blank" rel="noreferrer" style={{ color: C.blue }}>XML</a> : <span style={{ color: C.sub }}>sem XML</span>}
+          {n.temPdf ? <a href={`/api/compras/oc/nf?id=${n.id}&arq=pdf`} target="_blank" rel="noreferrer" style={{ color: C.red }}>PDF</a> : <span style={{ color: C.sub }}>sem PDF</span>}
+          <Chip cor={n.contas ? C.green : C.yellow} fundo={n.contas ? C.greenSoft : C.yellowSoft}>{n.contas ? `${n.contas} conta(s) lançada(s)` : n.acao === "LANCADA" ? "lançada" : "sem contas"}</Chip>
+          <button onClick={() => excluir(n)} className="ml-auto flex items-center gap-1" style={{ color: C.red }}><X size={12} /> excluir</button>
+        </div>
+      ))}
+      {conf && !conf.error && nfs.length > 0 && (
+        <div className="mt-2 rounded p-2" style={{ background: crit.length ? C.redSoft : C.greenSoft }}>
+          {!crit.length ? <div className="text-xs font-semibold flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={13} /> NF confere com a OC: itens, quantidades, valores, prazo e CNPJ.</div> : <>
+            <div className="text-xs font-bold mb-1 flex items-center gap-1" style={{ color: C.red }}><AlertTriangle size={13} /> {crit.length} crítica(s) na conferência NF × OC</div>
+            {crit.map((c, k) => (
+              <div key={k} className="text-xs flex items-center gap-2 py-0.5" style={{ color: C.red }}>
+                <span>• {c.texto}</span>
+                {c.tipo === "CNPJ" && <button disabled={oc2} onClick={() => post({ acao: "aceitarCnpj", cnpj: c.cnpj, razao: c.emitente }, (x) => (x.cadastro ? `CNPJ ${c.cnpj} incluído no cadastro do fornecedor.` : `CNPJ ${c.cnpj} (de outro fornecedor no cadastro) aceito para esta OC.`))} className="px-2 py-0.5 rounded font-semibold" style={{ background: "#fff", border: `1px solid ${C.red}` }}>aceitar este CNPJ</button>}
+              </div>
+            ))}
+            {corrigiveis.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-2">
+              <button disabled={oc2} onClick={async () => { if (await confirmar("Corrigir a OC com as quantidades, valores e prazo da NF? A cotação de origem também é atualizada.")) post({ acao: "corrigir", condicao: crit.find((c) => c.tipo === "PRAZO")?.condNf ? (crit.find((c) => c.tipo === "PRAZO").condNf === "À VISTA" ? "À VISTA" : `${crit.find((c) => c.tipo === "PRAZO").condNf} DIAS`) : undefined }, (x) => `OC corrigida pela NF (${x.itens} item(ns)).`); }}
+                className="text-xs px-3 py-1 rounded-md font-semibold" style={{ background: C.red, color: "#fff" }}>Corrigir a OC pela NF</button>
+              <span className="text-[11px]" style={{ color: C.sub }}>ou ajuste os itens acima à mão e salve.</span>
+            </div>}
+          </>}
+        </div>
+      )}
+      {imp && <ImportarNfs user={user} iniciais={imp} ocId={o.id} onClose={() => setImp(null)} onFim={(m) => { setImp(null); onMudou(); if (m) alerta(`${m} A NF foi ligada à ${o.numero}; confira as críticas abaixo.`); }} />}
+    </div>
   );
 }
