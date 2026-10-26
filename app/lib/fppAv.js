@@ -22,6 +22,7 @@ export const BOTAO_TIPOS = [
   "PRESSÃO /80 LATÃO",
   "FLEXÍVEL PARA CALÇA",
 ];
+export const ehMontada = (tipo) => /MONTADA/i.test(String(tipo || ""));   // v506
 export const faixaPedeCor = (tipo) => /MONTADA|PRONTA/i.test(String(tipo || ""));
 export const semAv = (v) => !String(v || "").trim() || /^SEM\b/i.test(String(v).trim());
 
@@ -45,8 +46,12 @@ export function elasticoCalc(get, chave) {
 // v505 — faixa SEMPRE = consumo da aplicação (m/peça) × R$/m do tipo de faixa (sem o R$/peça fixo antigo)
 export function faixaCalc(get, aplicacao, tipo) {
   if (semAv(aplicacao)) return { valor: 0, consumo: 0, metro: 0, porMetro: false };
-  const consumo = n(get("FAIXA", aplicacao, "consumo")), metro = tipo ? n(get("FAIXA_TIPO", tipo, "valor")) : 0;
-  return { valor: consumo * metro, consumo, metro, porMetro: consumo > 0 && metro > 0, falta: !tipo ? "TIPO" : !consumo ? "CONSUMO" : !metro ? "METRO" : null };
+  // v506 — faixa montada c/ tactel: R$/m da faixa + R$/m do tactel (mesmo consumo para os dois)
+  const consumo = n(get("FAIXA", aplicacao, "consumo")), metroFaixa = tipo ? n(get("FAIXA_TIPO", tipo, "valor")) : 0;
+  const montada = ehMontada(tipo), metroTactel = montada ? n(get("FAIXA_TIPO", tipo, "tactel")) : 0;
+  const metro = metroFaixa + metroTactel;
+  return { valor: consumo * metro, consumo, metro, metroFaixa, metroTactel, montada, porMetro: consumo > 0 && metro > 0,
+    falta: !tipo ? "TIPO" : !consumo ? "CONSUMO" : !metroFaixa ? "METRO" : montada && !metroTactel ? "TACTEL" : null };
 }
 
 export function botaoUnit(get, tipo) {

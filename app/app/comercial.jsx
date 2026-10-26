@@ -916,7 +916,8 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
               <Campo label={`Elástico · ${f.elastico} · R$/m`} path={`ELASTICO:${f.elastico}:valorMetro`} base={rawGrp("ELASTICO", f.elastico, "valorMetro")} />
             </>}
             {f.faixa && !semAv(f.faixa) && <Campo label={`Faixa · ${f.faixa} · consumo (m/peça)`} path={`FAIXA:${f.faixa}:consumo`} base={rawGrp("FAIXA", f.faixa, "consumo")} />}
-            {f.faixa && !semAv(f.faixa) && f.faixaTipo && <Campo label={`${f.faixaTipo} · R$/m`} path={`FAIXA_TIPO:${f.faixaTipo}:valor`} base={rawGrp("FAIXA_TIPO", f.faixaTipo)} />}
+            {f.faixa && !semAv(f.faixa) && f.faixaTipo && <Campo label={`${f.faixaTipo} · ${/MONTADA/i.test(f.faixaTipo) ? "faixa " : ""}R$/m`} path={`FAIXA_TIPO:${f.faixaTipo}:valor`} base={rawGrp("FAIXA_TIPO", f.faixaTipo)} />}
+            {f.faixa && !semAv(f.faixa) && /MONTADA/i.test(f.faixaTipo || "") && <Campo label={`${f.faixaTipo} · tactel R$/m`} path={`FAIXA_TIPO:${f.faixaTipo}:tactel`} base={rawGrp("FAIXA_TIPO", f.faixaTipo, "tactel") || 0} />}   {/* v506 */}
             {num(f.botaoQtd) > 0 && f.botaoTipo && <Campo label={`Botão ${f.botaoTipo} · R$/un`} path={`BOTAO:${f.botaoTipo}:valor`} base={rawGrp("BOTAO", f.botaoTipo)} />}
             {!f.gola && !f.punho && !f.elastico && (!f.faixa || f.faixa === "SEM FAIXA") &&
               <div className="text-xs py-2" style={{ color: C.sub }}>Nenhum aviamento selecionado nesta ficha.</div>}
@@ -1008,7 +1009,7 @@ function GrupoParam({ grupo, rotulo, linhas, os, user, onReload }) {
     : grupo === "EMB_EXT" ? [["valor", "Valor emb."], ["und", "Und/emb"], ["fita", "Fita"]]
     : grupo === "ELASTICO" ? [["consumo", "Consumo (m/pç)"], ["valorMetro", "R$/m"], ["valor", "R$/peça"]]   // v410
     : grupo === "FAIXA" ? [["consumo", "Consumo (m/pç)"]]   // v505 — R$/peça = consumo × R$/m do tipo (sem valor fixo)
-    : grupo === "FAIXA_TIPO" ? [["valor", "R$/m"]]
+    : grupo === "FAIXA_TIPO" ? [["valor", "Faixa R$/m"], ["tactel", "Tactel R$/m"]]   // v506 — tactel só nas montadas
     : grupo === "BOTAO" ? [["valor", "R$/un"]]
     : [["valor", "Valor"]];
 
@@ -1030,10 +1031,10 @@ function GrupoParam({ grupo, rotulo, linhas, os, user, onReload }) {
 }
 
 function LinhaParam({ row, campos, os, user, onReload, onHist }) {
-  const validos = campos.filter(([k]) => k === "valor" ? true : (row.extra && row.extra[k] != null));
-  const [ed, setEd] = useState(() => { const o = {}; validos.forEach(([k]) => { o[k] = k === "valor" ? row.valor : row.extra[k]; }); return o; });
+  const validos = campos.filter(([k]) => k === "valor" ? true : (row.extra && row.extra[k] != null) || (k === "tactel" && /MONTADA/i.test(String(row.chave || ""))));   // v506
+  const [ed, setEd] = useState(() => { const o = {}; validos.forEach(([k]) => { o[k] = k === "valor" ? row.valor : row.extra?.[k] ?? 0; }); return o; });
   const [saving, setSaving] = useState(false);
-  const mudou = validos.some(([k]) => num(ed[k]) !== Number(k === "valor" ? row.valor : row.extra[k]));
+  const mudou = validos.some(([k]) => num(ed[k]) !== Number(k === "valor" ? row.valor : row.extra?.[k] ?? 0));
 
   async function salvarPadrao() {
     if (!os || !mudou) return;
@@ -2148,9 +2149,11 @@ function AvMetro({ c, semTipo }) {
   return (
     <div className="text-[11px] mt-1" style={{ color: C.sub }}>
       {c.porMetro
-        ? <>{fmtNum(c.consumo, 2)} m × R$ {fmtNum(c.metro, 2)}/m = <b style={{ color: C.text }}>R$ {fmtNum(c.valor, 2)}/pç</b></>
+        ? c.montada
+          ? <>{fmtNum(c.consumo, 2)} m × (faixa R$ {fmtNum(c.metroFaixa, 2)} + tactel R$ {fmtNum(c.metroTactel, 2)})/m = <b style={{ color: C.text }}>R$ {fmtNum(c.valor, 2)}/pç</b></>
+          : <>{fmtNum(c.consumo, 2)} m × R$ {fmtNum(c.metro, 2)}/m = <b style={{ color: C.text }}>R$ {fmtNum(c.valor, 2)}/pç</b></>
         : c.falta !== undefined
-          ? <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {c.falta === "TIPO" || semTipo ? "escolha o tipo de faixa" : c.falta === "CONSUMO" ? "aplicação sem consumo (m/peça) no banco de dados" : "tipo de faixa sem R$/m no banco de dados"}</span></>
+          ? <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {c.falta === "TIPO" || semTipo ? "escolha o tipo de faixa" : c.falta === "CONSUMO" ? "aplicação sem consumo (m/peça) no banco de dados" : c.falta === "TACTEL" ? "faixa montada sem o R$/m do tactel no banco de dados" : "tipo de faixa sem R$/m no banco de dados"}</span></>
           : <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {semTipo ? "escolha o tipo de faixa" : "sem consumo ou R$/m no banco de dados"}</span></>}
     </div>
   );
@@ -2325,15 +2328,16 @@ function Lin({ l, v, forte, cor }) {
 function TabelaFaixa({ aplic, tipos }) {
   const ap = aplic.filter((a) => !/^SEM\b/i.test(String(a.chave || "")));
   const cons = (a) => num(a.extra?.consumo);
+  const mt = (t) => num(t.valor) + (/MONTADA/i.test(String(t.chave || "")) ? num(t.extra?.tactel) : 0);   // v506
   return (
     <div className="mb-2 rounded-lg overflow-x-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
       <div className="px-4 py-2 text-sm font-semibold" style={{ background: C.panel2, color: C.text }}>Faixa refletiva — R$/peça = consumo da aplicação × R$/m do tipo</div>
       <table className="w-full text-xs" data-sem-ordenar>
-        <thead><tr style={{ color: C.sub }}><th className="px-3 py-1.5 text-left">Aplicação (consumo)</th>{tipos.map((t) => <th key={t.id} className="px-2 py-1.5 text-center">{t.rotulo || sc(t.chave)}<div className="font-normal">R$ {fmtNum(t.valor, 2)}/m</div></th>)}</tr></thead>
+        <thead><tr style={{ color: C.sub }}><th className="px-3 py-1.5 text-left">Aplicação (consumo)</th>{tipos.map((t) => <th key={t.id} className="px-2 py-1.5 text-center">{t.rotulo || sc(t.chave)}<div className="font-normal">R$ {fmtNum(mt(t), 2)}/m{/MONTADA/i.test(String(t.chave || "")) ? ` (faixa ${fmtNum(t.valor, 2)} + tactel ${fmtNum(t.extra?.tactel, 2)})` : ""}</div></th>)}</tr></thead>
         <tbody>{ap.map((a) => (
           <tr key={a.id} style={{ borderTop: `1px solid ${C.line}` }}>
             <td className="px-3 py-1.5">{a.rotulo || sc(a.chave)} <span style={{ color: C.sub }}>({fmtNum(cons(a), 2)} m)</span></td>
-            {tipos.map((t) => { const v = cons(a) * num(t.valor); return <td key={t.id} className="px-2 py-1.5 text-center font-semibold" style={{ color: v ? C.text : C.sub }}>{v ? `R$ ${fmtNum(v, 2)}` : "—"}</td>; })}
+            {tipos.map((t) => { const v = cons(a) * mt(t); return <td key={t.id} className="px-2 py-1.5 text-center font-semibold" style={{ color: v ? C.text : C.sub }}>{v ? `R$ ${fmtNum(v, 2)}` : "—"}</td>; })}
           </tr>
         ))}</tbody>
       </table>
