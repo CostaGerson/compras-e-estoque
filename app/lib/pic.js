@@ -138,13 +138,14 @@ export async function listarOcs() {
   for (const o of l) piPorOc[o.id] = [...new Set(o.itens.map((i) => i.picItem?.picId).filter(Boolean))];
   const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];
   const pics = Object.fromEntries((await prisma.pic.findMany({ where: { id: { in: picIds } }, select: { id: true, numero: true } })).map((p) => [p.id, p.numero]));
-  const cots = Object.fromEntries((await prisma.cotacao.findMany({ where: { id: { in: l.map((o) => o.cotacaoId).filter(Boolean) } }, select: { id: true, numero: true } })).map((c) => [c.id, c.numero]));
+  const cotL = await prisma.cotacao.findMany({ where: { OR: [{ id: { in: l.map((o) => o.cotacaoId).filter(Boolean) } }, { ocId: { in: l.map((o) => o.id) } }] }, select: { id: true, numero: true, ocId: true } });   // v488
+  const cotsDaOc = (o) => [...new Set(cotL.filter((c) => c.ocId === o.id || c.id === o.cotacaoId).map((c) => c.numero))].sort().join(", ") || null;
   const rotas = await rotasDeColeta(l);   // v486
   const arqs = await prisma.ocArquivo.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, tipo: true, nome: true, tamanho: true, createdAt: true }, orderBy: { id: "asc" } });
   return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
-    cotacao: cots[o.cotacaoId] || null, rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
+    cotacao: cotsDaOc(o), rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
@@ -175,7 +176,7 @@ export async function salvarOc(b) {
     ...(b.formaRecebimento !== undefined ? { formaRecebimento: ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.formaRecebimento) ? b.formaRecebimento : null } : {}),
     ...(b.diasAposFaturamento !== undefined ? { diasAposFaturamento: parseInt(b.diasAposFaturamento, 10) || null } : {}),
   } });
-  if (o.cotacaoId) await sincronizarCotacaoDaOc(o.id).catch((e) => console.log("oc→cotação:", e.message));   // v487
+  await sincronizarCotacaoDaOc(o.id).catch((e) => console.log("oc→cotação:", e.message));   // v487
   // v479 — NF do fornecedor na OC: OC = NF emitida e os itens de compra dos artigos dela = NF
   if (b.nfNumero !== undefined) {
     const nf = String(b.nfNumero || "").trim();
@@ -251,9 +252,9 @@ export async function painelDemandas() {
 // v487 — a cotação que originou a OC acompanha a OC: valor negociado, quantidade, prazo e condição
 export async function sincronizarCotacaoDaOc(ocId) {
   const o = await prisma.ordemCompra.findUnique({ where: { id: ocId }, include: { itens: true } });
-  if (!o?.cotacaoId) return;
-  const c = await prisma.cotacao.findUnique({ where: { id: o.cotacaoId } });
-  if (!c) return;
+  if (!o) return;
+  const cs = await prisma.cotacao.findMany({ where: { OR: [{ ocId: o.id }, ...(o.cotacaoId ? [{ id: o.cotacaoId }] : [])] } });   // v488 — todas as cotações da OC
+  for (const c of cs) {
   const porPi = Object.fromEntries(o.itens.filter((i) => i.picItemId).map((i) => [i.picItemId, i]));
   const itens = (Array.isArray(c.itens) ? c.itens : []).map((ci) => {
     const ois = (ci.picItemIds || []).map((p) => porPi[p]).filter(Boolean);
@@ -261,4 +262,5 @@ export async function sincronizarCotacaoDaOc(ocId) {
     return { ...ci, quantidade: r3(ois.reduce((s0, x) => s0 + Number(x.quantidade), 0)), valorNegociado: Number(ois[0].valorUnitario) };
   });
   await prisma.cotacao.update({ where: { id: c.id }, data: { itens, condicao: o.condicaoFaturamento || c.condicao, prazoEntrega: o.prazoFabrica || c.prazoEntrega } });
+  }
 }

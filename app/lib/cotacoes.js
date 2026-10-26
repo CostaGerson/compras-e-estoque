@@ -83,31 +83,38 @@ export async function marcarEnviada(id) {
 
 // v479 — gera a OC a partir da cotação: valor negociado por item, prazo, forma de recebimento
 // b: { id, itens: [{ valorNegociado }], prazoEntrega, forma, diasAposFaturamento, condicao, quem }
+// v488 — várias cotações do mesmo fornecedor numa OC só
+// b: { cotacoes: [{ id, itens: [{ valorNegociado }] }] (ou id + itens de uma só), prazoEntrega, forma, diasAposFaturamento, condicao, quem }
 export async function gerarOcDaCotacao(b) {
-  const c = await prisma.cotacao.findUnique({ where: { id: Number(b.id) } });
-  if (!c) return { error: "Cotação não encontrada." };
-  if (c.status === "OC") return { error: "Esta cotação já gerou OC." };
-  if (!c.fornecedorId) return { error: "O fornecedor da cotação não está no cadastro: cadastre e gere a cotação de novo." };
+  const lista = Array.isArray(b.cotacoes) && b.cotacoes.length ? b.cotacoes : [{ id: b.id, itens: b.itens }];
+  const cs = [];
+  for (const x of lista) { const c = await prisma.cotacao.findUnique({ where: { id: Number(x.id) } }); if (!c) return { error: "Cotação não encontrada." }; cs.push({ c, itens: x.itens || [] }); }
+  if (cs.some(({ c }) => c.status === "OC")) return { error: `${cs.filter(({ c }) => c.status === "OC").map(({ c }) => c.numero).join(", ")} já gerou OC.` };
+  if (cs.some(({ c }) => !c.fornecedorId)) return { error: "O fornecedor da cotação não está no cadastro: cadastre e gere a cotação de novo." };
+  if (new Set(cs.map(({ c }) => c.fornecedorId)).size > 1) return { error: "Só junta numa OC cotações do mesmo fornecedor." };
   const forma = ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.forma) ? b.forma : null;
   if (!forma) return { error: "Escolha a forma de recebimento." };
-  const its = (Array.isArray(c.itens) ? c.itens : []).map((i, k) => ({ ...i, valorNegociado: i.naoTem ? null : num((b.itens || [])[k]?.valorNegociado) ?? i.valorUnitario }));
-  if (its.every((i) => i.naoTem)) return { error: "O fornecedor não tem nenhum item desta cotação." };
-  if (its.some((i) => !i.naoTem && !(i.valorNegociado > 0))) return { error: "Informe o valor negociado dos itens que o fornecedor tem." };
-  const ids = [];
-  for (const i of its) if (!i.naoTem) for (const pid of i.picItemIds || []) {   // v484 — "não tem" fica fora da OC
-    const pi = await prisma.picItem.findUnique({ where: { id: pid }, include: { ocItens: { select: { id: true } } } });
-    if (!pi || pi.ocItens.length) continue;
-    await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: c.fornecedorId, valorUnitario: i.valorNegociado } });
-    ids.push(pi.id);
+  const fid = cs[0].c.fornecedorId;
+  const ids = [], novos = [];
+  for (const { c, itens } of cs) {
+    const its = (Array.isArray(c.itens) ? c.itens : []).map((i, k) => ({ ...i, valorNegociado: i.naoTem ? null : num(itens[k]?.valorNegociado) ?? i.valorUnitario }));
+    if (its.some((i) => !i.naoTem && !(i.valorNegociado > 0))) return { error: `Informe o valor negociado dos itens da ${c.numero}.` };
+    novos.push({ c, its });
+    for (const i of its) if (!i.naoTem) for (const pid of i.picItemIds || []) {   // v484 — "não tem" fica fora da OC
+      const pi = await prisma.picItem.findUnique({ where: { id: pid }, include: { ocItens: { select: { id: true } } } });
+      if (!pi || pi.ocItens.length || ids.includes(pi.id)) continue;
+      await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: fid, valorUnitario: i.valorNegociado } });
+      ids.push(pi.id);
+    }
   }
-  if (!ids.length) return { error: "Os itens desta cotação já estão em OC (ou saíram do PIC)." };
+  if (!ids.length) return { error: "Os itens destas cotações já estão em OC (ou o fornecedor não tem nenhum)." };
   const r = await gerarOcsItens(ids, b.quem);
   if (r.error) return r;
   const oc = r.ocs[0];
   const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(b.prazoEntrega || "")) ? new Date(`${b.prazoEntrega}T12:00:00Z`) : null;
-  await prisma.ordemCompra.update({ where: { id: oc.id }, data: { cotacaoId: c.id, formaRecebimento: forma,
+  await prisma.ordemCompra.update({ where: { id: oc.id }, data: { cotacaoId: cs[0].c.id, formaRecebimento: forma,
     diasAposFaturamento: forma === "TRANSPORTADORA" ? (parseInt(b.diasAposFaturamento, 10) || null) : null,
-    prazoFabrica: prazo, condicaoFaturamento: String(b.condicao || c.condicao || "").trim() || null } });
-  await prisma.cotacao.update({ where: { id: c.id }, data: { status: "OC", ocId: oc.id, itens: its, aplicadaEm: new Date() } });
-  return { ok: true, oc: { id: oc.id, numero: oc.numero }, forma };
+    prazoFabrica: prazo, condicaoFaturamento: String(b.condicao || cs[0].c.condicao || "").trim() || null } });
+  for (const { c, its } of novos) await prisma.cotacao.update({ where: { id: c.id }, data: { status: "OC", ocId: oc.id, itens: its, aplicadaEm: new Date() } });
+  return { ok: true, oc: { id: oc.id, numero: oc.numero }, forma, cotacoes: novos.map(({ c }) => c.numero) };
 }

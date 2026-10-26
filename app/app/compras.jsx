@@ -1230,37 +1230,43 @@ function ChipRota({ r, forma }) {
   const ok = r.status === "CONCLUIDA";
   return <Chip cor={ok ? C.green : C.blue} fundo={ok ? C.greenSoft : C.blueSoft} title={`Demanda de rota #${r.id}`}>🚚 coleta {dBR(r.data).slice(0, 5)} · {ST_ROTA[r.status] || r.status}{r.blocoId ? ` R${r.blocoId}` : ""}</Chip>;
 }
-function GerarOcCotacao({ c, user, onClose, onOk }) {
-  const [f, setF] = useState({ itens: c.itens.map((i) => ({ valorNegociado: numBR(i.valorUnitario) })), prazoEntrega: c.prazoEntrega || "", forma: "", dias: "", condicao: c.condicao || "" });
+// v488 — várias cotações do mesmo fornecedor viram uma OC só
+function GerarOcCotacao({ cs, user, onClose, onOk }) {
+  const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
-  const tot = c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[k]?.valorNegociado) || 0) * (Number(i.quantidade) || 0), 0);
+  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * (Number(i.quantidade) || 0), 0), 0);
   async function gerar() {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
     setOc(true);
-    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", id: c.id, itens: f.itens, prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", cotacoes: cs.map((c, ci) => ({ id: c.id, itens: f.itens[ci] })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro ao gerar a OC.");
-    if (x.forma === "COLETA" && (await confirmar(`${x.oc.numero} gerada. Criar agora a rota de coleta no fornecedor?`))) {
+    if (x.forma === "COLETA" && (await confirmar(`${x.oc.numero} gerada${x.cotacoes?.length > 1 ? ` (${x.cotacoes.join(" + ")})` : ""}. Criar agora a rota de coleta no fornecedor?`))) {
       const l = await fetch("/api/compras/oc").then((rr) => rr.json()).catch(() => []);
       const o = (Array.isArray(l) ? l : []).find((y) => y.id === x.oc.id);
       onOk(); if (o) criarRotaColeta(o);
       return;
     }
-    await alerta(`${x.oc.numero} gerada. Ela está em Compras › Ordens de compra.`);
+    await alerta(`${x.oc.numero} gerada${x.cotacoes?.length > 1 ? ` juntando ${x.cotacoes.join(" + ")}` : ""}. Ela está em Compras › Ordens de compra.`);
     onOk();
   }
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
-    <Modal titulo={`Gerar OC · ${c.numero} · ${c.fornecedorNome}`} onClose={onClose} largo>
+    <Modal titulo={`Gerar OC · ${cs[0].fornecedorNome} · ${cs.map((c) => c.numero).join(" + ")}`} onClose={onClose} largo>
       <div className="flex px-1 py-1 text-xs font-semibold gap-2" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-24 text-right">Cotado</div><div className="w-28 text-right">Negociado</div></div>
-      {c.itens.map((i, k) => i.naoTem ? <div key={k} className="px-1 py-1.5 text-xs" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}><s>{i.nome}</s> · fornecedor não tem (fica no PIC)</div> : (
-        <div key={k} className="flex px-1 py-1.5 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
-          <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{i.det}</span></div>
-          <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
-          <div className="w-24 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div>
-          <div className="w-28 text-right"><input value={f.itens[k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} /></div>
-        </div>
+      {cs.map((c, ci) => (
+        <React.Fragment key={c.id}>
+          {cs.length > 1 && <div className="text-[11px] font-bold px-1 pt-2" style={{ color: C.accent }}>{c.numero}{c.pics ? ` · ${c.pics}` : ""}</div>}
+          {c.itens.map((i, k) => i.naoTem ? <div key={k} className="px-1 py-1.5 text-xs" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}><s>{i.nome}</s> · fornecedor não tem (fica no PIC)</div> : (
+            <div key={k} className="flex px-1 py-1.5 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{i.det}</span></div>
+              <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
+              <div className="w-24 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div>
+              <div className="w-28 text-right"><input value={f.itens[ci][k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((arr, cj) => (cj !== ci ? arr : arr.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)))) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} /></div>
+            </div>
+          ))}
+        </React.Fragment>
       ))}
       <div className="text-right text-sm font-bold py-2" style={{ color: C.navy }}>Total negociado {brl(tot)}</div>
       <div className="grid gap-3 mt-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
@@ -1272,7 +1278,7 @@ function GerarOcCotacao({ c, user, onClose, onOk }) {
       {f.forma === "COLETA" && <div className="text-xs mt-3 px-3 py-2 rounded" style={{ background: C.blueSoft, color: C.blue }}>Coleta: depois de gerar a OC você pode criar a rota de coleta no fornecedor (também pelo botão da OC).</div>}
       <div className="flex justify-end gap-2 mt-4">
         <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
-        <button disabled={oc} onClick={gerar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OC</button>
+        <button disabled={oc} onClick={gerar} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OC{cs.length > 1 ? ` única (${cs.length} cotações)` : ""}</button>
       </div>
     </Modal>
   );
@@ -1348,7 +1354,7 @@ export function Cotacoes({ user, fases, ir }) {
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma cotação aqui. Gere pelo PIC (botão Gerar cotação).</div>}
       {card && <CotacaoModal cot={card} onClose={() => { setCard(null); carregar(); }} />}
-      {gerOc && <GerarOcCotacao c={gerOc} user={user} onClose={() => setGerOc(null)} onOk={() => { setGerOc(null); carregar(); }} />}
+      {gerOc && <GerarOcCotacao cs={gerOc} user={user} onClose={() => setGerOc(null)} onOk={() => { setGerOc(null); carregar(); }} />}
       {vis.map((c) => {
         const d = dados(c), trav = false, comOc = ehOc(c);   // v487 — cotação sempre editável
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
@@ -1394,7 +1400,11 @@ export function Cotacoes({ user, fases, ir }) {
               {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
                 if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
                 const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
-                setGerOc({ ...c, ...x.cotacao, itens: x.cotacao.itens });
+                const atual = { ...c, ...x.cotacao, itens: x.cotacao.itens };
+                // v488 — outras cotações respondidas do mesmo fornecedor, ainda sem OC: juntar numa OC só
+                const irmas = (l || []).filter((y) => y.id !== c.id && y.fornecedorId && y.fornecedorId === c.fornecedorId && y.status === "RESPONDIDA" && y.itens.some((i) => !i.naoTem && i.valorUnitario != null));
+                if (irmas.length && (await confirmar(`${c.fornecedorNome} também respondeu ${irmas.map((y) => y.numero).join(", ")}. Juntar tudo numa OC só?`))) setGerOc([atual, ...irmas]);
+                else setGerOc([atual]);
               }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
               {comOc && c.ocNumero && <Chip cor={C.green} fundo={C.greenSoft}>{c.ocNumero}</Chip>}
               {comOc && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
