@@ -1,38 +1,8 @@
 // v406 — cruza o levantamento com o estoque (saldo − reservas) e autoriza o atendimento pelo estoque
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { itensAbertos, cruzarEstoque, necessidade, disponivelEstoque, montarLevantamento } from "@/lib/compras";
-
+import { itensAbertos, necessidade, disponivelEstoque, simularCruzamento as simular } from "@/lib/compras";
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
-
-async function simular() {
-  const itens = await itensAbertos();
-  const lev = montarLevantamento(itens);
-  const ids = lev.consolidado.map((c) => c.artigoId);
-  const { saldo, reservas, disponivel } = await disponivelEstoque(ids);
-  const { atendidos, completos, sobra } = cruzarEstoque(itens, disponivel);
-  const at = new Set(atendidos);
-  // por artigo: demanda, saldo, reservado, disponível, atendido pelo estoque, a comprar (demanda dos itens não atendidos − sobra)
-  const artigos = lev.consolidado.map((c) => {
-    let atendido = 0, paraCompra = 0;
-    for (const i of itens) { const q = necessidade(i)[c.artigoId] || 0; if (at.has(i.id)) atendido += q; else paraCompra += q; }
-    const comprar = r3(Math.max(0, paraCompra - (sobra[c.artigoId] || 0)));
-    return { ...c, saldo: r3(saldo[c.artigoId] || 0), reservado: r3(reservas[c.artigoId] || 0), disponivel: r3(disponivel[c.artigoId] || 0),
-      atendido: r3(atendido), paraCompra: r3(paraCompra), sobra: r3(sobra[c.artigoId] || 0), comprar, comprarEmb: c.embalagem && comprar ? Math.ceil(comprar / c.embalagem) : null };
-  });
-  const peds = {};
-  for (const i of itens) {
-    const p = (peds[i.pedidoNumero] ||= { numero: i.pedidoNumero, cliente: i.cliente, entrega: i.entrega, itens: [] });
-    p.itens.push({ id: i.id, chave: i.chave, descricao: i.descricao, quantidade: Number(i.quantidade), fppNumero: i.fppNumero, atendido: at.has(i.id), semDemanda: !Object.keys(necessidade(i)).length,
-      demanda: (i.demanda || []).map((d) => ({ nome: d.nome, cor: d.cor, codigo: d.codigo, fornecedor: d.fornecedor, quantidade: d.quantidade, unidade: d.unidade, artigoId: d.equiparadoA || d.artigoId })) });
-  }
-  const pedidos = Object.values(peds).map((p) => {
-    const n = p.itens.filter((x) => !x.semDemanda);
-    const a = n.filter((x) => x.atendido).length;
-    return { ...p, completo: completos.includes(p.numero), situacao: !n.length ? "SEM DEMANDA" : a === n.length ? "COMPLETO" : a ? "PARCIAL" : "COMPRA" };
-  }).sort((a, b) => String(a.entrega ? new Date(a.entrega).toISOString() : "9").localeCompare(String(b.entrega ? new Date(b.entrega).toISOString() : "9")));
-  return { pedidos, artigos, atendidos, itens };
-}
 
 export async function GET(req) {
   // v415 — ?atendidos=1: itens autorizados pelo estoque (podem voltar ao levantamento enquanto o material não seguiu para a produção)

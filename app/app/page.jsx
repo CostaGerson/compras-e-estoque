@@ -16,7 +16,7 @@ import MovimentoFiscal, { DemandasAdm } from "./adm";
 import Rotas, { Destinatarios } from "./rotas";   // v425 · v430
 import MotoristaApp from "./motorista";   // v452 — usuário do setor Logística (motorista): só a rota dele, no celular
 import NfRegistro from "./nfRegistro";
-import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS } from "./compras";
+import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
 import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
@@ -105,7 +105,7 @@ const MENU = [
       { key: "levantamento", label: "Levantamento", icon: Layers, desc: "Demandas registradas, equiparações de artigos e demanda consolidada" },
       { key: "comprasCruzamento", label: "Cruzamento com estoque", icon: Layers, desc: "Cruza o levantamento com o saldo de estoque e autoriza os atendimentos" },
       { key: "comprasAtendidos", label: "Atendidos pelo estoque", icon: Layers, desc: "Itens autorizados pelo estoque; dá para devolver ao levantamento" },
-      { key: "pic", label: "PIC diário", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Pedido interno de compras consolidado do dia" },
+      { key: "pic", label: "PIC", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Itens que o estoque não atende: fornecedor e valor de cada artigo e geração das OCs" },
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
     ] },
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
@@ -345,7 +345,7 @@ export default function Home() {
           {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
-          {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} />}
+          {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} irPic={() => ir("pic")} />}
           {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos />}
           {view === "comprasAvulsas" && pode("comprasAvulsas") && (   // v468 — card próprio em Compras
             <div className="max-w-5xl">
@@ -353,8 +353,8 @@ export default function Home() {
               <Avulsas user={user} />
             </div>
           )}
-          {view === "pic" && pode("pic") && <PIC />}
-          {view === "oc" && pode("oc") && <OC money={money} />}
+          {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}
+          {view === "oc" && pode("oc") && <OrdensCompra />}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}

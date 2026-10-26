@@ -356,7 +356,9 @@ model Pic {
   id        Int       @id @default(autoincrement())
   numero    String    @unique
   data      DateTime  @default(now())
-  status    String    @default("ABERTO")
+  status    String    @default("ABERTO")   // ABERTO | OC (todos os itens em OC)
+  criadoPorNome String?                   // v469
+  obs       String?
   createdAt DateTime  @default(now())
 
   itens PicItem[]
@@ -369,6 +371,9 @@ model PicItem {
   ppItemId   Int?
   quantidade Decimal @db.Decimal(14, 3)
   atendido   Decimal @default(0) @db.Decimal(14, 3)
+  fornecedorId  Int?                          // v469 — preenchido pelo comprador
+  valorUnitario Decimal? @db.Decimal(14, 4)
+  info       Json    @default("{}")           // v469 — { nome, cor, codigo, unidade, embalagem, demanda, pedidos: [...] }
 
   pic        Pic                @relation(fields: [picId], references: [id], onDelete: Cascade)
   artigo     Artigo             @relation(fields: [artigoId], references: [id])
@@ -385,7 +390,10 @@ model OrdemCompra {
   condicaoFaturamento String?
   prazoFabrica        DateTime?
   prazoTransportadora DateTime?
-  status              String    @default("ABERTA")
+  status              String    @default("ABERTA")   // ABERTA | ENVIADA | RECEBIDA | CANCELADA
+  picId               Int?                          // v469
+  obs                 String?
+  criadoPorNome       String?
   createdAt           DateTime  @default(now())
 
   fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id])
@@ -1860,6 +1868,7 @@ model CompraItem {
   fppId         Int?
   fppNumero     Int?
   status        String    @default("LEVANTAMENTO") // LEVANTAMENTO | ESTOQUE | PIC | OC | NF | ENTREGUE
+  picId         Int?                       // v469 — PIC em que o item entrou
   demanda       Json      @default("[]")   // [{ papel, artigoId, nome, categoria, unidade, fornecedorId, fornecedor, cor, codigo, largura, consumoPorPeca, quantidade, valorUnitario, equiparadoA }]
   vinculadoPorNome String?
   autorizadoEm  DateTime?                  // v406 — atendimento pelo estoque autorizado (ou OC entregue): liberado para o PCP
