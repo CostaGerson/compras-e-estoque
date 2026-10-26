@@ -34,9 +34,10 @@ export async function responderCotacao(b) {
   if (!c) return { error: "Cotação não encontrada." };
   const its = (Array.isArray(c.itens) ? c.itens : []).map((i, k) => {
     const r = (b.itens || [])[k] || {};
-    return { ...i, valorUnitario: num(r.valorUnitario), prazo: /^\d{4}-\d{2}-\d{2}$/.test(String(r.prazo || "")) ? r.prazo : null, obs: String(r.obs || "").trim() || null };
+    const naoTem = !!r.naoTem;   // v484 — fornecedor não tem o item
+    return { ...i, naoTem, valorUnitario: naoTem ? null : num(r.valorUnitario), prazo: !naoTem && /^\d{4}-\d{2}-\d{2}$/.test(String(r.prazo || "")) ? r.prazo : null, obs: String(r.obs || "").trim() || null };
   });
-  const algum = its.some((i) => i.valorUnitario != null);
+  const algum = its.some((i) => i.valorUnitario != null || i.naoTem);
   const n = await prisma.cotacao.update({ where: { id: c.id }, data: { itens: its, condicao: String(b.condicao || "").trim() || null,
     prazoEntrega: /^\d{4}-\d{2}-\d{2}$/.test(String(b.prazoEntrega || "")) ? new Date(`${b.prazoEntrega}T12:00:00Z`) : null, obs: String(b.obs || "").trim() || null,
     ...(["GERADA", "ENVIADA"].includes(c.status) && algum ? { status: "RESPONDIDA", respondidaEm: new Date(), enviadaEm: c.enviadaEm || new Date() } : {}) } });
@@ -86,10 +87,11 @@ export async function gerarOcDaCotacao(b) {
   if (!c.fornecedorId) return { error: "O fornecedor da cotação não está no cadastro: cadastre e gere a cotação de novo." };
   const forma = ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.forma) ? b.forma : null;
   if (!forma) return { error: "Escolha a forma de recebimento." };
-  const its = (Array.isArray(c.itens) ? c.itens : []).map((i, k) => ({ ...i, valorNegociado: num((b.itens || [])[k]?.valorNegociado) ?? i.valorUnitario }));
-  if (its.some((i) => !(i.valorNegociado > 0))) return { error: "Informe o valor negociado de todos os itens." };
+  const its = (Array.isArray(c.itens) ? c.itens : []).map((i, k) => ({ ...i, valorNegociado: i.naoTem ? null : num((b.itens || [])[k]?.valorNegociado) ?? i.valorUnitario }));
+  if (its.every((i) => i.naoTem)) return { error: "O fornecedor não tem nenhum item desta cotação." };
+  if (its.some((i) => !i.naoTem && !(i.valorNegociado > 0))) return { error: "Informe o valor negociado dos itens que o fornecedor tem." };
   const ids = [];
-  for (const i of its) for (const pid of i.picItemIds || []) {
+  for (const i of its) if (!i.naoTem) for (const pid of i.picItemIds || []) {   // v484 — "não tem" fica fora da OC
     const pi = await prisma.picItem.findUnique({ where: { id: pid }, include: { ocItens: { select: { id: true } } } });
     if (!pi || pi.ocItens.length) continue;
     await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: c.fornecedorId, valorUnitario: i.valorNegociado } });

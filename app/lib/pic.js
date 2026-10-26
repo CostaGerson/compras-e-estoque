@@ -51,8 +51,14 @@ export async function listarPics() {
     include: { itens: { orderBy: { id: "asc" }, include: { ocItens: { select: { ocId: true, oc: { select: { numero: true } } } } } } } });
   const fIds = [...new Set(pics.flatMap((p) => p.itens.map((i) => i.fornecedorId)).filter(Boolean))];
   const forn = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, nomeForn(f)]));
+  // v484 — situação das cotações de cada item do PIC (valor, não tem, aguardando)
+  const cots = await prisma.cotacao.findMany({ where: { status: { not: "CANCELADA" } }, select: { numero: true, fornecedorNome: true, status: true, itens: true } });
+  const cotPorItem = {};
+  for (const c of cots) for (const i of Array.isArray(c.itens) ? c.itens : []) for (const pid of i.picItemIds || [])
+    (cotPorItem[pid] ||= []).push({ numero: c.numero, fornecedor: c.fornecedorNome, situacao: i.naoTem ? "NAO_TEM" : i.valorUnitario != null ? "VALOR" : "AGUARDANDO", valor: i.valorUnitario ?? null });
   return pics.map((p) => ({ id: p.id, numero: p.numero, data: p.data, status: p.status, criadoPorNome: p.criadoPorNome, obs: p.obs,
     itens: p.itens.map((i) => ({ id: i.id, artigoId: i.artigoId, quantidade: Number(i.quantidade), fornecedorId: i.fornecedorId, fornecedor: forn[i.fornecedorId] || null, fornecedoresCotacao: Array.isArray(i.fornecedoresCotacao) ? i.fornecedoresCotacao : [],
+      cotacoes: cotPorItem[i.id] || [], semCotacao: !!(cotPorItem[i.id]?.length && cotPorItem[i.id].every((x) => x.situacao === "NAO_TEM")),
       valorUnitario: i.valorUnitario != null ? Number(i.valorUnitario) : null, info: i.info || {}, oc: i.ocItens[0] ? { id: i.ocItens[0].ocId, numero: i.ocItens[0].oc.numero } : null })) }));
 }
 
