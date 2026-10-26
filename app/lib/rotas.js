@@ -388,7 +388,38 @@ export async function salvarDemanda(b, u) {
     const para = adms.map((x) => x.id).filter((x) => x !== u.id);
     if (para.length) await prisma.mensagem.createMany({ data: para.map((paraId) => ({ deId: u.id, paraId, texto: `NOVA DEMANDA ADM${d.urgente ? " (URGENTE)" : ""}: ${adm.titulo} · PARA ${dBR} — VER EM ADM › DEMANDAS ADM.` })) }).catch(() => null);
   }
-  return { ok: true, demanda: demandaOut(d), semMapa: d.lat == null };
+  return { ok: true, demanda: demandaOut(d), semMapa: d.lat == null, consolidar: await parecidas(d) };   // v467
+}
+
+// v467 — mesmo destinatário, mesmo dia e mesmo horário: candidatas a virar uma demanda só
+const mesmoDestino = (a, b) => (a.destinoId && b.destinoId && a.destinoTipo === b.destinoTipo ? a.destinoId === b.destinoId : up(a.destinoNome) === up(b.destinoNome));
+const mesmoHorario = (a, b) => a.horarioTipo === b.horarioTipo && (a.hora1 || "") === (b.hora1 || "") && (a.hora2 || "") === (b.hora2 || "");
+const juntavel = (d) => ["ABERTA", "NO_BLOCO"].includes(d.status) && !d.frete;
+async function parecidas(d) {
+  if (!juntavel(d)) return [];
+  const l = await prisma.rotaDemanda.findMany({ where: { data: d.data, id: { not: d.id }, status: { in: ["ABERTA", "NO_BLOCO"] }, frete: false } });
+  return l.filter((x) => mesmoDestino(x, d) && mesmoHorario(x, d) && !(x.blocoId && d.blocoId && x.blocoId !== d.blocoId))
+    .map((x) => ({ id: x.id, tarefa: x.tarefa, objetivo: x.objetivo }));
+}
+export async function consolidarDemandas(ids, u) {
+  const l = await prisma.rotaDemanda.findMany({ where: { id: { in: (ids || []).map(Number).filter(Boolean) } }, orderBy: { id: "asc" } });
+  if (l.length < 2) return { error: "Escolha ao menos duas demandas." };
+  if (l.some((x) => !juntavel(x))) return { error: "Só junta demandas abertas ou em rota ainda não despachada (sem frete)." };
+  if (l.some((x) => !mesmoDestino(x, l[0]) || !mesmoHorario(x, l[0]) || +x.data !== +l[0].data)) return { error: "As demandas precisam ser do mesmo destinatário, dia e horário." };
+  const blocos = [...new Set(l.map((x) => x.blocoId).filter(Boolean))];
+  if (blocos.length > 1) return { error: "As demandas estão em rotas diferentes." };
+  const fica = l.find((x) => x.blocoId) || l[0], saem = l.filter((x) => x.id !== fica.id);
+  const tarefas = [...new Set(l.map((x) => String(x.tarefa || "").trim()).filter(Boolean))];
+  const objs = [...new Set(l.map((x) => x.objetivo))];
+  const obs = [...new Set(l.map((x) => x.obs).filter(Boolean))].join(" · ") || null;
+  const tl = l.map((x) => x.tempoLocal).filter((x) => x != null);
+  const d = await prisma.rotaDemanda.update({ where: { id: fica.id }, data: {
+    tarefa: tarefas.join(" + ").slice(0, 200), objetivo: objs.length === 1 ? objs[0] : fica.objetivo, urgente: l.some((x) => x.urgente), obs,
+    tempoLocal: tl.length ? Math.min(600, Math.max(...tl) + 5 * (l.length - 1)) : null,
+    motoristaId: fica.motoristaId || l.find((x) => x.motoristaId)?.motoristaId || null, motoristaNome: fica.motoristaNome || l.find((x) => x.motoristaNome)?.motoristaNome || null,
+  } });
+  for (const x of saem) await prisma.rotaDemanda.update({ where: { id: x.id }, data: { status: "CANCELADA", blocoId: null, ordem: null, obs: [x.obs, `Consolidada na demanda #${fica.id} por ${nomeU(u) || "?"}`].filter(Boolean).join(" · ") } });
+  return { ok: true, demanda: demandaOut(d), juntadas: saem.map((x) => x.id) };
 }
 
 // v453 — pode cancelar mesmo em rota em execução: sai da rota, os links do Maps são refeitos e o motorista é avisado

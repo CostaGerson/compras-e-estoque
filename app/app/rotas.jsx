@@ -494,6 +494,14 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
       const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "demanda", demanda: { ...f, destinoNome: f.destinoNome || q } });
       _destinos = null;   // v430 — destinatário novo entra na lista
       if (r.semMapa) await alerta("Demanda salva, mas o endereço não foi encontrado no mapa. Confira rua, número, cidade e UF para ela aparecer no mapa e entrar no cálculo da rota.");
+      // v467 — mesmo destinatário, dia e horário: oferece juntar numa demanda só
+      if (r.consolidar?.length) {
+        const todas = [r.demanda, ...r.consolidar];
+        const lista = todas.map((x) => `#${x.id} ${frase(x.tarefa)}`).join(" e ");
+        if (await confirmar(`${r.demanda.destinoNome} já tem demanda no mesmo dia e horário. Consolidar as demandas ${lista} numa só, na mesma parada da rota?`)) {
+          try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "consolidar", ids: todas.map((x) => x.id) }); } catch (e) { await alerta(e.message); }
+        }
+      }
       onOk();
     } catch (e) { setErro(e.message); setSalv(false); }
   }
