@@ -3938,6 +3938,7 @@ function Usuarios({ master }) {
     <div>
       <div className="flex justify-between items-center mb-3">
         <div className="text-xs" style={{ color: C.sub }}>{usuarios.length} usuário(s) · você vê senhas e permissões porque é o master</div>
+        <TesteEmail master={master} />   {/* v511 */}
         <button onClick={() => { setEditando(null); setNovo(true); }} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo usuário</button>
       </div>
 
@@ -4173,5 +4174,28 @@ function Campo({ label, val }) {
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>{val}</div>
     </div>
+  );
+}
+
+// v511 — situação do envio de e-mails (Resend) e teste
+function TesteEmail({ master }) {
+  const [st, setSt] = useState(null);
+  const [env, setEnv] = useState(false);
+  useEffect(() => { if (master?.id) fetch(`/api/email/teste?u=${master.id}`).then((r) => r.json()).then(setSt).catch(() => {}); }, [master?.id]);
+  if (!st || st.error) return null;
+  const testar = async () => {
+    const para = window.prompt("Enviar o e-mail de teste para:", st.emailUsuario || "");
+    if (!para) return;
+    setEnv(true);
+    const r = await fetch("/api/email/teste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: master.id, para }) });
+    const x = await r.json().catch(() => ({}));
+    setEnv(false);
+    alerta(r.ok ? `E-mail de teste enviado para ${x.para}. Confira a caixa de entrada (e o spam).` : `Falhou: ${x.error || "erro"}`);
+  };
+  return (
+    <span className="flex items-center gap-2 text-xs mr-2">
+      <span className="px-2 py-1 rounded-full font-semibold" style={{ background: st.ok ? "#E7F6EE" : "#FDECEA", color: st.ok ? "#12A150" : "#D92D20" }} title={st.remetente || "sem remetente"}>{st.ok ? `E-mail ativo · ${st.remetente}` : !st.chave ? "E-mail: falta RESEND_API_KEY" : "E-mail: falta RESEND_FROM"}</span>
+      {st.ok && <button onClick={testar} disabled={env} className="px-2 py-1 rounded-md" style={{ border: `1px solid ${C.line}` }}>{env ? "Enviando…" : "Enviar teste"}</button>}
+    </span>
   );
 }

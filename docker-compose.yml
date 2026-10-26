@@ -28,6 +28,7 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-}
+      APP_URL: ${APP_URL:-https://erp.meridianpro.com.br}
       CRONO_URL: ${CRONO_URL:-}
       CRONO_TOKEN: ${CRONO_TOKEN:-}
       KM_SYNC_TOKEN: ${KM_SYNC_TOKEN:-}
