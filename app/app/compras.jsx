@@ -848,7 +848,7 @@ export function PicCompras({ user, fases, ir }) {
   const [oc, setOc] = useState(false);
   const [cot, setCot] = useState(null);   // v476 — cotação por fornecedor
   const [sel, setSel] = useState(new Set());   // v477 — itens escolhidos (de qualquer PIC)
-  const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
+  const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); const f = lerFoco("pic"); if (f) rolarDestacar(`pic-${f}`); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
   const val = (i) => ({ fornecedor: i.fornecedor || "", valor: numBR(i.valorUnitario), qtd: numBR(i.quantidade), extras: (i.fornecedoresCotacao || []).map((f) => f.nome), ...(ed[i.id] || {}) });   // v482 — extras: outros fornecedores p/ cotação
@@ -939,7 +939,7 @@ export function PicCompras({ user, fases, ir }) {
         const porF = {};
         for (const i of abertos) { const v = val(i); const k = v.fornecedor.trim() || "— sem fornecedor"; porF[k] = (porF[k] || 0) + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }
         return (
-          <div key={p.id} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div key={p.id} id={`pic-${p.numero}`} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
               <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{p.numero} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
               <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>
@@ -1026,7 +1026,8 @@ export function OrdensCompra({ fases, ir }) {
   const [l, setL] = useState(null);
   const [ab, setAb] = useState({});
   const [filtro, setFiltro] = useState("ativas");
-  const carregar = () => fetch("/api/compras/oc").then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
+  const carregar = () => fetch("/api/compras/oc").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []);
+    const f = lerFoco("oc"); if (f) { setFiltro("todas"); setAb((m) => ({ ...m, [f]: true })); rolarDestacar(`oc-${f}`); } }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const salvar = async (o, campos) => {
     const r = await fetch("/api/compras/oc", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, ...campos }) });
@@ -1050,7 +1051,7 @@ export function OrdensCompra({ fases, ir }) {
         const [txt, cor, fundo] = ST_OC[o.status] || ST_OC.ABERTA;
         const aberto = !!ab[o.id];
         return (
-          <div key={o.id} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div key={o.id} id={`oc-${o.id}`} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <button onClick={() => setAb((s0) => ({ ...s0, [o.id]: !aberto }))} className="w-full flex items-center gap-3 px-4 py-3 text-left">
               {aberto ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0">
@@ -1514,8 +1515,8 @@ export function PainelCompras({ ir }) {
                 <div className="w-24 text-center">{qtdU(i.quantidade, i.unidade)}</div>
                 <div className="w-40 text-xs truncate text-center" style={{ color: i.fornecedor ? C.text : C.sub }} title={i.fornecedor || ""}>{i.fornecedor || "—"}</div>
                 <div className="w-28 text-xs text-center" style={{ color: C.sub }}>   {/* v490 — clicar abre o PIC ou a OC */}
-                  <button onClick={() => setJan({ tipo: "pic", numero: i.pic })} className="underline decoration-dotted hover:text-black">{i.pic}</button>
-                  {i.oc ? <div><button onClick={() => setJan({ tipo: "oc", id: i.oc.id })} className="font-semibold underline decoration-dotted" style={{ color: C.navy }}>{i.oc.numero}</button>{i.oc.nf ? <span style={{ color: C.navy }}> · NF {i.oc.nf}</span> : ""}</div> : null}</div>
+                  <button onClick={() => (ir ? irPara(ir, "pic", i.pic) : setJan({ tipo: "pic", numero: i.pic }))} className="underline decoration-dotted hover:text-black" title="Abrir este PIC">{i.pic}</button>
+                  {i.oc ? <div><button onClick={() => (ir ? irPara(ir, "oc", i.oc.id) : setJan({ tipo: "oc", id: i.oc.id }))} title="Abrir esta OC" className="font-semibold underline decoration-dotted" style={{ color: C.navy }}>{i.oc.numero}</button>{i.oc.nf ? <span style={{ color: C.navy }}> · NF {i.oc.nf}</span> : ""}</div> : null}</div>
                 <div className="w-32 flex flex-wrap gap-1 justify-center">{(i.destinos || []).map((x) => x === "OPERACAO"   // v489 — operação (interno) ou pedido indexado
                   ? <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.panel2, color: C.sub }}>Operação</span>
                   : <span key={x} className="text-[10px] font-semibold px-1.5 py-px rounded" style={{ background: C.blueSoft, color: C.blue }}>{x.replace("PED ", "Ped. ")}</span>)}</div>
@@ -1537,6 +1538,12 @@ export function PainelCompras({ ir }) {
     </div>
   );
 }
+
+// v491b — abrir um PIC ou uma OC específica na tela dela (rola até ele e destaca)
+const FOCO = "ce_foco_compras";
+function irPara(ir, tipo, chave) { try { sessionStorage.setItem(FOCO, JSON.stringify({ tipo, chave, t: Date.now() })); } catch {} ir(tipo === "pic" ? "pic" : "oc"); }
+function lerFoco(tipo) { try { const f = JSON.parse(sessionStorage.getItem(FOCO) || "null"); if (f?.tipo === tipo && Date.now() - f.t < 15000) { sessionStorage.removeItem(FOCO); return f.chave; } } catch {} return null; }
+function rolarDestacar(id) { setTimeout(() => { const el = document.getElementById(id); if (!el) return; el.scrollIntoView({ behavior: "smooth", block: "start" }); el.style.transition = "box-shadow .4s"; el.style.boxShadow = "0 0 0 3px #FF6B1A"; setTimeout(() => { el.style.boxShadow = ""; }, 2500); }, 250); }
 
 // ---------- v490 — PIC ou OC em janela central (a partir do painel de compras) ----------
 function JanelaPicOc({ jan, onClose, ir }) {
