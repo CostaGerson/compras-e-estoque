@@ -1192,6 +1192,48 @@ function GerarOcCotacao({ c, user, onClose, onOk }) {
     </Modal>
   );
 }
+// v481 — arquivos da cotação (proposta do fornecedor, prints…)
+const lerB64 = (f) => new Promise((ok, nok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = nok; r.readAsDataURL(f); });
+const tamTxt = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+function ArquivosCotacao({ c, user, onMudou }) {
+  const [env, setEnv] = useState(false);
+  const [arr, setArr] = useState(false);
+  async function anexar(fs) {
+    setEnv(true);
+    for (const f of fs) {
+      try {
+        const r = await fetch("/api/compras/cotacoes/arquivos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cotacaoId: c.id, nome: f.name, mime: f.type, conteudo: await lerB64(f), quem: nomeUser(user) }) });
+        if (!r.ok) { const x = await r.json().catch(() => ({})); alerta(x.error || `Erro ao anexar ${f.name}.`); }
+      } catch { alerta(`Erro ao ler ${f.name}.`); }
+    }
+    setEnv(false); onMudou();
+  }
+  async function tirar(a) {
+    if (!(await confirmar(`Excluir o arquivo ${a.nome}?`))) return;
+    await fetch("/api/compras/cotacoes/arquivos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) });
+    onMudou();
+  }
+  const arqs = c.arquivos || [];
+  return (
+    <div className="px-4 py-2.5 flex flex-wrap items-center gap-2" style={{ borderTop: `1px solid ${C.line}`, background: arr ? C.accentSoft : undefined }}
+      onDragOver={(e) => { e.preventDefault(); setArr(true); }} onDragLeave={() => setArr(false)} onDrop={(e) => { e.preventDefault(); setArr(false); if (e.dataTransfer.files?.length) anexar([...e.dataTransfer.files]); }}>
+      <span className="text-xs font-semibold" style={{ color: C.sub }}>📎 Arquivos ({arqs.length})</span>
+      {arqs.map((a) => (
+        <span key={a.id} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ background: C.panel2, border: `1px solid ${C.line}` }} title={`${a.criadoPorNome || ""} · ${new Date(a.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`}>
+          <FileText size={12} style={{ color: C.accent }} />
+          <a href={`/api/compras/cotacoes/arquivos?id=${a.id}`} target="_blank" rel="noreferrer" className="max-w-[220px] truncate" style={{ color: C.blue }}>{a.nome}</a>
+          <span style={{ color: C.sub }}>{tamTxt(a.tamanho)}</span>
+          <button onClick={() => tirar(a)} title="Excluir" style={{ color: C.sub }}><X size={12} /></button>
+        </span>
+      ))}
+      <label className="text-xs px-2.5 py-1 rounded-md font-semibold cursor-pointer flex items-center gap-1" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>
+        {env ? <Loader2 size={12} className="animate-spin" /> : "+"} Anexar arquivo
+        <input type="file" multiple className="hidden" onChange={(e) => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) anexar(fs); }} />
+      </label>
+      <span className="text-[11px]" style={{ color: C.sub }}>ou arraste aqui (PDF, imagem, planilha · até 15 MB)</span>
+    </div>
+  );
+}
 export function Cotacoes({ user, fases, ir }) {
   const [l, setL] = useState(null);
   const [filtro, setFiltro] = useState("todas");
@@ -1253,6 +1295,7 @@ export function Cotacoes({ user, fases, ir }) {
                 </div>
               );
             })}
+            <ArquivosCotacao c={c} user={user} onMudou={() => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => Array.isArray(x) && setL(x)).catch(() => {})} />
             <div className="flex flex-wrap items-end gap-3 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
               <label className="text-xs" style={{ color: C.sub }}>Condição de pagamento<input disabled={trav} value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-40`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
               <label className="text-xs" style={{ color: C.sub }}>Entrega prevista<input disabled={trav} type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1`} style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>

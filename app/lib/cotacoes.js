@@ -24,7 +24,8 @@ export async function listarCotacoes() {
   const fIds = [...new Set(l.map((c) => c.fornecedorId).filter(Boolean))];
   const fs = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, f]));
   const ocs = Object.fromEntries((await prisma.ordemCompra.findMany({ where: { id: { in: l.map((c) => c.ocId).filter(Boolean) } }, select: { id: true, numero: true } })).map((o) => [o.id, o.numero]));
-  return l.map((c) => ({ ...out(c), ocNumero: ocs[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
+  const arqs = await prisma.cotacaoArquivo.findMany({ where: { cotacaoId: { in: l.map((c) => c.id) } }, select: { id: true, cotacaoId: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } });   // v481
+  return l.map((c) => ({ ...out(c), arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
 }
 
 // resposta do fornecedor: { id, itens: [{ valorUnitario, prazo, obs }] (mesma ordem), condicao, prazoEntrega, obs }

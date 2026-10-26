@@ -2094,3 +2094,17 @@ model Cotacao {
 
   @@index([status])
 }
+
+// v481 — arquivos anexados à cotação (proposta do fornecedor, prints, catálogos)
+model CotacaoArquivo {
+  id            Int      @id @default(autoincrement())
+  cotacaoId     Int
+  nome          String
+  mime          String?
+  tamanho       Int      @default(0)
+  conteudo      String                           // base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([cotacaoId])
+}
