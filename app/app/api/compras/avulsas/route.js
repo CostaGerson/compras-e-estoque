@@ -13,7 +13,16 @@ function limpar(b) {
     nome: up(i.nome), quantidade: n(i.quantidade), unidade: ["UN", "M", "KG", "PC"].includes(i.unidade) ? i.unidade : "UN",
     fornecedorId: i.fornecedorId ? Number(i.fornecedorId) : null, fornecedorNome: up(i.fornecedorNome) || null,
     bomPara: /^\d{4}-\d{2}-\d{2}$/.test(String(i.bomPara || "")) ? i.bomPara : null, recebido: !!i.recebido,
+    pedidoRef: String(i.pedidoRef || "").trim() || null, pedidoCliente: String(i.pedidoCliente || "").trim() || null,   // v475 — pedido por item
+    obs: String(i.obs || "").trim().slice(0, 300) || null,
   }));
+  // v475 — destino vem dos itens: algum item com pedido → PEDIDO; o pedido do cabeçalho só quando todos são do mesmo
+  const peds = [...new Set(itens.map((i) => i.pedidoRef).filter(Boolean))];
+  if (Array.isArray(b.itens)) return {
+    numero: String(b.numero || "").trim() || null, destino: peds.length ? "PEDIDO" : "OPERACAO",
+    pedidoRef: peds.length === 1 ? peds[0] : null, pedidoCliente: peds.length === 1 ? itens.find((i) => i.pedidoRef === peds[0])?.pedidoCliente || null : null,
+    obs: String(b.obs || "").trim() || null, itens,
+  };
   return {
     numero: String(b.numero || "").trim() || null, destino: b.destino === "PEDIDO" ? "PEDIDO" : "OPERACAO",
     pedidoRef: b.destino === "PEDIDO" ? String(b.pedidoRef || "").trim() || null : null,
@@ -27,7 +36,7 @@ async function avisarRecebida(c, porId) {
   const us = (await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, sobrenome: true } }))
     .filter((u) => /(^|\s)LEANDRO(\s|$)/.test(`${u.nome || ""} ${u.sobrenome || ""}`.toUpperCase()));
   if (!us.length) return;
-  const itens = (Array.isArray(c.itens) ? c.itens : []).map((i) => `${i.nome} (${String(i.quantidade).replace(".", ",")} ${String(i.unidade || "").toLowerCase()})`);
+  const itens = (Array.isArray(c.itens) ? c.itens : []).map((i) => `${i.nome} (${String(i.quantidade).replace(".", ",")} ${String(i.unidade || "").toLowerCase()}${i.pedidoRef ? ` · pedido ${i.pedidoRef}` : ""})`);
   const nome = `AVULSA ${c.numero || `#${c.id}`}${c.destino === "PEDIDO" && c.pedidoRef ? ` · PEDIDO ${c.pedidoRef}` : ""}`;
   for (const u of us) {
     const de = Number(porId) || u.id;

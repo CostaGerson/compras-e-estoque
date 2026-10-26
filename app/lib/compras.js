@@ -388,11 +388,12 @@ export async function sincronizarAvulsa(c, db = prisma) {
     const forn = i.fornecedorId ? Number(i.fornecedorId) : null;
     let art = await db.artigo.findFirst({ where: { ativo: true, unidade, fornecedorId: forn, nome: { equals: i.nome, mode: "insensitive" } }, select: { id: true, categoria: true } });
     if (!art) art = await db.artigo.create({ data: { categoria: "OUTROS", nome: i.nome, unidade, fornecedorId: forn, origem: "AVULSA" }, select: { id: true, categoria: true } });
-    const destino = c.destino === "PEDIDO" ? `PEDIDO ${c.pedidoRef || ""}`.trim() : "OPERAÇÃO";
+    const ref = i.pedidoRef || (c.destino === "PEDIDO" ? c.pedidoRef : null);   // v475 — pedido por item
+    const destino = ref ? `PEDIDO ${ref}` : "OPERAÇÃO";
     const dados = { descricao: i.nome, quantidade: Number(i.quantidade), cliente: `AVULSA ${c.numero || `#${c.id}`} · ${destino}`,
       entrega: i.bomPara ? new Date(`${i.bomPara}T00:00:00Z`) : null, status: statusDe,
       demanda: [{ papel: "AVULSA", artigoId: art.id, nome: i.nome, categoria: art.categoria, unidade, fornecedorId: forn, fornecedor: i.fornecedorNome || null,
-        cor: null, codigo: null, largura: null, consumoPorPeca: 1, quantidade: Number(i.quantidade), valorUnitario: null, embalagem: null, obs: null, equiparadoA: null }] };
+        cor: null, codigo: null, largura: null, consumoPorPeca: 1, quantidade: Number(i.quantidade), valorUnitario: null, embalagem: null, obs: i.obs || null, equiparadoA: null }] };
     const ex = atuais.find((x) => x.chave === chave);
     if (ex) { if (ex.status === "LEVANTAMENTO" || ["OC", "ENTREGUE", "LEVANTAMENTO"].includes(ex.status)) await db.compraItem.update({ where: { id: ex.id }, data: dados }); }
     else await db.compraItem.create({ data: { pedidoNumero: num, chave, ...dados } });

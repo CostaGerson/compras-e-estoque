@@ -31,7 +31,7 @@ function Chip({ cor = C.sub, fundo = C.panel2, children, title }) {
 function Modal({ titulo, onClose, children, largo }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className={`rounded-lg w-full ${largo === "xl" ? "max-w-5xl" : largo ? "max-w-2xl" : "max-w-lg"} ${largo === "xl" ? "" : "max-h-[90vh]"} flex flex-col`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div onClick={(e) => e.stopPropagation()} className={`rounded-lg w-full ${largo === "xl" ? "max-w-6xl" : largo ? "max-w-2xl" : "max-w-lg"} ${largo === "xl" ? "" : "max-h-[90vh]"} flex flex-col`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-bold" style={{ color: C.navy }}>{titulo}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
@@ -331,7 +331,7 @@ function BuscaFornecedor({ valor, idAtual, forns, onEscolher, estilo, placeholde
 }
 
 // ---------- v471 — busca do pedido da avulsa: nº ou cliente, só pedidos em andamento ----------
-function BuscaPedido({ valor, cliente, onEscolher, sel }) {
+function BuscaPedido({ valor, cliente, onEscolher, sel, rotulo = "Pedido (nº ou cliente)", placeholder = "Digite o nº do pedido ou o cliente" }) {
   const [q, setQ] = useState(valor ? `${valor}${cliente ? ` · ${cliente}` : ""}` : "");
   const [l, setL] = useState([]);
   const [ab, setAb] = useState(false);
@@ -339,10 +339,10 @@ function BuscaPedido({ valor, cliente, onEscolher, sel }) {
   const buscar = (v) => { clearTimeout(t.current); t.current = setTimeout(() => fetch(`/api/compras/avulsas?pedidos=${encodeURIComponent(v)}`).then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([])), 250); };
   const brl0 = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return (
-    <label className="text-xs relative block" style={{ color: C.sub }}>Pedido (nº ou cliente)
+    <label className="text-xs relative block" style={{ color: C.sub }}>{rotulo}
       <input value={q} onFocus={() => { setAb(true); buscar(valor ? "" : q); }} onBlur={() => setTimeout(() => setAb(false), 200)}
         onChange={(e) => { setQ(e.target.value); setAb(true); buscar(e.target.value); if (!e.target.value) onEscolher(null); }}
-        placeholder="Digite o nº do pedido ou o cliente" className="w-full px-2 py-1.5 rounded text-sm mt-1" style={{ ...sel, ...(valor ? { borderColor: C.green } : {}) }} />
+        placeholder={placeholder} className={`w-full px-2 py-1.5 rounded text-sm ${rotulo ? "mt-1" : ""}`} style={{ ...sel, ...(valor ? { borderColor: C.green } : {}) }} />
       {ab && l.length > 0 && (
         <div className="absolute z-20 left-0 right-0 mt-1 rounded-md shadow-lg max-h-72 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: 460 }}>
           {l.map((p) => (
@@ -401,7 +401,7 @@ export function Avulsas({ user }) {
     <div>
       <div className="flex items-center gap-2 mb-3">
         <div className="text-xs flex-1" style={{ color: C.sub }}>Material para a operação ou para completar um pedido. Aberta, a compra entra no <b>Levantamento</b>. <b>Bom para</b> = data máxima de chegada na fábrica: até 2 dias vermelho, até 5 amarelo, depois verde.</div>
-        <button onClick={() => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] })}
+        <button onClick={() => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: "", pedidoCliente: "", bomPara: "", obs: "" }] })}
           className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>+ Compra avulsa</button>
       </div>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
@@ -417,21 +417,22 @@ export function Avulsas({ user }) {
         return (
           <div key={c.id} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {c.destino === "PEDIDO" ? `pedido ${c.pedidoRef || "—"}${c.pedidoCliente ? ` · ${c.pedidoCliente}` : ""}` : "operação"}
+              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {(() => { const ps = [...new Set((c.itens || []).map((i) => i.pedidoRef || (c.destino === "PEDIDO" ? c.pedidoRef : null)).filter(Boolean))]; return ps.length ? `pedido${ps.length > 1 ? "s" : ""} ${ps.join(", ")}${ps.length === 1 && c.pedidoCliente ? ` · ${c.pedidoCliente}` : ""}` : "operação"; })()}
                 {c.obs && <span className="font-normal text-xs" style={{ color: C.sub }}> · {c.obs}</span>}
                 <span className="font-normal text-xs" style={{ color: C.sub }}> · {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.criadoPorNome ? ` por ${c.criadoPorNome}` : ""}</span></div>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
               {c.status === "ABERTA" && <button onClick={() => status(c, "COMPRADA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.blue }}>marcar comprada</button>}
               {c.status === "COMPRADA" && <button onClick={() => status(c, "RECEBIDA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.green }}>marcar recebida</button>}
               {c.status !== "ABERTA" && <button onClick={() => status(c, c.status === "RECEBIDA" ? "COMPRADA" : "ABERTA")} title="Voltar para a fase anterior" className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>voltar</button>}
-              <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ",") })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
+              <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), pedidoRef: i.pedidoRef ?? (c.destino === "PEDIDO" ? c.pedidoRef || "" : ""), pedidoCliente: i.pedidoCliente ?? (c.destino === "PEDIDO" ? c.pedidoCliente || "" : "") })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
               <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
             </div>
             {(c.itens || []).map((i, k) => (
-              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 120px 200px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
-                <div style={{ color: C.text }}>{i.nome}</div>
+              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 110px 260px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
+                <div style={{ color: C.text }}>{i.nome}{i.obs ? <div className="text-[11px]" style={{ color: C.sub }}>{i.obs}</div> : null}</div>
                 <div className="font-semibold" style={{ color: C.accent }}>{qtdU(i.quantidade, i.unidade)}</div>
-                <div className="text-xs truncate" style={{ color: C.sub }} title={i.fornecedorNome || ""}>{i.fornecedorNome || ""}</div>
+                <div className="text-xs truncate" style={{ color: C.sub }} title={[i.fornecedorNome, i.pedidoRef ? `Pedido ${i.pedidoRef} · ${i.pedidoCliente || ""}` : null].filter(Boolean).join("\n")}>
+                  {i.pedidoRef ? <span className="font-semibold mr-1.5 px-1.5 py-0.5 rounded" style={{ background: C.blueSoft, color: C.blue }}>Ped. {i.pedidoRef}</span> : null}{i.fornecedorNome || ""}</div>
                 {/* v470 — bom para preenchido direto na lista */}
                 <label className="flex items-center gap-1"><span className="text-[11px]" style={{ color: C.sub }}>bom para</span>
                   {(() => { const cb = corBomPara(i.bomPara); return <input type="date" value={i.bomPara || ""} disabled={c.status === "CANCELADA"} onChange={(e) => bomPara(c, k, e.target.value)} className="px-1.5 py-0.5 rounded text-xs" style={{ border: `1px solid ${cb ? cb[0] : C.line}`, color: cb ? cb[0] : C.sub, background: cb ? cb[1] : C.panel, fontWeight: cb ? 600 : 400 }} />; })()}
@@ -443,28 +444,30 @@ export function Avulsas({ user }) {
       })}
       {ed && (
         <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa · o nº sai ao salvar"} onClose={() => setEd(null)} largo="xl">
-          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "220px minmax(0,1.6fr) minmax(0,1fr)" }}>
-            <label className="text-xs" style={{ color: C.sub }}>Para<select value={ed.destino} onChange={(e) => setEd({ ...ed, destino: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel}><option value="OPERACAO">Operação</option><option value="PEDIDO">Faz parte de um pedido</option></select></label>
-            {ed.destino === "PEDIDO" ? <BuscaPedido valor={ed.pedidoRef} cliente={ed.pedidoCliente} onEscolher={(p) => setEd((e) => ({ ...e, pedidoRef: p?.numero || "", pedidoCliente: p?.cliente || "" }))} sel={sel} /> : <div />}
+          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)" }}>
+            <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Cada item pode ser de um <b>pedido</b> diferente (entra na DRE dele). Sem pedido = <b>operação</b>.</div>
             <label className="text-xs" style={{ color: C.sub }}>Observação<input value={ed.obs || ""} onChange={(e) => setEd({ ...ed, obs: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
           </div>
-          <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,2fr) 100px 90px minmax(0,1.2fr) 160px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Bom para</span><span /></div>
+          <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,1.8fr) 90px 80px minmax(0,1.2fr) minmax(0,1.3fr) 150px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Pedido (se houver)</span><span>Bom para</span><span /></div>
           {ed.itens.map((i, k) => {
             const c = corBomPara(i.bomPara);
             return (
-              <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,2fr) 100px 90px minmax(0,1.2fr) 160px 24px" }}>
+              <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,1.8fr) 90px 80px minmax(0,1.2fr) minmax(0,1.3fr) 150px 24px" }}>
                 <input value={i.nome || ""} onChange={(e) => setIt(k, "nome", e.target.value)} placeholder="Nome do item" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <select value={i.unidade || "UN"} onChange={(e) => setIt(k, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>{UNIDADES_AV.map(([u, n]) => <option key={u} value={u}>{n}</option>)}</select>
                 <BuscaFornecedor valor={i.fornecedorNome} idAtual={i.fornecedorId} forns={forns} estilo={sel} placeholder="opcional · buscar no cadastro"
                   onEscolher={(f, v) => setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, fornecedorNome: f ? nomeFornCad(f) : v, fornecedorId: f ? f.id : null } : x)) }))} />
+                <BuscaPedido key={`p${k}-${i.pedidoRef || ""}`} rotulo="" placeholder="operação · nº ou cliente" valor={i.pedidoRef} cliente={i.pedidoCliente} sel={sel}
+                  onEscolher={(p) => setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, pedidoRef: p?.numero || "", pedidoCliente: p?.cliente || "" } : x)) }))} />
                 <input type="date" value={i.bomPara || ""} onChange={(e) => setIt(k, "bomPara", e.target.value)} className="px-2 py-1.5 rounded text-sm"
                   style={{ ...sel, ...(c ? { color: c[0], background: c[1], border: `1px solid ${c[0]}`, fontWeight: 600 } : {}) }} />
                 <button onClick={() => setEd((e) => ({ ...e, itens: e.itens.filter((_, j) => j !== k) }))} style={{ color: C.red }}><X size={15} /></button>
+                <input value={i.obs || ""} onChange={(e) => setIt(k, "obs", e.target.value)} placeholder="Obs. do item (cor, medida, onde usar…)" className="px-2 py-1 rounded text-xs" style={{ ...sel, gridColumn: "1 / span 6", marginTop: -4 }} />   {/* v475 */}
               </div>
             );
           })}
-          <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
+          <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: e.itens[e.itens.length - 1]?.pedidoRef || "", pedidoCliente: e.itens[e.itens.length - 1]?.pedidoCliente || "", bomPara: "", obs: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
           <div className="flex justify-end gap-2">
             <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
             <button onClick={salvar} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
