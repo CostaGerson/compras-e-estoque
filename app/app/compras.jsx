@@ -817,7 +817,7 @@ export function PicCompras({ user, fases, ir }) {
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
-  const val = (i) => ({ fornecedor: i.fornecedor || "", valor: numBR(i.valorUnitario), qtd: numBR(i.quantidade), ...(ed[i.id] || {}) });
+  const val = (i) => ({ fornecedor: i.fornecedor || "", valor: numBR(i.valorUnitario), qtd: numBR(i.quantidade), extras: (i.fornecedoresCotacao || []).map((f) => f.nome), ...(ed[i.id] || {}) });   // v482 — extras: outros fornecedores p/ cotação
   const set = (i, k, v) => setEd((e) => ({ ...e, [i.id]: { ...val(i), ...e[i.id], [k]: v } }));
   const linhas = (p) => p.itens.filter((i) => !i.oc).map((i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor }; });
   async function enviar(p, acao) {
@@ -841,11 +841,14 @@ export function PicCompras({ user, fases, ir }) {
   // v477 — ações sobre itens de vários PICs: os escolhidos, ou todos os que estão sem OC
   const todosAbertos = (l || []).flatMap((p) => p.itens.filter((i) => !i.oc).map((i) => ({ ...i, picNumero: p.numero })));
   const alvo = sel.size ? todosAbertos.filter((i) => sel.has(i.id)) : todosAbertos;
-  const linha = (i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor }; };
+  const linha = (i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor,
+    fornecedoresCotacao: v.extras.map((n) => porNome[String(n || "").trim().toUpperCase()]).filter(Boolean).map((x) => ({ id: x.id, nome: nomeFornec(x) })) }; };
   async function acaoItens(acao) {
     const its = (acao === "salvarItens" ? todosAbertos : alvo).map(linha);
     const semCad = its.filter((x) => x.fornecedorId === undefined);
     if (semCad.length) return alerta(`Fornecedor não encontrado no cadastro: ${[...new Set(semCad.map((x) => x.nomeForn))].join(", ")}. Escolha um da lista.`);
+    const extraFora = (acao === "salvarItens" ? todosAbertos : alvo).flatMap((i) => val(i).extras).filter((n) => String(n || "").trim() && !porNome[String(n).trim().toUpperCase()]);
+    if (extraFora.length) return alerta(`Fornecedor para cotação fora do cadastro: ${[...new Set(extraFora)].join(", ")}. Escolha da lista.`);
     if (acao === "ocsItens") {
       const prontos = its.filter((x) => x.fornecedorId && lerNum(x.valorUnitario) > 0);
       if (!prontos.length) return alerta("Preencha fornecedor e valor unitário dos itens para gerar as OCs.");
@@ -863,8 +866,13 @@ export function PicCompras({ user, fases, ir }) {
   }
   function cotacao() {
     const g = {};
-    for (const i of alvo) { const v = val(i); const nome = v.fornecedor.trim(); if (!nome) continue; const f = porNome[nome.toUpperCase()]; const k = f ? `F${f.id}` : `N${nome.toUpperCase()}`;
-      (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade, picItemIds: [i.id] }); }
+    // v482 — cada item vai para o card de cada um dos seus fornecedores (principal + até 4 extras)
+    for (const i of alvo) { const v = val(i);
+      const nomes = [...new Set([v.fornecedor, ...v.extras].map((n) => String(n || "").trim()).filter(Boolean).map((n) => n.toUpperCase()))];
+      for (const nomeU of nomes) { const f = porNome[nomeU]; const k = f ? `F${f.id}` : `N${nomeU}`;
+        (g[k] ||= { fornecedor: f || { nome: nomeU }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade, picItemIds: [i.id] }); } }
+    // salva os fornecedores extras escolhidos (ficam no PIC)
+    fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "salvarItens", itens: alvo.map(linha).filter((x) => x.fornecedorId !== undefined).map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })) }) }).catch(() => {});
     if (!Object.keys(g).length) return alerta("Escolha o fornecedor dos itens para gerar a cotação.");
     // o mesmo artigo vindo de PICs diferentes vira uma linha só
     for (const x of Object.values(g)) { const m = {}; for (const it of x.itens) { const k = `${it.nome}|${it.det}|${it.unidade}`; if (m[k]) { m[k].quantidade += Number(it.quantidade) || 0; m[k].picItemIds.push(...it.picItemIds); } else m[k] = { ...it, quantidade: Number(it.quantidade) || 0, picItemIds: [...it.picItemIds] }; } x.itens = Object.values(m); }
@@ -921,7 +929,15 @@ export function PicCompras({ user, fases, ir }) {
                   </div>
                   <div className="w-28 text-right">{trav ? qtdU(i.quantidade, inf.unidade) : <span className="inline-flex items-center gap-1"><input value={v.qtd} onChange={(e) => set(i, "qtd", e.target.value)} className={`${inp} w-20 text-right`} style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(inf.unidade || "").toLowerCase()}</span></span>}</div>
                   <div className="w-56">{trav ? <span className="text-xs">{i.fornecedor} · <b style={{ color: C.green }}>{i.oc.numero}</b></span>
-                    : <BuscaFornecedor valor={v.fornecedor} idAtual={porNome[v.fornecedor.trim().toUpperCase()]?.id} forns={forns} estilo={{ border: `1px solid ${C.line}` }} onEscolher={(f, txt) => set(i, "fornecedor", f ? nomeFornec(f) : txt)} />}</div>
+                    : <div className="space-y-1">
+                        <div className="flex items-center gap-1"><div className="flex-1 min-w-0"><BuscaFornecedor valor={v.fornecedor} idAtual={porNome[v.fornecedor.trim().toUpperCase()]?.id} forns={forns} estilo={{ border: `1px solid ${C.line}` }} onEscolher={(f, txt) => set(i, "fornecedor", f ? nomeFornec(f) : txt)} /></div>
+                          {v.extras.length < 4 && <button type="button" onClick={() => set(i, "extras", [...v.extras, ""])} title="Adicionar outro fornecedor para cotação (até 5)" className="shrink-0 rounded-md font-bold text-sm flex items-center justify-center" style={{ width: 26, height: 26, border: `1px solid ${C.accent}`, color: C.accent }}>+</button>}</div>
+                        {v.extras.map((n, j) => (   // v482 — outros fornecedores para cotação
+                          <div key={j} className="flex items-center gap-1"><div className="flex-1 min-w-0"><BuscaFornecedor valor={n} idAtual={porNome[String(n || "").trim().toUpperCase()]?.id} forns={forns} placeholder={`cotar também com…`} estilo={{ border: `1px dashed ${C.line}`, fontSize: 12 }}
+                            onEscolher={(f, txt) => set(i, "extras", v.extras.map((x, k2) => (k2 === j ? (f ? nomeFornec(f) : txt) : x)))} /></div>
+                            <button type="button" onClick={() => set(i, "extras", v.extras.filter((_, k2) => k2 !== j))} title="Tirar" className="shrink-0 flex items-center justify-center" style={{ width: 26, height: 26, color: C.sub }}><X size={13} /></button></div>
+                        ))}
+                      </div>}</div>
                   <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
                   <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{lerNum(v.valor) && lerNum(v.qtd) ? brl(lerNum(v.valor) * lerNum(v.qtd)) : "—"}</div>
                 </div>

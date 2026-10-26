@@ -41,7 +41,7 @@ export async function listarPics() {
   const fIds = [...new Set(pics.flatMap((p) => p.itens.map((i) => i.fornecedorId)).filter(Boolean))];
   const forn = Object.fromEntries((await prisma.fornecedor.findMany({ where: { id: { in: fIds } } })).map((f) => [f.id, nomeForn(f)]));
   return pics.map((p) => ({ id: p.id, numero: p.numero, data: p.data, status: p.status, criadoPorNome: p.criadoPorNome, obs: p.obs,
-    itens: p.itens.map((i) => ({ id: i.id, artigoId: i.artigoId, quantidade: Number(i.quantidade), fornecedorId: i.fornecedorId, fornecedor: forn[i.fornecedorId] || null,
+    itens: p.itens.map((i) => ({ id: i.id, artigoId: i.artigoId, quantidade: Number(i.quantidade), fornecedorId: i.fornecedorId, fornecedor: forn[i.fornecedorId] || null, fornecedoresCotacao: Array.isArray(i.fornecedoresCotacao) ? i.fornecedoresCotacao : [],
       valorUnitario: i.valorUnitario != null ? Number(i.valorUnitario) : null, info: i.info || {}, oc: i.ocItens[0] ? { id: i.ocItens[0].ocId, numero: i.ocItens[0].oc.numero } : null })) }));
 }
 
@@ -56,6 +56,7 @@ export async function salvarItensPic(picId, itens) {
     const q = num(x.quantidade);
     await prisma.picItem.update({ where: { id: i.id }, data: {
       fornecedorId: x.fornecedorId ? Number(x.fornecedorId) : null,
+      ...(Array.isArray(x.fornecedoresCotacao) ? { fornecedoresCotacao: x.fornecedoresCotacao.filter((f) => f && f.id).slice(0, 4).map((f) => ({ id: Number(f.id), nome: String(f.nome || "") })) } : {}),   // v482
       valorUnitario: num(x.valorUnitario),
       ...(q != null && q > 0 ? { quantidade: r3(q) } : {}),
     } });

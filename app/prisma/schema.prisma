@@ -374,6 +374,7 @@ model PicItem {
   fornecedorId  Int?                          // v469 — preenchido pelo comprador
   valorUnitario Decimal? @db.Decimal(14, 4)
   info       Json    @default("{}")           // v469 — { nome, cor, codigo, unidade, embalagem, demanda, pedidos: [...] }
+  fornecedoresCotacao Json @default("[]")   // v482 — outros fornecedores para cotação (até 4 além do principal): [{ id, nome }]
 
   pic        Pic                @relation(fields: [picId], references: [id], onDelete: Cascade)
   artigo     Artigo             @relation(fields: [artigoId], references: [id])
