@@ -812,6 +812,7 @@ export function PicCompras({ user, fases, ir }) {
   const [forns, setForns] = useState(_fornPic || []);
   const [ed, setEd] = useState({});   // { picItemId: { fornecedor, valor, qtd } }
   const [oc, setOc] = useState(false);
+  const [cot, setCot] = useState(null);   // v476 — cotação por fornecedor
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
@@ -850,6 +851,7 @@ export function PicCompras({ user, fases, ir }) {
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
+      {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
       {(l || []).map((p) => {
         const abertos = p.itens.filter((i) => !i.oc);
         const tot = p.itens.reduce((s0, i) => { const v = val(i); return s0 + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }, 0);
@@ -888,6 +890,14 @@ export function PicCompras({ user, fases, ir }) {
             {abertos.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
                 <div className="flex-1 text-xs" style={{ color: C.sub }}>{Object.entries(porF).map(([f, v]) => `${f}: ${brl(v)}`).join(" · ")}</div>
+                <button onClick={() => {   // v476 — cotação: artigos do mesmo fornecedor num card para o WhatsApp
+                  const g = {};
+                  for (const i of abertos) { const v = val(i); const nome = v.fornecedor.trim(); if (!nome) continue; const f = porNome[nome.toUpperCase()]; const k = f ? `F${f.id}` : `N${nome.toUpperCase()}`;
+                    (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade }); }
+                  const semF = abertos.filter((i) => !val(i).fornecedor.trim()).length;
+                  if (!Object.keys(g).length) return alerta("Escolha o fornecedor dos itens para gerar a cotação.");
+                  setCot({ pic: p.numero, grupos: Object.values(g), semF });
+                }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
                 {!p.itens.some((i) => i.oc) && <button onClick={() => desfazer(p)} className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Undo2 size={13} /> Desfazer PIC</button>}
                 <button disabled={oc} onClick={() => enviar(p, "salvar")} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar</button>
                 <button disabled={oc} onClick={() => enviar(p, "ocs")} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OCs por fornecedor</button>
@@ -973,5 +983,100 @@ export function OrdensCompra({ fases, ir }) {
         );
       })}
     </div>
+  );
+}
+
+// ---------- v476 — cotação para o fornecedor: imagem (PNG) ou PDF para mandar no WhatsApp ----------
+const telWa = (t) => { let d = String(t || "").split(/[\/,;]/)[0].replace(/\D/g, ""); if (!d) return null; if (d.length >= 12 && d.startsWith("55")) return d; if (d.length === 10 || d.length === 11) return `55${d}`; return d.length >= 10 ? d : null; };
+let _logoCot = null;
+const logoCot = () => (_logoCot ||= new Promise((ok) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = "/meridian-wordmark.svg"; }));
+async function desenharCotacao(g, pic) {
+  const W = 1080, P = 64, LH = 30;
+  const c0 = document.createElement("canvas"); const x0 = c0.getContext("2d");
+  const quebra = (ctx, t, w) => { const ps = String(t || "").split(/\s+/); const ls = []; let l = ""; for (const p of ps) { const n = l ? `${l} ${p}` : p; if (ctx.measureText(n).width > w && l) { ls.push(l); l = p; } else l = n; } if (l) ls.push(l); return ls.length ? ls : [""]; };
+  x0.font = "600 26px Arial"; const colArt = W - P * 2 - 230 - 56;
+  const linhas = g.itens.map((i) => { x0.font = "600 26px Arial"; const a = quebra(x0, i.nome, colArt); x0.font = "22px Arial"; const d = i.det ? quebra(x0, i.det, colArt) : []; return { i, a, d, h: Math.max(64, 22 + a.length * LH + d.length * 26) }; });
+  const H = 300 + 70 + linhas.reduce((s0, l) => s0 + l.h, 0) + 200;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+  x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#0c2342"; x.fillRect(0, 0, W, 14);
+  const logo = await logoCot();
+  if (logo) { const h = 44, w = (logo.naturalWidth || 4117) / (logo.naturalHeight || 601) * h; x.drawImage(logo, P, 54, w, h); }
+  else { x.fillStyle = "#0c2342"; x.font = "800 40px Arial"; x.fillText("MERIDIAN", P, 92); }
+  x.textAlign = "right"; x.fillStyle = "#ee6500"; x.font = "700 22px Arial"; x.fillText("SOLICITAÇÃO DE COTAÇÃO", W - P, 72);
+  x.fillStyle = "#667085"; x.font = "20px Arial"; x.fillText(`${new Date().toLocaleDateString("pt-BR")}${pic ? ` · ${pic}` : ""}`, W - P, 102); x.textAlign = "left";
+  x.fillStyle = "#667085"; x.font = "20px Arial"; x.fillText("Fornecedor", P, 168);
+  x.fillStyle = "#0c2342"; x.font = "700 34px Arial"; x.fillText(nomeFornCad(g.fornecedor).slice(0, 48), P, 210);
+  x.fillStyle = "#3e5066"; x.font = "22px Arial"; x.fillText("Por favor, informe valor unitário, prazo de entrega e condição de pagamento:", P, 262);
+  let y = 300;
+  x.fillStyle = "#f1f6fe"; x.fillRect(P - 16, y, W - P * 2 + 32, 56);
+  x.fillStyle = "#3d6799"; x.font = "700 20px Arial"; x.fillText("#", P, y + 36); x.fillText("ARTIGO", P + 56, y + 36); x.textAlign = "right"; x.fillText("QUANTIDADE", W - P, y + 36); x.textAlign = "left";
+  y += 70;
+  linhas.forEach((l, k) => {
+    x.fillStyle = "#ee6500"; x.font = "700 24px Arial"; x.fillText(String(k + 1), P, y + 30);
+    x.fillStyle = "#0c2342"; x.font = "600 26px Arial"; l.a.forEach((t, j) => x.fillText(t, P + 56, y + 30 + j * LH));
+    x.fillStyle = "#667085"; x.font = "22px Arial"; l.d.forEach((t, j) => x.fillText(t, P + 56, y + 30 + l.a.length * LH + j * 26));
+    x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 28px Arial"; x.fillText(qtdU(l.i.quantidade, l.i.unidade), W - P, y + 32); x.textAlign = "left";
+    y += l.h; x.strokeStyle = "#e4e7ec"; x.lineWidth = 2; x.beginPath(); x.moveTo(P - 16, y - 10); x.lineTo(W - P + 16, y - 10); x.stroke();
+  });
+  y += 40;
+  x.fillStyle = "#0c2342"; x.font = "700 24px Arial"; x.fillText("Responder para:", P, y);
+  x.fillStyle = "#3e5066"; x.font = "22px Arial"; x.fillText("Compras Meridian · Belo Horizonte / MG", P, y + 34); x.fillText("meridianpro.com.br", P, y + 66);
+  x.strokeStyle = "#ee6500"; x.setLineDash([10, 10]); x.lineWidth = 3; x.beginPath(); x.moveTo(P, H - 60); x.lineTo(W - P, H - 60); x.stroke(); x.setLineDash([]);
+  return cv;
+}
+let _jspdf = null;
+const carregarJsPdf = () => (_jspdf ||= new Promise((ok, nok) => { if (window.jspdf) return ok(window.jspdf); const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload = () => ok(window.jspdf); sc.onerror = nok; document.head.appendChild(sc); }));
+function CotacaoCard({ g, pic }) {
+  const [img, setImg] = useState(null);
+  const [cv, setCv] = useState(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { desenharCotacao(g, pic).then((c) => { setCv(c); setImg(c.toDataURL("image/png")); }); }, []);
+  const nomeArq = `cotacao-${nomeFornCad(g.fornecedor).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  const blob = () => new Promise((ok) => cv.toBlob(ok, "image/png"));
+  const avisar = (t) => { setMsg(t); setTimeout(() => setMsg(""), 2500); };
+  const baixar = (href, nome) => { const a = document.createElement("a"); a.href = href; a.download = nome; a.click(); };
+  async function copiar() {
+    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); avisar("Imagem copiada! Cole no WhatsApp (Ctrl+V)."); }
+    catch { alerta("O navegador não deixou copiar a imagem. Use Baixar PNG."); }
+  }
+  async function pdf() {
+    try {
+      const { jsPDF } = await carregarJsPdf();
+      const w = 210, h = (cv.height / cv.width) * w;
+      const d = new jsPDF({ unit: "mm", format: [w, Math.max(h, 100)] });
+      d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`);
+    } catch { alerta("Não consegui gerar o PDF. Use Baixar PNG."); }
+  }
+  async function compartilhar() {
+    try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: "Cotação Meridian" }); } catch {}
+  }
+  const tel = telWa(g.fornecedor.telefone || g.fornecedor.telefones);
+  const podeShare = typeof navigator !== "undefined" && !!navigator.canShare && (() => { try { return navigator.canShare({ files: [new File([""], "a.png", { type: "image/png" })] }); } catch { return false; } })();
+  const texto = `Olá! Segue a solicitação de cotação da Meridian (${g.itens.length} item(ns)). Pode nos passar valor unitário, prazo de entrega e condição de pagamento? Obrigado!`;
+  const b = "text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1";
+  return (
+    <div className="rounded-lg p-3" style={{ border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{nomeFornCad(g.fornecedor)} <span className="text-xs font-normal" style={{ color: C.sub }}>· {g.itens.length} item(ns){!g.fornecedor.id ? " · não cadastrado" : ""}</span></div>
+        {msg && <span className="text-xs font-semibold" style={{ color: C.green }}>{msg}</span>}
+      </div>
+      {img ? <img src={img} alt="Cotação" className="w-full rounded" style={{ border: `1px solid ${C.line}` }} /> : <div className="flex items-center gap-2 text-sm py-6" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Montando…</div>}
+      {img && <div className="flex flex-wrap gap-2 mt-2">
+        {podeShare && <button onClick={compartilhar} className={b} style={{ background: "#25D366", color: "#fff" }}>Compartilhar (WhatsApp)</button>}
+        <button onClick={copiar} className={b} style={{ background: C.navy, color: "#fff" }}><Copy size={13} /> Copiar imagem</button>
+        <button onClick={() => baixar(img, `${nomeArq}.png`)} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
+        <button onClick={pdf} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={13} /> Baixar PDF</button>
+        <a href={tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer" className={b} style={{ border: "1px solid #25D366", color: "#128C7E" }} title={tel ? `WhatsApp ${tel}` : "Fornecedor sem telefone no cadastro: escolha o contato no WhatsApp"}>Abrir WhatsApp{tel ? "" : " (sem telefone)"}</a>
+      </div>}
+    </div>
+  );
+}
+function CotacaoModal({ cot, onClose }) {
+  return (
+    <Modal titulo={`Cotação · ${cot.pic} · ${cot.grupos.length} fornecedor(es)`} onClose={onClose} largo>
+      <div className="text-xs mb-3" style={{ color: C.sub }}>Um card por fornecedor com os artigos e as quantidades (sem preço). <b>Copiar imagem</b> e colar na conversa do WhatsApp, ou baixar em PNG/PDF.{cot.semF ? ` ${cot.semF} item(ns) sem fornecedor ficaram de fora.` : ""}</div>
+      <div className="space-y-4">{cot.grupos.map((g, k) => <CotacaoCard key={k} g={g} pic={cot.pic} />)}</div>
+    </Modal>
   );
 }
