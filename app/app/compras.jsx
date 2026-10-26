@@ -298,6 +298,38 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   );
 }
 
+// ---------- v474 — busca de fornecedor no cadastro (lista ao focar/digitar; nome, cidade e CNPJ) ----------
+const nomeFornCad = (f) => f.nomeFantasia || f.nome || f.razaoSocial || "";
+function BuscaFornecedor({ valor, idAtual, forns, onEscolher, estilo, placeholder = "Buscar no cadastro de fornecedores" }) {
+  const [ab, setAb] = useState(false);
+  const t = norm(valor || "");
+  const l = useMemo(() => {
+    const x = forns.filter((f) => !t || norm(`${nomeFornCad(f)} ${f.razaoSocial || ""} ${f.nome || ""} ${f.municipio || ""} ${(f.cnpjs || []).map((c) => c.cnpj).join(" ")}`).includes(t));
+    return x.slice(0, 40);
+  }, [forns, t]);
+  const semCad = !!(valor || "").trim() && !idAtual;
+  return (
+    <div className="relative">
+      <input value={valor || ""} onFocus={() => setAb(true)} onBlur={() => setTimeout(() => setAb(false), 200)}
+        onChange={(e) => { const v = e.target.value; const f = forns.find((x) => norm(nomeFornCad(x)) === norm(v)); onEscolher(f || null, v); setAb(true); }}
+        placeholder={placeholder} className="w-full px-2 py-1.5 rounded text-sm" title={semCad ? "Fornecedor não encontrado no cadastro" : ""}
+        style={{ ...(estilo || {}), ...(semCad ? { border: `1px solid ${C.red}` } : idAtual ? { border: `1px solid ${C.green}` } : {}) }} />
+      {ab && l.length > 0 && (
+        <div className="absolute z-30 left-0 mt-1 rounded-md shadow-lg max-h-64 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: "100%", width: 340 }}>
+          {l.map((f) => (
+            <button key={f.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onEscolher(f, nomeFornCad(f)); setAb(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <div className="font-semibold truncate" style={{ color: C.navy }}>{nomeFornCad(f)}</div>
+              <div className="text-[11px] truncate" style={{ color: C.sub }}>{[f.razaoSocial && f.razaoSocial !== nomeFornCad(f) ? f.razaoSocial : null, [f.municipio, f.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ") || "—"}</div>
+            </button>
+          ))}
+        </div>
+      )}
+      {ab && !l.length && <div className="absolute z-30 left-0 mt-1 rounded-md shadow-lg px-3 py-2 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub, width: 300 }}>Nenhum fornecedor com esse nome. Cadastre em Artigos &amp; Fornec.</div>}
+    </div>
+  );
+}
+
 // ---------- v471 — busca do pedido da avulsa: nº ou cliente, só pedidos em andamento ----------
 function BuscaPedido({ valor, cliente, onEscolher, sel }) {
   const [q, setQ] = useState(valor ? `${valor}${cliente ? ` · ${cliente}` : ""}` : "");
@@ -424,15 +456,14 @@ export function Avulsas({ user }) {
                 <input value={i.nome || ""} onChange={(e) => setIt(k, "nome", e.target.value)} placeholder="Nome do item" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <select value={i.unidade || "UN"} onChange={(e) => setIt(k, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>{UNIDADES_AV.map(([u, n]) => <option key={u} value={u}>{n}</option>)}</select>
-                <input list="forn-avulsa" value={i.fornecedorNome || ""} onChange={(e) => { const v = e.target.value; const f = forns.find((x) => nomeF(x).toUpperCase() === v.trim().toUpperCase()); setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, fornecedorNome: v, fornecedorId: f ? f.id : null } : x)) })); }}
-                  placeholder="opcional" className="px-2 py-1.5 rounded text-sm" style={sel} />
+                <BuscaFornecedor valor={i.fornecedorNome} idAtual={i.fornecedorId} forns={forns} estilo={sel} placeholder="opcional · buscar no cadastro"
+                  onEscolher={(f, v) => setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, fornecedorNome: f ? nomeFornCad(f) : v, fornecedorId: f ? f.id : null } : x)) }))} />
                 <input type="date" value={i.bomPara || ""} onChange={(e) => setIt(k, "bomPara", e.target.value)} className="px-2 py-1.5 rounded text-sm"
                   style={{ ...sel, ...(c ? { color: c[0], background: c[1], border: `1px solid ${c[0]}`, fontWeight: 600 } : {}) }} />
                 <button onClick={() => setEd((e) => ({ ...e, itens: e.itens.filter((_, j) => j !== k) }))} style={{ color: C.red }}><X size={15} /></button>
               </div>
             );
           })}
-          <datalist id="forn-avulsa">{forns.map((f) => <option key={f.id} value={nomeF(f)} />)}</datalist>
           <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", bomPara: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
           <div className="flex justify-end gap-2">
             <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
@@ -816,7 +847,6 @@ export function PicCompras({ user, fases, ir }) {
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
-      <datalist id="forn-pic">{forns.map((f) => <option key={f.id} value={nomeFornec(f)} />)}</datalist>
       {(l || []).map((p) => {
         const abertos = p.itens.filter((i) => !i.oc);
         const tot = p.itens.reduce((s0, i) => { const v = val(i); return s0 + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }, 0);
@@ -846,7 +876,7 @@ export function PicCompras({ user, fases, ir }) {
                   </div>
                   <div className="w-28 text-right">{trav ? qtdU(i.quantidade, inf.unidade) : <span className="inline-flex items-center gap-1"><input value={v.qtd} onChange={(e) => set(i, "qtd", e.target.value)} className={`${inp} w-20 text-right`} style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(inf.unidade || "").toLowerCase()}</span></span>}</div>
                   <div className="w-56">{trav ? <span className="text-xs">{i.fornecedor} · <b style={{ color: C.green }}>{i.oc.numero}</b></span>
-                    : <input list="forn-pic" value={v.fornecedor} onChange={(e) => set(i, "fornecedor", e.target.value)} placeholder="Escolha o fornecedor" className={`${inp} w-full`} style={{ border: `1px solid ${semF ? C.red : C.line}` }} title={semF ? "Fornecedor não cadastrado" : ""} />}</div>
+                    : <BuscaFornecedor valor={v.fornecedor} idAtual={porNome[v.fornecedor.trim().toUpperCase()]?.id} forns={forns} estilo={{ border: `1px solid ${C.line}` }} onEscolher={(f, txt) => set(i, "fornecedor", f ? nomeFornec(f) : txt)} />}</div>
                   <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
                   <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{lerNum(v.valor) && lerNum(v.qtd) ? brl(lerNum(v.valor) * lerNum(v.qtd)) : "—"}</div>
                 </div>
