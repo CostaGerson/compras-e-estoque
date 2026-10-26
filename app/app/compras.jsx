@@ -316,6 +316,12 @@ export function Avulsas({ user }) {
     if (!r.ok) return alerta(x.error || "Erro ao salvar.");
     setEd(null); carregar();
   }
+  async function bomPara(c, k, v) {   // v470
+    setL((ll) => ll.map((x) => (x.id === c.id ? { ...x, itens: x.itens.map((i, j) => (j === k ? { ...i, bomPara: v } : i)) } : x)));
+    const r = await fetch("/api/compras/avulsas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...c, itens: c.itens.map((i, j) => (j === k ? { ...i, bomPara: v } : i)), quem: nomeUser(user) }) });
+    if (!r.ok) { const x = await r.json().catch(() => ({})); alerta(x.error || "Erro ao salvar."); }
+    carregar();
+  }
   async function status(c, st) {
     if (st === "CANCELADA" && !(await confirmar("Cancelar esta compra avulsa?"))) return;
     await fetch("/api/compras/avulsas", { method: st === "CANCELADA" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, status: st }) });
@@ -350,11 +356,14 @@ export function Avulsas({ user }) {
               <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
             </div>
             {(c.itens || []).map((i, k) => (
-              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 120px 200px 120px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
+              <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 120px 200px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
                 <div style={{ color: C.text }}>{i.nome}</div>
                 <div className="font-semibold" style={{ color: C.accent }}>{qtdU(i.quantidade, i.unidade)}</div>
-                <div className="text-xs truncate" style={{ color: C.sub }}>{i.fornecedorNome || "—"}</div>
-                <div><span className="text-[11px] mr-1" style={{ color: C.sub }}>bom para</span><BomPara iso={i.bomPara} /></div>
+                <div className="text-xs truncate" style={{ color: C.sub }} title={i.fornecedorNome || ""}>{i.fornecedorNome || ""}</div>
+                {/* v470 — bom para preenchido direto na lista */}
+                <label className="flex items-center gap-1"><span className="text-[11px]" style={{ color: C.sub }}>bom para</span>
+                  {(() => { const cb = corBomPara(i.bomPara); return <input type="date" value={i.bomPara || ""} disabled={c.status === "CANCELADA"} onChange={(e) => bomPara(c, k, e.target.value)} className="px-1.5 py-0.5 rounded text-xs" style={{ border: `1px solid ${cb ? cb[0] : C.line}`, color: cb ? cb[0] : C.sub, background: cb ? cb[1] : C.panel, fontWeight: cb ? 600 : 400 }} />; })()}
+                </label>
               </div>
             ))}
           </div>
