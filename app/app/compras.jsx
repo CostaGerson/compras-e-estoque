@@ -1554,7 +1554,7 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
       </div>
       {/* trilha das etapas */}
       <div className="flex items-stretch gap-1 mb-3 overflow-x-auto">
-        {(soAvulsas ? [...ETAPAS_PRE, ...ETAPAS] : ETAPAS).map(([k, t0, cor, fundo], n) => (
+        {[...ETAPAS_PRE, ...ETAPAS].map(([k, t0, cor, fundo], n) => (
           <React.Fragment key={k}>
             {n > 0 && <div className="flex items-center text-sm" style={{ color: C.sub }}>›</div>}
             <button onClick={() => setF(f === k ? null : k)} className="flex-1 min-w-[120px] rounded-lg px-3 py-2 text-left" style={{ background: f === k ? cor : fundo, color: f === k ? "#fff" : cor, border: `1px solid ${cor}55` }}>

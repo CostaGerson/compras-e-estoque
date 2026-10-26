@@ -233,7 +233,7 @@ export async function rotasDeColeta(ocs) {
 
 // v486 — painel de compras: todos os itens de PIC com a etapa em que estão
 // EM_COTACAO (sem OC) → AGUARDANDO_NF (OC sem NF) → EM_COLETA / EM_TRANSPORTADORA / ENTREGA_FORNECEDOR (OC com NF) → RECEBIDA
-export async function painelDemandas({ avulsasAbertas = false } = {}) {
+export async function painelDemandas({ avulsasAbertas = false, soAvulsas = true } = {}) {
   const its = await prisma.picItem.findMany({ where: { pic: { status: { not: "CANCELADO" } } }, orderBy: { id: "desc" }, take: 500,
     include: { pic: { select: { numero: true, data: true } }, ocItens: { include: { oc: true } } } });
   const ocs = [...new Map(its.flatMap((i) => i.ocItens.map((x) => [x.oc.id, x.oc]))).values()];
@@ -290,7 +290,7 @@ export async function painelDemandas({ avulsasAbertas = false } = {}) {
       pedidos: [`Avulsa ${avs[Number(x.pedidoNumero.slice(2))]?.numero || x.pedidoNumero}`], destinos: [pr ? `PED ${pr}` : "OPERACAO"], origens: [`${x.pedidoNumero}|${x.chave}`],
       fornecedor: d.fornecedor || null, etapa: x.status, previsao: x.entrega ? x.entrega.toISOString().slice(0, 10) : null, oc: null, rota: null, cotacoes: [], origem: "A", criadoEm: x.createdAt };
   });
-  return [...extra, ...linhas.filter((l) => l.origem !== "P")];
+  return [...extra, ...(soAvulsas ? linhas.filter((l) => l.origem !== "P") : linhas)];   // v504 — painel principal: tudo + avulsas pendentes
 }
 
 // v487 — a cotação que originou a OC acompanha a OC: valor negociado, quantidade, prazo e condição
