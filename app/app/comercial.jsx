@@ -17,7 +17,7 @@ const C = {
 };
 const fmtFpp = (n) => (n ? String(n).padStart(5, "0") : "—");
 
-const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "http://147.93.35.189:3001";
+const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "https://crm.meridianpro.com.br";   // v455 — domínio com https
 
 const brl = (n) => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
