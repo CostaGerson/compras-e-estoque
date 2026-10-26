@@ -989,6 +989,7 @@ function BancoParams({ params, master, user, onReload }) {
         <React.Fragment key={g}>
           <GrupoParam grupo={g} rotulo={rotulos[g] || g} linhas={grupos[g]} os={os} user={user} onReload={onReload} />
           {/* v412 — tipos de faixa (R$/m) logo abaixo das faixas */}
+          {g === "FAIXA" && params.COMUM?.FAIXA && params.COMUM?.FAIXA_TIPO && <TabelaFaixa aplic={params.COMUM.FAIXA} tipos={params.COMUM.FAIXA_TIPO} />}
           {g === "FAIXA" && params.COMUM?.FAIXA_TIPO && <GrupoParam grupo="FAIXA_TIPO" rotulo="Tipos de faixa refletiva — R$/m (vale para malha e plano)" linhas={params.COMUM.FAIXA_TIPO} os={os} user={user} onReload={onReload} />}
         </React.Fragment>
       ))}
@@ -1006,7 +1007,7 @@ function GrupoParam({ grupo, rotulo, linhas, os, user, onReload }) {
     ? [["valor", "Valor"], ["corte", "Corte"], ["exped", "Exped."], ["acab", "Acab."], ["volProp", "Prop. vol."]]
     : grupo === "EMB_EXT" ? [["valor", "Valor emb."], ["und", "Und/emb"], ["fita", "Fita"]]
     : grupo === "ELASTICO" ? [["consumo", "Consumo (m/pç)"], ["valorMetro", "R$/m"], ["valor", "R$/peça"]]   // v410
-    : grupo === "FAIXA" ? [["consumo", "Consumo (m/pç)"], ["valor", "R$/pç s/ tipo"]]
+    : grupo === "FAIXA" ? [["consumo", "Consumo (m/pç)"]]   // v505 — R$/peça = consumo × R$/m do tipo (sem valor fixo)
     : grupo === "FAIXA_TIPO" ? [["valor", "R$/m"]]
     : grupo === "BOTAO" ? [["valor", "R$/un"]]
     : [["valor", "Valor"]];
@@ -2148,7 +2149,9 @@ function AvMetro({ c, semTipo }) {
     <div className="text-[11px] mt-1" style={{ color: C.sub }}>
       {c.porMetro
         ? <>{fmtNum(c.consumo, 2)} m × R$ {fmtNum(c.metro, 2)}/m = <b style={{ color: C.text }}>R$ {fmtNum(c.valor, 2)}/pç</b></>
-        : <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {semTipo ? "escolha o tipo de faixa" : "sem consumo ou R$/m no banco de dados"}</span></>}
+        : c.falta !== undefined
+          ? <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {c.falta === "TIPO" || semTipo ? "escolha o tipo de faixa" : c.falta === "CONSUMO" ? "aplicação sem consumo (m/peça) no banco de dados" : "tipo de faixa sem R$/m no banco de dados"}</span></>
+          : <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {semTipo ? "escolha o tipo de faixa" : "sem consumo ou R$/m no banco de dados"}</span></>}
     </div>
   );
 }
@@ -2314,6 +2317,26 @@ function Lin({ l, v, forte, cor }) {
     <div className="flex justify-between">
       <span style={{ color: C.sub }}>{l}</span>
       <span style={{ color: cor || C.text, fontWeight: forte ? 700 : 500 }}>{v}</span>
+    </div>
+  );
+}
+
+// v505 — R$/peça de cada aplicação de faixa em cada tipo (consumo × R$/m), só para conferência
+function TabelaFaixa({ aplic, tipos }) {
+  const ap = aplic.filter((a) => !/^SEM\b/i.test(String(a.chave || "")));
+  const cons = (a) => num(a.extra?.consumo);
+  return (
+    <div className="mb-2 rounded-lg overflow-x-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+      <div className="px-4 py-2 text-sm font-semibold" style={{ background: C.panel2, color: C.text }}>Faixa refletiva — R$/peça = consumo da aplicação × R$/m do tipo</div>
+      <table className="w-full text-xs" data-sem-ordenar>
+        <thead><tr style={{ color: C.sub }}><th className="px-3 py-1.5 text-left">Aplicação (consumo)</th>{tipos.map((t) => <th key={t.id} className="px-2 py-1.5 text-center">{t.rotulo || sc(t.chave)}<div className="font-normal">R$ {fmtNum(t.valor, 2)}/m</div></th>)}</tr></thead>
+        <tbody>{ap.map((a) => (
+          <tr key={a.id} style={{ borderTop: `1px solid ${C.line}` }}>
+            <td className="px-3 py-1.5">{a.rotulo || sc(a.chave)} <span style={{ color: C.sub }}>({fmtNum(cons(a), 2)} m)</span></td>
+            {tipos.map((t) => { const v = cons(a) * num(t.valor); return <td key={t.id} className="px-2 py-1.5 text-center font-semibold" style={{ color: v ? C.text : C.sub }}>{v ? `R$ ${fmtNum(v, 2)}` : "—"}</td>; })}
+          </tr>
+        ))}</tbody>
+      </table>
     </div>
   );
 }

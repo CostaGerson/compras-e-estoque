@@ -42,11 +42,11 @@ export function elasticoCalc(get, chave) {
   return { valor: n(get("ELASTICO", chave, "valor")), consumo, metro, porMetro: false };
 }
 
+// v505 — faixa SEMPRE = consumo da aplicação (m/peça) × R$/m do tipo de faixa (sem o R$/peça fixo antigo)
 export function faixaCalc(get, aplicacao, tipo) {
   if (semAv(aplicacao)) return { valor: 0, consumo: 0, metro: 0, porMetro: false };
   const consumo = n(get("FAIXA", aplicacao, "consumo")), metro = tipo ? n(get("FAIXA_TIPO", tipo, "valor")) : 0;
-  if (consumo > 0 && metro > 0) return { valor: consumo * metro, consumo, metro, porMetro: true };
-  return { valor: n(get("FAIXA", aplicacao, "valor")), consumo, metro, porMetro: false };
+  return { valor: consumo * metro, consumo, metro, porMetro: consumo > 0 && metro > 0, falta: !tipo ? "TIPO" : !consumo ? "CONSUMO" : !metro ? "METRO" : null };
 }
 
 export function botaoUnit(get, tipo) {
