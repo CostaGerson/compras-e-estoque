@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Archivo+Expanded:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -30,3 +30,47 @@ button:active:not(:disabled) { transform: scale(.97); }
 .card-asana { transition: transform .15s ease, box-shadow .15s ease; }
 .card-asana:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(30,31,33,.15); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- v457 — tela de login no estilo do site meridianpro.com.br ---------- */
+.lg{--ox:#0c2342;--steel:#3d6799;--slate:#3e5066;--ice:#f1f6fe;--paper:#fafcff;--or:#ee6500;--ln:rgba(12,35,66,.12);
+  position:relative;min-height:100svh;overflow:hidden;font-family:"IBM Plex Sans",system-ui,sans-serif;color:var(--ox);
+  background:var(--paper) url(/login-fundo.jpg) center/cover no-repeat;display:flex;align-items:center}
+.lg::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(250,252,255,.55) 0%,rgba(250,252,255,.15) 45%,rgba(12,35,66,0) 70%)}
+.lg-in{position:relative;z-index:1;width:100%;max-width:1360px;margin:0 auto;padding:40px clamp(20px,4.5vw,72px);
+  display:grid;grid-template-columns:1.1fr .9fr;gap:64px;align-items:center}
+.lg-logo{height:26px;width:auto;display:block}
+.lg-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);
+  display:flex;align-items:center;gap:12px;margin-top:44px}
+.lg-eyebrow::before{content:"";width:26px;height:1px;background:var(--or)}
+.lg h1{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:800;line-height:1.02;letter-spacing:-.015em;
+  font-size:clamp(34px,4.4vw,68px);margin:22px 0 0;color:var(--ox)}
+.lg h1 .o{color:var(--or);position:relative;white-space:nowrap}
+.lg h1 .o svg{position:absolute;left:0;bottom:-10px;width:100%;height:14px;overflow:visible}
+.lg h1 .o path{fill:none;stroke:var(--or);stroke-width:2.5;stroke-dasharray:6 6;stroke-linecap:round}
+.lg-sub{font-size:clamp(15px,1.25vw,18px);color:var(--slate);margin-top:30px;max-width:500px;line-height:1.65}
+.lg-card{background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border:1px solid var(--ln);border-radius:28px;
+  box-shadow:0 24px 60px -24px rgba(12,35,66,.35);padding:40px 36px;width:100%;max-width:420px;justify-self:end}
+.lg-card h2{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:800;font-size:22px;color:var(--ox);display:flex;align-items:center;gap:10px}
+.lg-card .lg-k{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--or)}
+.lg-lbl{display:block;font-size:12.5px;font-weight:500;color:var(--slate);margin:18px 0 6px}
+.lg-inp{width:100%;padding:13px 16px;border-radius:14px;border:1px solid var(--ln);background:var(--ice);color:var(--ox);
+  font:inherit;font-size:15px;outline:none;transition:border-color .2s,box-shadow .2s,background .2s}
+.lg-inp:focus{border-color:var(--steel);background:#fff;box-shadow:0 0 0 4px rgba(61,103,153,.12)}
+.lg-btn{width:100%;margin-top:26px;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--or);color:#fff;
+  border:0;padding:15px 22px;border-radius:100px;font:inherit;font-weight:600;font-size:15px;cursor:pointer;transition:transform .18s,box-shadow .25s,opacity .2s}
+.lg-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 28px -8px rgba(238,101,0,.55)}
+.lg-btn:disabled{opacity:.6;cursor:default}
+.lg-link{display:block;width:100%;margin-top:16px;background:none;border:0;font:inherit;font-size:13px;color:var(--slate);cursor:pointer}
+.lg-link:hover{color:var(--ox);text-decoration:underline}
+.lg-erro{margin-top:14px;font-size:13px;color:#c2361b;background:#fdece8;border-radius:10px;padding:9px 12px}
+.lg-coords{position:absolute;left:clamp(20px,4.5vw,72px);bottom:22px;z-index:1;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  letter-spacing:.1em;color:rgba(241,246,254,.6);line-height:1.9}
+.lg-coords b{color:var(--or);font-weight:500}
+.lg-card .lg-logo-m{display:none}
+@media (max-width:900px){
+  .lg{align-items:flex-start}
+  .lg-in{grid-template-columns:1fr;gap:0;padding-top:28px;padding-bottom:90px}
+  .lg-hero{display:none}
+  .lg-card{justify-self:center;padding:32px 24px;border-radius:24px;margin-top:6vh}
+  .lg-card .lg-logo-m{display:block;height:20px;margin-bottom:28px}
+}

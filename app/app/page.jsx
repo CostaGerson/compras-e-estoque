@@ -22,7 +22,7 @@ import { Layers } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
-import { KeyRound, ShieldCheck, Lightbulb } from "lucide-react";
+import { KeyRound, ShieldCheck, Lightbulb, ArrowRight } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { ouvirColar } from "./colarPdf";
@@ -552,39 +552,45 @@ function Login({ onEntrar }) {
   };
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
-      <form onSubmit={submit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
-        <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
-          <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} />
+    <LoginMoldura titulo="Entrar" onSubmit={submit}>
+      <label className="lg-lbl">Usuário</label>
+      <input value={login} onChange={(e) => setLogin(e.target.value)} autoFocus autoComplete="username" autoCapitalize="none" className="lg-inp" />
+      <label className="lg-lbl">Senha</label>
+      <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" className="lg-inp" />
+      {erro && <div className="lg-erro">{erro}</div>}
+      <button type="submit" disabled={entrando} className="lg-btn">{entrando ? "Entrando…" : <>Entrar <ArrowRight size={16} /></>}</button>
+      <button type="button" onClick={() => setEsqueci(true)} className="lg-link">Esqueci minha senha</button>
+    </LoginMoldura>
+  );
+}
+
+// v457 — moldura das telas de acesso no estilo do site (meridianpro.com.br): fundo MERIDIAN, título grande e card à direita
+function LoginMoldura({ titulo, icone, children, onSubmit }) {
+  return (
+    <div className="lg">
+      <div className="lg-in">
+        <div className="lg-hero">
+          <img src="/meridian-wordmark.svg" alt="MERIDIAN" className="lg-logo" />
+          <div className="lg-eyebrow">ERP Meridian · uso interno</div>
+          <h1>A fábrica inteira<br />num <span className="o">só lugar<svg viewBox="0 0 200 14" preserveAspectRatio="none"><path d="M2 9 Q 50 2 100 8 T 198 6" /></svg></span>.</h1>
+          <p className="lg-sub">Compras, estoque, produção, rotas e financeiro da Meridian, do pedido à entrega.</p>
         </div>
-        <p className="text-center text-xs mb-6" style={{ color: C.sub }}>Gestão de Material &amp; Financeiro</p>
-        <label className="text-xs" style={{ color: C.sub }}>Usuário</label>
-        <input value={login} onChange={(e) => setLogin(e.target.value)} autoFocus className="w-full mb-3 mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        <label className="text-xs" style={{ color: C.sub }}>Senha</label>
-        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-full mt-1 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        {erro && <div className="text-xs mt-3" style={{ color: "#D64545" }}>{erro}</div>}
-        <button type="submit" disabled={entrando} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: entrando ? 0.6 : 1 }}>{entrando ? "Entrando…" : "Entrar"}</button>
-        <button type="button" onClick={() => setEsqueci(true)} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Esqueci minha senha</button>
-      </form>
+        <form onSubmit={onSubmit} className="lg-card">
+          <img src="/meridian-wordmark.svg" alt="MERIDIAN" className="lg-logo-m" />
+          <div className="lg-k">ERP Meridian</div>
+          <h2 style={{ marginTop: 8 }}>{icone}{titulo}</h2>
+          {children}
+        </form>
+      </div>
+      <div className="lg-coords">19°55′14″S 43°56′57″W<br /><b>MERIDIAN</b> — BELO HORIZONTE / MG</div>
     </div>
   );
 }
 
 /* ===== v167 — redefinir senha pelo e-mail cadastrado ===== */
 function CaixaLogin({ titulo, children, onSubmit }) {
-  return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex items-center justify-center">
-      <form onSubmit={onSubmit} style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }} className="w-80 rounded-xl p-8">
-        <div className="rounded-lg mb-4 flex items-center justify-center py-3" style={{ background: "#001E41" }}>
-          <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} />
-        </div>
-        <div className="flex items-center justify-center gap-2 font-semibold mb-4" style={{ color: C.text }}><KeyRound size={16} style={{ color: C.accent }} /> {titulo}</div>
-        {children}
-      </form>
-    </div>
-  );
+  return <LoginMoldura titulo={titulo} icone={<KeyRound size={18} style={{ color: "#ee6500" }} />} onSubmit={onSubmit}>{children}</LoginMoldura>;   // v457
 }
-const inpLogin = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
 
 function EsqueciSenha({ inicial, onVoltar }) {
   const [chave, setChave] = useState(inicial || "");
@@ -603,13 +609,13 @@ function EsqueciSenha({ inicial, onVoltar }) {
   return (
     <CaixaLogin titulo="Esqueci minha senha" onSubmit={enviar}>
       {!enviado && <>
-        <p className="text-xs mb-3" style={{ color: C.sub }}>Informe seu usuário ou e-mail. Enviamos um link para o e-mail cadastrado para você criar uma nova senha.</p>
-        <label className="text-xs" style={{ color: C.sub }}>Usuário ou e-mail</label>
-        <input value={chave} onChange={(e) => setChave(e.target.value)} autoFocus className="w-full mt-1 px-3 py-2 rounded outline-none" style={inpLogin} />
+        <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Informe seu usuário ou e-mail. Enviamos um link para o e-mail cadastrado para você criar uma nova senha.</p>
+        <label className="lg-lbl">Usuário ou e-mail</label>
+        <input value={chave} onChange={(e) => setChave(e.target.value)} autoFocus className="lg-inp" />
       </>}
-      {st && st !== "enviando" && <div className="text-xs mt-3" style={{ color: st.ok ? C.green : "#D64545" }}>{st.texto}</div>}
-      {!enviado && <button type="submit" disabled={st === "enviando"} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: st === "enviando" ? 0.6 : 1 }}>{st === "enviando" ? "Enviando…" : "Enviar link"}</button>}
-      <button type="button" onClick={onVoltar} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Voltar para o login</button>
+      {st && st !== "enviando" && <div className="lg-erro" style={st.ok ? { color: "#0f7a3d", background: "#e7f6ee" } : undefined}>{st.texto}</div>}
+      {!enviado && <button type="submit" disabled={st === "enviando"} className="lg-btn">{st === "enviando" ? "Enviando…" : "Enviar link"}</button>}
+      <button type="button" onClick={onVoltar} className="lg-link">Voltar para o login</button>
     </CaixaLogin>
   );
 }
@@ -637,21 +643,21 @@ function RedefinirSenha({ token, onFim }) {
   const feito = st && st !== "salvando" && st.ok;
   return (
     <CaixaLogin titulo="Criar nova senha" onSubmit={salvar}>
-      {valido === null && <div className="text-xs text-center" style={{ color: C.sub }}>Conferindo o link…</div>}
-      {valido && !valido.ok && <div className="text-xs" style={{ color: "#D64545" }}>{valido.erro}</div>}
+      {valido === null && <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Conferindo o link…</p>}
+      {valido && !valido.ok && <div className="lg-erro">{valido.erro}</div>}
       {valido?.ok && !feito && <>
-        <p className="text-xs mb-3" style={{ color: C.sub }}>Usuário <b style={{ color: C.text }}>{valido.login}</b></p>
-        <label className="text-xs" style={{ color: C.sub }}>Nova senha</label>
-        <div className="flex items-center gap-2 mt-1 mb-3 px-3 py-2 rounded" style={inpLogin}>
-          <input type={ver ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} autoFocus className="flex-1 outline-none" style={{ background: "transparent", color: C.text }} />
+        <p className="lg-sub" style={{ marginTop: 12, fontSize: 14 }}>Usuário <b style={{ color: "#0c2342" }}>{valido.login}</b></p>
+        <label className="lg-lbl">Nova senha</label>
+        <div className="lg-inp flex items-center gap-2" style={{ padding: "0 14px 0 0" }}>
+          <input type={ver ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} autoFocus className="flex-1 outline-none" style={{ background: "transparent", color: "#0c2342", padding: "13px 16px", font: "inherit", fontSize: 15 }} />
           <button type="button" onClick={() => setVer((v) => !v)} style={{ color: C.sub }}>{ver ? <EyeOff size={15} /> : <Eye size={15} />}</button>
         </div>
-        <label className="text-xs" style={{ color: C.sub }}>Repita a nova senha</label>
-        <input type={ver ? "text" : "password"} value={conf} onChange={(e) => setConf(e.target.value)} className="w-full mt-1 px-3 py-2 rounded outline-none" style={inpLogin} />
+        <label className="lg-lbl">Repita a nova senha</label>
+        <input type={ver ? "text" : "password"} value={conf} onChange={(e) => setConf(e.target.value)} className="lg-inp" />
       </>}
-      {st && st !== "salvando" && <div className="text-xs mt-3" style={{ color: st.ok ? C.green : "#D64545" }}>{st.texto}</div>}
-      {valido?.ok && !feito && <button type="submit" disabled={st === "salvando"} className="w-full mt-5 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: st === "salvando" ? 0.6 : 1 }}>{st === "salvando" ? "Salvando…" : "Salvar nova senha"}</button>}
-      <button type="button" onClick={onFim} className="w-full mt-3 text-xs hover:underline" style={{ color: C.sub }}>Ir para o login</button>
+      {st && st !== "salvando" && <div className="lg-erro" style={st.ok ? { color: "#0f7a3d", background: "#e7f6ee" } : undefined}>{st.texto}</div>}
+      {valido?.ok && !feito && <button type="submit" disabled={st === "salvando"} className="lg-btn">{st === "salvando" ? "Salvando…" : "Salvar nova senha"}</button>}
+      <button type="button" onClick={onFim} className="lg-link">Ir para o login</button>
     </CaixaLogin>
   );
 }
