@@ -813,6 +813,7 @@ export function PicCompras({ user, fases, ir }) {
   const [ed, setEd] = useState({});   // { picItemId: { fornecedor, valor, qtd } }
   const [oc, setOc] = useState(false);
   const [cot, setCot] = useState(null);   // v476 — cotação por fornecedor
+  const [sel, setSel] = useState(new Set());   // v477 — itens escolhidos (de qualquer PIC)
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
@@ -837,6 +838,39 @@ export function PicCompras({ user, fases, ir }) {
     if (acao === "ocs") await alerta(`${x.ocs.map((o) => o.numero).join(", ")} gerada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`);
     carregar();
   }
+  // v477 — ações sobre itens de vários PICs: os escolhidos, ou todos os que estão sem OC
+  const todosAbertos = (l || []).flatMap((p) => p.itens.filter((i) => !i.oc).map((i) => ({ ...i, picNumero: p.numero })));
+  const alvo = sel.size ? todosAbertos.filter((i) => sel.has(i.id)) : todosAbertos;
+  const linha = (i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor }; };
+  async function acaoItens(acao) {
+    const its = (acao === "salvarItens" ? todosAbertos : alvo).map(linha);
+    const semCad = its.filter((x) => x.fornecedorId === undefined);
+    if (semCad.length) return alerta(`Fornecedor não encontrado no cadastro: ${[...new Set(semCad.map((x) => x.nomeForn))].join(", ")}. Escolha um da lista.`);
+    if (acao === "ocsItens") {
+      const prontos = its.filter((x) => x.fornecedorId && lerNum(x.valorUnitario) > 0);
+      if (!prontos.length) return alerta("Preencha fornecedor e valor unitário dos itens para gerar as OCs.");
+      const nF = new Set(prontos.map((x) => x.fornecedorId)).size;
+      const nP = new Set(alvo.filter((i) => prontos.some((x) => x.id === i.id)).map((i) => i.picNumero)).size;
+      if (!(await confirmar(`Gerar ${nF} OC(s), uma por fornecedor, com ${prontos.length} item(ns) de ${nP} PIC(s)?${prontos.length < its.length ? ` ${its.length - prontos.length} item(ns) sem fornecedor ou valor ficam no PIC.` : ""}`))) return;
+    }
+    setOc(true);
+    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })), ids: its.map((x) => x.id), quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({}));
+    setOc(false);
+    if (!r.ok) return alerta(x.error || "Erro.");
+    if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => o.numero).join(", ")} gerada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
+    carregar();
+  }
+  function cotacao() {
+    const g = {};
+    for (const i of alvo) { const v = val(i); const nome = v.fornecedor.trim(); if (!nome) continue; const f = porNome[nome.toUpperCase()]; const k = f ? `F${f.id}` : `N${nome.toUpperCase()}`;
+      (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade }); }
+    if (!Object.keys(g).length) return alerta("Escolha o fornecedor dos itens para gerar a cotação.");
+    // o mesmo artigo vindo de PICs diferentes vira uma linha só
+    for (const x of Object.values(g)) { const m = {}; for (const it of x.itens) { const k = `${it.nome}|${it.det}|${it.unidade}`; if (m[k]) m[k].quantidade += Number(it.quantidade) || 0; else m[k] = { ...it, quantidade: Number(it.quantidade) || 0 }; } x.itens = Object.values(m); }
+    setCot({ pic: [...new Set(alvo.map((i) => i.picNumero))].join(", "), grupos: Object.values(g), semF: alvo.filter((i) => !val(i).fornecedor.trim()).length });
+  }
+  const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function desfazer(p) {
     if (!(await confirmar(`Desfazer o ${p.numero}? Os itens voltam para o levantamento.`))) return;
     const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "cancelar", id: p.id }) });
@@ -848,7 +882,7 @@ export function PicCompras({ user, fases, ir }) {
   return (
     <div className="max-w-6xl">
       <FasesCompras atual="pic" fases={fases} ir={ir} />
-      <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor.</p>
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
@@ -865,13 +899,14 @@ export function PicCompras({ user, fases, ir }) {
               <Chip cor={p.status === "OC" ? C.green : C.accent} fundo={p.status === "OC" ? C.greenSoft : C.accentSoft}>{p.status === "OC" ? "OCs geradas" : `${abertos.length} sem OC`}</Chip>
             </div>
             <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
-              <div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
+              <div className="w-5" /><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
             </div>
             {p.itens.map((i) => {
               const v = val(i), trav = !!i.oc, inf = i.info || {};
               const semF = !trav && v.fornecedor.trim() && !porNome[v.fornecedor.trim().toUpperCase()];
               return (
-                <div key={i.id} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: trav ? 0.7 : 1 }}>
+                <div key={i.id} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: trav ? 0.7 : 1, background: sel.has(i.id) ? C.accentSoft : undefined }}>
+                  <div className="w-5">{!trav && <input type="checkbox" checked={sel.has(i.id)} onChange={() => togSel(i.id)} title="Escolher para cotação/OC (pode misturar PICs)" />}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate" style={{ color: C.text }}>{inf.nome || `Artigo #${i.artigoId}`} <span className="text-xs font-normal" style={{ color: C.sub }}>{[inf.cor, inf.codigo].filter(Boolean).join(" · ")}</span></div>
                     <div className="text-[11px] truncate" style={{ color: C.sub }} title={(inf.pedidos || []).map((x) => `${x.avulsa ? "Avulsa" : "Pedido"} ${x.pedido} ${x.chave} · ${qtdU(x.quantidade, inf.unidade)}`).join("\n")}>
@@ -890,22 +925,20 @@ export function PicCompras({ user, fases, ir }) {
             {abertos.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
                 <div className="flex-1 text-xs" style={{ color: C.sub }}>{Object.entries(porF).map(([f, v]) => `${f}: ${brl(v)}`).join(" · ")}</div>
-                <button onClick={() => {   // v476 — cotação: artigos do mesmo fornecedor num card para o WhatsApp
-                  const g = {};
-                  for (const i of abertos) { const v = val(i); const nome = v.fornecedor.trim(); if (!nome) continue; const f = porNome[nome.toUpperCase()]; const k = f ? `F${f.id}` : `N${nome.toUpperCase()}`;
-                    (g[k] ||= { fornecedor: f || { nome }, itens: [] }).itens.push({ nome: i.info?.nome || `Artigo #${i.artigoId}`, det: [i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), quantidade: lerNum(v.qtd) ?? i.quantidade, unidade: i.info?.unidade }); }
-                  const semF = abertos.filter((i) => !val(i).fornecedor.trim()).length;
-                  if (!Object.keys(g).length) return alerta("Escolha o fornecedor dos itens para gerar a cotação.");
-                  setCot({ pic: p.numero, grupos: Object.values(g), semF });
-                }} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
                 {!p.itens.some((i) => i.oc) && <button onClick={() => desfazer(p)} className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Undo2 size={13} /> Desfazer PIC</button>}
-                <button disabled={oc} onClick={() => enviar(p, "salvar")} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar</button>
-                <button disabled={oc} onClick={() => enviar(p, "ocs")} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OCs por fornecedor</button>
               </div>
             )}
           </div>
         );
       })}
+      {todosAbertos.length > 0 && (   // v477 — barra única: itens de PICs diferentes na mesma cotação/OC
+        <div className="flex flex-wrap items-center gap-2 sticky bottom-0 py-3 px-3 rounded-lg" style={{ background: "#F7F8FA", border: `1px solid ${C.line}` }}>
+          <div className="flex-1 text-sm" style={{ color: C.sub }}>{sel.size ? <><b style={{ color: C.navy }}>{sel.size}</b> item(ns) escolhido(s) de {new Set(alvo.map((i) => i.picNumero)).size} PIC(s) · <button onClick={() => setSel(new Set())} className="underline">limpar</button></> : <>Sem escolha: vale para <b style={{ color: C.navy }}>todos os {todosAbertos.length}</b> itens sem OC. Marque itens (de qualquer PIC) para escolher.</>}</div>
+          <button disabled={oc} onClick={() => acaoItens("salvarItens")} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar</button>
+          <button disabled={oc} onClick={cotacao} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
+          <button disabled={oc} onClick={() => acaoItens("ocsItens")} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OCs por fornecedor</button>
+        </div>
+      )}
     </div>
   );
 }

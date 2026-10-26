@@ -45,8 +45,10 @@ export async function listarPics() {
 }
 
 // comprador preenche fornecedor, valor e quantidade: [{ id, fornecedorId, valorUnitario, quantidade }]
+// v477 — picId opcional: itens de PICs diferentes na mesma gravação
 export async function salvarItensPic(picId, itens) {
-  const l = await prisma.picItem.findMany({ where: { picId: Number(picId) }, include: { ocItens: { select: { id: true } } } });
+  const ids = (itens || []).map((x) => Number(x.id)).filter(Boolean);
+  const l = await prisma.picItem.findMany({ where: picId ? { picId: Number(picId) } : { id: { in: ids } }, include: { ocItens: { select: { id: true } } } });
   const porId = Object.fromEntries(l.map((i) => [i.id, i]));
   for (const x of itens || []) {
     const i = porId[Number(x.id)]; if (!i || i.ocItens.length) continue;
@@ -60,37 +62,45 @@ export async function salvarItensPic(picId, itens) {
   return { ok: true };
 }
 
-// OCs: uma por fornecedor, com os itens do PIC que têm fornecedor e valor e ainda não estão em OC
-export async function gerarOcs(picId, quem) {
-  const pic = await prisma.pic.findUnique({ where: { id: Number(picId) }, include: { itens: { include: { ocItens: { select: { id: true } } } } } });
-  if (!pic) return { error: "PIC não encontrado." };
-  const livres = pic.itens.filter((i) => !i.ocItens.length);
+// v477 — OCs com itens de um ou vários PICs (os mesmos fornecedores viram uma OC só)
+export async function gerarOcsItens(itemIds, quem) {
+  const its = await prisma.picItem.findMany({ where: { id: { in: (itemIds || []).map(Number).filter(Boolean) } }, include: { ocItens: { select: { id: true } } } });
+  const livres = its.filter((i) => !i.ocItens.length);
   const prontos = livres.filter((i) => i.fornecedorId && i.valorUnitario != null && Number(i.valorUnitario) > 0 && Number(i.quantidade) > 0);
   if (!prontos.length) return { error: "Preencha fornecedor e valor unitário dos itens para gerar as OCs." };
   const grupos = {};
   for (const i of prontos) (grupos[i.fornecedorId] ||= []).push(i);
   const ocs = [];
-  for (const [fid, its] of Object.entries(grupos)) {
-    const oc = await prisma.ordemCompra.create({ data: { numero: `TMP-${Date.now()}-${fid}-${Math.random().toString(36).slice(2, 6)}`, fornecedorId: Number(fid), picId: pic.id, criadoPorNome: quem || null,
-      itens: { create: its.map((i) => ({ artigoId: i.artigoId, picItemId: i.id, quantidade: i.quantidade, valorUnitario: i.valorUnitario })) } } });
+  for (const [fid, gi] of Object.entries(grupos)) {
+    const pics = [...new Set(gi.map((i) => i.picId))];
+    const oc = await prisma.ordemCompra.create({ data: { numero: `TMP-${Date.now()}-${fid}-${Math.random().toString(36).slice(2, 6)}`, fornecedorId: Number(fid), picId: pics.length === 1 ? pics[0] : null, criadoPorNome: quem || null,
+      itens: { create: gi.map((i) => ({ artigoId: i.artigoId, picItemId: i.id, quantidade: i.quantidade, valorUnitario: i.valorUnitario })) } } });
     const numero = `OC ${String(oc.id).padStart(4, "0")}`;
     await prisma.ordemCompra.update({ where: { id: oc.id }, data: { numero } });
-    // o artigo passa a ter esse fornecedor e o último preço de compra
-    for (const i of its) await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: i.valorUnitario, ...(i.fornecedorId ? { fornecedorId: i.fornecedorId } : {}) } }).catch(() => null);
-    ocs.push({ id: oc.id, numero, itens: its.length });
+    for (const i of gi) await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: i.valorUnitario, fornecedorId: i.fornecedorId } }).catch(() => null);
+    ocs.push({ id: oc.id, numero, itens: gi.length, pics: pics.length });
   }
-  const faltam = livres.length - prontos.length;
-  if (!faltam) {
-    await prisma.pic.update({ where: { id: pic.id }, data: { status: "OC" } });
-    const its = await prisma.compraItem.findMany({ where: { picId: pic.id }, select: { id: true, pedidoNumero: true } });
-    await prisma.compraItem.updateMany({ where: { picId: pic.id }, data: { status: "OC" } });
-    // compra avulsa com todos os itens em OC passa a COMPRADA
-    for (const av of [...new Set(its.map((x) => x.pedidoNumero).filter(ehAvulsa))]) {
-      const resto = await prisma.compraItem.count({ where: { pedidoNumero: av, status: { in: ["LEVANTAMENTO", "PIC"] } } });
-      if (!resto) await prisma.compraAvulsa.updateMany({ where: { id: Number(av.slice(2)), status: "ABERTA" }, data: { status: "COMPRADA" } });
-    }
+  for (const pid of [...new Set(its.map((i) => i.picId))]) await fecharPicSeCompleto(pid);
+  return { ok: true, ocs, faltam: livres.length - prontos.length };
+}
+// PIC com todos os itens em OC: PIC = OC, itens de compra = OC, avulsas completas = COMPRADA
+async function fecharPicSeCompleto(picId) {
+  const resto = await prisma.picItem.count({ where: { picId, ocItens: { none: {} } } });
+  if (resto) return;
+  await prisma.pic.update({ where: { id: picId }, data: { status: "OC" } });
+  const its = await prisma.compraItem.findMany({ where: { picId }, select: { pedidoNumero: true } });
+  await prisma.compraItem.updateMany({ where: { picId }, data: { status: "OC" } });
+  for (const av of [...new Set(its.map((x) => x.pedidoNumero).filter(ehAvulsa))]) {
+    const n = await prisma.compraItem.count({ where: { pedidoNumero: av, status: { in: ["LEVANTAMENTO", "PIC"] } } });
+    if (!n) await prisma.compraAvulsa.updateMany({ where: { id: Number(av.slice(2)), status: "ABERTA" }, data: { status: "COMPRADA" } });
   }
-  return { ok: true, ocs, faltam };
+}
+
+// OCs: uma por fornecedor, com os itens do PIC que têm fornecedor e valor e ainda não estão em OC
+export async function gerarOcs(picId, quem) {
+  const pic = await prisma.pic.findUnique({ where: { id: Number(picId) }, include: { itens: { include: { ocItens: { select: { id: true } } } } } });
+  if (!pic) return { error: "PIC não encontrado." };
+  return gerarOcsItens(pic.itens.map((i) => i.id), quem);
 }
 
 // desfaz o PIC (antes de qualquer OC): os itens voltam ao levantamento
@@ -104,11 +114,13 @@ export async function cancelarPic(picId) {
 }
 
 export async function listarOcs() {
-  const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } } } } } });
-  const picIds = [...new Set(l.map((o) => o.picId).filter(Boolean))];
+  const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true } } } } } });
+  const piPorOc = {};
+  for (const o of l) piPorOc[o.id] = [...new Set(o.itens.map((i) => i.picItem?.picId).filter(Boolean))];
+  const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];
   const pics = Object.fromEntries((await prisma.pic.findMany({ where: { id: { in: picIds } }, select: { id: true, numero: true } })).map((p) => [p.id, p.numero]));
   return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
-    condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: pics[o.picId] || null,
+    condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato, telefone: o.fornecedor.telefone, email: o.fornecedor.email },
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
