@@ -30,13 +30,13 @@ function Chip({ cor = C.sub, fundo = C.panel2, children, title }) {
 }
 function Modal({ titulo, onClose, children, largo }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className={`rounded-lg w-full ${largo ? "max-w-2xl" : "max-w-lg"} max-h-[90vh] flex flex-col`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className={`rounded-lg w-full ${largo === "xl" ? "max-w-5xl" : largo ? "max-w-2xl" : "max-w-lg"} ${largo === "xl" ? "" : "max-h-[90vh]"} flex flex-col`} style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-bold" style={{ color: C.navy }}>{titulo}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
-        <div className="p-4 overflow-auto">{children}</div>
+        <div className={`p-4 ${largo === "xl" ? "overflow-visible" : "overflow-auto"}`}>{children}</div>
       </div>
     </div>
   );
@@ -410,18 +410,17 @@ export function Avulsas({ user }) {
         );
       })}
       {ed && (
-        <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa"} onClose={() => setEd(null)} largo>
-          <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "120px 190px minmax(0,1.4fr) minmax(0,1fr)" }}>
-            <label className="text-xs" style={{ color: C.sub }}>Nº (opcional)<input value={ed.numero || ""} onChange={(e) => setEd({ ...ed, numero: e.target.value })} placeholder="ex.: 1210" className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
+        <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa · o nº sai ao salvar"} onClose={() => setEd(null)} largo="xl">
+          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "220px minmax(0,1.6fr) minmax(0,1fr)" }}>
             <label className="text-xs" style={{ color: C.sub }}>Para<select value={ed.destino} onChange={(e) => setEd({ ...ed, destino: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel}><option value="OPERACAO">Operação</option><option value="PEDIDO">Faz parte de um pedido</option></select></label>
             {ed.destino === "PEDIDO" ? <BuscaPedido valor={ed.pedidoRef} cliente={ed.pedidoCliente} onEscolher={(p) => setEd((e) => ({ ...e, pedidoRef: p?.numero || "", pedidoCliente: p?.cliente || "" }))} sel={sel} /> : <div />}
             <label className="text-xs" style={{ color: C.sub }}>Observação<input value={ed.obs || ""} onChange={(e) => setEd({ ...ed, obs: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
           </div>
-          <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 200px 140px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Bom para</span><span /></div>
+          <div className="grid gap-2 text-xs mb-1" style={{ gridTemplateColumns: "minmax(0,2fr) 100px 90px minmax(0,1.2fr) 160px 24px", color: C.sub }}><span>Item</span><span>Quantidade</span><span>Unidade</span><span>Fornecedor (se houver)</span><span>Bom para</span><span /></div>
           {ed.itens.map((i, k) => {
             const c = corBomPara(i.bomPara);
             return (
-              <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 200px 140px 24px" }}>
+              <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,2fr) 100px 90px minmax(0,1.2fr) 160px 24px" }}>
                 <input value={i.nome || ""} onChange={(e) => setIt(k, "nome", e.target.value)} placeholder="Nome do item" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <select value={i.unidade || "UN"} onChange={(e) => setIt(k, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>{UNIDADES_AV.map(([u, n]) => <option key={u} value={u}>{n}</option>)}</select>

@@ -54,7 +54,15 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const d = limpar(b);
   if (!d.itens.length) return Response.json({ error: "Inclua ao menos um item com nome." }, { status: 400 });
-  const c = await prisma.compraAvulsa.create({ data: { ...d, criadoPorNome: b.quem || null } });
+  // v473 — numeração própria, sequencial a partir de 00001
+  const numero = await prisma.$transaction(async (tx) => {
+    const k = "COMPRAS|AVULSA_SEQ";
+    const c0 = await tx.finConfig.findUnique({ where: { chave: k } });
+    const n = (parseInt(c0?.valor, 10) || 0) + 1;
+    await tx.finConfig.upsert({ where: { chave: k }, create: { chave: k, valor: String(n) }, update: { valor: String(n) } });
+    return String(n).padStart(5, "0");
+  });
+  const c = await prisma.compraAvulsa.create({ data: { ...d, numero, criadoPorNome: b.quem || null } });
   await sincronizarAvulsa(c);
   return Response.json(c);
 }

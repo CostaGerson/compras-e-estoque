@@ -91,3 +91,7 @@ button:active:not(:disabled) { transform: scale(.97); }
   .lg-lado{align-items:flex-start;padding:48px 16px 32px}
   .lg-card{padding:36px 24px 30px}
 }
+
+/* v473 — campo com lista de sugestões (datalist): sem a seta do navegador */
+input[list]::-webkit-calendar-picker-indicator{display:none!important;opacity:0}
+input[list]::-webkit-list-button{display:none!important}
