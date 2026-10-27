@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../../lib/prisma";
 import { registrarNegociacao, criarComNumero } from "../../../../lib/fppNumero";
-import { sincronizarArtigosFpp } from "../../../../lib/compras";
+import { sincronizarArtigosFpp, refazerDemandasDaFpp } from "../../../../lib/compras";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,10 @@ export async function PATCH(req, { params }) {
   if (b.totalItem !== undefined) data.totalItem = b.totalItem != null ? Number(b.totalItem) : null;
   const f = await prisma.fpp.update({ where: { id: Number(params.id) }, data });
   await registrarNegociacao(f.negociacao);
-  try { if (await sincronizarArtigosFpp(f)) return NextResponse.json(await prisma.fpp.findUnique({ where: { id: f.id } })); } catch (e) { console.error("artigos da FPP", e); }
+  let mudouArt = false;
+  try { mudouArt = await sincronizarArtigosFpp(f); } catch (e) { console.error("artigos da FPP", e); }
+  try { await refazerDemandasDaFpp(f.id); } catch (e) { console.error("demandas da FPP", e); }   // v525 — itens no levantamento acompanham a FPP
+  if (mudouArt) return NextResponse.json(await prisma.fpp.findUnique({ where: { id: f.id } }));
   return NextResponse.json(f);
 }
 

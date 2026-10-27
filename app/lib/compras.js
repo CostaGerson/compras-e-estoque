@@ -264,6 +264,17 @@ export function sugerirFpps(item, pedido, fpps, clientes, max = 5) {
 }
 
 // ---------- demanda ----------
+// v525 — FPP alterada: refaz a demanda dos itens ainda no levantamento (fornecedor, cor, código, consumo, preço…)
+export async function refazerDemandasDaFpp(fppId, db = prisma) {
+  const fpp = await db.fpp.findUnique({ where: { id: Number(fppId) } });
+  if (!fpp) return 0;
+  const its = await db.compraItem.findMany({ where: { fppId: fpp.id, status: "LEVANTAMENTO" } });
+  for (const v of its) {
+    const demanda = await demandaDoItem(fpp, Number(v.quantidade), db);
+    await db.compraItem.update({ where: { id: v.id }, data: { demanda: demanda.map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null })) } });
+  }
+  return its.length;
+}
 export async function demandaDoItem(fpp, qtd, db = prisma) {
   const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
   const mats = materiaisDaFpp(fpp, params);

@@ -30,7 +30,7 @@ export async function GET() {
   const numeros = pedidos.map((p) => p.numero);
   const [vinc, fpps, clientes] = await Promise.all([
     prisma.compraItem.findMany({ where: { pedidoNumero: { in: numeros } } }),
-    prisma.fpp.findMany({ select: { id: true, numero: true, item: true, nomeComercial: true, clienteId: true, clienteNome: true, negociacao: true, valorProposto: true, createdAt: true } }),
+    prisma.fpp.findMany({ select: { id: true, updatedAt: true, numero: true, item: true, nomeComercial: true, clienteId: true, clienteNome: true, negociacao: true, valorProposto: true, createdAt: true } }),
     prisma.cliente.findMany({ select: { id: true, cnpj: true, razaoSocial: true, nomeFantasia: true } }),
   ]);
   const porChave = Object.fromEntries(vinc.map((v) => [`${v.pedidoNumero}|${v.chave}`, v]));
@@ -58,7 +58,9 @@ export async function GET() {
       // quantidade mudou no KM: refaz a demanda enquanto está no levantamento
       // v523 — FPP de produto revenda com demanda vazia (antes da v523): refaz uma vez
       const revVazia = v && v.fppId && !(v.demanda || []).length && ehRevenda(fppPorId[v.fppId]?.item, fppPorId[v.fppId]?.tipo);
-      if (v && v.status === "LEVANTAMENTO" && (Number(v.quantidade) !== it.qtd || revVazia) && v.fppId) {
+      // v525 — FPP alterada depois da última demanda: refaz (fornecedor, cor, código, consumo…)
+      const fppMudou = v && v.fppId && fppPorId[v.fppId]?.updatedAt && new Date(fppPorId[v.fppId].updatedAt) > new Date(v.updatedAt);
+      if (v && v.status === "LEVANTAMENTO" && (Number(v.quantidade) !== it.qtd || revVazia || fppMudou) && v.fppId) {
         const fpp = await prisma.fpp.findUnique({ where: { id: v.fppId } });
         if (fpp) {
           const demanda = await demandaDoItem(fpp, it.qtd);
