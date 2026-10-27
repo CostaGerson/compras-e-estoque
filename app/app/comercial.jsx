@@ -1461,15 +1461,15 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="text-sm" style={{ color: C.sub }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">   {/* v516 — mais espaço entre voltar, proposta e as guias */}
+        <div className="text-sm flex items-center gap-4 flex-wrap" style={{ color: C.sub }}>
           {filtro ? (
             <button onClick={() => setFiltro(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
               <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · {guiaFpp(filtro.guia).label}: <b>{filtro.valor}</b> · {dados.length} ficha(s)
             </button>
           ) : null}
           {filtro && dados.length > 0 ? (
-            <button onClick={() => setProposta(dados)} className="ml-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
+            <button onClick={() => setProposta(dados)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
               <Send size={13} /> Proposta {filtro.guia === "negociacao" ? "da negociação inteira" : `de todas (${dados.length})`}
             </button>
           ) : cards ? `${cards.length} ${g.label.toLowerCase()}(s) · ${lista.length} ficha(s)` : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
