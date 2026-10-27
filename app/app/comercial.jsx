@@ -284,7 +284,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
   const [over, setOver] = useState({});             // overrides só desta precificação {caminho: valor}
   const [modoOverride, setModoOverride] = useState(false);
   const [paramsLocaisOpen, setParamsLocaisOpen] = useState(false);
-  const [aba, setAba] = useState("ficha");          // ficha | banco
+  const [aba, setAba] = useState(abrirId ? "ficha" : "salvas");   // v514 — Orçamentação abre nas FPPs salvas (negociações e guias); ficha | banco | salvas
   const [origem, setOrigem] = useState(null);       // v513 — de onde a ficha em edição foi aberta: { aba: "salvas" } | { externo: { v: "pedido", numero } }
   const voltarSalvas = useRef(null);                // v513 — Voltar dentro das salvas (negociação aberta → cards da guia)
   const [salvando, setSalvando] = useState(false);
@@ -515,13 +515,14 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
     catch (e) { alerta(`Não foi possível clonar: ${e.message}`); }
   }
   function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setModoOverride(false); setEditId(null); setEditNum(null); setMsg(""); }
+  function criarFpp() { novaFicha(); setOrigem({ aba: "salvas" }); setAba("ficha"); }   // v514
 
   // v513 — Voltar: ficha aberta de algum lugar → volta para lá; dentro de uma negociação/cliente/peça → volta aos cards
   if (voltarRef) voltarRef.current = () => {
     if (aba === "ficha" && origem?.externo) { window.dispatchEvent(new CustomEvent("ce:ir", { detail: origem.externo })); return true; }
     if (aba === "ficha" && origem?.aba) { setAba(origem.aba); setOrigem(null); return true; }
     if (aba === "salvas" && voltarSalvas.current?.()) return true;
-    if (aba !== "ficha") { setAba("ficha"); return !!f.item; }   // banco/salvas → ficha em andamento, se houver
+    if (aba === "ficha" || aba === "banco") { setAba("salvas"); return true; }   // v514 — ficha nova / banco → FPPs salvas
     return false;
   };
 
@@ -536,13 +537,18 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
       {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1 flex-1" style={{ borderBottom: `1px solid ${C.line}` }}>
-          {[["ficha", "Ficha", Calculator], ["banco", "Banco de dados", Database], ["salvas", "Salvas", Layers]].map(([k, t, Ico]) => (
+          {[["salvas", "Negociações e FPPs", Layers], ...(aba === "ficha" ? [["ficha", editId ? `FPP ${fmtFpp(editNum)}` : "Nova FPP", Calculator]] : []), ["banco", "Banco de dados", Database]].map(([k, t, Ico]) => (
             <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
               style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
               <Ico size={15} /> {t}
             </button>
           ))}
         </div>
+        {aba !== "ficha" && (
+          <button onClick={criarFpp} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+            <Plus size={15} /> Criar FPP
+          </button>
+        )}
         {aba === "ficha" && f.item && tipoDaPeca(f.item) && (
           <div className="flex items-center gap-2">
             {editId && <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: C.yellowSoft, color: C.yellow, border: `1px solid ${C.yellow}55` }}>Editando FPP {fmtFpp(editNum)}</span>}
