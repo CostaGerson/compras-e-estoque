@@ -20,6 +20,19 @@ const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const rotPed = (n, cli) => (/^AV\d+$/.test(String(n || "")) ? `Compra avulsa · ${cli || ""}` : `Pedido ${n} · ${cli || ""}`);   // v419
 const nomeUser = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
+// v524 — pedido e cliente de cada demanda (cabe no iPad: quebra em linhas)
+function Origens({ l, unidade }) {
+  if (!l?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {l.map((o) => (
+        <span key={o.pedido} className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <b>{/^AV\d+$/.test(String(o.pedido)) ? "Avulsa" : o.pedido}</b>{o.cliente ? ` · ${String(o.cliente).replace(/^AVULSA\s+/i, "")}` : ""}{l.length > 1 ? <span style={{ color: C.sub }}> · {qtdU(o.quantidade, unidade)}</span> : null}
+        </span>
+      ))}
+    </div>
+  );
+}
 const detArtigo = (d) => [d.fornecedor, d.cor, d.codigo, d.largura ? `${String(d.largura).replace(".", ",")} m` : null].filter(Boolean).join(" · ");
 
 const STATUS = {
@@ -719,8 +732,9 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
           </div>
           {d.consolidado.map((c) => (
             <div key={c.artigoId} className="flex px-4 py-2.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
-              <div className="flex-1"><b>{c.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{c.categoria?.toLowerCase()}</span>
-                {c.juntados.length > 0 && <div className="text-[11px]" style={{ color: C.green }}>+ juntou {c.juntados.map((j) => detArtigo(j) || "sem detalhe").join(", ")}</div>}</div>
+              <div className="flex-1 min-w-0"><b>{c.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{c.categoria?.toLowerCase()}</span>
+                {c.juntados.length > 0 && <div className="text-[11px]" style={{ color: C.green }}>+ juntou {c.juntados.map((j) => detArtigo(j) || "sem detalhe").join(", ")}</div>}
+                <Origens l={c.origens} unidade={c.unidade} /></div>
               <div className="w-48 text-xs" style={{ color: detArtigo(c) ? C.sub : C.yellow }}>{detArtigo(c) || "sem detalhe"}</div>
               <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{c.compra ? <>{c.compra} grosa(s)<div className="text-[11px] font-normal" style={{ color: C.sub }}>{qtdU(c.quantidade, c.unidade)} de {qtdU(c.compra * c.embalagem, c.unidade)}</div></> : qtdU(c.quantidade, c.unidade)}</div>
               <div className="w-24 text-right text-xs" style={{ color: C.sub }} title={c.pedidos.join(", ")}>{c.pedidos.length} ped · {c.itens} it</div>
@@ -875,7 +889,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
         </div>
         {d.artigos.map((a) => (
           <div key={a.artigoId} className="flex px-4 py-2 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
-            <div className="flex-1"><b>{a.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{detArtigo(a)}</span></div>
+            <div className="flex-1 min-w-0"><b>{a.nome}</b> <span className="text-xs" style={{ color: C.sub }}>{detArtigo(a)}</span><Origens l={a.origens} unidade={a.unidade} /></div>
             <div className="w-24 text-right">{qtdU(a.quantidade, a.unidade)}</div>
             <div className="w-24 text-right" style={{ color: C.sub }}>{qtdU(a.saldo, a.unidade)}</div>
             <div className="w-24 text-right" style={{ color: a.reservado ? C.yellow : C.sub }}>{qtdU(a.reservado, a.unidade)}</div>

@@ -321,15 +321,19 @@ export function montarLevantamento(itens) {
   for (const l of linhas) {
     const efetivo = l.equiparadoA || l.artigoId;
     const a = arts[efetivo] || arts[l.artigoId];
-    const c = (cons[efetivo] ||= { ...a, artigoId: efetivo, quantidade: 0, pedidos: new Set(), itens: 0, juntados: new Set(), valorEstimado: 0 });
+    const c = (cons[efetivo] ||= { ...a, artigoId: efetivo, quantidade: 0, pedidos: new Set(), itens: 0, juntados: new Set(), valorEstimado: 0, origens: {} });
     c.quantidade += l.quantidade; c.pedidos.add(l.pedidoNumero); c.itens++;
+    // v524 — de onde vem a demanda: pedido, cliente e quanto de cada um
+    const o = (c.origens[l.pedidoNumero] ||= { pedido: l.pedidoNumero, cliente: l.cliente || null, entrega: l.entrega || null, quantidade: 0 });
+    o.quantidade += Number(l.quantidade) || 0;
     if (l.equiparadoA) c.juntados.add(l.artigoId);
     if (l.valorUnitario) c.valorEstimado += l.quantidade * l.valorUnitario;
   }
   const consolidado = Object.values(cons).map((c) => ({ ...c, quantidade: r3(c.quantidade),
     compra: c.embalagem ? Math.ceil(r3(c.quantidade) / c.embalagem) : null,   // v405 — botão: grosas inteiras
     valorEstimado: Math.round(c.valorEstimado * 100) / 100,
-    pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]) })).sort((a, b) => a.nome.localeCompare(b.nome));
+    pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]),
+    origens: Object.values(c.origens).map((o) => ({ ...o, quantidade: r3(o.quantidade) })).sort((a, b) => String(a.entrega ? new Date(a.entrega).toISOString() : "9").localeCompare(String(b.entrega ? new Date(b.entrega).toISOString() : "9")) || String(a.pedido).localeCompare(String(b.pedido))) })).sort((a, b) => a.nome.localeCompare(b.nome));
   return { linhas, equiparacoes, consolidado };
 }
 
@@ -452,8 +456,9 @@ export async function itensAbertos(db = prisma) {
   try { await limparGolaVies(db); } catch (e) { console.log("compras/gola viés:", e.message); }
   const dispensados = await pedidosDispensados(db);   // v419
   const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
-  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
+  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cliente: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
+  for (const i of itens) if (!i.cliente && porNum[i.pedidoNumero]?.cliente) i.cliente = porNum[i.pedidoNumero].cliente;   // v524 — nome do cliente sempre presente
   // v417/v418 — item programado/em produção no PCP sai do levantamento
   return itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));
 }
