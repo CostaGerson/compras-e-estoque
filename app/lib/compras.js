@@ -58,7 +58,17 @@ export function materiaisDaFpp(fpp, params = []) {
   const e = fpp.entradas || {};
   const r = fpp.resultados || {};
   const ov = fpp.overrides || {};
-  if (ehRevenda(fpp.item, fpp.tipo)) return [];   // v512 — revenda: compra o produto pronto, sem matéria-prima
+  // v523 — revenda: a demanda é o próprio produto (1 por peça), a preço de custo, com marca e fornecedor da ficha
+  if (ehRevenda(fpp.item, fpp.tipo)) {
+    const e0 = fpp.entradas || {};
+    const desc = String(e0.revendaDescricao || fpp.nomeComercial || "").trim().toUpperCase();
+    if (!desc) return [];
+    const marca = String(e0.revendaMarca || "").trim().toUpperCase();
+    const forn = String(e0.revendaFornecedor || "").trim().toUpperCase();
+    return [{ papel: "REVENDA", ref: { campo: "revendaDet" }, categoria: "OUTROS", unidade: "PC", nome: marca ? `${desc} - ${marca}` : desc,
+      det: { ...(e0.revendaDet || {}), ...(forn && !e0.revendaDet?.fornecedorId ? { fornecedorNome: forn } : {}), ...(marca ? { obs: `MARCA ${marca}` } : {}) },
+      consumoPorPeca: 1, valorUnitario: n0(e0.custoRevenda), base: `produto revenda · 1 por peça${marca ? ` · marca ${marca}` : ""}${forn ? ` · ${forn}` : ""}`, obs: marca ? `MARCA ${marca}` : null }];
+  }
   const tipo = fpp.tipo === "PLANO" ? "PLANO" : "MALHA";
   const aberta = ehPecaAberta(fpp.item);   // v512 — acessório: forro e todos os aviamentos
   const rendCons = n0(r.rendCons) ?? paramValor(params, tipo, "PECA", fpp.item, ov);
@@ -155,6 +165,12 @@ const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura",
 // procura o artigo idêntico (mesma categoria, nome e mesmos campos de identificação, vazio = vazio); senão cria
 export async function artigoDaFpp(m, fpp, db = prisma) {
   const k = chaveDet(m.det || {});
+  // v523 — revenda: fornecedor digitado na ficha → cadastro de fornecedores pelo nome
+  if (!k.fornecedorId && m.det?.fornecedorNome) {
+    const nm = String(m.det.fornecedorNome).trim();
+    const f = await db.fornecedor.findFirst({ where: { OR: [{ nome: { equals: nm, mode: "insensitive" } }, { nomeFantasia: { equals: nm, mode: "insensitive" } }, { razaoSocial: { equals: nm, mode: "insensitive" } }] }, select: { id: true } }).catch(() => null);
+    if (f) k.fornecedorId = f.id;
+  }
   const cands = await db.artigo.findMany({ where: { ativo: true, categoria: m.categoria, unidade: m.unidade, nome: { equals: m.nome, mode: "insensitive" } },   // v410 — mesma unidade
     select: { id: true, fornecedorId: true, cor: true, codigo: true, origem: true } });
   const igual = cands.find((a) => (a.fornecedorId || null) === k.fornecedorId && (a.cor ? norm(a.cor) : null) === k.cor && (a.codigo ? norm(a.codigo) : null) === k.codigo);

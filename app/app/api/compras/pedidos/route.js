@@ -1,5 +1,6 @@
 // v404 — Compras › Pedidos: pedidos do KM em andamento, desmembrados em itens, com a FPP base (ou sugestões)
 export const dynamic = "force-dynamic";
+import { ehRevenda } from "@/lib/fppAv";   // v523
 import { prisma } from "@/lib/prisma";
 import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp } from "@/lib/compras";
 
@@ -55,7 +56,9 @@ export async function GET() {
       if (fi.fase === "PRODUCAO") { itensFora++; continue; }
       let v = porChave[`${p.numero}|${it.chave}`];
       // quantidade mudou no KM: refaz a demanda enquanto está no levantamento
-      if (v && v.status === "LEVANTAMENTO" && Number(v.quantidade) !== it.qtd && v.fppId) {
+      // v523 — FPP de produto revenda com demanda vazia (antes da v523): refaz uma vez
+      const revVazia = v && v.fppId && !(v.demanda || []).length && ehRevenda(fppPorId[v.fppId]?.item, fppPorId[v.fppId]?.tipo);
+      if (v && v.status === "LEVANTAMENTO" && (Number(v.quantidade) !== it.qtd || revVazia) && v.fppId) {
         const fpp = await prisma.fpp.findUnique({ where: { id: v.fppId } });
         if (fpp) {
           const demanda = await demandaDoItem(fpp, it.qtd);

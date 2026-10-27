@@ -273,7 +273,7 @@ function fichaVazia(tipo) {
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "", repassarTaxas: false, paramsAlterados: false,
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
     abRend: "", abCorte: "", abAcab: "",   // v512 — acessório malha/plano: rendimento ou consumo, corte e expedição/acabamento digitados
-    custoRevenda: "", revendaFornecedor: "", revendaDescricao: "",   // v512 — produto revenda: preço de custo por peça
+    custoRevenda: "", revendaFornecedor: "", revendaDescricao: "", revendaMarca: "",   // v512 — produto revenda: preço de custo por peça · v523 marca
   };
 }
 
@@ -600,12 +600,13 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
             {revenda && (
               <Card title="Produto revenda">
                 {/* v512 — revenda: só o preço de custo do produto pronto; o resto (personalização, lead time, logística, financeiro) segue igual */}
-                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) 160px" }}>
+                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1fr) 160px" }}>
                   <Inp full text label="Descrição do produto" value={f.revendaDescricao} onChange={(v) => set("revendaDescricao", v.toUpperCase())} placeholder="ex.: BONÉ TRUCKER, GARRAFA TÉRMICA…" />
+                  <Inp full text label="Marca" value={f.revendaMarca || ""} onChange={(v) => set("revendaMarca", v.toUpperCase())} />
                   <Inp full text label="Fornecedor" value={f.revendaFornecedor} onChange={(v) => set("revendaFornecedor", v.toUpperCase())} />
                   <Inp full label="Preço de custo (R$/peça)" value={f.custoRevenda} onChange={(v) => set("custoRevenda", v)} destaque />
                 </div>
-                <div className="text-[11px] mt-2" style={{ color: C.sub }}>Sem matéria-prima, aviamentos e produção: o custo do produto entra direto no custo da peça.</div>
+                <div className="text-[11px] mt-2" style={{ color: C.sub }}>Sem matéria-prima, aviamentos e produção: o custo do produto entra direto no custo da peça. Nas compras, a demanda é o próprio produto (1 por peça) a este preço de custo.</div>
               </Card>
             )}
 
