@@ -58,7 +58,7 @@ export async function GET(req) {
     });
     return Response.json(l.map((p) => ({ ...p, total: Number(p.total), emissao: p.emissao ? p.emissao.toISOString().slice(0, 10) : null })));
   }
-  const l = await prisma.compraAvulsa.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { createdAt: "desc" } });
+  const l = await prisma.compraAvulsa.findMany({ where: { status: { not: "CANCELADA" } }, orderBy: { createdAt: "desc" }, include: { _count: { select: { anexos: true } } } });   // v515 — nº de anexos
   // v493 — etapa de cada item (a mesma do painel de compras)
   const cis = await prisma.compraItem.findMany({ where: { pedidoNumero: { in: l.map((c) => `AV${c.id}`) } }, select: { id: true, pedidoNumero: true, chave: true, status: true, cliente: true } });
   // v496 — corrige o "cliente" gravado nos itens (antes todos herdavam o pedido do cabeçalho)

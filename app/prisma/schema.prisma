@@ -1927,8 +1927,25 @@ model CompraAvulsa {
   criadoPorNome String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  anexos        CompraAvulsaAnexo[]   // v515
 
   @@index([status])
+}
+
+// v515 — imagens/arquivos anexados à compra avulsa (sugestão #20 do Leandro) — base64 no Postgres
+model CompraAvulsaAnexo {
+  id            Int          @id @default(autoincrement())
+  avulsaId      Int
+  avulsa        CompraAvulsa @relation(fields: [avulsaId], references: [id], onDelete: Cascade)
+  nome          String
+  mime          String?
+  tamanho       Int          @default(0)
+  hash          String?
+  conteudo      String
+  criadoPorNome String?
+  createdAt     DateTime     @default(now())
+
+  @@index([avulsaId])
 }
 
 // v419 — pedido do KM só para faturamento: compras dispensadas (sai de pedidos, levantamento e cruzamento)

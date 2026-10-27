@@ -1,7 +1,7 @@
 "use client";
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
 import { ImportarNfs } from "./adm";   // v494 — NF subida pela OC passa pelo mesmo lançamento do movimento fiscal   // v424 — popups do sistema
 
@@ -418,6 +418,13 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
     const r = await fetch("/api/compras/avulsas", { method: ed.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ed, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     if (!r.ok) return alerta(x.error || "Erro ao salvar.");
+    // v515 — anexos escolhidos antes do 1º salvar sobem agora, com o id da avulsa
+    const falhas = [];
+    for (const a of ed.anexosPendentes || []) {
+      const ra = await fetch(`/api/compras/avulsas/${x.id}/anexos`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: a.nome, mime: a.mime, conteudo: a.conteudo, quem: nomeUser(user) }) });
+      if (!ra.ok) falhas.push(a.nome);
+    }
+    if (falhas.length) alerta(`Não foi possível anexar: ${falhas.join(", ")}.`);
     setEd(null); carregar(); window.dispatchEvent(new Event("ce:avulsasMudou"));
   }
   const abrirEdicao = (c) => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) });
@@ -468,6 +475,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
               <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>Avulsa {c.numero || `#${c.id}`} · {(() => { const novo = (c.itens || []).some((i) => i && Object.prototype.hasOwnProperty.call(i, "pedidoRef")); const ps = [...new Set((c.itens || []).map((i) => (novo ? i.pedidoRef : c.destino === "PEDIDO" ? c.pedidoRef : null)).filter(Boolean))]; return ps.length ? `pedido${ps.length > 1 ? "s" : ""} ${ps.join(", ")}${ps.length === 1 && c.pedidoCliente ? ` · ${c.pedidoCliente}` : ""}` : "operação"; })()}
                 {c.obs && <span className="font-normal text-xs" style={{ color: C.sub }}> · {c.obs}</span>}
                 <span className="font-normal text-xs" style={{ color: C.sub }}> · {new Date(c.createdAt).toLocaleDateString("pt-BR")}{c.criadoPorNome ? ` por ${c.criadoPorNome}` : ""}</span></div>
+              {c._count?.anexos > 0 && <button onClick={() => abrirEdicao(c)} title="Ver anexos" className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.navy }}><Paperclip size={12} /> {c._count.anexos}</button>}   {/* v515 */}
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
               {c.status === "ABERTA" && <button onClick={() => status(c, "COMPRADA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.blue }}>marcar comprada</button>}
               {c.status === "COMPRADA" && <button onClick={() => status(c, "RECEBIDA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.green }}>marcar recebida</button>}
@@ -518,6 +526,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
             );
           })}
           <button onClick={() => setEd((e) => ({ ...e, itens: [...e.itens, { nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: e.itens[e.itens.length - 1]?.pedidoRef || "", pedidoCliente: e.itens[e.itens.length - 1]?.pedidoCliente || "", bomPara: "", obs: "" }] }))} className="text-xs font-semibold mb-4" style={{ color: C.accent }}>+ Adicionar item</button>
+          <AnexosAvulsa avulsaId={ed.id} pendentes={ed.anexosPendentes || []} setPendentes={(l) => setEd((e) => ({ ...e, anexosPendentes: l }))} quem={nomeUser(user)} onMudou={carregar} />   {/* v515 */}
           <div className="flex justify-end gap-2">
             {ed.id && <button onClick={async () => { await status(ed, "CANCELADA"); setEd(null); }} className="mr-auto px-3 py-2 rounded-md text-sm" style={{ color: C.red }}>Cancelar esta compra avulsa</button>}
             <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
@@ -525,6 +534,78 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ---------- v515 — anexos da compra avulsa (sugestão #20): escolher, arrastar ou colar (Ctrl+V) imagens/PDF ----------
+const lerArquivo = (file) => new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = erro; r.readAsDataURL(file); });
+function AnexosAvulsa({ avulsaId, pendentes, setPendentes, quem, onMudou }) {
+  const [l, setL] = useState(avulsaId ? null : []);
+  const [enviando, setEnviando] = useState(false);
+  const [sobre, setSobre] = useState(false);
+  const inp = React.useRef(null);
+  const base = avulsaId ? `/api/compras/avulsas/${avulsaId}/anexos` : null;
+  const carregar = () => base && fetch(base).then((r) => r.json()).then((x) => setL(Array.isArray(x) ? x : [])).catch(() => setL([]));
+  useEffect(() => { carregar(); }, [avulsaId]);
+  async function adicionar(files) {
+    const fs = [...(files || [])].filter(Boolean);
+    if (!fs.length) return;
+    const grandes = fs.filter((f) => f.size > 15 * 1024 * 1024);
+    if (grandes.length) alerta(`Maior que 15 MB: ${grandes.map((f) => f.name).join(", ")}.`);
+    const ok = fs.filter((f) => f.size <= 15 * 1024 * 1024);
+    setEnviando(true);
+    const novos = [];
+    for (const f of ok) {
+      const url = await lerArquivo(f).catch(() => null);
+      if (!url) continue;
+      const nome = f.name && f.name !== "image.png" ? f.name : `imagem-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`;
+      novos.push({ nome, mime: f.type || null, conteudo: url.replace(/^data:[^,]*,/, ""), url, tamanho: f.size });
+    }
+    if (base) {
+      const falhas = [];
+      for (const a of novos) {
+        const r = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: a.nome, mime: a.mime, conteudo: a.conteudo, quem }) });
+        if (!r.ok) { const x = await r.json().catch(() => ({})); falhas.push(x.error || a.nome); }
+      }
+      if (falhas.length) alerta(falhas.join("\n"));
+      carregar(); onMudou?.();
+    } else setPendentes([...(pendentes || []), ...novos]);
+    setEnviando(false);
+  }
+  async function excluir(a, k) {
+    if (!(await confirmar(`Excluir o anexo ${a.nome}?`))) return;
+    if (base) { await fetch(base, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ anexoId: a.id }) }); carregar(); onMudou?.(); }
+    else setPendentes(pendentes.filter((_, j) => j !== k));
+  }
+  // Ctrl+V em qualquer ponto da janela cola o print como anexo
+  useEffect(() => {
+    const f = (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); adicionar(fs); } };
+    window.addEventListener("paste", f); return () => window.removeEventListener("paste", f);
+  });
+  const todos = base ? (l || []).map((a) => ({ ...a, url: `${base}?anexo=${a.id}` })) : (pendentes || []);
+  const ehImg = (a) => /^image\//.test(a.mime || "");
+  return (
+    <div className="mb-4">
+      <div className="text-xs font-semibold mb-1.5 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={12} /> Anexos {todos.length ? `(${todos.length})` : ""}</div>
+      <div onDragOver={(e) => { e.preventDefault(); setSobre(true); }} onDragLeave={() => setSobre(false)} onDrop={(e) => { e.preventDefault(); setSobre(false); adicionar(e.dataTransfer.files); }}
+        className="rounded-lg p-3 flex flex-wrap gap-2 items-center" style={{ border: `1px dashed ${sobre ? C.accent : C.line}`, background: sobre ? C.accentSoft : C.panel2 }}>
+        {todos.map((a, k) => (
+          <div key={a.id || k} className="relative rounded-md overflow-hidden" style={{ width: 84, height: 84, background: "#fff", border: `1px solid ${C.line}` }} title={a.nome}>
+            <a href={a.url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+              {ehImg(a) ? <img src={a.url} alt={a.nome} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1"><FileText size={22} style={{ color: C.navy }} /><span className="text-[9px] text-center leading-tight break-all" style={{ color: C.sub }}>{a.nome.slice(0, 28)}</span></div>}
+            </a>
+            <button onClick={() => excluir(a, k)} title="Excluir" className="absolute top-0.5 right-0.5 rounded p-0.5" style={{ background: "rgba(255,255,255,.9)", color: C.red }}><Trash2 size={12} /></button>
+          </div>
+        ))}
+        <button onClick={() => inp.current?.click()} disabled={enviando} className="flex flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold"
+          style={{ width: 84, height: 84, border: `1px solid ${C.line}`, background: "#fff", color: C.accent, opacity: enviando ? 0.6 : 1 }}>
+          {enviando ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={20} />}{enviando ? "Enviando…" : "Anexar"}
+        </button>
+        <div className="text-[11px] flex-1" style={{ color: C.sub, minWidth: 160 }}>Escolha, arraste ou cole (Ctrl+V) imagens ou PDF da peça/material.{!base && todos.length ? " Sobem ao salvar." : ""}</div>
+        <input ref={inp} type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} />
+      </div>
     </div>
   );
 }
