@@ -594,6 +594,7 @@ export async function liberarMotorista(motoristaId, u) {
     const feitas = await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: "CONCLUIDA" } });
     await prisma.rotaBloco.update({ where: { id: bl.id }, data: feitas ? { status: "CONCLUIDO", retornoEm: new Date() } : { status: "CANCELADO" } });
   }
+  await limparRetornos();   // v521
   return { ok: true, rotas: bs.map((b) => b.id), reabertas, porNome: nomeU(u) };
 }
 
@@ -628,6 +629,7 @@ export async function salvarBloco(b, u) {
     bl = await prisma.rotaBloco.update({ where: { id: bl.id }, data: dados });
   } else bl = await prisma.rotaBloco.create({ data: { ...dados, criadoPorNome: nomeU(u) } });
   for (const [i, d] of seq.entries()) await prisma.rotaDemanda.update({ where: { id: d.id }, data: { blocoId: bl.id, ordem: i + 1, status: "NO_BLOCO", tempoLocal: d.tempoLocal ?? null, motoristaId: mot.id, motoristaNome: mot.nome, veiculo: dados.veiculo } });
+  await limparRetornos();   // v521
   return { ok: true, bloco: { ...bl, data: iso(bl.data) }, avaliacao: av };
 }
 
@@ -725,6 +727,7 @@ export async function desfazerBloco(id) {
   if (bl.status === "EM_EXECUCAO" && (await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: "CONCLUIDA" } }))) return { error: "Já há parada concluída nessa rota." };
   await prisma.rotaDemanda.updateMany({ where: { blocoId: bl.id }, data: { blocoId: null, ordem: null, status: "ABERTA" } });
   await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "CANCELADO" } });
+  await limparRetornos();   // v521
   return { ok: true };
 }
 
@@ -751,4 +754,74 @@ export async function salvarDestinatario(b, u) {
 export async function excluirDestinatario(id) {
   await prisma.destinatario.update({ where: { id: Number(id) }, data: { ativo: false } });
   return { ok: true };
+}
+
+// ---------- v521 — retorno à fábrica no meio da rota (sugestão #19) ----------
+// é uma parada como as outras (objetivo RETORNO, destino FÁBRICA): entra na ordem, no Maps e na mensagem
+async function novaParadaRetorno(data, u, extra = {}) {
+  const fab = await fabrica();
+  if (!fab?.endereco) return { error: "Cadastre o endereço da fábrica (botão Fábrica)." };
+  const d = await prisma.rotaDemanda.create({ data: {
+    data, objetivo: "RETORNO", destinoTipo: "FABRICA", destinoNome: "FÁBRICA", tarefa: "RETORNO À FÁBRICA", endereco: fab.endereco,
+    lat: fab.lat ?? null, lng: fab.lng ?? null, municipio: fab.municipio || null, uf: fab.uf || null, regiao: "RMBH",
+    horarioTipo: "LIVRE", tempoLocal: 20, criadoPorId: u?.id || null, criadoPorNome: nomeU(u), ...extra } });
+  return { d };
+}
+// demanda de retorno solta (rota desfeita, removida da rota, motorista liberado) não fica no calendário
+async function limparRetornos() {
+  await prisma.rotaDemanda.updateMany({ where: { objetivo: "RETORNO", blocoId: null, status: { in: ["ABERTA", "NO_BLOCO"] } }, data: { status: "CANCELADA" } }).catch(() => null);
+}
+// montagem da rota: cria a parada de retorno para entrar na ordem (fica solta até a rota ser salva)
+export async function criarRetorno(b, u) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data || ""))) return { error: "Informe a data." };
+  const r = await novaParadaRetorno(dUTC(b.data), u);
+  if (r.error) return r;
+  return { ok: true, demanda: demandaOut(r.d) };
+}
+// rota em execução: retorno vira a PRÓXIMA parada. Motorista precisa justificar; quem monta as rotas não.
+export async function retornoNaRota(b, u, pode) {
+  const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(b.blocoId) } });
+  if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
+  if (!pode && bl.motoristaId !== u.pessoaId) return { error: "Só o motorista da rota ou quem monta as rotas." };
+  const just = String(b.justificativa || "").replace(/\s+/g, " ").trim();
+  if (!pode && just.length < 5) return { error: "Escreva a justificativa do retorno à fábrica." };
+  const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  const pend = ds.filter((d) => d.status !== "CONCLUIDA");
+  if (!pend.length) return { error: "Não há paradas pendentes: é só iniciar a volta à fábrica." };
+  if (pend[0].objetivo === "RETORNO") return { error: "O retorno à fábrica já é a próxima parada." };
+  const pos = pend[0].ordem ?? (ds.length + 1);
+  for (const d of [...ds].reverse()) if ((d.ordem ?? 0) >= pos) await prisma.rotaDemanda.update({ where: { id: d.id }, data: { ordem: (d.ordem ?? 0) + 1 } });
+  const quem = nomeU(u) || "?";
+  const r = await novaParadaRetorno(bl.data, u, { blocoId: bl.id, ordem: pos, status: "EM_EXECUCAO", motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo,
+    tarefa: just ? `RETORNO À FÁBRICA - ${just}`.slice(0, 200) : "RETORNO À FÁBRICA",
+    obs: `${pode && bl.motoristaId !== u.pessoaId ? "Incluído por" : "Pedido pelo motorista"} ${quem}${just ? ` · justificativa: ${just}` : ""}`.slice(0, 500) });
+  if (r.error) return r;
+  const todas = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { notIn: ["CANCELADA", "CONCLUIDA"] } }, orderBy: { ordem: "asc" } });
+  const fab = await fabrica();
+  const links = fab ? linksMaps(fab, todas) : linksMaps(todas[0], todas.slice(1));
+  await prisma.rotaBloco.update({ where: { id: bl.id }, data: { links, alteradaEm: new Date(), voltaIniciadaEm: null } });
+  // motorista pediu: avisa quem montou a rota / quem monta rotas (mensagem interna)
+  if (bl.motoristaId === u.pessoaId) {
+    try {
+      const us = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ setor: { in: ["ADMINISTRATIVO", "LOGISTICA"] } }, { diretoria: true }] }, select: { id: true } }).catch(() => []);
+      const para = us.map((x) => x.id).filter((x) => x !== u.id);
+      if (para.length) await prisma.mensagem.createMany({ data: para.map((paraId) => ({ deId: u.id, paraId, texto: `ROTA ${bl.id}: ${bl.motoristaNome} VAI VOLTAR À FÁBRICA NO MEIO DA ROTA. JUSTIFICATIVA: ${just.toUpperCase()}` })) });
+    } catch (e) { console.log("rotas/retorno aviso:", e.message); }
+  }
+  return { ok: true, demanda: demandaOut(r.d), ordem: pos };
+}
+// v521 — arrastar a demanda para outro dia (e para manhã/tarde, quando o horário é por período)
+export async function moverDemanda(b, u) {
+  const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) } });
+  if (!d) return { error: "Demanda não encontrada." };
+  if (d.objetivo === "RETORNO") return { error: "O retorno à fábrica é parte da rota." };
+  if (d.status !== "ABERTA" || d.blocoId) return { error: "Só demanda aberta (fora de rota) pode mudar de dia. Tire da rota primeiro." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data || ""))) return { error: "Data?" };
+  const data = { data: dUTC(b.data) };
+  if (["MANHA", "TARDE"].includes(b.periodo) && ["MANHA", "TARDE", "LIVRE"].includes(d.horarioTipo)) Object.assign(data, { horarioTipo: b.periodo, hora1: null, hora2: null });
+  const de = iso(d.data);
+  if (de !== b.data) data.obs = [d.obs, `Movida de ${de.split("-").reverse().join("/")} por ${nomeU(u) || "?"}`].filter(Boolean).join(" · ").slice(0, 1000);
+  const n = await prisma.rotaDemanda.update({ where: { id: d.id }, data });
+  if (n.admDemandaId) await prisma.admDemanda.update({ where: { id: n.admDemandaId }, data: { prazo: n.data } }).catch(() => null);
+  return { ok: true, demanda: demandaOut(n) };
 }

@@ -568,6 +568,12 @@ model Cliente {
   emailNf           String?
   obs               String?
   ativo             Boolean  @default(true)
+  // v521 — cadastro vindo do KM (solclien): id interno, código, linha crua e hash do último envio
+  kmId              Int?     @unique
+  kmCodigo          String?
+  kmDados           Json?
+  kmHash            String?
+  kmSyncEm          DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -877,6 +883,7 @@ model FinTitulo {
   observacao       String?
   forma            String    @default("MANUAL") // MANUAL | NF_XML | EXCEL | RECORRENCIA
   formaPagamento   String?   // PIX | BOLETO | DEBITO_AUTOMATICO | TED | CARTAO | DINHEIRO | CHEQUE
+  chavePix         String?   // v521: chave PIX (ou PIX copia e cola) da conta comum
   lancamentoId     Int?      // lançamento do extrato que deu baixa nesta conta
   chaveImport      String?   @unique            // evita importar a mesma NF/parcela duas vezes
   arquivoXml       String?

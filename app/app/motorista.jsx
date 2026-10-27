@@ -7,7 +7,7 @@ import { Loader2, Phone, LogOut, RefreshCw, Undo2, Clock, MapPin } from "lucide-
 import AvisosPush from "./avisosPush";   // v466
 
 const C = { navy: "#001E41", accent: "#FF6B1A", green: "#12A150", greenSoft: "#E7F6EE", bg: "#F2F4F7", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", red: "#D92D20", waze: "#33CCFF", yellow: "#C08401", yellowSoft: "#FFF6DD" };
-const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COMPRA: ["🛒", "Compra"] };
+const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COMPRA: ["🛒", "Compra"], RETORNO: ["🏭", "Retorno à fábrica"] };   // v521
 const sc = (t) => { const s0 = String(t || "").toLocaleLowerCase("pt-BR"); return s0.charAt(0).toLocaleUpperCase("pt-BR") + s0.slice(1); };
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : "");
 const hojeISO = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
@@ -53,6 +53,7 @@ export default function MotoristaApp({ user, onSair }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [oc, setOc] = useState(false);
+  const [ret, setRet] = useState(null);   // v521 — justificativa do retorno à fábrica no meio da rota (null = fechado)
   const carregar = () => api(`/api/rotas?u=${user.id}&minhas=1`).then((x) => { setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t); }, []);
   const acao = async (body) => {
@@ -152,6 +153,19 @@ export default function MotoristaApp({ user, onSair }) {
                         <Botao grande fundo={C.green} cor="#fff" disabled={oc} onClick={() => acao({ acao: "parada", id: atual.id })}>✅ CHEGUEI E CONCLUÍ</Botao>
                       </>
                     )}
+                    {/* v521 — voltar à fábrica no meio da rota: pede justificativa e vira a próxima parada */}
+                    {atual.objetivo !== "RETORNO" && (ret == null ? (
+                      <button onClick={() => setRet("")} className="w-full py-3 rounded-2xl text-base font-bold" style={{ background: C.bg, color: C.navy, border: `2px solid ${C.line}` }}>🏭 Preciso voltar à fábrica agora</button>
+                    ) : (
+                      <div className="rounded-2xl p-3 space-y-2" style={{ background: C.bg }}>
+                        <div className="text-base font-bold" style={{ color: C.navy }}>Por que precisa voltar à fábrica?</div>
+                        <textarea value={ret} onChange={(e) => setRet(e.target.value)} rows={3} autoFocus className="w-full rounded-xl px-3 py-2 text-base" style={{ border: `2px solid ${C.line}` }} placeholder="Ex.: carro cheio, esqueci material, problema no veículo…" />
+                        <div className="grid grid-cols-2 gap-3">
+                          <Botao fundo="#fff" cor={C.text} onClick={() => setRet(null)}>Cancelar</Botao>
+                          <Botao fundo={C.accent} cor="#fff" disabled={oc || ret.trim().length < 5} onClick={async () => { await acao({ acao: "retornoNaRota", blocoId: rota.id, justificativa: ret }); setRet(null); }}>Confirmar</Botao>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );

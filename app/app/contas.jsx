@@ -1729,7 +1729,7 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
 function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
   const P = tipo === "PAGAR";
   const novo = !item;
-  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", recorrente: false, fim: "" });
+  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", chavePix: "", recorrente: false, fim: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [pendentes, setPendentes] = useState([]);   // anexos escolhidos antes de a conta existir
@@ -1776,12 +1776,12 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
     setSalvando(true); setErro("");
     try {
       if (novo) {
-        const r = await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f });
+        const r = await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f, formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() ? "PIX" : "") });
         if (r.id && pendentes.length) {
           for (const arq of pendentes) await api(`/api/fin/titulos/${r.id}/anexos`, "POST", { usuarioId: user.id, nome: arq.name, mime: arq.type, conteudo: await readB64(arq) });
         }
       }
-      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}), ...(item?.critica && f.critica === null ? { critica: null } : {}) });
+      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, chavePix: f.chavePix || "", formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() && !item.formaPagamento ? "PIX" : item.formaPagamento || ""), ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}), ...(item?.critica && f.critica === null ? { critica: null } : {}) });
       let extra = "";
       if (ofereceRegra && (regra.usar || regra.salvar) && termoRegra.trim()) {
         const r = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, salvarRegra: regra.salvar, dryRun: !regra.usar });
@@ -1817,6 +1817,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           {item.status === "PAGO" && <div><span style={{ color: C.sub }}>{P ? "Pago" : "Recebido"}:</span> <b>{moeda(item.valorPago ?? item.valor)}</b> em {dBR(item.dataPagamento)}
             {item.liquidacao !== "RECOMPRA" && !ehAntecipado(item) && <button type="button" onClick={excluirPgto} className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }}>{P ? "EXCLUIR PAGAMENTO" : "EXCLUIR RECEBIMENTO"}</button>}</div>}
           {item.formaPagamento && <div><span style={{ color: C.sub }}>Forma:</span> {FORMAS_PGTO[item.formaPagamento] || item.formaPagamento}</div>}
+          {item.chavePix && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: C.sub }}>Chave PIX:</span> <span className="font-mono">{item.chavePix}</span></div>}
           {item.nossoNumero && <div><span style={{ color: C.sub }}>Nosso nº:</span> {item.nossoNumero}</div>}
           {item.cobranca && <div><span style={{ color: C.sub }}>Cobrança:</span> {item.cobranca}</div>}
           {item.remessa && <div><span style={{ color: C.sub }}>Remessa:</span> nº {item.remessa}{item.remessaEm ? ` · ${dBR(item.remessaEm)}` : ""}</div>}
@@ -1888,6 +1889,9 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
             {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Campo>
+        {P && <Campo t="Chave PIX" dica="chave (CNPJ, e-mail, telefone, aleatória) ou PIX copia e cola">
+          <input value={f.chavePix || ""} onChange={(e) => s("chavePix", e.target.value)} className={inp + " font-mono"} style={inpS} placeholder="chave PIX do fornecedor" />
+        </Campo>}
         <Campo t="Observação"><textarea rows={3} value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
       </div>
       {novo && P ? (

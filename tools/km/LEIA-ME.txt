@@ -16,3 +16,9 @@ No PC (PowerShell):
 
 Log: %LOCALAPPDATA%\km-sync\log.txt
 O que entra: pedidos com saldo a entregar, dos ultimos 45 dias, ou alterados nos ultimos 3 dias.
+
+v521 - CLIENTES do KM (todos os cadastrados em solclien)
+  - vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes (o agente atende em ate 1 min)
+  - depois de atualizar o projeto, rode de novo:  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar
+  - conferir o mapeamento sem gravar:  .\km-sync.ps1 -Clientes -Previa   (abre km_clientes_previa.json)
+  - mandar agora:                      .\km-sync.ps1 -Clientes

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, reativarDemanda, concluirDemandaAvulsa, consolidarDemandas, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario } from "@/lib/rotas";
+import { painel, destinos, salvarDemanda, cancelarDemanda, alterarBloco, liberarMotorista, reativarDemanda, concluirDemandaAvulsa, consolidarDemandas, registrarPosicao, aoVivo, salvarFabrica, fabrica, otimizar, avaliarOrdem, salvarBloco, despachar, concluirParada, registrarRetorno, desfazerBloco, medidorRuas, mensagemBloco, minhasRotas, iniciarPerna, quandoSai, tempos, listarDestinatarios, salvarDestinatario, excluirDestinatario, criarRetorno, retornoNaRota, moverDemanda } from "@/lib/rotas";
 import { autocompletar, lugar, temGoogle } from "@/lib/googleMaps";   // v427
 import { notificar } from "@/lib/push";   // v466
 
@@ -73,6 +73,9 @@ export async function POST(req) {
       if (x.ok && x.usuarioMotorista) await notificar(x.usuarioMotorista, { titulo: `Nova rota R${x.bloco.id} 🚚`, texto: `${x.nParadas || ""} parada(s)${x.bloco.saida ? ` · saída ${x.bloco.saida}` : ""}. Toque para abrir.`, tag: `rota-${x.bloco.id}` }).catch(() => null);
       return r(x);
     }
+    case "criarRetorno": if (!podeMontar(u)) return negado(); return r(await criarRetorno(b, u));   // v521
+    case "retornoNaRota": return r(await retornoNaRota(b, u, podeMontar(u)));   // v521 — motorista (com justificativa) ou quem monta
+    case "mover": if (!podeMontar(u)) return negado(); return r(await moverDemanda(b, u));   // v521 — arrastar entre dias
     case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443
     case "desfazerBloco": if (!podeMontar(u)) return negado(); return r(await desfazerBloco(b.id));
     case "perna": {   // v452 — motorista inicia a perna (até a parada ou a volta)

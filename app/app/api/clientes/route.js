@@ -9,7 +9,7 @@ export async function GET() {
     orderBy: { razaoSocial: "asc" },
     include: { _count: { select: { notas: true } } },
   });
-  return NextResponse.json(clientes);
+  return NextResponse.json(clientes.map(({ kmDados, kmHash, ...c }) => c));   // v521 — linha crua do KM fica fora da lista
 }
 
 const soDig = (v) => String(v || "").replace(/\D/g, "");

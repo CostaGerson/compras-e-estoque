@@ -23,7 +23,7 @@ const api = async (url, method = "GET", body) => {
   if (!r.ok) throw new Error(d.error || "Erro");
   return d;
 };
-const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag] };
+const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag], RETORNO: ["Retorno", Home] };   // v521 — retorno à fábrica no meio da rota
 const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXECUCAO: ["em execução", C.accent], CONCLUIDA: ["concluída", C.green] };
 // v435 — cor por tipo: coleta cinza, entrega azul claro, compra amarela, frete por transportadora azul escuro;
 // concluída verde; urgente mantém a cor do tipo com borda vermelha
@@ -32,6 +32,7 @@ const TIPO_COR = {
   ENTREGA: { bg: "#E3F0FC", bd: "#5BA4E6", tx: "#1D4F80", sb: "#4A6B8C", pin: "#5BA4E6" },
   COMPRA: { bg: "#FFF4CC", bd: "#E0A800", tx: "#6B4D00", sb: "#8A6D1F", pin: "#E0A800" },
   TRANSP: { bg: "#001E41", bd: "#001E41", tx: "#FFFFFF", sb: "#B8C4D6", pin: "#001E41" },
+  RETORNO: { bg: "#FDEBDD", bd: "#FF6B1A", tx: "#7A3300", sb: "#9A5A2E", pin: "#FF6B1A" },
 };
 const tipoCor = (d) => (d.frete && d.freteTipo === "TRANSPORTADORA" ? TIPO_COR.TRANSP : TIPO_COR[d.objetivo] || TIPO_COR.COLETA);
 const corDemanda = (d) => {
@@ -63,7 +64,8 @@ export default function Rotas({ user, nova }) {
   const btnConc = (x, l, peq) => { const n = l.filter((y) => y.status === "CONCLUIDA").length; if (!n) return null;
     return <button type="button" onClick={(e) => { e.stopPropagation(); alternaConc(x); }} className={`${peq ? "text-[10px]" : "text-[11px]"} font-semibold flex items-center gap-0.5 px-1 rounded`} style={{ color: C.green }} title={verConc.has(x) ? "Ocultar as concluídas" : "Mostrar as concluídas"}>
       <CheckCircle2 size={peq ? 10 : 11} /> {verConc.has(x) ? (peq ? "ocultar" : "Ocultar concluídas") : peq ? n : `Mostrar concluídas (${n})`}</button>; };
-  const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D)
+  const [fds, setFds] = useState(new Set());   // v436 — sábado/domingo abertos (ficam recolhidos em S e D) · v521: guarda a data
+  const [arr, setArr] = useState(null);   // v521 — alvo do arrastar ("data" ou "data|MANHA")
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);
   const [marc, setMarc] = useState(new Set());
@@ -89,24 +91,49 @@ export default function Rotas({ user, nova }) {
     setDia(b.data); setMontar({ ids, bloco: b, canceladas: [c.nome] });
   }
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
+  // v521 — semana: o dia atual é sempre o primeiro card; dia passado só aparece enquanto tiver demanda pendente
+  // (depois de concluir ou realocar, some); os passados ficam no botão "Passado"
+  const pendAntes = useMemo(() => {
+    if (modo !== "semana" || ref !== FOCO) return null;
+    const l = (d?.demandas || []).filter((x) => x.data < FOCO && x.data >= somaDia(FOCO, -14) && x.status !== "CONCLUIDA");
+    return l.length ? l.map((x) => x.data).sort()[0] : null;
+  }, [d, modo, ref]);
   const dias = useMemo(() => {
-    if (modo === "semana") { const i = inicioSemana(ref); return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
+    if (modo === "semana") { const i = ref === FOCO && pendAntes ? pendAntes : ref; return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
     const p = `${ref.slice(0, 7)}-01`, i = inicioSemana(p);
     const fim = new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
     const n = Math.ceil((Math.round((dUTC(fim) - dUTC(i)) / 864e5) + 1) / 7) * 7;
     return Array.from({ length: n }, (_, k) => somaDia(i, k));
-  }, [modo, ref]);
-  const de = dias[0] < dia ? dias[0] : dia, ate = dias[dias.length - 1] > dia ? dias[dias.length - 1] : dia;
+  }, [modo, ref, pendAntes]);
+  const de0 = dias[0] < dia ? dias[0] : dia, ate = dias[dias.length - 1] > dia ? dias[dias.length - 1] : dia;
+  const de = modo === "semana" && ref === FOCO && somaDia(FOCO, -14) < de0 ? somaDia(FOCO, -14) : de0;   // v521 — lê 14 dias para trás (pendências)
   const carregar = () => api(`/api/rotas?u=${user.id}&de=${de}&ate=${ate}`).then(setD).catch((e) => setD((x) => x || { erro: e.message, demandas: [], blocos: [], motoristas: [] }));
   useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t); }, [de, ate]);
   const porDia = useMemo(() => (d?.demandas || []).reduce((a, x) => { (a[x.data] ||= []).push(x); return a; }, {}), [d]);
   const doDia = ordenar(porDia[dia] || []);
   const blocosDia = (d?.blocos || []).filter((b) => b.data === dia || (b.status === "EM_EXECUCAO" && b.data < dia && (dia === H || dia === FOCO)));
   const mover = (n) => setRef(modo === "semana" ? somaDia(ref, 7 * n) : new Date(Date.UTC(ano, mes - 1 + n, 1)).toISOString().slice(0, 10));
+  const passado = modo === "semana" && ref < FOCO;
   const titulo = modo === "semana" ? `${dBR(dias[0])} a ${dBR(dias[6])} · ${MESES[Number(dias[3].slice(5, 7)) - 1]} ${dias[3].slice(0, 4)}` : `${MESES[mes - 1]} de ${ano}`;
   const pode = !!d?.podeMontar;
   const minhaRota = (d?.blocos || []).find((b) => b.status === "EM_EXECUCAO" && d?.pessoaId && b.motoristaId === d.pessoaId);
-  const novaNoDia = (x) => { setDia(x); setForm({ data: x }); };
+  const novaNoDia = (x, per) => { setDia(x); setForm({ data: x, ...(per ? { horarioTipo: per } : {}) }); };   // v521 — manhã/tarde já define o período
+  // v521 — arrastar a demanda (aberta, fora de rota) para outro dia, ou para a manhã/tarde do dia grande
+  const podeArrastar = (y) => pode && y.status === "ABERTA" && !y.blocoId && y.objetivo !== "RETORNO";
+  const soltar = async (e, data, periodo) => {
+    e.preventDefault(); e.stopPropagation(); setArr(null);
+    const id = Number(e.dataTransfer.getData("text/rota-demanda"));
+    if (!id) return;
+    const y = (d?.demandas || []).find((z) => z.id === id);
+    if (!y || (y.data === data && (!periodo || y.horarioTipo === periodo))) return;
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "mover", id, data, periodo }); carregar(); } catch (er) { alerta(er.message); }
+  };
+  const alvo = (data, periodo) => ({
+    onDragOver: (e) => { if (!Array.from(e.dataTransfer.types || []).includes("text/rota-demanda")) return; e.preventDefault(); e.stopPropagation(); const k = periodo ? `${data}|${periodo}` : data; if (arr !== k) setArr(k); },
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setArr(null); },
+    onDrop: (e) => soltar(e, data, periodo),
+  });
+  const abrirDem = (x, y) => { if (y.objetivo === "RETORNO") { if (y.blocoId) setVerRota(y.blocoId); return; } setDia(x); setForm(y); };
   const tog = (id) => setMarc((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   useEffect(() => { setMarc(new Set()); }, [dia]);
 
@@ -120,6 +147,8 @@ export default function Rotas({ user, nova }) {
           {[["semana", "Semana"], ["mes", "Mês"]].map(([k, t]) => <button key={k} onClick={() => setModo(k)} className="px-3 py-1.5 text-xs font-semibold" style={{ background: modo === k ? C.navy : C.panel, color: modo === k ? "#fff" : C.sub }}>{t}</button>)}
         </div>
         <button onClick={() => mover(-1)} className="p-1.5 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><ChevronLeft size={15} /></button>
+        {modo === "semana" && <button onClick={() => { setRef(passado ? FOCO : somaDia(FOCO, -7)); setDia(passado ? FOCO : somaDia(FOCO, -1)); }} title="Dias passados e as rotas concluídas"
+          className="px-3 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${passado ? C.accent : C.line}`, background: passado ? C.accentSoft : C.panel, color: passado ? C.accent : C.text }}>Passado</button>}
         <button onClick={() => { setRef(FOCO); setDia(FOCO); }} className="px-3 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel }}>Hoje</button>
         <button onClick={() => mover(1)} className="p-1.5 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><ChevronRight size={15} /></button>
         <div className="text-sm font-semibold" style={{ color: C.text }}>{titulo}</div>
@@ -141,49 +170,72 @@ export default function Rotas({ user, nova }) {
         (() => {
           // v444 — grade da semana: o card do dia em foco desce até o fim da página (manhã e tarde);
           // o mapa e as rotas do dia ficam ao lado dele, embaixo dos outros dias
-          const cols = [0, 1, 2, 3, 4, 5, 6].filter((i) => i < 5 || fds.has(i));
-          const fecha = [5, 6].filter((i) => !fds.has(i));
-          const fp = cols.findIndex((i) => dias[i] === FOCO);
-          const tpl = cols.map((i) => (dias[i] === FOCO ? "minmax(0,2.2fr)" : "minmax(0,1fr)")).join(" ") + (fecha.length ? " 34px" : "");
-          const esq = fp, dir = fp >= 0 ? cols.length - 1 - fp : 0;
+          // v521 — começa no dia atual (ou na pendência mais antiga); clicar num dia o expande do tamanho do atual (o mapa sai);
+          // sábado/domingo recolhidos viram uma coluna estreita no lugar deles
+          const dow = (x) => dUTC(x).getUTCDay();
+          const fecha = (x) => (dow(x) === 6 || dow(x) === 0) && !fds.has(x) && x !== dia;
+          const exp = dia !== FOCO && dias.includes(dia) ? dia : null;   // dia expandido além do atual
+          const grandeDe = (x) => x === FOCO || x === exp || (passado && x === dia);
+          const fp = dias.indexOf(FOCO);
+          const comMapa = !passado && fp >= 0 && !exp;
+          const tpl = dias.map((x) => (fecha(x) ? "34px" : grandeDe(x) ? "minmax(0,2.2fr)" : "minmax(0,1fr)")).join(" ");
+          const esq = fp, dir = fp >= 0 ? dias.length - 1 - fp : 0;
           const ladoMapa = dir >= esq ? "dir" : "esq";
-          const colMapa = fp < 0 ? null : ladoMapa === "dir" ? `${fp + 2} / ${cols.length + 1}` : `1 / ${fp + 1}`;
-          const card = (i, pos) => {
-            const x = dias[i];
+          const colMapa = !comMapa ? null : ladoMapa === "dir" ? `${fp + 2} / ${dias.length + 1}` : `1 / ${fp + 1}`;
+          const card = (x, pos) => {
+            const i = (dow(x) + 6) % 7;
+            if (fecha(x)) {
+              const n = (porDia[x] || []).filter((y) => y.status !== "CONCLUIDA").length;
+              return (
+                <button key={x} type="button" {...alvo(x)} onClick={() => setFds((s0) => new Set(s0).add(x))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(x)}${n ? ` · ${n} demanda(s)` : ""}`}
+                  className="rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ gridColumn: pos + 1, gridRow: 1, minHeight: 260, background: arr === x ? C.accentSoft : C.panel, border: `1px solid ${n || arr === x ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
+                  {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
+                </button>
+              );
+            }
             const lTudo = ordenar(porDia[x] || []);
-            const l = visiveis(x, lTudo);   // v464 — concluídas ocultas até clicar em "mostrar concluídas"
-            const grande = x === FOCO;
+            const l = passado ? lTudo : visiveis(x, lTudo);   // v464 — concluídas ocultas até clicar em "mostrar concluídas" (v521: no Passado aparecem)
+            const grande = grandeDe(x);
             const sel = x === dia;
-            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />;
+            const atrasado = x < FOCO && !passado;
+            const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} arrastar={podeArrastar(y)} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); abrirDem(x, y); }} />;
             const lista = (ll) => agruparRota(ll, mini, setVerRota);
             const tarde = (y) => String(y.janela?.[0] || "") >= "12:00";
+            const alvoDia = arr === x;
             return (
-              <div key={x} onClick={() => novaNoDia(x)} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
-                style={{ gridColumn: pos + 1, gridRow: grande && colMapa ? "1 / span 2" : 1, minHeight: 260, background: C.panel, border: `${sel || grande ? 2 : 1}px solid ${sel || grande ? C.accent : C.line}` }} title="Clique para criar uma demanda neste dia">
+              <div key={x} {...alvo(x)} onClick={() => (grande ? novaNoDia(x) : setDia(x))} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
+                style={{ gridColumn: pos + 1, gridRow: grande && colMapa ? "1 / span 2" : 1, minHeight: grande ? 520 : 260, background: alvoDia ? C.accentSoft : C.panel, border: `${sel || grande || alvoDia ? 2 : 1}px ${alvoDia ? "dashed" : "solid"} ${sel || grande || alvoDia ? (atrasado ? C.red : C.accent) : atrasado ? C.red : C.line}` }}
+                title={grande ? "Clique na manhã ou na tarde para criar a demanda já com o período" : "Clique para abrir este dia"}>
                 <div className="flex items-baseline gap-1 mb-1.5">
-                  <span className="text-xs font-semibold" style={{ color: grande ? C.accent : C.sub }}>{DIAS[i]}</span>
-                  <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
-                  {grande && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>{x === H ? "hoje" : "próximo dia útil"}</span>}
-                  {i >= 5 && <button type="button" onClick={(e) => { e.stopPropagation(); setFds((s0) => { const n = new Set(s0); n.delete(i); return n; }); }} title="Recolher" className="text-[11px] px-1" style={{ color: C.sub }}>✕</button>}
-                  <span className="ml-auto flex items-center gap-1">{btnConc(x, lTudo, !grande)}{l.length > 0 && <span className="text-[11px]" style={{ color: C.sub }}>{l.length}</span>}</span>
+                  <span className="text-xs font-semibold" style={{ color: atrasado ? C.red : grande ? C.accent : C.sub }}>{DIAS[i]}</span>
+                  <span className={grande ? "text-xl font-bold" : "text-sm font-bold"} style={{ color: atrasado ? C.red : grande ? C.accent : C.text }}>{x.slice(8, 10)}</span>
+                  {x === FOCO && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>{x === H ? "hoje" : "próximo dia útil"}</span>}
+                  {atrasado && <span className="text-[11px] font-semibold" style={{ color: C.red }}>pendente · conclua ou arraste</span>}
+                  {i >= 5 && fds.has(x) && <button type="button" onClick={(e) => { e.stopPropagation(); setFds((s0) => { const n = new Set(s0); n.delete(x); return n; }); }} title="Recolher" className="text-[11px] px-1" style={{ color: C.sub }}>✕</button>}
+                  <span className="ml-auto flex items-center gap-1">{btnConc(x, lTudo, !grande)}{l.length > 0 && <span className="text-[11px]" style={{ color: C.sub }}>{l.length}</span>}
+                    {x === exp && <button type="button" onClick={(e) => { e.stopPropagation(); setDia(FOCO); }} title="Recolher este dia (o mapa volta)" className="text-[11px] px-1 font-semibold" style={{ color: C.sub }}>✕</button>}</span>
                 </div>
                 {grande ? (
                   <div className="flex-1 flex flex-col gap-2">
-                    {[["Manhã", l.filter((y) => !tarde(y))], ["Tarde", l.filter(tarde)]].map(([t, ll]) => (
-                      <div key={t} className="flex-1 flex flex-col rounded-lg p-1.5" style={{ background: C.panel2 }}>
-                        <div className="text-[10px] font-bold mb-1 tracking-wide" style={{ color: C.sub }}>{t.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
-                        <div className="space-y-1 flex-1">
-                          {lista(ll)}
-                          {!ll.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
+                    {[["Manhã", "MANHA", l.filter((y) => !tarde(y))], ["Tarde", "TARDE", l.filter(tarde)]].map(([t, per, ll]) => {
+                      const ali = arr === `${x}|${per}`;
+                      return (
+                        <div key={t} {...alvo(x, per)} onClick={(e) => { e.stopPropagation(); novaNoDia(x, per); }} title={`Clique para criar uma demanda de ${t.toLowerCase()}`}
+                          className="flex-1 flex flex-col rounded-lg p-1.5" style={{ background: ali ? C.accentSoft : C.panel2, outline: ali ? `2px dashed ${C.accent}` : "none" }}>
+                          <div className="text-[10px] font-bold mb-1 tracking-wide" style={{ color: C.sub }}>{t.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
+                          <div className="space-y-1 flex-1">
+                            {lista(ll)}
+                            {!ll.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda de {t.toLowerCase()}</div>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="space-y-1 flex-1">
                     {lista(l.slice(0, 6))}
                     {l.length > 6 && <div className="text-[11px]" style={{ color: C.sub }}>+{l.length - 6}</div>}
-                    {!l.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}><Plus size={12} className="inline" /> nova demanda</div>}
+                    {!l.length && <div className="text-[11px] mt-2 text-center" style={{ color: "#B0B7C3" }}>abrir o dia</div>}
                   </div>
                 )}
               </div>
@@ -191,29 +243,16 @@ export default function Rotas({ user, nova }) {
           };
           return (
             <>
+              {passado && <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: C.panel2, color: C.sub }}>Vendo dias passados · <button onClick={() => { setRef(FOCO); setDia(FOCO); }} className="font-semibold" style={{ color: C.accent }}>voltar para hoje</button></div>}
               <div className="grid gap-2" style={{ gridTemplateColumns: tpl }}>
-                {cols.map((i, pos) => card(i, pos))}
-                {fecha.length > 0 && (
-                  <div className="flex flex-col gap-2" style={{ gridColumn: cols.length + 1, gridRow: 1 }}>
-                    {fecha.map((i) => {
-                      const n = (porDia[dias[i]] || []).length;
-                      return (
-                        <button key={i} type="button" onClick={() => setFds((s0) => new Set(s0).add(i))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(dias[i])}${n ? ` · ${n} demanda(s)` : ""}`}
-                          className="flex-1 rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ background: C.panel, border: `1px solid ${n ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
-                          {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {dias.map((x, pos) => card(x, pos))}
                 {colMapa && (
                   <div className="min-w-0 space-y-3" style={{ gridColumn: colMapa, gridRow: 2 }}>
                     <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />
                   </div>
                 )}
-
               </div>
-              {!colMapa && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />}
+              {!colMapa && !exp && <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />}
             </>
           );
         })()
@@ -225,9 +264,9 @@ export default function Rotas({ user, nova }) {
             const l = visiveis(x, lTudo);   // v464
             const fora = x.slice(5, 7) !== ref.slice(5, 7);
             return (
-              <div key={x} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: C.panel, border: `${x === dia || x === H ? 2 : 1}px solid ${x === dia || x === H ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
+              <div key={x} {...alvo(x)} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: arr === x ? C.accentSoft : C.panel, border: `${x === dia || x === H || arr === x ? 2 : 1}px ${arr === x ? "dashed" : "solid"} ${x === dia || x === H || arr === x ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
                 <div className="text-xs font-bold mb-1 flex items-center" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}<span className="ml-auto">{btnConc(x, lTudo, true)}</span></div>
-                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); setDia(x); setForm(y); }} />, setVerRota)}
+                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} arrastar={podeArrastar(y)} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); abrirDem(x, y); }} />, setVerRota)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
               </div>
             );
@@ -281,14 +320,15 @@ function agruparRota(l, render, onRota) {
   });
 }
 
-function MiniDemanda({ x, grande, onClick, onRota, onConcluir }) {
+function MiniDemanda({ x, grande, onClick, onRota, onConcluir, arrastar }) {
   const c = corDemanda(x);
   const Ico = x.frete ? Truck : x.veiculo === "MOTO" ? Bike : Car;   // v460 — ícone do veículo (o tipo já está na cor)
   const naRota = !!x.blocoId;   // v444 — em rota: mais opaca e com o botão R<nº>
   const feita = x.status === "CONCLUIDA";
   // v507 — igual ao calendário: no hover aparece o check à esquerda e o texto desliza
   const btn = (
-    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`}
+    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}${arrastar ? " · arraste para outro dia" : ""}`}
+      draggable={!!arrastar} onDragStart={arrastar ? (e) => { e.stopPropagation(); e.dataTransfer.setData("text/rota-demanda", String(x.id)); e.dataTransfer.effectAllowed = "move"; } : undefined}
       className="group relative flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0 overflow-hidden cursor-pointer" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: feita ? 0.55 : naRota ? 0.6 : 1 }}>
       {onConcluir && (
         <button type="button" onClick={(e) => { e.stopPropagation(); onConcluir(x); }} title={feita ? "Reabrir" : "Concluir"}
@@ -682,7 +722,8 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
 // ---------- montar a rota: melhor sequência, ajuste da ordem e despacho ----------
 function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, demandas, motoristas, dia, onClose, onOk }) {
   const alt = bloco?.status === "EM_EXECUCAO";   // v454 — rota já despachada: só reordena o que falta e reenvia
-  const porId = Object.fromEntries(demandas.map((x) => [x.id, x]));
+  const [extras, setExtras] = useState({});   // v521 — paradas de retorno à fábrica criadas nesta janela
+  const porId = { ...Object.fromEntries(demandas.map((x) => [x.id, x])), ...extras };
   const sugMot = bloco?.motoristaId || demandas.find((x) => ids.includes(x.id) && x.motoristaId)?.motoristaId || "";
   const agora = new Date(); const hoje = hojeISO() === dia;
   const saidaPadrao = bloco?.saida || (hoje ? `${String(Math.max(8, agora.getHours() + (agora.getMinutes() > 30 ? 1 : 0))).padStart(2, "0")}:${agora.getMinutes() > 30 ? "00" : "30"}` : "08:00");
@@ -695,11 +736,38 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
   const [desp, setDesp] = useState(null);   // resultado do despacho (link do WhatsApp)
   // v439 — tempo previsto em cada local (min), entra na previsão de chegada e de retorno
   const [tempos, setTempos] = useState(() => Object.fromEntries(ids.map((i) => [i, porId[i]?.tempoLocal ?? 15])));
+  const ehRet = (id) => porId[id]?.objetivo === "RETORNO";
   const calc = async (acao, l = ordem, tp = tempos) => {
     setOcup(true);
-    try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l, saida, veiculo: veic, tempos: tp }); setAv(r); if (acao === "otimizar") setOrdem(r.ordem); } catch (e) { alerta(e.message); }
+    try {
+      // v521 — o retorno à fábrica fica na posição escolhida: a melhor ordem é calculada só para as outras paradas
+      const fixos = l.map((id, i) => (ehRet(id) ? [i, id] : null)).filter(Boolean);
+      if (acao === "otimizar" && fixos.length) {
+        const r0 = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l.filter((id) => !ehRet(id)), saida, veiculo: veic, tempos: tp });
+        const nova = [...r0.ordem]; for (const [i, id] of fixos) nova.splice(Math.min(i, nova.length), 0, id);
+        setOrdem(nova);
+        setAv(await api("/api/rotas", "POST", { usuarioId: user.id, acao: "avaliar", ids: nova, saida, veiculo: veic, tempos: tp }));
+      } else { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao, ids: l, saida, veiculo: veic, tempos: tp }); setAv(r); if (acao === "otimizar") setOrdem(r.ordem); }
+    } catch (e) { alerta(e.message); }
     setOcup(false);
   };
+  // v521 — retorno à fábrica no meio da rota (entra antes da última parada; ajuste com as setas)
+  async function addRetorno() {
+    setOcup(true);
+    try {
+      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "criarRetorno", data: dia });
+      setExtras((x) => ({ ...x, [r.demanda.id]: r.demanda }));
+      const l = [...ordem]; l.splice(Math.max(1, l.length - 1), 0, r.demanda.id);
+      const tp = { ...tempos, [r.demanda.id]: r.demanda.tempoLocal ?? 20 };
+      setOrdem(l); setTempos(tp); setOcup(false); calc("avaliar", l, tp);
+    } catch (e) { alerta(e.message); setOcup(false); }
+  }
+  async function tirarRetorno(id) {
+    const l = ordem.filter((x) => x !== id); setOrdem(l); calc("avaliar", l);
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "cancelar", id }); } catch {}
+  }
+  // fechou sem salvar: retornos criados aqui não ficam soltos no calendário
+  const fechar = async () => { for (const id of Object.keys(extras)) { try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "cancelar", id: Number(id) }); } catch {} } onClose(); };
   useEffect(() => { if (!alt) calc(bloco ? "avaliar" : "otimizar", ids); }, []);
   useEffect(() => { if (av && !alt) calc("avaliar"); }, [saida, veic]);
   const tT = useRef(null);
@@ -741,12 +809,12 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
     } catch (e) { alerta(e.message); setOcup(false); }
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={desp ? onOk : onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={desp ? onOk : fechar}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto shadow-2xl" style={{ background: C.panel }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <IcoRota size={18} style={{ color: C.accent }} />
           <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{bloco ? `Rota ${bloco.id}${alt ? " · alterada" : ""}` : "Montar rota"} · {dBR(dia)}</div>
-          <button onClick={desp ? onOk : onClose}><X size={18} style={{ color: C.sub }} /></button>
+          <button onClick={desp ? onOk : fechar}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         {desp ? (
           <div className="p-5 space-y-3">
@@ -799,14 +867,17 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
                     </label>
                     <button onClick={() => mexer(i, -1)} disabled={i === 0} className="p-1 rounded" style={{ color: i === 0 ? "#C9CED6" : C.sub }}><ArrowUp size={14} /></button>
                     <button onClick={() => mexer(i, 1)} disabled={i === ordem.length - 1} className="p-1 rounded" style={{ color: i === ordem.length - 1 ? "#C9CED6" : C.sub }}><ArrowDown size={14} /></button>
+                    {!alt && x.objetivo === "RETORNO" && <button onClick={() => tirarRetorno(id)} title="Tirar o retorno da rota" className="p-1 rounded" style={{ color: C.red }}><X size={14} /></button>}
                   </div>
                 );
               })}
+              {!alt && ordem.length > 0 && <div className="px-3 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                <button onClick={addRetorno} disabled={ocup} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.accent }}><Plus size={13} /> Retorno à fábrica no meio da rota</button></div>}
               <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderTop: `1px solid ${C.line}` }}><Home size={13} /> Retorno à fábrica{av && !alt ? ` · ${av.retorno}` : ""}{av?.volta ? ` (${av.volta.min} min de viagem · ${String(av.volta.km).replace(".", ",")} km)` : ""}</div>
             </div>
             {!alt && <div className="text-[11px]" style={{ color: C.sub }}>A ordem sugerida busca a menor distância respeitando o horário de cada demanda ({av?.porRuas ? "distância e tempo por ruas com o trânsito previsto para o dia e a hora de saída, Google Maps" : "distância estimada em linha reta"} + o tempo previsto em cada local). Use as setas para ajustar.{av?.avisoRuas ? <span style={{ color: C.yellow }}> Google indisponível: {av.avisoRuas}</span> : null}</div>}
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+              <button onClick={fechar} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
               {alt ? <button onClick={enviarAlterada} disabled={ocup || !ordem.length} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar rota alterada</button> : <>
               <button onClick={() => salvar(false)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Salvar rota</button>
               <button onClick={() => salvar(true)} disabled={ocup} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Send size={14} /> Despachar</button></>}
@@ -893,8 +964,35 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
           <button onClick={onEditar} className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir / despachar</button>
         </>}
+        {b.status === "EM_EXECUCAO" && (pode || meu) && feitas < l.length && !l.find((x) => x.status !== "CONCLUIDA" && x.objetivo === "RETORNO") && <BotaoRetornoMeio user={user} bloco={b} justificar={!pode} onMudou={onMudou} />}
         {b.status === "EM_EXECUCAO" && (pode || meu) && <button disabled={feitas < l.length} onClick={() => acao({ acao: "retorno", id: b.id }, `Registrar o retorno de ${sc(b.motoristaNome)} à fábrica? A rota fecha e ele fica disponível para outra.`)}
           className="text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1" style={{ background: feitas < l.length ? C.panel2 : C.green, color: feitas < l.length ? C.sub : "#fff" }} title={feitas < l.length ? "Conclua todas as paradas primeiro" : ""}><Home size={12} /> Retorno à fábrica</button>}
+      </div>
+    </div>
+  );
+}
+
+// v521 — retorno à fábrica no meio da rota: vira a próxima parada. Motorista justifica; quem monta as rotas só confirma.
+function BotaoRetornoMeio({ user, bloco, justificar, escuro, onMudou }) {
+  const [abre, setAbre] = useState(false);
+  const [txt, setTxt] = useState("");
+  const [oc, setOc] = useState(false);
+  const enviar = async () => {
+    if (justificar && txt.trim().length < 5) return alerta("Escreva a justificativa.");
+    if (!justificar && !(await confirmar(`Incluir o retorno à fábrica como próxima parada da rota ${bloco.id}?`))) return;
+    setOc(true);
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "retornoNaRota", blocoId: bloco.id, justificativa: txt }); setAbre(false); setTxt(""); onMudou?.(); } catch (e) { alerta(e.message); }
+    setOc(false);
+  };
+  if (!justificar) return <button onClick={enviar} disabled={oc} className="text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Home size={12} /> Retorno no meio</button>;
+  if (!abre) return <button onClick={() => setAbre(true)} className={escuro ? "w-full py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2" : "text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1"}
+    style={escuro ? { background: "rgba(255,255,255,.12)", color: "#fff", border: "1px solid rgba(255,255,255,.35)" } : { border: `1px solid ${C.accent}`, color: C.accent }}><Home size={escuro ? 15 : 12} /> Voltar à fábrica agora (no meio da rota)</button>;
+  return (
+    <div className="rounded-lg p-2 space-y-2" style={{ background: escuro ? "rgba(255,255,255,.12)" : C.panel2 }}>
+      <textarea value={txt} onChange={(e) => setTxt(e.target.value)} rows={2} autoFocus placeholder="Justificativa (por que precisa voltar à fábrica agora?)" className="w-full px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} />
+      <div className="flex justify-end gap-2">
+        <button onClick={() => setAbre(false)} className="px-3 py-1 rounded text-xs" style={{ color: escuro ? "#fff" : C.sub }}>Cancelar</button>
+        <button onClick={enviar} disabled={oc} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>{oc ? "Enviando…" : "Confirmar retorno"}</button>
       </div>
     </div>
   );
@@ -927,6 +1025,7 @@ function MinhaRota({ bloco, demandas, user, onMudou }) {
             </button>
           </div>
         ))}
+        {feitas < l.length && prox?.objetivo !== "RETORNO" && <BotaoRetornoMeio user={user} bloco={bloco} justificar escuro onMudou={onMudou} />}
         <button disabled={feitas < l.length} onClick={() => acao({ acao: "retorno", id: bloco.id }, "Confirmar o retorno à fábrica? A rota fecha.")} className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
           style={{ background: feitas < l.length ? "rgba(255,255,255,.15)" : C.accent, color: "#fff", opacity: feitas < l.length ? 0.6 : 1 }}><Home size={15} /> Cheguei na fábrica</button>
       </div>

@@ -3252,6 +3252,21 @@ function ClientesPane({ master, money }) {
   };
   useEffect(() => { carregar(); }, []);
 
+  // v521 — clientes do KM: o agente do PC da fábrica manda de hora em hora ou quando pedido aqui
+  const [km, setKm] = useState(null);
+  const lerKm = () => fetch("/api/km/clientes").then((r) => r.json()).then((d) => { setKm(d); return d; }).catch(() => null);
+  useEffect(() => { lerKm(); }, []);
+  useEffect(() => {
+    if (!km?.pedido) return;
+    const t = setInterval(async () => { const d = await lerKm(); if (d && !d.pedido) carregar(); }, 8000);
+    return () => clearInterval(t);
+  }, [km?.pedido?.em]);
+  const buscarKm = async () => {
+    await fetch("/api/km/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedir: true, usuarioId: sessaoId() }) });
+    lerKm();
+  };
+  const fmtQuando = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   const ufs = [...new Set(clientes.map((c) => c.uf).filter(Boolean))].sort();
@@ -3340,10 +3355,19 @@ function ClientesPane({ master, money }) {
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
+        <button onClick={buscarKm} disabled={!!km?.pedido} title="Busca todos os clientes cadastrados no KM (o agente do PC da fábrica atende em até 1 minuto)"
+          className="px-4 py-2 rounded font-semibold" style={{ background: C.panel2, color: C.accent, border: `1px solid ${C.accent}`, opacity: km?.pedido ? 0.6 : 1 }}>
+          {km?.pedido ? "Aguardando o KM…" : "Buscar do KM"}
+        </button>
         <button onClick={() => setEditando({})} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
           <Plus size={16} /> Novo cliente
         </button>
       </div>
+      {km && (km.ultima || km.pedido) && <div className="text-xs mb-2" style={{ color: C.sub }}>
+        KM: {km.doKm} cliente(s) vindos do KM
+        {km.ultima && <> · última busca {fmtQuando(km.ultima.em)}: {km.ultima.recebidos} lidos, {km.ultima.novos} novos, {km.ultima.atualizados} atualizados{km.ultima.erros?.length ? <span style={{ color: "#D64545" }}> · {km.ultima.erros.length} erro(s)</span> : null}</>}
+        {km.pedido && <> · busca pedida às {fmtQuando(km.pedido.em)} — o agente do PC da fábrica atende em até 1 min (precisa estar ligado)</>}
+      </div>}
 
       <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique no nome para editar, no número de notas para ver o histórico</div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">

@@ -7,7 +7,9 @@
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1               (sincroniza agora)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (roda sozinho a cada 1 minuto; -Minutos N para outro intervalo)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Desinstalar
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso)
+#   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Clientes     (v521: manda TODOS os clientes do KM agora; com -Previa so mostra)
+# v521: clientes do KM vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -44,6 +46,7 @@ if ($Configurar) {
   # copia o agente para a pasta local (a tarefa agendada nao depende da pasta do projeto)
   Copy-Item -Force (Join-Path $PSScriptRoot "km-sync.ps1") (Join-Path $pasta "km-sync.ps1")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
   Write-Host "Configurado em $cfgArq"
   exit 0
 }
@@ -54,6 +57,7 @@ if ($Instalar) {
   if (-not (Test-Path $cfgArq)) { throw "Rode antes com -Configurar." }
   Copy-Item -Force (Join-Path $PSScriptRoot "km-sync.ps1") (Join-Path $pasta "km-sync.ps1")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
   if ($Minutos -lt 1) { $Minutos = 1 }
   # lancador .vbs: roda o PowerShell sem abrir/piscar janela
   $vbs = Join-Path $pasta "km-sync.vbs"
@@ -76,6 +80,45 @@ $sql = Join-Path $PSScriptRoot "km-pedidos.sql"
 if (-not (Test-Path $sql)) { $sql = Join-Path $pasta "km-pedidos.sql" }
 if (-not (Test-Path $c.psql)) { throw "psql nao encontrado em $($c.psql)" }
 $saida = Join-Path $pasta "pedidos.json"
+
+# ---------- v521: clientes do KM ----------
+function RodarSql([string]$nome, [string]$arqSaida, [string]$abertos = "") {
+  $f = Join-Path $PSScriptRoot $nome
+  if (-not (Test-Path $f)) { $f = Join-Path $pasta $nome }
+  if (-not (Test-Path $f)) { Log "ERRO: $nome nao encontrado"; return $false }
+  try {
+    $env:PGPASSWORD = Abrir $c.senha
+    $env:PGCLIENTENCODING = "UTF8"
+    $ErrorActionPreference = "Continue"
+    & $c.psql -h $c.host -p $c.porta -U $c.usuario -d $c.banco -X -q -t -A -v ON_ERROR_STOP=1 -v "abertos=$abertos" -f $f -o $arqSaida 2>&1 | ForEach-Object { Log "psql: $_" }
+    $cod = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+  } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
+  if ($cod -ne 0) { Log "ERRO: psql ($nome) terminou com codigo $cod"; return $false }
+  return $true
+}
+function EnviarClientes([bool]$soPrevia) {
+  $arq = Join-Path $pasta "clientes.json"
+  if (-not (RodarSql "km-clientes.sql" $arq)) { return }
+  $u = $c.url.TrimEnd("/") + "/api/km/clientes" + $(if ($soPrevia) { "?previa=1" } else { "" })
+  try {
+    $w = Invoke-WebRequest -UseBasicParsing -Uri $u -Method Post -Body ([IO.File]::ReadAllBytes($arq)) -ContentType "application/json; charset=utf-8" -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 300
+    $r = [Text.Encoding]::UTF8.GetString($w.RawContentStream.ToArray()) | ConvertFrom-Json
+  } catch {
+    $msg = $_.Exception.Message
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $msg = "$msg - $($_.ErrorDetails.Message)" }
+    Log "ERRO ao enviar clientes: $msg"; return
+  }
+  if ($soPrevia) {
+    $p = Join-Path $HOME "km_clientes_previa.json"
+    [IO.File]::WriteAllText($p, ($r | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding $false))
+    Log ("CLIENTES (previa): {0} recebidos -> {1}" -f $r.recebidos, $p)
+    notepad $p
+  } else {
+    Log ("CLIENTES: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} sem nome{5}" -f $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.semNome, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }))
+  }
+}
+if ($Clientes) { EnviarClientes ([bool]$Previa); exit 0 }
 
 # pedidos em andamento no sistema (consultados no KM mesmo fora do filtro)
 $abertos = ""
@@ -118,4 +161,14 @@ if ($Previa) {
     Log ("OK: {0} recebidos | {1} novos | {2} atualizados | {3} sem mudanca | {4} entradas | {5} faturados | {6} NF sem contas | {7} cancelados | NF KM sem arquivo {10} | ignorados {9}{8}" -f `
       $r.recebidos, $r.novos, $r.atualizados, $r.iguais, $r.entradas, $r.faturados, [int]$r.pendentesContas, $r.cancelados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }), $(if ($r.ignoradosLista) { "$($r.ignorados) (" + (($r.ignoradosLista | Select-Object -First 15) -join ", ") + ")" } else { "0" }), [int]$r.nfsSemArquivo)
   }
+}
+
+# v521 - clientes: de hora em hora (minuto 5) ou quando pedido pela tela Clientes
+if (-not $Previa) {
+  $pediu = "0"
+  try {
+    $wp = Invoke-WebRequest -UseBasicParsing -Uri ($c.url.TrimEnd("/") + "/api/km/clientes?pendente=1") -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 30
+    $pediu = ([Text.Encoding]::UTF8.GetString($wp.RawContentStream.ToArray())).Trim()
+  } catch { }
+  if ($pediu -eq "1" -or (Get-Date).Minute -eq 5) { EnviarClientes $false }
 }

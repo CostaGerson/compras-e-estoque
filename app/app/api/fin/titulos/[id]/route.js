@@ -85,6 +85,8 @@ export async function PATCH(req, { params }) {
     if (b.documento !== undefined) data.documento = so(b.documento) || null;
     if (b.numeroDoc !== undefined) data.numeroDoc = b.numeroDoc || null;
     if (b.observacao !== undefined) data.observacao = b.observacao || null;
+    if (b.chavePix !== undefined) data.chavePix = String(b.chavePix || "").trim() || null;   // v521
+    if (b.formaPagamento !== undefined) data.formaPagamento = b.formaPagamento ? String(b.formaPagamento).toUpperCase() : null;
     if (b.previsao !== undefined) data.previsao = !!b.previsao;
     if (b.critica !== undefined) data.critica = b.critica ? String(b.critica).slice(0, 500) : null;
     if (b.valor !== undefined) {
