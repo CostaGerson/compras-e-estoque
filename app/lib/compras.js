@@ -26,6 +26,8 @@ export const AVIAMENTOS = [
 ];
 const nomeAv = (pref, v) => { const n = String(v || "").trim().toUpperCase(); return norm(n).startsWith(norm(pref)) ? n : `${pref} ${n}`; };
 const ehSem = (v) => vazio(v) || /^SEM\b/.test(norm(v));
+// v522 — gola viés sai do próprio tecido da peça: não é aviamento (não entra na compra nem no levantamento)
+export const ehGolaVies = (v) => /\bVIES\b/.test(norm(v));
 
 // campos que distinguem um artigo do outro (vazio = não distingue)
 export const CAMPOS_ID = ["fornecedorId", "cor", "codigo"];
@@ -89,6 +91,7 @@ export function materiaisDaFpp(fpp, params = []) {
     if (a.tipo && a.tipo !== tipo && !aberta) continue;
     const v = e[a.campo];
     if (ehSem(v)) continue;
+    if (a.chave === "GOLA" && ehGolaVies(v)) continue;   // v522
     const det = avDet[a.chave] || {};
     // v410 — elástico e faixa com consumo por metro: a compra sai em metros
     if (a.chave === "ELASTICO") {
@@ -415,7 +418,22 @@ export async function sincronizarAvulsa(c, db = prisma) {
   if (sobra.length) await db.compraItem.deleteMany({ where: { id: { in: sobra } } });
 }
 
+// v522 — uma vez: tira a gola viés da demanda dos itens que ainda estão no levantamento
+const K_VIES = "COMPRAS_GOLA_VIES_V522";
+async function limparGolaVies(db) {
+  if (await db.finConfig.findUnique({ where: { chave: K_VIES } }).catch(() => null)) return;
+  const l = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, select: { id: true, demanda: true } });
+  let n = 0;
+  for (const i of l) {
+    const d = Array.isArray(i.demanda) ? i.demanda : [];
+    const f = d.filter((m) => !(m?.papel === "GOLA" && ehGolaVies(m.nome)));
+    if (f.length !== d.length) { await db.compraItem.update({ where: { id: i.id }, data: { demanda: f } }); n++; }
+  }
+  await db.finConfig.create({ data: { chave: K_VIES, valor: JSON.stringify({ em: new Date().toISOString(), itens: n }) } }).catch(() => null);
+}
+
 export async function itensAbertos(db = prisma) {
+  try { await limparGolaVies(db); } catch (e) { console.log("compras/gola viés:", e.message); }
   const dispensados = await pedidosDispensados(db);   // v419
   const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
   const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });

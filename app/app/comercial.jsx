@@ -2012,7 +2012,8 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
 }
 // aviamento escolhido no combo + "+" (só aparece com um aviamento escolhido)
 function AvComDet({ children, valor, det, onDet, botao }) {
-  const tem = valor && !/^SEM\b/i.test(String(valor).trim()) && (!botao || Number(String(valor).replace(",", ".")) > 0);
+  // v522 — gola viés sai do tecido da peça: não é aviamento, sem detalhe de compra
+  const tem = valor && !/^SEM\b/i.test(String(valor).trim()) && !/\bVI[EÉ]S\b/i.test(String(valor)) && (!botao || Number(String(valor).replace(",", ".")) > 0);
   return (
     <div>
       <div className="flex gap-1 items-end"><div className="flex-1 min-w-0">{children}</div>{tem && <DetBotao det={det} categoria="AVIAMENTO" nome={botao ? "BOTÃO" : valor} onDet={onDet} botao={botao} />}</div>
