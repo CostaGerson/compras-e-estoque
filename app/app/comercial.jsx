@@ -1793,7 +1793,7 @@ function ProposalModal({ fichas, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-2xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>   {/* v518 — mais larga: valores não vazam a borda */}
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-sm font-bold" style={{ color: C.navy }}>Proposta · {cliente} · {fichas.length} item(ns)</div>
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
@@ -1802,11 +1802,11 @@ function ProposalModal({ fichas, onClose }) {
           <div className="space-y-2 mb-3">
             {items.map((it, i) => (
               <div key={i} className="rounded-md p-2" style={{ border: `1px solid ${C.line}` }}>
-                <div className="flex gap-2 items-center">
-                  <input value={it.description} onChange={(e) => setItem(i, "description", e.target.value)} className="flex-1 px-2 py-1 rounded text-sm font-medium" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                <div className="flex gap-2 items-center flex-wrap">
+                  <input value={it.description} onChange={(e) => setItem(i, "description", e.target.value)} className="flex-1 min-w-0 px-2 py-1 rounded text-sm font-medium" title={it.description} style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
                   <span className="text-xs whitespace-nowrap" style={{ color: C.sub }}>{fmtFpp(fichas[i]?.numero)} · {nPt(it.qty)} ×</span>
                   <span className="text-sm font-medium whitespace-nowrap" style={{ color: C.text }}>{brl((it.unit_price_cents || 0) / 100)}</span>
-                  <span className="text-sm font-bold whitespace-nowrap" style={{ color: C.navy }}>= {brl(((it.unit_price_cents || 0) * (Number(it.qty) || 0)) / 100)}</span>
+                  <span className="text-sm font-bold whitespace-nowrap ml-auto" style={{ color: C.navy }}>= {brl(((it.unit_price_cents || 0) * (Number(it.qty) || 0)) / 100)}</span>
                 </div>
                 <input value={it.details || ""} placeholder="Detalhes (tecido · cor · faixa · personalização…)" onChange={(e) => setItem(i, "details", e.target.value)} className="w-full mt-1 px-2 py-1 rounded text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.sub }} />
               </div>
