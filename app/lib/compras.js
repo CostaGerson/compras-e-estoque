@@ -1,6 +1,6 @@
 // v404 — Compras: FPP base de cada item de pedido, demanda de matéria-prima e levantamento.
 import { prisma } from "./prisma";
-import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, obsBotao } from "./fppAv";   // v410
+import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, obsBotao, ehPecaAberta, ehRevenda } from "./fppAv";   // v410 · v512
 
 export const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 const vazio = (v) => v == null || String(v).trim() === "";
@@ -34,7 +34,8 @@ function paramValor(params, tipo, grupo, chave, overrides) {
   const path = `${grupo}:${chave}:valor`;
   if (overrides && !vazio(overrides[path])) return n0(overrides[path]) || 0;
   const row = params.find((p) => p.tipo === tipo && p.grupo === grupo && p.chave === chave)
-    || params.find((p) => p.tipo === "COMUM" && p.grupo === grupo && p.chave === chave);
+    || params.find((p) => p.tipo === "COMUM" && p.grupo === grupo && p.chave === chave)
+    || params.find((p) => p.grupo === grupo && p.chave === chave);   // v512 — acessório: aviamento do outro tipo
   return row ? Number(row.valor) || 0 : 0;
 }
 
@@ -43,7 +44,8 @@ function paramGet(params, tipo, grupo, chave, campo, overrides) {
   const path = `${grupo}:${chave}:${campo}`;
   if (overrides && !vazio(overrides[path])) return n0(overrides[path]) || 0;
   const row = params.find((p) => p.tipo === tipo && p.grupo === grupo && p.chave === chave)
-    || params.find((p) => p.tipo === "COMUM" && p.grupo === grupo && p.chave === chave);
+    || params.find((p) => p.tipo === "COMUM" && p.grupo === grupo && p.chave === chave)
+    || params.find((p) => p.grupo === grupo && p.chave === chave);   // v512
   if (!row) return 0;
   return campo === "valor" ? Number(row.valor) || 0 : Number(row.extra?.[campo]) || 0;
 }
@@ -54,7 +56,9 @@ export function materiaisDaFpp(fpp, params = []) {
   const e = fpp.entradas || {};
   const r = fpp.resultados || {};
   const ov = fpp.overrides || {};
+  if (ehRevenda(fpp.item, fpp.tipo)) return [];   // v512 — revenda: compra o produto pronto, sem matéria-prima
   const tipo = fpp.tipo === "PLANO" ? "PLANO" : "MALHA";
+  const aberta = ehPecaAberta(fpp.item);   // v512 — acessório: forro e todos os aviamentos
   const rendCons = n0(r.rendCons) ?? paramValor(params, tipo, "PECA", fpp.item, ov);
   const out = [];
   const nomeP = String(e.nomeArtigo || "").trim();
@@ -65,8 +69,8 @@ export function materiaisDaFpp(fpp, params = []) {
       base: tipo === "MALHA" ? `${String(rendCons).replace(".", ",")} peças/kg` : `${String(rendCons).replace(".", ",")} m/peça` });
   }
   const nomeF = String(e.nomeArtigoForro || "").trim();
-  if (tipo === "PLANO" && nomeF && e.forrada !== false) {   // v411 — só peça forrada
-    const cf = n0(e.consumoForro) || n0(r.consumoForro) || paramValor(params, "PLANO", "CONST", "FORRO_FATOR", ov) * rendCons;
+  if ((tipo === "PLANO" || (aberta && e.forrada)) && nomeF && e.forrada !== false) {   // v411 — só peça forrada
+    const cf = n0(e.consumoForro) || n0(r.consumoForro) || (tipo === "PLANO" ? paramValor(params, "PLANO", "CONST", "FORRO_FATOR", ov) * rendCons : 0);
     out.push({ papel: "FORRO", ref: { campo: "artigoForroDet" }, categoria: "TECIDO", unidade: "M", nome: nomeF.toUpperCase(), det: e.artigoForroDet || {},
       consumoPorPeca: cf, valorUnitario: n0(e.forroValor), base: `${String(r3(cf)).replace(".", ",")} m/peça` });
   }
@@ -82,7 +86,7 @@ export function materiaisDaFpp(fpp, params = []) {
   const avDet = e.aviamentosDet || {};
   const get = (g, k, c = "valor") => paramGet(params, tipo, g, k, c, ov);
   for (const a of AVIAMENTOS) {
-    if (a.tipo && a.tipo !== tipo) continue;
+    if (a.tipo && a.tipo !== tipo && !aberta) continue;
     const v = e[a.campo];
     if (ehSem(v)) continue;
     const det = avDet[a.chave] || {};

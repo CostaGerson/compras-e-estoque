@@ -23,7 +23,7 @@ export async function PATCH(req, { params }) {
   const data = {};
   if (b.item != null) data.item = String(b.item).toUpperCase();
   if (b.nomeComercial !== undefined) data.nomeComercial = b.nomeComercial ? String(b.nomeComercial).toUpperCase() : null;
-  if (b.tipo != null) data.tipo = b.tipo === "PLANO" ? "PLANO" : "MALHA";
+  if (b.tipo != null) data.tipo = ["PLANO", "REVENDA"].includes(b.tipo) ? b.tipo : "MALHA";   // v512 — revenda
   if (b.clienteId !== undefined) data.clienteId = b.clienteId != null ? Number(b.clienteId) : null;
   if (b.clienteNome !== undefined) data.clienteNome = b.clienteNome || null;
   if (b.negociacao !== undefined) data.negociacao = b.negociacao ? String(b.negociacao).toUpperCase() : null;

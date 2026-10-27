@@ -64,3 +64,19 @@ export const fmtNum = (v, d = 2) => (Number(v) || 0).toLocaleString("pt-BR", { m
 
 // v413 — observação do material do botão
 export const obsBotao = (tipo) => (/LAT[AÃ]O/i.test(String(tipo || "")) ? "NÃO ENFERRUJA" : /FERRO/i.test(String(tipo || "")) ? "ENFERRUJA" : "");
+
+// v512 — peças especiais da FPP (não vêm do banco de parâmetros)
+//  · ACESSÓRIO MALHA / ACESSÓRIO PLANO: ficha aberta — rendimento/consumo, corte, expedição/acabamento digitados
+//    e todos os aviamentos (gola, punho, elástico, faixa, botão) e forro disponíveis
+//  · PRODUTO REVENDA: só preço de custo + personalização, lead time, logística/embalagem e operação financeira
+export const PECA_AC_MALHA = "ACESSÓRIO MALHA";
+export const PECA_AC_PLANO = "ACESSÓRIO PLANO";
+export const PECA_REVENDA = "PRODUTO REVENDA";
+export const PECAS_ESPECIAIS = [
+  { chave: PECA_AC_MALHA, tipo: "MALHA" },
+  { chave: PECA_AC_PLANO, tipo: "PLANO" },
+  { chave: PECA_REVENDA, tipo: "REVENDA" },
+];
+const _semAc = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
+export const ehPecaAberta = (item) => ["ACESSORIO MALHA", "ACESSORIO PLANO"].includes(_semAc(item));
+export const ehRevenda = (item, tipo) => tipo === "REVENDA" || _semAc(item) === "PRODUTO REVENDA";

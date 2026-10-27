@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
-import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao } from "@/lib/fppAv";   // v410
+import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
@@ -45,15 +45,16 @@ function calcVolta(params, tipo, e = {}, over = {}) {
   };
   const qt = Math.max(1, num(e.qtde));
   const perTec = (p) => (p ? (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0) : 0);
+  const aberta = ehPecaAberta(e.item), revenda = ehRevenda(e.item, tipo);   // v512
   const v = {
-    corte: Number(pg("PECA", e.item, "corte")) || 0,
+    corte: revenda ? 0 : aberta ? num(e.abCorte) : Number(pg("PECA", e.item, "corte")) || 0,
     silk: (e.silk?.interno ? perTec(e.silk) : 0) + persPorTecnica(e, params, true).silk,
     bordado: (e.bordado?.interno ? perTec(e.bordado) : 0) + persPorTecnica(e, params, true).bordado,
     sublimacao: (e.sublimacao?.interno ? perTec(e.sublimacao) : 0) + persPorTecnica(e, params, true).sublimacao,
-    costura: e.faccaoInterna ? num(e.faccao) : 0,
-    acabamento: Number(tipo === "MALHA" ? pg("PECA", e.item, "exped") : pg("PECA", e.item, "acab")) || 0,
+    costura: !revenda && e.faccaoInterna ? num(e.faccao) : 0,
+    acabamento: revenda ? 0 : aberta ? num(e.abAcab) : Number(tipo === "MALHA" ? pg("PECA", e.item, "exped") : pg("PECA", e.item, "acab")) || 0,
     logistica: cg("LOGISTICA_BASE"),
-    consumo: cg("REEMBOLSO_CONSUMO"),
+    consumo: revenda ? 0 : cg("REEMBOLSO_CONSUMO"),
   };
   v.personalizacao = v.silk + v.bordado + v.sublimacao;
   v.total = v.corte + v.personalizacao + v.costura + v.acabamento + v.logistica + v.consumo;
@@ -267,6 +268,8 @@ function fichaVazia(tipo) {
     freteVolume: "", embExt: "", embInt: "SIMPLES", formaEntrega: "",   // v450 — PROPRIA | TRANSPORTADORA | FRETEBRAS | RETIRADA
     opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "", repassarTaxas: false, paramsAlterados: false,
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
+    abRend: "", abCorte: "", abAcab: "",   // v512 — acessório malha/plano: rendimento ou consumo, corte e expedição/acabamento digitados
+    custoRevenda: "", revendaFornecedor: "", revendaDescricao: "",   // v512 — produto revenda: preço de custo por peça
   };
 }
 
@@ -294,9 +297,10 @@ function Fpp({ user, master, abrirId }) {
   const pecasAll = useMemo(() => {
     if (!params) return [];
     return [
+      ...PECAS_ESPECIAIS,   // v512 — acessório malha, acessório plano e produto revenda
       ...((params.MALHA?.PECA) || []).map((p) => ({ chave: p.chave, tipo: "MALHA" })),
       ...((params.PLANO?.PECA) || []).map((p) => ({ chave: p.chave, tipo: "PLANO" })),
-    ];
+    ].filter((p, i, l) => l.findIndex((x) => x.chave === p.chave) === i);
   }, [params]);
   const tipoDaPeca = (chave) => pecasAll.find((p) => p.chave === chave)?.tipo;
 
@@ -315,7 +319,8 @@ function Fpp({ user, master, abrirId }) {
   function pget(grupo, chave, campo = "valor") {
     if (!params) return 0;
     const t = params[tipo]?.[grupo] || params.COMUM?.[grupo] || [];
-    const row = t.find((x) => x.chave === chave);
+    // v512 — acessório/revenda: aviamento ou embalagem de qualquer tipo
+    const row = t.find((x) => x.chave === chave) || [params.COMUM, params.MALHA, params.PLANO].map((g) => (g?.[grupo] || []).find((x) => x.chave === chave)).find(Boolean);
     if (!row) return 0;
     const path = `${grupo}:${chave}:${campo}`;
     if (over[path] != null && over[path] !== "") return num(over[path]);
@@ -339,8 +344,9 @@ function Fpp({ user, master, abrirId }) {
   const golas = params?.MALHA?.GOLA || [];
   const punhos = params?.MALHA?.PUNHO || [];
   const elasticos = params?.PLANO?.ELASTICO || [];
-  const faixas = params?.[tipo]?.FAIXA || [];
-  const embExts = params?.[tipo]?.EMB_EXT || [];
+  const aberta = ehPecaAberta(f.item), revenda = ehRevenda(f.item, tipo);   // v512
+  const faixas = params?.[tipo]?.FAIXA || params?.COMUM?.FAIXA || [];
+  const embExts = revenda ? [...new Map([...(params?.MALHA?.EMB_EXT || []), ...(params?.PLANO?.EMB_EXT || [])].map((g) => [g.chave, g])).values()] : (params?.[tipo]?.EMB_EXT || []);
   const embInts = params?.COMUM?.EMB_INT || [];
   const faixaTipos = params?.COMUM?.FAIXA_TIPO || [];   // v410
   const botaoTipos = params?.COMUM?.BOTAO || [];
@@ -351,40 +357,43 @@ function Fpp({ user, master, abrirId }) {
     if (!params) return null;
     const isMalha = tipo === "MALHA";
     const qt = Math.max(1, num(f.qtde));
-    const rendCons = pget("PECA", f.item, "valor");           // rendimento(peças/kg) ou consumo(m/peça)
-    const corte = pget("PECA", f.item, "corte");
-    const prodPeca = isMalha ? pget("PECA", f.item, "exped") : pget("PECA", f.item, "acab");
-    const volProp = pget("PECA", f.item, "volProp") || 1;
-    const reembolso = cget("REEMBOLSO_CONSUMO");
-    const linha = cget("LINHA_CUSTO");
+    // v512 — acessório: valores digitados na ficha; revenda: sem matéria-prima, aviamentos e produção
+    const rendCons = revenda ? 0 : aberta ? num(f.abRend) : pget("PECA", f.item, "valor");           // rendimento(peças/kg) ou consumo(m/peça)
+    const corte = revenda ? 0 : aberta ? num(f.abCorte) : pget("PECA", f.item, "corte");
+    const prodPeca = revenda ? 0 : aberta ? num(f.abAcab) : isMalha ? pget("PECA", f.item, "exped") : pget("PECA", f.item, "acab");
+    const volProp = (aberta || revenda ? 1 : pget("PECA", f.item, "volProp")) || 1;
+    const reembolso = revenda ? 0 : cget("REEMBOLSO_CONSUMO");
+    const linha = revenda ? 0 : cget("LINHA_CUSTO");
 
     // Matéria-prima (inclui o custo de linha fixo)
     let mp = 0;
-    if (isMalha) mp = (rendCons ? num(f.mpValor) / rendCons : 0) + reembolso;
+    if (revenda) mp = 0;
+    else if (isMalha) mp = (rendCons ? num(f.mpValor) / rendCons : 0) + reembolso;
     else mp = num(f.mpValor) * rendCons + reembolso;
     // Forro (plano)
     let forro = 0;
-    const consumoForroEst = cget("FORRO_FATOR") * rendCons;
+    const consumoForroEst = isMalha ? 0 : cget("FORRO_FATOR") * rendCons;
     const consumoForro = num(f.consumoForro) > 0 ? num(f.consumoForro) : consumoForroEst;   // v208: informado na ficha ou estimado
-    if (!isMalha && f.forrada) forro = num(f.forroValor) * consumoForro;   // v411 — só peça forrada
-    const mpExtras = custoMpExtras(f.materiasExtras);
+    if (!revenda && (!isMalha || aberta) && f.forrada) forro = num(f.forroValor) * consumoForro;   // v411 — só peça forrada
+    const mpExtras = revenda ? 0 : custoMpExtras(f.materiasExtras);
+    const custoRevenda = revenda ? num(f.custoRevenda) : 0;   // v512 — preço de custo do produto revendido
     const materiaPrima = mp + forro + mpExtras + linha;
 
     // Aviamentos (sem a linha, que já entrou na matéria-prima)
     // v410 — elástico e faixa por metro (consumo × R$/m); botão pelo tipo
     const elast = elasticoCalc(getP, f.elastico);
-    const golaOuElast = isMalha ? pget("GOLA", f.gola) : elast.valor;
-    const punho = isMalha ? pget("PUNHO", f.punho) : 0;
+    const golaOuElast = aberta ? pget("GOLA", f.gola) + elast.valor : isMalha ? pget("GOLA", f.gola) : elast.valor;   // v512 — acessório: gola e elástico
+    const punho = isMalha || aberta ? pget("PUNHO", f.punho) : 0;
     const fx = faixaCalc(getP, f.faixa, f.faixaTipo);
     const faixa = fx.valor;
     const botaoUn = botaoUnit(getP, f.botaoTipo);
     const botao = botaoUn * num(f.botaoQtd);
     const extrasAv = somaAvExtras(f.extrasAviamentos);   // v411
-    const aviamentos = golaOuElast + punho + faixa + botao + extrasAv;
+    const aviamentos = revenda ? 0 : golaOuElast + punho + faixa + botao + extrasAv;
 
     // Produção
     const extrasProd = somaExtras(f.extrasProducao);
-    const producao = corte + prodPeca + num(f.faccao) + extrasProd;
+    const producao = revenda ? 0 : corte + prodPeca + num(f.faccao) + extrasProd;
 
     // Personalização (arte rateada ÷ qtde + posições por peça)
     const perTec = (p) => (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0);
@@ -405,7 +414,7 @@ function Fpp({ user, master, abrirId }) {
     const embInt = pget("EMB_INT", f.embInt);
     const embalagem = embExt + embInt;
 
-    const custoProducao = materiaPrima + aviamentos + producao + personalizacao + logistica + embalagem;
+    const custoProducao = custoRevenda + materiaPrima + aviamentos + producao + personalizacao + logistica + embalagem;
 
     // o que VOLTA para a operação (por peça)
     const volta = calcVolta(params, tipo, f, over);
@@ -439,8 +448,8 @@ function Fpp({ user, master, abrirId }) {
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
-  }, [params, tipo, f, over]);
+    return { revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+  }, [params, tipo, f, over, aberta, revenda]);
 
   function montarBody() {
     return {
@@ -471,7 +480,7 @@ function Fpp({ user, master, abrirId }) {
     const e = fpp.entradas || {};
     setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, forrada: e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor) || num(e.consumoForro)), clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
-    setTipo(fpp.tipo || tipoDaPeca(e.item) || "MALHA");
+    setTipo(fpp.tipo || tipoDaPeca(e.item || fpp.item) || "MALHA");
     setOver(fpp.overrides || {});
     setModoOverride(!!(e.paramsAlterados || (fpp.overrides && Object.keys(fpp.overrides).length)));   // v294
     setEditId(fpp.id); setEditNum(fpp.numero);
@@ -522,7 +531,7 @@ function Fpp({ user, master, abrirId }) {
             {editId && <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: C.yellowSoft, color: C.yellow, border: `1px solid ${C.yellow}55` }}>Editando FPP {fmtFpp(editNum)}</span>}
             {editId && <button onClick={novaFicha} className="text-xs px-2 py-1 rounded-md" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Nova ficha</button>}
             <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}>
-              {tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
+              {revenda ? "Revenda · preço de custo" : aberta ? (tipo === "MALHA" ? "Acessório malha · campos livres" : "Acessório plano · campos livres") : tipo === "MALHA" ? "Malha · peças/kg" : "Plano · metros/peça"}
             </span>
           </div>
         )}
@@ -565,43 +574,58 @@ function Fpp({ user, master, abrirId }) {
               </div>
             </Card>
 
-            <Card title="Matéria-prima">
+            {revenda && (
+              <Card title="Produto revenda">
+                {/* v512 — revenda: só o preço de custo do produto pronto; o resto (personalização, lead time, logística, financeiro) segue igual */}
+                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) 160px" }}>
+                  <Inp full text label="Descrição do produto" value={f.revendaDescricao} onChange={(v) => set("revendaDescricao", v.toUpperCase())} placeholder="ex.: BONÉ TRUCKER, GARRAFA TÉRMICA…" />
+                  <Inp full text label="Fornecedor" value={f.revendaFornecedor} onChange={(v) => set("revendaFornecedor", v.toUpperCase())} />
+                  <Inp full label="Preço de custo (R$/peça)" value={f.custoRevenda} onChange={(v) => set("custoRevenda", v)} destaque />
+                </div>
+                <div className="text-[11px] mt-2" style={{ color: C.sub }}>Sem matéria-prima, aviamentos e produção: o custo do produto entra direto no custo da peça.</div>
+              </Card>
+            )}
+
+            {!revenda && <Card title="Matéria-prima">
               {/* v411 — linhas na mesma grade: artigo · custo · consumo/rendimento · (forrada) */}
               <div className="space-y-3">
-                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (tipo === "PLANO" ? " 120px" : "") }}>
+                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (tipo === "PLANO" || aberta ? " 120px" : "") }}>
                   <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
                     onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
                   <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
-                  <Ref full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                  {tipo === "PLANO" && (
+                  {aberta
+                    ? <Inp full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} value={f.abRend} onChange={(v) => set("abRend", v)} />
+                    : <Ref full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />}
+                  {(tipo === "PLANO" || aberta) && (
                     <div>
                       <div className="text-xs mb-1" style={{ color: C.sub }}>Peça forrada</div>
                       <div className="flex items-center" style={{ minHeight: 34 }}><Toggle on={!!f.forrada} onChange={(v) => set("forrada", v)} /></div>
                     </div>
                   )}
                 </div>
-                {tipo === "PLANO" && f.forrada && (
+                {(tipo === "PLANO" || aberta) && f.forrada && (
                   <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px 120px" }}>
                     <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
                       onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />
                     <Inp full label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />
                     <Inp full label="Consumo (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
-                      placeholder={r ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")}` : ""} />
+                      placeholder={r && r.consumoForroEst ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")}` : ""} />
                     <div />
                   </div>
                 )}
-                <MpExtras lista={f.materiasExtras} onChange={(l) => set("materiasExtras", l)} cols={tipo === "PLANO"} />
+                <MpExtras lista={f.materiasExtras} onChange={(l) => set("materiasExtras", l)} cols={tipo === "PLANO" || aberta} />
               </div>
-            </Card>
+            </Card>}
 
-            <Card title="Aviamentos">
+            {!revenda && <Card title="Aviamentos">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {tipo === "MALHA" ? (
+                {(tipo === "MALHA" || aberta) && (
                   <>
                     <AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                     <AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                   </>
-                ) : (
+                )}
+                {(tipo === "PLANO" || aberta) && (
                   <div>
                     <AvComDet valor={f.elastico} det={f.aviamentosDet?.ELASTICO} onDet={(d) => setAvDet("ELASTICO", d)}><Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                     <AvMetro c={r?.elast} />
@@ -625,9 +649,9 @@ function Fpp({ user, master, abrirId }) {
                 </div>
               </div>
               <AvExtras lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} />
-            </Card>
+            </Card>}
 
-            <Card title="Produção">
+            {!revenda && <Card title="Produção">
               {/* v294 — linha da costura: tipo de peça (só os condizentes) · valor da facção (fixo, salvo com "alterar parâmetros") · terceirizado ⇄ interno */}
               <div className="flex flex-wrap items-end gap-3 mb-3">
                 {(params?.OPERACIONAL?.costura || []).length > 0 && (
@@ -654,8 +678,17 @@ function Fpp({ user, master, abrirId }) {
                 <SeletorOrigem interno={!!f.faccaoInterna} onChange={(v) => set("faccaoInterna", v)} />
               </div>
               <div className="flex flex-wrap gap-3">
-                <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
-                <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                {aberta ? (
+                  <>
+                    <Inp label="Corte (R$/peça)" value={f.abCorte} onChange={(v) => set("abCorte", v)} />
+                    <Inp label={tipo === "MALHA" ? "Expedição (R$/peça)" : "Acabamento (R$/peça)"} value={f.abAcab} onChange={(v) => set("abAcab", v)} />
+                  </>
+                ) : (
+                  <>
+                    <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                    <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                  </>
+                )}
               </div>
               {params?.OPERACIONAL?.meses?.length > 0 && (
                 <div className="text-[11px] mt-2" style={{ color: C.sub }}>
@@ -663,7 +696,7 @@ function Fpp({ user, master, abrirId }) {
                 </div>
               )}
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
-            </Card>
+            </Card>}
 
             <Card title="Personalização">
               {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
@@ -758,9 +791,13 @@ function Fpp({ user, master, abrirId }) {
               <div className="text-sm font-semibold mb-3" style={{ color: C.text }}>Resultados</div>
               {r && (
                 <div className="space-y-1.5 text-sm">
-                  <Lin l="Matéria-prima" v={brl(r.materiaPrima)} />
-                  <Lin l="Aviamentos" v={brl(r.aviamentos)} />
-                  <Lin l="Produção" v={brl(r.producao)} />
+                  {r.revenda ? <Lin l="Custo do produto (revenda)" v={brl(r.custoRevenda)} /> : (
+                    <>
+                      <Lin l="Matéria-prima" v={brl(r.materiaPrima)} />
+                      <Lin l="Aviamentos" v={brl(r.aviamentos)} />
+                      <Lin l="Produção" v={brl(r.producao)} />
+                    </>
+                  )}
                   <Lin l="Personalização" v={brl(r.personalizacao)} />
                   <Lin l="Logística" v={brl(r.logistica)} />
                   <Lin l="Embalagem" v={brl(r.embalagem)} />
@@ -1135,7 +1172,17 @@ async function imprimirFicha(f, master) {
   row("Lead time", f.leadTime != null ? f.leadTime + " dias" : "—");
   y += 2;
 
+  const revendaP = ehRevenda(f.item, f.tipo), abertaP = ehPecaAberta(f.item);   // v512
+  if (revendaP) {
+    sec("Produto revenda");
+    row("Descrição", e.revendaDescricao || "—");
+    row("Fornecedor", e.revendaFornecedor || "—");
+    row("Preço de custo (R$/peça)", e.custoRevenda || "—");
+    y += 2;
+    sec("Personalização");
+  } else {
   sec("Matéria-prima");
+  if (abertaP) row(isMalha ? "Rendimento (pç/kg)" : "Consumo (m/peça)", e.abRend || "—");
   if (isMalha) row("Artigo (malha)", e.nomeArtigo || "—");
   else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); if ((e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Artigo (forro)", e.nomeArtigoForro || "—"); }
   row(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—");
@@ -1145,7 +1192,9 @@ async function imprimirFicha(f, master) {
   y += 2;
 
   sec("Aviamentos e produção");
-  if (isMalha) { row("Gola", e.gola || "—"); row("Punho", e.punho || "—"); } else row("Elástico", e.elastico || "—");
+  if (isMalha || abertaP) { row("Gola", e.gola || "—"); row("Punho", e.punho || "—"); }
+  if (!isMalha || abertaP) row("Elástico", e.elastico || "—");
+  if (abertaP) { row("Corte (R$/peça)", e.abCorte || "—"); row(isMalha ? "Expedição (R$/peça)" : "Acabamento (R$/peça)", e.abAcab || "—"); }
   row("Faixa refletiva", e.faixa || "—");
   row("Qtde de botões", e.botaoQtd || "—");
   row("Facção (R$/peça)", e.faccao || "—");
@@ -1153,6 +1202,7 @@ async function imprimirFicha(f, master) {
     row(`Aviamento: ${String(x.desc).toUpperCase()}`, `${x.consumo || "—"} ${x.unidade === "M" ? "m" : "un"}/peça × R$ ${x.preco || "—"}`);
   for (const [rot, l] of [["Extra aviamento", (e.extrasAviamentos || []).filter((x) => !x.unidade)], ["Extra produção", e.extrasProducao]])
     for (const x of (Array.isArray(l) ? l : []).filter((x) => num(x.valor))) row(`${rot}: ${String(x.desc || "SEM DESCRIÇÃO").toUpperCase()} (R$/peça)`, String(x.valor));
+  }
   const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
   const pp = [];
   for (const [tec, lbl] of [["silk", "Silk/DTF"], ["bordado", "Bordado"], ["sublimacao", "Sublimação"]]) {
@@ -1165,9 +1215,8 @@ async function imprimirFicha(f, master) {
 
   if (master) {
     sec("Composição de custo");
-    row("Matéria-prima", brlp(r.materiaPrima));
-    row("Aviamentos", brlp(r.aviamentos));
-    row("Produção", brlp(r.producao));
+    if (revendaP) row("Custo do produto (revenda)", brlp(r.custoRevenda));
+    else { row("Matéria-prima", brlp(r.materiaPrima)); row("Aviamentos", brlp(r.aviamentos)); row("Produção", brlp(r.producao)); }
     row("Personalização", brlp(r.personalizacao));
     row("Logística", brlp(r.logistica));
     row("Embalagem", brlp(r.embalagem));

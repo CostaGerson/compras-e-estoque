@@ -17,7 +17,7 @@ export async function POST(req) {
   const b = await req.json();
   if (!b.item) return NextResponse.json({ error: "Informe o ITEM da ficha." }, { status: 400 });
   const f = await criarComNumero({
-      tipo: b.tipo === "PLANO" ? "PLANO" : "MALHA",
+      tipo: ["PLANO", "REVENDA"].includes(b.tipo) ? b.tipo : "MALHA",   // v512 — revenda
       item: String(b.item).toUpperCase(),
       nomeComercial: b.nomeComercial ? String(b.nomeComercial).toUpperCase() : null,
       condicaoPagamento: b.condicaoPagamento || null,
