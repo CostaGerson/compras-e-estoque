@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
@@ -16,6 +16,9 @@ const C = {
   yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41",
 };
 const fmtFpp = (n) => (n ? String(n).padStart(5, "0") : "—");
+// v513 — onde o usuário estava nas FPPs salvas (guia, negociação aberta, busca, ordem) sobrevive à edição e ao Voltar
+const ssLer = (k, d) => { try { const v = sessionStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const ssGravar = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "https://crm.meridianpro.com.br";   // v455 — domínio com https
 
@@ -95,6 +98,7 @@ async function clonarFpp(fpp, user, origemId) {
 /* ============================================================ */
 export default function Comercial({ user, master, fppInicial }) {
   const [view, setView] = useState(fppInicial?.id ? "fpp" : null); // null = landing (2 cards) | "fpp" | "acomp"
+  const voltarFpp = useRef(null);   // v513 — o Voltar devolve para onde estava (negociação, lista, pedido…) antes de sair da FPP
 
   if (view === "acomp") {   // v381
     return (
@@ -114,12 +118,12 @@ export default function Comercial({ user, master, fppInicial }) {
     return (
       <div>
         <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
-          <button onClick={() => setView(null)} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          <button onClick={() => { if (!voltarFpp.current?.()) setView(null); }} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
           <button onClick={() => setView(null)} style={{ color: C.sub }}>Comercial</button>
           <ChevronRight size={13} style={{ color: C.sub }} />
           <span className="font-semibold" style={{ color: C.text }}>Orçamentação (FPP)</span>
         </div>
-        <Fpp user={user} master={master} abrirId={fppInicial?.id} />
+        <Fpp user={user} master={master} abrirId={fppInicial?.id} abrirVoltar={fppInicial?.voltar} voltarRef={voltarFpp} />
       </div>
     );
   }
@@ -273,7 +277,7 @@ function fichaVazia(tipo) {
   };
 }
 
-function Fpp({ user, master, abrirId }) {
+function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
   const [params, setParams] = useState(null);       // banco de dados (padrão)
   const [tipo, setTipo] = useState("MALHA");        // derivado da peça escolhida
   const [f, setF] = useState(() => fichaVazia("MALHA"));
@@ -281,6 +285,8 @@ function Fpp({ user, master, abrirId }) {
   const [modoOverride, setModoOverride] = useState(false);
   const [paramsLocaisOpen, setParamsLocaisOpen] = useState(false);
   const [aba, setAba] = useState("ficha");          // ficha | banco
+  const [origem, setOrigem] = useState(null);       // v513 — de onde a ficha em edição foi aberta: { aba: "salvas" } | { externo: { v: "pedido", numero } }
+  const voltarSalvas = useRef(null);                // v513 — Voltar dentro das salvas (negociação aberta → cards da guia)
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
   const [editId, setEditId] = useState(null);
@@ -476,7 +482,9 @@ function Fpp({ user, master, abrirId }) {
     setMsg(res.ok ? (editId ? `FPP ${fmtFpp(salvo.numero || editNum)} atualizada ✓` : `FPP ${fmtFpp(salvo.numero)} salva ✓`) : "Erro ao salvar.");
   }
 
-  function carregarFicha(fpp) {
+  function carregarFicha(fpp, deOnde) {
+    if (deOnde !== undefined) setOrigem(deOnde);   // v513
+    if (fpp?.id) ssGravar("ce_fpp_ultima", fpp.id);
     const e = fpp.entradas || {};
     setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, forrada: e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor) || num(e.consumoForro)), clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
@@ -488,7 +496,7 @@ function Fpp({ user, master, abrirId }) {
     setMsg(`Editando a FPP ${fmtFpp(fpp.numero)} ✓`);
   }
   // v420 — aberta a partir da Gestão da produção: carrega a FPP para edição
-  useEffect(() => { if (abrirId) fetch(`/api/fpp/${abrirId}`).then((r) => r.json()).then((x) => { if (x && x.id) carregarFicha(x); }).catch(() => {}); }, [abrirId]);
+  useEffect(() => { if (abrirId) fetch(`/api/fpp/${abrirId}`).then((r) => r.json()).then((x) => { if (x && x.id) carregarFicha(x, abrirVoltar ? { externo: abrirVoltar } : null); }).catch(() => {}); }, [abrirId]);
   // clona o que está na tela (inclusive alterações ainda não salvas) e passa a editar a cópia
   async function clonarAtual() {
     if (!f.item) return setMsg("Selecione o ITEM.");
@@ -503,10 +511,19 @@ function Fpp({ user, master, abrirId }) {
     setSalvando(false);
   }
   async function clonarSalva(fpp) {
-    try { const nova = await clonarFpp(fpp, user); carregarFicha(nova); carregarNegs(); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
+    try { const nova = await clonarFpp(fpp, user); carregarFicha(nova, { aba: "salvas" }); carregarNegs(); setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`); }
     catch (e) { alerta(`Não foi possível clonar: ${e.message}`); }
   }
   function novaFicha() { setF(fichaVazia(tipo)); setOver({}); setModoOverride(false); setEditId(null); setEditNum(null); setMsg(""); }
+
+  // v513 — Voltar: ficha aberta de algum lugar → volta para lá; dentro de uma negociação/cliente/peça → volta aos cards
+  if (voltarRef) voltarRef.current = () => {
+    if (aba === "ficha" && origem?.externo) { window.dispatchEvent(new CustomEvent("ce:ir", { detail: origem.externo })); return true; }
+    if (aba === "ficha" && origem?.aba) { setAba(origem.aba); setOrigem(null); return true; }
+    if (aba === "salvas" && voltarSalvas.current?.()) return true;
+    if (aba !== "ficha") { setAba("ficha"); return !!f.item; }   // banco/salvas → ficha em andamento, se houver
+    return false;
+  };
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setP = (tec, k, v) => setF((s) => ({ ...s, [tec]: { ...s[tec], [k]: v } }));
@@ -539,7 +556,7 @@ function Fpp({ user, master, abrirId }) {
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
-      {aba === "salvas" && <FichasSalvas master={master} onEditar={carregarFicha} onClonar={clonarSalva} />}
+      {aba === "salvas" && <FichasSalvas master={master} onEditar={(x) => carregarFicha(x, { aba: "salvas" })} onClonar={clonarSalva} voltarRef={voltarSalvas} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1321,15 +1338,22 @@ const paramsAlterados = (f) => !!(f?.entradas?.paramsAlterados || (f?.overrides 
 function AlertaParams() {
   return <span title="Parâmetros alterados nesta ficha" className="inline-flex items-center justify-center rounded-full text-[10px] font-bold ml-1.5 align-middle" style={{ width: 16, height: 16, background: C.red, color: "#fff" }}>!</span>;
 }
-function FichasSalvas({ master, onEditar, onClonar }) {
+function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
   const [lista, setLista] = useState(null);
   const [, setPv] = useState(0);
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then((p) => { PARAMS_VOLTA = p; setPv((x) => x + 1); }).catch(() => {}); }, []);
-  const [sort, setSort] = useState({ campo: "createdAt", dir: "desc" });
-  const [guia, setGuia] = useState("todas");
-  const [filtro, setFiltro] = useState(null);          // { guia, valor } — card aberto
+  // v513 — guia, card aberto, busca e ordem ficam salvos na sessão: editar uma FPP e voltar devolve ao mesmo lugar
+  const nav0 = useMemo(() => ssLer("ce_fpp_nav", {}), []);
+  const [sort, setSort] = useState(nav0.sort || { campo: "createdAt", dir: "desc" });
+  const [guia, setGuia] = useState(nav0.guia || "todas");
+  const [filtro, setFiltro] = useState(nav0.filtro || null);          // { guia, valor } — card aberto
   const [clonando, setClonando] = useState(null);
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(nav0.busca || "");
+  useEffect(() => { ssGravar("ce_fpp_nav", { sort, guia, filtro, busca }); }, [sort, guia, filtro, busca]);
+  if (voltarRef) voltarRef.current = () => { if (filtro) { setFiltro(null); setBusca(""); return true; } return false; };
+  const [destaque, setDestaque] = useState(null);   // v513 — FPP que acabou de ser editada: rola até ela e pisca
+  const rolou = useRef(false);
+  const editar = (f) => { ssGravar("ce_fpp_ultima", f.id); onEditar && onEditar(f); };
   const [sel, setSel] = useState(() => new Set());
   const [aberta, setAberta] = useState(null);
   const [proposta, setProposta] = useState(null);
@@ -1337,6 +1361,18 @@ function FichasSalvas({ master, onEditar, onClonar }) {
 
   function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
   useEffect(carregar, []);
+  useEffect(() => {
+    if (!lista || rolou.current) return;
+    rolou.current = true;
+    const id = ssLer("ce_fpp_ultima", null);
+    if (!id) return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-fpp="${id}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      setDestaque(id); setTimeout(() => setDestaque(null), 2500);
+    });
+  }, [lista]);
 
   async function excluir(id) {
     if (!(await confirmar("Excluir esta ficha?"))) return;
@@ -1555,19 +1591,19 @@ function FichasSalvas({ master, onEditar, onClonar }) {
           </thead>
           <tbody>
             {dados.map((f) => (
-              <tr key={f.id} style={{ borderTop: `1px solid ${C.line}` }}>
+              <tr key={f.id} data-fpp={f.id} style={{ borderTop: `1px solid ${C.line}`, background: destaque === f.id ? C.accentSoft : undefined, transition: "background .6s" }}>
                 <td className="px-2 py-2"><input type="checkbox" checked={sel.has(f.id)} onChange={() => toggle(f.id)} /></td>
                 {cols.map((c) => {
                   let v = f[c.k];
                   if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
-                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{fmtFpp(v)}{paramsAlterados(f) && <AlertaParams />}</td>;
-                  else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-right font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{brl(valorFpp(f))}</td>;
+                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{fmtFpp(v)}{paramsAlterados(f) && <AlertaParams />}</td>;
+                  else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-right font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{brl(valorFpp(f))}</td>;
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
                   if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
                   if (typeof v === "string" && /[A-ZÀ-Ý]{3}/.test(v) && !/^R\$/.test(v)) v = sc(v);   // v414
-                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => onEditar && onEditar(f)}>{v}</td>;
+                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => editar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>

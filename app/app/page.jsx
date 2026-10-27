@@ -205,11 +205,11 @@ export default function Home() {
   const [fppInicial, setFppInicial] = useState(null);
   const [pedidoInicial, setPedidoInicial] = useState(null);   // v450 — tarefa FATURAR → abre o pedido na Gestão da produção
   const [rotaInicial, setRotaInicial] = useState(null);       // v450 — tarefa PROGRAMAR ENTREGA → demanda de rota preenchida   // v420   // v220: Matriz → Metas da Gestão direto
-  useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); }, [view]);
+  useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); if (view !== "comercial") setFppInicial(null); }, [view]);   // v513 — FPP aberta de fora não reabre sozinha
   // v365 — outras telas pedem para abrir o contas a pagar/receber já filtrado (ex.: NF lançada pela crítica do movimento fiscal)
   useEffect(() => {
     const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
-      if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, t: Date.now() }); setView("comercial"); }
+      if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, voltar: d.voltar || null, t: Date.now() }); setView("comercial"); }
       if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
       if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);

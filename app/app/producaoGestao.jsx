@@ -157,7 +157,7 @@ function PedidoTela({ numero, user, onClose }) {
     await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "obs", numero, obs, autorNome: nomeU(user) }) });
     setSalvObs(false); carregar();
   }
-  const editarFpp = (id) => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "fpp", fppId: id } })); onClose(); };
+  const editarFpp = (id) => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "fpp", fppId: id, voltar: { v: "pedido", numero } } })); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-6xl flex flex-col overflow-hidden shadow-2xl" style={{ background: C.bg, maxHeight: "90vh" }}>
