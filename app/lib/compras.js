@@ -275,8 +275,8 @@ export async function refazerDemandasDaFpp(fppId, db = prisma) {
   }
   return its.length;
 }
-export async function demandaDoItem(fpp, qtd, db = prisma) {
-  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
+export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null) {
+  const params = params0 || await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
   const mats = materiaisDaFpp(fpp, params);
   const ids = mats.map((m) => (m.det || {}).artigoId).filter(Boolean);
   const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } }) : [];
@@ -284,7 +284,10 @@ export async function demandaDoItem(fpp, qtd, db = prisma) {
   const out = [];
   for (const m of mats) {
     let artigoId = (m.det || {}).artigoId;
-    if (!artigoId || !porId[artigoId]) {   // FPP antiga, sem detalhe: cadastra pelo nome
+    // v526 — o artigo gravado no detalhe não bate mais com o detalhe (fornecedor/cor/código mudaram na FPP): procura/cadastra o certo
+    const k = chaveDet(m.det || {}), a0 = artigoId ? porId[artigoId] : null;
+    const bate = a0 && (a0.fornecedorId || null) === k.fornecedorId && (a0.cor ? norm(a0.cor) : null) === k.cor && (a0.codigo ? norm(a0.codigo) : null) === k.codigo;
+    if (!artigoId || !porId[artigoId] || (!bate && !(m.det?.fornecedorNome && !k.fornecedorId))) {   // FPP antiga, sem detalhe: cadastra pelo nome
       artigoId = await artigoDaFpp(m, fpp, db);
       porId[artigoId] = await db.artigo.findUnique({ where: { id: artigoId }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } });
     }
@@ -463,8 +466,28 @@ async function limparGolaVies(db) {
   await db.finConfig.create({ data: { chave: K_VIES, valor: JSON.stringify({ em: new Date().toISOString(), itens: n }) } }).catch(() => null);
 }
 
+// v526 — demandas do levantamento sempre conforme a FPP atual (no máx. a cada 20 s)
+let _refeitoEm = 0;
+export async function refazerLevantamento(db = prisma, forcar = false) {
+  if (!forcar && Date.now() - _refeitoEm < 20000) return 0;
+  _refeitoEm = Date.now();
+  const its = await db.compraItem.findMany({ where: { status: "LEVANTAMENTO", fppId: { not: null } } });
+  if (!its.length) return 0;
+  const fpps = Object.fromEntries((await db.fpp.findMany({ where: { id: { in: [...new Set(its.map((i) => i.fppId))] } } })).map((f) => [f.id, f]));
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
+  const chave = (l) => JSON.stringify((l || []).map((d) => [d.papel, d.artigoId, d.fornecedorId, d.cor, d.codigo, d.quantidade, d.valorUnitario, d.unidade, d.nome]));
+  let n = 0;
+  for (const v of its) {
+    const fpp = fpps[v.fppId]; if (!fpp) continue;
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
+    if (chave(nova) !== chave(v.demanda)) { await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } }); n++; }
+  }
+  return n;
+}
+
 export async function itensAbertos(db = prisma) {
   try { await limparGolaVies(db); } catch (e) { console.log("compras/gola viés:", e.message); }
+  try { await refazerLevantamento(db); } catch (e) { console.log("compras/refazer levantamento:", e.message); }
   const dispensados = await pedidosDispensados(db);   // v419
   const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
   const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cliente: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
