@@ -1019,10 +1019,11 @@ export function PicCompras({ user, fases, ir }) {
   }
   // v477 — ações sobre itens de vários PICs: os escolhidos, ou todos os que estão sem OC
   const todosAbertos = (l || []).flatMap((p) => p.itens.filter((i) => !i.oc).map((i) => ({ ...i, picNumero: p.numero })));
-  const alvo = sel.size ? todosAbertos.filter((i) => sel.has(i.id)) : todosAbertos;
+  const alvoGeral = sel.size ? todosAbertos.filter((i) => sel.has(i.id)) : todosAbertos;
+  const alvo = alvoGeral;
   const linha = (i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor,
     fornecedoresCotacao: v.extras.map((n) => porNome[String(n || "").trim().toUpperCase()]).filter(Boolean).map((x) => ({ id: x.id, nome: nomeFornec(x) })) }; };
-  async function acaoItens(acao) {
+  async function acaoItens(acao, alvo = alvoGeral) {   // v527 — alvo: itens escolhidos (barra de baixo) ou os do PIC (barra do PIC)
     const its = (acao === "salvarItens" ? todosAbertos : alvo).map(linha);
     const semCad = its.filter((x) => x.fornecedorId === undefined);
     if (semCad.length) return alerta(`Fornecedor não encontrado no cadastro: ${[...new Set(semCad.map((x) => x.nomeForn))].join(", ")}. Escolha um da lista.`);
@@ -1043,7 +1044,7 @@ export function PicCompras({ user, fases, ir }) {
     if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => o.numero).join(", ")} gerada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
     carregar();
   }
-  function cotacao() {
+  function cotacao(alvo = alvoGeral) {
     const g = {};
     // v482 — cada item vai para o card de cada um dos seus fornecedores (principal + até 4 extras)
     for (const i of alvo) { const v = val(i);
@@ -1085,10 +1086,20 @@ export function PicCompras({ user, fases, ir }) {
         for (const i of abertos) { const v = val(i); const k = v.fornecedor.trim() || "— sem fornecedor"; porF[k] = (porF[k] || 0) + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }
         return (
           <div key={p.id} id={`pic-${p.numero}`} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
               <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{p.numero} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
               <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>
               <Chip cor={p.status === "OC" ? C.green : C.accent} fundo={p.status === "OC" ? C.greenSoft : C.accentSoft}>{p.status === "OC" ? "OCs geradas" : `${abertos.length} sem OC`}</Chip>
+              {abertos.length > 0 && (() => {   // v527 — cotação e OC deste PIC: os marcados dele, ou todos os sem OC
+                const doPic = abertos.map((i) => ({ ...i, picNumero: p.numero }));
+                const marc = doPic.filter((i) => sel.has(i.id));
+                const lista = marc.length ? marc : doPic;
+                const rot = marc.length ? ` (${marc.length})` : "";
+                return <span className="flex items-center gap-1.5 ml-1">
+                  <button disabled={oc} onClick={() => cotacao(lista)} title={marc.length ? "Cotação dos itens marcados deste PIC" : "Cotação de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Gerar cotação{rot}</button>
+                  <button disabled={oc} onClick={() => acaoItens("ocsItens", lista)} title={marc.length ? "OCs dos itens marcados deste PIC" : "OCs de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />} Gerar OCs{rot}</button>
+                </span>;
+              })()}
             </div>
             <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
               <div className="w-5">{abertos.length > 0 && <input type="checkbox" title="Marcar todos deste PIC" checked={abertos.every((i) => sel.has(i.id))} onChange={(e) => setSel((s0) => { const n = new Set(s0); abertos.forEach((i) => (e.target.checked ? n.add(i.id) : n.delete(i.id))); return n; })} />}</div><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
@@ -1142,7 +1153,7 @@ export function PicCompras({ user, fases, ir }) {
           <label className="flex items-center gap-1.5 text-sm font-semibold cursor-pointer" style={{ color: C.navy }}><input type="checkbox" checked={sel.size === todosAbertos.length} onChange={(e) => setSel(e.target.checked ? new Set(todosAbertos.map((i) => i.id)) : new Set())} /> Todos</label>   {/* v480 */}
           <div className="flex-1 text-sm" style={{ color: C.sub }}>{sel.size ? <><b style={{ color: C.navy }}>{sel.size}</b> item(ns) escolhido(s) de {new Set(alvo.map((i) => i.picNumero)).size} PIC(s) · <button onClick={() => setSel(new Set())} className="underline">limpar</button></> : <>Sem escolha: vale para <b style={{ color: C.navy }}>todos os {todosAbertos.length}</b> itens sem OC. Marque itens (de qualquer PIC) para escolher.</>}</div>
           <button disabled={oc} onClick={() => acaoItens("salvarItens")} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar</button>
-          <button disabled={oc} onClick={cotacao} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
+          <button disabled={oc} onClick={() => cotacao()} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={14} /> Gerar cotação</button>
           <button disabled={oc} onClick={() => acaoItens("ocsItens")} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />} Gerar OCs por fornecedor</button>
         </div>
       )}
