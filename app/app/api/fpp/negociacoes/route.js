@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { listarNegociacoes, registrarNegociacao } from "../../../../lib/fppNumero";
+import { listarNegociacoes, registrarNegociacao, negociacoesNoCrm } from "../../../../lib/fppNumero";
 
 export const dynamic = "force-dynamic";
 
 // GET → nomes de negociação já usados (ordem alfabética)
-export async function GET() {
+export async function GET(req) {
+  if (new URL(req.url).searchParams.get("crm")) return NextResponse.json(await negociacoesNoCrm());   // v520
   return NextResponse.json(await listarNegociacoes());
 }
 // POST { nome } → grava um nome novo

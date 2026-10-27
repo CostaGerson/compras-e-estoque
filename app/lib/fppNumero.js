@@ -38,6 +38,17 @@ export async function registrarNegociacao(nome) {
   if (!n) return;
   await prisma.fppNegociacao.upsert({ where: { nome: n }, create: { nome: n }, update: {} }).catch(() => null);
 }
+// v520 — negociações com proposta enviada ao CRM: { NOME: { url, dealUrl, em, por } }
+export async function negociacoesNoCrm() {
+  const l = await prisma.fppNegociacao.findMany({ where: { crmUrl: { not: null } }, select: { nome: true, crmUrl: true, crmDealUrl: true, crmEnviadaEm: true, crmEnviadaPor: true } });
+  return Object.fromEntries(l.map((x) => [x.nome, { url: x.crmUrl, dealUrl: x.crmDealUrl, em: x.crmEnviadaEm, por: x.crmEnviadaPor }]));
+}
+export async function marcarPropostaCrm(nome, d) {
+  const n = normNeg(nome);
+  if (!n) return;
+  const data = { crmPropostaId: d.id || null, crmUrl: d.url || null, crmDealUrl: d.dealUrl || null, crmEnviadaEm: new Date(), crmEnviadaPor: d.por || null };
+  await prisma.fppNegociacao.upsert({ where: { nome: n }, create: { nome: n, ...data }, update: data });
+}
 export async function listarNegociacoes() {
   const usadas = await prisma.fpp.findMany({ where: { negociacao: { not: null } }, select: { negociacao: true }, distinct: ["negociacao"] });
   const salvas = await prisma.fppNegociacao.findMany({ select: { nome: true } });

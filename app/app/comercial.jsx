@@ -1367,6 +1367,11 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
 
   function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
   useEffect(carregar, []);
+  // v520 — negociações com proposta já enviada ao CRM
+  const [crmNeg, setCrmNeg] = useState({});
+  const [propNeg, setPropNeg] = useState(null);   // negociação da proposta aberta (só a da negociação inteira)
+  const carregarCrm = () => fetch("/api/fpp/negociacoes?crm=1").then((r) => r.json()).then((d) => setCrmNeg(d && typeof d === "object" && !Array.isArray(d) ? d : {})).catch(() => {});
+  useEffect(() => { carregarCrm(); }, []);
   useEffect(() => {
     if (!lista || rolou.current) return;
     rolou.current = true;
@@ -1468,8 +1473,16 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
               <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Voltar · {guiaFpp(filtro.guia).label}: <b>{filtro.valor}</b> · {dados.length} ficha(s)
             </button>
           ) : null}
-          {filtro && dados.length > 0 ? (
-            <button onClick={() => setProposta(dados)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
+          {filtro && dados.length > 0 && filtro.guia === "negociacao" && crmNeg[filtro.valor]?.url ? (
+            <span className="inline-flex items-center gap-2 flex-wrap">   {/* v520 — negociação com proposta enviada */}
+              <a href={crmNeg[filtro.valor].url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}55` }} title={crmNeg[filtro.valor].em ? `Enviada em ${new Date(crmNeg[filtro.valor].em).toLocaleString("pt-BR")}` : ""}>
+                <ExternalLink size={13} /> Proposta gerada · acompanhar no CRM
+              </a>
+              <button onClick={() => { setProposta(dados); setPropNeg(filtro.guia === "negociacao" ? filtro.valor : null); }} className="text-[11px] underline" style={{ color: C.sub }} title="Gera e envia outra proposta desta negociação">gerar outra</button>
+            </span>
+          ) : filtro && dados.length > 0 ? (
+            <button onClick={() => { setProposta(dados); setPropNeg(filtro.guia === "negociacao" ? filtro.valor : null); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>
               <Send size={13} /> Proposta {filtro.guia === "negociacao" ? "da negociação inteira" : `de todas (${dados.length})`}
             </button>
           ) : cards ? `${cards.length} ${g.label.toLowerCase()}(s) · ${lista.length} ficha(s)` : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
@@ -1552,7 +1565,10 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
               style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="text-sm font-bold" style={{ color: C.navy }}>{c.valor}</div>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: C.accentSoft, color: C.accent }}>{c.n} FPP(s)</span>
+                <span className="flex flex-col items-end gap-1">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: C.accentSoft, color: C.accent }}>{c.n} FPP(s)</span>
+                  {guia === "negociacao" && crmNeg[c.valor]?.url && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: C.greenSoft, color: C.green }}>Proposta no CRM</span>}
+                </span>
               </div>
               {master && guia !== "negociacao" && (
                 <div className="text-xs mb-2"><div style={{ color: C.sub }}>MC média por peça</div>
@@ -1625,7 +1641,8 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
       </div>}
 
       {aberta && <FichaDetalhe f={aberta} master={master} onClose={() => setAberta(null)} onProposta={() => { setProposta([aberta]); setAberta(null); }} />}
-      {proposta && <ProposalModal fichas={proposta} onClose={() => setProposta(null)} />}
+      {proposta && <ProposalModal fichas={proposta} onClose={() => { setProposta(null); setPropNeg(null); }}
+        negociacao={propNeg} onEnviado={carregarCrm} />}
     </div>
   );
 }
@@ -1700,7 +1717,7 @@ function porItem(fichas, valor) {
 }
 const leadTxt = (f) => (Number(f.leadTime) > 0 ? `${Number(f.leadTime)} DIAS` : "");
 
-function ProposalModal({ fichas, onClose }) {
+function ProposalModal({ fichas, onClose, negociacao, onEnviado }) {   // v520 — negociacao: proposta da negociação inteira
   const clientes = [...new Set(fichas.map((f) => f.clienteNome).filter(Boolean))];
   const [cliente, setCliente] = useState(clientes[0] || "—");
   const hoje = new Date().toLocaleDateString("pt-BR");
@@ -1748,12 +1765,13 @@ function ProposalModal({ fichas, onClose }) {
       body: JSON.stringify({
         clienteNome: cliente, ownerId, stage, title: titulo, paymentTerms: condicoes || null, deliveryTerms: prazo || null, leadTimeDias: leadMax || null,
         notes: [negs.length ? `NEGOCIAÇÃO ${negs.join(", ")}` : "", `FPP ${fichas.map((f) => fmtFpp(f.numero)).join(", ")}`].filter(Boolean).join(" · "),
-        items,
+        items, negociacao: negociacao || null,
       }),
     });
     const d = await r.json().catch(() => ({})); setEnviando(false);
     setRes(r.ok ? { ok: true, url: d.url, dealUrl: d.dealUrl } : { erro: d.error || "Falha ao enviar." });
     if (r.ok && d.url) window.open(d.url, "_blank", "noopener");   // v519 — abre a proposta criada (com os itens)
+    if (r.ok) onEnviado?.(d);
   }
 
   function imprimir() {
