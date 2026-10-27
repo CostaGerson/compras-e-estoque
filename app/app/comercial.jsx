@@ -724,7 +724,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
             <Card title="Personalização">
               {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
               <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} />
-              {num(f.arteTotal) > 0 && <div className="mt-2"><Inp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} /></div>}
+              {num(f.arteTotal) > 0 && <div className="mt-2"><ArteInp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} qtde={num(f.qtde)} /></div>}
               {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
               {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
                 <div key={tec} className="mb-3">
@@ -735,7 +735,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    <Inp label="Arte (total)" value={f[tec].arte} onChange={(v) => setP(tec, "arte", v)} />
+                    <ArteInp label="Arte (total)" value={f[tec].arte} onChange={(v) => setP(tec, "arte", v)} qtde={num(f.qtde)} />
                     {POS.map(([k, l]) => <Inp key={k} label={l} value={f[tec][k]} onChange={(v) => setP(tec, k, v)} />)}
                   </div>
                 </div>
@@ -1871,6 +1871,20 @@ function ProposalModal({ fichas, onClose }) {
 
 /* ---------- pequenos componentes ---------- */
 // v272 — lista de aplicações de personalização da FPP
+// v517 — campo de arte/tela/programa: ao sair do campo com valor novo, pede confirmação de que é o valor TOTAL de arte (rateado pela qtde)
+function ArteInput({ value, onChange, qtde, rotulo = "arte", className, style, title }) {
+  const ini = useRef(value);
+  async function sair() {
+    const antes = ini.current;
+    if (String(value ?? "") === String(antes ?? "") || !(num(value) > 0)) return;
+    const q = Math.max(1, Number(qtde) || 1);
+    const ok = await confirmar(`Confirma que ${brl(num(value))} é de fato o valor de ${rotulo}?\n\nEle é o valor TOTAL do pedido e será dividido pela quantidade total (${q} peça${q > 1 ? "s" : ""}) = ${brl(num(value) / q)} por peça.${!(Number(qtde) > 0) ? "\n\nAtenção: a qtde da ficha ainda não foi preenchida." : ""}`, { titulo: "Confirmar valor de arte" });
+    if (!ok) { onChange(antes ?? ""); return; }
+    ini.current = value;
+  }
+  return <input value={value || ""} onFocus={() => { ini.current = value; }} onChange={(e) => onChange(e.target.value)} onBlur={sair} inputMode="decimal" className={className} style={style} title={title} />;
+}
+
 function PersAplicacoes({ lista, onChange, params, qtde }) {
   const pc = silkPorCorDe(params);
   const add = () => onChange([...lista, { local: "PEITO_E", metodo: "SILK", cores: 1, valor: "", interno: true }]);
@@ -1905,7 +1919,7 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
               {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
               {temArte
                 ? lbl(`${a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)`, <>
-                    <input value={a.arte || ""} onChange={(e) => mud(i, "arte", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel}
+                    <ArteInput value={a.arte || ""} onChange={(v) => mud(i, "arte", v)} qtde={qtde} rotulo={a.metodo === "BORDADO" ? "programa de bordado" : "arte / tela"} className="w-full px-2 py-1.5 rounded text-sm" style={sel}
                       title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} />
                     {num(a.arte) > 0 && <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>+{brl(num(a.arte) / Math.max(1, qtde || 1))}/pç</div>}
                   </>)
@@ -2246,6 +2260,15 @@ function AvMetro({ c, semTipo }) {
         : c.falta !== undefined
           ? <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {c.falta === "TIPO" || semTipo ? "escolha o tipo de faixa" : c.falta === "CONSUMO" ? "aplicação sem consumo (m/peça) no banco de dados" : c.falta === "TACTEL" ? "faixa montada sem o R$/m do tactel no banco de dados" : "tipo de faixa sem R$/m no banco de dados"}</span></>
           : <>R$ {fmtNum(c.valor, 2)}/pç <span style={{ color: C.accent }}>· {semTipo ? "escolha o tipo de faixa" : "sem consumo ou R$/m no banco de dados"}</span></>}
+    </div>
+  );
+}
+// v517 — Inp de arte (mesmo visual), com a confirmação do ArteInput
+function ArteInp({ label, value, onChange, qtde, full }) {
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <ArteInput value={value} onChange={onChange} qtde={qtde} className={`px-2 py-1.5 rounded text-sm ${full ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
     </div>
   );
 }
