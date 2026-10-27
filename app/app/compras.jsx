@@ -1585,6 +1585,14 @@ export function Cotacoes({ user, fases, ir }) {
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                           {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
+                          {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique
+                            const ok = v != null && Math.abs(v - i.previstoFpp) < 0.00005;
+                            const dif = v != null && !ok ? (v / i.previstoFpp - 1) * 100 : null;
+                            return <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>previsto na FPP: <b style={{ color: C.navy }}>{brl(i.previstoFpp)}</b>
+                              {ok ? <span className="font-semibold" style={{ color: C.green }}>✓ confirmado</span>
+                                : <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: numBR(i.previstoFpp) } : y)) }))} className="px-1.5 rounded font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green }}>confirmar valor da FPP</button>}
+                              {dif != null && <span style={{ color: dif > 0 ? C.red : C.green }}>{dif > 0 ? "+" : ""}{dif.toFixed(1).replace(".", ",")}% vs FPP</span>}</div>;
+                          })()}
                         </div>
                       </div>
                       <div className="w-28 text-right" style={{ color: C.text }}>{qtdU(i.quantidade, i.unidade)}</div>
@@ -1597,11 +1605,28 @@ export function Cotacoes({ user, fases, ir }) {
                 })}
               </div>
 
-              {/* resposta do fornecedor */}
-              <div className="px-5 py-3 grid gap-3" style={{ borderTop: `1px solid ${C.line}`, background: "#FAFBFC", gridTemplateColumns: "180px 170px minmax(0,1fr)" }}>
-                <label className={lbl} style={{ color: C.sub }}>Condição de pagamento<input value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
-                <label className={lbl} style={{ color: C.sub }}>Entrega prevista<input type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
-                <label className={lbl} style={{ color: C.sub }}>Observação<input value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} className={`${inp} block mt-1 w-full normal-case font-normal tracking-normal`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} /></label>
+              {c.itens.some((i, k) => i.previstoFpp != null && !d.itens[k]?.naoTem && lerNum(d.itens[k]?.valorUnitario) !== i.previstoFpp) && (   // v528
+                <div className="px-5 pb-2 flex justify-end">
+                  <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (c.itens[j]?.previstoFpp != null && !y.naoTem && !lerNum(y.valorUnitario) ? { ...y, valorUnitario: numBR(c.itens[j].previstoFpp) } : y)) }))}
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green, background: C.panel }} title="Preenche os itens ainda sem valor com o valor previsto na FPP">Confirmar valores da FPP nos itens sem valor</button>
+                </div>
+              )}
+              {/* resposta do fornecedor — v528: condição e entrega lado a lado, observação em linha própria (não sobrepõe) */}
+              <div className="px-5 py-3 space-y-3" style={{ borderTop: `1px solid ${C.line}`, background: "#FAFBFC" }}>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex-1" style={{ minWidth: 180, maxWidth: 260 }}>
+                    <div className={lbl} style={{ color: C.sub }}>Condição de pagamento</div>
+                    <input value={d.condicao} onChange={(e) => setD(c, (x) => ({ ...x, condicao: e.target.value }))} placeholder="ex.: 30/60 dias" className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} />
+                  </div>
+                  <div style={{ width: 170 }}>
+                    <div className={lbl} style={{ color: C.sub }}>Entrega prevista</div>
+                    <input type="date" value={d.prazoEntrega} onChange={(e) => setD(c, (x) => ({ ...x, prazoEntrega: e.target.value }))} className={`${inp} block mt-1 w-full`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }} />
+                  </div>
+                </div>
+                <div>
+                  <div className={lbl} style={{ color: C.sub }}>Observação</div>
+                  <textarea rows={2} value={d.obs} onChange={(e) => setD(c, (x) => ({ ...x, obs: e.target.value }))} placeholder="observações do fornecedor sobre a cotação" className={`${inp} block mt-1 w-full resize-y`} style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff", minHeight: 52 }} />
+                </div>
               </div>
               <ArquivosCotacao c={c} user={user} onMudou={() => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => Array.isArray(x) && setL(x)).catch(() => {})} />
 

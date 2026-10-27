@@ -27,8 +27,20 @@ export async function listarCotacoes() {
   const ocs = Object.fromEntries(ocL.map((o) => [o.id, o.numero]));
   const rotasOc = await rotasDeColeta(ocL);   // v486
   const formaOc = Object.fromEntries(ocL.map((o) => [o.id, o.formaRecebimento]));
+  // v528 — valor previsto na FPP de cada item (média ponderada da demanda dos itens de pedido que geraram o PIC)
+  const pids = [...new Set(l.flatMap((c) => (Array.isArray(c.itens) ? c.itens : []).flatMap((i) => i.picItemIds || [])))];
+  const pis = pids.length ? await prisma.picItem.findMany({ where: { id: { in: pids } }, select: { id: true, picId: true, artigoId: true } }) : [];
+  const cis = pis.length ? await prisma.compraItem.findMany({ where: { picId: { in: [...new Set(pis.map((x) => x.picId))] } }, select: { picId: true, demanda: true } }) : [];
+  const prev = {};   // picItemId → { q, v }
+  for (const pi of pis) {
+    let q = 0, v = 0;
+    for (const ci of cis) if (ci.picId === pi.picId) for (const d of Array.isArray(ci.demanda) ? ci.demanda : [])
+      if ((d.equiparadoA || d.artigoId) === pi.artigoId && Number(d.valorUnitario) > 0) { q += Number(d.quantidade) || 0; v += (Number(d.quantidade) || 0) * Number(d.valorUnitario); }
+    if (q > 0) prev[pi.id] = { q, v };
+  }
+  const previsto = (i) => { let q = 0, v = 0; for (const id of i.picItemIds || []) if (prev[id]) { q += prev[id].q; v += prev[id].v; } return q > 0 ? Math.round((v / q) * 10000) / 10000 : null; };
   const arqs = await prisma.cotacaoArquivo.findMany({ where: { cotacaoId: { in: l.map((c) => c.id) } }, select: { id: true, cotacaoId: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } });   // v481
-  return l.map((c) => ({ ...out(c), arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, ocForma: formaOc[c.ocId] || null, rota: rotasOc[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
+  return l.map((c) => ({ ...out(c), itens: (Array.isArray(c.itens) ? c.itens : []).map((i) => ({ ...i, previstoFpp: previsto(i) })), arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, ocForma: formaOc[c.ocId] || null, rota: rotasOc[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
 }
 
 // resposta do fornecedor: { id, itens: [{ valorUnitario, prazo, obs }] (mesma ordem), condicao, prazoEntrega, obs }
