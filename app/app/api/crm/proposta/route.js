@@ -128,7 +128,11 @@ export async function POST(req) {
        values (${ph.join(", ")}, 'meridian'::public."Brand", now())`, vals);
 
     await client.query("COMMIT");
-    return NextResponse.json({ ok: true, proposalId: campos.id, dealId, companyId, total_cents: total, chavesItem: chaves });
+    // v519 — links diretos: a proposta (já com os itens) e o negócio no CRM. Sem o link, abria-se o negócio e o botão
+    //   PROPOSTA do CRM criava uma proposta NOVA em branco (sem itens).
+    const base = String(process.env.NEXT_PUBLIC_CRM_URL || "https://crm.meridianpro.com.br").replace(/\/+$/, "");
+    return NextResponse.json({ ok: true, proposalId: campos.id, dealId, companyId, total_cents: total, chavesItem: chaves,
+      url: `${base}/proposal-template.html?id=${encodeURIComponent(campos.id)}`, dealUrl: `${base}/deal/${dealId}` });
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     return NextResponse.json({ error: "Falha ao gravar no CRM: " + (e?.message || e) }, { status: 500 });

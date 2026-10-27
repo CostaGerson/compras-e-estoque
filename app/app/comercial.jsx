@@ -1752,7 +1752,8 @@ function ProposalModal({ fichas, onClose }) {
       }),
     });
     const d = await r.json().catch(() => ({})); setEnviando(false);
-    setRes(r.ok ? { ok: true, url: d.url } : { erro: d.error || "Falha ao enviar." });
+    setRes(r.ok ? { ok: true, url: d.url, dealUrl: d.dealUrl } : { erro: d.error || "Falha ao enviar." });
+    if (r.ok && d.url) window.open(d.url, "_blank", "noopener");   // v519 — abre a proposta criada (com os itens)
   }
 
   function imprimir() {
@@ -1859,7 +1860,8 @@ function ProposalModal({ fichas, onClose }) {
             </button>
           </div>
           {res?.ok && <div className="text-xs mt-2 text-right" style={{ color: C.green }}>
-            Proposta criada no CRM ✓ {res.url && <a href={res.url} target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: "underline" }}>abrir no CRM</a>}
+            Proposta criada no CRM ✓ {res.url && <a href={res.url} target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: "underline" }}>abrir a proposta</a>}{res.dealUrl && <> · <a href={res.dealUrl} target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: "underline" }}>abrir o negócio</a></>}
+            <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>No CRM, abra a proposta pela lista do negócio — o botão PROPOSTA de lá cria uma nova em branco.</div>
           </div>}
           {res?.erro && <div className="text-xs mt-2 text-right" style={{ color: "#E5484D" }}>{res.erro}</div>}
           {meta?.error && <div className="text-xs mt-1 text-right" style={{ color: C.sub }}>CRM indisponível — só PDF disponível.</div>}
