@@ -1698,6 +1698,7 @@ model Tarefa {
   concluidaPorNome String?
   hora             String?                       // v226: "HH:MM" (opcional)
   horaFim          String?                       // v226: "HH:MM" (opcional)
+  lembreteChave    String?                       // v551 — "AAAA-MM-DD|HH:MM" do último lembrete enviado ao celular
   natureza         String    @default("FUNCIONAL") // v226: FUNCIONAL | PESSOAL (pessoal é sempre privada)
   projetoId        Int?                          // v226: TarefaProjeto
   createdAt        DateTime  @default(now())

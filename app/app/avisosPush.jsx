@@ -15,7 +15,7 @@ async function inscrever(usuarioId) {
   await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId, acao: "inscrever", sub: sub.toJSON(), aparelho: navigator.userAgent }) });
 }
 
-export default function AvisosPush({ user, C }) {
+export default function AvisosPush({ user, C, rotulo = "avisos de nova rota", compacto }) {   // v551 — rótulo e versão compacta (agenda)
   const [st, setSt] = useState("...");   // sem | ios | pedir | ok | negado | erro
   const suporte = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   useEffect(() => {
@@ -35,11 +35,12 @@ export default function AvisosPush({ user, C }) {
   };
   if (st === "ok" || st === "..." || st === "sem") return null;
   const caixa = { background: C.yellowSoft, color: C.yellow };
-  if (st === "ios") return <div className="rounded-2xl px-4 py-3 text-sm font-semibold" style={caixa}>🔔 Para receber aviso de nova rota no iPhone: toque em Compartilhar › <b>Adicionar à Tela de Início</b> e abra o sistema pelo ícone.</div>;
+  if (st === "ios") return <div className="rounded-2xl px-4 py-3 text-sm font-semibold" style={caixa}>🔔 Para receber {rotulo} no iPhone: toque em Compartilhar › <b>Adicionar à Tela de Início</b> e abra o sistema pelo ícone.</div>;
   if (st === "negado") return <div className="rounded-2xl px-4 py-3 text-sm font-semibold" style={caixa}>🔕 As notificações estão bloqueadas. Libere em Configurações do celular › Notificações › ERP Meridian (ou do navegador).</div>;
+  if (compacto) return <button type="button" onClick={ligar} className="rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: C.navy, color: "#fff" }}>🔔 {st === "erro" ? "Tentar de novo" : `Ativar ${rotulo}`}</button>;
   return (
     <button type="button" onClick={ligar} className="w-full rounded-2xl font-extrabold flex items-center justify-center gap-2 shadow-md" style={{ background: C.navy, color: "#fff", minHeight: 56, fontSize: 17 }}>
-      🔔 {st === "erro" ? "Tentar de novo: ativar avisos de rota" : "Ativar avisos de nova rota"}
+      🔔 {st === "erro" ? `Tentar de novo: ativar ${rotulo}` : `Ativar ${rotulo}`}
     </button>
   );
 }

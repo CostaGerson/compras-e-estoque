@@ -9,6 +9,7 @@ import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 import { useMobile } from "./useMobile";   // v550
+import AvisosPush from "./avisosPush";   // v551 — lembrete 30 min antes das tarefas
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085",
@@ -699,6 +700,7 @@ export function Agenda({ user }) {
             ) : <div className="text-xl font-bold" style={{ color: A.texto }}>{proj ? proj.nome : "Agenda"}</div>}
             {mobile && <button onClick={() => setProjForm({})} title="Novo projeto" className="p-2 rounded-lg shrink-0" style={{ border: `1px solid ${A.linha}`, color: A.sub }}><Plus size={18} /></button>}
           </div>
+          <div className="pb-2"><AvisosPush user={user} C={C} rotulo="lembretes no celular (30 min antes de cada tarefa com horário)" compacto /></div>
           <div className={`flex items-center gap-1 pb-2 ${mobile ? "flex-wrap" : ""}`}>
             <Aba k="calendario" t="Calendário" atual={tela} set={setTela} />
             <Aba k="tarefas" t="Tarefas" atual={tela} set={setTela} />

@@ -227,7 +227,8 @@ export default function Home() {
 
   const [tokenReset, setTokenReset] = useState(null);   // v167 — link "redefinir senha" do e-mail
   // v490 — ao atualizar a página, volta para a tela em que estava (guardada nesta aba do navegador)
-  useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t); } catch {} }, []);
+  useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t);
+    const q = new URLSearchParams(window.location.search).get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
   useEffect(() => {
     setUser(lerSessao()); setCarregouSessao(true);
