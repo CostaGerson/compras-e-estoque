@@ -401,6 +401,9 @@ model OrdemCompra {
   nfEm                DateTime?
   previsaoEntrega     DateTime? @db.Date          // v497 — previsão de chegada (NF/transportadora/fornecedor); coleta usa a data da rota
   cnpjsAceitos        Json      @default("[]")  // v494 — CNPJs de emitente aceitos para esta OC (fora do cadastro do fornecedor)
+  baixaEm             DateTime?                     // v532 — baixa: material recebido
+  baixaPorNome        String?
+  baixaJustificativa  String?                       // obrigatória quando a OC é baixada sem NF
   obs                 String?
   criadoPorNome       String?
   createdAt           DateTime  @default(now())
@@ -2152,7 +2155,7 @@ model CotacaoArquivo {
 model OcArquivo {
   id            Int      @id @default(autoincrement())
   ocId          Int
-  tipo          String                           // XML | PDF | OUTRO
+  tipo          String                           // XML | PDF | OUTRO | BAIXA (v532: comprovante/foto do recebimento)
   nome          String
   mime          String?
   tamanho       Int      @default(0)

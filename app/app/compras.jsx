@@ -1190,14 +1190,14 @@ export function OrdensCompra({ user, fases, ir }) {
     const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
     carregar();
   };
-  const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : true));
+  const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : filtro === "baixadas" ? o.status === "RECEBIDA" : true));   // v532 — Baixadas
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
   return (
     <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
       <div className="flex items-center gap-2 mb-3">
-        {[["ativas", "Em andamento"], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
+        {[["ativas", "Em andamento"], ["baixadas", `Baixadas (${(l || []).filter((o) => o.status === "RECEBIDA").length})`], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
         <span className="text-sm ml-auto" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
@@ -1245,7 +1245,7 @@ export function OrdensCompra({ user, fases, ir }) {
                 <div className="flex flex-wrap items-end gap-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                   <label className="text-xs" style={{ color: C.sub }}>Condição de faturamento<input defaultValue={o.condicaoFaturamento || ""} onBlur={(e) => e.target.value !== (o.condicaoFaturamento || "") && salvar(o, { condicaoFaturamento: e.target.value })} placeholder="ex.: 30 dias" className="block mt-1 px-2 py-1 rounded text-sm w-40" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Prazo na fábrica<input type="date" defaultValue={o.prazoFabrica ? String(o.prazoFabrica).slice(0, 10) : ""} onChange={(e) => salvar(o, { prazoFabrica: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-                  <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+                  <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} disabled={o.status === "RECEBIDA"} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).filter(([k]) => k !== "RECEBIDA" || o.status === "RECEBIDA").map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento && o.formaRecebimento !== "COLETA" && <label className="text-xs" style={{ color: C.sub }}>Previsão de chegada<input type="date" defaultValue={o.previsaoEntrega || ""} onChange={(e) => salvar(o, { previsaoEntrega: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}   {/* v497 */}
                   <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
@@ -1262,8 +1262,9 @@ export function OrdensCompra({ user, fases, ir }) {
                     </>; })()}
                 </div>
                 <NfsDaOc o={o} user={user} onMudou={carregar} />   {/* v494 — NFs da OC: movimento fiscal, contas, conferência */}
-                <div>
-                  <button onClick={() => imprimirOc(o)} className="ml-auto text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
+                <BaixaOc o={o} user={user} onMudou={carregar} />   {/* v532 — baixa (material recebido) */}
+                <div className="flex justify-end mt-3">
+                  <button onClick={() => imprimirOc(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
                 </div>
               </div>
             )}
@@ -1836,6 +1837,78 @@ function JanelaPicOc({ jan, onClose, ir }) {
 }
 
 // ---------- v494 — NFs da OC: sobe pelo lançamento do movimento fiscal, confere com a OC e permite corrigir ----------
+// v532 — baixa da OC: material recebido, com arquivos (fotos/comprovante); sem NF anexada exige justificativa.
+// Quando todas as OCs dos materiais de um item de pedido estão baixadas, o item é liberado para o PCP (Maycon).
+function BaixaOc({ o, user, onMudou }) {
+  const [jan, setJan] = useState(false);
+  const [arqs, setArqs] = useState([]);
+  const [just, setJust] = useState("");
+  const [oc, setOc] = useState(false);
+  const temNf = (o.nfs || []).length > 0 || (o.arquivos || []).some((a) => a.tipo === "XML" || a.tipo === "PDF");
+  const daBaixa = (o.arquivos || []).filter((a) => a.tipo === "BAIXA");
+  const add = (fs) => setArqs((l) => [...l, ...fs.filter((f) => !l.some((x) => x.name === f.name && x.size === f.size))]);
+  const fechar = () => { setJan(false); setArqs([]); setJust(""); };
+  async function baixar() {
+    if (!temNf && just.trim().length < 5) return alerta("Sem NF anexada: escreva a justificativa para baixar a OC.");
+    setOc(true);
+    try {
+      const arquivos = [];
+      for (const f of arqs) arquivos.push({ nome: f.name, mime: f.type, conteudo: await lerB64(f) });
+      const r = await fetch("/api/compras/oc/baixa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ocId: o.id, justificativa: just, arquivos, quem: nomeUser(user) }) });
+      const x = await r.json().catch(() => ({}));
+      setOc(false);
+      if (!r.ok) return alerta(x.error || "Erro ao baixar a OC.");
+      fechar(); onMudou();
+      alerta(`${o.numero} baixada (material recebido).${x.liberados ? ` ${x.liberados} item(ns) liberado(s) para a programação do PCP · pedido(s) ${x.pedidos.join(", ")}.` : ""}`);
+    } catch (e) { setOc(false); alerta(e.message); }
+  }
+  async function reabrir() {
+    if (!(await confirmar(`Desfazer a baixa da ${o.numero}? Os itens de pedido liberados por ela voltam a aguardar o material.`))) return;
+    const r = await fetch("/api/compras/oc/baixa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "reabrir", ocId: o.id }) });
+    const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro."); onMudou();
+  }
+  const listaArqs = daBaixa.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1.5">{daBaixa.map((a) => (
+    <a key={a.id} href={`/api/compras/oc/arquivos?id=${a.id}`} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1 px-2 py-0.5 rounded" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.blue }}><Paperclip size={11} /> <span className="max-w-[180px] truncate">{a.nome}</span></a>))}</div>;
+  if (o.status === "CANCELADA") return null;
+  if (o.status === "RECEBIDA") return (
+    <div className="mt-3 rounded-lg p-3" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <PackageCheck size={16} style={{ color: C.green }} />
+        <b style={{ color: C.green }}>Baixada · material recebido</b>
+        {o.baixa?.em && <span className="text-xs" style={{ color: C.sub }}>{new Date(o.baixa.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{o.baixa.por ? ` · ${o.baixa.por}` : ""}</span>}
+        <button onClick={reabrir} className="ml-auto text-xs px-2 py-1 rounded flex items-center gap-1" style={{ border: `1px solid ${C.line}`, background: "#fff", color: C.sub }}><Undo2 size={12} /> desfazer baixa</button>
+      </div>
+      {o.baixa?.justificativa && <div className="text-xs mt-1" style={{ color: C.text }}><b>Justificativa (sem NF):</b> {o.baixa.justificativa}</div>}
+      {listaArqs}
+    </div>
+  );
+  return (
+    <div className="mt-3">
+      <button onClick={() => setJan(true)} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.green, color: "#fff" }}><PackageCheck size={15} /> Baixar OC · material recebido</button>
+      {jan && (
+        <Modal titulo={`Baixar ${o.numero} · ${o.fornecedor.nome}`} onClose={fechar}>
+          <div className="text-sm mb-3" style={{ color: C.text }}>Confirma que o material desta OC foi recebido? Ela passa para <b>Baixadas</b> e, quando todas as OCs de um item de pedido estiverem baixadas, o item é liberado para a programação no PCP.</div>
+          <div className="text-xs mb-3 px-2 py-1.5 rounded" style={{ background: temNf ? C.greenSoft : C.yellowSoft, color: temNf ? C.green : C.yellow }}>{temNf ? `NF anexada${(o.nfs || []).length ? `: ${o.nfs.map((n) => n.numero).join(", ")}` : ""}` : "Sem NF anexada nesta OC — a justificativa é obrigatória."}</div>
+          <div className="rounded-lg p-3 mb-3" style={{ border: `2px dashed ${C.line}` }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) add([...e.dataTransfer.files]); }}
+            onPaste={(e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) add(fs); }} tabIndex={0}>
+            <label className="text-xs font-semibold cursor-pointer flex items-center gap-1.5" style={{ color: C.accent }}><ImagePlus size={14} /> Anexar fotos, comprovante ou canhoto (escolher, arrastar ou Ctrl+V)
+              <input type="file" multiple accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) add(fs); }} /></label>
+            {arqs.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{arqs.map((f, k) => (
+              <span key={k} className="text-xs flex items-center gap-1 px-2 py-0.5 rounded" style={{ background: C.panel2, border: `1px solid ${C.line}` }}><Paperclip size={11} /> <span className="max-w-[180px] truncate">{f.name}</span>
+                <button onClick={() => setArqs((l) => l.filter((_, j) => j !== k))} style={{ color: C.sub }}><X size={11} /></button></span>))}</div>}
+          </div>
+          <label className="text-xs block mb-3" style={{ color: C.sub }}>Justificativa{temNf ? " (opcional)" : " — obrigatória sem NF"}
+            <textarea value={just} onChange={(e) => setJust(e.target.value)} rows={3} placeholder={temNf ? "Observação do recebimento" : "Por que está baixando sem NF? (ex.: NF vem depois, remessa sem nota, material de amostra…)"} className="block w-full mt-1 px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${!temNf && just.trim().length < 5 ? C.accent : C.line}`, color: C.text }} /></label>
+          <div className="flex justify-end gap-2">
+            <button onClick={fechar} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+            <button onClick={baixar} disabled={oc} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: C.green, color: "#fff" }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <PackageCheck size={14} />} Confirmar baixa</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function NfsDaOc({ o, user, onMudou }) {
   const [imp, setImp] = useState(null);
   const [arr, setArr] = useState(false);

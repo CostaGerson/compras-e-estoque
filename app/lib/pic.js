@@ -150,6 +150,7 @@ export async function listarOcs() {
     entrega: entregaDaOc(o, rotas[o.id]), previsaoEntrega: o.previsaoEntrega ? o.previsaoEntrega.toISOString().slice(0, 10) : null,   // v497
     nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
+    baixa: o.baixaEm ? { em: o.baixaEm, por: o.baixaPorNome, justificativa: o.baixaJustificativa } : null,   // v532
     itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
 }
@@ -176,7 +177,7 @@ export async function salvarOc(b) {
     ...(b.prazoTransportadora !== undefined ? { prazoTransportadora: dt(b.prazoTransportadora) } : {}),
     ...(b.previsaoEntrega !== undefined ? { previsaoEntrega: dt(b.previsaoEntrega) } : {}),   // v497
     ...(b.obs !== undefined ? { obs: String(b.obs || "").trim() || null } : {}),
-    ...(["ABERTA", "ENVIADA", "NF_EMITIDA", "RECEBIDA", "CANCELADA"].includes(b.status) ? { status: b.status } : {}),
+    ...(["ABERTA", "ENVIADA", "NF_EMITIDA", "CANCELADA"].includes(b.status) && o.status !== "RECEBIDA" ? { status: b.status } : {}),   // v532 — RECEBIDA só pela baixa
     ...(b.formaRecebimento !== undefined ? { formaRecebimento: ["COLETA", "TRANSPORTADORA", "ENTREGA_PROPRIA"].includes(b.formaRecebimento) ? b.formaRecebimento : null } : {}),
     ...(b.diasAposFaturamento !== undefined ? { diasAposFaturamento: parseInt(b.diasAposFaturamento, 10) || null } : {}),
   } });
@@ -325,4 +326,72 @@ export function entregaDaOc(o, rota) {
   if (o.formaRecebimento === "TRANSPORTADORA") return { status: "EM_TRANSPORTADORA", previsao, fonte: o.previsaoEntrega ? "informada" : calc ? "calculada" : "oc" };
   if (o.formaRecebimento === "ENTREGA_PROPRIA") return { status: "ENTREGA_FORNECEDOR", previsao, fonte: o.previsaoEntrega ? "informada" : "oc" };
   return { status: null, previsao };
+}
+
+// ---------------- v532 — baixa da OC (material recebido) ----------------
+const MAX_ARQ = 15 * 1024 * 1024;
+// arquivos: [{ nome, mime, conteudo(base64) }] — comprovante, foto do material, canhoto…
+export async function baixarOc({ ocId, justificativa, arquivos }, quem) {
+  const o = await prisma.ordemCompra.findUnique({ where: { id: Number(ocId) || 0 } });
+  if (!o) return { error: "OC não encontrada." };
+  if (o.status === "RECEBIDA") return { error: "Esta OC já foi baixada." };
+  if (o.status === "CANCELADA") return { error: "OC cancelada não pode ser baixada." };
+  const temNf = (await prisma.fiscalNota.count({ where: { ocId: o.id } })) > 0 || (await prisma.ocArquivo.count({ where: { ocId: o.id, tipo: { in: ["XML", "PDF"] } } })) > 0;
+  const just = String(justificativa || "").trim();
+  if (!temNf && just.length < 5) return { error: "Sem NF anexada: escreva a justificativa para baixar a OC." };
+  for (const a of arquivos || []) {
+    const conteudo = String(a.conteudo || "").replace(/^data:[^,]*,/, "");
+    const tamanho = Math.floor((conteudo.length * 3) / 4);
+    if (!conteudo) continue;
+    if (tamanho > MAX_ARQ) return { error: `${a.nome}: maior que 15 MB.` };
+  }
+  for (const a of arquivos || []) {
+    const conteudo = String(a.conteudo || "").replace(/^data:[^,]*,/, "");
+    if (!conteudo) continue;
+    await prisma.ocArquivo.create({ data: { ocId: o.id, tipo: "BAIXA", nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, tamanho: Math.floor((conteudo.length * 3) / 4), conteudo, criadoPorNome: quem || null } });
+  }
+  await prisma.ordemCompra.update({ where: { id: o.id }, data: { status: "RECEBIDA", baixaEm: new Date(), baixaPorNome: quem || null, baixaJustificativa: just || null } });
+  const lib = await liberarItensRecebidos(o.id);
+  return { ok: true, ...lib };
+}
+
+// desfaz a baixa (os arquivos da baixa ficam) — itens liberados voltam para "NF"/"OC"
+export async function reabrirOc(ocId) {
+  const o = await prisma.ordemCompra.findUnique({ where: { id: Number(ocId) || 0 } });
+  if (!o || o.status !== "RECEBIDA") return { error: "OC não está baixada." };
+  await prisma.ordemCompra.update({ where: { id: o.id }, data: { status: o.nfNumero ? "NF_EMITIDA" : "ENVIADA", baixaEm: null, baixaPorNome: null, baixaJustificativa: null } });
+  const pids = await picsDaOc(o.id);
+  const its = await prisma.compraItem.findMany({ where: { picId: { in: pids }, status: "ENTREGUE" } });
+  if (its.length) await prisma.compraItem.updateMany({ where: { id: { in: its.map((i) => i.id) } }, data: { status: "NF", liberadoEm: null, autorizadoEm: null } });
+  await statusNfItens(o.id).catch(() => null);
+  return { ok: true, voltaram: its.length };
+}
+
+async function picsDaOc(ocId) {
+  const oc = await prisma.ordemCompra.findUnique({ where: { id: ocId }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });
+  return [...new Set([oc.picId, ...oc.itens.map((i) => i.picItem?.picId)].filter(Boolean))];
+}
+
+// item de pedido fica liberado para o PCP (sistema do Maycon) quando todas as OCs dos materiais dele estão baixadas
+export async function liberarItensRecebidos(ocId) {
+  const pids = await picsDaOc(ocId);
+  const liberados = [];
+  for (const pid of pids) {
+    const ocis = await prisma.ocItem.findMany({ where: { picItem: { picId: pid } }, include: { oc: { select: { status: true } } } });
+    const porArt = {};
+    for (const x of ocis) { if (x.oc.status === "CANCELADA") continue; (porArt[x.artigoId] ||= []).push(x.oc.status === "RECEBIDA"); }
+    // artigo do PIC ainda sem OC: não está recebido
+    const semOc = await prisma.picItem.findMany({ where: { picId: pid, ocItens: { none: {} } }, select: { artigoId: true } });
+    for (const s of semOc) (porArt[s.artigoId] ||= []).push(false);
+    const its = await prisma.compraItem.findMany({ where: { picId: pid, status: { in: ["PIC", "OC", "NF"] } } });
+    for (const it of its) {
+      const arts = Object.keys(necessidade(it)).map(Number).filter((a) => porArt[a]);   // só os materiais que foram comprados neste PIC
+      if (!arts.length || !arts.every((a) => porArt[a].length && porArt[a].every(Boolean))) continue;
+      const agora = new Date();
+      await prisma.compraItem.update({ where: { id: it.id }, data: { status: "ENTREGUE", liberadoEm: agora, autorizadoEm: agora } });
+      liberados.push({ pedido: it.pedidoNumero, chave: it.chave, descricao: it.descricao, avulsa: ehAvulsa(it.pedidoNumero) });
+    }
+  }
+  const peds = liberados.filter((x) => !x.avulsa);
+  return { liberados: peds.length, pedidos: [...new Set(peds.map((x) => x.pedido))] };
 }
