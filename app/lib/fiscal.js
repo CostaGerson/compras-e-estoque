@@ -117,24 +117,36 @@ export function dvChaveOk(ch) {
   const r = soma % 11, dv = r < 2 ? 0 : 11 - r;
   return dv === Number(ch[43]);
 }
-function acharChave(texto) {
-  const runs = String(texto || "").match(/\d[\d .]{42,70}\d/g) || [];
+// v549 — além do dígito verificador, a chave precisa ter estrutura válida (UF, ano/mês, CNPJ, modelo 55/65);
+// antes um trecho deslocado ("81 3126 1048…") passava no DV por acaso e virava NF 100000205
+const UFS = new Set(["11","12","13","14","15","16","17","21","22","23","24","25","26","27","28","29","31","32","33","35","41","42","43","50","51","52","53"]);
+const chaveValida = (c) => dvChaveOk(c) && UFS.has(c.slice(0, 2)) && Number(c.slice(4, 6)) >= 1 && Number(c.slice(4, 6)) <= 12 && ["55", "65"].includes(c.slice(20, 22));
+function acharChave(texto, nome = "") {
+  const doNome = (String(nome).match(/\d{44}/g) || []).find(chaveValida);
+  if (doNome) return doNome;
+  const t = String(texto || "");
+  // 1) 11 grupos de 4 dígitos (como o DANFE imprime)
+  for (const m of t.matchAll(/(?:\d{4}[ .]?){10}\d{4}/g)) { const c = m[0].replace(/\D/g, ""); if (c.length === 44 && chaveValida(c)) return c; }
+  // 2) qualquer sequência
+  const runs = t.match(/\d[\d .]{42,70}\d/g) || [];
   for (const r of runs) {
     const d = r.replace(/\D/g, "");
-    for (let i = 0; i + 44 <= d.length; i++) { const c = d.slice(i, i + 44); if (dvChaveOk(c)) return c; }
+    for (let i = 0; i + 44 <= d.length; i++) { const c = d.slice(i, i + 44); if (chaveValida(c)) return c; }
   }
   return null;
 }
 const docsDoTexto = (t) => {
   const out = [];
-  for (const m of String(t).matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}/g)) { const d = so(m[0]); if ((d.length === 14 || d.length === 11) && !out.includes(d)) out.push(d); }
+  // v549 — primeiro os CNPJ/CPF formatados (o nº do protocolo de 15 dígitos virava "CNPJ"); sem formatação só se não houver nenhum
+  for (const m of String(t).matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}/g)) { const d = so(m[0]); if (!out.includes(d)) out.push(d); }
+  if (!out.length) for (const m of String(t).matchAll(/(?<!\d)\d{14}(?!\d)|(?<!\d)\d{11}(?!\d)/g)) { const d = m[0]; if (!out.includes(d)) out.push(d); }
   return out;
 };
 const valorApos = (t, rx) => { const m = rx.exec(t); return m ? brNum(m[1]) : 0; };
 
-export function lerPdfFiscal(texto) {
+export function lerPdfFiscal(texto, nome = "") {
   const t = String(texto || "").replace(/\s+/g, " ");
-  const chave = acharChave(t);
+  const chave = acharChave(t, nome);
   const docs = docsDoTexto(t.replace(/\d{44}/g, " "));
   const emissao = isoBR((/EMISS[ÃA]O[^0-9]{0,40}(\d{2}\/\d{2}\/\d{4})/i.exec(t) || [])[1]) || isoBR((/(\d{2}\/\d{2}\/\d{4})/.exec(t) || [])[1]);
   let natureza = ((/NATUREZA\s+DA\s+OPERA[ÇC][ÃA]O\s*[:\-]?\s*([A-ZÀ-Úa-zà-ú][A-ZÀ-Úa-zà-ú .\/\-]{3,60})/i.exec(t) || [])[1] || "").trim();
@@ -148,18 +160,21 @@ export function lerPdfFiscal(texto) {
   for (const m of trecho.matchAll(/(?:N[ÚU]M(?:ERO)?\.?\s*)?(\d{1,3}(?:\/\d{1,3})?)\s*(?:VENC(?:IMENTO|\.)?\s*)?(\d{2}\/\d{2}\/\d{4})\s*(?:VALOR\s*)?(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/gi)) {
     parcelas.push({ parcela: String(Number(m[1].split("/")[0]) || parcelas.length + 1), vencimento: isoBR(m[2]), valor: r2(brNum(m[3])) });
   }
+  // v549 — DANFE que imprime as duplicatas antes da palavra FATURA ("Número Data Vcto Valor 001 27/11/2026 902,17")
+  if (!parcelas.length) for (const m of t.matchAll(/N[úu]mero\s+Data\s+Vcto\s+Valor\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/gi))
+    parcelas.push({ parcela: String(Number(m[1]) || parcelas.length + 1), vencimento: isoBR(m[2]), valor: r2(brNum(m[3])) });
   if (chave) {
     const emitDoc = chave.slice(6, 20);
     const outro = docs.find((d) => d !== emitDoc) || "";
     const l = lado(emitDoc, outro, "1");
-    let valor = valorApos(t, /VALOR\s+TOTAL\s+DA\s+NOTA[^0-9]{0,60}(\d{1,3}(?:\.\d{3})*,\d{2})/i) || valorApos(t, /V\.?\s*TOTAL\s+(?:DA\s+)?N(?:OTA|F)[^0-9]{0,40}(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+    let valor = valorApos(t, /VALOR\s+(?:DA\s+)?NOTA\s*R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i) || valorApos(t, /VALOR\s+TOTAL\s+DA\s+NOTA[^0-9]{0,60}(\d{1,3}(?:\.\d{3})*,\d{2})/i) || valorApos(t, /V\.?\s*TOTAL\s+(?:DA\s+)?N(?:OTA|F)[^0-9]{0,40}(\d{1,3}(?:\.\d{3})*,\d{2})/i);
     const somaDup = r2(parcelas.reduce((s, p) => s + p.valor, 0));
     if (!valor && somaDup) valor = somaDup;
     const numero = String(Number(chave.slice(25, 34)));
     return {
       modelo: chave.slice(20, 22) === "65" ? "NFC-e" : "NF-e", tipo: l.tipo, empresa: l.empresa, aviso: l.aviso || null,
       chave, chaveRegistro: `NFE|${chave}`, numero, serie: String(Number(chave.slice(22, 25))), emissao,
-      parceiro: "", razao: "", documento: (l.parte === "emit" ? emitDoc : outro) || null, emitDoc, natureza, cfops: [], valor: r2(valor),
+      parceiro: up(l.parte === "emit" ? "" : (/DESTINAT[ÁA]RIO\s+(.{3,80}?)\s+NOME\/RAZ/i.exec(t) || [])[1] || ""), razao: "", documento: (l.parte === "emit" ? emitDoc : outro) || null, emitDoc, natureza, cfops: [], valor: r2(valor),
       parcelas: parcelas.length ? parcelas : [{ parcela: "1", vencimento: emissao, valor: r2(valor), semVencimento: true }],
       conferir: "lido do PDF (DANFE) — confira cliente/fornecedor, valor e vencimentos",
     };
@@ -242,7 +257,7 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
       } else if (a.b64) {
         const r = abrirPdf ? await abrirPdf(Buffer.from(a.b64, "base64"), senhas) : { ok: false, erro: "leitor de PDF indisponível" };
         if (!r.ok) { erros.push(`${nome}: ${r.precisaSenha ? "PDF com senha (cadastre em Dados financeiros › Senhas de PDF)" : r.erro || "não abriu"}.`); continue; }
-        pdfs.push({ ...lerPdfFiscal(r.texto), pdf: a.b64, pdfNome: nome, hashPdf: hashB64(a.b64), fonte: "PDF" });
+        pdfs.push({ ...lerPdfFiscal(r.texto, nome), pdf: a.b64, pdfNome: nome, hashPdf: hashB64(a.b64), fonte: "PDF" });
       } else erros.push(`${nome}: formato não aceito (só XML e PDF).`);
     } catch (e) { erros.push(`${nome}: ${e.message}`); }
   }
