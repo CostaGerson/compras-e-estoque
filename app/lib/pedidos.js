@@ -24,11 +24,12 @@ export async function contasLancadas(nums, cnpj) {
   const lista = [...new Set((nums || []).map(semZ).filter(Boolean))];
   if (!lista.length) return false;
   const doc = String(cnpj || "").replace(/\D/g, "");
+  const fDoc = doc.length === 14 ? { documento: { startsWith: doc.slice(0, 8) } } : doc ? { documento: doc } : {};   // v554 — mesma empresa (matriz/filial)
   for (const n of lista) {
-    const fn = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", numero: n, acao: "LANCADA", ...(doc ? { documento: doc } : {}) }, select: { parcelas: true } });
+    const fn = await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", numero: n, acao: "LANCADA", ...fDoc }, select: { parcelas: true } });
     if (fn.some((x) => Array.isArray(x.parcelas) && x.parcelas.some((y) => y.tituloId))) continue;
-    const ts = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, numeroDoc: { contains: n }, ...(doc ? { documento: doc } : {}) }, select: { numeroDoc: true } });
-    if (ts.some((t) => new RegExp(`(^|\\D)0*${n}(\\D|$)`).test(String(t.numeroDoc || "")))) continue;
+    const ts = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" }, OR: [{ numeroDoc: { contains: n } }, { titulo: { contains: `NF ${n}` } }], ...fDoc }, select: { numeroDoc: true, titulo: true } });
+    if (ts.some((t) => new RegExp(`(^|\\D)0*${n}(\\D|$)`).test(String(t.numeroDoc || "")) || new RegExp(`NF\\s*0*${n}(\\D|$)`).test(String(t.titulo || "")))) continue;
     return false;
   }
   return true;
@@ -468,6 +469,7 @@ export async function faturarPelasNfs() {
   // v372 — primeiro pelos itens das NFs (faturamento total ou parcial); depois a regra antiga por valor para as NFs sem XML
   await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message));   // v391 — pendentes com contas já lançadas
   const porItens = await faturarPelasNfsItens().catch((e) => { console.log("pedidos/faturar itens:", e.message); return []; });
+  const porKm = await faturarPelasNfsKm().catch((e) => { console.log("pedidos/faturar km:", e.message); return []; });   // v554
   const and = (await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, frete: true, vlEntregar: true, obs: true, nfsFaturadas: true, faturamentoPendente: true } }))
     .filter((p) => !(Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length) && !p.faturamentoPendente);   // v391 — pendente de contas: já tem NF   // já casado pelos itens: não usa a regra por valor
   if (!and.length) return [];
@@ -491,7 +493,36 @@ export async function faturarPelasNfs() {
       obs: [p.obs, `FATURADO PELO VALOR DA NF ${nf.numero} (${nf.emissao.toISOString().slice(0, 10).split("-").reverse().join("/")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }, "NF PELO VALOR");   // v391
     feitos.push({ numero: p.numero, nf: nf.numero });
   }
-  return [...porItens, ...feitos];
+  return [...porItens, ...porKm, ...feitos];
+}
+
+// v554 — equivalência pelo KM: as NFs de saída que o próprio KM liga ao pedido (kmNfs do pedido e livsaida com o nº do pedido).
+// Somando o valor do pedido (ou o KM sem saldo a entregar), o pedido é faturado — FATURADO se as contas da(s) NF(s) já estão
+// lançadas no movimento de saída; senão fica "NF sem contas" até as contas entrarem.
+export async function faturarPelasNfsKm() {
+  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false },
+    select: { id: true, numero: true, cnpj: true, total: true, frete: true, vlEntregar: true, obs: true, kmNfs: true, faturamentoPendente: true, nfsFaturadas: true } });
+  if (!and.length) return [];
+  const km = await prisma.kmNfSaida.findMany({ where: { pedido: { in: and.map((p) => p.numero) }, canceladaEm: null }, select: { numero: true, emissao: true, valor: true, pedido: true } }).catch(() => []);
+  const feitos = [];
+  for (const p of and) {
+    const m = new Map();
+    for (const n of Array.isArray(p.kmNfs) ? p.kmNfs : []) if (n?.numero && !n.cancelada) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: Number(n.valor) || 0 });
+    for (const n of km.filter((x) => x.pedido === p.numero)) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? n.emissao.toISOString().slice(0, 10) : null, valor: Number(n.valor) || 0 });
+    const nfs = [...m.values()];
+    if (!nfs.length) continue;
+    const soma = r2(nfs.reduce((a, n) => a + n.valor, 0));
+    const tot = Number(p.total) || 0;
+    const completo = (tot > 0 && soma >= tot * 0.98) || (p.vlEntregar != null && Number(p.vlEntregar) <= 0.01);
+    if (!completo) continue;
+    const nums = nfs.map((n) => n.numero).join(", ");
+    const ult = nfs.map((n) => n.emissao).filter(Boolean).sort().pop() || hojeISO();
+    if (p.faturamentoPendente && String(p.faturamentoPendente.nfNumero || "") === nums && !(await contasLancadas(nfs.map((n) => n.numero), p.cnpj))) continue;   // já pendente com as mesmas NFs
+    await faturarOuPendurar(p.id, p.cnpj, { status: "FATURADO", nfNumero: nums.slice(0, 190), faturadoEm: dUTC(ult), vlEntregar: 0, qtEntregar: 0,
+      obs: [p.obs, `FATURADO PELA(S) NF ${nums} LIGADA(S) AO PEDIDO NO KM (R$ ${soma.toFixed(2).replace(".", ",")})`].filter(Boolean).join(" · ").slice(0, 1000), atualizadoPorNome: "SISTEMA" }, "NF DO KM");
+    feitos.push({ numero: p.numero, nf: nums, completo: true });
+  }
+  return feitos;
 }
 
 // ---------- painel ----------

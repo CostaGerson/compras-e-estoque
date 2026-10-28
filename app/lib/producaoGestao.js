@@ -60,6 +60,8 @@ const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, to
 
 export async function gestaoProducao() {
   let sync = null; try { sync = await sincronizar({ intervaloMs: 60 * 1000 }); } catch (e) { sync = { ok: false, erro: e.message }; }
+  // v554 — confere o faturamento com o movimento de saída e as NFs do KM (no máximo a cada 3 min)
+  if (!globalThis.__fatProd || Date.now() - globalThis.__fatProd > 180e3) { globalThis.__fatProd = Date.now(); try { const { faturarPelasNfs } = await import("@/lib/pedidos"); await faturarPelasNfs(); } catch (e) { console.log("producao/faturar:", e.message); } }
   const hoje = hojeBR();
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
