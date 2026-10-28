@@ -11,6 +11,7 @@ export async function excluirPedido(numero, { motivo, quem } = {}) {
   const n = String(numero || "").trim();
   const p = await prisma.pedidoVenda.findUnique({ where: { numero: n } });
   if (!p) return { error: "Pedido não encontrado." };
+  if (String(motivo || "").trim().length < 5) return { error: "Justificativa obrigatória para excluir o pedido." };   // v553
   if (await prisma.pedidoExcluido.findUnique({ where: { numero: n } })) return { error: "Pedido já está na lixeira." };
   const pp = await prisma.pp.findUnique({ where: { numero: n }, select: { id: true, status: true } }).catch(() => null);
   const dispensaAntes = await prisma.compraDispensa.findUnique({ where: { pedidoNumero: n } }).catch(() => null);

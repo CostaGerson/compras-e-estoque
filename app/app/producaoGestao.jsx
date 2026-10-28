@@ -58,6 +58,15 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
   const [ord, setOrd] = useState({ k: "fase", dir: 1 });
   const [aberto, setAberto] = useState(null);
   const [lixeira, setLixeira] = useState(false);   // v552
+  // v553 — excluir só pela lista de pedidos da Produção, com justificativa obrigatória
+  const excluir = async (p) => {
+    const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.cliente})?\n\nEle vai para a lixeira (Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
+    if (motivo === null || motivo === undefined) return;
+    if (String(motivo).trim().length < 5) return alerta("Escreva a justificativa da exclusão (mínimo 5 caracteres).");
+    const r = await fetch("/api/producao/lixeira", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero: p.numero, motivo, quem: nomeU(user) }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Erro.");
+    carregar();
+  };
   useEffect(() => { if (abrirPedido?.numero) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
   const carregar = () => fetch("/api/producao/gestao").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 60 * 1000); return () => clearInterval(t); }, []);
@@ -116,7 +125,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
           <div className="rounded-lg overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <table className="w-full text-sm">
               <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
-                <tr><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th><Th k="fase">Fase</Th><Th k="status">Status</Th></tr>
+                <tr><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th><Th k="fase">Fase</Th><Th k="status">Status</Th><th /></tr>
               </thead>
               <tbody>
                 {lista.map((p) => (
@@ -129,15 +138,16 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.previsto && p.prazo && p.previsto > p.prazo ? C.red : C.text }}>{dBR(p.previsto)}</td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
+                    <td className="px-2 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
-                {!lista.length && <tr><td colSpan={8} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
+                {!lista.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
               </tbody>
             </table>
           </div>
         </>
       )}
-      {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} onExcluido={() => { setAberto(null); carregar(); }} />}
+      {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} />}
       {lixeira && <LixeiraPedidos user={user} onClose={() => setLixeira(false)} onRestaurado={carregar} />}
     </div>
   );
@@ -183,7 +193,7 @@ function LixeiraPedidos({ user, onClose, onRestaurado }) {
 
 // ---------- pedido em tela grande ----------
 let _usuarios = null;
-function PedidoTela({ numero, user, onClose, onExcluido }) {
+function PedidoTela({ numero, user, onClose }) {
   const [p, setP] = useState(null);
   const [erro, setErro] = useState("");
   const [obs, setObs] = useState("");
@@ -211,14 +221,6 @@ function PedidoTela({ numero, user, onClose, onExcluido }) {
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
           {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}
-          {p && <button onClick={async () => {   // v552 — excluir: vai para a lixeira e deixa de influenciar o sistema
-            if (!(await confirmar(`Excluir o pedido ${numero} (${p.cliente})?\n\nEle vai para a lixeira (Produção › Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões. O KM não o recria. Dá para restaurar.`))) return;
-            const motivo = await perguntar("Motivo da exclusão (opcional):", "").catch(() => "");
-            if (motivo === null) return;
-            const r = await fetch("/api/producao/lixeira", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero, motivo, quem: nomeU(user) }) });
-            const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Erro.");
-            onExcluido?.();
-          }} title="Excluir pedido (lixeira)" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red, background: C.panel }}><Trash2 size={14} /> Excluir pedido</button>}
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
         {p?.critica && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={15} /> {p.critica}</div>}
