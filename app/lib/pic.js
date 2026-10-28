@@ -152,7 +152,7 @@ export async function listarOcs() {
     nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     baixa: o.baixaEm ? { em: o.baixaEm, por: o.baixaPorNome, justificativa: o.baixaJustificativa } : null,   // v532
-    itens: o.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
+    itens: o.itens.map((i) => ({ id: i.id, nfNome: i.nfNome || null, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
 }
 export async function salvarOc(b) {
@@ -167,7 +167,7 @@ export async function salvarOc(b) {
       const i = its.find((y) => y.id === Number(x.id)); if (!i) continue;
       const q = num(x.quantidade), v = num(x.valorUnitario);
       if (!(q > 0) || !(v > 0)) return { error: "Quantidade e valor unitário precisam ser maiores que zero." };
-      await prisma.ocItem.update({ where: { id: i.id }, data: { quantidade: r3(q), valorUnitario: v, ...(x.nfItem !== undefined ? { nfItem: x.nfItem || null } : {}) } });   // v535 — nfItem: ligação com o item da NF
+      await prisma.ocItem.update({ where: { id: i.id }, data: { quantidade: r3(q), valorUnitario: v, ...(x.nfItem !== undefined ? { nfItem: x.nfItem || null, nfNome: x.nfNome || null } : {}) } });   // v535 — nfItem: ligação com o item da NF
       if (i.picItemId) await prisma.picItem.update({ where: { id: i.picItemId }, data: { quantidade: r3(q), valorUnitario: v } }).catch(() => null);
       await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: v } }).catch(() => null);
     }

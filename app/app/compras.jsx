@@ -1229,7 +1229,8 @@ export function OrdensCompra({ user, fases, ir }) {
                   return <>
                     {o.itens.map((i) => (
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
-                        <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span></div>
+                        <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
+                          {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
                         <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>
@@ -1960,7 +1961,14 @@ function NfsDaOc({ o, user, onMudou }) {
               </div>
             ))}
             {corrigiveis.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-2">
-              <button disabled={oc2} onClick={async () => { if (await confirmar("Corrigir a OC com as quantidades, valores e prazo da NF? A cotação de origem também é atualizada.")) post({ acao: "corrigir", condicao: crit.find((c) => c.tipo === "PRAZO")?.condNf ? (crit.find((c) => c.tipo === "PRAZO").condNf === "À VISTA" ? "À VISTA" : `${crit.find((c) => c.tipo === "PRAZO").condNf} DIAS`) : undefined }, (x) => `OC corrigida pela NF (${x.itens} item(ns)).`); }}
+              <button disabled={oc2} onClick={async () => {
+                  if (!(await confirmar("Corrigir a OC com as quantidades, valores e prazo da NF? A cotação de origem também é atualizada."))) return;
+                  // v536 — itens que não casaram pelo nome: pergunta se aceita o casamento (na ordem)
+                  const pOc = new Set((conf.pares || []).map((p) => p.ocItemId)), pNf = new Set((conf.pares || []).map((p) => `${p.nfId}|${p.idx}`));
+                  const sOc = (conf.itensOc || []).filter((x) => !pOc.has(x.id)), sNf = (conf.itensNf || []).filter((x) => !pNf.has(`${x.nfId}|${x.idx}`));
+                  const casam = sOc.slice(0, sNf.length).map((o, k) => `• ${o.nome}  →  ${sNf[k].nome}`);
+                  const casarSobras = casam.length ? await confirmar(`Estes itens têm nomes diferentes na OC e na NF. Aceita o casamento?\n\n${casam.join("\n")}\n\n(Cancelar = corrige só os itens de mesmo nome.)`) : false;
+                  post({ acao: "corrigir", casarSobras, condicao: crit.find((c) => c.tipo === "PRAZO")?.condNf ? (crit.find((c) => c.tipo === "PRAZO").condNf === "À VISTA" ? "À VISTA" : `${crit.find((c) => c.tipo === "PRAZO").condNf} DIAS`) : undefined }, (x) => `OC corrigida pela NF (${x.itens} item(ns)).`); }}
                 className="text-xs px-3 py-1 rounded-md font-semibold" style={{ background: C.red, color: "#fff" }}>Corrigir a OC pela NF</button>
               <span className="text-[11px]" style={{ color: C.sub }}>ou ajuste os itens acima à mão e salve.</span>
             </div>}

@@ -113,12 +113,13 @@ export async function corrigirOcPelaNf(b) {
   for (const p of pares) {
     const n = c.itensNf.find((x) => x.nfId === Number(p.nfId) && x.idx === Number(p.idx));
     const o = c.itensOc.find((x) => x.id === Number(p.ocItemId));
-    if (n && o) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}` });
+    if (n && o) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}`, nfNome: n.nome || null });
   }
   // v535 — o que sobrou dos dois lados (nomes diferentes, ex.: TACTEL na OC × MICROFIBRA na NF) é ligado na ordem
   const okOc = new Set(itens.map((x) => x.id)), okNf = new Set(itens.map((x) => x.nfItem));
   const sobraOc = c.itensOc.filter((x) => !okOc.has(x.id)), sobraNf = c.itensNf.filter((x) => !okNf.has(`${x.nfId}|${x.idx}`));
-  sobraOc.forEach((o, k) => { const n = sobraNf[k]; if (n) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}` }); });
+  // v536 — só com o aceite do usuário (casarSobras)
+  if (b.casarSobras) sobraOc.forEach((o, k) => { const n = sobraNf[k]; if (n) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}`, nfNome: n.nome || null }); });
   const r = await salvarOc({ id: c.oc.id, ...(itens.length ? { itens } : {}), ...(b.condicao ? { condicaoFaturamento: b.condicao } : {}) });
   if (r?.error) return r;
   return { ok: true, itens: itens.length };
