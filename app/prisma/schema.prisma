@@ -2182,3 +2182,15 @@ model FaccaoOsPcp {
   lancadoPorNome String?
   createdAt     DateTime @default(now())
 }
+
+// v552 — lixeira de pedidos: o pedido excluído sai do sistema (cópia completa aqui) e o KM / relatórios não o recriam
+model PedidoExcluido {
+  id              Int      @id @default(autoincrement())
+  numero          String   @unique
+  cliente         String?
+  total           Decimal? @db.Decimal(14, 2)
+  motivo          String?
+  dados           Json     // { pedido, ppStatus, compraItens, dispensaAntes }
+  excluidoPorNome String?
+  createdAt       DateTime @default(now())
+}

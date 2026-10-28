@@ -1,9 +1,9 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2 } from "lucide-react";
 import { FppResumo } from "./compras";
-import { alerta } from "./dialogo";   // v424 — popups do sistema
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
 
 const C = {
@@ -57,6 +57,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
   const [q, setQ] = useState("");
   const [ord, setOrd] = useState({ k: "fase", dir: 1 });
   const [aberto, setAberto] = useState(null);
+  const [lixeira, setLixeira] = useState(false);   // v552
   useEffect(() => { if (abrirPedido?.numero) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
   const carregar = () => fetch("/api/producao/gestao").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 60 * 1000); return () => clearInterval(t); }, []);
@@ -110,6 +111,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, nº do pedido, valor ou item…" className="py-1.5 text-sm outline-none w-72" />
               {q && <button onClick={() => setQ("")} style={{ color: C.sub }}><X size={13} /></button>}
             </div>
+            <button onClick={() => setLixeira(true)} title="Pedidos excluídos" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Trash2 size={14} /> Excluídos</button>
           </div>
           <div className="rounded-lg overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             <table className="w-full text-sm">
@@ -135,14 +137,53 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
           </div>
         </>
       )}
-      {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} />}
+      {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} onExcluido={() => { setAberto(null); carregar(); }} />}
+      {lixeira && <LixeiraPedidos user={user} onClose={() => setLixeira(false)} onRestaurado={carregar} />}
+    </div>
+  );
+}
+
+// v552 — pedidos excluídos (lixeira): não influenciam nada no sistema; restaurar devolve tudo
+function LixeiraPedidos({ user, onClose, onRestaurado }) {
+  const [l, setL] = useState(null);
+  const carregar = () => fetch("/api/producao/lixeira").then((r) => r.json()).then(setL).catch(() => setL([]));
+  useEffect(() => { carregar(); }, []);
+  const restaurar = async (x) => {
+    if (!(await confirmar(`Restaurar o pedido ${x.numero} (${x.cliente || ""})? Ele volta para a produção, compras e faturamento.`))) return;
+    const r = await fetch("/api/producao/lixeira", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "restaurar", numero: x.numero, quem: nomeU(user) }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Erro.");
+    carregar(); onRestaurado?.();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-3xl flex flex-col overflow-hidden shadow-2xl" style={{ background: C.panel, maxHeight: "85vh" }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <Trash2 size={18} style={{ color: C.red }} /><div className="font-bold flex-1" style={{ color: C.navy }}>Pedidos excluídos</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="overflow-auto p-4">
+          {!l ? <Loader2 size={18} className="animate-spin" style={{ color: C.sub }} /> : !l.length ? <div className="text-sm text-center py-6" style={{ color: C.sub }}>Nenhum pedido excluído.</div> : (
+            <table className="w-full text-sm">
+              <thead className="text-xs" style={{ color: C.sub }}><tr><th className="text-left px-2 py-1.5">Pedido</th><th className="text-left px-2">Cliente</th><th className="text-right px-2">Valor</th><th className="text-left px-2">Excluído</th><th /></tr></thead>
+              <tbody>{l.map((x) => (
+                <tr key={x.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-2 py-2 font-semibold" style={{ color: C.navy }}>{x.numero}</td>
+                  <td className="px-2 py-2">{x.cliente}{x.motivo && <div className="text-[11px]" style={{ color: C.sub }}>Motivo: {x.motivo}</div>}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{x.total != null ? brl(x.total) : "—"}</td>
+                  <td className="px-2 py-2 text-xs" style={{ color: C.sub }}>{dh(x.createdAt)}{x.excluidoPorNome ? ` · ${x.excluidoPorNome}` : ""}</td>
+                  <td className="px-2 py-2 text-right"><button onClick={() => restaurar(x)} className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ml-auto" style={{ border: `1px solid ${C.line}`, color: C.blue }}><Undo2 size={12} /> Restaurar</button></td>
+                </tr>))}</tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 // ---------- pedido em tela grande ----------
 let _usuarios = null;
-function PedidoTela({ numero, user, onClose }) {
+function PedidoTela({ numero, user, onClose, onExcluido }) {
   const [p, setP] = useState(null);
   const [erro, setErro] = useState("");
   const [obs, setObs] = useState("");
@@ -170,6 +211,14 @@ function PedidoTela({ numero, user, onClose }) {
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
           {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}
+          {p && <button onClick={async () => {   // v552 — excluir: vai para a lixeira e deixa de influenciar o sistema
+            if (!(await confirmar(`Excluir o pedido ${numero} (${p.cliente})?\n\nEle vai para a lixeira (Produção › Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões. O KM não o recria. Dá para restaurar.`))) return;
+            const motivo = await perguntar("Motivo da exclusão (opcional):", "").catch(() => "");
+            if (motivo === null) return;
+            const r = await fetch("/api/producao/lixeira", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero, motivo, quem: nomeU(user) }) });
+            const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Erro.");
+            onExcluido?.();
+          }} title="Excluir pedido (lixeira)" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red, background: C.panel }}><Trash2 size={14} /> Excluir pedido</button>}
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
         {p?.critica && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={15} /> {p.critica}</div>}

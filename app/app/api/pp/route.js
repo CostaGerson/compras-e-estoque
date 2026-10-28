@@ -10,6 +10,7 @@ export async function GET(req) {
   try { await garantirPpTodos([u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase()); } catch {}
   // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({
+    where: { status: { not: "EXCLUIDO" } },   // v552 — pedido na lixeira
     orderBy: { createdAt: "desc" },
     select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } } },
   });

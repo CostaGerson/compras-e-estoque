@@ -125,7 +125,8 @@ export async function revisarFaturadosKm() {
 // ---------- aplica um lote vindo do agente ----------
 export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } = {}) {
   if (!previa) { try { await revisarFaturadosKm(); } catch (e) { console.log("km/revisao:", e.message); } }
-  const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero);
+  const excl = await (await import("@/lib/pedidoLixeira")).numerosExcluidos();   // v552 — pedido na lixeira não volta pelo KM
+  const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero && !excl.has(String(k.numero).trim()));
   const nums = lista.map((k) => String(k.numero).trim());
   const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } },
     select: { id: true, numero: true, cliente: true, clienteCodigo: true, total: true, qtd: true, itens: true, status: true, faturadoEm: true, fonte: true } }))

@@ -98,8 +98,12 @@ export async function importarArquivos(arquivos, quem) {
 }
 
 // v386 — aplica PVs/OPs já lidos (PDF ou banco do KM) — mesmo fluxo para os dois
-export async function aplicarLidos(lidos, quem) {
+export async function aplicarLidos(lidos0, quem) {
   const out = [];
+  // v552 — pedido na lixeira não é recriado por PDF de PV/PP nem pelo relatório de vendas
+  const excl = await (await import("@/lib/pedidoLixeira")).numerosExcluidos();
+  const lidos = (lidos0 || []).map((x) => (x.tipo === "POSICAO" ? { ...x, pedidos: (x.pedidos || []).filter((p) => !excl.has(String(p.numero))) } : x))
+    .filter((x) => { if (x.tipo !== "POSICAO" && x.numero && excl.has(String(x.numero))) { out.push({ nome: x.nome, numero: x.numero, erro: `pedido ${x.numero} está na lixeira (excluído) — restaure para importar` }); return false; } return true; });
   // v325 — relatorio "Posicao Geral de Vendas": importa todos os pedidos em massa
   for (const l of lidos.filter((x) => x.tipo === "POSICAO")) {
     try { out.push({ nome: l.nome, ...(await aplicarPosicaoVendas(l, quem)) }); } catch (e) { out.push({ nome: l.nome, erro: e.message }); }
@@ -193,7 +197,9 @@ export async function espelharPp(numero) {
 }
 
 // v325 — aplica o relatório de Posição de Vendas: cria os pendentes que faltam e atualiza o saldo a faturar de todos
-export async function aplicarPosicaoVendas(l, quem) {
+export async function aplicarPosicaoVendas(l0, quem) {
+  const excl = await (await import("@/lib/pedidoLixeira")).numerosExcluidos();   // v552
+  const l = { ...l0, pedidos: (l0.pedidos || []).filter((p) => !excl.has(String(p.numero))) };
   const conf = { totalPedRelatorio: l.totalPed, totalVleRelatorio: l.totalVle, lidos: l.pedidos.length,
     somaVle: r2(l.pedidos.reduce((s, p) => s + (p.vlEntregar || 0), 0)) };
   const nums = l.pedidos.map((p) => p.numero);
