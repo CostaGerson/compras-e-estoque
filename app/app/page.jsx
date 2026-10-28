@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useMobile } from "./useMobile";   // v550
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
@@ -217,6 +218,8 @@ export default function Home() {
   const [tab, setTab] = useState("lista");
   useEffect(() => { try { sessionStorage.setItem("ce_tab", tab); } catch {} }, [tab]);   // v490
   const [collapsed, setCollapsed] = useState(false);
+  const mobile = useMobile();   // v550 — no celular o menu vira gaveta sobre a tela e começa fechado
+  useEffect(() => { if (mobile) setCollapsed(true); }, [mobile]);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
   const [resetTick, setResetTick] = useState(0);   // clicar no título remonta o módulo na tela inicial dele
@@ -271,8 +274,9 @@ export default function Home() {
 
   return (
     <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
-      <div className="shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden" style={{ width: collapsed ? 0 : 240 }}>
-      <aside style={{ background: C.sidebar, width: 240 }} className="h-full flex flex-col">
+      {mobile && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40" style={{ background: "rgba(0,30,65,.45)" }} />}
+      <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${mobile ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : mobile ? "min(280px, 85vw)" : 240 }}>
+      <aside style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
           <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
@@ -283,7 +287,7 @@ export default function Home() {
           </button>
         </div>
         <nav className="flex-1 py-2 overflow-y-auto">
-          <MenuArvore itens={menu} view={view} caminho={caminho} ir={irInicio} />
+          <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
         </nav>
         <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
           Sistema de Gestão · v1
@@ -292,15 +296,15 @@ export default function Home() {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center justify-between px-5 py-1.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
-          <div className="flex items-center gap-2">
+        <header className={`flex items-center justify-between ${mobile ? "px-2 py-1 gap-1" : "px-5 py-1.5"}`} style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
+          <div className="flex items-center gap-2 min-w-0">
             {collapsed && (
               <button onClick={() => setCollapsed(false)} title="Expandir menu"
-                className="flex items-center justify-center rounded p-1" style={{ background: C.sidebar, color: "#fff" }}>
-                <ChevronRight size={18} />
+                className="flex items-center justify-center rounded shrink-0" style={{ background: C.sidebar, color: "#fff", padding: mobile ? 8 : 4 }}>
+                <ChevronRight size={mobile ? 20 : 18} />
               </button>
             )}
-            <div className="font-semibold flex items-center gap-1">
+            <div className={`font-semibold flex items-center gap-1 ${mobile ? "min-w-0 overflow-x-auto whitespace-nowrap" : ""}`}>
               {caminho.length && fasesCompras.includes(view) ? (
                 // v416 — fases de compras no próprio cabeçalho: a atual em negrito, as demais normais
                 <>
@@ -335,7 +339,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto px-5 py-3">
+        <div className={`flex-1 overflow-auto ${mobile ? "px-2 py-2" : "px-5 py-3"}`}>
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}

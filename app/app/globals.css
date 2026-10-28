@@ -95,3 +95,10 @@ button:active:not(:disabled) { transform: scale(.97); }
 /* v473 — campo com lista de sugestões (datalist): sem a seta do navegador */
 input[list]::-webkit-calendar-picker-indicator{display:none!important;opacity:0}
 input[list]::-webkit-list-button{display:none!important}
+
+/* ---------- v550 — celular: campos com 16px (o iPhone não dá zoom ao tocar), alvos de toque maiores, sem hover ---------- */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
+  button, [role="button"] { touch-action: manipulation; }
+  .card-asana:hover { transform: none; box-shadow: none; }
+}

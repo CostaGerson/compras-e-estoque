@@ -8,6 +8,7 @@ import {
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { useMobile } from "./useMobile";   // v550
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085",
@@ -280,7 +281,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           {st && <Loader2 size={14} className="animate-spin" />} {ed ? "Salvar" : "Criar demanda"}
         </button>
       </>}>
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Natureza
           <div className="flex gap-1 mt-1">
             {[["FUNCIONAL", "Funcional"], ["PESSOAL", "Pessoal"]].map(([k, t]) => {
@@ -301,7 +302,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           </div>
         </label>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="text-xs" style={{ color: C.sub }}>Setor
           <select value={f.setor} onChange={(e) => { set("setor", e.target.value); set("responsavelId", ""); }} className={`${inp} mt-1`} style={inpS}>{SETORES_TAREFA.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
         </label>
@@ -317,12 +318,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <input value={f.titulo} onChange={(e) => set("titulo", e.target.value)} autoFocus placeholder="O que precisa ser feito" className={`${inp} mt-1`} style={inpS} />
         <textarea value={f.descricao} onChange={(e) => set("descricao", e.target.value)} rows={3} placeholder="Detalhes (opcional)" className={`${inp} mt-1`} style={{ ...inpS, resize: "vertical" }} />
       </label>
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <label className="text-xs" style={{ color: C.sub }}>{recorrente ? "Primeira data" : "Data limite"}<input type="date" value={f.prazo} onChange={(e) => set("prazo", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Horário (opcional)<input type="time" value={f.hora} onChange={(e) => set("hora", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="time" value={f.horaFim} disabled={!f.hora} onChange={(e) => set("horaFim", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
             {(recorrente ? [["ROTINA", "Rotina"], ["URGENTE", "Urgente"]] : [["PADRAO", "Padrão"], ["URGENTE", "Urgente"]]).map(([k, t]) => {
@@ -507,10 +508,26 @@ function AvatarMini({ foto, nome, size = 22 }) {
 const corCard = (t) => t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
-function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu }) {
+function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu, toque }) {
   // v228 — card do tamanho fixo do Asana: título cortado numa linha; no hover o conteúdo desliza e aparece o check
+  // v550 — toque (celular): card mais alto, check sempre visível, texto maior
   const [bg, bd] = corCard(t);
   const feita = t.status === "CONCLUIDA";
+  if (toque) return (
+    <div onClick={onClick} className="rounded-lg flex items-center gap-2 px-2 cursor-pointer select-none shrink-0" style={{ minHeight: 48, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: feita ? 0.6 : 1 }}>
+      <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"} className="flex items-center justify-center rounded-full shrink-0"
+        style={{ width: 28, height: 28, border: `2px solid ${feita ? "#5DA283" : "#6D6E6F"}`, background: feita ? "#5DA283" : "rgba(255,255,255,.8)" }}>
+        <svg width="13" height="13" viewBox="0 0 12 12"><path d="M2.5 6.2l2.2 2.2 4.8-4.9" fill="none" stroke={feita ? "#fff" : "#6D6E6F"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <AvatarMini foto={foto} nome={t.responsavelNome} size={24} />
+      <div className="flex-1 min-w-0 py-1.5">
+        <div className="text-[15px] leading-tight" style={{ textDecoration: feita ? "line-through" : "none", overflowWrap: "anywhere" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
+        {(t.hora || proj) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
+      </div>
+      {t.sessaoAberta && <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
+      {t.natureza === "PESSOAL" && <Lock size={12} className="shrink-0" style={{ color: A.sub }} />}
+    </div>
+  );
   return (
     <div draggable={t.podeEditar} onDragStart={onDragStart} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu?.(e.clientX, e.clientY); }}
       title={`${t.titulo}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
@@ -595,6 +612,7 @@ export function Agenda({ user }) {
   const [dir, setDir] = useState(0);                 // direção da navegação (animação)
   const [menuCard, setMenuCard] = useState(null);    // { x, y, t } — botão direito
   const H = hojeISO();
+  const mobile = useMobile();   // v550
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
   const dias = useMemo(() => {
     if (modo === "semana") { const i = inicioSemanaSeg(ref); return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
@@ -639,9 +657,9 @@ export function Agenda({ user }) {
   );
 
   return (
-    <div className="flex gap-0 -m-6 anim-entrar" style={{ minHeight: "calc(100vh - 64px)", background: A.fundo }}>
-      {/* lateral: projetos — v510 recolhível pela seta (os dias ficam maiores) */}
-      {latFechada ? (
+    <div className={`flex gap-0 anim-entrar ${mobile ? "-m-2" : "-m-6"}`} style={{ minHeight: "calc(100vh - 64px)", background: A.fundo }}>
+      {/* lateral: projetos — v510 recolhível pela seta (os dias ficam maiores) · v550: no celular vira um seletor no cabeçalho */}
+      {mobile ? null : latFechada ? (
         <div className="shrink-0 flex flex-col items-center pt-4" style={{ width: 34, borderRight: `1px solid ${A.linha}`, background: A.fundo2 }}>
           <button onClick={() => alternarLat(false)} title="Mostrar projetos" className="rounded-md p-1" style={{ color: A.sub, background: A.fundo }}><ChevronRight size={18} /></button>
         </div>
@@ -671,28 +689,37 @@ export function Agenda({ user }) {
 
       <div className="flex-1 min-w-0 flex flex-col">
         {/* cabeçalho */}
-        <div className="px-6 pt-4" style={{ borderBottom: `1px solid ${A.linha}` }}>
+        <div className={mobile ? "px-3 pt-3" : "px-6 pt-4"} style={{ borderBottom: `1px solid ${A.linha}` }}>
           <div className="flex items-center gap-2 mb-2">
-            {proj ? <span className="rounded-md" style={{ width: 22, height: 22, background: proj.cor }} /> : <CalendarDays size={22} style={{ color: A.azul }} />}
-            <div className="text-xl font-bold" style={{ color: A.texto }}>{proj ? proj.nome : "Agenda"}</div>
+            {proj ? <span className="rounded-md shrink-0" style={{ width: 22, height: 22, background: proj.cor }} /> : <CalendarDays size={22} className="shrink-0" style={{ color: A.azul }} />}
+            {mobile ? (
+              <select value={projetoId || ""} onChange={(e) => setProjetoId(e.target.value ? Number(e.target.value) : null)} className="flex-1 min-w-0 rounded-lg px-2 py-2 font-bold" style={{ border: `1px solid ${A.linha}`, color: A.texto, background: A.fundo }}>
+                <option value="">Minha agenda</option>{projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.abertas ? ` (${p.abertas})` : ""}</option>)}
+              </select>
+            ) : <div className="text-xl font-bold" style={{ color: A.texto }}>{proj ? proj.nome : "Agenda"}</div>}
+            {mobile && <button onClick={() => setProjForm({})} title="Novo projeto" className="p-2 rounded-lg shrink-0" style={{ border: `1px solid ${A.linha}`, color: A.sub }}><Plus size={18} /></button>}
           </div>
-          <div className="flex items-center gap-1 pb-2">
+          <div className={`flex items-center gap-1 pb-2 ${mobile ? "flex-wrap" : ""}`}>
             <Aba k="calendario" t="Calendário" atual={tela} set={setTela} />
             <Aba k="tarefas" t="Tarefas" atual={tela} set={setTela} />
             <span className="w-4" />
-            {[["GERAL", "Geral"], ["PESSOAL", "Pessoal"], ["FUNCIONAL", "Funcional"]].map(([k, t]) => <Aba key={k} k={k} t={t} atual={visao} set={setVisao} />)}
+            {mobile ? (
+              <select value={visao} onChange={(e) => setVisao(e.target.value)} className="ml-auto rounded-md px-2 py-1.5 text-sm font-semibold" style={{ border: `1px solid ${A.linha}`, color: A.texto, background: A.fundo }}>
+                {[["GERAL", "Geral"], ["PESSOAL", "Pessoal"], ["FUNCIONAL", "Funcional"]].map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+              </select>
+            ) : [["GERAL", "Geral"], ["PESSOAL", "Pessoal"], ["FUNCIONAL", "Funcional"]].map(([k, t]) => <Aba key={k} k={k} t={t} atual={visao} set={setVisao} />)}
           </div>
         </div>
 
         {tela === "tarefas" ? (
-          <div key={`lista-${visao}-${projetoId}`} className="p-6 anim-entrar"><Tarefas user={user} natureza={visao} projetoId={projetoId} embutido /></div>
+          <div key={`lista-${visao}-${projetoId}`} className={`${mobile ? "p-2" : "p-6"} anim-entrar`}><Tarefas user={user} natureza={visao} projetoId={projetoId} embutido /></div>
         ) : (
           <div key="cal" className="flex-1 flex flex-col anim-entrar">
-            <div className="flex items-center gap-3 px-6 py-3" style={{ borderBottom: `1px solid ${A.linha}` }}>
-              <button onClick={() => novaNoDia(H)} className="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5" style={{ border: `1px solid ${A.linha}`, color: A.texto }}><Plus size={14} /> Adicionar uma tarefa</button>
-              <button onClick={() => mover(-1)} className="p-1 rounded" style={{ color: A.sub }}><ChevronLeft size={18} /></button>
-              <button onClick={() => { setDir(0); setRef(H); }} className="text-sm px-1" style={{ color: A.texto }}>Hoje</button>
-              <button onClick={() => mover(1)} className="p-1 rounded" style={{ color: A.sub }}><ChevronRight size={18} /></button>
+            <div className={`flex items-center ${mobile ? "gap-1 px-2 py-2 flex-wrap" : "gap-3 px-6 py-3"}`} style={{ borderBottom: `1px solid ${A.linha}` }}>
+              <button onClick={() => novaNoDia(H)} className={`rounded-md text-sm flex items-center gap-1.5 ${mobile ? "px-3 py-2 font-semibold" : "px-3 py-1.5"}`} style={mobile ? { background: A.azul, color: "#fff" } : { border: `1px solid ${A.linha}`, color: A.texto }}><Plus size={mobile ? 16 : 14} /> {mobile ? "Nova" : "Adicionar uma tarefa"}</button>
+              <button onClick={() => mover(-1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronLeft size={mobile ? 22 : 18} /></button>
+              <button onClick={() => { setDir(0); setRef(H); }} className={mobile ? "text-sm px-2 py-2 font-semibold" : "text-sm px-1"} style={{ color: A.texto }}>Hoje</button>
+              <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
               <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>
               <span className="flex-1" />
               <div className="flex rounded-md p-0.5" style={{ background: A.fundo2, border: `1px solid ${A.linha}` }}>
@@ -701,6 +728,39 @@ export function Agenda({ user }) {
             </div>
             {!d && <div className="p-6"><Loader2 size={18} className="animate-spin" style={{ color: A.sub }} /></div>}
             <div key={`${modo}-${dias[0]}`} className={dir > 0 ? "anim-dir" : dir < 0 ? "anim-esq" : "anim-entrar"} style={{ flex: 1 }}>
+              {/* v550 — celular: semana em lista vertical (um dia embaixo do outro); mês em grade compacta com a quantidade */}
+              {mobile && modo === "semana" ? (
+                <div className="flex flex-col">
+                  {dias.map((dia, k) => {
+                    const l = porDia[dia] || [], hoje = dia === H;
+                    return (
+                      <div key={dia} className="px-3 py-2.5 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.linha}`, background: hoje ? A.azulSoft : A.fundo }}>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center rounded-md font-semibold" style={{ minWidth: 34, height: 32, fontSize: 18, background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : A.texto }}>{Number(dia.slice(8))}</span>
+                          <span className="text-sm font-semibold" style={{ color: hoje ? A.azul : A.sub }}>{SEM_SEG[k % 7]}{hoje ? " · hoje" : ""}</span>
+                          <span className="flex-1" />
+                          {l.length > 0 && <span className="text-xs" style={{ color: A.sub }}>{l.length}</span>}
+                          <button onClick={() => novaNoDia(dia)} title="Nova tarefa neste dia" className="p-2 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
+                        </div>
+                        {l.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onConcluir={() => alternarConcluida(t)} />)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : mobile ? (
+                <div className="grid grid-cols-7">
+                  {SEM_SEG.map((s0) => <div key={s0} className="text-center text-[11px] py-1 font-semibold" style={{ color: A.sub }}>{s0}</div>)}
+                  {dias.map((dia) => {
+                    const fora = Number(dia.slice(5, 7)) !== mes, l = porDia[dia] || [], hoje = dia === H;
+                    return (
+                      <button key={dia} onClick={() => { setModo("semana"); setRef(dia); }} className="flex flex-col items-center gap-0.5 py-2" style={{ minHeight: 58, borderTop: `1px solid ${A.linha}`, background: fora ? A.fundo2 : A.fundo }}>
+                        <span className="inline-flex items-center justify-center rounded-full font-semibold" style={{ width: 30, height: 30, fontSize: 15, background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : fora ? "#B7B3B3" : A.texto }}>{Number(dia.slice(8))}</span>
+                        {l.length > 0 && <span className="text-[11px] font-bold px-1.5 rounded-full" style={{ background: l.some((t) => t.tipo === "URGENTE") ? A.cardVermBorda : A.azulSoft, color: A.texto }}>{l.length}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="grid grid-cols-7" style={{ height: "100%" }}>
                 {dias.map((dia, k) => {
                   const fora = modo === "mes" && Number(dia.slice(5, 7)) !== mes;
@@ -728,6 +788,7 @@ export function Agenda({ user }) {
                   );
                 })}
               </div>
+              )}
             </div>
           </div>
         )}
