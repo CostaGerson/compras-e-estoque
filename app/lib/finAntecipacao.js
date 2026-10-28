@@ -431,7 +431,7 @@ export async function analisarBaixados(b64) {
       // v540 — Títulos PAGOS: cliente pagou o boleto → liquida o título.
       //        Títulos BAIXADOS: o banco cobrou da Meridian → baixa a conta a pagar da recompra; o título volta a receber do cliente.
       status: !d ? "SEM_CONTA"
-        : pagos ? (d.liquidadoEm && d.liquidacao !== "RECOMPRA" ? "JA_LIQUIDADO" : d.status === "PAGO" && !d.liquidadoEm ? "LIQUIDAR" : "JA_LIQUIDADO")
+        : pagos ? ((d.status === "PAGO" && !d.liquidadoEm) || (d.status === "ABERTO" && d.cobranca === "RECOMPRADO") ? "LIQUIDAR" : "JA_LIQUIDADO")   // v545 — recomprado em aberto: o banco diz que o cliente pagou o boleto
         : (d.cobranca === "RECOMPRADO" || d.liquidacao === "RECOMPRA" || (d.recompraId && recs[d.recompraId]?.status === "PAGO")) ? "JA_RECOMPRA_PAGA"
         : "RECOMPRA",   // inclusive liquidado como "cliente pagou" por engano (ex.: NF 1964): o banco diz que cobrou da Meridian
     };

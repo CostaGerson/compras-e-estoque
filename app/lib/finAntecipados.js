@@ -229,6 +229,16 @@ export async function pagarRecompra(id, { data, valor, quem } = {}) {
 // marca o título como liquidado (cliente pagou quem antecipou)
 export async function liquidar(id, data, quem) {
   const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  // v545 — título recomprado (voltou a receber) que aparece nos Títulos Pagos: o cliente pagou o boleto no banco → recebido.
+  // A recompra também foi paga: fica a crítica para conferir a devolução/estorno com o banco.
+  if (t && t.tipo === "RECEBER" && t.status === "ABERTO" && t.cobranca === "RECOMPRADO") {
+    const dt = dataUTC(data);
+    await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "PAGO", dataPagamento: dt, valorPago: t.valor, valorConfirmado: true, previsao: false, cobranca: "DESCONTADO", formaPagamento: "DESCONTO",
+      liquidadoEm: dt, liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
+      critica: `Banco informa que o cliente pagou o boleto (Títulos Pagos, ${dBR(dt)}), mas a recompra deste título também foi paga — confira a devolução da recompra com o Bradesco.`,
+      observacao: [t.observacao, `CLIENTE PAGOU O BOLETO NO BANCO (RELATÓRIO TÍTULOS PAGOS, ${dBR(dt)}) APÓS A RECOMPRA`].filter(Boolean).join(" · ").slice(0, 1000) } });
+    return { ok: true };
+  }
   if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser liquidado.");
   if (t.liquidadoEm) return { ja: true };
   await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: dataUTC(data), liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
