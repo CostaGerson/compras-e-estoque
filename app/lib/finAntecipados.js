@@ -176,7 +176,7 @@ export async function recompraPorVencido(id, { encargos = 0, vencBanco, quem } =
   const [parc, doc] = PARCEIRO[forma] || PARCEIRO.BRADESCO;
   const enc = r2(Number(encargos) || 0);
   const valor = r2(Number(t.valor) + enc);
-  const venc = hojeUTC();   // já está vencido no banco: cobrança é imediata
+  const venc = somaDiasUteis(t.vencimento, 5);   // v540 — regra do Igor: 5 dias úteis após o vencimento original
   const ctr = t.antecipacaoId ? await prisma.finAntecipacao.findUnique({ where: { id: t.antecipacaoId }, select: { contrato: true } }) : null;
   const velha = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true } });
   if (velha) await prisma.finTitulo.update({ where: { id: velha.id }, data: { chaveImport: `${chave}|CANC|${velha.id}` } });
@@ -193,6 +193,25 @@ export async function recompraPorVencido(id, { encargos = 0, vencBanco, quem } =
   await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id, atualizadoPorNome: quem || null,
     critica: [t.critica, `Apareceu nos Títulos Vencidos do Bradesco — virou conta a pagar de recompra (${dBR(venc)}).`].filter(Boolean).join(" · ").slice(0, 500) } });
   return { id: p.id, valor, vencimento: venc.toISOString().slice(0, 10) };
+}
+
+// v540 — relatório "Títulos Baixados": o banco cobrou a recompra da Meridian. Baixa a conta a pagar da recompra
+// (cria, se ainda não existir) e o título volta a ficar em aberto para receber do cliente (amarrarCobrancas).
+export async function pagarRecompra(id, { data, valor, quem } = {}) {
+  let t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
+  if (!t) throw new Error("Título não encontrado.");
+  let c = t.recompraId ? await prisma.finTitulo.findUnique({ where: { id: t.recompraId } }) : null;
+  if (!c || c.status === "CANCELADO") {
+    const enc = valor && Number(valor) > Number(t.valor) ? r2(Number(valor) - Number(t.valor)) : 0;
+    const x = await recompraPorVencido(t.id, { encargos: enc, quem });
+    c = await prisma.finTitulo.findUnique({ where: { id: x.id } });
+  }
+  const dt = dataUTC(data || new Date().toISOString().slice(0, 10));
+  const v = r2(Number(valor) || Number(c.valor));
+  if (c.status !== "PAGO") await prisma.finTitulo.update({ where: { id: c.id }, data: { status: "PAGO", dataPagamento: dt, valorPago: v, valorConfirmado: true, critica: null, atualizadoPorNome: quem || null,
+    observacao: [c.observacao, `PAGA PELO RELATÓRIO TÍTULOS BAIXADOS (BRADESCO) EM ${dBR(dt)}`].filter(Boolean).join(" · ").slice(0, 1000) } });
+  await amarrarCobrancas(quem);
+  return { ok: true, id: c.id, valor: v };
 }
 
 // marca o título como liquidado (cliente pagou quem antecipou)

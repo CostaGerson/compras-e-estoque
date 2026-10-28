@@ -404,9 +404,11 @@ export async function analisarBaixados(b64) {
   const { total, itens } = pagos ? parseTitulosPagos(texto) : parseTitulosBaixados(texto);
   if (!itens.length) throw new Error("Não achei títulos pagos/baixados no relatório.");
   const desc = await prisma.finTitulo.findMany({
-    where: { tipo: "RECEBER", status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true },
+    where: { tipo: "RECEBER", OR: [{ status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] }, { cobranca: "RECOMPRADO" }] },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true, status: true, cobranca: true },
   });
+  // v540 — recompra de cada título (Títulos Baixados = o banco cobrou da Meridian: baixa a conta a pagar da recompra)
+  const recs = Object.fromEntries((await prisma.finTitulo.findMany({ where: { id: { in: desc.map((d) => d.recompraId).filter(Boolean) } }, select: { id: true, status: true } })).map((c) => [c.id, c]));
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
   const usados = new Set();
   const casar = (it) => {
@@ -426,22 +428,28 @@ export async function analisarBaixados(b64) {
     return {
       ...it,
       titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!d.recompraId } : null,
-      // v539 — título com recompra: a baixa no banco pode ser o DÉBITO da recompra (não pagamento do cliente) — não liquida sozinho
-      status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : d.recompraId ? "CONFERIR" : "LIQUIDAR",
+      // v540 — Títulos PAGOS: cliente pagou o boleto → liquida o título.
+      //        Títulos BAIXADOS: o banco cobrou da Meridian → baixa a conta a pagar da recompra; o título volta a receber do cliente.
+      status: !d ? "SEM_CONTA"
+        : pagos ? (d.liquidadoEm && d.liquidacao !== "RECOMPRA" ? "JA_LIQUIDADO" : d.status === "PAGO" && !d.liquidadoEm ? "LIQUIDAR" : "JA_LIQUIDADO")
+        : (d.cobranca === "RECOMPRADO" || d.liquidacao === "RECOMPRA" || (d.recompraId && recs[d.recompraId]?.status === "PAGO")) ? "JA_RECOMPRA_PAGA"
+        : d.liquidadoEm ? "JA_LIQUIDADO" : "RECOMPRA",
     };
   });
-  return { total, itens: linhas, casados: linhas.filter((l) => l.status === "LIQUIDAR").length, jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length, semConta: linhas.filter((l) => l.status === "SEM_CONTA").length };
+  return { tipo: pagos ? "PAGOS" : "BAIXADOS", total, itens: linhas, casados: linhas.filter((l) => ["LIQUIDAR", "RECOMPRA"].includes(l.status)).length, jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length, semConta: linhas.filter((l) => l.status === "SEM_CONTA").length };
 }
 
 // liquida (cliente pagou) os títulos baixados selecionados
 export async function aplicarBaixados(b64, { ids, quem } = {}) {
   const r = await analisarBaixados(b64);
-  const { liquidar } = await import("@/lib/finAntecipados");
-  const alvo = r.itens.filter((l) => l.status === "LIQUIDAR" && l.titulo && (!ids || ids.includes(l.titulo.id)));
-  const out = { liquidados: 0, valor: 0, linhas: [], erros: [] };
+  const { liquidar, pagarRecompra } = await import("@/lib/finAntecipados");
+  const alvo = r.itens.filter((l) => ["LIQUIDAR", "RECOMPRA"].includes(l.status) && l.titulo && (!ids || ids.includes(l.titulo.id)));
+  const out = { tipo: r.tipo, liquidados: 0, recompras: 0, valor: 0, linhas: [], erros: [] };
   for (const l of alvo) {
-    try { await liquidar(l.titulo.id, l.dataBaixa, quem); out.liquidados++; out.valor = r2(out.valor + l.titulo.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: liquidada (cliente pagou em ${dBR(l.dataBaixa)})`); }
-    catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
+    try {
+      if (l.status === "LIQUIDAR") { await liquidar(l.titulo.id, l.dataBaixa, quem); out.liquidados++; out.valor = r2(out.valor + l.titulo.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: liquidada (cliente pagou em ${dBR(l.dataBaixa)})`); }
+      else { const x = await pagarRecompra(l.titulo.id, { data: l.dataBaixa, valor: l.valorBaixado, quem }); out.recompras++; out.valor = r2(out.valor + x.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: recompra paga em ${dBR(l.dataBaixa)} (R$ ${x.valor.toFixed(2)}) — título volta a receber do cliente`); }
+    } catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
   }
   return { ...out, total: r.total, semConta: r.semConta, jaLiquidados: r.jaLiquidados };
 }

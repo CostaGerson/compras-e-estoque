@@ -1251,7 +1251,7 @@ export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- v334 — títulos baixados (cliente pagou a duplicata descontada) ---------------- */
-const ST_BX = { CONFERIR: ["Tem recompra — conferir", C.red, C.redSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], JA_LIQUIDADO: ["Já liquidado", C.sub, C.panel2], SEM_CONTA: ["Sem conta descontada", C.red, C.redSoft] };
+const ST_BX = { RECOMPRA: ["Banco cobrou — baixar recompra", C.roxo || C.red, C.roxoSoft || C.redSoft], JA_RECOMPRA_PAGA: ["Recompra já paga", C.sub, C.panel2], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], JA_LIQUIDADO: ["Já liquidado", C.sub, C.panel2], SEM_CONTA: ["Sem conta descontada", C.red, C.redSoft] };
 export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
   const [arq, setArq] = useState(null);     // { nome, conteudo }
   const [a, setA] = useState(null);
@@ -1266,21 +1266,21 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
       const conteudo = await readB64(f);
       const r = await api("/api/fin/baixados", "POST", { usuarioId: user.id, acao: "analisar", conteudo });
       setArq({ nome: f.name, conteudo }); setA(r);
-      const m = {}; for (const l of r.itens) if (l.status === "LIQUIDAR" && l.titulo) m[l.titulo.id] = true; setMarc(m);
+      const m = {}; for (const l of r.itens) if (["LIQUIDAR", "RECOMPRA"].includes(l.status) && l.titulo) m[l.titulo.id] = true; setMarc(m);
     } catch (e) { setErro(e.message); }
     setSt("");
   };
   useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
-  const ids = a ? a.itens.filter((l) => l.status === "LIQUIDAR" && l.titulo && marc[l.titulo.id]).map((l) => l.titulo.id) : [];
+  const ids = a ? a.itens.filter((l) => ["LIQUIDAR", "RECOMPRA"].includes(l.status) && l.titulo && marc[l.titulo.id]).map((l) => l.titulo.id) : [];
   const aplicar = async () => {
     setSt("Liquidando…"); setErro("");
     try {
       const r = await api("/api/fin/baixados", "POST", { usuarioId: user.id, acao: "aplicar", conteudo: arq.conteudo, ids });
-      onSalvo(`Títulos baixados: ${r.liquidados} liquidado(s) (${moeda(r.valor)})${r.semConta ? ` · ${r.semConta} sem conta descontada no sistema` : ""}${r.jaLiquidados ? ` · ${r.jaLiquidados} já estavam liquidados` : ""}.${r.erros?.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+      onSalvo(`${r.tipo === "PAGOS" ? "Títulos pagos" : "Títulos baixados"}: ${r.liquidados ? `${r.liquidados} liquidado(s) (cliente pagou)` : ""}${r.recompras ? `${r.recompras} recompra(s) paga(s) — títulos voltam a receber do cliente` : ""}${!r.liquidados && !r.recompras ? "nada aplicado" : ""} (${moeda(r.valor)})${r.semConta ? ` · ${r.semConta} sem conta descontada no sistema` : ""}${r.jaLiquidados ? ` · ${r.jaLiquidados} já estavam liquidados` : ""}.${r.erros?.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
     } catch (e) { setErro(e.message); setSt(""); }
   };
   return (
-    <Modal titulo="Títulos baixados / pagos — cliente pagou a duplicata descontada (Bradesco)" icone={FileCode2} onClose={onClose} largura={1080}
+    <Modal titulo="Títulos pagos (cliente pagou) / Títulos baixados (banco cobrou a recompra) — Bradesco" icone={FileCode2} onClose={onClose} largura={1080}
       rodape={a ? <>
         <span className="text-xs mr-auto" style={{ color: C.sub }}>{ids.length} para liquidar</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
@@ -1308,10 +1308,10 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
               <tbody>
                 {a.itens.map((l, i) => {
                   const [rot, cor, bg] = ST_BX[l.status];
-                  const on = l.status === "LIQUIDAR" && l.titulo && marc[l.titulo.id];
+                  const on = ["LIQUIDAR", "RECOMPRA"].includes(l.status) && l.titulo && marc[l.titulo.id];
                   return (
                     <tr key={i} style={{ borderTop: `1px solid ${C.line}`, background: on ? C.greenSoft : undefined }}>
-                      <td className="px-2 py-1.5">{l.status === "LIQUIDAR" && l.titulo && <input type="checkbox" checked={!!on} onChange={() => setMarc((m) => ({ ...m, [l.titulo.id]: !m[l.titulo.id] }))} />}</td>
+                      <td className="px-2 py-1.5">{["LIQUIDAR", "RECOMPRA"].includes(l.status) && l.titulo && <input type="checkbox" checked={!!on} onChange={() => setMarc((m) => ({ ...m, [l.titulo.id]: !m[l.titulo.id] }))} />}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{l.seuNumero}<span style={{ color: C.sub }}> · {l.nossoNumero}</span></td>
                       <td className="px-2 py-1.5">{l.sacado}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{moeda(l.valorNota)}</td>
