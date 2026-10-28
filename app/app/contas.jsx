@@ -9,6 +9,7 @@ import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
+  Info as InfoI,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -657,7 +658,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
               return (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
-                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<AltInfo t={t} campo="vencimento" /><MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>
                     <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
@@ -681,7 +682,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     {(t.rateio || []).length > 1 && <div className="text-[10px]" style={{ color: C.sub }}>+{t.rateio.length - 1} conta(s) no rateio</div>}
                   </td>
                   <td className="px-3 py-2 text-right font-bold whitespace-nowrap">
-                    {brl(t.valor)}
+                    <AltInfo t={t} campo="valor" />{brl(t.valor)}
                     {t.pagoParcial > 0 && <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)} de {brl(t.valorTotal)}</div>}
                     {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
                       : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
@@ -3758,4 +3759,11 @@ export function ComprovantesBaixa({ user, lista, arqs, onFeito }) {
       </div>
     </div>
   );
+}
+
+// v543 — "i" amarelo ao lado do valor / vencimento alterado; o mouse mostra o que mudou
+function AltInfo({ t, campo }) {
+  const l = (Array.isArray(t.alteracoes) ? t.alteracoes : []).filter((a) => a.campo === campo);
+  if (!l.length) return null;
+  return <span className="inline-flex align-middle mx-1 cursor-help" title={l.map((a) => a.texto).join("\n")}><InfoI size={13} style={{ color: C.yellow }} /></span>;
 }

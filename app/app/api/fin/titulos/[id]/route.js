@@ -94,6 +94,14 @@ export async function PATCH(req, { params }) {
       if (!(v >= 0) || (v === 0 && !t.recorrenciaId)) return Response.json({ error: "Valor inválido." }, { status: 400 });
       data.valor = v;
       if (t.recorrenciaId) data.valorConfirmado = true;
+      // v543 — parcela de nota: as demais em aberto são refeitas para a soma continuar igual ao valor da nota
+      if (Math.abs(v - Number(t.valor)) > 0.009 && !t.recorrenciaId && t.status === "ABERTO") {
+        const P = await import("@/lib/finParcelas");
+        const rb = await P.rebalancear(t, v, quem.atualizadoPorNome);
+        if (rb.erro) return Response.json({ error: rb.erro }, { status: 400 });
+        const fmt = (n) => `R$ ${Number(n).toFixed(2).replace(".", ",")}`;
+        data.alteracoes = P.registro({ alteracoes: data.alteracoes ?? t.alteracoes }, "valor", `Valor alterado de ${fmt(t.valor)} para ${fmt(v)} por ${quem.atualizadoPorNome || "—"} em ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}${rb.ajustes?.length ? ` · parcela(s) ${rb.ajustes.map((a) => `${a.parcela} ${fmt(a.de)}→${fmt(a.para)}`).join(", ")} ajustada(s) para a soma ficar em ${fmt(rb.total)}` : ""}.`, quem.atualizadoPorNome, true);
+      }
     }
     if (b.vencimento && !t.vencimentoOriginal) { data.vencimento = dataUTC(b.vencimento); data.competencia = mesDe(b.vencimento); }
     // REPROGRAMADO: o vencimento passa a ser a data nova; o original e cada mudança ficam no histórico.
@@ -115,6 +123,12 @@ export async function PATCH(req, { params }) {
         hist.push({ de: atual, para: orig, em, por, desfeito: true });
         data.reprogramacoes = hist;
       }
+    }
+    // v543 — vencimento alterado: "i" amarelo na data
+    const vNovo = data.vencimento ? data.vencimento.toISOString().slice(0, 10) : null, vAnt = t.vencimento.toISOString().slice(0, 10);
+    if (vNovo && vNovo !== vAnt) {
+      const P = await import("@/lib/finParcelas");
+      data.alteracoes = P.registro({ alteracoes: data.alteracoes ?? t.alteracoes }, "vencimento", `Vencimento alterado de ${vAnt.split("-").reverse().join("/")} para ${vNovo.split("-").reverse().join("/")} por ${quem.atualizadoPorNome || "—"} em ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`, quem.atualizadoPorNome, true);
     }
     if (b.rateio !== undefined) {
       const rt = validarRateio(b.rateio);

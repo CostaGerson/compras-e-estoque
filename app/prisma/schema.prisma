@@ -922,6 +922,7 @@ model FinTitulo {
   // v137: reprogramação — vencimento é sempre o que vale; aqui fica o original e o histórico [{ de, para, em, por }]
   vencimentoOriginal DateTime? @db.Date
   reprogramacoes   Json?
+  alteracoes       Json?     // v543 — [{ campo: "valor"|"vencimento", texto, em, por, manual }] — "i" amarelo na lista
   // v135: receber atrasado — status EXECUCAO (cobrança judicial) ou PERDA (perda reconhecida)
   execucaoId       Int?
   execucao         FinExecucao?    @relation(fields: [execucaoId], references: [id], onDelete: SetNull)
