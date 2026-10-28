@@ -1417,7 +1417,7 @@ export function VencidosModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
-const ACAO_RET = {
+const ACAO_RET = { DESCONTAR: ["Antecipado (desconto)", "#7A5AF8", "#F1EDFF"],
   REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],
   AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
 };
@@ -1495,7 +1495,7 @@ export function RetornoModal({ user, onClose, onSalvo, iniciais }) {
               </tr></thead>
               <tbody>{vis.map((x) => {
                 const [t0, c0, bg0] = ACAO_RET[x.acao] || [x.acao, C.sub, C.panel2];
-                const pode = (!!x.alvo && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(x.acao) && x.situacao !== "JA_BAIXADA") || x.situacao === "CRIAR";
+                const pode = (!!x.alvo && ["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(x.acao) && x.situacao !== "JA_BAIXADA") || x.situacao === "CRIAR";
                 const dt = x.acao === "LIQUIDAR" ? (x.dataCredito || x.dataOcorrencia) : x.dataOcorrencia;
                 return (
                   <tr key={x.k} style={{ borderBottom: `1px solid ${C.line}`, opacity: pode && !marc[x.k] ? 0.55 : 1 }}>

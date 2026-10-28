@@ -115,6 +115,8 @@ function textoMotivos(r) {
 // pagamento cancelado, estorno…) NÃO baixa: vira CRÍTICA na conta, para conferir.
 function acaoDe(r) {
   if (r.ocorrencia === "02") return { acao: "REGISTRAR" };
+  // v538 — baixa com motivo 20 = título transferido para desconto: foi ANTECIPADO no banco (vira descontado/antecipado)
+  if (["09", "10"].includes(r.ocorrencia) && r.motivos.includes("20")) return { acao: "DESCONTAR", aviso: "Título baixado e transferido para desconto: antecipado no Bradesco." };
   if (LIQ.includes(r.ocorrencia)) return { acao: "LIQUIDAR" };
   if (r.ocorrencia === "28") return { acao: "TARIFA" };
   const nome = OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`;
@@ -189,7 +191,7 @@ export async function analisarRetornos(arquivos) {
       const t = cs.t;
       let criar = null;
       let situacao = "OK", msg = aviso || null;
-      if (["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) {
+      if (["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(acao)) {
         if (!t) {
           situacao = "SEM_CONTA"; msg = cs.recusado || "Nenhuma conta a receber com esse nº de título / nosso número.";
           // v207 — a NF existe no sistema mas não virou conta a receber: oferece criar a conta com os dados do boleto
@@ -202,6 +204,8 @@ export async function analisarRetornos(arquivos) {
         }
         else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = "Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação."; }
         else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
+        else if (acao === "DESCONTAR" && (t.antecipadoForma || t.cobranca === "DESCONTADO")) { situacao = "JA_BAIXADA"; msg = "Título já está como antecipado — nada a fazer."; }
+        else if (acao === "DESCONTAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = `Transferido para desconto, mas a conta já está ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} — confira.`; }
         else if (acao === "CRITICA" && !["ABERTO", "EXECUCAO"].includes(t.status)) { situacao = "JA_BAIXADA"; msg = `${aviso} (conta já ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} no sistema — sem crítica)`; }
         else if (acao === "REGISTRAR" && t.registradoEm) { situacao = "JA_REGISTRADA"; }   // v231: falta o nº/data do retorno → registra
       }
@@ -210,7 +214,7 @@ export async function analisarRetornos(arquivos) {
         situacao, aviso: msg,
         alvo: t ? { id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status } : null,
         criar,
-        aplicar: (!!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA"].includes(acao)) || situacao === "CRIAR",
+        aplicar: (!!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(acao)) || situacao === "CRIAR",
       };
     }),
   }));
@@ -287,6 +291,14 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
         r.linhas.push(`${t.titulo}: crítica registrada (não baixada)`);
         continue;
       }
+      if (acao === "DESCONTAR") {   // v538 — antecipado no banco pelo retorno
+        if (usados.has(id)) continue;
+        const ok = await descontarPeloRetorno(t, { data: reg.dataOcorrencia || f.dataArquivo, valor: reg.valor, nosso, retorno: f.sequencia || f.arquivo, quem });
+        usados.add(id);
+        await anexar(id, f.a, f.hash, quem);
+        if (ok) { r.descontadas++; r.valorDescontado = r2(r.valorDescontado + Number(t.valor)); r.linhas.push(`${t.titulo}: antecipada (transferida para desconto) em ${dBR(reg.dataOcorrencia || f.dataArquivo)}`); }
+        continue;
+      }
       if (acao !== "LIQUIDAR") continue;
       if (usados.has(id)) continue;
       // v186 — título antecipado: o pagamento do cliente confirma a antecipação (liquidado), sem mexer no recebimento
@@ -355,4 +367,34 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
     } catch (e) { r.erros.push(`${f.arquivo}: ${e.message}`); }
   }
   return r;
+}
+
+// v538 — título transferido para desconto (retorno: ocorrência 09/10 com motivo 20) = antecipado no Bradesco.
+// Fica PAGO pelo valor de face (DESCONTADO, forma Bradesco): sai do "em aberto real" e entra no virtual até o cliente pagar
+// (a liquidação vem pelo retorno de pagamento ou pelos relatórios de títulos baixados/pagos/vencidos).
+export async function descontarPeloRetorno(t, { data, valor, nosso, retorno, quem }) {
+  if (t.status !== "ABERTO" && !(t.status === "PAGO" && t.cobranca === "DESCONTADO")) return false;
+  if (t.antecipadoForma) return false;
+  const dt = dataUTC(data);
+  const critRet = /transferido para desconto|ocorr[eê]ncia 0?9\b|ocorr[eê]ncia 10\b/i.test(String(t.critica || ""));
+  await prisma.finTitulo.update({ where: { id: t.id }, data: {
+    ...(t.status === "ABERTO" ? { status: "PAGO", dataPagamento: dt, valorPago: r2(Number(t.valor)), previsao: false, valorConfirmado: true } : {}),
+    cobranca: "DESCONTADO", formaPagamento: "DESCONTO", antecipadoForma: "BRADESCO", antecipadoEm: t.antecipadoEm || dt, nossoNumero: t.nossoNumero || nosso || null,
+    ...(critRet ? { critica: null } : {}),
+    observacao: [t.observacao, `TRANSFERIDO PARA DESCONTO — ANTECIPADO NO BRADESCO (RETORNO ${retorno}, ${dBR(data)})`].filter(Boolean).join(" · ").slice(0, 1000),
+    atualizadoPorNome: quem || null,
+  } });
+  return true;
+}
+
+// v538 — contas que ficaram com a crítica "baixado… transferido para desconto" (antes da v538): viram antecipadas
+export async function corrigirCriticasDesconto(quem) {
+  const l = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO", critica: { contains: "transferido para desconto", mode: "insensitive" } } });
+  let n = 0;
+  for (const t of l) {
+    const m = String(t.critica).match(/Retorno\s+(\S+)\s+\((\d{2})\/(\d{2})\/(\d{4})\)/i);
+    const data = m ? `${m[4]}-${m[3]}-${m[2]}` : new Date().toISOString().slice(0, 10);
+    if (await descontarPeloRetorno(t, { data, retorno: m ? m[1] : "ANTERIOR", quem: quem || "RETORNO" })) n++;
+  }
+  return n;
 }

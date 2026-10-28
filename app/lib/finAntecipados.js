@@ -106,6 +106,7 @@ async function padronizarNomes() {
 export async function sincronizarAntecipados(quem) {
   await padronizarNomes().catch((e) => console.log("antecipados/nomes:", e.message));
   await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
+  try { const { corrigirCriticasDesconto } = await import("@/lib/finRetorno"); await corrigirCriticasDesconto(quem); } catch (e) { console.log("antecipados/retorno-desconto:", e.message); }   // v538
   await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
   // v335 — a recompra NÃO é mais criada automaticamente por data. Um título antecipado só vira
   // conta a pagar de recompra quando aparece no relatório "Títulos Vencidos" do Bradesco (aplicarVencidos)
