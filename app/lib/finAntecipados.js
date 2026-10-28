@@ -200,6 +200,10 @@ export async function recompraPorVencido(id, { encargos = 0, vencBanco, quem } =
 export async function pagarRecompra(id, { data, valor, quem } = {}) {
   let t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
   if (!t) throw new Error("Título não encontrado.");
+  if (t.liquidadoEm && t.liquidacao === "CLIENTE" && t.status === "PAGO") {   // liquidado como "cliente pagou" por engano: o banco cobrou a recompra
+    t = await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null,
+      observacao: [t.observacao, "LIQUIDAÇÃO 'CLIENTE PAGOU' DESFEITA: O BANCO COBROU A RECOMPRA (TÍTULOS BAIXADOS)"].filter(Boolean).join(" · ").slice(0, 1000) } });
+  }
   let c = t.recompraId ? await prisma.finTitulo.findUnique({ where: { id: t.recompraId } }) : null;
   if (!c || c.status === "CANCELADO") {
     const enc = valor && Number(valor) > Number(t.valor) ? r2(Number(valor) - Number(t.valor)) : 0;

@@ -433,7 +433,7 @@ export async function analisarBaixados(b64) {
       status: !d ? "SEM_CONTA"
         : pagos ? (d.liquidadoEm && d.liquidacao !== "RECOMPRA" ? "JA_LIQUIDADO" : d.status === "PAGO" && !d.liquidadoEm ? "LIQUIDAR" : "JA_LIQUIDADO")
         : (d.cobranca === "RECOMPRADO" || d.liquidacao === "RECOMPRA" || (d.recompraId && recs[d.recompraId]?.status === "PAGO")) ? "JA_RECOMPRA_PAGA"
-        : d.liquidadoEm ? "JA_LIQUIDADO" : "RECOMPRA",
+        : "RECOMPRA",   // inclusive liquidado como "cliente pagou" por engano (ex.: NF 1964): o banco diz que cobrou da Meridian
     };
   });
   return { tipo: pagos ? "PAGOS" : "BAIXADOS", total, itens: linhas, casados: linhas.filter((l) => ["LIQUIDAR", "RECOMPRA"].includes(l.status)).length, jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length, semConta: linhas.filter((l) => l.status === "SEM_CONTA").length };
