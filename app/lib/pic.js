@@ -4,7 +4,8 @@ import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa } from "@/
 const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
-const num = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
+const num = (v) => { if (v === "" || v == null) return null; if (typeof v === "number") return Number.isFinite(v) ? v : null;   // v533 — número já vem com ponto decimal (correção pela NF): não tirar o ponto
+  const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
 const nomeForn = (f) => (f ? f.nomeFantasia || f.nome || f.razaoSocial || `#${f.id}` : null);
 
 // gera o PIC com os itens que o estoque não atende (os marcados "compra" no cruzamento)
