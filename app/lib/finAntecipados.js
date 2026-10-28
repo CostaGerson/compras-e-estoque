@@ -227,7 +227,7 @@ export async function pagarRecompra(id, { data, valor, quem } = {}) {
 }
 
 // marca o título como liquidado (cliente pagou quem antecipou)
-export async function liquidar(id, data, quem) {
+export async function liquidar(id, data, quem, { relatorio = false } = {}) {
   const t = await prisma.finTitulo.findUnique({ where: { id: Number(id) } });
   // v545 — título recomprado (voltou a receber) que aparece nos Títulos Pagos: o cliente pagou o boleto no banco → recebido.
   // A recompra também foi paga: fica a crítica para conferir a devolução/estorno com o banco.
@@ -235,8 +235,8 @@ export async function liquidar(id, data, quem) {
     const dt = dataUTC(data);
     await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "PAGO", dataPagamento: dt, valorPago: t.valor, valorConfirmado: true, previsao: false, cobranca: "DESCONTADO", formaPagamento: "DESCONTO",
       liquidadoEm: dt, liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
-      critica: `Banco informa que o cliente pagou o boleto (Títulos Pagos, ${dBR(dt)}), mas a recompra deste título também foi paga — confira a devolução da recompra com o Bradesco.`,
-      observacao: [t.observacao, `CLIENTE PAGOU O BOLETO NO BANCO (RELATÓRIO TÍTULOS PAGOS, ${dBR(dt)}) APÓS A RECOMPRA`].filter(Boolean).join(" · ").slice(0, 1000) } });
+      critica: relatorio ? `Banco informa que o cliente pagou o boleto (Títulos Pagos, ${dBR(dt)}), mas a recompra deste título também foi paga — confira a devolução da recompra com o Bradesco.` : limparCriticaAnt(t.critica),
+      observacao: [t.observacao, relatorio ? `CLIENTE PAGOU O BOLETO NO BANCO (RELATÓRIO TÍTULOS PAGOS, ${dBR(dt)}) APÓS A RECOMPRA` : `CLIENTE PAGOU APÓS A RECOMPRA (${dBR(dt)}, BAIXA POR ${quem || "—"})`].filter(Boolean).join(" · ").slice(0, 1000) } });
     return { ok: true };
   }
   if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser liquidado.");
@@ -309,7 +309,10 @@ export async function registrarManual({ forma, data, contrato, ids, liquido, arq
 }
 
 // situação do título antecipado
+// v546 — LIQUIDADO = pago pelo cliente · COBRADO = recompra solicitada (conta a pagar em aberto) ·
+// RECOMPRADO = recompra paga, título em aberto esperando o cliente · VENCIDO / A_VENCER = aguardando o cliente
 export function situacaoAntecipado(t, hoje = hojeUTC()) {
+  if (t.cobranca === "RECOMPRADO") return t.status === "PAGO" ? "LIQUIDADO" : "RECOMPRADO";
   if (t.liquidadoEm) return t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO";
   if (t.recompraId) return "COBRADO";
   const v = t.vencimento instanceof Date ? t.vencimento : dataUTC(t.vencimento);

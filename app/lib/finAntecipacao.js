@@ -447,7 +447,7 @@ export async function aplicarBaixados(b64, { ids, quem } = {}) {
   const out = { tipo: r.tipo, liquidados: 0, recompras: 0, valor: 0, linhas: [], erros: [] };
   for (const l of alvo) {
     try {
-      if (l.status === "LIQUIDAR") { await liquidar(l.titulo.id, l.dataBaixa, quem); out.liquidados++; out.valor = r2(out.valor + l.titulo.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: liquidada (cliente pagou em ${dBR(l.dataBaixa)})`); }
+      if (l.status === "LIQUIDAR") { await liquidar(l.titulo.id, l.dataBaixa, quem, { relatorio: true }); out.liquidados++; out.valor = r2(out.valor + l.titulo.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: liquidada (cliente pagou em ${dBR(l.dataBaixa)})`); }
       else { const x = await pagarRecompra(l.titulo.id, { data: l.dataBaixa, valor: l.valorBaixado, quem }); out.recompras++; out.valor = r2(out.valor + x.valor); out.linhas.push(`${l.titulo.titulo} · ${l.sacado}: recompra paga em ${dBR(l.dataBaixa)} (R$ ${x.valor.toFixed(2)}) — título volta a receber do cliente`); }
     } catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
   }

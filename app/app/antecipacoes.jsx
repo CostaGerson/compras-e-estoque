@@ -49,17 +49,20 @@ const inpS = { background: C.panel, border: `1px solid ${C.line}`, color: C.text
 
 // situação do antecipado (vinda do servidor em sitAnt, ou calculada pelos campos)
 export function sitAntecipado(t) {
-  const k = t.sitAnt || (t.liquidadoEm ? (t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO") : t.recompraId ? "COBRADO" : t.vencimento < hojeISO() ? "VENCIDO" : "A_VENCER");
+  // v546 — pago (cliente pagou) · recompra solicitada · recomprado (aguarda o cliente) · a vencer · vencido
+  const k = t.sitAnt || (t.cobranca === "RECOMPRADO" ? (t.status === "PAGO" ? "LIQUIDADO" : "RECOMPRADO") : t.liquidadoEm ? (t.liquidacao === "RECOMPRA" ? "RECOMPRADO" : "LIQUIDADO") : t.recompraId ? "COBRADO" : t.vencimento < hojeISO() ? "VENCIDO" : "A_VENCER");
+  const dPago = t.cobranca === "RECOMPRADO" ? t.dataPagamento : t.liquidadoEm;
   return {
-    A_VENCER: { k, t: "Antecipado · a vencer", c: C.yellow, bg: C.yellowSoft },
-    VENCIDO: { k, t: "Atrasado — aguarda relatório de vencidos", c: C.yellow, bg: C.yellowSoft },
-    COBRADO: { k, t: "Banco cobrou — conta a pagar", c: C.red, bg: C.redSoft },
-    LIQUIDADO: { k, t: `Liquidado ${dBR(t.liquidadoEm).slice(0, 5)}`, c: C.green, bg: C.greenSoft },
-    RECOMPRADO: { k, t: `Recomprado ${dBR(t.liquidadoEm).slice(0, 5)}`, c: C.roxo, bg: C.roxoSoft },
+    A_VENCER: { k, t: "A vencer", c: C.yellow, bg: C.yellowSoft },
+    VENCIDO: { k, t: "Vencido — aguarda relatório do banco", c: C.red, bg: C.redSoft },
+    COBRADO: { k, t: "Recompra solicitada", c: C.red, bg: C.redSoft },
+    LIQUIDADO: { k, t: `Pago pelo cliente${dPago ? ` ${dBR(dPago).slice(0, 5)}` : ""}`, c: C.green, bg: C.greenSoft },
+    RECOMPRADO: { k, t: `Recomprado${t.liquidadoEm ? ` ${dBR(t.liquidadoEm).slice(0, 5)}` : ""} · aguarda cliente`, c: C.roxo, bg: C.roxoSoft },
   }[k];
 }
 export const ehAntecipado = (t) => t && (t.antecipadoForma || t.cobranca === "DESCONTADO");
 export const antPendente = (t) => ehAntecipado(t) && t.status === "PAGO" && !t.liquidadoEm;
+const aguardaCliente = (t) => antPendente(t) || (t.cobranca === "RECOMPRADO" && t.status === "ABERTO");   // v546
 
 /* v189 — seta vermelha: recomprar o título antecipado (conta a pagar 2 dias úteis antes do vencimento) */
 export function BotaoRecompra({ t, user, onFeito }) {
@@ -233,7 +236,7 @@ function TabelaTitulos({ itens, sel, marcar, acoes }) {
           const s = sitAntecipado(t);
           return (
             <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, background: sel?.has(t.id) ? C.accentSoft : t.critica || s.k === "COBRADO" ? C.redSoft : undefined, boxShadow: t.critica || s.k === "COBRADO" ? `inset 3px 0 0 ${C.red}` : undefined }}>
-              {sel && <td className="pl-3 py-2">{antPendente(t) && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
+              {sel && <td className="pl-3 py-2">{aguardaCliente(t) && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
               <td className="px-3 py-2 whitespace-nowrap font-semibold">{dBR(t.vencimento)}</td>
               <td className="px-3 py-2" style={{ maxWidth: 280 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.recompra && `Conta a pagar: ${moeda(t.recompra.valor)} venc. ${dBR(t.recompra.vencimento)} (${t.recompra.status})`, t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                 <div className="font-semibold truncate" style={{ color: C.navy, maxWidth: 270 }}>{t.titulo}</div>
@@ -415,12 +418,14 @@ export default function Antecipacoes({ user }) {
   const lista = useMemo(() => {
     const n = busca.trim().toUpperCase();
     return (d?.titulos || []).filter((t) => (!fForma || t.antecipadoForma === fForma)
-      && (!fSit || (fSit === "PEND" ? ["A_VENCER", "VENCIDO"].includes(t.sitAnt) : t.sitAnt === fSit))
+      && (!fSit || fSit === "TODOS" || t.sitAnt === fSit)
       && (!n || [t.titulo, t.parceiro, t.numeroDoc, brl(t.valor), t.critica].some((x) => String(x || "").toUpperCase().includes(n))));
   }, [d, busca, fForma, fSit]);
   const tot = useMemo(() => {
     const s = (f) => (d?.titulos || []).filter(f).reduce((a, t) => a + t.valor, 0);
-    return { pend: s((t) => ["A_VENCER", "VENCIDO"].includes(t.sitAnt)), liq: s((t) => ["LIQUIDADO", "RECOMPRADO"].includes(t.sitAnt)), cobr: s((t) => t.sitAnt === "COBRADO") };
+    const q = (f) => (d?.titulos || []).filter(f).length;
+    const k = (x) => (t) => t.sitAnt === x;
+    return Object.fromEntries(["A_VENCER", "VENCIDO", "LIQUIDADO", "COBRADO", "RECOMPRADO"].map((x) => [x, { v: s(k(x)), n: q(k(x)) }]));
   }, [d]);
   const contratos = useMemo(() => {
     const g = new Map();
@@ -431,7 +436,7 @@ export default function Antecipacoes({ user }) {
     }
     return [...g.values()].sort((a, b) => String(b.data).localeCompare(String(a.data)));
   }, [lista, d]);
-  const marcados = lista.filter((t) => sel.has(t.id) && antPendente(t));
+  const marcados = lista.filter((t) => sel.has(t.id) && aguardaCliente(t));
   const marcar = (ids, on) => setSel((x) => { const n = new Set(x); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const liquidar = async (ids, data) => {
     try { const r = await api("/api/fin/antecipacao", "POST", { usuarioId: user.id, acao: "liquidar", ids, data }); ok(`${r.liquidados} título(s) antecipado(s) baixado(s) — cliente pagou.`); }
@@ -447,6 +452,7 @@ export default function Antecipacoes({ user }) {
     <>
       {antPendente(t) && !t.recompraId && <button onClick={() => setModal({ t: "liq", itens: [t] })} title="Cliente pagou — baixar" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
       {antPendente(t) && t.recompraId && <button onClick={() => setModal({ t: "liq", itens: [t] })} title="Cliente pagou depois — baixar (cancela a conta a pagar em aberto)" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
+      {t.sitAnt === "RECOMPRADO" && t.status === "ABERTO" && <button onClick={() => setModal({ t: "liq", itens: [t] })} title="Cliente pagou (depois da recompra) — baixar" className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
       <BotaoRecompra t={t} user={user} onFeito={ok} />
       <BotaoObs t={t} user={user} onFeito={carregar} />
       {t.liquidacao !== "RECOMPRA" && <button onClick={() => desfazer(t)} title={t.liquidadoEm ? "Desfazer a baixa" : "Desfazer a antecipação"} className="mr-2" style={{ color: C.sub }}><Undo2 size={15} /></button>}
@@ -483,11 +489,14 @@ export default function Antecipacoes({ user }) {
               <div className="text-2xl font-extrabold" style={{ color: C.navy }}>{brl(d.pct)}%</div>
               <div className="text-[10px]" style={{ color: C.sub }}>{moeda(d.antecipado)} de {moeda(d.totalReceber)} (por valor, vencimento no período)</div>
             </div>
-            {[["Antecipado no período", d.antecipado, C.navy, ""], ["Aguardando o cliente", tot.pend, C.yellow, "PEND"], ["Liquidado", tot.liq, C.green, "LIQUIDADO"], ["Cobrado pelo banco", tot.cobr, C.red, "COBRADO"]].map(([t, v, c, f]) => (
+            {/* v546 — cards clicáveis: filtram a lista pela situação */}
+            {[["Antecipado no período", { v: d.antecipado, n: (d.titulos || []).length }, C.navy, "TODOS"], ["Pago pelo cliente", tot.LIQUIDADO, C.green, "LIQUIDADO"], ["A vencer", tot.A_VENCER, C.yellow, "A_VENCER"],
+              ["Vencidos", tot.VENCIDO, C.red, "VENCIDO"], ["Recompra solicitada", tot.COBRADO, C.red, "COBRADO"], ["Recomprado · aguarda cliente", tot.RECOMPRADO, C.roxo, "RECOMPRADO"]].map(([t, x, c, f]) => (
               <button key={t} onClick={() => setFSit(fSit === f ? "" : f)} className="rounded-xl px-4 py-3 text-left hover:shadow-sm"
-                style={{ background: C.panel, border: `1px solid ${fSit === f && f ? c : t === "Cobrado pelo banco" && v > 0 ? C.red + "55" : C.line}` }}>
+                style={{ background: fSit === f ? C.panel2 : C.panel, border: `${fSit === f ? 2 : 1}px solid ${fSit === f ? c : ["VENCIDO", "COBRADO"].includes(f) && x.v > 0 ? C.red + "55" : C.line}` }}>
                 <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}>{t}<Search size={11} style={{ color: C.accent }} /></div>
-                <div className="text-lg font-bold" style={{ color: c }}>{moeda(v)}</div>
+                <div className="text-lg font-bold" style={{ color: c }}>{moeda(x.v)}</div>
+                <div className="text-[10px]" style={{ color: C.sub }}>{x.n} título(s)</div>
               </button>
             ))}
           </div>
@@ -506,8 +515,8 @@ export default function Antecipacoes({ user }) {
               <option value="">Todas as formas</option>{Object.entries(FORMAS_ANT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <select value={fSit} onChange={(e) => setFSit(e.target.value)} className="rounded-lg px-2 py-2 text-sm outline-none" style={inpS}>
-              <option value="">Todas as situações</option><option value="PEND">Aguardando o cliente</option><option value="VENCIDO">Atrasado (ainda não está nos vencidos do banco)</option>
-              <option value="COBRADO">Cobrado pelo banco</option><option value="LIQUIDADO">Liquidado pelo cliente</option><option value="RECOMPRADO">Recomprado (conta a pagar paga)</option>
+              <option value="">Todas as situações</option><option value="A_VENCER">A vencer</option><option value="VENCIDO">Vencido (aguarda relatório do banco)</option>
+              <option value="COBRADO">Recompra solicitada (conta a pagar gerada)</option><option value="RECOMPRADO">Recomprado (recompra paga · aguarda cliente)</option><option value="LIQUIDADO">Pago pelo cliente</option>
             </select>
           </div>
 
