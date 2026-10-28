@@ -1894,7 +1894,7 @@ function NfsDaOc({ o, user, onMudou }) {
           </>}
         </div>
       )}
-      {imp && <ImportarNfs user={user} iniciais={imp} ocId={o.id} onClose={() => setImp(null)} onFim={(m) => { setImp(null); onMudou(); if (m) alerta(`${m} A NF foi ligada à ${o.numero}; confira as críticas abaixo.`); }} />}
+      {imp && <ImportarNfs user={user} iniciais={imp} ocId={o.id} onClose={() => setImp(null)} onFim={(m) => { setImp(null); onMudou(); if (m) { const nada = m.startsWith("0 NF") && !/já estava|registrada|completada/.test(m); alerta(nada ? `${m} Nada foi ligado à ${o.numero}.` : `${m} A NF foi ligada à ${o.numero}; confira as críticas abaixo.`); } }} />}
     </div>
   );
 }

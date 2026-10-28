@@ -356,7 +356,7 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
     const baixadas = res.reduce((s, r) => s + (r.baixadas || 0), 0);
     const criadas = res.reduce((s, r) => s + (r.criadas || 0), 0), ligadas = res.reduce((s, r) => s + (r.ligadas || 0), 0);
     const problemas = res.filter((r) => ["ERRO", "JA_IMPORTADA"].includes(r.situacao));
-    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} completada(s)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}.`;
+    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} completada(s)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}${c("JA_IMPORTADA") ? ` · ${c("JA_IMPORTADA")} já estava(m) no movimento fiscal (nada novo lançado)` : ""}${c("ERRO") ? ` · ${c("ERRO")} com erro: ${res.filter((r) => r.situacao === "ERRO").map((r) => `NF ${r.numero} — ${r.motivo}`).join("; ")}` : ""}${c("IGNORADA") ? ` · ${c("IGNORADA")} ignorada(s)` : ""}.`;   // v530 — o aviso diz por que nada foi lançado
     return (
       <Modal titulo="Importação concluída" icone={CheckCircle2} onClose={() => onFim(m)} largura={640}
         rodape={<BtnP onClick={() => onFim(m)}>Fechar</BtnP>}>
