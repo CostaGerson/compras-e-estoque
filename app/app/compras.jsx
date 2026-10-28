@@ -1924,7 +1924,7 @@ function NfsDaOc({ o, user, onMudou }) {
     post({ acao: "excluir", fiscalNotaId: n.id, excluirRegistro: tudo, quem: nomeUser(user) }, (x) => `NF ${n.numero} retirada da OC${tudo ? ` e excluída do movimento fiscal${x.contas ? ` (${x.contas} conta(s) na lixeira)` : ""}` : ""}.`);
   }
   const crit = conf?.criticas || [];
-  const corrigiveis = crit.filter((c) => ["QTD", "VALOR", "PRAZO", "TOTAL"].includes(c.tipo));
+  const corrigiveis = crit.filter((c) => ["QTD", "VALOR", "PRAZO", "TOTAL", "ITEM_FALTA", "ITEM_SOBRA"].includes(c.tipo));
   const cnpjs = crit.filter((c) => c.tipo === "CNPJ");
   return (
     <div className="mt-3 rounded-lg p-3" style={{ border: `${arr ? 2 : 1}px dashed ${arr ? C.accent : C.line}`, background: arr ? C.accentSoft : C.panel }}

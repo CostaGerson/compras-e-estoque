@@ -70,12 +70,14 @@ export async function conferirOc(ocId) {
     x.itens.forEach((it, k) => nfItens.push({ nf: r.numero, nfId: r.id, idx: k, nome: it.xProd, codigo: it.cProd, unidade: it.uCom, quantidade: it.qCom, valorUnitario: it.vUn, total: it.vProd }));
   }
   // casa os itens da NF com os da OC (nome parecido + mesma quantidade)
-  const ocIts = oc.itens.map((i) => ({ id: i.id, nome: i.artigo.nome, det: [i.artigo.cor, i.artigo.codigo].filter(Boolean).join(" · "), unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) }));
+  const ocIts = oc.itens.map((i) => ({ id: i.id, nfItem: i.nfItem || null, nome: i.artigo.nome, det: [i.artigo.cor, i.artigo.codigo].filter(Boolean).join(" · "), unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) }));
   const pares = [], usados = new Set();
   const cand = [];
   for (const o of ocIts) for (const n of nfItens) cand.push({ o, n, s: parecido(`${o.nome} ${o.det}`, `${n.nome} ${n.codigo || ""}`) + (Math.abs(o.quantidade - n.quantidade) < 1e-6 ? 0.3 : 0) + (Math.abs(o.valorUnitario - n.valorUnitario) < 0.005 ? 0.2 : 0) });
   cand.sort((a, b) => b.s - a.s);
   const ocUsado = new Set();
+  // v535 — item ligado na correção pela NF: fica casado mesmo com nome diferente
+  for (const o of ocIts) { const n = o.nfItem && nfItens.find((x) => `${x.nfId}|${x.idx}` === o.nfItem); if (n) { ocUsado.add(o.id); usados.add(o.nfItem); pares.push({ ocItemId: o.id, nf: n }); } }
   for (const c of cand) {
     const kn = `${c.n.nfId}|${c.n.idx}`;
     if (c.s < 0.25 || ocUsado.has(c.o.id) || usados.has(kn)) continue;
@@ -111,8 +113,12 @@ export async function corrigirOcPelaNf(b) {
   for (const p of pares) {
     const n = c.itensNf.find((x) => x.nfId === Number(p.nfId) && x.idx === Number(p.idx));
     const o = c.itensOc.find((x) => x.id === Number(p.ocItemId));
-    if (n && o) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario });
+    if (n && o) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}` });
   }
+  // v535 — o que sobrou dos dois lados (nomes diferentes, ex.: TACTEL na OC × MICROFIBRA na NF) é ligado na ordem
+  const okOc = new Set(itens.map((x) => x.id)), okNf = new Set(itens.map((x) => x.nfItem));
+  const sobraOc = c.itensOc.filter((x) => !okOc.has(x.id)), sobraNf = c.itensNf.filter((x) => !okNf.has(`${x.nfId}|${x.idx}`));
+  sobraOc.forEach((o, k) => { const n = sobraNf[k]; if (n) itens.push({ id: o.id, quantidade: n.quantidade, valorUnitario: n.valorUnitario, nfItem: `${n.nfId}|${n.idx}` }); });
   const r = await salvarOc({ id: c.oc.id, ...(itens.length ? { itens } : {}), ...(b.condicao ? { condicaoFaturamento: b.condicao } : {}) });
   if (r?.error) return r;
   return { ok: true, itens: itens.length };

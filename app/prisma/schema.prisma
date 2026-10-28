@@ -419,6 +419,7 @@ model OcItem {
   picItemId     Int?
   quantidade    Decimal @db.Decimal(14, 3)
   valorUnitario Decimal @db.Decimal(14, 4)
+  nfItem        String?                        // v535 — item da NF ligado a este item na correção da OC pela NF ("nfId|idx")
 
   oc      OrdemCompra @relation(fields: [ocId], references: [id], onDelete: Cascade)
   artigo  Artigo      @relation(fields: [artigoId], references: [id])

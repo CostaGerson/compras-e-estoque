@@ -167,7 +167,7 @@ export async function salvarOc(b) {
       const i = its.find((y) => y.id === Number(x.id)); if (!i) continue;
       const q = num(x.quantidade), v = num(x.valorUnitario);
       if (!(q > 0) || !(v > 0)) return { error: "Quantidade e valor unitário precisam ser maiores que zero." };
-      await prisma.ocItem.update({ where: { id: i.id }, data: { quantidade: r3(q), valorUnitario: v } });
+      await prisma.ocItem.update({ where: { id: i.id }, data: { quantidade: r3(q), valorUnitario: v, ...(x.nfItem !== undefined ? { nfItem: x.nfItem || null } : {}) } });   // v535 — nfItem: ligação com o item da NF
       if (i.picItemId) await prisma.picItem.update({ where: { id: i.picItemId }, data: { quantidade: r3(q), valorUnitario: v } }).catch(() => null);
       await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: v } }).catch(() => null);
     }
