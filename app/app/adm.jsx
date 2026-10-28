@@ -347,7 +347,18 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
       setSt(`Gravando ${Math.min(fila.length, i + 8)} de ${fila.length}…`);
       out.push(...(await mandar(fila.slice(i, i + 8))));
     }
-    setSt(""); setRes([...feitas, ...out]);
+    setSt("");
+    // v530 — nota com erro (sem conta-caixa, parcela sem vencimento…) não fecha a importação: as gravadas saem
+    // da fila e as com erro ficam na conferência, com o motivo, para corrigir e gravar de novo
+    const errs = out.map((r, i) => [r, fila[i]]).filter(([r]) => r.situacao === "ERRO");
+    if (errs.length && out.length === fila.length) {
+      const ok = out.filter((r) => r.situacao !== "ERRO");
+      setFeitas((f) => [...f, ...ok]);
+      out.forEach((r, i) => { if (r.situacao !== "ERRO") tirarGravada(fila[i]); });
+      setErro(`Não gravada(s): ${errs.map(([r, n]) => `NF ${n.numero || r.numero} — ${r.motivo}`).join(" · ")}`);
+      return;
+    }
+    setRes([...feitas, ...out]);
   };
   const fechar = () => (feitas.length ? setRes(feitas) : onClose());
 
