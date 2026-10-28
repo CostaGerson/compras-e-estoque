@@ -20,7 +20,7 @@ const hojeUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFull
 export const ehAntecipado = (t) => !!t && t.tipo === "RECEBER" && (!!t.antecipadoForma || t.cobranca === "DESCONTADO");
 export const prazoCobranca = (venc) => somaDiasUteis(venc, DIAS_TOLERANCIA);
 // v544 — críticas do ciclo da antecipação (não pagou / vencidos / recompra): saem quando o caso se resolve
-const RE_CRIT_ANT = /Cliente não pagou o título antecipado|Apareceu nos Títulos Vencidos|Recompra solicitada|virou conta a pagar|Título antecipado .* apareceu no relatório/i;
+const RE_CRIT_ANT = /Banco informa que o cliente pagou o boleto|Cliente não pagou o título antecipado|Apareceu nos Títulos Vencidos|Recompra solicitada|virou conta a pagar|Título antecipado .* apareceu no relatório/i;
 export const limparCriticaAnt = (c) => { const l = String(c || "").split(" · ").filter((x) => x.trim() && !RE_CRIT_ANT.test(x)); return l.length ? l.join(" · ").slice(0, 500) : null; };
 async function limparCriticasResolvidas() {
   const l = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", critica: { not: null }, OR: [{ liquidadoEm: { not: null } }, { cobranca: "RECOMPRADO" }, { status: "PAGO", cobranca: { not: "DESCONTADO" }, antecipadoForma: { not: null } }] }, select: { id: true, critica: true } });
@@ -235,7 +235,7 @@ export async function liquidar(id, data, quem, { relatorio = false } = {}) {
     const dt = dataUTC(data);
     await prisma.finTitulo.update({ where: { id: t.id }, data: { status: "PAGO", dataPagamento: dt, valorPago: t.valor, valorConfirmado: true, previsao: false, cobranca: "DESCONTADO", formaPagamento: "DESCONTO",
       liquidadoEm: dt, liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
-      critica: relatorio ? `Banco informa que o cliente pagou o boleto (Títulos Pagos, ${dBR(dt)}), mas a recompra deste título também foi paga — confira a devolução da recompra com o Bradesco.` : limparCriticaAnt(t.critica),
+      critica: limparCriticaAnt(t.critica),   // v547 — cliente pagou: sem crítica
       observacao: [t.observacao, relatorio ? `CLIENTE PAGOU O BOLETO NO BANCO (RELATÓRIO TÍTULOS PAGOS, ${dBR(dt)}) APÓS A RECOMPRA` : `CLIENTE PAGOU APÓS A RECOMPRA (${dBR(dt)}, BAIXA POR ${quem || "—"})`].filter(Boolean).join(" · ").slice(0, 1000) } });
     return { ok: true };
   }
