@@ -93,18 +93,20 @@ export default function Rotas({ user, nova }) {
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
   // v521 — semana: o dia atual é sempre o primeiro card; dia passado só aparece enquanto tiver demanda pendente
   // (depois de concluir ou realocar, some); os passados ficam no botão "Passado"
-  const pendAntes = useMemo(() => {
-    if (modo !== "semana" || ref !== FOCO) return null;
-    const l = (d?.demandas || []).filter((x) => x.data < FOCO && x.data >= somaDia(FOCO, -14) && x.status !== "CONCLUIDA");
-    return l.length ? l.map((x) => x.data).sort()[0] : null;
+  // v529 — dias passados com demanda pendente entram ANTES de hoje, sem empurrar a semana para trás
+  // (na v521 a semana começava na pendência mais antiga e hoje/os próximos dias sumiam da tela)
+  const pendDias = useMemo(() => {
+    if (modo !== "semana" || ref !== FOCO) return [];
+    const l = (d?.demandas || []).filter((x) => x.data < FOCO && x.data >= somaDia(FOCO, -14) && x.status !== "CONCLUIDA" && x.status !== "CANCELADA");
+    return [...new Set(l.map((x) => x.data))].sort();
   }, [d, modo, ref]);
   const dias = useMemo(() => {
-    if (modo === "semana") { const i = ref === FOCO && pendAntes ? pendAntes : ref; return Array.from({ length: 7 }, (_, k) => somaDia(i, k)); }
+    if (modo === "semana") return [...pendDias, ...Array.from({ length: 7 }, (_, k) => somaDia(ref, k))];
     const p = `${ref.slice(0, 7)}-01`, i = inicioSemana(p);
     const fim = new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
     const n = Math.ceil((Math.round((dUTC(fim) - dUTC(i)) / 864e5) + 1) / 7) * 7;
     return Array.from({ length: n }, (_, k) => somaDia(i, k));
-  }, [modo, ref, pendAntes]);
+  }, [modo, ref, pendDias]);
   const de0 = dias[0] < dia ? dias[0] : dia, ate = dias[dias.length - 1] > dia ? dias[dias.length - 1] : dia;
   const de = modo === "semana" && ref === FOCO && somaDia(FOCO, -14) < de0 ? somaDia(FOCO, -14) : de0;   // v521 — lê 14 dias para trás (pendências)
   const carregar = () => api(`/api/rotas?u=${user.id}&de=${de}&ate=${ate}`).then(setD).catch((e) => setD((x) => x || { erro: e.message, demandas: [], blocos: [], motoristas: [] }));
