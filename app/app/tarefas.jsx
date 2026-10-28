@@ -19,7 +19,7 @@ export const STATUS_P = { DISPONIVEL: ["Disponível", C.green], OCUPADO: ["Ocupa
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || "Erro na operação.");
+  if (!r.ok) throw new Error(j.error || (r.status >= 502 ? "Sistema reiniciando (atualização em andamento). Tente de novo em 1 minuto." : `Erro na operação (${r.status}).`));
   return j;
 };
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(file); });

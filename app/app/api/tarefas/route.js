@@ -19,6 +19,8 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioAtivo(b.usuarioId);
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
-  const r = await criar(b.tarefa || {}, u);
-  return Response.json(r, { status: r.error ? 400 : 201 });
+  try {
+    const r = await criar(b.tarefa || {}, u);
+    return Response.json(r, { status: r.error ? 400 : 201 });
+  } catch (e) { console.log("tarefas/criar:", e); return Response.json({ error: `Erro ao criar a demanda: ${String(e.message || e).split("\n").filter(Boolean).slice(-1)[0]}` }, { status: 500 }); }   // v537 — mostra o motivo
 }
