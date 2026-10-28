@@ -261,6 +261,14 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
     if (!n.parceiro && n.documento) n.parceiro = await nomeDoDoc(n.documento);
     if (!n.razao) n.razao = n.parceiro;
     let existente = n.chaveRegistro ? await prisma.fiscalNota.findUnique({ where: { chaveRegistro: n.chaveRegistro }, select: { id: true, temXml: true, temPdf: true, parcelas: true, acao: true } }).catch(() => null) : null;
+    // v548 — PDF (DANFE/NFS-e) de nota que já está no movimento fiscal (pelo XML) mas sem a chave lida no PDF:
+    // casa pelo nº da nota + CNPJ/CPF do parceiro (ou do emitente) e o PDF só completa os anexos
+    if (!existente && n.fonte === "PDF" && n.numero) {
+      const docs = [...new Set([so(n.documento), so(n.emitDoc)].filter(Boolean))];
+      const cand = await prisma.fiscalNota.findMany({ where: { numero: String(n.numero).replace(/^0+(?=\d)/, ""), ...(docs.length ? { documento: { in: docs } } : {}) }, select: { id: true, temXml: true, temPdf: true, parcelas: true, acao: true, chaveRegistro: true, emissao: true, valor: true } }).catch(() => []);
+      const ok = cand.filter((c) => !n.valor || Math.abs(Number(c.valor) - Number(n.valor)) <= Math.max(1, Number(c.valor) * 0.01));
+      if ((ok.length || cand.length) === 1) { existente = (ok[0] || cand[0]); n.chaveRegistro = existente.chaveRegistro; }
+    }
     if (existente?.acao === ACAO_CONTAB) existente = null;   // v360 — veio só da contabilidade: segue como nota nova (substitui o aviso)
     const semConta = motivoSemConta(n.natureza, n.cfops);
     const parcelas = [];
@@ -340,7 +348,7 @@ export async function gravar(notas, u) {
     const n = { ...n0, parceiro: up(n0.parceiro), documento: so(n0.documento) || null, numero: String(n0.numero || "").trim().replace(/^0+(?=\d)/, ""), valor: r2(n0.valor) };
     if (n.decisao === "IGNORAR") { res.push({ numero: n.numero, situacao: "IGNORADA" }); continue; }
     // PDF de NFS-e: a chave do registro sai dos dados conferidos na tela (prestador + número)
-    if (!n.chaveRegistro || (n.fonte === "PDF" && n.modelo === "NFS-e")) {
+    if (!n.chaveRegistro || (n.fonte === "PDF" && n.modelo === "NFS-e" && n.decisao !== "COMPLETAR")) {   // v548 — completar: mantém a chave da nota já registrada
       const prest = so(n.tipo === "SAIDA" ? n.emitDoc : n.documento);
       n.chaveRegistro = n.chave ? `NFE|${n.chave}` : prest && n.numero ? `NFSE|${prest}|${n.numero}` : `ARQ|${n.hashPdf || n.hashXml}`;
     }

@@ -270,7 +270,15 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
       const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista.map(({ tam, ...a }) => a) });
       setErros(j.erros || []);
       const novas = (j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n) }));
-      setNotas(antigas ? juntarNotas(antigas, novas) : novas);
+      const prox = antigas ? juntarNotas(antigas, novas) : novas;
+      // v548 — só PDFs de notas que já estão no movimento fiscal: o PDF entra nos anexos direto, sem conferência nem lançamento
+      if (!antigas && prox.length && prox.every((n) => n.decisao === "COMPLETAR" || n.decisao === "IGNORAR") && prox.some((n) => n.decisao === "COMPLETAR")) {
+        setSt("Anexando o PDF às notas já registradas…");
+        const r = await mandar(prox.filter((n) => n.decisao === "COMPLETAR"));
+        setSt(""); setRes([...feitas, ...r, ...prox.filter((n) => n.decisao === "IGNORAR").map((n) => ({ numero: n.numero, situacao: "IGNORADA" }))]);
+        return;
+      }
+      setNotas(prox);
     } catch (e) { setErro(e.message); }
     setSt("");
   };
@@ -367,7 +375,7 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
     const baixadas = res.reduce((s, r) => s + (r.baixadas || 0), 0);
     const criadas = res.reduce((s, r) => s + (r.criadas || 0), 0), ligadas = res.reduce((s, r) => s + (r.ligadas || 0), 0);
     const problemas = res.filter((r) => ["ERRO", "JA_IMPORTADA"].includes(r.situacao));
-    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} completada(s)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}${c("JA_IMPORTADA") ? ` · ${c("JA_IMPORTADA")} já estava(m) no movimento fiscal (nada novo lançado)` : ""}${c("ERRO") ? ` · ${c("ERRO")} com erro: ${res.filter((r) => r.situacao === "ERRO").map((r) => `NF ${r.numero} — ${r.motivo}`).join("; ")}` : ""}${c("IGNORADA") ? ` · ${c("IGNORADA")} ignorada(s)` : ""}.`;   // v530 — o aviso diz por que nada foi lançado
+    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} nota(s) já registrada(s) com o PDF anexado (sem novo lançamento)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}${c("JA_IMPORTADA") ? ` · ${c("JA_IMPORTADA")} já estava(m) no movimento fiscal (nada novo lançado)` : ""}${c("ERRO") ? ` · ${c("ERRO")} com erro: ${res.filter((r) => r.situacao === "ERRO").map((r) => `NF ${r.numero} — ${r.motivo}`).join("; ")}` : ""}${c("IGNORADA") ? ` · ${c("IGNORADA")} ignorada(s) (já tinha XML e PDF)` : ""}.`;   // v530 — o aviso diz por que nada foi lançado
     return (
       <Modal titulo="Importação concluída" icone={CheckCircle2} onClose={() => onFim(m)} largura={640}
         rodape={<BtnP onClick={() => onFim(m)}>Fechar</BtnP>}>
