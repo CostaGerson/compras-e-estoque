@@ -528,3 +528,82 @@ export async function aplicarVencidos(b64, { ids, quem } = {}) {
   }
   return { ...out, total: r.total, semConta: r.semConta, jaRecompra: r.jaRecompra, jaLiquidados: r.jaLiquidados };
 }
+
+// ==================== v541 — Relatório "Títulos a Vencer" (desconto de duplicatas) ====================
+// Conferência: todo título do relatório tem de estar no sistema como ANTECIPADO aguardando o cliente.
+// Não antecipado no sistema → marcar como antecipado (contrato do relatório). Antecipado no sistema que não está no
+// relatório (a vencer) → aviso.
+export const ehTitulosAVencer = (t) => /T[íi]tulos\s+a\s+Vencer/i.test(t) && /Produto:?\s*DESCONTO/i.test(t) && /Valor\s+total\s+a\s+vencer/i.test(t);
+
+export function parseTitulosAVencer(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+a\s+vencer|Valor\s+total\s+a\s+vencer:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
+  const consulta = dISO((t.match(/(\d{2}\/\d{2}\/\d{4})\s+\d{2}:\d{2}:\d{2}\s*Data\s+da\s+consulta|Data\s+da\s+consulta:?\s*(\d{2}\/\d{2}\/\d{4})/i) || []).slice(1).find(Boolean));
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{8,})\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.*?)\s*Juros:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const itens = []; let m;
+  while ((m = re.exec(t))) {
+    itens.push({ vencimento: dISO(m[1]), parcela: Number(m[2]), contrato: m[3], seuNumero: m[4], nossoNumero: m[5],
+      sacado: m[6].trim().toUpperCase(), juros: num(m[7]), valorNota: num(m[8]) });
+  }
+  return { total, consulta, itens };
+}
+
+const antPend = (d) => d.status === "PAGO" && (d.antecipadoForma || d.cobranca === "DESCONTADO") && !d.liquidadoEm;
+export async function analisarAVencer(b64) {
+  const texto = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
+  if (!ehTitulosAVencer(texto)) throw new Error("Não é o relatório de Títulos a Vencer (desconto de duplicatas) do Bradesco.");
+  const { total, consulta, itens } = parseTitulosAVencer(texto);
+  if (!itens.length) throw new Error("Não achei títulos no relatório.");
+  const { montarCasador, baseNosso } = await import("@/lib/finRetorno");
+  const casar = await montarCasador();
+  const todos = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, status: true, cobranca: true, antecipadoForma: true, antecipadoEm: true, antecipacaoId: true, liquidadoEm: true, liquidacao: true, recompraId: true, observacao: true } });
+  const porId = new Map(todos.map((x) => [x.id, x]));
+  const contratos = Object.fromEntries((await prisma.finAntecipacao.findMany({ where: { contrato: { in: [...new Set(itens.map((i) => i.contrato))] } }, select: { id: true, contrato: true, data: true } })).map((c) => [c.contrato, c]));
+  const usados = new Set();
+  const linhas = itens.map((it) => {
+    const bn = baseNosso(it.nossoNumero);
+    let d = todos.find((x) => !usados.has(x.id) && bn && baseNosso(x.nossoNumero) === bn) || null;
+    if (!d) { const c = casar({ numeroDoc: it.seuNumero, controle: "", nosso: it.nossoNumero, valor: it.valorNota }); d = c.t && !usados.has(c.t.id) ? porId.get(c.t.id) : null; }
+    if (d) usados.add(d.id);
+    let status, msg = null;
+    if (!d) { status = "SEM_CONTA"; msg = "Não há conta a receber com esse nosso nº / NF no sistema."; }
+    else if (antPend(d)) status = "OK";
+    else if (d.status === "ABERTO" && d.cobranca !== "RECOMPRADO") { status = "MARCAR"; msg = "Em aberto no sistema, mas está descontado no banco — marcar como antecipado."; }
+    else if (d.cobranca === "RECOMPRADO") { status = "DIVERGENTE"; msg = "No sistema está recomprado, mas o banco ainda lista como a vencer."; }
+    else if (d.status === "PAGO" && d.liquidadoEm) { status = "DIVERGENTE"; msg = `No sistema já está liquidado (${d.liquidacao === "RECOMPRA" ? "recompra" : "cliente pagou"} em ${dBR(d.liquidadoEm.toISOString())}), mas o banco ainda lista como a vencer.`; }
+    else { status = "DIVERGENTE"; msg = `No sistema está ${d.status === "PAGO" ? "recebido (não como antecipado)" : d.status.toLowerCase()} — confira.`; }
+    const ctr = contratos[it.contrato] || null;
+    return { ...it, status, msg, contratoNoSistema: !!ctr,
+      titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento.toISOString().slice(0, 10), status: d.status } : null };
+  });
+  // antecipados no sistema, ainda a vencer na data da consulta, que o banco não listou
+  const ref = consulta || new Date().toISOString().slice(0, 10);
+  const fora = todos.filter((d) => antPend(d) && !usados.has(d.id) && d.vencimento.toISOString().slice(0, 10) >= ref && (d.antecipadoForma || "BRADESCO") === "BRADESCO")
+    .map((d) => ({ id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento.toISOString().slice(0, 10), nossoNumero: d.nossoNumero }));
+  const c = (s) => linhas.filter((l) => l.status === s).length;
+  return { tipo: "AVENCER", total, consulta, itens: linhas, fora, ok: c("OK"), marcar: c("MARCAR"), divergentes: c("DIVERGENTE"), semConta: c("SEM_CONTA") };
+}
+
+// marca como antecipados os títulos que estão no relatório e em aberto no sistema
+export async function aplicarAVencer(b64, { ids, quem } = {}) {
+  const r = await analisarAVencer(b64);
+  const alvo = r.itens.filter((l) => l.status === "MARCAR" && l.titulo && (!ids || ids.includes(l.titulo.id)));
+  const out = { marcados: 0, valor: 0, linhas: [], erros: [] };
+  for (const l of alvo) {
+    try {
+      const t = await prisma.finTitulo.findUnique({ where: { id: l.titulo.id } });
+      if (!t || t.status !== "ABERTO") continue;
+      const ctr = await prisma.finAntecipacao.findUnique({ where: { contrato: l.contrato } }).catch(() => null);
+      const dt = ctr?.data || dUTC(r.consulta || new Date().toISOString().slice(0, 10));
+      await prisma.finTitulo.update({ where: { id: t.id }, data: {
+        status: "PAGO", dataPagamento: dt, valorPago: t.valor, previsao: false, valorConfirmado: true, cobranca: "DESCONTADO", formaPagamento: "DESCONTO",
+        antecipadoForma: "BRADESCO", antecipadoEm: dt, antecipacaoId: ctr?.id || null, nossoNumero: t.nossoNumero || l.nossoNumero,
+        observacao: [t.observacao, `ANTECIPADO — CONFIRMADO NO RELATÓRIO TÍTULOS A VENCER (BRADESCO, ${dBR(r.consulta || "")}) · CONTRATO ${l.contrato} · PARCELA ${l.parcela}`].filter(Boolean).join(" · ").slice(0, 1000),
+        atualizadoPorNome: quem || null } });
+      out.marcados++; out.valor = r2(out.valor + Number(t.valor));
+      out.linhas.push(`${t.titulo} · ${l.sacado}: marcado como antecipado (contrato ${l.contrato})`);
+    } catch (e) { out.erros.push(`${l.sacado} (NF ${l.seuNumero}): ${e.message}`); }
+  }
+  return { ...out, total: r.total, ok: r.ok, divergentes: r.divergentes, semConta: r.semConta, fora: r.fora.length };
+}

@@ -1284,14 +1284,14 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
       rodape={a ? <>
         <span className="text-xs mr-auto" style={{ color: C.sub }}>{ids.length} para liquidar</span>
         <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-        <BtnP onClick={aplicar} disabled={!!st || !ids.length}>{st && <Loader2 size={14} className="animate-spin" />} Liquidar selecionados</BtnP>
+        <BtnP onClick={aplicar} disabled={!!st || !ids.length}>{st && <Loader2 size={14} className="animate-spin" />} {a?.tipo === "BAIXADOS" ? "Baixar recompras selecionadas" : "Liquidar selecionados"}</BtnP>
       </> : null}>
       {erro && <div className="rounded-lg px-3 py-2 mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!a && (
         <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
           <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
           <div className="text-sm mb-1" style={{ color: C.text }}>Envie o relatório <b>Títulos Baixados</b> ou <b>Títulos Pagos</b> (desconto de duplicatas) do Bradesco.</div>
-          <div className="text-xs mb-4" style={{ color: C.sub }}>São as duplicatas descontadas que o cliente pagou. Cada uma é liquidada (liquidação do cliente); se havia conta a pagar de recompra em aberto, ela é cancelada.</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Títulos Pagos: o cliente pagou o boleto — o título é baixado. Títulos Baixados: o banco cobrou a recompra de você — baixa a conta a pagar da recompra e o título volta a receber do cliente.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher o PDF"}</BtnP>
           <input ref={ref} type="file" accept=".pdf,.PDF" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste o arquivo para cá</div>
@@ -1325,6 +1325,90 @@ export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
               </tbody>
             </table>
           </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/* ---------------- v541 — Títulos a vencer (desconto): confere se os descontados estão antecipados no sistema ---------------- */
+const ST_AV = { OK: ["Antecipado no sistema", C.green, C.greenSoft], MARCAR: ["Marcar antecipado", C.accent, C.accentSoft], DIVERGENTE: ["Divergente", C.red, C.redSoft], SEM_CONTA: ["Sem conta no sistema", C.red, C.redSoft] };
+export function AVencerModal({ user, onClose, onSalvo, iniciais }) {
+  const [arq, setArq] = useState(null);
+  const [a, setA] = useState(null);
+  const [marc, setMarc] = useState({});
+  const [st, setSt] = useState("");
+  const [erro, setErro] = useState("");
+  const ref = useRef(null);
+  const ler = async (fs) => {
+    const f = [...(fs || [])][0]; if (!f) return;
+    setErro(""); setSt("Lendo o relatório…");
+    try {
+      const conteudo = await readB64(f);
+      const r = await api("/api/fin/avencer", "POST", { usuarioId: user.id, acao: "analisar", conteudo });
+      setArq({ nome: f.name, conteudo }); setA(r);
+      const m = {}; for (const l of r.itens) if (l.status === "MARCAR" && l.titulo) m[l.titulo.id] = true; setMarc(m);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
+  useEffect(() => { if (iniciais?.length) ler(iniciais); }, []);
+  const ids = a ? a.itens.filter((l) => l.status === "MARCAR" && l.titulo && marc[l.titulo.id]).map((l) => l.titulo.id) : [];
+  const aplicar = async () => {
+    setSt("Marcando…"); setErro("");
+    try {
+      const r = await api("/api/fin/avencer", "POST", { usuarioId: user.id, acao: "aplicar", conteudo: arq.conteudo, ids });
+      onSalvo(`Títulos a vencer: ${r.marcados} marcado(s) como antecipado(s) (${moeda(r.valor)}) · ${r.ok} já estavam certos${r.divergentes ? ` · ${r.divergentes} divergente(s)` : ""}${r.semConta ? ` · ${r.semConta} sem conta no sistema` : ""}${r.fora ? ` · ${r.fora} antecipado(s) no sistema fora do relatório` : ""}.${r.erros?.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+    } catch (e) { setErro(e.message); setSt(""); }
+  };
+  return (
+    <Modal titulo="Títulos a vencer (desconto de duplicatas — Bradesco)" icone={FileCode2} onClose={onClose} largura={1080}
+      rodape={a ? <>
+        <span className="text-xs mr-auto" style={{ color: C.sub }}>{ids.length} para marcar como antecipado</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>{ids.length ? "Cancelar" : "Fechar"}</button>
+        <BtnP onClick={aplicar} disabled={!!st || !ids.length}>{st && <Loader2 size={14} className="animate-spin" />} Marcar selecionados</BtnP>
+      </> : null}>
+      {erro && <div className="rounded-lg px-3 py-2 mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!a && (
+        <Soltar onArquivos={ler} className="text-center py-10 rounded-xl" style={{ border: `2px dashed ${C.line}` }}>
+          <FileCode2 size={36} className="mx-auto mb-3" style={{ color: C.accent }} />
+          <div className="text-sm mb-1" style={{ color: C.text }}>Envie o relatório <b>Títulos a Vencer</b> (desconto de duplicatas) do Bradesco.</div>
+          <div className="text-xs mb-4" style={{ color: C.sub }}>Confere se cada duplicata descontada está como antecipada no sistema; as que estão em aberto podem ser marcadas.</div>
+          <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher o PDF"}</BtnP>
+          <input ref={ref} type="file" accept=".pdf,.PDF" className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+        </Soltar>
+      )}
+      {a && (
+        <>
+          <div className="text-xs mb-2" style={{ color: C.sub }}><b style={{ color: C.navy }}>{arq?.nome}</b> · {a.itens.length} título(s) · total a vencer {moeda(a.total)} · <b style={{ color: C.green }}>{a.ok} ok</b> · {a.marcar} para marcar · {a.divergentes} divergente(s) · {a.semConta} sem conta</div>
+          <div className="overflow-auto rounded-lg" style={{ maxHeight: "50vh", border: `1px solid ${C.line}` }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                {["", "NF / nosso nº", "Sacado", "Vencimento", "Valor da nota", "Contrato", "Conta no sistema", "Situação"].map((h) => <th key={h} className={`px-2 py-2 font-semibold ${/Valor/.test(h) ? "text-right" : "text-left"}`}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {a.itens.map((l, i) => {
+                  const [rot, cor, bg] = ST_AV[l.status];
+                  const on = l.status === "MARCAR" && l.titulo && marc[l.titulo.id];
+                  return (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.line}`, background: on ? C.accentSoft : undefined }}>
+                      <td className="px-2 py-1.5">{l.status === "MARCAR" && l.titulo && <input type="checkbox" checked={!!on} onChange={() => setMarc((m) => ({ ...m, [l.titulo.id]: !m[l.titulo.id] }))} />}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{l.seuNumero}<span style={{ color: C.sub }}> · {l.nossoNumero}</span></td>
+                      <td className="px-2 py-1.5">{l.sacado}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{dBR(l.vencimento)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{moeda(l.valorNota)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: C.sub }}>{l.contrato} · p{l.parcela}</td>
+                      <td className="px-2 py-1.5">{l.titulo ? <>{l.titulo.titulo}<span style={{ color: C.sub }}> · {moeda(l.titulo.valor)}</span></> : <span style={{ color: C.red }}>não encontrada</span>}</td>
+                      <td className="px-2 py-1.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: cor, background: bg }} title={l.msg || ""}>{rot}</span>{l.msg && l.status !== "MARCAR" && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>{l.msg}</div>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {a.fora?.length > 0 && <div className="mt-3 rounded-lg p-3 text-xs" style={{ background: C.yellowSoft }}>
+            <b style={{ color: C.yellow }}>{a.fora.length} título(s) antecipado(s) no sistema, a vencer, que não estão no relatório do banco — confira:</b>
+            {a.fora.map((x) => <div key={x.id} className="mt-1" style={{ color: C.text }}>{x.titulo} · {x.parceiro} · venc. {dBR(x.vencimento)} · {moeda(x.valor)}</div>)}
+          </div>}
         </>
       )}
     </Modal>

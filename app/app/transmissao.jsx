@@ -7,13 +7,13 @@ import { Upload, Loader2, CheckCircle2, AlertTriangle, Send, FileText, X, Play, 
 import { unzipSync } from "fflate";
 import { gerencial, temAlguma } from "@/lib/acesso";
 import { DESTINOS } from "@/lib/finTransmissaoDestinos";
-import { DocumentoModal, PosicaoModal, AntecipacaoModal, BaixadosModal, VencidosModal, RetornoModal, RemessaModal, CoresContas as C } from "./contas";
+import { DocumentoModal, PosicaoModal, AntecipacaoModal, BaixadosModal, VencidosModal, AVencerModal, RetornoModal, RemessaModal, CoresContas as C } from "./contas";
 import { ImportarNfs } from "./adm";
 import { ImportarPonto } from "./rhPainel";
 import RescisaoModal from "./rhRescisao";
 import OsKmModal from "./osKm";   // v209
 
-const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "REMESSA", "ANTECIPACAO", "BAIXADOS", "VENCIDOS", "POSICAO", "HISTORICO", "OS", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
+const ORDEM = ["DOCUMENTO", "NF", "RETORNO", "REMESSA", "ANTECIPACAO", "BAIXADOS", "VENCIDOS", "AVENCER", "POSICAO", "HISTORICO", "OS", "RESCISAO", "PONTO", "OFX", "SPED", "DESCONHECIDO"];
 const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const readU8 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(new Uint8Array(fr.result)); fr.readAsArrayBuffer(f); });
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
@@ -226,6 +226,7 @@ export default function Transmissao({ user, Historico, onMudou }) {
       {aberto?.destino === "ANTECIPACAO" && <AntecipacaoModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "BAIXADOS" && <BaixadosModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "VENCIDOS" && <VencidosModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
+      {aberto?.destino === "AVENCER" && <AVencerModal user={user} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "POSICAO" && <PosicaoModal user={user} contas={contas} iniciais={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "OS" && <OsKmModal user={user} arquivos={files} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
       {aberto?.destino === "RESCISAO" && <RescisaoModal user={user} arquivo={files[0]} onClose={() => fechar(aberto)} onSalvo={(m) => salvo(aberto, m)} />}
