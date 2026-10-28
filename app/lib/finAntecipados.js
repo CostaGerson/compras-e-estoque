@@ -19,6 +19,13 @@ const dBR = (d) => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10
 const hojeUTC = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); };
 export const ehAntecipado = (t) => !!t && t.tipo === "RECEBER" && (!!t.antecipadoForma || t.cobranca === "DESCONTADO");
 export const prazoCobranca = (venc) => somaDiasUteis(venc, DIAS_TOLERANCIA);
+// v544 — críticas do ciclo da antecipação (não pagou / vencidos / recompra): saem quando o caso se resolve
+const RE_CRIT_ANT = /Cliente não pagou o título antecipado|Apareceu nos Títulos Vencidos|Recompra solicitada|virou conta a pagar|Título antecipado .* apareceu no relatório/i;
+export const limparCriticaAnt = (c) => { const l = String(c || "").split(" · ").filter((x) => x.trim() && !RE_CRIT_ANT.test(x)); return l.length ? l.join(" · ").slice(0, 500) : null; };
+async function limparCriticasResolvidas() {
+  const l = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", critica: { not: null }, OR: [{ liquidadoEm: { not: null } }, { cobranca: "RECOMPRADO" }, { status: "PAGO", cobranca: { not: "DESCONTADO" }, antecipadoForma: { not: null } }] }, select: { id: true, critica: true } });
+  for (const t of l) { const n = limparCriticaAnt(t.critica); if (n !== t.critica) await prisma.finTitulo.update({ where: { id: t.id }, data: { critica: n } }); }
+}
 
 // títulos descontados antes da v186: forma Bradesco e o contrato pela observação / pelos itens do contrato
 async function completarAntigos() {
@@ -72,7 +79,7 @@ async function cobrarVencidos(quem) {
 
 // conta a pagar da cobrança paga → título original liquidado; estornada → volta; cliente pagou → cancela a cobrança
 async function amarrarCobrancas(quem) {
-  const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true, status: true, cobranca: true, valor: true, antecipadoEm: true, dataPagamento: true, observacao: true } });
+  const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true, status: true, cobranca: true, valor: true, antecipadoEm: true, dataPagamento: true, observacao: true, critica: true } });
   if (!ligados.length) return;
   const cobs = await prisma.finTitulo.findMany({ where: { id: { in: ligados.map((t) => t.recompraId) } }, select: { id: true, status: true, dataPagamento: true, observacao: true } });
   const porId = new Map(cobs.map((c) => [c.id, c]));
@@ -84,7 +91,7 @@ async function amarrarCobrancas(quem) {
     if (c.status === "PAGO" && t.status === "PAGO" && (t.cobranca === "DESCONTADO" || !t.cobranca) && (!t.liquidadoEm || t.liquidacao === "RECOMPRA")) {
       const dr = c.dataPagamento || hojeUTC();
       await prisma.finTitulo.update({ where: { id: t.id }, data: {
-        status: "ABERTO", dataPagamento: null, valorPago: null, cobranca: "RECOMPRADO", formaPagamento: "BOLETO",
+        status: "ABERTO", dataPagamento: null, valorPago: null, cobranca: "RECOMPRADO", formaPagamento: "BOLETO", critica: limparCriticaAnt(t.critica),
         liquidadoEm: t.liquidadoEm || dr, liquidacao: "RECOMPRA", liquidadoPorNome: quem || "SISTEMA",
         observacao: [t.observacao, `RECOMPRADO EM ${dBR(dr)} (CONTA A PAGAR #${c.id}) — VOLTOU A RECEBER DO CLIENTE`].filter(Boolean).join(" · ").slice(0, 1000) } });
     } else if (c.status !== "PAGO" && t.liquidacao === "RECOMPRA") {
@@ -116,6 +123,7 @@ export async function sincronizarAntecipados(quem) {
   await completarAntigos().catch((e) => console.log("antecipados/antigos:", e.message));
   try { const { corrigirCriticasDesconto } = await import("@/lib/finRetorno"); await corrigirCriticasDesconto(quem); } catch (e) { console.log("antecipados/retorno-desconto:", e.message); }   // v538
   await amarrarCobrancas(quem).catch((e) => console.log("antecipados/amarrar:", e.message));
+  await limparCriticasResolvidas().catch((e) => console.log("antecipados/criticas:", e.message));   // v544
   // v335 — a recompra NÃO é mais criada automaticamente por data. Um título antecipado só vira
   // conta a pagar de recompra quando aparece no relatório "Títulos Vencidos" do Bradesco (aplicarVencidos)
   // ou por recompra manual. Antes disso, o título fica apenas como ATRASADO.
@@ -224,7 +232,7 @@ export async function liquidar(id, data, quem) {
   if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser liquidado.");
   if (t.liquidadoEm) return { ja: true };
   await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: dataUTC(data), liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
-    critica: t.recompraId ? t.critica : null } });
+    critica: limparCriticaAnt(t.critica) } });   // v544 — cliente pagou: sai a crítica de "não pagou / vencidos / recompra"
   await amarrarCobrancas(quem);
   return { ok: true };
 }

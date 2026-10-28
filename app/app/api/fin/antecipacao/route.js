@@ -19,7 +19,7 @@ export async function GET(req) {
       await sincronizarAntecipados(nomeU(u));
       return Response.json(await listarAntecipados({ dIni: sp.get("dIni"), dFim: sp.get("dFim") }));
     }
-    if (acao === "contrato") return Response.json(sp.get("titulo") ? await contratoDoTitulo(sp.get("titulo")) : await contratoPorId(sp.get("id")));
+    if (acao === "contrato") { await sincronizarAntecipados(nomeU(u)).catch(() => null); return Response.json(sp.get("titulo") ? await contratoDoTitulo(sp.get("titulo")) : await contratoPorId(sp.get("id"))); }
     if (acao === "pdf") {
       const a = await arquivoContrato(sp.get("id"));
       if (!a) return Response.json({ error: "Contrato sem arquivo." }, { status: 404 });
