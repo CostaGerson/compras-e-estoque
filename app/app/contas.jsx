@@ -1251,7 +1251,7 @@ export function AntecipacaoModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- v334 — títulos baixados (cliente pagou a duplicata descontada) ---------------- */
-const ST_BX = { LIQUIDAR: ["Liquidar", C.green, C.greenSoft], JA_LIQUIDADO: ["Já liquidado", C.sub, C.panel2], SEM_CONTA: ["Sem conta descontada", C.red, C.redSoft] };
+const ST_BX = { CONFERIR: ["Tem recompra — conferir", C.red, C.redSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], JA_LIQUIDADO: ["Já liquidado", C.sub, C.panel2], SEM_CONTA: ["Sem conta descontada", C.red, C.redSoft] };
 export function BaixadosModal({ user, onClose, onSalvo, iniciais }) {
   const [arq, setArq] = useState(null);     // { nome, conteudo }
   const [a, setA] = useState(null);

@@ -426,7 +426,8 @@ export async function analisarBaixados(b64) {
     return {
       ...it,
       titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!d.recompraId } : null,
-      status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : "LIQUIDAR",
+      // v539 — título com recompra: a baixa no banco pode ser o DÉBITO da recompra (não pagamento do cliente) — não liquida sozinho
+      status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : d.recompraId ? "CONFERIR" : "LIQUIDAR",
     };
   });
   return { total, itens: linhas, casados: linhas.filter((l) => l.status === "LIQUIDAR").length, jaLiquidados: linhas.filter((l) => l.status === "JA_LIQUIDADO").length, semConta: linhas.filter((l) => l.status === "SEM_CONTA").length };

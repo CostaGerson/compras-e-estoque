@@ -36,7 +36,7 @@ const SEL = { id: true, tipo: true, titulo: true, parceiro: true, valor: true, v
   antecipadoForma: true, cobranca: true, liquidadoEm: true, recompraId: true, dataPagamento: true, valorPago: true, numeroDoc: true, recorrenciaId: true };
 const tOut = (t, mod) => ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: r2(t.valor), vencimento: iso(t.vencimento), numeroDoc: t.numeroDoc || null, previsao: !!t.previsao, modalidade: mod || null, pagoParcial: t.pagoParcial || null });
 const soma = (l) => r2(l.reduce((s, t) => s + Number(t.valor), 0));
-const antecipado = (t) => !!t.antecipadoForma || t.cobranca === "DESCONTADO";
+const antecipado = (t) => (!!t.antecipadoForma || t.cobranca === "DESCONTADO") && t.cobranca !== "RECOMPRADO";   // v539 — recomprado volta a ser a receber real
 
 function calcBancos(lista) {
   const bancos = (lista && lista.length ? lista : BANCOS_PADRAO).map((b, i) => {

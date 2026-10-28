@@ -58,7 +58,7 @@ async function cobrarVencidos(quem) {
           numeroDoc: t.numeroDoc, valor: t.valor, vencimento: venc, competencia: mesDe(venc), previsao: false, status: "ABERTO",
           rateio: conta ? [{ contaId: conta.id, pct: 100 }] : [], forma: "MANUAL", formaPagamento: "DEBITO_AUTOMATICO", chaveImport: chave, valorConfirmado: true,
           observacao: `TÍTULO A RECEBER #${t.id} ANTECIPADO (${FORMAS_ANT[t.antecipadoForma] || t.antecipadoForma}) VENCIDO EM ${dBR(t.vencimento)} SEM PAGAMENTO DO CLIENTE`,
-          critica: `O cliente ${t.parceiro} não pagou o título antecipado ${t.titulo} (venc. ${dBR(t.vencimento)}) até ${dBR(prazo)}: ${FORMAS_ANT[t.antecipadoForma] || "quem antecipou"} cobra da Meridian. Ao baixar esta conta, o título original também é baixado.`,
+          critica: `O cliente ${t.parceiro} não pagou o título antecipado ${t.titulo} (venc. ${dBR(t.vencimento)}) até ${dBR(prazo)}: ${FORMAS_ANT[t.antecipadoForma] || "quem antecipou"} cobra da Meridian. Pagando esta conta, o título volta a ficar em aberto para receber do cliente.`,
           criadoPorNome: quem || "SISTEMA",
         },
       });
@@ -72,17 +72,25 @@ async function cobrarVencidos(quem) {
 
 // conta a pagar da cobrança paga → título original liquidado; estornada → volta; cliente pagou → cancela a cobrança
 async function amarrarCobrancas(quem) {
-  const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true } });
+  const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true, status: true, cobranca: true, valor: true, antecipadoEm: true, dataPagamento: true, observacao: true } });
   if (!ligados.length) return;
   const cobs = await prisma.finTitulo.findMany({ where: { id: { in: ligados.map((t) => t.recompraId) } }, select: { id: true, status: true, dataPagamento: true, observacao: true } });
   const porId = new Map(cobs.map((c) => [c.id, c]));
   for (const t of ligados) {
     const c = porId.get(t.recompraId);
     if (!c) continue;
-    if (c.status === "PAGO" && !t.liquidadoEm) {
-      await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: c.dataPagamento || hojeUTC(), liquidacao: "RECOMPRA", liquidadoPorNome: quem || "SISTEMA" } });
+    // v539 — recompra paga: a antecipação acabou (Meridian devolveu ao banco), mas o CLIENTE ainda deve:
+    // o título volta a ser conta a receber EM ABERTO (cobranca RECOMPRADO) até o cliente pagar
+    if (c.status === "PAGO" && t.status === "PAGO" && (t.cobranca === "DESCONTADO" || !t.cobranca) && (!t.liquidadoEm || t.liquidacao === "RECOMPRA")) {
+      const dr = c.dataPagamento || hojeUTC();
+      await prisma.finTitulo.update({ where: { id: t.id }, data: {
+        status: "ABERTO", dataPagamento: null, valorPago: null, cobranca: "RECOMPRADO", formaPagamento: "BOLETO",
+        liquidadoEm: t.liquidadoEm || dr, liquidacao: "RECOMPRA", liquidadoPorNome: quem || "SISTEMA",
+        observacao: [t.observacao, `RECOMPRADO EM ${dBR(dr)} (CONTA A PAGAR #${c.id}) — VOLTOU A RECEBER DO CLIENTE`].filter(Boolean).join(" · ").slice(0, 1000) } });
     } else if (c.status !== "PAGO" && t.liquidacao === "RECOMPRA") {
-      await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null } });
+      // recompra estornada: volta a ser antecipado aguardando o cliente (se o cliente ainda não pagou)
+      await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null,
+        ...(t.status === "ABERTO" && t.cobranca === "RECOMPRADO" ? { status: "PAGO", dataPagamento: t.antecipadoEm || hojeUTC(), valorPago: t.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO" } : {}) } });
     } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE") {
       await prisma.finTitulo.update({ where: { id: c.id }, data: { status: "CANCELADO", critica: null,
         observacao: [c.observacao, `CANCELADA: O CLIENTE PAGOU O TÍTULO (${dBR(t.liquidadoEm)})`].filter(Boolean).join(" · ").slice(0, 1000) } });
@@ -180,7 +188,7 @@ export async function recompraPorVencido(id, { encargos = 0, vencBanco, quem } =
       `VENCIDO NO BANCO · VENC. ORIGINAL ${dBR(t.vencimento)}${vencBanco ? ` · VENCIMENTO BRADESCO ${dBR(vencBanco)}` : ""} (${FORMAS_ANT[forma]}${ctr ? ` · CONTRATO ${ctr.contrato}` : ""})`,
       enc ? `NOTA R$ ${Number(t.valor).toFixed(2)} + ENCARGOS R$ ${enc.toFixed(2)}` : null,
       `ORIGEM: RELATÓRIO TÍTULOS VENCIDOS (BRADESCO)`].filter(Boolean).join(" · ").slice(0, 1000),
-    critica: `Título antecipado ${t.titulo} (${t.parceiro}) apareceu no relatório de Títulos Vencidos do Bradesco — virou recompra${enc ? ` (nota + encargos de R$ ${enc.toFixed(2)})` : ""}. Ao baixar esta conta, o título original também é baixado.`,
+    critica: `Título antecipado ${t.titulo} (${t.parceiro}) apareceu no relatório de Títulos Vencidos do Bradesco — virou recompra${enc ? ` (nota + encargos de R$ ${enc.toFixed(2)})` : ""}. Pagando esta conta, o título volta a ficar em aberto para receber do cliente.`,
   } });
   await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: p.id, atualizadoPorNome: quem || null,
     critica: [t.critica, `Apareceu nos Títulos Vencidos do Bradesco — virou conta a pagar de recompra (${dBR(venc)}).`].filter(Boolean).join(" · ").slice(0, 500) } });
