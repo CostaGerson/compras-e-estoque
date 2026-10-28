@@ -1216,7 +1216,7 @@ export function OrdensCompra({ user, fases, ir }) {
               </div>
               <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
-              <ChipEntrega e={o.entrega} />   {/* v497 */}
+              {o.status !== "RECEBIDA" && <ChipEntrega e={o.entrega} />}   {/* v497 · v534: baixada mostra só a tag recebida, sem previsão */}
             </button>
             {aberto && (
               <div className="px-4 pb-3">
