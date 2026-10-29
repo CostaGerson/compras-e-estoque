@@ -737,6 +737,12 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
         </div>
         {!lista.length ? <div className="px-5 py-8 text-center text-sm" style={{ color: C.sub }}>Nenhuma demanda aberta neste dia para entrar numa rota (as de frete são contratadas à parte).</div> : (
           <div className="py-1">
+            {/* v569 — marcar / desmarcar todas */}
+            <label className="flex items-center gap-3 px-5 py-2 cursor-pointer text-sm font-semibold sticky top-0 z-10" style={{ background: C.panel2, color: C.navy }}>
+              <input type="checkbox" checked={m.size === lista.length} ref={(el) => { if (el) el.indeterminate = m.size > 0 && m.size < lista.length; }}
+                onChange={() => setM(m.size === lista.length ? new Set() : new Set(lista.map((x) => x.id)))} />
+              {m.size === lista.length ? "Desmarcar todas" : "Marcar todas"} <span className="font-normal text-xs" style={{ color: C.sub }}>· {m.size} de {lista.length} selecionada(s)</span>
+            </label>
             {ordenar(lista).map((x) => {
               const Ico = OBJ[x.objetivo]?.[1] || MapPin;
               return (
