@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -40,6 +40,7 @@ const tipoCor = (d) => (d.frete && d.freteTipo === "TRANSPORTADORA" ? TIPO_COR.T
 const corDemanda = (d) => {
   if (d.status === "CONCLUIDA") return { bg: C.greenSoft, bd: C.green, tx: C.text, sb: C.sub, bw: 1 };
   const t = tipoCor(d);
+  if (d.pendente) return { bg: "#F2F4F7", bd: d.urgente ? C.red : "#98A2B3", tx: "#475467", sb: C.sub, bw: d.urgente ? 2 : 1, bs: "dashed", pin: "#98A2B3" };   // v_pend — só registro: cinza tracejado
   return d.urgente ? { ...t, bd: C.red, bw: 2 } : { ...t, bw: 1 };
 };
 // v434 — card: NOME CURTO - Tarefa ("ALPINO LINHAS E AVIAMENTOS LTDA" + "COLETAR PEDIDO" → "ALPINO - Coletar pedido")
@@ -365,9 +366,9 @@ function MiniDemanda({ x, grande, onClick, onRota, onConcluir, arrastar }) {
   const feita = x.status === "CONCLUIDA";
   // v507 — igual ao calendário: no hover aparece o check à esquerda e o texto desliza
   const btn = (
-    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}${arrastar ? " · arraste para outro dia" : ""}`}
+    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}${x.pendente ? ` · PENDENTE${x.pendencia ? `: ${x.pendencia}` : ""}` : ""}${arrastar ? " · arraste para outro dia" : ""}`}
       draggable={!!arrastar} onDragStart={arrastar ? (e) => { e.stopPropagation(); e.dataTransfer.setData("text/rota-demanda", String(x.id)); e.dataTransfer.effectAllowed = "move"; } : undefined}
-      className="group relative flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0 overflow-hidden cursor-pointer" style={{ background: c.bg, border: `${c.bw}px solid ${c.bd}`, opacity: feita ? 0.55 : naRota ? 0.6 : 1 }}>
+      className="group relative flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0 overflow-hidden cursor-pointer" style={{ background: c.bg, border: `${c.bw}px ${c.bs || "solid"} ${c.bd}`, opacity: feita ? 0.55 : naRota ? 0.6 : 1 }}>
       {onConcluir && (
         <button type="button" onClick={(e) => { e.stopPropagation(); onConcluir(x); }} title={feita ? "Reabrir" : "Concluir"}
           className={`absolute left-1 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full ${feita ? "" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"}`}
@@ -376,7 +377,7 @@ function MiniDemanda({ x, grande, onClick, onRota, onConcluir, arrastar }) {
         </button>
       )}
       <div className={`flex items-center gap-1 text-[11px] font-semibold min-w-0 ${onConcluir ? (feita ? "translate-x-4" : "group-hover:translate-x-4") : ""}`} style={{ color: c.tx, transition: "transform .18s ease" }}>
-        {feita ? (onConcluir ? null : <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} />) : <Ico size={11} className="shrink-0" />}
+        {feita ? (onConcluir ? null : <CheckCircle2 size={11} className="shrink-0" style={{ color: C.green }} />) : x.pendente ? <Hourglass size={11} className="shrink-0" /> : <Ico size={11} className="shrink-0" />}
         <span className="truncate" title={`${x.destinoNome}${x.tarefa ? ` - ${frase(x.tarefa)}` : ""} · ${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}`} style={{ textDecoration: feita ? "line-through" : "none" }}>{nomeTarefa(x)}</span>
       </div>
     </div>
@@ -475,7 +476,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
 }
 function MapasDia({ demandas, fabrica, vivos, cheio }) {
   const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.num ?? r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
-  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : tipoCor(x).pin });
+  const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : x.pendente ? "#98A2B3" : tipoCor(x).pin });
   const com = demandas.filter((x) => x.lat != null && x.status !== "CONCLUIDA");   // v574 — concluída sai do mapa (o zoom fica nas pendentes)
   const rmbh = com.filter((x) => x.regiao === "RMBH" || !x.regiao).map(ponto);
   const mg = com.filter((x) => x.regiao === "MG").map(ponto);
@@ -710,8 +711,10 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
 
           <div className="col-span-2 flex items-center gap-4 pt-1">
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.urgente ? C.red : C.sub }}><input type="checkbox" checked={!!f.urgente} onChange={(e) => set("urgente", e.target.checked)} /> Urgente</label>
+            <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.pendente ? "#475467" : C.sub }} title="Só registro: a parada ainda depende de algo e não está pronta para despachar"><input type="checkbox" checked={!!f.pendente} onChange={(e) => set("pendente", e.target.checked)} /> Com pendência</label>
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.frete ? C.blue : C.sub }}><input type="checkbox" checked={!!f.frete} onChange={(e) => set("frete", e.target.checked)} /> Frete (contratado à parte)</label>
           </div>
+          {f.pendente && <L t="Pendência (o que falta para ficar pronta)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v_pend */}
           {f.frete ? (
             <>
               <L t="Tipo de frete" span><Seg v={f.freteTipo} opts={[["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"]]} on={(v) => set("freteTipo", v)} /></L>
@@ -774,6 +777,7 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
                   <input type="checkbox" checked={m.has(x.id)} onChange={() => tog(x.id)} className="mt-1" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold flex items-center gap-1" style={{ color: x.urgente ? C.red : C.text }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}{x.urgente ? " · URGENTE" : ""}</div>
+                    {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Pendente{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
                     <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                     <div className="text-[11px]" style={{ color: C.sub }}>{sc(x.horario)}{x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}{x.lat == null ? " · sem localização" : ""}</div>
                   </div>
@@ -866,6 +870,8 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
   }
   async function salvar(despachar) {
     if (!mot) return alerta("Escolha o motorista.");
+    const pend = despachar ? ordem.map((id) => porId[id]).filter((x) => x?.pendente) : [];   // v_pend
+    if (pend.length && !(await confirmar(`Esta rota tem ${pend.length} parada(s) com pendência:\n${pend.map((x) => `• ${nomeTarefa(x)}${x.pendencia ? ` (${x.pendencia})` : ""}`).join("\n")}\n\nDespachar mesmo assim?`))) return;
     if (despachar && m?.emRota && m.emRota !== bloco?.id) {
       if (!podeLiberar) return alerta(`${sc(m.nome)} ainda está em outra rota. Ele fica disponível quando registrar o retorno à fábrica. Se ele já está na fábrica, peça para o administrativo, a diretoria ou um master liberar.`);
       if (!(await liberar())) return;
@@ -931,6 +937,7 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
                     <span className="rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ width: 22, height: 22, background: C.accent, color: "#fff" }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate" style={{ color: x.urgente ? C.red : C.text }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</div>
+                      {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Pendente{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
                       <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                       <div className="text-[11px]" style={{ color: e?.atrasoMin ? C.red : C.sub }}>{sc(x.horario)}{e ? ` · chegada prevista ${e.chegada} · sai ${e.saida}${e.atrasoMin ? ` · ${e.atrasoMin} min fora do horário` : ""}` : ""}{x.lat == null ? " · sem localização (estimado)" : ""}</div>
                     </div>

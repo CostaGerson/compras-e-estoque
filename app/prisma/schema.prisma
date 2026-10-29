@@ -2058,6 +2058,8 @@ model RotaDemanda {
   motoristaNome  String?
   veiculo        String?                      // CARRO | MOTO
   urgente        Boolean   @default(false)
+  pendente       Boolean   @default(false)   // v_pend — só registro: ainda não está pronta para despachar
+  pendencia      String?                      // v_pend — condição que falta (ex.: "quando pronto")
   frete          Boolean   @default(false)
   freteTipo      String?                      // TRANSPORTADORA | FRETEBRAS
   freteValorMax  Decimal?  @db.Decimal(14, 2)
