@@ -462,6 +462,10 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
   const ST = { ABERTA: [C.accent, C.accentSoft, "aberta"], COMPRADA: [C.blue, C.blueSoft || C.panel2, "comprada"], RECEBIDA: [C.green, C.greenSoft, "recebida"] };
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   const setIt = (i, k, v) => setEd((e) => ({ ...e, itens: e.itens.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  // v587 — clonar: abre uma avulsa nova já com os itens da original (sem nº, status, "bom para" nem recebimento)
+  const clonar = (c) => { const base = c.itens ? c : ed; setEd({ numero: "", destino: base.destino || "OPERACAO", pedidoRef: base.pedidoRef || "", pedidoCliente: base.pedidoCliente || "", obs: base.obs || "", clonadaDe: base.numero || `#${base.id}`,
+    itens: (base.itens || []).filter((i) => i && i.nome).map((i) => ({ nome: i.nome, quantidade: String(i.quantidade ?? "").replace(".", ","), unidade: i.unidade || "UN", fornecedorId: i.fornecedorId || null, fornecedorNome: i.fornecedorNome || "",
+      pedidoRef: i.pedidoRef ?? (base.destino === "PEDIDO" ? base.pedidoRef || "" : ""), pedidoCliente: i.pedidoCliente ?? (base.destino === "PEDIDO" ? base.pedidoCliente || "" : ""), bomPara: "", obs: i.obs || "" })) }); };
   const novaAv = () => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: "", pedidoCliente: "", bomPara: "", obs: "" }] });
   return (
     <div>
@@ -494,6 +498,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
               {c.status === "COMPRADA" && <button onClick={() => status(c, "RECEBIDA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.green }}>marcar recebida</button>}
               {c.status !== "ABERTA" && <button onClick={() => status(c, c.status === "RECEBIDA" ? "COMPRADA" : "ABERTA")} title="Voltar para a fase anterior" className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>voltar</button>}
               <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
+              <button onClick={() => clonar(c)} title="Criar uma nova compra avulsa com os mesmos itens" className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Copy size={12} /> clonar</button>   {/* v587 */}
               <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
             </div>
             {(c.itens || []).map((i, k) => (
@@ -514,7 +519,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
       })}
       </>}
       {ed && (
-        <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : "Nova compra avulsa · o nº sai ao salvar"} onClose={() => setEd(null)} largo="xl">
+        <Modal titulo={ed.id ? `Compra avulsa ${ed.numero || `#${ed.id}`}` : ed.clonadaDe ? `Nova compra avulsa · clonada da ${ed.clonadaDe} · o nº sai ao salvar` : "Nova compra avulsa · o nº sai ao salvar"} onClose={() => setEd(null)} largo="xl">
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)" }}>
             <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Cada item pode ser de um <b>pedido</b> diferente (entra na DRE dele). Sem pedido = <b>operação</b>.</div>
             <label className="text-xs" style={{ color: C.sub }}>Observação<input value={ed.obs || ""} onChange={(e) => setEd({ ...ed, obs: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm mt-1" style={sel} /></label>
@@ -542,6 +547,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
           <AnexosAvulsa avulsaId={ed.id} pendentes={ed.anexosPendentes || []} setPendentes={(l) => setEd((e) => ({ ...e, anexosPendentes: l }))} quem={nomeUser(user)} onMudou={carregar} />   {/* v515 */}
           <div className="flex justify-end gap-2">
             {ed.id && <button onClick={async () => { await status(ed, "CANCELADA"); setEd(null); }} className="mr-auto px-3 py-2 rounded-md text-sm" style={{ color: C.red }}>Cancelar esta compra avulsa</button>}
+            {ed.id && <button onClick={() => clonar(ed)} title="Criar uma nova compra avulsa com os mesmos itens" className="flex items-center gap-1 px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><Copy size={14} /> Clonar</button>}   {/* v587 */}
             <button onClick={() => setEd(null)} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
             <button onClick={salvar} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
           </div>
