@@ -208,7 +208,7 @@ export default function Rotas({ user, nova }) {
               const n = (porDia[x] || []).filter((y) => y.status !== "CONCLUIDA").length;
               return (
                 <button key={x} type="button" {...alvo(x)} onClick={() => setFds((s0) => new Set(s0).add(x))} title={`${i === 5 ? "Sábado" : "Domingo"} ${dBR(x)}${n ? ` · ${n} demanda(s)` : ""}`}
-                  className="rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ gridColumn: pos + 1, gridRow: 1, minHeight: 260, background: arr === x ? C.accentSoft : C.panel, border: `1px solid ${n || arr === x ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
+                  className="rounded-xl flex flex-col items-center justify-center gap-1 text-sm font-bold" style={{ gridColumn: pos + 1, gridRow: 1, minHeight: altGrade && colMapa ? 0 : 260, background: arr === x ? C.accentSoft : C.panel, border: `1px solid ${n || arr === x ? C.accent : C.line}`, color: n ? C.accent : C.sub }}>
                   {i === 5 ? "S" : "D"}{n > 0 && <span className="text-[10px] font-semibold">{n}</span>}
                 </button>
               );
