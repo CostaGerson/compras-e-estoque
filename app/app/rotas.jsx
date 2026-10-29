@@ -54,6 +54,20 @@ export default function Rotas({ user, nova }) {
   const [modo, setModo] = useState("semana");
   const [ref, setRef] = useState(FOCO);
   const [dia, setDia] = useState(FOCO);
+  // v558 — semana: os cards e o mapa vão até o fim da tela (altura medida a partir do topo da grade)
+  const gradeRef = useRef(null);
+  const [altGrade, setAltGrade] = useState(0);
+  useEffect(() => {
+    const medir = () => {
+      const el = gradeRef.current;
+      if (!el || window.innerWidth < 900) { setAltGrade((v) => (v ? 0 : v)); return; }
+      const h = Math.max(560, Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - 20));
+      setAltGrade((v) => (Math.abs(v - h) > 2 ? h : v));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  });
   const [verRota, setVerRota] = useState(null);
   const [vivo, setVivo] = useState(null);   // v485 — posição dos motoristas em rota (para o mapa)
   // v450 — vindo da tarefa PROGRAMAR ENTREGA: abre a demanda de rota já preenchida (cliente, endereço, "ENTREGA PEDIDO N")
@@ -246,11 +260,11 @@ export default function Rotas({ user, nova }) {
           return (
             <>
               {passado && <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: C.panel2, color: C.sub }}>Vendo dias passados · <button onClick={() => { setRef(FOCO); setDia(FOCO); }} className="font-semibold" style={{ color: C.accent }}>voltar para hoje</button></div>}
-              <div className="grid gap-2" style={{ gridTemplateColumns: tpl }}>
+              <div ref={gradeRef} className="grid gap-2" style={{ gridTemplateColumns: tpl, ...(colMapa && altGrade ? { height: altGrade, gridTemplateRows: "minmax(260px, 34%) minmax(0, 1fr)" } : {}) }}>
                 {dias.map((x, pos) => card(x, pos))}
                 {colMapa && (
-                  <div className="min-w-0 space-y-3" style={{ gridColumn: colMapa, gridRow: 2 }}>
-                    <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} />
+                  <div className="min-w-0" style={{ gridColumn: colMapa, gridRow: 2, minHeight: 0 }}>
+                    <MapasDia demandas={doDia} fabrica={d.fabrica} dia={dia} vivos={vivo?.rotas} cheio={!!altGrade} />
                   </div>
                 )}
               </div>
@@ -369,13 +383,13 @@ function carregarLeaflet() {
 const LIMITES = { RMBH: [[-20.4, -44.45], [-19.5, -43.6]], MG: [[-22.95, -51.05], [-14.2, -39.85]], BR: [[-33.8, -73.9], [5.3, -34.8]] };
 const TITULO_MAPA = { RMBH: "Região metropolitana de BH", MG: "Minas Gerais", BR: "Brasil" };
 function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
-  const ref = useRef(null), mapa = useRef(null), camada = useRef(null), enq = useRef("");
+  const ref = useRef(null), mapa = useRef(null), camada = useRef(null), enq = useRef(""), enquadrar = useRef(null);
   useEffect(() => {
     let vivo = true;
     carregarLeaflet().then((L) => {
       if (!vivo || !ref.current) return;
       if (!mapa.current) {
-        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
+        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, zoomSnap: 0.25, zoomDelta: 0.5 });   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(mapa.current);   // v428 — CARTO passou a exigir chave · v459 — OSM bloqueia pedido sem Referer (o domínio com https mandava no-referrer)
         camada.current = L.layerGroup().addTo(mapa.current);
       }
@@ -405,17 +419,28 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
       const chave = `${area}|${JSON.stringify(pontos)}|${fabrica?.lat}|${motoristas.length}`;
       if (enq.current === chave) { setTimeout(() => m.invalidateSize(), 50); return; }
       enq.current = chave;
-      if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 16 });
-      else if (pts.length === 1) m.setView(pts[0], 15);
-      else m.fitBounds(LIMITES[area], { padding: [8, 8] });
-      setTimeout(() => m.invalidateSize(), 50);
+      enquadrar.current = () => {
+        m.invalidateSize();
+        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [22, 22], maxZoom: 16 });
+        else if (pts.length === 1) m.setView(pts[0], 15);
+        else m.fitBounds(LIMITES[area], { padding: [4, 4] });
+      };
+      enquadrar.current();
+      setTimeout(() => enquadrar.current?.(), 60);
     }).catch(() => {});
     return () => { vivo = false; };
   }, [area, JSON.stringify(pontos), fabrica?.lat, JSON.stringify(motoristas)]);
+  // v558 — o mapa ocupa a altura que sobra na tela: ao mudar de tamanho, refaz o tamanho e o enquadramento (sem faixa cinza)
+  useEffect(() => {
+    if (!ref.current || typeof ResizeObserver === "undefined") return;
+    let t; const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => enquadrar.current?.(), 80); });
+    ro.observe(ref.current);
+    return () => { clearTimeout(t); ro.disconnect(); };
+  }, []);
   useEffect(() => () => { mapa.current?.remove(); mapa.current = null; }, []);
-  return <div ref={ref} className="rounded-lg overflow-hidden" style={{ height: altura, background: "#E9EDF3", zIndex: 0 }} />;
+  return <div ref={ref} className="ce-mapa rounded-lg overflow-hidden" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, background: "#E9EDF3", zIndex: 0 }} />;
 }
-function MapasDia({ demandas, fabrica, vivos }) {
+function MapasDia({ demandas, fabrica, vivos, cheio }) {
   const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
   const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : tipoCor(x).pin });
   const com = demandas.filter((x) => x.lat != null);
@@ -424,15 +449,15 @@ function MapasDia({ demandas, fabrica, vivos }) {
   const br = com.filter((x) => x.regiao === "BR").map(ponto);
   const lateral = br.length ? "BR" : mg.length ? "MG" : null;
   return (
-    <div className="rounded-xl p-3 grid gap-3" style={{ background: C.panel, border: `1px solid ${C.line}`, gridTemplateColumns: lateral ? "minmax(0,2.4fr) minmax(0,1fr)" : "1fr" }}>
-      <div className="min-w-0">
+    <div className="rounded-xl p-3 grid gap-3" style={{ background: C.panel, border: `1px solid ${C.line}`, gridTemplateColumns: lateral ? "minmax(0,2.4fr) minmax(0,1fr)" : "1fr", ...(cheio ? { height: "100%", gridTemplateRows: "minmax(0,1fr)" } : {}) }}>
+      <div className="min-w-0 flex flex-col">
         <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>{TITULO_MAPA.RMBH} · {rmbh.length} ponto(s)</div>
-        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} motoristas={mots} altura={520} />
+        <Mapa area="RMBH" pontos={rmbh} fabrica={fabrica} motoristas={mots} altura={cheio ? "100%" : 520} />
       </div>
       {lateral && (
-        <div className="min-w-0">
+        <div className="min-w-0 flex flex-col">
           <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>Fora da RMBH · {TITULO_MAPA[lateral]} · {lateral === "BR" ? br.length + mg.length : mg.length} ponto(s)</div>
-          <Mapa area={lateral} pontos={lateral === "BR" ? [...br, ...mg] : mg} altura={520} />
+          <Mapa area={lateral} pontos={lateral === "BR" ? [...br, ...mg] : mg} altura={cheio ? "100%" : 520} />
         </div>
       )}
     </div>

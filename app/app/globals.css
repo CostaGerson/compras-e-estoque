@@ -102,3 +102,7 @@ input[list]::-webkit-list-button{display:none!important}
   button, [role="button"] { touch-action: manipulation; }
   .card-asana:hover { transform: none; box-shadow: none; }
 }
+
+/* v558 — mapas (Leaflet): sem as linhas brancas entre os ladrilhos (zoom do navegador/zoom fracionado) */
+.ce-mapa .leaflet-tile-container img.leaflet-tile { width: 256.5px !important; height: 256.5px !important; outline: 1px solid transparent; }
+.ce-mapa .leaflet-tile { image-rendering: auto; }
