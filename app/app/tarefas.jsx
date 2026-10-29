@@ -70,7 +70,7 @@ function ChipTipo({ tipo }) { const [t, c, bg] = TIPO[tipo] || TIPO.PADRAO; retu
 export function Bolinha({ status, size = 9 }) { const c = (STATUS_P[status] || STATUS_P.INATIVO)[1]; return <span className="inline-block rounded-full shrink-0" style={{ width: size, height: size, background: c, boxShadow: "0 0 0 2px #fff" }} />; }
 
 /* ======================= status da própria pessoa (topo) ======================= */
-export function StatusPessoa({ user }) {
+export function StatusPessoa({ user, compacto }) {
   const [eu, setEu] = useState(null);
   const [menu, setMenu] = useState(false);
   const ref = useRef(null);
@@ -84,7 +84,7 @@ export function StatusPessoa({ user }) {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setMenu((m) => !m)} title={typeof eu.detalhe === "string" ? eu.detalhe : eu.detalhe?.titulo || rot} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold" style={{ background: C.panel2, color: cor }}>
-        <Bolinha status={eu.status} /> {rot}
+        <Bolinha status={eu.status} size={compacto ? 10 : undefined} />{!compacto && <> {rot}</>}
       </button>
       {menu && (
         <div className="absolute right-0 top-9 z-40 rounded-xl shadow-xl p-1 w-60" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -415,7 +415,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
 }
 
 /* ======================= detalhe ======================= */
-export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMudou }) {
+export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMudou, editarDireto }) {
   const [t, setT] = useState(null);
   const [erro, setErro] = useState("");
   const [editar, setEditar] = useState(false);
@@ -428,7 +428,9 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const excluir = async () => { if (!(await confirmar("Excluir esta demanda?"))) return; try { await api(`/api/tarefas/${id}`, "DELETE", { usuarioId: user.id }); onMudou?.(); onClose(); } catch (e) { alerta(e.message); } };
   const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alerta(e.message); } } carregar(); onMudou?.(); };
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
-  if (editar && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => setEditar(false)} onOk={() => { setEditar(false); carregar(); onMudou?.(); }} />;
+  // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
+  const direto = editarDireto && t?.podeEditar;
+  if ((editar || direto) && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => (direto ? onClose() : setEditar(false))} onOk={() => { setEditar(false); carregar(); onMudou?.(); if (direto) onClose(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
   const meu = t && t.responsavelId === user.id;
@@ -598,6 +600,9 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
   );
 }
 
+// v561 — períodos do dia (como nas rotas): tarde = horário a partir de 12:00; sem horário fica na manhã
+const PERIODOS = [["Manhã", "MANHA"], ["Tarde", "TARDE"]];
+const periodoDe = (t) => (String(t.hora || "") >= "12:00" ? "TARDE" : "MANHA");
 export function Agenda({ user }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
   const [modo, setModo] = useState("semana");        // abre na semana atual
@@ -612,6 +617,7 @@ export function Agenda({ user }) {
   const [sobre, setSobre] = useState(null);
   const [dir, setDir] = useState(0);                 // direção da navegação (animação)
   const [menuCard, setMenuCard] = useState(null);    // { x, y, t } — botão direito
+  const [sobreCard, setSobreCard] = useState(null);  // v561 — card sobre o qual a demanda arrastada vai ser posta (fica acima dele)
   const H = hojeISO();
   const mobile = useMobile();   // v550
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
@@ -631,15 +637,33 @@ export function Agenda({ user }) {
   // v283 — concluída sai do calendário (continua na lista de Tarefas, filtro "Concluídas")
   const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao));
   const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao]);
-  Object.values(porDia).forEach((l) => l.sort((a, b) => (a.hora || "99") .localeCompare(b.hora || "99") || a.id - b.id));
+  // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
+  Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
-  const novaNoDia = (dia) => setForm({ prazo: dia, responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: visao === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publica: visao !== "PESSOAL" });
+  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: visao === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publica: visao !== "PESSOAL" });
   const soltar = async (dia) => {
     const t = arrastando; setArrastando(null); setSobre(null);
     if (!t || t.prazo === dia) return;
     try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: { prazo: dia } }); carregar(); } catch (e) { alerta(e.message); }
   };
+  // v561 — manhã e tarde (como nas rotas): solta no período ou acima de outra demanda; a ordem fica gravada
+  const soltarEm = async (dia, per, antesId) => {
+    const t = arrastando; setArrastando(null); setSobre(null); setSobreCard(null);
+    if (!t || antesId === t.id) return;
+    const mud = {};
+    if (t.prazo !== dia) mud.prazo = dia;
+    if (periodoDe(t) !== per) { mud.hora = per === "TARDE" ? "13:00" : "08:00"; mud.horaFim = null; }
+    const resto = (porDia[dia] || []).filter((x) => periodoDe(x) === per && x.id !== t.id).map((x) => x.id);
+    const k = antesId ? resto.indexOf(antesId) : -1;
+    const ids = k >= 0 ? [...resto.slice(0, k), t.id, ...resto.slice(k)] : [...resto, t.id];
+    try {
+      if (Object.keys(mud).length) await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: mud });
+      await api("/api/tarefas", "POST", { usuarioId: user.id, acao: "ordenar", ids });
+      carregar();
+    } catch (e) { alerta(e.message); carregar(); }
+  };
+  const fimArrasto = () => { setArrastando(null); setSobre(null); setSobreCard(null); };
   const proj = projetoId ? P[projetoId] : null;
   const alternarConcluida = async (t) => {
     try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: t.status === "CONCLUIDA" ? "reabrir" : "concluir", retorno: "" }); carregar(); } catch (e) { alerta(e.message); }
@@ -744,7 +768,18 @@ export function Agenda({ user }) {
                           {l.length > 0 && <span className="text-xs" style={{ color: A.sub }}>{l.length}</span>}
                           <button onClick={() => novaNoDia(dia)} title="Nova tarefa neste dia" className="p-2 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
                         </div>
-                        {l.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onConcluir={() => alternarConcluida(t)} />)}
+                        {PERIODOS.map(([rot, per]) => {
+                          const ll = l.filter((t) => periodoDe(t) === per);
+                          return (
+                            <div key={per} className="rounded-lg p-1.5 flex flex-col gap-1.5" style={{ background: A.fundo2 }}>
+                              <div className="flex items-center text-[11px] font-bold tracking-wide px-1" style={{ color: A.sub }}>
+                                <span className="flex-1">{rot.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</span>
+                                <button onClick={() => novaNoDia(dia, per)} title={`Nova tarefa de ${rot.toLowerCase()}`} className="p-1 rounded" style={{ color: A.azul }}><Plus size={16} /></button>
+                              </div>
+                              {ll.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onConcluir={() => alternarConcluida(t)} />)}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -769,7 +804,7 @@ export function Agenda({ user }) {
                   const l = porDia[dia] || [];
                   const hoje = dia === H;
                   return (
-                    <div key={dia} onDragOver={(e) => { if (arrastando) { e.preventDefault(); setSobre(dia); } }} onDragLeave={() => setSobre(null)} onDrop={(e) => { e.preventDefault(); soltar(dia); }}
+                    <div key={dia} {...(modo === "mes" ? { onDragOver: (e) => { if (arrastando) { e.preventDefault(); setSobre(dia); } }, onDragLeave: () => setSobre(null), onDrop: (e) => { e.preventDefault(); soltar(dia); } } : {})}
                       className="group/dia px-2 pt-2 pb-3 flex flex-col gap-1.5"
                       style={{ minHeight: modo === "semana" ? 560 : 130, borderLeft: k % 7 ? `1px solid ${A.linha}` : "none", borderTop: modo === "mes" && k >= 7 ? `1px solid ${A.linha}` : "none",
                         background: sobre === dia ? A.azulSoft : fora ? A.fundo2 : A.fundo, transition: "background .15s" }}>
@@ -778,14 +813,37 @@ export function Agenda({ user }) {
                         <span className="inline-flex items-center justify-center rounded-md font-medium" style={{ minWidth: modo === "semana" ? 34 : 24, height: modo === "semana" ? 32 : 24, fontSize: modo === "semana" ? 19 : 13,
                           background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : fora ? "#B7B3B3" : A.texto, padding: "0 6px" }}>{Number(dia.slice(8))}</span>
                       </div>
-                      {(modo === "mes" ? l.slice(0, 4) : l).map((t) => (
+                      {modo === "semana" ? (
+                        <div className="flex-1 flex flex-col gap-2">
+                          {PERIODOS.map(([rot, per]) => {
+                            const ll = l.filter((t) => periodoDe(t) === per), zona = `${dia}|${per}`;
+                            return (
+                              <div key={per} onDragOver={(e) => { if (arrastando) { e.preventDefault(); setSobre(zona); } }} onDrop={(e) => { e.preventDefault(); soltarEm(dia, per, null); }}
+                                onClick={() => novaNoDia(dia, per)} title={`Clique para criar uma tarefa de ${rot.toLowerCase()}`}
+                                className="flex-1 flex flex-col gap-1 rounded-lg p-1.5 cursor-pointer" style={{ background: sobre === zona ? A.azulSoft : A.fundo2, outline: sobre === zona ? `2px dashed ${A.azul}` : "none", transition: "background .15s" }}>
+                                <div className="text-[10px] font-bold tracking-wide px-0.5" style={{ color: A.sub }}>{rot.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
+                                {ll.map((t) => (
+                                  <div key={t.id} onClick={(e) => e.stopPropagation()} onDragEnd={fimArrasto}
+                                    onDragOver={(e) => { if (arrastando) { e.preventDefault(); e.stopPropagation(); setSobre(zona); setSobreCard(t.id); } }}
+                                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); soltarEm(dia, per, t.id); }}
+                                    style={{ borderTop: `2px solid ${arrastando && sobreCard === t.id && arrastando.id !== t.id ? A.azul : "transparent"}` }}>
+                                    <CardAgenda t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onDragStart={() => setArrastando(t)}
+                                      onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
+                                  </div>
+                                ))}
+                                {!ll.length && <div className="text-[11px] text-center mt-1" style={{ color: "#B7B3B3" }}><Plus size={11} className="inline" /> {rot.toLowerCase()}</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : l.slice(0, 4).map((t) => (
                         <CardAgenda key={t.id} t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onDragStart={() => setArrastando(t)}
                           onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
                       ))}
                       {modo === "mes" && l.length > 4 && <button onClick={() => { setModo("semana"); setRef(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - 4} mais</button>}
-                      <button onClick={() => novaNoDia(dia)} className={`text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 ${modo === "mes" ? "opacity-0 group-hover/dia:opacity-100" : ""}`} style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
+                      {modo === "mes" && <button onClick={() => novaNoDia(dia)} className={`text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 ${modo === "mes" ? "opacity-0 group-hover/dia:opacity-100" : ""}`} style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
                         <Plus size={14} /> {modo === "semana" ? "Adicionar uma tarefa" : "Adicionar"}
-                      </button>
+                      </button>}
                     </div>
                   );
                 })}
@@ -796,7 +854,7 @@ export function Agenda({ user }) {
         )}
       </div>
       {form && <TarefaForm user={user} inicial={form} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
-      {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} />}
+      {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} editarDireto />}
       {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}
       {projForm && <ProjetoForm user={user} inicial={projForm} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
     </div>

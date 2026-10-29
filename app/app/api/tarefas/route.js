@@ -19,6 +19,7 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioAtivo(b.usuarioId);
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
+  if (b.acao === "ordenar") { const { ordenar } = await import("@/lib/tarefas"); return Response.json(await ordenar(b.ids, u)); }   // v561
   try {
     const r = await criar(b.tarefa || {}, u);
     return Response.json(r, { status: r.error ? 400 : 201 });

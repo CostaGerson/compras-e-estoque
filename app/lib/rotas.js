@@ -104,11 +104,27 @@ export async function motoristas() {
   const ocupado = Object.fromEntries(emRota.map((b) => [b.motoristaId, b.id]));
   const usuarios = await prisma.usuario.findMany({ where: { ativo: true, pessoaId: { in: folha.map((p) => p.id) } }, select: { id: true, pessoaId: true } });
   const usu = Object.fromEntries(usuarios.map((u) => [u.pessoaId, u.id]));
-  return [
+  let l = [
     ...folha.map((p) => ({ id: p.id, nome: up(fi[p.id]?.nomeCompleto || p.nome), apelido: up(p.nome), telefone: fi[p.id]?.dados?.telefone || null, origem: "FOLHA", usuarioId: usu[p.id] || null })),
     ...free.map((p) => ({ id: `F${p.id}`, nome: up(p.nome), apelido: up(p.nome), telefone: p.telefone || null, origem: "FREELANCER", usuarioId: null })),
-  ].map((x) => ({ ...x, emRota: ocupado[x.id] || null }));
+  ];
+  // v561 — sem motorista cadastrado pelo cargo/função: o Antônio (folha ativa ou freelancer ativo) entra como motorista
+  if (!l.length) {
+    const ant = (m?.dados?.pessoal || []).find((p) => p.ativo !== false && /^ANT[OÔ]NIO\b/i.test(String(p.nome || "").trim()));
+    if (ant) {
+      const f = await prisma.rhFuncionario.findFirst({ where: { pessoaId: ant.id }, select: { nomeCompleto: true, dados: true } }).catch(() => null);
+      const us = await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: ant.id }, select: { id: true } }).catch(() => null);
+      l = [{ id: ant.id, nome: up(f?.nomeCompleto || ant.nome), apelido: up(ant.nome), telefone: f?.dados?.telefone || null, origem: "FOLHA", usuarioId: us?.id || null }];
+    } else {
+      const pf = await prisma.prestador.findFirst({ where: { ativo: true, nome: { startsWith: "ANT", mode: "insensitive" } }, select: { id: true, nome: true, telefone: true } }).catch(() => null);
+      if (pf && /^ANT[OÔ]NIO\b/i.test(pf.nome)) l = [{ id: `F${pf.id}`, nome: up(pf.nome), apelido: up(pf.nome), telefone: pf.telefone || null, origem: "FREELANCER", usuarioId: null }];
+    }
+  }
+  // v561 — motorista padrão: enquanto houver um só motorista ativo (o Antônio), ele já vem escolhido em todas as rotas
+  const unico = l.length === 1;
+  return l.map((x) => ({ ...x, emRota: ocupado[x.id] || null, padrao: unico }));
 }
+export async function motoristaPadrao() { return (await motoristas()).find((x) => x.padrao) || null; }
 
 export async function fabrica() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_FABRICA } }).catch(() => null);
@@ -283,6 +299,15 @@ export async function painel({ de, ate }) {
     prisma.rotaBloco.findMany({ where: { OR: [{ data: { gte: dUTC(de), lte: dUTC(ate) } }, { status: "EM_EXECUCAO" }], NOT: { status: "CANCELADO" } }, orderBy: [{ data: "asc" }, { id: "asc" }] }),
     fabrica(), motoristas(),
   ]);
+  // v561 — demandas em aberto sem motorista recebem o motorista padrão (o único ativo)
+  const pad = mots.find((x) => x.padrao);
+  if (pad) {
+    const sem = ds.filter((d) => !d.frete && !d.motoristaId && ["ABERTA", "NO_BLOCO"].includes(d.status));
+    if (sem.length) {
+      await prisma.rotaDemanda.updateMany({ where: { id: { in: sem.map((d) => d.id) } }, data: { motoristaId: pad.id, motoristaNome: pad.nome } }).catch(() => null);
+      for (const d of sem) Object.assign(d, { motoristaId: pad.id, motoristaNome: pad.nome });
+    }
+  }
   const cot = ds.filter((d) => d.admDemandaId).map((d) => d.admDemandaId);
   const adms = cot.length ? await prisma.admDemanda.findMany({ where: { id: { in: cot } }, select: { id: true, status: true, cotacao: true } }) : [];
   const porAdm = Object.fromEntries(adms.map((a) => [a.id, { status: a.status, valor: a.cotacao?.valor ?? null, prazo: a.cotacao?.prazo ?? null, transportadoras: a.cotacao?.transportadoras ?? null, temAnexo: !!a.cotacao?.anexo }]));
@@ -361,12 +386,13 @@ export async function salvarDemanda(b, u) {
   // v433 — endereço escolhido no Google atualiza o cadastro do terceirizado, fornecedor ou cliente
   if (b.geo && b.geo.endereco === endereco && b.geo.lat != null && destinoId && ["TERCEIRIZADO", "FORNECEDOR", "CLIENTE"].includes(destinoTipo))
     await atualizarCadastroEndereco(destinoTipo, destinoId, b.geo).catch((e) => console.log("rotas/cadastro endereço:", e.message));
+  const mPad = frete || b.motoristaId ? null : await motoristaPadrao().catch(() => null);   // v561
   const dados = {
     data: dUTC(b.data), objetivo, destinoTipo, destinoId, destinoNome, tarefa: tarefa.slice(0, 200), endereco,
     contato: String(b.contato || "").trim() || null, telefone: String(b.telefone || "").trim() || null,
     lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null, regiao: geo ? regiaoDe(geo.municipio, geo.uf) : null,
     horarioTipo, hora1: b.hora1 || null, hora2: horarioTipo === "ENTRE" ? b.hora2 || null : null,
-    motoristaId: frete ? null : b.motoristaId || null, motoristaNome: frete ? null : up(b.motoristaNome) || null, veiculo: frete ? null : VEICULOS.includes(b.veiculo) ? b.veiculo : null,
+    motoristaId: frete ? null : b.motoristaId || mPad?.id || null, motoristaNome: frete ? null : up(b.motoristaNome) || (b.motoristaId ? null : mPad?.nome) || null, veiculo: frete ? null : VEICULOS.includes(b.veiculo) ? b.veiculo : null,
     urgente: !!b.urgente, frete, freteTipo, freteValorMax: freteTipo === "FRETEBRAS" ? vMax : null, freteVolumes: frete ? vol : null,
     obs: String(b.obs || "").trim() || null,
     ...(b.ocId ? { ocId: Number(b.ocId) || null } : {}),   // v486 — rota de coleta criada pela OC

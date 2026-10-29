@@ -58,7 +58,7 @@ const resumo = (t, abertas = {}) => ({
   serieId: t.serieId, recorrencia: t.recorrencia || null, subtarefas: t.subtarefas || [], dependencias: t.dependencias || [],
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
-  hora: t.hora || null, horaFim: t.horaFim || null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null,
+  hora: t.hora || null, horaFim: t.horaFim || null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
 });
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
@@ -407,5 +407,16 @@ export async function excluirProjeto(id, u) {
   if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto exclui." };
   await prisma.tarefa.updateMany({ where: { projetoId: p.id }, data: { projetoId: null } });
   await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { ativo: false } });
+  return { ok: true };
+}
+
+// v561 — agenda: ordem das demandas no período (manhã/tarde) do dia, arrastando uma sobre a outra
+export async function ordenar(ids, u) {
+  const l = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(Boolean))].slice(0, 200);
+  if (!l.length) return { ok: true };
+  const ts = await prisma.tarefa.findMany({ where: { id: { in: l } } });
+  const ok = new Set(ts.filter((t) => podeVer(t, u)).map((t) => t.id));
+  let n = 0;
+  for (const id of l) { if (!ok.has(id)) continue; n++; await prisma.tarefa.update({ where: { id }, data: { ordem: n } }); }
   return { ok: true };
 }

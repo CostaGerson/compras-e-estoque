@@ -273,38 +273,8 @@ export default function Home() {
   const irInicio = (k) => { setView(k); setTab("lista"); setResetTick((t) => t + 1); };
   const money = (v) => (master ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "•••••");
 
-  return (
-    <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
-      {mobile && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40" style={{ background: "rgba(0,30,65,.45)" }} />}
-      <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${mobile ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : mobile ? "min(280px, 85vw)" : 240 }}>
-      <aside style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
-        <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
-          <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
-            <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
-          </button>
-          <button onClick={() => setCollapsed(true)} title="Recolher menu"
-            className="px-3 py-4 flex items-center justify-center" style={{ color: C.sidebarSub }}>
-            <ChevronLeft size={20} />
-          </button>
-        </div>
-        <nav className="flex-1 py-2 overflow-y-auto">
-          <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
-        </nav>
-        <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
-          Sistema de Gestão · v1
-        </div>
-      </aside>
-      </div>
-
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className={`flex items-center justify-between ${mobile ? "px-2 py-1 gap-1" : "px-5 py-1.5"}`} style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
-          <div className="flex items-center gap-2 min-w-0">
-            {collapsed && (
-              <button onClick={() => setCollapsed(false)} title="Expandir menu"
-                className="flex items-center justify-center rounded shrink-0" style={{ background: C.sidebar, color: "#fff", padding: mobile ? 8 : 4 }}>
-                <ChevronRight size={mobile ? 20 : 18} />
-              </button>
-            )}
+  // v561 — caminho da tela (cabeçalho): no celular vai para a 2ª linha
+  const migalha = (
             <div className={`font-semibold flex items-center gap-1 ${mobile ? "min-w-0 overflow-x-auto whitespace-nowrap" : ""}`}>
               {caminho.length && fasesCompras.includes(view) ? (
                 // v416 — fases de compras no próprio cabeçalho: a atual em negrito, as demais normais
@@ -332,6 +302,59 @@ export default function Home() {
                 </React.Fragment>
               )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : view === "agenda" ? "Agenda" : view === "tarefas" ? "Tarefas" : "")}
             </div>
+  );
+  return (
+    <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
+      {mobile && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40" style={{ background: "rgba(0,30,65,.45)" }} />}
+      <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${mobile ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : mobile ? "min(280px, 85vw)" : 240 }}>
+      <aside style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
+        <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
+          <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
+            <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
+          </button>
+          <button onClick={() => setCollapsed(true)} title="Recolher menu"
+            className="px-3 py-4 flex items-center justify-center" style={{ color: C.sidebarSub }}>
+            <ChevronLeft size={20} />
+          </button>
+        </div>
+        <nav className="flex-1 py-2 overflow-y-auto">
+          <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
+        </nav>
+        <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
+          Sistema de Gestão · v1
+        </div>
+      </aside>
+      </div>
+
+      <main className="flex-1 flex flex-col min-w-0">
+        {mobile ? (
+          /* v561 — celular: cabeçalho em duas linhas, mais alto, com a Agenda em destaque e a foto maior */
+          <header className="flex flex-col px-2 pt-2 pb-1.5 gap-1.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCollapsed(false)} title="Menu" className="flex items-center justify-center rounded-lg shrink-0" style={{ background: C.sidebar, color: "#fff", width: 40, height: 40 }}>
+                <ChevronRight size={22} />
+              </button>
+              <button onClick={() => setView("agenda")} className="flex items-center gap-1.5 px-3 rounded-lg font-semibold text-sm shrink-0"
+                style={{ height: 40, background: view === "agenda" ? "#4573D2" : "#EAF0FB", color: view === "agenda" ? "#fff" : "#4573D2" }}>
+                <IcoAgenda size={18} /> Agenda
+              </button>
+              <div className="flex-1" />
+              <TopoUsuario mobile user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
+                onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
+                onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
+            </div>
+            <div className="flex items-center gap-2 px-1"><div className="text-sm flex-1 min-w-0">{migalha}</div><SugestaoBotao user={user} tela={noAtual?.label || view} /></div>
+          </header>
+        ) : (
+        <header className={`flex items-center justify-between ${mobile ? "px-2 py-1 gap-1" : "px-5 py-1.5"}`} style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
+          <div className="flex items-center gap-2 min-w-0">
+            {collapsed && (
+              <button onClick={() => setCollapsed(false)} title="Expandir menu"
+                className="flex items-center justify-center rounded shrink-0" style={{ background: C.sidebar, color: "#fff", padding: mobile ? 8 : 4 }}>
+                <ChevronRight size={mobile ? 20 : 18} />
+              </button>
+            )}
+            {!mobile && migalha}
           </div>
           <div className="flex items-center gap-3">
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
@@ -339,6 +362,7 @@ export default function Home() {
               onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} />
           </div>
         </header>
+        )}
 
         <div className={`flex-1 overflow-auto ${mobile ? "px-2 py-2" : "px-5 py-3"}`}>
           <div key={`${view}-${resetTick}`} className="anim-entrar">
@@ -691,7 +715,7 @@ function Badge({ n }) {
   );
 }
 
-function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens, onIrAgenda, agendaAtiva }) {
+function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens, onIrAgenda, agendaAtiva, mobile }) {
   const [naoVistos, setNaoVistos] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
@@ -713,25 +737,25 @@ function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onI
   }, [user.id, perfil, badgeTick]);
 
   return (
-    <div className="flex items-center gap-4">
-      <button onClick={onIrNotificacoes} title="Notificações" style={{ position: "relative", color: naoVistos ? "#E5484D" : C.sub }}>
-        <Bell size={20} /><Badge n={naoVistos} />
+    <div className={`flex items-center ${mobile ? "gap-2.5" : "gap-4"}`}>
+      <button onClick={onIrNotificacoes} title="Notificações" className={mobile ? "flex items-center justify-center" : ""} style={{ position: "relative", color: naoVistos ? "#E5484D" : C.sub, ...(mobile ? { width: 34, height: 40 } : {}) }}>
+        <Bell size={mobile ? 22 : 20} /><Badge n={naoVistos} />
       </button>
-      <button onClick={onIrMensagens} title="Mensagens" style={{ position: "relative", color: naoLidas ? C.accent : C.sub }}>
-        <Inbox size={20} /><Badge n={naoLidas} />
+      <button onClick={onIrMensagens} title="Mensagens" className={mobile ? "flex items-center justify-center" : ""} style={{ position: "relative", color: naoLidas ? C.accent : C.sub, ...(mobile ? { width: 34, height: 40 } : {}) }}>
+        <Inbox size={mobile ? 22 : 20} /><Badge n={naoLidas} />
       </button>
       {onIrAgenda && <button onClick={onIrAgenda} title="Agenda" className="flex items-center justify-center rounded-lg" style={{ width: 34, height: 34, background: agendaAtiva ? "#EAF0FB" : "transparent", color: agendaAtiva ? "#4573D2" : C.sub }}>
         <IcoAgenda size={20} />
       </button>}
       <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2">
-        <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={34} />
+        <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={mobile ? 40 : 34} />
         <div className="text-left leading-tight hidden md:block">
           <div className="text-sm font-medium" style={{ color: C.text }}>{user.nome}</div>
           <div className="text-xs" style={{ color: C.sub }}>{SETOR_NOME[user.setor] || user.setor}{user.isMaster ? " · master" : user.diretoria ? " · diretoria" : ""}</div>
         </div>
       </button>
-      <StatusPessoa user={user} />
-      <SugestaoBotao user={user} tela={tela} />
+      <StatusPessoa user={user} compacto={mobile} />
+      {!mobile && <SugestaoBotao user={user} tela={tela} />}
       <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
     </div>
   );

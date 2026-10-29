@@ -25,10 +25,10 @@ const api = async (url, method = "GET", body) => {
 };
 const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag], RETORNO: ["Retorno", Home] };   // v521 — retorno à fábrica no meio da rota
 const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXECUCAO: ["em execução", C.accent], CONCLUIDA: ["concluída", C.green] };
-// v435 — cor por tipo: coleta cinza, entrega azul claro, compra amarela, frete por transportadora azul escuro;
+// v435 — cor por tipo: coleta laranja claro (v561; era cinza), entrega azul claro, compra amarela, frete por transportadora azul escuro;
 // concluída verde; urgente mantém a cor do tipo com borda vermelha
 const TIPO_COR = {
-  COLETA: { bg: "#EEF0F3", bd: "#98A2B3", tx: "#344054", sb: "#667085", pin: "#98A2B3" },
+  COLETA: { bg: "#FFEBDC", bd: "#FFA463", tx: "#7A3300", sb: "#9A5A2E", pin: "#FFA463" },
   ENTREGA: { bg: "#E3F0FC", bd: "#5BA4E6", tx: "#1D4F80", sb: "#4A6B8C", pin: "#5BA4E6" },
   COMPRA: { bg: "#FFF4CC", bd: "#E0A800", tx: "#6B4D00", sb: "#8A6D1F", pin: "#E0A800" },
   TRANSP: { bg: "#001E41", bd: "#001E41", tx: "#FFFFFF", sb: "#B8C4D6", pin: "#001E41" },
@@ -383,7 +383,7 @@ function carregarLeaflet() {
 const LIMITES = { RMBH: [[-20.4, -44.45], [-19.5, -43.6]], MG: [[-22.95, -51.05], [-14.2, -39.85]], BR: [[-33.8, -73.9], [5.3, -34.8]] };
 const TITULO_MAPA = { RMBH: "Região metropolitana de BH", MG: "Minas Gerais", BR: "Brasil" };
 function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
-  const ref = useRef(null), mapa = useRef(null), camada = useRef(null), enq = useRef(""), enquadrar = useRef(null);
+  const ref = useRef(null), caixa = useRef(null), mapa = useRef(null), camada = useRef(null), enq = useRef(""), enquadrar = useRef(null);
   useEffect(() => {
     let vivo = true;
     carregarLeaflet().then((L) => {
@@ -420,8 +420,24 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
       if (enq.current === chave) { setTimeout(() => m.invalidateSize(), 50); return; }
       enq.current = chave;
       enquadrar.current = () => {
+        // v561 — o mapa fica só do tamanho necessário para ver todos os pontos: ocupa a altura toda e encolhe a largura
+        //   (ou a altura) que sobraria em volta; fica centralizado na área
+        const el = ref.current, cx = caixa.current;
+        if (!el || !cx) return;
+        const W = cx.clientWidth, Hh = cx.clientHeight;
+        el.style.width = `${W}px`; el.style.height = `${Hh}px`;
         m.invalidateSize();
-        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [16, fabrica?.lat != null && area === "RMBH" ? 40 : 18], paddingBottomRight: [16, 16], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
+        const topo = fabrica?.lat != null && area === "RMBH" ? 40 : 18;
+        if (pts.length > 1) {
+          const b = L.latLngBounds(pts);
+          const z = Math.min(16, m.getBoundsZoom(b, false, L.point(32, topo + 16)));
+          const a = m.project(b.getNorthWest(), z), c = m.project(b.getSouthEast(), z);
+          const w = Math.ceil(c.x - a.x + 32 + 6), h = Math.ceil(c.y - a.y + topo + 16 + 6);
+          if (w < W - 4) el.style.width = `${Math.max(260, w)}px`;
+          else if (h < Hh - 4) el.style.height = `${Math.max(260, h)}px`;
+          m.invalidateSize();
+        }
+        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [16, topo], paddingBottomRight: [16, 16], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
         else if (pts.length === 1) m.setView(pts[0], 15);
         else m.fitBounds(LIMITES[area], { padding: [4, 4] });
       };
@@ -432,13 +448,17 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
   }, [area, JSON.stringify(pontos), fabrica?.lat, JSON.stringify(motoristas)]);
   // v558 — o mapa ocupa a altura que sobra na tela: ao mudar de tamanho, refaz o tamanho e o enquadramento (sem faixa cinza)
   useEffect(() => {
-    if (!ref.current || typeof ResizeObserver === "undefined") return;
+    if (!caixa.current || typeof ResizeObserver === "undefined") return;
     let t; const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => enquadrar.current?.(), 80); });
-    ro.observe(ref.current);
+    ro.observe(caixa.current);   // v561 — observa a área (o mapa dentro dela muda de largura no enquadramento)
     return () => { clearTimeout(t); ro.disconnect(); };
   }, []);
   useEffect(() => () => { mapa.current?.remove(); mapa.current = null; }, []);
-  return <div ref={ref} className="ce-mapa rounded-lg overflow-hidden" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, background: "#F2EFE9", zIndex: 0 }} />;
+  return (
+    <div ref={caixa} className="flex items-center justify-center" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, minWidth: 0 }}>
+      <div ref={ref} className="ce-mapa rounded-lg overflow-hidden shrink-0" style={{ width: "100%", height: "100%", background: "#F2EFE9", zIndex: 0 }} />
+    </div>
+  );
 }
 function MapasDia({ demandas, fabrica, vivos, cheio }) {
   const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
@@ -545,7 +565,9 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const trava = ["EM_EXECUCAO", "CONCLUIDA"].includes(inicial.status);
   const [f, setF] = useState({ objetivo: "ENTREGA", destinoTipo: "", destinoId: null, destinoNome: "", endereco: "", contato: "", telefone: "", horarioTipo: "MANHA", hora1: "", hora2: "",
     tarefa: "", motoristaId: "", motoristaNome: "", veiculo: "CARRO", urgente: false, frete: false, freteTipo: "", obs: "", ...inicial,
-    freteValorMax: inicial.freteValorMax != null ? String(inicial.freteValorMax).replace(".", ",") : "", freteVolumes: inicial.freteVolumes ?? "" });
+    freteValorMax: inicial.freteValorMax != null ? String(inicial.freteValorMax).replace(".", ",") : "", freteVolumes: inicial.freteVolumes ?? "",
+    // v561 — motorista padrão (o único ativo, o Antônio) já vem escolhido
+    ...(!inicial.motoristaId && !inicial.frete && motoristas.find((m) => m.padrao) ? { motoristaId: motoristas.find((m) => m.padrao).id, motoristaNome: motoristas.find((m) => m.padrao).nome } : {}) });
   const [lista, setLista] = useState(_destinos || []);
   const [q, setQ] = useState(inicial.destinoNome || "");
   const [aberto, setAberto] = useState(false);
@@ -751,7 +773,7 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
   const alt = bloco?.status === "EM_EXECUCAO";   // v454 — rota já despachada: só reordena o que falta e reenvia
   const [extras, setExtras] = useState({});   // v521 — paradas de retorno à fábrica criadas nesta janela
   const porId = { ...Object.fromEntries(demandas.map((x) => [x.id, x])), ...extras };
-  const sugMot = bloco?.motoristaId || demandas.find((x) => ids.includes(x.id) && x.motoristaId)?.motoristaId || "";
+  const sugMot = bloco?.motoristaId || demandas.find((x) => ids.includes(x.id) && x.motoristaId)?.motoristaId || motoristas.find((m) => m.padrao)?.id || "";   // v561 — motorista padrão
   const agora = new Date(); const hoje = hojeISO() === dia;
   const saidaPadrao = bloco?.saida || (hoje ? `${String(Math.max(8, agora.getHours() + (agora.getMinutes() > 30 ? 1 : 0))).padStart(2, "0")}:${agora.getMinutes() > 30 ? "00" : "30"}` : "08:00");
   const [mot, setMot] = useState(sugMot);
