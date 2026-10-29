@@ -1,5 +1,5 @@
 "use client";
-// v576 — acompanhamento público da rota (link do grupo do WhatsApp): rota em tempo real, demandas do dia e lançamento
+// v576/v579 — acompanhamento público do dia (link do grupo do WhatsApp): rotas do dia em tempo real, demandas e lançamento
 // de novas demandas de rota. Pensado para o celular; sem login (vale o link).
 import React, { useEffect, useState } from "react";
 
@@ -23,9 +23,10 @@ export default function Acompanhar({ params }) {
 
   if (erro && !d) return <Tela><div className="p-6 text-center text-sm" style={{ color: C.red }}>{erro}</div></Tela>;
   if (!d) return <Tela><div className="p-6 text-center text-sm" style={{ color: C.sub }}>Carregando…</div></Tela>;
-  const r = d.rota;
-  const feitas = r.paradas.filter((p) => p.status === "CONCLUIDA").length;
-  const status = r.status === "EM_EXECUCAO" ? `em andamento · ${FASE[r.fase] || ""}` : r.status === "CONCLUIDO" ? `concluída${r.retornoEm ? ` · voltou ${r.retornoEm}` : ""}` : r.status === "MONTAGEM" ? "ainda não saiu" : "cancelada";
+  // v579 — o link é do dia: todas as rotas do dia e as demandas fora de rota
+  const emAndamento = d.rotas.filter((r) => r.status === "EM_EXECUCAO").length;
+  const todas = [...d.rotas.flatMap((r) => r.paradas), ...d.demandas];
+  const atendidas = todas.filter((x) => x.status === "CONCLUIDA").length;
 
   return (
     <Tela>
@@ -33,47 +34,19 @@ export default function Acompanhar({ params }) {
         <div className="flex items-center gap-2">
           <img src="/meridian-logo.svg" alt="Meridian" style={{ height: 20 }} />
           <span className="ml-auto text-[11px] flex items-center gap-1.5" style={{ color: "#B9C6D8" }}>
-            <span className="rounded-full" style={{ width: 7, height: 7, background: r.status === "EM_EXECUCAO" ? C.neon : "#98A2B3" }} /> ao vivo · atualiza a cada 30 s
+            <span className="rounded-full" style={{ width: 7, height: 7, background: emAndamento ? C.neon : "#98A2B3" }} /> ao vivo · atualiza a cada 30 s
           </span>
         </div>
-        <div className="mt-3 text-lg font-bold">Rota R{r.id} · {r.motorista}</div>
-        <div className="text-sm" style={{ color: "#D8E0EC" }}>{dBR(d.dia)} · {status}</div>
-        <div className="text-xs mt-1" style={{ color: "#B9C6D8" }}>
-          {feitas} de {r.paradas.length} parada(s) atendida(s){r.retornoPrevisto ? ` · volta prevista ~${r.retornoPrevisto}` : ""}
-          {r.posicao ? ` · posição ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` : ""}
-        </div>
-        {r.posicao?.endereco && <div className="text-xs mt-0.5 truncate" style={{ color: "#B9C6D8" }}>📍 {r.posicao.endereco}</div>}
+        <div className="mt-3 text-lg font-bold">Rotas de {dBR(d.dia)}</div>
+        <div className="text-xs mt-0.5" style={{ color: "#B9C6D8" }}>{d.rotas.length} rota(s){emAndamento ? ` · ${emAndamento} em andamento` : ""} · {atendidas} de {todas.length} demanda(s) atendida(s)</div>
       </div>
 
       {ok && <div className="mx-4 mt-3 p-3 rounded-lg text-sm" style={{ background: "#E7F6EC", color: C.green }}>{ok}</div>}
 
-      <Secao t="Paradas da rota">
-        {r.paradas.map((p, i) => {
-          const feita = p.status === "CONCLUIDA";
-          return (
-            <div key={p.id} className="flex gap-3">
-              <div className="flex flex-col items-center" style={{ width: 18 }}>
-                <span className="rounded-full mt-1 shrink-0" style={{ width: 12, height: 12, background: feita ? "#475467" : "#fff", border: `2px solid ${p.indo ? C.accent : feita ? "#475467" : "#C0C6D0"}` }} />
-                {i < r.paradas.length - 1 && <div className="flex-1 relative" style={{ width: 2, background: feita ? "#475467" : C.line, minHeight: 28 }}>
-                  {r.paradas[i + 1]?.indo && <span className="ce-desce absolute" style={{ left: -5 }}><Seta /></span>}
-                </div>}
-              </div>
-              <div className="flex-1 pb-3 min-w-0">
-                <div className="text-sm font-semibold flex items-center gap-1.5" style={{ color: feita ? C.sub : C.text }}>
-                  <span className="rounded-full shrink-0" style={{ width: 8, height: 8, background: OBJ[p.objetivo]?.[1] || C.sub }} />
-                  <span className="truncate" style={{ textDecoration: feita ? "line-through" : "none" }}>{curto(p.nome)}{p.tarefa ? ` - ${frase(p.tarefa)}` : ""}</span>
-                </div>
-                <div className="text-xs" style={{ color: p.indo ? C.accent : C.sub }}>
-                  {OBJ[p.objetivo]?.[0]} · {feita ? `atendida ${p.concluidaEm || ""}` : p.indo ? `a caminho · chega ~${p.eta || "?"}` : p.eta ? `previsão ~${p.eta}` : p.horario}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {!r.paradas.length && <div className="text-sm" style={{ color: C.sub }}>Rota sem paradas.</div>}
-      </Secao>
+      {d.rotas.map((r) => <Rota key={r.id} r={r} />)}
+      {!d.rotas.length && <Secao t="Rotas"><div className="text-sm" style={{ color: C.sub }}>Nenhuma rota montada neste dia ainda.</div></Secao>}
 
-      <Secao t={`Outras demandas do dia · ${d.demandas.length}`}>
+      <Secao t={`Demandas fora de rota · ${d.demandas.length}`}>
         {d.demandas.map((x) => {
           const [t, cor] = ST[x.status] || [x.status.toLowerCase(), C.sub];
           return (
@@ -81,13 +54,13 @@ export default function Acompanhar({ params }) {
               <span className="rounded-full mt-1.5 shrink-0" style={{ width: 8, height: 8, background: OBJ[x.objetivo]?.[1] || C.sub }} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm truncate" style={{ color: C.text }}>{curto(x.nome)}{x.tarefa ? ` - ${frase(x.tarefa)}` : ""}{x.urgente ? " · URGENTE" : ""}</div>
-                <div className="text-xs" style={{ color: C.sub }}>{OBJ[x.objetivo]?.[0]} · {x.frete ? "frete" : x.horario}{x.rota ? ` · rota R${x.rota}` : ""}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{OBJ[x.objetivo]?.[0]} · {x.frete ? "frete" : x.horario}</div>
               </div>
               <span className="text-xs font-semibold shrink-0" style={{ color: cor }}>{t}{x.status === "CONCLUIDA" && x.concluidaEm ? ` ${x.concluidaEm}` : ""}</span>
             </div>
           );
         })}
-        {!d.demandas.length && <div className="text-sm" style={{ color: C.sub }}>Nenhuma outra demanda neste dia.</div>}
+        {!d.demandas.length && <div className="text-sm" style={{ color: C.sub }}>Nenhuma demanda fora de rota.</div>}
       </Secao>
 
       <div className="h-24" />
@@ -98,10 +71,44 @@ export default function Acompanhar({ params }) {
   );
 }
 
+function Rota({ r }) {
+  const feitas = r.paradas.filter((p) => p.status === "CONCLUIDA").length;
+  const status = r.status === "EM_EXECUCAO" ? `em andamento · ${FASE[r.fase] || ""}` : r.status === "CONCLUIDO" ? `concluída${r.retornoEm ? ` · voltou ${r.retornoEm}` : ""}` : "ainda não saiu";
+  const cor = r.status === "EM_EXECUCAO" ? C.accent : r.status === "CONCLUIDO" ? C.green : C.sub;
+  return (
+    <Secao t={<span className="flex items-center gap-2" style={{ textTransform: "none", letterSpacing: 0 }}><span className="text-sm font-bold" style={{ color: C.text }}>Rota R{r.id} · {r.motorista}</span><span className="text-xs font-semibold" style={{ color: cor }}>{status}</span></span>}>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>
+        {feitas} de {r.paradas.length} parada(s){r.retornoPrevisto ? ` · volta prevista ~${r.retornoPrevisto}` : ""}{r.posicao ? ` · posição ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` : ""}
+        {r.posicao?.endereco ? <div className="truncate">📍 {r.posicao.endereco}</div> : null}
+      </div>
+      {r.paradas.map((p, i) => {
+        const feita = p.status === "CONCLUIDA";
+        return (
+          <div key={p.id} className="flex gap-3">
+            <div className="flex flex-col items-center" style={{ width: 14 }}>
+              <span className="rounded-full mt-1 shrink-0" style={{ width: 12, height: 12, background: feita ? "#475467" : "#fff", border: `2px solid ${p.indo ? C.accent : feita ? "#475467" : "#C0C6D0"}` }} />
+              {i < r.paradas.length - 1 && <div className="flex-1" style={{ width: 2, background: feita ? "#475467" : C.line, minHeight: 24 }} />}
+            </div>
+            <div className="flex-1 pb-2.5 min-w-0">
+              <div className="text-sm font-semibold flex items-center gap-1.5" style={{ color: feita ? C.sub : C.text }}>
+                <span className="rounded-full shrink-0" style={{ width: 8, height: 8, background: OBJ[p.objetivo]?.[1] || C.sub }} />
+                <span className="truncate" style={{ textDecoration: feita ? "line-through" : "none" }}>{curto(p.nome)}{p.tarefa ? ` - ${frase(p.tarefa)}` : ""}</span>
+              </div>
+              <div className="text-xs" style={{ color: p.indo ? C.accent : C.sub }}>
+                {OBJ[p.objetivo]?.[0]} · {feita ? `atendida ${p.concluidaEm || ""}` : p.indo ? `a caminho · chega ~${p.eta || "?"}` : p.eta ? `previsão ~${p.eta}` : p.horario}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {!r.paradas.length && <div className="text-sm" style={{ color: C.sub }}>Rota sem paradas.</div>}
+    </Secao>
+  );
+}
+
 function Tela({ children }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Montserrat, system-ui, sans-serif" }}>
-      <style>{`@keyframes ce-desce { 0% { top: -4px; opacity: 0 } 15% { opacity: 1 } 85% { opacity: 1 } 100% { top: calc(100% - 8px); opacity: 0 } } .ce-desce { animation: ce-desce 2.2s linear infinite }`}</style>
       <div className="mx-auto" style={{ maxWidth: 560 }}>{children}</div>
     </div>
   );
@@ -113,9 +120,6 @@ function Secao({ t, children }) {
       {children}
     </div>
   );
-}
-function Seta() {
-  return <svg width="12" height="12" viewBox="0 0 12 12" style={{ transform: "rotate(90deg)" }}><path d="M1 1 L11 6 L1 11 L3.5 6 Z" fill={C.neon} stroke="#1E1F21" strokeWidth="1" strokeLinejoin="round" /></svg>;
 }
 
 function NovaDemanda({ token, dia, onClose, onOk }) {

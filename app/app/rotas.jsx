@@ -71,7 +71,8 @@ export default function Rotas({ user, nova }) {
     return () => window.removeEventListener("resize", medir);
   });
   const [verRota, setVerRota] = useState(null);
-  const [vivo, setVivo] = useState(null);   // v485 — posição dos motoristas em rota (para o mapa)
+  const [vivo, setVivo] = useState(null);
+  const [linkDia, setLinkDia] = useState(null);   // v579 — link de acompanhamento do dia   // v485 — posição dos motoristas em rota (para o mapa)
   // v450 — vindo da tarefa PROGRAMAR ENTREGA: abre a demanda de rota já preenchida (cliente, endereço, "ENTREGA PEDIDO N")
   useEffect(() => { if (nova?.t) { const { t, ...x } = nova; setDia(FOCO); setForm({ data: FOCO, horarioTipo: "LIVRE", ...x }); } }, [nova?.t]);   // v444 — rota aberta pelo botão R
   const [verConc, setVerConc] = useState(new Set());   // v464 — dias com as demandas concluídas à mostra
@@ -175,6 +176,7 @@ export default function Rotas({ user, nova }) {
         <button onClick={() => mover(1)} className="p-1.5 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><ChevronRight size={15} /></button>
         <div className="text-sm font-semibold" style={{ color: C.text }}>{titulo}</div>
         <div className="ml-auto flex items-center gap-2">
+          {pode && <button onClick={async () => { try { setLinkDia(await api("/api/rotas", "POST", { usuarioId: user.id, acao: "linkAcomp", dia })); } catch (e) { alerta(e.message); } }} title="Link de acompanhamento do dia para o grupo do WhatsApp" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Link2 size={13} /> Link do dia</button>}
           {pode && <button onClick={() => setCfgFab(true)} title="Endereço da fábrica (saída e retorno das rotas)" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Settings size={13} /> Fábrica</button>}
           {pode && <button onClick={() => setEscolher(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}><IcoRota size={15} /> Montar rota</button>}
           <button onClick={() => novaNoDia(dia)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Demanda de rota</button>
@@ -316,6 +318,10 @@ export default function Rotas({ user, nova }) {
           </div>
         );
       })()}
+      {linkDia && <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={() => setLinkDia(null)}>
+        <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-lg p-4 shadow-2xl" style={{ background: C.panel }}><LinkAcomp a={linkDia} />
+          <div className="flex justify-end mt-2"><button onClick={() => setLinkDia(null)} className="px-4 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button></div></div>
+      </div>}
       {cfgFab && <FabricaModal user={user} atual={d?.fabrica} onClose={() => setCfgFab(false)} onOk={() => { setCfgFab(false); carregar(); }} />}
     </div>
   );
@@ -332,21 +338,21 @@ function agruparRota(l, render, onRota, onDespachar) {
     if (!g.bloco) return render(g.itens[0]);
     const it = [...g.itens].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
     const st = it.every((y) => y.status === "CONCLUIDA") ? "CONCLUIDA" : it.some((y) => y.status === "EM_EXECUCAO" || y.status === "CONCLUIDA") ? "EM_EXECUCAO" : "NO_BLOCO";
-    // v576 — o card da rota: cinza enquanto não despachada (com o play para despachar), laranja em andamento (com movimento), verde concluída
-    const cx = st === "EM_EXECUCAO" ? { bg: "#FFE3D1", bd: C.accent } : st === "CONCLUIDA" ? { bg: C.greenSoft, bd: C.green } : { bg: "#E9ECF1", bd: "#B8C0CC" };
+    const botaoR = <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
+      style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : "#667085", color: "#fff" }}>R{g.bloco}</button>;
+    // v579 — só a rota ainda não despachada ganha o card cinza com o play (despachar); em andamento e concluída ficam como antes
+    if (st !== "NO_BLOCO") return (
+      <div key={`R${g.bloco}`} className="flex items-stretch gap-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>{botaoR}
+      </div>
+    );
     return (
-      <div key={`R${g.bloco}`} className="rounded-lg p-1 min-w-0" style={{ background: cx.bg }}>   {/* v578 — sem contorno */}
+      <div key={`R${g.bloco}`} className="rounded-lg p-1 min-w-0" style={{ background: "#E9ECF1" }}>
         <div className="flex items-stretch gap-1 min-w-0">
-          <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
-            style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : "#667085", color: "#fff" }}>R{g.bloco}</button>
+          <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>{botaoR}
         </div>
-        {st === "NO_BLOCO" && onDespachar && <button type="button" onClick={(e) => { e.stopPropagation(); onDespachar(g.bloco); }} title={`Abrir a rota ${g.bloco} para despachar`}
+        {onDespachar && <button type="button" onClick={(e) => { e.stopPropagation(); onDespachar(g.bloco); }} title={`Abrir a rota ${g.bloco} para despachar`}
           className="mt-1 w-full flex items-center justify-center gap-1 rounded py-0.5 text-[10px] font-semibold" style={{ background: "#fff", color: C.navy, border: "1px solid #B8C0CC" }}><Play size={10} fill={C.navy} /> despachar</button>}
-        {st === "EM_EXECUCAO" && <div className="relative mt-1 mx-1" style={{ height: 10 }} title="Rota em andamento">
-          <div className="absolute left-0 right-0" style={{ top: 4, height: 2, background: C.accent, opacity: 0.35 }} />
-          <svg className="ce-percurso absolute" width="12" height="10" viewBox="0 0 14 12" style={{ top: 0, marginLeft: -6 }}><path d="M1 1 L13 6 L1 11 L4 6 Z" fill={C.accent} /></svg>
-        </div>}
       </div>
     );
   });
@@ -994,8 +1000,8 @@ function LinkAcomp({ a }) {
   const copiar = async (t, q) => { setOk((await copiarTexto(t)) ? q : "não copiou — selecione e copie"); setTimeout(() => setOk(""), 2500); };
   return (
     <div className="rounded-lg p-3 mt-1" style={{ background: "#E7F6EC", border: "1px solid #12A15055" }}>
-      <div className="text-xs font-bold mb-1" style={{ color: C.navy }}>Link de acompanhamento em tempo real</div>
-      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Cole no grupo do WhatsApp: quem abrir vê a rota ao vivo, as demandas do dia e pode lançar novas demandas de rota.</div>
+      <div className="text-xs font-bold mb-1" style={{ color: C.navy }}>Link de acompanhamento do dia {a.dia ? dBR(a.dia) : ""}</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Cole no grupo do WhatsApp: quem abrir vê todas as rotas do dia ao vivo, as demandas e pode lançar novas demandas de rota. O link é o mesmo para o dia inteiro.</div>
       <input readOnly value={a.url} onFocus={(e) => e.target.select()} className="w-full rounded px-2 py-1.5 text-xs mb-2" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
       <div className="flex flex-wrap gap-2 items-center">
         <button onClick={() => copiar(a.texto, "mensagem copiada")} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#25D366", color: "#fff" }}>Copiar mensagem para o grupo</button>
@@ -1049,7 +1055,7 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
         }} className="text-xs flex items-center gap-1 px-2.5 py-1 rounded font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={12} /> WhatsApp</button>}
         {msg && <MensagemRota user={user} id={b.id} onClose={() => setMsg(false)} />}
         {pode && b.status !== "CANCELADO" && <button onClick={async () => { try { const a = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "linkAcomp", id: b.id }); setAcomp(a); } catch (e) { alerta(e.message); } }}
-          className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Link2 size={12} /> Link de acompanhamento</button>}
+          className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Link2 size={12} /> Link do dia</button>}
         {acomp && <div className="w-full"><LinkAcomp a={acomp} /></div>}
         {b.status === "MONTAGEM" && pode && <>
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>

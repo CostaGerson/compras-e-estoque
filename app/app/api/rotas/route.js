@@ -77,7 +77,7 @@ export async function POST(req) {
     case "retornoNaRota": return r(await retornoNaRota(b, u, podeMontar(u)));   // v521 — motorista (com justificativa) ou quem monta
     case "mover": if (!podeMontar(u)) return negado(); return r(await moverDemanda(b, u));   // v521 — arrastar entre dias
     case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443
-    case "linkAcomp": { const { linkAcompanhamento } = await import("@/lib/rotas"); return r(await linkAcompanhamento(b.id)); }   // v576
+    case "linkAcomp": { const { linkAcompanhamento } = await import("@/lib/rotas"); return r(await linkAcompanhamento(b.id, b.dia)); }   // v576
     case "desfazerBloco": if (!podeMontar(u)) return negado(); return r(await desfazerBloco(b.id));
     case "perna": {   // v452 — motorista inicia a perna (até a parada ou a volta)
       const bid = b.volta ? Number(b.blocoId) : (await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) }, select: { blocoId: true } }))?.blocoId;

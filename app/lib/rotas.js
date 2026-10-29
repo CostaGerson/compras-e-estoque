@@ -721,48 +721,61 @@ async function avisarAtendida(d, rotaId, u) {
   await notificar(para.id, { titulo: "✅ Demanda de rota atendida", texto: `${oq} · ${rotaId ? `rota R${rotaId}` : "sem rota"} · ${hora}`.slice(0, 180), url: "/", tag: `rota-dem-${d.id}` }).catch(() => null);
 }
 
-// v576 — link público de acompanhamento da rota (para mandar no grupo do WhatsApp)
-export async function linkAcompanhamento(id) {
-  const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
-  if (!bl) return { error: "Rota não encontrada." };
-  let t = bl.acompToken;
-  if (!t) { const { randomBytes } = await import("crypto"); t = randomBytes(12).toString("base64url"); await prisma.rotaBloco.update({ where: { id: bl.id }, data: { acompToken: t } }); }
+// v579 — link público de acompanhamento do DIA (todas as rotas e demandas do dia), para o grupo do WhatsApp.
+//   Um token por dia (FinConfig ROTA_ACOMP_DIA|data ↔ ROTA_ACOMP_TOKEN|token); o link antigo de uma rota (v576) abre o dia dela.
+async function diaDoToken(token) {
+  const t = String(token || "");
+  if (!t) return null;
+  const c = await prisma.finConfig.findUnique({ where: { chave: `ROTA_ACOMP_TOKEN|${t}` } }).catch(() => null);
+  if (c?.valor) return c.valor;
+  const bl = await prisma.rotaBloco.findUnique({ where: { acompToken: t } }).catch(() => null);
+  return bl ? iso(bl.data) : null;
+}
+export async function linkAcompanhamento(id, diaPedido) {
+  let dia = /^\d{4}-\d{2}-\d{2}$/.test(String(diaPedido || "")) ? diaPedido : null;
+  if (!dia) { const bl = id ? await prisma.rotaBloco.findUnique({ where: { id: Number(id) } }) : null; if (!bl) return { error: "Rota não encontrada." }; dia = iso(bl.data); }
+  const k = `ROTA_ACOMP_DIA|${dia}`;
+  let t = (await prisma.finConfig.findUnique({ where: { chave: k } }).catch(() => null))?.valor;
+  if (!t) {
+    const { randomBytes } = await import("crypto"); t = randomBytes(12).toString("base64url");
+    await prisma.finConfig.create({ data: { chave: k, valor: t } });
+    await prisma.finConfig.create({ data: { chave: `ROTA_ACOMP_TOKEN|${t}`, valor: dia } });
+  }
   const base = String(process.env.APP_URL || "https://erp.meridianpro.com.br").replace(/\/$/, "");
   const url = `${base}/acompanhar/${t}`;
-  const dataBR = iso(bl.data).split("-").reverse().join("/");
-  return { ok: true, url, texto: `🚚 Rota R${bl.id} · ${dataBR} · ${String(bl.motoristaNome || "").split(" ")[0]}\nAcompanhe em tempo real e lance novas demandas de rota:\n${url}` };
+  return { ok: true, url, dia, texto: `🚚 Rotas de ${dia.split("-").reverse().join("/")} · Meridian\nAcompanhe as rotas do dia em tempo real e lance novas demandas de rota:\n${url}` };
 }
 
-// v576 — página pública de acompanhamento: a rota ao vivo (resumida) e as demandas do dia
+// v579 — página pública: todas as rotas do dia (ao vivo, resumidas) e as demandas fora de rota
 export async function acompanhamento(token) {
-  const bl = token ? await prisma.rotaBloco.findUnique({ where: { acompToken: String(token) } }) : null;
-  if (!bl) return { error: "Link inválido ou expirado." };
-  const dia = iso(bl.data);
-  let vivo = null;
-  if (bl.status === "EM_EXECUCAO") vivo = (await aoVivo()).rotas.find((r) => r.id === bl.id) || null;
-  const paradas = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
-  const doDia = await prisma.rotaDemanda.findMany({ where: { data: dUTC(dia), status: { not: "CANCELADA" } }, orderBy: [{ urgente: "desc" }, { id: "asc" }] });
-  const curta = (d) => ({ id: d.id, objetivo: d.objetivo, nome: d.destinoNome, tarefa: d.tarefa, status: d.status, horario: horarioTxt(d), rota: d.blocoId || null, concluidaEm: d.concluidaEm, urgente: d.urgente, frete: d.frete });
+  const dia = await diaDoToken(token);
+  if (!dia) return { error: "Link inválido ou expirado." };
   const hm = (x) => (x ? new Date(x).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : null);
-  return {
-    ok: true, dia,
-    rota: { id: bl.id, status: bl.status, motorista: String(bl.motoristaNome || "").split(" ")[0], veiculo: bl.veiculo, saida: bl.saida, despachadoEm: hm(bl.despachadoEm), retornoEm: hm(bl.retornoEm),
-      fase: vivo?.fase || null, retornoPrevisto: vivo?.retornoPrevisto || null, posicao: vivo?.posicao ? { minAtras: vivo.posicao.minAtras, endereco: vivo.posicao.endereco, fresca: vivo.posicao.fresca } : null,
-      paradas: paradas.map((d) => ({ ...curta(d), eta: vivo?.paradas.find((p) => p.id === d.id)?.eta || null, indo: vivo?.alvo === d.id, concluidaEm: hm(d.concluidaEm) })) },
-    demandas: doDia.filter((d) => d.blocoId !== bl.id && d.objetivo !== "RETORNO").map((d) => ({ ...curta(d), concluidaEm: hm(d.concluidaEm) })),
-  };
+  const bs = await prisma.rotaBloco.findMany({ where: { data: dUTC(dia), status: { not: "CANCELADO" } }, orderBy: { id: "asc" } });
+  const vivo = bs.some((b) => b.status === "EM_EXECUCAO") ? (await aoVivo()).rotas : [];
+  const ds = await prisma.rotaDemanda.findMany({ where: { data: dUTC(dia), status: { not: "CANCELADA" } }, orderBy: [{ urgente: "desc" }, { ordem: "asc" }, { id: "asc" }] });
+  const curta = (d) => ({ id: d.id, objetivo: d.objetivo, nome: d.destinoNome, tarefa: d.tarefa, status: d.status, horario: horarioTxt(d), rota: d.blocoId || null, concluidaEm: hm(d.concluidaEm), urgente: d.urgente, frete: d.frete });
+  const rotas = bs.map((bl) => {
+    const v = vivo.find((r) => r.id === bl.id) || null;
+    return { id: bl.id, status: bl.status, motorista: String(bl.motoristaNome || "").split(" ")[0], veiculo: bl.veiculo, saida: bl.saida, despachadoEm: hm(bl.despachadoEm), retornoEm: hm(bl.retornoEm),
+      fase: v?.fase || null, retornoPrevisto: v?.retornoPrevisto || null, posicao: v?.posicao ? { minAtras: v.posicao.minAtras, endereco: v.posicao.endereco, fresca: v.posicao.fresca } : null,
+      paradas: ds.filter((d) => d.blocoId === bl.id).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99)).map((d) => ({ ...curta(d), eta: v?.paradas.find((p) => p.id === d.id)?.eta || null, indo: v?.alvo === d.id })) };
+  });
+  const ordem = { EM_EXECUCAO: 0, MONTAGEM: 1, CONCLUIDO: 2 };
+  rotas.sort((a, b) => (ordem[a.status] ?? 3) - (ordem[b.status] ?? 3) || a.id - b.id);
+  return { ok: true, dia, rotas, demandas: ds.filter((d) => !d.blocoId && d.objetivo !== "RETORNO").map(curta) };
 }
-// v576 — demanda lançada pelo link: entra como as outras, com o nome de quem pediu
+// v576/v579 — demanda lançada pelo link: entra como as outras, com o nome de quem pediu
 export async function demandaPeloLink(token, b) {
-  const bl = token ? await prisma.rotaBloco.findUnique({ where: { acompToken: String(token) } }) : null;
-  if (!bl) return { error: "Link inválido ou expirado." };
+  const dia = await diaDoToken(token);
+  if (!dia) return { error: "Link inválido ou expirado." };
   const nome = String(b.nome || "").replace(/\s+/g, " ").trim();
   if (nome.length < 2) return { error: "Informe seu nome." };
   const hoje = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data || "")) || b.data < hoje) return { error: "Escolha uma data de hoje em diante." };
   const r = await salvarDemanda({ objetivo: b.objetivo, data: b.data, destinoNome: b.destinoNome, endereco: b.endereco, tarefa: b.tarefa, contato: b.contato, telefone: b.telefone,
-    horarioTipo: ["MANHA", "TARDE"].includes(b.horarioTipo) ? b.horarioTipo : "LIVRE", urgente: false, obs: [b.obs, `Lançada pelo link da rota R${bl.id} por ${nome}`].filter(Boolean).join(" · ") },
-    { id: null, nome: `${nome} (link R${bl.id})` });
+    horarioTipo: ["MANHA", "TARDE"].includes(b.horarioTipo) ? b.horarioTipo : "LIVRE", urgente: false, obs: [b.obs, `Lançada pelo link de acompanhamento por ${nome}`].filter(Boolean).join(" · ") },
+    { id: null, nome: `${nome} (link)` });
   if (r.error) return r;
   return { ok: true, id: r.demanda.id, semMapa: r.semMapa };
 }
