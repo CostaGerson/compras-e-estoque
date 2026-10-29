@@ -389,7 +389,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
     carregarLeaflet().then((L) => {
       if (!vivo || !ref.current) return;
       if (!mapa.current) {
-        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, wheelPxPerZoomLevel: 90, zoomSnap: 0.25, zoomDelta: 0.5, fadeAnimation: false });   // v560 — zoom com a rodinha do mouse   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
+        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, wheelPxPerZoomLevel: 90, zoomSnap: 0, zoomDelta: 0.5, fadeAnimation: false });   // v560 — zoom com a rodinha do mouse   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(mapa.current);   // v428 — CARTO passou a exigir chave · v459 — OSM bloqueia pedido sem Referer (o domínio com https mandava no-referrer)
         camada.current = L.layerGroup().addTo(mapa.current);
       }
@@ -419,25 +419,14 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
       const chave = `${area}|${JSON.stringify(pontos)}|${fabrica?.lat}|${motoristas.length}`;
       if (enq.current === chave) { setTimeout(() => m.invalidateSize(), 50); return; }
       enq.current = chave;
+      const temFab = fabrica?.lat != null && area === "RMBH";
       enquadrar.current = () => {
-        // v561 — o mapa fica só do tamanho necessário para ver todos os pontos: ocupa a altura toda e encolhe a largura
-        //   (ou a altura) que sobraria em volta; fica centralizado na área
-        const el = ref.current, cx = caixa.current;
-        if (!el || !cx) return;
-        const W = cx.clientWidth, Hh = cx.clientHeight;
-        el.style.width = `${W}px`; el.style.height = `${Hh}px`;
+        // v562 — o mapa ocupa a área toda (sem recorte) e o zoom é o maior possível: enquadra só as demandas
+        //   (e os motoristas), zoom exato (sem degraus) e margem mínima; a fábrica aparece se estiver na área
         m.invalidateSize();
-        const topo = fabrica?.lat != null && area === "RMBH" ? 40 : 18;
-        if (pts.length > 1) {
-          const b = L.latLngBounds(pts);
-          const z = Math.min(16, m.getBoundsZoom(b, false, L.point(32, topo + 16)));
-          const a = m.project(b.getNorthWest(), z), c = m.project(b.getSouthEast(), z);
-          const w = Math.ceil(c.x - a.x + 32 + 6), h = Math.ceil(c.y - a.y + topo + 16 + 6);
-          if (w < W - 4) el.style.width = `${Math.max(260, w)}px`;
-          else if (h < Hh - 4) el.style.height = `${Math.max(260, h)}px`;
-          m.invalidateSize();
-        }
-        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [16, topo], paddingBottomRight: [16, 16], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
+        const alvo = pts.length - (temFab ? 1 : 0) >= 2 ? pts.slice(temFab ? 1 : 0) : pts;
+        const fabNaArea = temFab && alvo.length === pts.length;
+        if (alvo.length > 1) m.fitBounds(L.latLngBounds(alvo), { paddingTopLeft: [18, fabNaArea ? 40 : 18], paddingBottomRight: [18, 18], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
         else if (pts.length === 1) m.setView(pts[0], 15);
         else m.fitBounds(LIMITES[area], { padding: [4, 4] });
       };
@@ -455,8 +444,8 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
   }, []);
   useEffect(() => () => { mapa.current?.remove(); mapa.current = null; }, []);
   return (
-    <div ref={caixa} className="flex items-center justify-center" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, minWidth: 0 }}>
-      <div ref={ref} className="ce-mapa rounded-lg overflow-hidden shrink-0" style={{ width: "100%", height: "100%", background: "#F2EFE9", zIndex: 0 }} />
+    <div ref={caixa} style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, minWidth: 0, display: "flex" }}>
+      <div ref={ref} className="ce-mapa rounded-lg overflow-hidden" style={{ flex: 1, minWidth: 0, background: "#F2EFE9", zIndex: 0 }} />
     </div>
   );
 }
