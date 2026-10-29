@@ -657,14 +657,14 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     } catch (e) { setErro(e.message); }
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto shadow-2xl" style={{ background: C.panel, borderTop: `4px solid ${f.urgente ? C.red : f.frete ? C.blue : C.accent}` }}>
+    <div className="ce-modal-demanda fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="ce-modal-demanda-caixa rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto shadow-2xl" style={{ background: C.panel, borderTop: `4px solid ${f.urgente ? C.red : f.frete ? C.blue : C.accent}` }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{novo ? "Nova demanda de rota" : `Demanda de rota #${inicial.id}`}</div>
           {!novo && inicial.status && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: (ST[inicial.status] || ST.ABERTA)[1] }}>{(ST[inicial.status] || ST.ABERTA)[0]}</span>}
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
-        <fieldset disabled={trava} className="p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <fieldset disabled={trava} className="ce-form-demanda p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <L t="Objetivo" span><Seg v={f.objetivo} opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COLETA_ENTREGA", "Coleta e entrega"], ["COMPRA", "Compra"]]} on={(v) => set("objetivo", v)} /></L>
           <div className="col-span-2 relative">
             <div className="text-xs mb-1" style={{ color: C.sub }}>Destinatário <span style={{ color: "#9AA3B2" }}>· cadastrados ou locais do Google Maps; um nome novo fica salvo em Dados › Destinatários</span></div>

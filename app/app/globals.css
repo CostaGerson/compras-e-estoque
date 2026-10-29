@@ -114,3 +114,13 @@ input[list]::-webkit-list-button{display:none!important}
 .ce-percurso { animation: ce-percurso 2.4s linear infinite; }
 @keyframes ce-parado { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,26,.35); } 50% { box-shadow: 0 0 0 5px rgba(255,107,26,0); } }
 .ce-parado { animation: ce-parado 2s ease-in-out infinite; }
+/* v583 — formulário de demanda de rota no celular (sistema e link de acompanhamento): tela cheia, uma coluna, campos sem encavalar */
+@media (max-width: 640px) {
+  .ce-modal-demanda { padding: 0 !important; align-items: stretch !important; }
+  .ce-modal-demanda-caixa { max-height: 100dvh !important; height: 100dvh; border-radius: 0 !important; max-width: none !important; }
+  .ce-form-demanda { grid-template-columns: minmax(0, 1fr) !important; padding: 14px !important; gap: 14px !important; }
+  .ce-form-demanda > * { grid-column: 1 / -1 !important; }
+  .ce-form-demanda > div:empty { display: none; }
+}
+.ce-form-demanda input, .ce-form-demanda select { min-width: 0; max-width: 100%; }
+.ce-form-demanda input[type="date"], .ce-form-demanda input[type="time"] { display: block; width: 100%; -webkit-appearance: none; appearance: none; min-height: 2.4em; }

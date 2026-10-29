@@ -137,8 +137,9 @@ function NovaDemanda({ token, dia, usuarios, motoristas, onClose, onOk }) {
       onClose={onClose} onOk={() => onOk(`Demanda lançada em nome de ${quem.nome}. Você recebe um aviso no sistema quando ela for atendida.`)} />
   );
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-t-2xl p-4 flex flex-col" style={{ background: C.panel, maxWidth: 560, maxHeight: "88vh" }}>
+    // v583 — tela cheia a partir do topo: o campo e a lista ficam acima do teclado
+    <div className="fixed inset-0 z-50 flex items-start justify-center" style={{ background: C.panel }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full p-4 flex flex-col" style={{ background: C.panel, maxWidth: 560, height: "100dvh" }}>
         <div className="flex items-center mb-1"><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Quem está pedindo?</div><button onClick={onClose} className="text-sm px-2" style={{ color: C.sub }}>Fechar</button></div>
         <div className="text-xs mb-3" style={{ color: C.sub }}>Escolha seu nome: a demanda fica no seu perfil e você é avisado quando ela for atendida.</div>
         <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Digite seu nome" className="w-full rounded-lg px-3 py-2.5 outline-none mb-2" style={{ border: `1px solid ${C.line}`, fontSize: 16 }} />
