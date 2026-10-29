@@ -126,6 +126,7 @@ model Mensagem {
   texto     String
   lida      Boolean  @default(false)
   arquivada Boolean  @default(false)
+  aviso     Boolean  @default(false)   // v568 — aviso do desenvolvedor: vai para todos, fixo e em destaque até a pessoa dar "ciente"
   createdAt DateTime @default(now())
 }
 

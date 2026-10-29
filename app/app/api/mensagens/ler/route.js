@@ -6,6 +6,6 @@ export async function POST(req) {
   const b = await req.json();
   const usuarioId = Number(b.usuarioId);
   if (!usuarioId) return Response.json({ ok: false });
-  await prisma.mensagem.updateMany({ where: { paraId: usuarioId, lida: false }, data: { lida: true } });
+  await prisma.mensagem.updateMany({ where: { paraId: usuarioId, lida: false, aviso: false }, data: { lida: true } });
   return Response.json({ ok: true });
 }

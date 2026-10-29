@@ -842,11 +842,22 @@ function Notificacoes({ user, perfil, onIrEstoque, onMudou }) {
 }
 
 /* ===== Mensagens (tela cheia) ===== */
+// v568 — enviadas: o aviso do desenvolvedor (uma mensagem por pessoa) aparece uma vez só, com quantos deram ciente
+function agruparAvisos(l) {
+  const out = [], g = new Map();
+  for (const m of l) {
+    if (!m.aviso) { out.push(m); continue; }
+    const k = `${m.texto}|${m.createdAt}`;
+    if (!g.has(k)) { const x = { ...m, grupo: true, total: 0, lidos: 0 }; g.set(k, x); out.push(x); }
+    const x = g.get(k); x.total++; if (m.lida) x.lidos++;
+  }
+  return out;
+}
 function Mensagens({ user, onMudou }) {
   const [dados, setDados] = useState({ recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
   const [aba, setAba] = useState("recebidas");
   const [usuarios, setUsuarios] = useState([]);
-  const [comp, setComp] = useState({ paraId: "", texto: "" });
+  const [comp, setComp] = useState({ paraId: "", texto: "", aviso: false });   // v568 — aviso: aviso do desenvolvedor (para todos)
   const [enviando, setEnviando] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -864,7 +875,7 @@ function Mensagens({ user, onMudou }) {
 
   // ao abrir a aba Recebidas, marca todas como lidas
   useEffect(() => {
-    if (aba === "recebidas" && dados.naoLidas > 0) {
+    if (aba === "recebidas" && dados.recebidas.some((m) => !m.lida && !m.aviso)) {   // v568 — aviso só sai com "Ciente"
       fetch("/api/mensagens/ler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id }) })
         .then(() => { carregar(); onMudou && onMudou(); });
     }
@@ -875,10 +886,12 @@ function Mensagens({ user, onMudou }) {
     await carregar(); onMudou && onMudou();
   };
   const enviar = async () => {
-    if (!comp.paraId || !comp.texto.trim()) return;
+    if ((!comp.aviso && !comp.paraId) || !comp.texto.trim()) return;
     setEnviando(true);
-    await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
-    setEnviando(false); setComp({ paraId: "", texto: "" }); setAba("enviadas"); carregar();
+    const r = await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(comp.aviso ? { deId: user.id, texto: comp.texto, aviso: true } : { deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
+    setEnviando(false);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro ao enviar"); return; }
+    setComp({ paraId: "", texto: "", aviso: false }); setAba("enviadas"); carregar();
   };
   const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "" }); setAba("nova"); };
 
@@ -891,7 +904,22 @@ function Mensagens({ user, onMudou }) {
     ["nova", "Nova mensagem"],
   ];
 
-  const CartaoRecebida = (m, arquivada) => (
+  const CartaoRecebida = (m, arquivada) => m.aviso ? (
+    // v568 — aviso do desenvolvedor: destaque, fixo no topo até "Ciente"
+    <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: !m.lida && !arquivada ? "linear-gradient(90deg, #001E41 0%, #0B3A70 100%)" : "#EEF2F8", color: !m.lida && !arquivada ? "#fff" : C.text, borderLeft: `5px solid ${C.accent}` }}>
+      <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: C.accent, fontSize: 18 }}>📢</div>
+      <div style={{ flex: 1 }}>
+        <div className="text-[11px] font-bold tracking-wide" style={{ color: !m.lida && !arquivada ? "#FFB27A" : C.accent }}>AVISO DO DESENVOLVEDOR · {quandoData(m.createdAt)}{m.lida ? " · ciente" : ""}</div>
+        <div className="text-sm mt-1 whitespace-pre-wrap" style={{ fontWeight: !m.lida && !arquivada ? 600 : 400 }}>{m.texto}</div>
+        <div className="flex gap-3 mt-2">
+          {!m.lida && !arquivada && <button onClick={() => patch(m.id, { lida: true })} className="text-xs font-bold px-3 py-1 rounded" style={{ background: C.accent, color: "#fff" }}>Ciente</button>}
+          {arquivada
+            ? <button onClick={() => patch(m.id, { arquivada: false })} className="text-xs" style={{ color: "inherit", opacity: 0.7 }}>Desarquivar</button>
+            : m.lida && <button onClick={() => patch(m.id, { arquivada: true })} className="text-xs" style={{ color: C.sub }}>Arquivar</button>}
+        </div>
+      </div>
+    </div>
+  ) : (
     <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: !m.lida && !arquivada ? C.accentSoft : "transparent" }}>
       <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={38} />
       <div style={{ flex: 1 }}>
@@ -920,12 +948,16 @@ function Mensagens({ user, onMudou }) {
       {aba === "nova" && (
         <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg p-4 mb-4">
           <div className="text-sm font-semibold mb-3">Nova mensagem</div>
-          <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-3 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          {user.isMaster && <label className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm cursor-pointer" style={{ background: comp.aviso ? "#001E41" : C.panel2, color: comp.aviso ? "#fff" : C.text, border: `1px solid ${comp.aviso ? C.accent : C.line}` }}>
+            <input type="checkbox" checked={comp.aviso} onChange={(e) => setComp((s) => ({ ...s, aviso: e.target.checked }))} />
+            <span>📢 <b>Aviso do desenvolvedor</b> <span style={{ opacity: 0.75 }}>— vai para todos os usuários, em destaque e fixo no topo da caixa de entrada até cada um dar "Ciente"</span></span>
+          </label>}
+          {!comp.aviso && <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-3 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
             <option value="">Para quem…</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
-          </select>
+          </select>}
           <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={4} placeholder="Escreva a mensagem…" className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
-          <button onClick={enviar} disabled={enviando || !comp.paraId || !comp.texto.trim()} className="mt-3 px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: enviando || !comp.paraId || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> Enviar</button>
+          <button onClick={enviar} disabled={enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim()} className="mt-3 px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: comp.aviso ? "#001E41" : C.accent, color: "#fff", opacity: enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> {comp.aviso ? "Enviar aviso para todos" : "Enviar"}</button>
         </div>
       )}
 
@@ -939,7 +971,15 @@ function Mensagens({ user, onMudou }) {
             : dados.arquivadas.map((m) => CartaoRecebida(m, true)))}
           {aba === "enviadas" && (dados.enviadas.length === 0
             ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem enviada.</div>
-            : dados.enviadas.map((m) => (
+            : agruparAvisos(dados.enviadas).map((m) => m.grupo ? (
+              <div key={`g${m.id}`} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, borderLeft: `5px solid ${C.accent}`, background: "#EEF2F8" }}>
+                <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: C.accent, fontSize: 18 }}>📢</div>
+                <div style={{ flex: 1 }}>
+                  <div className="text-xs" style={{ color: C.sub }}><b style={{ color: C.accent }}>Aviso do desenvolvedor</b> para todos · {quandoData(m.createdAt)} · ciente {m.lidos} de {m.total}</div>
+                  <div className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div>
+                </div>
+              </div>
+            ) : (
               <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <Avatar foto={m.para?.fotoBase64} nome={`${m.para?.nome || "?"} ${m.para?.sobrenome || ""}`} size={38} />
                 <div style={{ flex: 1 }}>
