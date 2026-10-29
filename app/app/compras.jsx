@@ -1720,16 +1720,20 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
         {acoes}
       </div>
       {/* trilha das etapas */}
-      <div className="flex items-stretch gap-1 mb-3 overflow-x-auto">
-        {[...ETAPAS_PRE, ...ETAPAS].map(([k, t0, cor, fundo], n) => (
-          <React.Fragment key={k}>
-            {n > 0 && <div className="flex items-center text-sm" style={{ color: C.sub }}>›</div>}
-            <button onClick={() => setF(f === k ? null : k)} className="flex-1 min-w-[120px] rounded-lg px-3 py-2 text-left" style={{ background: f === k ? cor : fundo, color: f === k ? "#fff" : cor, border: `1px solid ${cor}55` }}>
-              <div className="text-[11px] font-semibold uppercase tracking-wide">{t0}</div>
-              <div className="text-xl font-bold">{l ? conta(k) : "…"}</div>
+      {/* v_sobrio — trilha neutra e compacta: só um ponto de cor por etapa */}
+      <div className="flex items-stretch mb-3 overflow-x-auto rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        {[...ETAPAS_PRE, ...ETAPAS].map(([k, t0, cor], n) => {
+          const sel = f === k, qtd = l ? conta(k) : null;
+          return (
+            <button key={k} onClick={() => setF(sel ? null : k)} title={t0} className="flex-1 min-w-[96px] px-2.5 py-1.5 text-left"
+              style={{ borderLeft: n > 0 ? `1px solid ${C.line}` : "none", background: sel ? C.panel2 : "transparent", boxShadow: sel ? `inset 0 -2px 0 ${C.navy}` : "none" }}>
+              <div className="flex items-center gap-1.5 text-[10px] font-medium truncate" style={{ color: C.sub }}>
+                <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: qtd ? cor : C.line }} />{t0}
+              </div>
+              <div className="text-sm font-semibold leading-tight mt-0.5" style={{ color: qtd ? C.navy : C.sub }}>{l ? qtd : "…"}</div>
             </button>
-          </React.Fragment>
-        ))}
+          );
+        })}
       </div>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !vis.length && <div className="text-sm py-6 text-center rounded-lg" style={{ color: C.sub, background: C.panel, border: `1px solid ${C.line}` }}>{l.length ? "Nada nesta etapa." : "Nenhuma demanda de compra. Elas nascem no Levantamento (Gerar PIC)."}</div>}

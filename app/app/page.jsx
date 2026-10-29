@@ -322,7 +322,7 @@ export default function Home() {
             <ChevronLeft size={20} />
           </button>
         </div>
-        <nav className="flex-1 py-2 overflow-y-auto">
+        <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
           <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
         </nav>
         <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
