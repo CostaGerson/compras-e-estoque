@@ -30,7 +30,7 @@ const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXEC
 const TIPO_COR = {
   COLETA: { bg: "#FFEBDC", bd: "#FFA463", tx: "#7A3300", sb: "#9A5A2E", pin: "#FFA463" },
   // v563 — coleta e entrega: degradê do azul (entrega) para o laranja (coleta)
-  COLETA_ENTREGA: { bg: "linear-gradient(90deg, #E3F0FC 0%, #FFEBDC 100%)", bd: "#C9A08A", tx: "#3B3F5C", sb: "#5E5A6B", pin: "linear-gradient(135deg, #5BA4E6 0%, #FFA463 100%)" },
+  COLETA_ENTREGA: { bg: "linear-gradient(90deg, #2F86DE 0%, #FF7A1F 100%)", bd: "#E8650F", tx: "#FFFFFF", sb: "#FFF3E8", pin: "linear-gradient(135deg, #2F86DE 0%, #FF7A1F 100%)" },   // v564 — cores vivas, texto branco
   ENTREGA: { bg: "#E3F0FC", bd: "#5BA4E6", tx: "#1D4F80", sb: "#4A6B8C", pin: "#5BA4E6" },
   COMPRA: { bg: "#FFF4CC", bd: "#E0A800", tx: "#6B4D00", sb: "#8A6D1F", pin: "#E0A800" },
   TRANSP: { bg: "#001E41", bd: "#001E41", tx: "#FFFFFF", sb: "#B8C4D6", pin: "#001E41" },
