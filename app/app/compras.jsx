@@ -1720,7 +1720,7 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
         {acoes}
       </div>
       {/* trilha das etapas */}
-      {/* v_sobrio — trilha neutra e compacta: só um ponto de cor por etapa */}
+      {/* v585 — trilha neutra e compacta: só um ponto de cor por etapa */}
       <div className="flex items-stretch mb-3 overflow-x-auto rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         {[...ETAPAS_PRE, ...ETAPAS].map(([k, t0, cor], n) => {
           const sel = f === k, qtd = l ? conta(k) : null;

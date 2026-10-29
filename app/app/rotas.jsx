@@ -40,7 +40,7 @@ const tipoCor = (d) => (d.frete && d.freteTipo === "TRANSPORTADORA" ? TIPO_COR.T
 const corDemanda = (d) => {
   if (d.status === "CONCLUIDA") return { bg: C.greenSoft, bd: C.green, tx: C.text, sb: C.sub, bw: 1 };
   const t = tipoCor(d);
-  if (d.pendente) return { bg: "#F2F4F7", bd: d.urgente ? C.red : "#98A2B3", tx: "#475467", sb: C.sub, bw: d.urgente ? 2 : 1, bs: "dashed", pin: "#98A2B3" };   // v_pend — só registro: cinza tracejado
+  if (d.pendente) return { bg: "#F2F4F7", bd: d.urgente ? C.red : "#98A2B3", tx: "#475467", sb: C.sub, bw: d.urgente ? 2 : 1, bs: "dashed", pin: "#98A2B3" };   // v586 — só registro: cinza tracejado
   return d.urgente ? { ...t, bd: C.red, bw: 2 } : { ...t, bw: 1 };
 };
 // v434 — card: NOME CURTO - Tarefa ("ALPINO LINHAS E AVIAMENTOS LTDA" + "COLETAR PEDIDO" → "ALPINO - Coletar pedido")
@@ -714,7 +714,7 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.pendente ? "#475467" : C.sub }} title="Só registro: a parada ainda depende de algo e não está pronta para despachar"><input type="checkbox" checked={!!f.pendente} onChange={(e) => set("pendente", e.target.checked)} /> Com pendência</label>
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.frete ? C.blue : C.sub }}><input type="checkbox" checked={!!f.frete} onChange={(e) => set("frete", e.target.checked)} /> Frete (contratado à parte)</label>
           </div>
-          {f.pendente && <L t="Pendência (o que falta para ficar pronta)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v_pend */}
+          {f.pendente && <L t="Pendência (o que falta para ficar pronta)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v586 */}
           {f.frete ? (
             <>
               <L t="Tipo de frete" span><Seg v={f.freteTipo} opts={[["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"]]} on={(v) => set("freteTipo", v)} /></L>
@@ -870,7 +870,7 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
   }
   async function salvar(despachar) {
     if (!mot) return alerta("Escolha o motorista.");
-    const pend = despachar ? ordem.map((id) => porId[id]).filter((x) => x?.pendente) : [];   // v_pend
+    const pend = despachar ? ordem.map((id) => porId[id]).filter((x) => x?.pendente) : [];   // v586
     if (pend.length && !(await confirmar(`Esta rota tem ${pend.length} parada(s) com pendência:\n${pend.map((x) => `• ${nomeTarefa(x)}${x.pendencia ? ` (${x.pendencia})` : ""}`).join("\n")}\n\nDespachar mesmo assim?`))) return;
     if (despachar && m?.emRota && m.emRota !== bloco?.id) {
       if (!podeLiberar) return alerta(`${sc(m.nome)} ainda está em outra rota. Ele fica disponível quando registrar o retorno à fábrica. Se ele já está na fábrica, peça para o administrativo, a diretoria ou um master liberar.`);

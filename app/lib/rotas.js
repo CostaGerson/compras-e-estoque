@@ -409,7 +409,7 @@ export async function salvarDemanda(b, u) {
     lat: geo?.lat ?? null, lng: geo?.lng ?? null, municipio: geo?.municipio || null, uf: geo?.uf || null, regiao: geo ? regiaoDe(geo.municipio, geo.uf) : null,
     horarioTipo, hora1: b.hora1 || null, hora2: horarioTipo === "ENTRE" ? b.hora2 || null : null,
     motoristaId: frete ? null : b.motoristaId || mPad?.id || null, motoristaNome: frete ? null : up(b.motoristaNome) || (b.motoristaId ? null : mPad?.nome) || null, veiculo: frete ? null : VEICULOS.includes(b.veiculo) ? b.veiculo : null,
-    urgente: !!b.urgente, pendente: !!b.pendente, pendencia: b.pendente ? String(b.pendencia || "").trim().slice(0, 120) || null : null,   // v_pend
+    urgente: !!b.urgente, pendente: !!b.pendente, pendencia: b.pendente ? String(b.pendencia || "").trim().slice(0, 120) || null : null,   // v586
     frete, freteTipo, freteValorMax: freteTipo === "FRETEBRAS" ? vMax : null, freteVolumes: frete ? vol : null,
     obs: String(b.obs || "").trim() || null,
     ...(b.ocId ? { ocId: Number(b.ocId) || null } : {}),   // v486 — rota de coleta criada pela OC

@@ -125,7 +125,7 @@ input[list]::-webkit-list-button{display:none!important}
 .ce-form-demanda input, .ce-form-demanda select { min-width: 0; max-width: 100%; }
 .ce-form-demanda input[type="date"], .ce-form-demanda input[type="time"] { display: block; width: 100%; -webkit-appearance: none; appearance: none; min-height: 2.4em; }
 
-/* scroll da barra lateral: sem trilho branco, só um polegar discreto no tom do menu */
+/* v585 — scroll da barra lateral: sem trilho branco, só um polegar discreto no tom do menu */
 .scroll-escuro { scrollbar-width: thin; scrollbar-color: #0C2C52 transparent; }
 .scroll-escuro::-webkit-scrollbar { width: 6px; }
 .scroll-escuro::-webkit-scrollbar-track { background: transparent; }
