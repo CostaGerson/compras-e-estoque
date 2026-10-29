@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -137,6 +137,8 @@ export default function Rotas({ user, nova }) {
   const minhaRota = (d?.blocos || []).find((b) => b.status === "EM_EXECUCAO" && d?.pessoaId && b.motoristaId === d.pessoaId);
   const novaNoDia = (x, per) => { setDia(x); setForm({ data: x, ...(per ? { horarioTipo: per } : {}) }); };   // v521 — manhã/tarde já define o período
   // v521 — arrastar a demanda (aberta, fora de rota) para outro dia, ou para a manhã/tarde do dia grande
+  // v576 — rota montada e não despachada: o play do card abre a rota para despachar
+  const despacharBloco = (id) => { const b = (d?.blocos || []).find((x) => x.id === id); if (!b) return; setDia(b.data); setMontar({ ids: (d.demandas || []).filter((x) => x.blocoId === b.id).sort((a, z) => a.ordem - z.ordem).map((x) => x.id), bloco: b }); };
   const podeArrastar = (y) => pode && y.status === "ABERTA" && !y.blocoId && y.objetivo !== "RETORNO";
   const soltar = async (e, data, periodo) => {
     e.preventDefault(); e.stopPropagation(); setArr(null);
@@ -219,7 +221,7 @@ export default function Rotas({ user, nova }) {
             const sel = x === dia;
             const atrasado = x < FOCO && !passado;
             const mini = (y) => <MiniDemanda key={y.id} x={y} grande={grande} arrastar={podeArrastar(y)} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); abrirDem(x, y); }} />;
-            const lista = (ll) => agruparRota(ll, mini, setVerRota);
+            const lista = (ll) => agruparRota(ll, mini, setVerRota, pode ? despacharBloco : null);
             const tarde = (y) => String(y.janela?.[0] || "") >= "12:00";
             const alvoDia = arr === x;
             return (
@@ -286,7 +288,7 @@ export default function Rotas({ user, nova }) {
             return (
               <div key={x} {...alvo(x)} onClick={() => novaNoDia(x)} className="rounded-lg p-1.5 cursor-pointer min-w-0" style={{ minHeight: 86, background: arr === x ? C.accentSoft : C.panel, border: `${x === dia || x === H || arr === x ? 2 : 1}px ${arr === x ? "dashed" : "solid"} ${x === dia || x === H || arr === x ? C.accent : C.line}`, opacity: fora ? 0.5 : 1 }}>
                 <div className="text-xs font-bold mb-1 flex items-center" style={{ color: x === H ? C.accent : C.text }}>{x.slice(8, 10)}<span className="ml-auto">{btnConc(x, lTudo, true)}</span></div>
-                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} arrastar={podeArrastar(y)} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); abrirDem(x, y); }} />, setVerRota)}
+                {agruparRota(l.slice(0, 3), (y) => <MiniDemanda key={y.id} x={y} arrastar={podeArrastar(y)} onConcluir={pode ? concluirDem : null} onClick={(e) => { e.stopPropagation(); abrirDem(x, y); }} />, setVerRota, pode ? despacharBloco : null)}
                 {l.length > 3 && <div className="text-[10px]" style={{ color: C.sub }}>+{l.length - 3}</div>}
               </div>
             );
@@ -320,7 +322,7 @@ export default function Rotas({ user, nova }) {
 }
 
 // v445 — demandas da mesma rota ficam juntas, com um único botão R<nº> ao lado do grupo
-function agruparRota(l, render, onRota) {
+function agruparRota(l, render, onRota, onDespachar) {
   const grupos = [], porBloco = {};
   for (const y of l) {
     if (y.blocoId) { if (!porBloco[y.blocoId]) { porBloco[y.blocoId] = { bloco: y.blocoId, itens: [] }; grupos.push(porBloco[y.blocoId]); } porBloco[y.blocoId].itens.push(y); }
@@ -330,11 +332,21 @@ function agruparRota(l, render, onRota) {
     if (!g.bloco) return render(g.itens[0]);
     const it = [...g.itens].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
     const st = it.every((y) => y.status === "CONCLUIDA") ? "CONCLUIDA" : it.some((y) => y.status === "EM_EXECUCAO" || y.status === "CONCLUIDA") ? "EM_EXECUCAO" : "NO_BLOCO";
+    // v576 — o card da rota: cinza enquanto não despachada (com o play para despachar), laranja em andamento (com movimento), verde concluída
+    const cx = st === "EM_EXECUCAO" ? { bg: "#FFE3D1", bd: C.accent } : st === "CONCLUIDA" ? { bg: C.greenSoft, bd: C.green } : { bg: "#E9ECF1", bd: "#B8C0CC" };
     return (
-      <div key={`R${g.bloco}`} className="flex items-stretch gap-1 min-w-0">
-        <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>
-        <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
-          style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : C.navy, color: "#fff" }}>R{g.bloco}</button>
+      <div key={`R${g.bloco}`} className="rounded-lg p-1 min-w-0" style={{ background: cx.bg, border: `1px solid ${cx.bd}` }}>
+        <div className="flex items-stretch gap-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
+            style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : "#667085", color: "#fff" }}>R{g.bloco}</button>
+        </div>
+        {st === "NO_BLOCO" && onDespachar && <button type="button" onClick={(e) => { e.stopPropagation(); onDespachar(g.bloco); }} title={`Abrir a rota ${g.bloco} para despachar`}
+          className="mt-1 w-full flex items-center justify-center gap-1 rounded py-0.5 text-[10px] font-semibold" style={{ background: "#fff", color: C.navy, border: "1px solid #B8C0CC" }}><Play size={10} fill={C.navy} /> despachar</button>}
+        {st === "EM_EXECUCAO" && <div className="relative mt-1 mx-1" style={{ height: 10 }} title="Rota em andamento">
+          <div className="absolute left-0 right-0" style={{ top: 4, height: 2, background: C.accent, opacity: 0.35 }} />
+          <svg className="ce-percurso absolute" width="12" height="10" viewBox="0 0 14 12" style={{ top: 0, marginLeft: -6 }}><path d="M1 1 L13 6 L1 11 L4 6 Z" fill={C.accent} /></svg>
+        </div>}
       </div>
     );
   });
@@ -874,6 +886,7 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
             ) : <div className="text-xs px-3 py-2 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>{sc(desp.bloco.motoristaNome)} não tem telefone cadastrado (ficha do RH ou cadastro do freelancer). Copie a mensagem abaixo.</div>}
             {(desp.bloco.links || []).map((l, i) => <a key={i} href={l} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm" style={{ color: C.blue }}><ExternalLink size={13} /> Abrir no Google Maps{desp.bloco.links.length > 1 ? ` (parte ${i + 1})` : ""}</a>)}
             <textarea readOnly value={desp.texto} rows={8} className="w-full px-2 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, color: C.sub }} />
+            {desp.acomp && <LinkAcomp a={desp.acomp} />}
             <div className="flex justify-end"><button onClick={onOk} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Concluir</button></div>
           </div>
         ) : (
@@ -970,7 +983,32 @@ function MensagemRota({ user, id, onClose }) {
   );
 }
 
+// v576 — link de acompanhamento da rota: copiar e colar no grupo do WhatsApp
+function copiarTexto(t) {
+  try { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(t).then(() => true, () => copiaVelha(t)); } catch {}
+  return Promise.resolve(copiaVelha(t));
+}
+function copiaVelha(t) { try { const x = document.createElement("textarea"); x.value = t; document.body.appendChild(x); x.select(); const ok = document.execCommand("copy"); x.remove(); return ok; } catch { return false; } }
+function LinkAcomp({ a }) {
+  const [ok, setOk] = useState("");
+  const copiar = async (t, q) => { setOk((await copiarTexto(t)) ? q : "não copiou — selecione e copie"); setTimeout(() => setOk(""), 2500); };
+  return (
+    <div className="rounded-lg p-3 mt-1" style={{ background: "#E7F6EC", border: "1px solid #12A15055" }}>
+      <div className="text-xs font-bold mb-1" style={{ color: C.navy }}>Link de acompanhamento em tempo real</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Cole no grupo do WhatsApp: quem abrir vê a rota ao vivo, as demandas do dia e pode lançar novas demandas de rota.</div>
+      <input readOnly value={a.url} onFocus={(e) => e.target.select()} className="w-full rounded px-2 py-1.5 text-xs mb-2" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
+      <div className="flex flex-wrap gap-2 items-center">
+        <button onClick={() => copiar(a.texto, "mensagem copiada")} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#25D366", color: "#fff" }}>Copiar mensagem para o grupo</button>
+        <button onClick={() => copiar(a.url, "link copiado")} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }}>Copiar só o link</button>
+        <a href={a.url} target="_blank" rel="noreferrer" className="text-xs" style={{ color: C.blue }}>abrir</a>
+        {ok && <span className="text-xs font-semibold" style={{ color: C.green }}>{ok}</span>}
+      </div>
+    </div>
+  );
+}
+
 function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
+  const [acomp, setAcomp] = useState(null);   // v576
   const [msg, setMsg] = useState(false);   // v443
   const l = [...demandas].sort((a, z) => (a.ordem || 0) - (z.ordem || 0));
   const feitas = l.filter((x) => x.status === "CONCLUIDA").length;
@@ -1010,6 +1048,9 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
           } catch (e) { w?.close(); alerta(e.message); }
         }} className="text-xs flex items-center gap-1 px-2.5 py-1 rounded font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={12} /> WhatsApp</button>}
         {msg && <MensagemRota user={user} id={b.id} onClose={() => setMsg(false)} />}
+        {pode && b.status !== "CANCELADO" && <button onClick={async () => { try { const a = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "linkAcomp", id: b.id }); setAcomp(a); } catch (e) { alerta(e.message); } }}
+          className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Link2 size={12} /> Link de acompanhamento</button>}
+        {acomp && <div className="w-full"><LinkAcomp a={acomp} /></div>}
         {b.status === "MONTAGEM" && pode && <>
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
           <button onClick={onEditar} className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir / despachar</button>

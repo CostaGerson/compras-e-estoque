@@ -2103,6 +2103,7 @@ model RotaBloco {
   posEndLat     Float?
   posEndLng     Float?
   retornoEm     DateTime?
+  acompToken    String?   @unique              // v576 — link público de acompanhamento (WhatsApp)
   criadoPorNome String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
