@@ -1095,16 +1095,11 @@ function AoVivo({ user, onRota, onDados }) {
   // v571 — ao vivo mais sóbrio: cabeçalho discreto, uma linha por motorista e a trilha com o movimento entre os pontos
   return (
     <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="flex items-center gap-2 px-4 pt-2.5 text-[11px]" style={{ color: C.sub }}>
-        <span className="rounded-full" style={{ width: 7, height: 7, background: C.green }} />
-        <span className="font-semibold uppercase tracking-wide" style={{ color: C.text }}>Ao vivo</span>
-        <span>{v.agora ? `atualizado ${v.agora}` : ""}</span>
-      </div>
-      {v.rotas.map((r, i) => <AoVivoRota key={r.id} r={r} onRota={onRota} primeira={i === 0} />)}
+      {v.rotas.map((r, i) => <AoVivoRota key={r.id} r={r} onRota={onRota} primeira={i === 0} agora={i === 0 ? v.agora : null} />)}
     </div>
   );
 }
-function AoVivoRota({ r, onRota, primeira }) {
+function AoVivoRota({ r, onRota, primeira, agora }) {
   const Vei = r.veiculo === "MOTO" ? Bike : Car;
   const ps = r.paradas;
   const iInd = ps.findIndex((p) => p.status === "INDO");
@@ -1124,10 +1119,12 @@ function AoVivoRota({ r, onRota, primeira }) {
   const pos = r.posicao;
   const ESCURO = "#475467", CLARO = "#E4E7EC";
   return (
-    <div className="px-4 py-3" style={{ borderTop: primeira ? "none" : `1px solid ${C.line}` }}>
-      <div className="flex items-baseline gap-2 flex-wrap text-xs" style={{ color: C.sub }}>
-        <Vei size={14} style={{ color: C.text, alignSelf: "center" }} />
-        <span className="text-sm font-semibold" style={{ color: C.text }}>{curtoNome(r.motoristaNome)}</span>
+    <div className="px-4 py-1.5" style={{ borderTop: primeira ? "none" : `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 flex-wrap text-[11px] leading-4" style={{ color: C.sub }}>
+        {/* v573 — card fino: o "ao vivo" vai na mesma linha do motorista */}
+        <span className="rounded-full shrink-0" title={agora ? `Ao vivo · atualizado ${agora}` : "Ao vivo"} style={{ width: 7, height: 7, background: C.green }} />
+        <Vei size={13} style={{ color: C.text }} />
+        <span className="text-xs font-semibold" style={{ color: C.text }}>{curtoNome(r.motoristaNome)}</span>
         <button onClick={() => onRota?.(r.id)} className="underline-offset-2 hover:underline" style={{ color: C.sub }}>rota {r.id}{r.alterada ? " (alterada)" : ""}</button>
         <span>·</span>
         <span className="min-w-0 truncate">{txt}</span>
@@ -1135,21 +1132,21 @@ function AoVivoRota({ r, onRota, primeira }) {
         {pos ? <a href={`https://www.google.com/maps?q=${pos.lat},${pos.lng}`} target="_blank" rel="noreferrer" title={pos.endereco || "Ver no Google Maps"} style={{ color: pos.fresca ? C.sub : C.yellow }}>posição {pos.minAtras < 1 ? "agora" : `há ${pos.minAtras} min`}</a>
           : <span title="O app do motorista manda a localização enquanto está aberto">sem localização</span>}
         {r.retornoPrevisto && <span>· volta ~{r.retornoPrevisto}</span>}
+        {agora && <span>· atualizado {agora}</span>}
       </div>
-      <div className="flex items-start mt-3 overflow-x-auto pb-0.5">
+      <div className="flex items-start mt-1 overflow-x-auto">
         {pontos.map((p, i) => (
           <React.Fragment key={p.k}>
             {i > 0 && <div className="flex-1 relative" style={{ minWidth: 32, height: 12 }}>
               <div className="absolute left-0 right-0" style={{ top: 5, height: 2, background: p.feito ? ESCURO : CLARO }} />
               {i === pernaAtual && <>
                 <div className="absolute left-0" style={{ top: 5, height: 2, width: "100%", background: `linear-gradient(90deg, ${ESCURO}, ${C.accent})`, opacity: 0.35 }} />
-                <span className="ce-percurso absolute rounded-full" style={{ top: 2, width: 8, height: 8, marginLeft: -4, background: C.accent }} />
+                <svg className="ce-percurso absolute" width="14" height="12" viewBox="0 0 14 12" style={{ top: 0, marginLeft: -7 }}><path d="M1 1 L13 6 L1 11 L4 6 Z" fill="#D6FF00" stroke="#1E1F21" strokeWidth="1" strokeLinejoin="round" /></svg>
               </>}
             </div>}
-            <div className="flex flex-col items-center shrink-0" style={{ width: 70 }} title={p.nome}>
+            <div className="flex flex-col items-center shrink-0" style={{ width: 84 }} title={p.nome}>
               <span className={`rounded-full ${i === aqui ? "ce-parado" : ""}`} style={{ width: 12, height: 12, background: p.feito ? ESCURO : "#fff", border: `2px solid ${p.alvo || i === aqui ? C.accent : p.feito ? ESCURO : "#C0C6D0"}` }} />
-              <div className="text-[11px] mt-1 w-full text-center truncate" style={{ color: p.alvo || i === aqui ? C.text : C.sub, fontWeight: p.alvo || i === aqui ? 600 : 400 }}>{p.fab ? "Fábrica" : p.nome}</div>
-              {!p.feito && p.eta && i > 0 && <div className="text-[10px] tabular-nums" style={{ color: C.sub }}>{p.eta}</div>}
+              <div className="text-[10px] leading-3 mt-0.5 w-full text-center truncate" style={{ color: p.alvo || i === aqui ? C.text : C.sub, fontWeight: p.alvo || i === aqui ? 600 : 400 }}>{p.fab ? "Fábrica" : p.nome}{!p.feito && p.eta && i > 0 ? <span className="tabular-nums font-normal" style={{ color: C.sub }}> {p.eta}</span> : null}</div>
             </div>
           </React.Fragment>
         ))}
