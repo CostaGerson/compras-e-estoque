@@ -341,7 +341,7 @@ function palavrasProd(s) {
 const simProd = (a, b) => { const A = palavrasProd(a), B = palavrasProd(b); if (!A.size || !B.size) return 0; let n = 0; for (const w of A) if (B.has(w)) n++; return n / Math.max(A.size, B.size); };
 
 // v374 — peças do pedido: do PV/relatório; sem isso, a soma de peças do PCP (sem complementos)
-const pecasDoPedido = (p) => Number(p.qtd) || (Array.isArray(p.cronoItens) ? p.cronoItens.reduce((a, i) => a + (Number(i.pecas ?? i.qtd) || 0), 0) : 0) || Number(p.qtEntregar) || 0;
+export const pecasDoPedido = (p) => Number(p.qtd) || (Array.isArray(p.cronoItens) ? p.cronoItens.reduce((a, i) => a + (Number(i.pecas ?? i.qtd) || 0), 0) : 0) || Number(p.qtEntregar) || 0;
 
 // v372 — NF ↔ pedido pelos ITENS: mesmo cliente (CNPJ) + códigos dos produtos (+ O.C. quando houver). Soma as quantidades das NFs:
 // tudo entregue → FATURADO; parte → continua em andamento com o saldo a faturar (vlEntregar/qtEntregar) e as NFs anotadas.

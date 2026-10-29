@@ -1502,6 +1502,7 @@ model FiscalNota {
   modelo        String    @default("NF-e")     // NF-e | NFC-e | NFS-e
   chave         String?                          // chave de acesso (NF-e)
   chaveRegistro String    @unique                // NFE|chave · NFSE|cnpj prestador|numero · ARQ|hash
+  pedidoNumero  String?   // v555 — pedido em andamento que a NF de venda atende (casamento manual)
   numero        String
   serie         String?
   emissao       DateTime? @db.Date

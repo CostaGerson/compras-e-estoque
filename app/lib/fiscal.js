@@ -302,7 +302,18 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
     const { rateio, origem } = await rateioPadrao(tipoT, n);
     const completa = existente && ((n.pdf && !existente.temPdf) || (n.xml && !existente.temXml));
     const decisao = existente ? (completa ? "COMPLETAR" : "IGNORAR") : semConta ? "REGISTRAR" : "LANCAR";
-    out.push({
+    // v555 — NF de venda: pedidos em andamento que ela pode atender (o operador escolhe ou deixa para depois)
+    let pedidosCandidatos = null;
+    if (n.tipo === "SAIDA" && !existente && !semConta) {
+      try {
+        const { lerNfItens } = await import("@/lib/pedidos");
+        const x = n.xml ? lerNfItens(n.xml) : null;
+        const { candidatosParaNf } = await import("@/lib/faturamentoCasamento");
+        pedidosCandidatos = await candidatosParaNf({ numero: n.numero, documento: n.documento, parceiro: n.razao || n.parceiro, valor: n.valor, emissao: n.emissao,
+          pecas: x ? x.itens.reduce((a, i) => a + (Number(i.qtd) || 0), 0) : null, oc: x ? x.oc : [] });
+      } catch (e) { console.log("fiscal/candidatos:", e.message); }
+    }
+    out.push({ pedidosCandidatos,
       ...n, tipoTitulo: tipoT, titulo: tituloPadrao(n), parcelas, rateio, rateioOrigem: origem, motivoSemConta: semConta, entradaPedido,
       existenteId: existente?.id || null, existenteFalta: completa ? (n.pdf && !existente.temPdf ? "PDF" : "XML") : null, decisao,
     });
@@ -447,8 +458,13 @@ export async function gravar(notas, u) {
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
-    // v392 — NF de saída subida com contas: fatura o pedido na hora
-    if (n.tipo === "SAIDA" && n.decisao === "LANCAR" && (r.criadas > 0 || r.ligadas > 0)) { try { const f = await faturarPeloUpload(n); if (f) r.pedido = f; } catch (e) { console.log("fiscal/pedido:", e.message); } }
+    // v555 — casamento escolhido na conferência: a NF atende este pedido (confere as peças com a expedição)
+    if (n.tipo === "SAIDA" && n0.pedidoCasar) {
+      try { const { casarNf } = await import("@/lib/faturamentoCasamento"); const c = await casarNf({ pedidoNumero: n0.pedidoCasar, fiscalNotaId: reg.id, quem }); r.casamento = c.error ? { pedido: n0.pedidoCasar, erro: c.error } : { pedido: c.pedido, completo: c.completo, aviso: c.aviso }; }
+      catch (e) { r.casamento = { pedido: n0.pedidoCasar, erro: e.message }; }
+    }
+    // v392 — NF de saída subida com contas: fatura o pedido na hora (v555: não quando o operador casou ou escolheu "não casar agora")
+    else if (n.tipo === "SAIDA" && n.decisao === "LANCAR" && !n0.naoCasar && (r.criadas > 0 || r.ligadas > 0)) { try { const f = await faturarPeloUpload(n); if (f) r.pedido = f; } catch (e) { console.log("fiscal/pedido:", e.message); } }
     if (n.decisao === "LANCAR" && r.criadas > 0 && n.entradaPedido?.abate > 0) { try { await registrarAbatimento(n.entradaPedido, n.numero); r.entradaAbatida = n.entradaPedido.abate; } catch (e) { console.log("fiscal/abatimento:", e.message); } }
 
     // entrada de NF-e: cadastra/completa o fornecedor pelo emitente
@@ -597,8 +613,17 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   const l = await prisma.fiscalNota.findMany({
     where, orderBy: [{ emissao: "desc" }, { id: "desc" }], take: 2000,
     select: { id: true, tipo: true, empresa: true, modelo: true, chave: true, numero: true, serie: true, emissao: true, parceiro: true, documento: true, natureza: true,
-      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true },
+      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true },
   });
+  // v555 — pedido atendido por cada NF de saída (casamento manual ou pelas regras automáticas)
+  const pedDaNf = new Map();
+  if (l.some((n) => n.tipo === "SAIDA")) {
+    const semZ = (x) => String(x || "").trim().replace(/^0+(?=\d)/, "");
+    for (const p of await prisma.pedidoVenda.findMany({ where: { OR: [{ NOT: { nfsFaturadas: { equals: null } } }, { nfNumero: { not: null } }] }, select: { numero: true, nfNumero: true, nfsFaturadas: true, status: true } }).catch(() => [])) {
+      for (const x of Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : []) pedDaNf.set(semZ(x.numero), { numero: p.numero, status: p.status });
+      for (const x of String(p.nfNumero || "").split(/[,\s]+/).filter(Boolean)) if (!pedDaNf.has(semZ(x))) pedDaNf.set(semZ(x), { numero: p.numero, status: p.status });
+    }
+  }
   const ids = [...new Set(l.flatMap((n) => (Array.isArray(n.parcelas) ? n.parcelas : []).map((p) => p.tituloId)).filter(Boolean))];
   const ts = ids.length ? await prisma.finTitulo.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, vencimento: true, valor: true, valorPago: true } }) : [];
   const porId = Object.fromEntries(ts.map((t) => [t.id, t]));
@@ -608,6 +633,7 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   const out = l
     .map((n) => ({
       ...n, valor: Number(n.valor), emissao: n.emissao ? new Date(n.emissao).toISOString().slice(0, 10) : null,
+      pedido: n.tipo === "SAIDA" ? (n.pedidoNumero ? { numero: n.pedidoNumero } : pedDaNf.get(String(n.numero).replace(/^0+(?=\d)/, "")) || null) : null,
       origem: n.criadoPorNome === ORIGEM_CONTAB ? "IMPORTAÇÃO CONTABILIDADE" : "MOVIMENTO FISCAL",   // v363
       // v363 — crítica: nota que gera conta e não tem conta lançada
       critica: n.acao === ACAO_CONTAB ? (n.motivo || CRITICA_CONTAB) : n.acao === "LANCADA" && !(Array.isArray(n.parcelas) && n.parcelas.length) ? "NF sem conta lançada, verificar contas" : null,

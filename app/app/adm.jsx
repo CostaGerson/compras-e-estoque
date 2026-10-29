@@ -2,6 +2,7 @@
 // v158 — ADM › Movimento fiscal (NFs de entrada/saída → contas a pagar/receber) e Demandas ADM; Logística › Rota
 import { podeImportar } from "@/lib/acesso";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { CasarNotaModal } from "./casamentoNf";   // v555
 import { unzipSync } from "fflate";
 import {
   Upload, Loader2, Search, Trash2, FileCode2, FileText, AlertTriangle, CheckCircle2, X, Plus, ArrowDownLeft, ArrowUpRight,
@@ -89,6 +90,7 @@ export default function MovimentoFiscal({ user }) {
   const [lista, setLista] = useState(null);
   const [erro, setErro] = useState("");
   const [importar, setImportar] = useState(null);   // null | [] (abre vazio) | arquivos soltos
+  const [casarNota, setCasarNota] = useState(null);   // v555 — id da NF de saída para casar com pedido
   const [msg, setMsg] = useState("");
 
   const carregar = async () => {
@@ -196,7 +198,10 @@ export default function MovimentoFiscal({ user }) {
                     <td className="px-3 py-2"><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold" style={{ background: T.bg, color: T.c }}><T.I size={12} /> {T.t}</span></td>
                     <td className="px-3 py-2">{dBR(n.emissao)}</td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}{n.origem === "IMPORTAÇÃO CONTABILIDADE" && <div className="text-[10px] font-normal" style={{ color: C.sub }}>via contabilidade</div>}{n.km && <div className="text-[10px] font-normal" style={{ color: C.sub }}>emitida no KM</div>}</td>
-                    <td className="px-3 py-2"><div className="font-semibold">{n.parceiro}</div><div style={{ color: C.sub }}>{fmtDoc(n.documento)}</div></td>
+                    <td className="px-3 py-2"><div className="font-semibold">{n.parceiro}</div><div style={{ color: C.sub }}>{fmtDoc(n.documento)}</div>
+                      {n.tipo === "SAIDA" && !n.km && (n.pedido
+                        ? <div className="mt-0.5"><span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.greenSoft, color: C.green }}>Pedido {n.pedido.numero}</span></div>
+                        : n.acao !== "REGISTRADA" && podeImportar(user, "contasReceber", "faturamento", "nfEntrada") && <button onClick={() => setCasarNota(n.id)} className="mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>Casar com pedido</button>)}</td>
                     <td className="px-3 py-2" style={{ color: C.sub, maxWidth: 200 }}>{n.natureza || "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{moeda(n.valor)}</td>
                     <td className="px-3 py-2">
@@ -227,6 +232,7 @@ export default function MovimentoFiscal({ user }) {
         </div>
       </div>
       {importar && <ImportarNfs user={user} iniciais={importar} onClose={() => setImportar(null)} onFim={(m) => { setImportar(null); setMsg(m); carregar(); }} />}
+      {casarNota && <CasarNotaModal user={user} fiscalNotaId={casarNota} onClose={() => setCasarNota(null)} onFeito={carregar} />}
     </div>
   );
 }
@@ -249,6 +255,36 @@ export function juntarNotas(antigas, novas) {
   });
 }
 
+// v555 — conferência da NF de venda: o operador escolhe o pedido em andamento que ela atende (ou deixa para depois)
+function CasarPedidoNota({ n, i, altN }) {
+  const l = n.pedidosCandidatos || [];
+  const esc = n.naoCasar ? "__NAO__" : n.pedidoCasar || "";
+  const set = (v) => { altN(i, "pedidoCasar", v === "__NAO__" ? null : v || null); altN(i, "naoCasar", v === "__NAO__"); };
+  return (
+    <div className="mt-3 rounded-lg p-3" style={{ border: `1px solid ${C.accent}55`, background: C.accentSoft }}>
+      <div className="text-xs font-bold mb-1" style={{ color: C.navy }}>Pedido que esta NF atende</div>
+      <div className="text-[11px] mb-2" style={{ color: C.sub }}>Casando, o faturamento fica no pedido (produção e financeiro). As peças da NF precisam estar concluídas na expedição — peça em andamento não é faturada.</div>
+      {!l.length && <div className="text-xs mb-2" style={{ color: C.sub }}>Nenhum pedido em andamento parecido com esta NF (mesmo cliente ou O.C.).</div>}
+      <div className="space-y-1">
+        {l.map((p) => (
+          <label key={p.numero} className={`flex items-start gap-2 rounded px-2 py-1.5 text-xs ${p.cabe ? "cursor-pointer" : "opacity-60"}`} style={{ background: esc === p.numero ? "#fff" : "transparent", border: `1px solid ${esc === p.numero ? C.accent : "transparent"}` }}>
+            <input type="radio" name={`casar-${i}`} disabled={!p.cabe} checked={esc === p.numero} onChange={() => set(p.numero)} className="mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div><b style={{ color: C.navy }}>Pedido {p.numero}</b> · {p.cliente}{p.oc ? ` · OC ${p.oc}` : ""}{p.ocOk ? <b style={{ color: C.green }}> · O.C. confere</b> : ""}</div>
+              <div style={{ color: C.sub }}>saldo {moeda(p.saldo)} de {moeda(p.total)}{p.valorExato ? <b style={{ color: C.green }}> · valor confere</b> : ""} · peças: {p.pecas || "?"} no pedido{p.emPcp ? ` · ${p.concluidas} concluída(s) na expedição · ${p.faturadas} já faturada(s) · ${p.livres} livre(s) para faturar` : " · fora do PCP (peças não conferidas)"}</div>
+              {!p.cabe && <div className="font-semibold" style={{ color: C.red }}>{p.motivo}</div>}
+            </div>
+          </label>
+        ))}
+        <label className="flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer" style={{ background: esc === "__NAO__" ? "#fff" : "transparent", border: `1px solid ${esc === "__NAO__" ? C.sub : "transparent"}` }}>
+          <input type="radio" name={`casar-${i}`} checked={esc === "__NAO__"} onChange={() => set("__NAO__")} /> <span><b>Não casar agora</b> <span style={{ color: C.sub }}>— a NF fica no movimento fiscal sem pedido; os concluídos continuam com a crítica de falta de NF</span></span>
+        </label>
+      </div>
+      {!esc && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem escolha: o sistema tenta ligar sozinho (O.C., itens, NFs do KM).</div>}
+    </div>
+  );
+}
+
 export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId }) {   // v494 — ocId: NF subida pela OC   // v450 — pedidoNumero: "Incluir faturamento" do pedido
   const [arqs, setArqs] = useState([]);       // arquivos já lidos, aguardando conferência
   const [notas, setNotas] = useState(null);
@@ -269,7 +305,8 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
     try {
       const j = await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "analisar", arquivos: lista.map(({ tam, ...a }) => a) });
       setErros(j.erros || []);
-      const novas = (j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n) }));
+      const novas = (j.notas || []).map((n) => ({ ...n, aberta: n.decisao !== "IGNORAR", totalParcelas: totalParcelas(n),
+        ...(pedidoNumero && n.tipo === "SAIDA" && (n.pedidosCandidatos || []).some((p) => p.numero === String(pedidoNumero) && p.cabe) ? { pedidoCasar: String(pedidoNumero) } : {}) }));   // v555 — "Incluir faturamento" do pedido já vem escolhido
       const prox = antigas ? juntarNotas(antigas, novas) : novas;
       // v548 — só PDFs de notas que já estão no movimento fiscal: o PDF entra nos anexos direto, sem conferência nem lançamento
       if (!antigas && prox.length && prox.every((n) => n.decisao === "COMPLETAR" || n.decisao === "IGNORAR") && prox.some((n) => n.decisao === "COMPLETAR")) {
@@ -375,7 +412,9 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
     const baixadas = res.reduce((s, r) => s + (r.baixadas || 0), 0);
     const criadas = res.reduce((s, r) => s + (r.criadas || 0), 0), ligadas = res.reduce((s, r) => s + (r.ligadas || 0), 0);
     const problemas = res.filter((r) => ["ERRO", "JA_IMPORTADA"].includes(r.situacao));
-    const m = `${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} nota(s) já registrada(s) com o PDF anexado (sem novo lançamento)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}${c("JA_IMPORTADA") ? ` · ${c("JA_IMPORTADA")} já estava(m) no movimento fiscal (nada novo lançado)` : ""}${c("ERRO") ? ` · ${c("ERRO")} com erro: ${res.filter((r) => r.situacao === "ERRO").map((r) => `NF ${r.numero} — ${r.motivo}`).join("; ")}` : ""}${c("IGNORADA") ? ` · ${c("IGNORADA")} ignorada(s) (já tinha XML e PDF)` : ""}.`;   // v530 — o aviso diz por que nada foi lançado
+    const cas = res.filter((r) => r.casamento);   // v555
+    const m0 = cas.map((r) => (r.casamento.erro ? `NF ${r.numero}: NÃO casada com o pedido ${r.casamento.pedido} — ${r.casamento.erro}` : `NF ${r.numero} casada com o pedido ${r.casamento.pedido}${r.casamento.completo ? " (faturado)" : " (parcial)"}${r.casamento.aviso ? ` — ${r.casamento.aviso}` : ""}`)).join(" · ");
+    const m = `${m0 ? `${m0} · ` : ""}${c("LANCADA")} NF(s) lançada(s) · ${criadas} conta(s) criada(s)${ligadas ? ` · ${ligadas} ligada(s) a contas existentes` : ""}${c("REGISTRADA") ? ` · ${c("REGISTRADA")} só registrada(s)` : ""}${c("COMPLETADA") ? ` · ${c("COMPLETADA")} nota(s) já registrada(s) com o PDF anexado (sem novo lançamento)` : ""}${baixadas ? ` · ${baixadas} já baixada(s) (à vista)` : ""}${c("JA_IMPORTADA") ? ` · ${c("JA_IMPORTADA")} já estava(m) no movimento fiscal (nada novo lançado)` : ""}${c("ERRO") ? ` · ${c("ERRO")} com erro: ${res.filter((r) => r.situacao === "ERRO").map((r) => `NF ${r.numero} — ${r.motivo}`).join("; ")}` : ""}${c("IGNORADA") ? ` · ${c("IGNORADA")} ignorada(s) (já tinha XML e PDF)` : ""}.`;   // v530 — o aviso diz por que nada foi lançado
     return (
       <Modal titulo="Importação concluída" icone={CheckCircle2} onClose={() => onFim(m)} largura={640}
         rodape={<BtnP onClick={() => onFim(m)}>Fechar</BtnP>}>
@@ -547,6 +586,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGrava
             </>
           )}
           {n.decisao === "REGISTRAR" && <div className="text-xs" style={{ color: C.sub }}>A nota fica registrada no movimento fiscal (com os arquivos), sem gerar conta.</div>}
+          {n.tipo === "SAIDA" && Array.isArray(n.pedidosCandidatos) && n.decisao !== "IGNORAR" && <CasarPedidoNota n={n} i={i} altN={altN} />}
           {n.decisao === "COMPLETAR" && <div className="text-xs" style={{ color: C.sub }}>O {n.existenteFalta} entra no registro que já existe e é anexado às contas dele.</div>}
         </div>
       )}

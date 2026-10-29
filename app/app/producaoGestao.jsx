@@ -1,10 +1,11 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2 } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2 } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
-import { ImportarNfs } from "./adm";   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
+import { ImportarNfs } from "./adm";
+import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -58,6 +59,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
   const [ord, setOrd] = useState({ k: "fase", dir: 1 });
   const [aberto, setAberto] = useState(null);
   const [lixeira, setLixeira] = useState(false);   // v552
+  const [casar, setCasar] = useState(null);   // v555 — nº do pedido para casar com NF
   // v553 — excluir só pela lista de pedidos da Produção, com justificativa obrigatória
   const excluir = async (p) => {
     const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.cliente})?\n\nEle vai para a lixeira (Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
@@ -138,7 +140,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.previsto && p.prazo && p.previsto > p.prazo ? C.red : C.text }}>{dBR(p.previsto)}</td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
-                    <td className="px-2 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
                 {!lista.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
@@ -148,6 +150,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
         </>
       )}
       {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} />}
+      {casar && <CasarPedidoModal user={user} pedido={casar} onClose={() => setCasar(null)} onFeito={carregar} />}
       {lixeira && <LixeiraPedidos user={user} onClose={() => setLixeira(false)} onRestaurado={carregar} />}
     </div>
   );
@@ -201,6 +204,7 @@ function PedidoTela({ numero, user, onClose }) {
   const [verFpp, setVerFpp] = useState(null);
   const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro
   const [fatura, setFatura] = useState(false);   // v450 — Incluir faturamento
+  const [casarNf, setCasarNf] = useState(false);   // v555
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [numero]);
   async function salvarObs() {
@@ -241,18 +245,36 @@ function PedidoTela({ numero, user, onClose }) {
                 ))}
               </div>
             </div>
+              {/* v555 — faturamento casado: NFs, peças (pedido × concluídas × faturadas) e contas a receber das NFs */}
               <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Faturamento</div>
-                <div className="grid gap-3 mb-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Faturado</div><div className="font-semibold">{brl(p.faturamento.faturado)}</div></div>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Peças pendentes de entrega</div><div className="font-semibold">{p.faturamento.pecasPendentes ?? "—"}</div></div>
-                  <div><div className="text-xs" style={{ color: C.sub }}>Valor pendente a faturar</div><div className="font-semibold" style={{ color: C.accent }}>{brl(p.faturamento.valorPendente)}</div></div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Faturamento</div>
+                  <button onClick={() => setCasarNf(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><Link2 size={13} /> Casar NF</button>
                 </div>
-                {p.faturamento.nfs.length ? p.faturamento.nfs.map((n) => (
-                  <div key={n.numero} className="flex gap-3 text-xs py-1" style={{ borderTop: `1px solid ${C.line}` }}>
-                    <span className="font-semibold">NF {n.numero}</span><span style={{ color: C.sub }}>{dOnly(n.emissao)}</span>{n.pecas ? <span style={{ color: C.sub }}>{n.pecas} pç</span> : null}<span className="ml-auto">{brl(n.valor)}</span>
+                <div className="grid gap-3 mb-3 text-sm" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+                  {[["Faturado", brl(p.faturamento.faturado), C.green], ["A entregar (valor)", brl(p.faturamento.valorPendente), C.accent], ["Peças do pedido", p.faturamento.pecasTotal ?? "—"],
+                    ["Concluídas na expedição", p.faturamento.pecasConcluidas ?? "—"], ["Peças faturadas", p.faturamento.pecasFaturadas ?? 0], ["Peças a entregar", p.faturamento.pecasPendentes ?? "—"],
+                    ["Contas a receber lançadas", brl(p.faturamento.contasTotal)], ["Recebido", brl(p.faturamento.recebido), C.green], ["Em aberto", brl(p.faturamento.emAberto), C.accent]].map(([l, v, cor]) => (
+                    <div key={l}><div className="text-xs" style={{ color: C.sub }}>{l}</div><div className="font-semibold" style={{ color: cor || C.text }}>{v}</div></div>
+                  ))}
+                </div>
+                {p.pecasSemNf > 0 && <div className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: C.red }}><AlertTriangle size={13} /> {p.pecasSemNf} peça(s) concluída(s) na expedição sem NF casada.</div>}
+                {(p.faturamento.casadas || []).length ? p.faturamento.casadas.map((n) => (
+                  <div key={n.numero} className="py-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-semibold">NF {n.numero}</span><span style={{ color: C.sub }}>{dOnly(n.emissao)}</span>{n.pecas ? <span style={{ color: C.sub }}>{n.pecas} pç</span> : null}
+                      {n.modo === "MANUAL" && <span style={{ color: C.sub }}>casada{n.casadoPor ? ` por ${n.casadoPor}` : ""}</span>}
+                      <span className="ml-auto font-semibold">{brl(n.valor)}</span>
+                      <button onClick={async () => { if (await confirmar(`Descasar a NF ${n.numero} deste pedido? O pedido volta a ter o saldo a faturar.`)) { if (await descasar(user, numero, n.numero)) carregar(); } }} title="Descasar" style={{ color: C.sub }}><X size={13} /></button>
+                    </div>
+                    {n.contas.length ? n.contas.map((c) => (
+                      <div key={c.id} className="flex items-center gap-3 text-[11px] pl-4 pt-1" style={{ color: C.sub }}>
+                        <span>venc. {dOnly(c.vencimento)}</span><span>{c.titulo}</span>{c.antecipado && <span style={{ color: C.yellow }}>antecipado</span>}
+                        <span className="ml-auto" style={{ color: c.status === "PAGO" ? C.green : C.text }}>{brl(c.valor)} · {c.status === "PAGO" ? `recebido ${dOnly(c.dataPagamento)}` : c.status === "ABERTO" ? "em aberto" : c.status.toLowerCase()}</span>
+                      </div>
+                    )) : <div className="text-[11px] pl-4 pt-1" style={{ color: C.yellow }}>sem contas a receber lançadas para esta NF</div>}
                   </div>
-                )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF emitida.</div>}
+                )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF casada com o pedido.{p.faturamento.nfs.length ? ` NFs do KM: ${p.faturamento.nfs.map((x) => x.numero).join(", ")}.` : ""}</div>}
               </div>
           </div>
         )}
@@ -319,6 +341,7 @@ function PedidoTela({ numero, user, onClose }) {
           </div>
         )}
         {verFpp && <FppResumo fppId={verFpp.fppId} item={verFpp} veValores onClose={() => setVerFpp(null)} onUsar={null} />}
+        {casarNf && <CasarPedidoModal user={user} pedido={numero} onClose={() => setCasarNf(false)} onFeito={carregar} />}
         {fatura && <ImportarNfs user={user} pedidoNumero={numero} onClose={() => { setFatura(false); carregar(); }} onFim={() => { setFatura(false); carregar(); }} />}
       </div>
     </div>
