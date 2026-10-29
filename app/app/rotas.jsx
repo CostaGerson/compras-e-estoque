@@ -512,7 +512,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
     if (q.length < 4) { setSug([]); return; }
     t.current = setTimeout(() => {
       if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(q)}&sessao=${sessao.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrG(""); setSug(l); setAberto(true); } else setErrG(l?.error || "Google não respondeu."); }).catch((e) => setErrG(`Google: ${e.message}`));
+      fetch(urlRotas(user, `auto=${encodeURIComponent(q)}&sessao=${sessao.current}`)).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrG(""); setSug(l); setAberto(true); } else setErrG(l?.error || "Google não respondeu."); }).catch((e) => setErrG(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(t.current);
   }, [value]);
@@ -526,7 +526,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
     if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
     (async () => {
       for (const c of consultas) {
-        const l = await fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(c)}&sessao=${sessao.current}`).then((r) => r.json()).catch(() => null);
+        const l = await fetch(urlRotas(user, `auto=${encodeURIComponent(c)}&sessao=${sessao.current}`)).then((r) => r.json()).catch(() => null);
         if (Array.isArray(l) && l.length) { setErrG(""); setSug(l); setDoCad(true); setAberto(true); return; }
         if (l && !Array.isArray(l)) { setErrG(l.error || "Google não respondeu."); return; }
       }
@@ -535,7 +535,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
   const escolher = async (x) => {
     setAberto(false); setSug([]); setDoCad(false); digitou.current = false;
     try {
-      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}&digitado=${encodeURIComponent(value || "")}`);
+      const g = await api(urlRotas(user, `lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}&digitado=${encodeURIComponent(value || "")}`));
       sessao.current = null;
       if (g?.endereco) { onChange(g.endereco); onGeo?.(g); } else onChange(x.texto);
     } catch { onChange(x.texto); }
@@ -564,7 +564,11 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
 // ---------- demanda de rota ----------
 const inp = "w-full px-2.5 py-1.5 rounded-md text-sm";
 const inpS = { border: `1px solid ${C.line}`, color: C.text, background: "#fff" };
-function L({ t, children, span }) { return <label className={`block min-w-0 ${span ? "col-span-2" : ""}`}><div className="text-xs mb-1" style={{ color: C.sub }}>{t}</div>{children}</label>; }
+// v582 — div (não label): no iPhone, label com vários botões dentro mandava o toque para o 1º botão
+function L({ t, children, span }) { return <div className={`block min-w-0 ${span ? "col-span-2" : ""}`}><div className="text-xs mb-1" style={{ color: C.sub }}>{t}</div>{children}</div>; }
+// v582 — o formulário de demanda também roda no link de acompanhamento (user.token): as chamadas vão pela API pública do link
+const urlRotas = (user, qs) => (user?.token ? `/api/acompanhar/${user.token}?${qs}` : `/api/rotas?u=${user.id}&${qs}`);
+const postRotas = (user, body) => (user?.token ? api(`/api/acompanhar/${user.token}`, "POST", { ...body, usuarioId: user.id }) : api("/api/rotas", "POST", { ...body, usuarioId: user.id }));
 function Seg({ v, opts, on }) {
   return (
     <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
@@ -573,7 +577,7 @@ function Seg({ v, opts, on }) {
   );
 }
 let _destinos = null;
-function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
+export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const novo = !inicial.id;
   const trava = ["EM_EXECUCAO", "CONCLUIDA"].includes(inicial.status);
   const [f, setF] = useState({ objetivo: "ENTREGA", destinoTipo: "", destinoId: null, destinoNome: "", endereco: "", contato: "", telefone: "", horarioTipo: "MANHA", hora1: "", hora2: "",
@@ -586,7 +590,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const [aberto, setAberto] = useState(false);
   const [salv, setSalv] = useState(false);
   const [erro, setErro] = useState("");
-  useEffect(() => { if (!_destinos) api(`/api/rotas?u=${user.id}&destinos=1`).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
+  useEffect(() => { if (!_destinos) api(urlRotas(user, "destinos=1")).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   // v438 — busca também pela razão social/CNPJ; quem começa com o texto vem primeiro
   const sug = useMemo(() => { const t = sem(q).trim(); if (t.length < 2) return [];
@@ -608,14 +612,14 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     if (t.length < 3) { setSugG([]); return; }
     tG.current = setTimeout(() => {
       if (!sessaoG.current) sessaoG.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(`/api/rotas?u=${user.id}&auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrQ(""); setSugG(l.slice(0, 6)); setAberto(true); } else { setSugG([]); setErrQ(l?.error || "Google não respondeu."); } }).catch((e) => setErrQ(`Google: ${e.message}`));
+      fetch(urlRotas(user, `auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`)).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrQ(""); setSugG(l.slice(0, 6)); setAberto(true); } else { setSugG([]); setErrQ(l?.error || "Google não respondeu."); } }).catch((e) => setErrQ(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(tG.current);
   }, [q]);
   const escolherGoogle = async (x) => {
     setAberto(false); digitouQ.current = false;
     try {
-      const g = await api(`/api/rotas?u=${user.id}&lugar=${encodeURIComponent(x.placeId)}&sessao=${sessaoG.current || ""}`);
+      const g = await api(urlRotas(user, `lugar=${encodeURIComponent(x.placeId)}&sessao=${sessaoG.current || ""}`));
       sessaoG.current = null;
       const nome = String(g?.nome || x.principal || x.texto).toUpperCase();
       setQ(nome);
@@ -625,7 +629,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   async function salvar() {
     setSalv(true); setErro("");
     try {
-      const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "demanda", demanda: { ...f, destinoNome: f.destinoNome || q } });
+      const r = await postRotas(user, { acao: "demanda", demanda: { ...f, destinoNome: f.destinoNome || q } });
       _destinos = null;   // v430 — destinatário novo entra na lista
       if (r.semMapa) await alerta("Demanda salva, mas o endereço não foi encontrado no mapa. Confira rua, número, cidade e UF para ela aparecer no mapa e entrar no cálculo da rota.");
       // v467 — mesmo destinatário, dia e horário: oferece juntar numa demanda só
@@ -633,7 +637,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
         const todas = [r.demanda, ...r.consolidar];
         const lista = todas.map((x) => `#${x.id} ${frase(x.tarefa)}`).join(" e ");
         if (await confirmar(`${r.demanda.destinoNome} já tem demanda no mesmo dia e horário. Consolidar as demandas ${lista} numa só, na mesma parada da rota?`)) {
-          try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "consolidar", ids: todas.map((x) => x.id) }); } catch (e) { await alerta(e.message); }
+          try { await postRotas(user, { acao: "consolidar", ids: todas.map((x) => x.id) }); } catch (e) { await alerta(e.message); }
         }
       }
       onOk();

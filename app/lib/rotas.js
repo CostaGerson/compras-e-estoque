@@ -723,6 +723,7 @@ async function avisarAtendida(d, rotaId, u) {
 
 // v579 — link público de acompanhamento do DIA (todas as rotas e demandas do dia), para o grupo do WhatsApp.
 //   Um token por dia (FinConfig ROTA_ACOMP_DIA|data ↔ ROTA_ACOMP_TOKEN|token); o link antigo de uma rota (v576) abre o dia dela.
+export const diaDoTokenPublico = (t) => diaDoToken(t);
 async function diaDoToken(token) {
   const t = String(token || "");
   if (!t) return null;

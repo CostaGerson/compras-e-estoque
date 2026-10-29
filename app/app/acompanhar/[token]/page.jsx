@@ -2,6 +2,7 @@
 // v576/v579 — acompanhamento público do dia (link do grupo do WhatsApp): rotas do dia em tempo real, demandas e lançamento
 // de novas demandas de rota. Pensado para o celular; sem login (vale o link).
 import React, { useEffect, useState } from "react";
+import { DemandaForm } from "../../rotas";   // v582 — o mesmo formulário do sistema
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", red: "#D92D20", blue: "#5BA4E6", neon: "#D6FF00" };
 const OBJ = { COLETA: ["Coleta", "#FFA463"], ENTREGA: ["Entrega", "#5BA4E6"], COLETA_ENTREGA: ["Coleta e entrega", "linear-gradient(90deg, #5BA4E6 0 50%, #FF8A3D 50% 100%)"], COMPRA: ["Compra", "#E0A800"], RETORNO: ["Retorno", "#FF6B1A"] };
@@ -66,7 +67,7 @@ export default function Acompanhar({ params }) {
       <div className="h-24" />
       {!nova && <button onClick={() => { setNova(true); setOk(""); }} className="fixed flex items-center justify-center gap-2 rounded-full shadow-xl font-semibold text-white"
         style={{ right: 16, bottom: "calc(18px + env(safe-area-inset-bottom))", height: 54, padding: "0 22px", background: C.accent }}>＋ Nova demanda de rota</button>}
-      {nova && <NovaDemanda token={token} dia={d.dia} onClose={() => setNova(false)} onOk={(m) => { setNova(false); setOk(m); ler(); }} />}
+      {nova && <NovaDemanda token={token} dia={d.dia} usuarios={d.usuarios || []} motoristas={d.motoristas || []} onClose={() => setNova(false)} onOk={(m) => { setNova(false); setOk(m); ler(); }} />}
     </Tela>
   );
 }
@@ -122,58 +123,35 @@ function Secao({ t, children }) {
   );
 }
 
-function NovaDemanda({ token, dia, onClose, onOk }) {
-  const hoje = hojeISO();
-  const [f, setF] = useState(() => {
-    let nome = ""; try { nome = localStorage.getItem("ce_acomp_nome") || ""; } catch {}
-    return { nome, objetivo: "ENTREGA", data: dia >= hoje ? dia : hoje, horarioTipo: "MANHA", destinoNome: "", endereco: "", tarefa: "", contato: "", telefone: "", obs: "" };
-  });
-  const [st, setSt] = useState(false);
-  const [erro, setErro] = useState("");
-  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const enviar = async () => {
-    setSt(true); setErro("");
-    try { localStorage.setItem("ce_acomp_nome", f.nome.trim()); } catch {}
-    try {
-      const r = await fetch(`/api/acompanhar/${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
-      const j = await r.json();
-      if (!r.ok || j.error) throw new Error(j.error || "Erro ao lançar.");
-      onOk(`Demanda lançada para ${dBR(f.data)}${j.semMapa ? " (endereço não localizado no mapa — a logística confere)" : ""}.`);
-    } catch (e) { setErro(e.message); setSt(false); }
-  };
-  const inp = "w-full rounded-lg px-3 py-2.5 outline-none";
-  const inpS = { border: `1px solid ${C.line}`, background: "#fff", color: C.text, fontSize: 16 };
-  const Seg = ({ k, opts }) => (
-    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0,1fr))` }}>
-      {opts.map(([v, t]) => <button key={v} type="button" onClick={() => set(k, v)} className="rounded-lg py-2 text-xs font-semibold" style={{ background: f[k] === v ? C.navy : "#fff", color: f[k] === v ? "#fff" : C.sub, border: `1px solid ${f[k] === v ? C.navy : C.line}` }}>{t}</button>)}
-    </div>
+// v582 — quem pede escolhe o próprio nome (usuários do sistema: a demanda fica no perfil dele e ele é avisado quando for
+// atendida); depois abre o mesmo formulário de demanda de rota do sistema (cadastros, Google, horários, urgente, frete…)
+function NovaDemanda({ token, dia, usuarios, motoristas, onClose, onOk }) {
+  const [quem, setQuem] = useState(() => { try { const x = JSON.parse(localStorage.getItem("ce_acomp_quem") || "null"); return x && usuarios.some((u) => u.id === x.id) ? x : null; } catch { return null; } });
+  const [busca, setBusca] = useState("");
+  const sem = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const nomeU = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ");
+  const lista = usuarios.filter((u) => !busca.trim() || sem(nomeU(u)).includes(sem(busca.trim()))).slice(0, 30);
+  const escolher = (u) => { const x = { id: u.id, nome: nomeU(u) }; setQuem(x); try { localStorage.setItem("ce_acomp_quem", JSON.stringify(x)); } catch {} };
+  if (quem) return (
+    <DemandaForm user={{ id: quem.id, nome: quem.nome, token }} inicial={{ data: dia >= hojeISO() ? dia : hojeISO(), horarioTipo: "MANHA" }} motoristas={motoristas}
+      onClose={onClose} onOk={() => onOk(`Demanda lançada em nome de ${quem.nome}. Você recebe um aviso no sistema quando ela for atendida.`)} />
   );
-  const pronto = f.nome.trim().length >= 2 && f.destinoNome.trim() && f.endereco.trim() && f.tarefa.trim() && f.data;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-t-2xl p-4 overflow-auto" style={{ background: C.panel, maxWidth: 560, maxHeight: "92vh" }}>
-        <div className="flex items-center mb-3"><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Nova demanda de rota</div><button onClick={onClose} className="text-sm px-2" style={{ color: C.sub }}>Fechar</button></div>
-        <div className="space-y-3">
-          <L t="Seu nome"><input value={f.nome} onChange={(e) => set("nome", e.target.value)} className={inp} style={inpS} placeholder="Quem está pedindo" /></L>
-          <L t="Tipo"><Seg k="objetivo" opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COLETA_ENTREGA", "Col. e entr."], ["COMPRA", "Compra"]]} /></L>
-          <div className="grid grid-cols-2 gap-2">
-            <L t="Data"><input type="date" min={hoje} value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} style={inpS} /></L>
-            <L t="Período"><Seg k="horarioTipo" opts={[["MANHA", "Manhã"], ["TARDE", "Tarde"], ["LIVRE", "Livre"]]} /></L>
-          </div>
-          <L t="Onde (empresa ou pessoa)"><input value={f.destinoNome} onChange={(e) => set("destinoNome", e.target.value)} className={inp} style={inpS} placeholder="Ex.: Ematex" /></L>
-          <L t="Endereço"><input value={f.endereco} onChange={(e) => set("endereco", e.target.value)} className={inp} style={inpS} placeholder="Rua, número, bairro, cidade - UF" /></L>
-          <L t="O que fazer lá"><input value={f.tarefa} onChange={(e) => set("tarefa", e.target.value)} className={inp} style={inpS} placeholder="Ex.: buscar amostras" /></L>
-          <div className="grid grid-cols-2 gap-2">
-            <L t="Contato (opcional)"><input value={f.contato} onChange={(e) => set("contato", e.target.value)} className={inp} style={inpS} /></L>
-            <L t="Telefone (opcional)"><input value={f.telefone} onChange={(e) => set("telefone", e.target.value)} inputMode="tel" className={inp} style={inpS} /></L>
-          </div>
-          <L t="Observação (opcional)"><input value={f.obs} onChange={(e) => set("obs", e.target.value)} className={inp} style={inpS} /></L>
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-t-2xl p-4 flex flex-col" style={{ background: C.panel, maxWidth: 560, maxHeight: "88vh" }}>
+        <div className="flex items-center mb-1"><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Quem está pedindo?</div><button onClick={onClose} className="text-sm px-2" style={{ color: C.sub }}>Fechar</button></div>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>Escolha seu nome: a demanda fica no seu perfil e você é avisado quando ela for atendida.</div>
+        <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Digite seu nome" className="w-full rounded-lg px-3 py-2.5 outline-none mb-2" style={{ border: `1px solid ${C.line}`, fontSize: 16 }} />
+        <div className="overflow-auto flex-1 -mx-1">
+          {lista.map((u) => (
+            <button key={u.id} onClick={() => escolher(u)} className="w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <span className="rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ width: 30, height: 30, background: "#EAF0FB", color: C.navy }}>{(u.nome || "?")[0]}</span>
+              <span className="flex-1 min-w-0"><span className="block text-sm font-semibold truncate" style={{ color: C.text }}>{nomeU(u)}</span><span className="block text-[11px]" style={{ color: C.sub }}>{u.setor}</span></span>
+            </button>
+          ))}
+          {!lista.length && <div className="text-sm p-3" style={{ color: C.sub }}>Nenhum usuário com esse nome.</div>}
         </div>
-        {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: "#FDECEA", color: C.red }}>{erro}</div>}
-        <button disabled={!pronto || st} onClick={enviar} className="w-full mt-4 rounded-xl py-3.5 font-bold text-white" style={{ background: C.accent, opacity: !pronto || st ? 0.5 : 1 }}>{st ? "Lançando…" : "Lançar demanda"}</button>
-        <div className="h-3" />
       </div>
     </div>
   );
 }
-function L({ t, children }) { return <label className="block"><div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>{t}</div>{children}</label>; }
