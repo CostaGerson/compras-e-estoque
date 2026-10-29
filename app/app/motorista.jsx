@@ -113,7 +113,7 @@ export default function MotoristaApp({ user, onSair }) {
           <>
             <div className="rounded-3xl p-4 shadow-sm" style={{ background: C.panel }}>
               <div className="flex items-baseline justify-between">
-                <div className="text-lg font-extrabold" style={{ color: C.navy }}>Rota {rota.id} · {dBR(rota.data)}</div>
+                <div className="text-lg font-extrabold" style={{ color: C.navy }}>Rota R{rota.numDia ?? rota.id} · {dBR(rota.data)}</div>
                 <div className="text-sm font-bold" style={{ color: C.green }}>{nFeitas}/{paradas.length} feitas</div>
               </div>
               <Trilha paradas={paradas} atual={idx} volta={volta} fim={false} />
@@ -220,7 +220,7 @@ export default function MotoristaApp({ user, onSair }) {
             <div className="text-sm font-bold mb-2" style={{ color: C.sub }}>PRÓXIMAS ROTAS (AINDA NÃO LIBERADAS)</div>
             {proximas.map((r) => (
               <div key={r.id} className="py-2" style={{ borderTop: `1px solid ${C.line}` }}>
-                <div className="text-base font-bold" style={{ color: C.navy }}>Rota {r.id} · {r.data === hojeISO() ? "hoje" : dBR(r.data)}{r.saida ? ` · saída ${r.saida}` : ""}</div>
+                <div className="text-base font-bold" style={{ color: C.navy }}>Rota R{r.numDia ?? r.id} · {r.data === hojeISO() ? "hoje" : dBR(r.data)}{r.saida ? ` · saída ${r.saida}` : ""}</div>
                 <div className="text-sm" style={{ color: C.sub }}>{r.paradas.map((p) => curto(p.destinoNome)).join(" → ")}</div>
               </div>
             ))}

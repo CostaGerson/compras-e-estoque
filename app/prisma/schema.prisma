@@ -2103,6 +2103,7 @@ model RotaBloco {
   posEndLat     Float?
   posEndLng     Float?
   retornoEm     DateTime?
+  numDia        Int?                          // v584 — número da rota no dia (R1, R2… recomeça todo dia)
   acompToken    String?   @unique              // v576 — link público de acompanhamento (WhatsApp)
   criadoPorNome String?
   createdAt     DateTime  @default(now())

@@ -266,6 +266,18 @@ export function telefoneWa(t) {
 // v446 — mensagem: título de cada parada em negrito, uma linha em branco entre paradas, sem CEP,
 // tempo previsto no local e horário estimado de volta à fábrica
 const semCep = (e) => String(e || "").replace(/,?\s*(CEP\s*)?\d{5}-?\d{3}\b/gi, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").trim();
+// v584 — rotas numeradas por dia: a 1ª rota do dia é R1, a 2ª R2… (recomeça todo dia; número fixo, não muda se outra for desfeita)
+export const numRota = (b) => (b?.numDia ?? b?.id);
+export async function numerarRotas() {
+  const sem = await prisma.rotaBloco.findMany({ where: { numDia: null }, orderBy: { id: "asc" }, select: { id: true, data: true } });
+  if (!sem.length) return;
+  const dias = [...new Set(sem.map((b) => iso(b.data)))];
+  for (const dia of dias) {
+    const max = (await prisma.rotaBloco.aggregate({ where: { data: dUTC(dia), numDia: { not: null } }, _max: { numDia: true } }))._max.numDia || 0;
+    let n = max;
+    for (const b of sem.filter((x) => iso(x.data) === dia)) { n++; await prisma.rotaBloco.update({ where: { id: b.id }, data: { numDia: n } }).catch(() => null); }
+  }
+}
 export function mensagemWhats(bloco, paradas, links, av, canceladas = []) {
   const eta = Object.fromEntries((av?.etas || []).map((e) => [e.id, e]));
   const blocos = paradas.map((d, i) => {
@@ -280,7 +292,7 @@ export function mensagemWhats(bloco, paradas, links, av, canceladas = []) {
     ].filter(Boolean).join("\n");
   });
   const alt = !!bloco.alteradaEm;   // v454 — rota alterada depois de despachada
-  return [`*Rota ${bloco.id}${alt ? " ALTERADA" : ""} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${!alt && bloco.saida ? ` · saída ${bloco.saida}` : ""}`,
+  return [`*Rota R${numRota(bloco)}${alt ? " ALTERADA" : ""} · ${iso(bloco.data).split("-").reverse().join("/")}*`, `Motorista: ${bloco.motoristaNome} · ${bloco.veiculo === "MOTO" ? "Moto" : "Carro"}${!alt && bloco.saida ? ` · saída ${bloco.saida}` : ""}`,
     ...(alt ? [canceladas.length ? `*Cancelada${canceladas.length > 1 ? "s" : ""}: ${canceladas.join("; ")}* (não precisa mais ir)` : null, "Paradas que faltam, na nova ordem:"].filter(Boolean) : []), "",
     blocos.join("\n\n"), "", `*Volta à fábrica no final${av?.retorno ? ` · previsão ${av.retorno}` : ""}.*`, "", ...links.map((l, i) => `Mapa${links.length > 1 ? ` (parte ${i + 1})` : ""}: ${l}`), "", "Marque cada parada como concluída no sistema (Logística › Rotas)."].join("\n");
 }
@@ -294,6 +306,7 @@ async function estimativa(bl, ds, fab) {
 // ---------- leitura ----------
 export const demandaOut = (d) => ({ ...d, data: iso(d.data), freteValorMax: d.freteValorMax != null ? Number(d.freteValorMax) : null, horario: horarioTxt(d), janela: janela(d).map(hhmm) });
 export async function painel({ de, ate }) {
+  await numerarRotas().catch((e) => console.log("rotas/numerar:", e.message));   // v584
   const [ds, bs, fab, mots] = await Promise.all([
     prisma.rotaDemanda.findMany({ where: { data: { gte: dUTC(de), lte: dUTC(ate) }, status: { not: "CANCELADA" } }, orderBy: [{ data: "asc" }, { urgente: "desc" }, { ordem: "asc" }, { id: "asc" }] }),
     prisma.rotaBloco.findMany({ where: { OR: [{ data: { gte: dUTC(de), lte: dUTC(ate) } }, { status: "EM_EXECUCAO" }], NOT: { status: "CANCELADO" } }, orderBy: [{ data: "asc" }, { id: "asc" }] }),
@@ -308,11 +321,14 @@ export async function painel({ de, ate }) {
       for (const d of sem) Object.assign(d, { motoristaId: pad.id, motoristaNome: pad.nome });
     }
   }
+  const numBl = Object.fromEntries(bs.map((b) => [b.id, b.numDia]));
+  const faltam = [...new Set(ds.map((d) => d.blocoId).filter((x) => x && numBl[x] === undefined))];   // rota de outro dia/fora do período
+  if (faltam.length) for (const b of await prisma.rotaBloco.findMany({ where: { id: { in: faltam } }, select: { id: true, numDia: true } })) numBl[b.id] = b.numDia;
   const cot = ds.filter((d) => d.admDemandaId).map((d) => d.admDemandaId);
   const adms = cot.length ? await prisma.admDemanda.findMany({ where: { id: { in: cot } }, select: { id: true, status: true, cotacao: true } }) : [];
   const porAdm = Object.fromEntries(adms.map((a) => [a.id, { status: a.status, valor: a.cotacao?.valor ?? null, prazo: a.cotacao?.prazo ?? null, transportadoras: a.cotacao?.transportadoras ?? null, temAnexo: !!a.cotacao?.anexo }]));
   return {
-    demandas: ds.map((d) => ({ ...demandaOut(d), cotacao: d.admDemandaId ? porAdm[d.admDemandaId] || null : null })),
+    demandas: ds.map((d) => ({ ...demandaOut(d), cotacao: d.admDemandaId ? porAdm[d.admDemandaId] || null : null, rotaNum: d.blocoId ? numBl[d.blocoId] ?? null : null })),
     blocos: bs.map((b) => ({ ...b, data: iso(b.data) })), fabrica: fab, motoristas: mots,
   };
 }
@@ -495,8 +511,8 @@ export async function alterarBloco(b, u) {
   const texto = mensagemWhats(n, seq, links, null, canceladas);
   const tel = telefoneWa(await telefoneAtual(n));
   const usu = n.motoristaId && !n.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: n.motoristaId }, select: { id: true } }) : null;
-  if (usu) await notificar(usu.id, { titulo: `Rota R${n.id} alterada`, texto: canceladas.length ? `Cancelada: ${canceladas.join("; ")}. Veja a nova ordem.` : "Veja a nova ordem das paradas.", tag: `rota-${n.id}` }).catch(() => null);   // v466
-  if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `SUA ROTA ${n.id} FOI ALTERADA${canceladas.length ? ` (CANCELADA: ${canceladas.join("; ").toUpperCase()})` : ""}. VEJA A NOVA ORDEM NO APP.` } }).catch(() => null);
+  if (usu) await notificar(usu.id, { titulo: `Rota R${numRota(n)} alterada`, texto: canceladas.length ? `Cancelada: ${canceladas.join("; ")}. Veja a nova ordem.` : "Veja a nova ordem das paradas.", tag: `rota-${n.id}` }).catch(() => null);   // v466
+  if (usu && u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `SUA ROTA R${numRota(n)} FOI ALTERADA${canceladas.length ? ` (CANCELADA: ${canceladas.join("; ").toUpperCase()})` : ""}. VEJA A NOVA ORDEM NO APP.` } }).catch(() => null);
   return { ok: true, alterada: true, bloco: { ...n, data: iso(n.data) }, whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, texto };
 }
 
@@ -526,6 +542,7 @@ export async function registrarPosicao(pessoaId, lat, lng, rumo) {
 // v463 — painel ao vivo: o que cada motorista em rota está fazendo agora e a previsão de volta à fábrica
 const POS_FRESCA_MIN = 10;
 export async function aoVivo() {
+  await numerarRotas().catch(() => null);   // v584
   const bs = await prisma.rotaBloco.findMany({ where: { status: "EM_EXECUCAO" }, orderBy: { despachadoEm: "asc" } });
   if (!bs.length) return { rotas: [] };
   const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: { in: bs.map((b) => b.id) }, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
@@ -568,7 +585,7 @@ export async function aoVivo() {
     if (!pend.length && bl.voltaIniciadaEm && !gps) volta = Math.max(2, volta - desde(bl.voltaIniciadaEm));
     t += volta;
     rotas.push({
-      id: bl.id, motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo, despachadoEm: bl.despachadoEm, alterada: !!bl.alteradaEm,
+      id: bl.id, num: numRota(bl), motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo, despachadoEm: bl.despachadoEm, alterada: !!bl.alteradaEm,
       fase, alvo, retornoPrevisto: fab ? hhmm(t) : null,
       posicao: bl.posEm ? { lat: bl.posLat, lng: bl.posLng, minAtras: Math.round(gpsMin), fresca: !!gps, rumo: bl.posRumo, endereco: bl.posEndereco || null } : null,
       paradas: l.map((d) => ({ id: d.id, nome: d.destinoNome, tarefa: d.tarefa, objetivo: d.objetivo, status: d.status === "CONCLUIDA" ? "FEITA" : d.id === alvo ? "INDO" : "PENDENTE",
@@ -661,11 +678,12 @@ export async function salvarBloco(b, u) {
 }
 
 export async function despachar(id) {
+  await numerarRotas().catch(() => null);   // v584
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
   if (!bl) return { error: "Rota não encontrada." };
   if (bl.status !== "MONTAGEM") return { error: "Rota já despachada." };
   const ocupado = await prisma.rotaBloco.findFirst({ where: { motoristaId: bl.motoristaId, status: "EM_EXECUCAO", NOT: { id: bl.id } } });
-  if (ocupado) return { error: `${bl.motoristaNome} ainda está na rota ${ocupado.id}. Ele fica disponível quando concluir o retorno à fábrica.` };
+  if (ocupado) return { error: `${bl.motoristaNome} ainda está na rota R${numRota(ocupado)}. Ele fica disponível quando concluir o retorno à fábrica.` };
   const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id }, orderBy: { ordem: "asc" } });
   const fab = await fabrica();
   const links = fab ? linksMaps(fab, ds) : linksMaps(ds[0], ds.slice(1));
@@ -688,6 +706,7 @@ async function telefoneAtual(bl) {
 }
 // v443 — mensagem da rota (para copiar ou reenviar no WhatsApp) a qualquer momento, sem mudar o status
 export async function mensagemBloco(id) {
+  await numerarRotas().catch(() => null);   // v584
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
   if (!bl) return { error: "Rota não encontrada." };
   let ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
@@ -705,7 +724,7 @@ export async function concluirParada(id, u, desfazer = false) {
   const bl = await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } });
   if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
   await prisma.rotaDemanda.update({ where: { id: d.id }, data: desfazer ? { status: "EM_EXECUCAO", concluidaEm: null, concluidaPorNome: null } : { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u) } });
-  if (!desfazer) await avisarAtendida(d, bl.id, u).catch((e) => console.log("rotas/aviso atendida:", e.message));   // v576
+  if (!desfazer) await avisarAtendida(d, numRota(bl), u).catch((e) => console.log("rotas/aviso atendida:", e.message));   // v576
   return { ok: true };
 }
 
@@ -749,16 +768,18 @@ export async function linkAcompanhamento(id, diaPedido) {
 
 // v579 — página pública: todas as rotas do dia (ao vivo, resumidas) e as demandas fora de rota
 export async function acompanhamento(token) {
+  await numerarRotas().catch(() => null);   // v584
   const dia = await diaDoToken(token);
   if (!dia) return { error: "Link inválido ou expirado." };
   const hm = (x) => (x ? new Date(x).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : null);
   const bs = await prisma.rotaBloco.findMany({ where: { data: dUTC(dia), status: { not: "CANCELADO" } }, orderBy: { id: "asc" } });
   const vivo = bs.some((b) => b.status === "EM_EXECUCAO") ? (await aoVivo()).rotas : [];
   const ds = await prisma.rotaDemanda.findMany({ where: { data: dUTC(dia), status: { not: "CANCELADA" } }, orderBy: [{ urgente: "desc" }, { ordem: "asc" }, { id: "asc" }] });
-  const curta = (d) => ({ id: d.id, objetivo: d.objetivo, nome: d.destinoNome, tarefa: d.tarefa, status: d.status, horario: horarioTxt(d), rota: d.blocoId || null, concluidaEm: hm(d.concluidaEm), urgente: d.urgente, frete: d.frete });
+  const numB = Object.fromEntries(bs.map((b) => [b.id, numRota(b)]));
+  const curta = (d) => ({ id: d.id, objetivo: d.objetivo, nome: d.destinoNome, tarefa: d.tarefa, status: d.status, horario: horarioTxt(d), rota: d.blocoId ? numB[d.blocoId] ?? d.blocoId : null, concluidaEm: hm(d.concluidaEm), urgente: d.urgente, frete: d.frete });
   const rotas = bs.map((bl) => {
     const v = vivo.find((r) => r.id === bl.id) || null;
-    return { id: bl.id, status: bl.status, motorista: String(bl.motoristaNome || "").split(" ")[0], veiculo: bl.veiculo, saida: bl.saida, despachadoEm: hm(bl.despachadoEm), retornoEm: hm(bl.retornoEm),
+    return { id: bl.id, num: numRota(bl), status: bl.status, motorista: String(bl.motoristaNome || "").split(" ")[0], veiculo: bl.veiculo, saida: bl.saida, despachadoEm: hm(bl.despachadoEm), retornoEm: hm(bl.retornoEm),
       fase: v?.fase || null, retornoPrevisto: v?.retornoPrevisto || null, posicao: v?.posicao ? { minAtras: v.posicao.minAtras, endereco: v.posicao.endereco, fresca: v.posicao.fresca } : null,
       paradas: ds.filter((d) => d.blocoId === bl.id).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99)).map((d) => ({ ...curta(d), eta: v?.paradas.find((p) => p.id === d.id)?.eta || null, indo: v?.alvo === d.id })) };
   });
@@ -783,6 +804,7 @@ export async function demandaPeloLink(token, b) {
 
 // v452 — app do motorista: as rotas dele (em execução e as próximas montadas), com as paradas em ordem
 export async function minhasRotas(pessoaId) {
+  await numerarRotas().catch(() => null);   // v584
   if (!pessoaId) return { rotas: [], fabrica: await fabrica() };
   const hoje = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
   const bs = await prisma.rotaBloco.findMany({ where: { motoristaId: pessoaId, OR: [{ status: "EM_EXECUCAO" }, { status: "MONTAGEM", data: { gte: dUTC(hoje) } }, { status: "CONCLUIDO", data: { gte: dUTC(hoje) } }] },
@@ -906,7 +928,7 @@ export async function retornoNaRota(b, u, pode) {
     try {
       const us = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ setor: { in: ["ADMINISTRATIVO", "LOGISTICA"] } }, { diretoria: true }] }, select: { id: true } }).catch(() => []);
       const para = us.map((x) => x.id).filter((x) => x !== u.id);
-      if (para.length) await prisma.mensagem.createMany({ data: para.map((paraId) => ({ deId: u.id, paraId, texto: `ROTA ${bl.id}: ${bl.motoristaNome} VAI VOLTAR À FÁBRICA NO MEIO DA ROTA. JUSTIFICATIVA: ${just.toUpperCase()}` })) });
+      if (para.length) await prisma.mensagem.createMany({ data: para.map((paraId) => ({ deId: u.id, paraId, texto: `ROTA R${numRota(bl)}: ${bl.motoristaNome} VAI VOLTAR À FÁBRICA NO MEIO DA ROTA. JUSTIFICATIVA: ${just.toUpperCase()}` })) });
     } catch (e) { console.log("rotas/retorno aviso:", e.message); }
   }
   return { ok: true, demanda: demandaOut(r.d), ordem: pos };

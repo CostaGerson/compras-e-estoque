@@ -103,8 +103,8 @@ export default function Rotas({ user, nova }) {
     const b = (d?.blocos || []).find((x) => x.id === c.blocoId);
     const ids = (d?.demandas || []).filter((x) => x.blocoId === c.blocoId && x.id !== c.id && x.status === "EM_EXECUCAO").sort((a, z) => a.ordem - z.ordem).map((x) => x.id);
     if (!b) return;
-    if (!pode) return alerta(`Demanda cancelada. A rota ${b.id} já foi avisada ao motorista; quem monta as rotas pode reenviar a ordem nova.`);
-    if (!ids.length) return alerta(`Demanda cancelada. A rota ${b.id} não tem mais paradas pendentes: o motorista já pode voltar à fábrica.`);
+    if (!pode) return alerta(`Demanda cancelada. A rota R${b.numDia ?? b.id} já foi avisada ao motorista; quem monta as rotas pode reenviar a ordem nova.`);
+    if (!ids.length) return alerta(`Demanda cancelada. A rota R${b.numDia ?? b.id} não tem mais paradas pendentes: o motorista já pode voltar à fábrica.`);
     setDia(b.data); setMontar({ ids, bloco: b, canceladas: [c.nome] });
   }
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
@@ -339,7 +339,7 @@ function agruparRota(l, render, onRota, onDespachar) {
     const it = [...g.itens].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
     const st = it.every((y) => y.status === "CONCLUIDA") ? "CONCLUIDA" : it.some((y) => y.status === "EM_EXECUCAO" || y.status === "CONCLUIDA") ? "EM_EXECUCAO" : "NO_BLOCO";
     const botaoR = <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
-      style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : "#667085", color: "#fff" }}>R{g.bloco}</button>;
+      style={{ background: st === "EM_EXECUCAO" ? C.accent : st === "CONCLUIDA" ? C.green : "#667085", color: "#fff" }}>R{it[0].rotaNum ?? g.bloco}</button>;
     // v579 — só a rota ainda não despachada ganha o card cinza com o play (despachar); em andamento e concluída ficam como antes
     if (st !== "NO_BLOCO") return (
       <div key={`R${g.bloco}`} className="flex items-stretch gap-1 min-w-0">
@@ -386,7 +386,7 @@ function MiniDemanda({ x, grande, onClick, onRota, onConcluir, arrastar }) {
     <div className="flex items-stretch gap-1 min-w-0">
       {btn}
       <button type="button" onClick={(e) => { e.stopPropagation(); onRota(x.blocoId); }} title={`Ver a rota ${x.blocoId}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
-        style={{ background: x.status === "EM_EXECUCAO" ? C.accent : x.status === "CONCLUIDA" ? C.green : C.navy, color: "#fff" }}>R{x.blocoId}</button>
+        style={{ background: x.status === "EM_EXECUCAO" ? C.accent : x.status === "CONCLUIDA" ? C.green : C.navy, color: "#fff" }}>R{x.rotaNum ?? x.blocoId}</button>
     </div>
   );
 }
@@ -474,7 +474,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
   );
 }
 function MapasDia({ demandas, fabrica, vivos, cheio }) {
-  const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
+  const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.num ?? r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));
   const ponto = (x, i) => ({ lat: x.lat, lng: x.lng, num: x.ordem || "", rotulo: `${OBJ[x.objetivo]?.[0]} · ${nomeTarefa(x)} · ${x.horario}`, cor: x.status === "CONCLUIDA" ? C.green : x.urgente ? C.red : tipoCor(x).pin });
   const com = demandas.filter((x) => x.lat != null && x.status !== "CONCLUIDA");   // v574 — concluída sai do mapa (o zoom fica nas pendentes)
   const rmbh = com.filter((x) => x.regiao === "RMBH" || !x.regiao).map(ponto);
@@ -885,12 +885,12 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
       <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl max-h-[92vh] overflow-auto shadow-2xl" style={{ background: C.panel }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <IcoRota size={18} style={{ color: C.accent }} />
-          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{bloco ? `Rota ${bloco.id}${alt ? " · alterada" : ""}` : "Montar rota"} · {dBR(dia)}</div>
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>{bloco ? `Rota R${bloco.numDia ?? bloco.id}${alt ? " · alterada" : ""}` : "Montar rota"} · {dBR(dia)}</div>
           <button onClick={desp ? onOk : fechar}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         {desp ? (
           <div className="p-5 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.green }}><CheckCircle2 size={18} /> Rota {desp.bloco.id} {desp.alterada ? "alterada" : "despachada"} · em execução</div>
+            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.green }}><CheckCircle2 size={18} /> Rota R{desp.bloco.numDia ?? desp.bloco.id} {desp.alterada ? "alterada" : "despachada"} · em execução</div>
             {desp.whatsapp ? (
               <a href={desp.whatsapp} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={15} /> Enviar a rota {desp.alterada ? "alterada " : ""}no WhatsApp de {sc(desp.bloco.motoristaNome)}</a>
             ) : <div className="text-xs px-3 py-2 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>{sc(desp.bloco.motoristaNome)} não tem telefone cadastrado (ficha do RH ou cadastro do freelancer). Copie a mensagem abaixo.</div>}
@@ -1029,7 +1029,7 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
     <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `4px solid ${cor}` }}>
       <div className="flex items-center gap-2 px-4 py-2.5">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-bold flex items-center gap-1" style={{ color: C.navy }}>Rota {b.id} · {sc(b.motoristaNome)} {b.veiculo === "MOTO" ? <Bike size={13} /> : <Car size={13} />}</div>
+          <div className="text-sm font-bold flex items-center gap-1" style={{ color: C.navy }}>Rota R{b.numDia ?? b.id} · {sc(b.motoristaNome)} {b.veiculo === "MOTO" ? <Bike size={13} /> : <Car size={13} />}</div>
           <div className="text-[11px]" style={{ color: C.sub }}>{l.length} parada(s){b.distanciaKm ? ` · ~${String(b.distanciaKm).replace(".", ",")} km` : ""}{b.saida ? ` · saída ${b.saida}` : ""}{b.status === "EM_EXECUCAO" ? ` · ${feitas}/${l.length} concluídas` : ""}{b.retornoEm ? ` · retorno ${new Date(b.retornoEm).toLocaleTimeString("pt-BR", { timeStyle: "short" })}` : ""}</div>
         </div>
         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: cor, background: C.panel2 }}>{txt}</span>
@@ -1062,7 +1062,7 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
           className="text-xs flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Link2 size={12} /> Link do dia</button>}
         {acomp && <div className="w-full"><LinkAcomp a={acomp} /></div>}
         {b.status === "MONTAGEM" && pode && <>
-          <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota ${b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
+          <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota R${b.numDia ?? b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
           <button onClick={onEditar} className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir / despachar</button>
         </>}
         {b.status === "EM_EXECUCAO" && (pode || meu) && feitas < l.length && !l.find((x) => x.status !== "CONCLUIDA" && x.objetivo === "RETORNO") && <BotaoRetornoMeio user={user} bloco={b} justificar={!pode} onMudou={onMudou} />}
@@ -1080,7 +1080,7 @@ function BotaoRetornoMeio({ user, bloco, justificar, escuro, onMudou }) {
   const [oc, setOc] = useState(false);
   const enviar = async () => {
     if (justificar && txt.trim().length < 5) return alerta("Escreva a justificativa.");
-    if (!justificar && !(await confirmar(`Incluir o retorno à fábrica como próxima parada da rota ${bloco.id}?`))) return;
+    if (!justificar && !(await confirmar(`Incluir o retorno à fábrica como próxima parada da rota R${bloco.numDia ?? bloco.id}?`))) return;
     setOc(true);
     try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "retornoNaRota", blocoId: bloco.id, justificativa: txt }); setAbre(false); setTxt(""); onMudou?.(); } catch (e) { alerta(e.message); }
     setOc(false);
@@ -1178,7 +1178,7 @@ function AoVivoRota({ r, onRota, primeira, agora }) {
         <span className="rounded-full shrink-0" title={agora ? `Ao vivo · atualizado ${agora}` : "Ao vivo"} style={{ width: 7, height: 7, background: C.green }} />
         <Vei size={13} style={{ color: C.text }} />
         <span className="text-xs font-semibold" style={{ color: C.text }}>{curtoNome(r.motoristaNome)}</span>
-        <button onClick={() => onRota?.(r.id)} className="underline-offset-2 hover:underline" style={{ color: C.sub }}>rota {r.id}{r.alterada ? " (alterada)" : ""}</button>
+        <button onClick={() => onRota?.(r.id)} className="underline-offset-2 hover:underline" style={{ color: C.sub }}>rota R{r.num ?? r.id}{r.alterada ? " (alterada)" : ""}</button>
         <span>·</span>
         <span className="min-w-0 truncate">{txt}</span>
         <span className="flex-1" />

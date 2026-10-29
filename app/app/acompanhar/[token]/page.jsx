@@ -77,7 +77,7 @@ function Rota({ r }) {
   const status = r.status === "EM_EXECUCAO" ? `em andamento · ${FASE[r.fase] || ""}` : r.status === "CONCLUIDO" ? `concluída${r.retornoEm ? ` · voltou ${r.retornoEm}` : ""}` : "ainda não saiu";
   const cor = r.status === "EM_EXECUCAO" ? C.accent : r.status === "CONCLUIDO" ? C.green : C.sub;
   return (
-    <Secao t={<span className="flex items-center gap-2" style={{ textTransform: "none", letterSpacing: 0 }}><span className="text-sm font-bold" style={{ color: C.text }}>Rota R{r.id} · {r.motorista}</span><span className="text-xs font-semibold" style={{ color: cor }}>{status}</span></span>}>
+    <Secao t={<span className="flex items-center gap-2" style={{ textTransform: "none", letterSpacing: 0 }}><span className="text-sm font-bold" style={{ color: C.text }}>Rota R{r.num ?? r.id} · {r.motorista}</span><span className="text-xs font-semibold" style={{ color: cor }}>{status}</span></span>}>
       <div className="text-xs mb-2" style={{ color: C.sub }}>
         {feitas} de {r.paradas.length} parada(s){r.retornoPrevisto ? ` · volta prevista ~${r.retornoPrevisto}` : ""}{r.posicao ? ` · posição ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` : ""}
         {r.posicao?.endereco ? <div className="truncate">📍 {r.posicao.endereco}</div> : null}

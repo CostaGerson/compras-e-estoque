@@ -70,7 +70,7 @@ export async function POST(req) {
       if (x.ok && x.usuarioMotorista && x.usuarioMotorista !== u.id)
         await prisma.mensagem.create({ data: { deId: u.id, paraId: x.usuarioMotorista, texto: x.texto.slice(0, 2000) } }).catch(() => null);
       // v466 — notificação na tela do celular do motorista
-      if (x.ok && x.usuarioMotorista) await notificar(x.usuarioMotorista, { titulo: `Nova rota R${x.bloco.id} 🚚`, texto: `${x.nParadas || ""} parada(s)${x.bloco.saida ? ` · saída ${x.bloco.saida}` : ""}. Toque para abrir.`, tag: `rota-${x.bloco.id}` }).catch(() => null);
+      if (x.ok && x.usuarioMotorista) await notificar(x.usuarioMotorista, { titulo: `Nova rota R${x.bloco.numDia ?? x.bloco.id} 🚚`, texto: `${x.nParadas || ""} parada(s)${x.bloco.saida ? ` · saída ${x.bloco.saida}` : ""}. Toque para abrir.`, tag: `rota-${x.bloco.id}` }).catch(() => null);
       return r(x);
     }
     case "criarRetorno": if (!podeMontar(u)) return negado(); return r(await criarRetorno(b, u));   // v521
