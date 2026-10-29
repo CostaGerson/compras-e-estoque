@@ -414,7 +414,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
       // v485 — motorista em rota: seta laranja apontando a direção
       for (const mo of motoristas) {
         L.marker([mo.lat, mo.lng], { zIndexOffset: 2000, icon: L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17],
-          html: `<div style="width:34px;height:34px;border-radius:17px;background:${mo.fresca ? "#FFF0E6" : "#EEF0F3"};border:2px solid #fff;box-shadow:0 1px 6px #0007;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(${mo.rumo}deg)"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="${mo.fresca ? "#FF6B1A" : "#98A2B3"}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></div>` }) })
+          html: `<div style="width:38px;height:38px;border-radius:19px;background:${mo.fresca ? "#1E1F21" : "#667085"};border:2px solid #fff;box-shadow:0 0 0 3px ${mo.fresca ? "rgba(214,255,0,.45)" : "transparent"},0 2px 8px #0008;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" style="transform:rotate(${mo.rumo}deg)"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="${mo.fresca ? "#D6FF00" : "#E4E7EC"}" stroke="#1E1F21" stroke-width="1" stroke-linejoin="round"/></svg></div>` }) })   // v572 — motorista: seta amarelo neon (posição antiga fica cinza)
           .bindTooltip(mo.rotulo, { direction: "top", offset: [0, -16], permanent: true, className: "" }).addTo(camada.current);
         // v567 — o motorista aparece, mas não entra no enquadramento (o zoom é só das demandas do dia)
       }
