@@ -144,7 +144,9 @@ export default function Rotas({ user, nova }) {
     if (!id) return;
     const y = (d?.demandas || []).find((z) => z.id === id);
     if (!y || (y.data === data && (!periodo || y.horarioTipo === periodo))) return;
-    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "mover", id, data, periodo }); carregar(); } catch (er) { alerta(er.message); }
+    // v567 — tira/põe o ponto na hora (o mapa reenquadra só nas demandas do dia), depois confirma com o servidor
+    setD((x) => (x ? { ...x, demandas: x.demandas.map((z) => (z.id === id ? { ...z, data, ...(periodo ? { horarioTipo: periodo } : {}) } : z)) } : x));
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "mover", id, data, periodo }); carregar(); } catch (er) { alerta(er.message); carregar(); }
   };
   const alvo = (data, periodo) => ({
     onDragOver: (e) => { if (!Array.from(e.dataTransfer.types || []).includes("text/rota-demanda")) return; e.preventDefault(); e.stopPropagation(); const k = periodo ? `${data}|${periodo}` : data; if (arr !== k) setArr(k); },
@@ -414,11 +416,11 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
         L.marker([mo.lat, mo.lng], { zIndexOffset: 2000, icon: L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17],
           html: `<div style="width:34px;height:34px;border-radius:17px;background:${mo.fresca ? "#FFF0E6" : "#EEF0F3"};border:2px solid #fff;box-shadow:0 1px 6px #0007;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(${mo.rumo}deg)"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="${mo.fresca ? "#FF6B1A" : "#98A2B3"}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></div>` }) })
           .bindTooltip(mo.rotulo, { direction: "top", offset: [0, -16], permanent: true, className: "" }).addTo(camada.current);
-        pts.push([mo.lat, mo.lng]);
+        // v567 — o motorista aparece, mas não entra no enquadramento (o zoom é só das demandas do dia)
       }
       // v436 — zoom o mais perto possível mostrando todos os pontos
       // v485 — a posição do motorista atualiza sem mexer no zoom (só reenquadra quando mudam os pontos do dia)
-      const chave = `${area}|${JSON.stringify(pontos)}|${fabrica?.lat}|${motoristas.length}`;
+      const chave = `${area}|${JSON.stringify(pontos.map((p) => [p.lat, p.lng]))}|${fabrica?.lat}`;   // v567 — reenquadra quando mudam os pontos do dia
       if (enq.current === chave) { setTimeout(() => m.invalidateSize(), 50); return; }
       enq.current = chave;
       const temFab = fabrica?.lat != null && area === "RMBH";
@@ -426,7 +428,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
         // v562 — o mapa ocupa a área toda (sem recorte) e o zoom é o maior possível: enquadra só as demandas
         //   (e os motoristas), zoom exato (sem degraus) e margem mínima; a fábrica aparece se estiver na área
         m.invalidateSize();
-        const alvo = pts.length - (temFab ? 1 : 0) >= 2 ? pts.slice(temFab ? 1 : 0) : pts;
+        const alvo = pts.length - (temFab ? 1 : 0) >= 2 ? pts.slice(temFab ? 1 : 0) : pts;   // demandas do dia (sem fábrica e sem motoristas)
         const fabNaArea = temFab && alvo.length === pts.length;
         if (alvo.length > 1) m.fitBounds(L.latLngBounds(alvo), { paddingTopLeft: [18, fabNaArea ? 40 : 18], paddingBottomRight: [18, 18], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
         else if (pts.length === 1) m.setView(pts[0], 15);
