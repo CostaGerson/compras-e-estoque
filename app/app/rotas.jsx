@@ -335,7 +335,7 @@ function agruparRota(l, render, onRota, onDespachar) {
     // v576 — o card da rota: cinza enquanto não despachada (com o play para despachar), laranja em andamento (com movimento), verde concluída
     const cx = st === "EM_EXECUCAO" ? { bg: "#FFE3D1", bd: C.accent } : st === "CONCLUIDA" ? { bg: C.greenSoft, bd: C.green } : { bg: "#E9ECF1", bd: "#B8C0CC" };
     return (
-      <div key={`R${g.bloco}`} className="rounded-lg p-1 min-w-0" style={{ background: cx.bg, border: `1px solid ${cx.bd}` }}>
+      <div key={`R${g.bloco}`} className="rounded-lg p-1 min-w-0" style={{ background: cx.bg }}>   {/* v578 — sem contorno */}
         <div className="flex items-stretch gap-1 min-w-0">
           <div className="flex-1 min-w-0 space-y-1">{it.map(render)}</div>
           <button type="button" onClick={(e) => { e.stopPropagation(); onRota?.(g.bloco); }} title={`Ver a rota ${g.bloco}`} className="shrink-0 rounded-md px-1.5 text-[10px] font-bold"
