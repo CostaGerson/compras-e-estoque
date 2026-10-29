@@ -257,16 +257,17 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const atribuida = !!f.responsavelId && Number(f.responsavelId) !== criador;
   const pessoal = f.natureza === "PESSOAL" && !atribuida;
   const publicaFinal = atribuida ? true : pessoal ? false : f.publica;
-  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, ...(n === "PESSOAL" ? { responsavelId: criador, publica: false } : {}) }));
+  // v565 — pessoal: sem projeto, sem colaborador (é de quem cria), sempre privada e sem dependências
+  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, ...(n === "PESSOAL" ? { responsavelId: criador, publica: false, projetoId: "", dependencias: [] } : {}) }));
   const dPrazo = f.prazo ? dUTC(f.prazo) : new Date();
   const salvar = async () => {
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
-      publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias, recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: Number(f.projetoId) || null };
+      publica: publicaFinal, subtarefas: f.subtarefas, dependencias: publicaFinal ? f.dependencias : [], recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
+      hora: f.hora || null, horaFim: f.horaFim || null, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: pessoal ? null : Number(f.projetoId) || null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
-      const id = r.tarefa?.id;
+      const id = r.tarefa?.id || (ed ? inicial.id : null);
       for (const a of arqs) if (id) await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: a.name, mime: a.type, conteudo: await readB64(a) });
       onOk();
     } catch (e) { setSt(false); setErro(e.message); }
@@ -285,7 +286,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Natureza
           <div className="flex gap-1 mt-1">
-            {[["FUNCIONAL", "Funcional"], ["PESSOAL", "Pessoal"]].map(([k, t]) => {
+            {[["PESSOAL", "Pessoal"], ["FUNCIONAL", "Funcional"]].map(([k, t]) => {
               const off = k === "PESSOAL" && atribuida;
               const sel = (pessoal ? "PESSOAL" : "FUNCIONAL") === k;
               return <button key={k} disabled={off} onClick={() => setNatureza(k)} title={off ? "Demanda para outra pessoa é sempre funcional e pública" : ""}
@@ -293,7 +294,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             })}
           </div>
         </div>
-        <label className="text-xs" style={{ color: C.sub }}>Projeto
+        {!pessoal && <label className="text-xs" style={{ color: C.sub }}>Projeto
           <div className="flex items-center gap-2 mt-1">
             {f.projetoId && <span className="rounded-[4px] shrink-0" style={{ width: 14, height: 14, background: (projetos.find((p) => p.id === Number(f.projetoId)) || {}).cor }} />}
             <select value={f.projetoId} onChange={(e) => set("projetoId", e.target.value)} className={inp} style={inpS}>
@@ -301,9 +302,9 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
               {projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
-        </label>
+        </label>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+      {!pessoal && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="text-xs" style={{ color: C.sub }}>Setor
           <select value={f.setor} onChange={(e) => { set("setor", e.target.value); set("responsavelId", ""); }} className={`${inp} mt-1`} style={inpS}>{SETORES_TAREFA.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
         </label>
@@ -314,7 +315,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           </select>
           <span className="flex items-center gap-1 mt-0.5 text-[10px]"><input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> mostrar pessoas de todos os setores</span>
         </label>
-      </div>
+      </div>}
       <label className="block text-xs mb-3" style={{ color: C.sub }}>Demanda
         <input value={f.titulo} onChange={(e) => set("titulo", e.target.value)} autoFocus placeholder="O que precisa ser feito" className={`${inp} mt-1`} style={inpS} />
         <textarea value={f.descricao} onChange={(e) => set("descricao", e.target.value)} rows={3} placeholder="Detalhes (opcional)" className={`${inp} mt-1`} style={{ ...inpS, resize: "vertical" }} />
@@ -334,12 +335,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             })}
           </div>
         </div>
-        <div className="text-xs" style={{ color: C.sub }}>Visibilidade
+        {!pessoal && <div className="text-xs" style={{ color: C.sub }}>Visibilidade
           <div className="flex gap-1 mt-1">
             <button disabled={atribuida || pessoal} onClick={() => set("publica", true)} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={publicaFinal ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}><Globe size={12} /> Pública</button>
             <button disabled={atribuida || pessoal} onClick={() => set("publica", false)} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={!publicaFinal ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}><Lock size={12} /> Privada</button>
           </div>
-        </div>
+        </div>}
       </div>
       {(atribuida || pessoal || !publicaFinal) && <div className="text-[11px] mb-3 -mt-1" style={{ color: C.sub }}>
         {atribuida ? "Demanda para outra pessoa: sempre funcional e pública." : pessoal ? "Pessoal: sempre privada — só você enxerga." : "Privada: só o colaborador que recebe enxerga a demanda."}</div>}
@@ -347,8 +348,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       {/* recorrência */}
       {/* v283 — recorrência também na edição: marcar uma avulsa como rotina, trocar a regra (vale desta em diante) ou deixar de repetir */}
       {(
-        <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2 }}>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="rounded-lg p-3 mb-3 min-w-0 overflow-hidden" style={{ background: C.panel2 }}>
+          <div className="ce-rec flex flex-wrap items-center gap-2 text-xs min-w-0">
             <Repeat size={14} style={{ color: C.blue }} />
             <select value={f.rec.tipo} onChange={(e) => setRec("tipo", e.target.value)} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{TIPOS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
             {["SEMANAL", "QUINZENAL", "MENSAL_NTH"].includes(f.rec.tipo) && f.rec.tipo === "MENSAL_NTH" && (
@@ -359,11 +360,11 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             )}
             {["MENSAL_DIA", "ANUAL"].includes(f.rec.tipo) && <>dia <input type="number" min={1} max={31} value={f.rec.dia ?? dPrazo.getUTCDate()} onChange={(e) => setRec("dia", Number(e.target.value))} className="w-14 rounded-lg px-2 py-1 text-xs outline-none" style={inpS} /></>}
             {f.rec.tipo === "ANUAL" && <select value={f.rec.mes ?? dPrazo.getUTCMonth() + 1} onChange={(e) => setRec("mes", Number(e.target.value))} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS}>{MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>}
-            {recorrente && <>até <input type="date" value={f.rec.ate || ""} onChange={(e) => setRec("ate", e.target.value)} className="rounded-lg px-2 py-1 text-xs outline-none" style={inpS} /><span style={{ color: C.sub }}>(vazio = sem fim)</span></>}
+            {recorrente && <span className="flex flex-wrap items-center gap-2 min-w-0">até <input type="date" value={f.rec.ate || ""} onChange={(e) => setRec("ate", e.target.value)} className="rounded-lg px-2 py-1 text-xs outline-none min-w-0" style={inpS} /><span style={{ color: C.sub }}>(vazio = sem fim)</span></span>}
           </div>
-          {recorrente && f.rec.tipo !== "DIARIA" && <label className="flex items-center gap-2 text-xs mt-2" style={{ color: C.text }}>
+          {recorrente && f.rec.tipo !== "DIARIA" && <label className="flex items-start gap-2 text-xs mt-2" style={{ color: C.text }}>
             <input type="checkbox" checked={!!f.rec.uteis} onChange={(e) => setRec("uteis", e.target.checked)} /> Só em dias úteis — se cair em sábado, domingo ou feriado, passa para o próximo dia útil</label>}
-          {recorrente && f.rec.tipo === "DIARIA" && <label className="flex items-center gap-2 text-xs mt-2" style={{ color: C.text }}>
+          {recorrente && f.rec.tipo === "DIARIA" && <label className="flex items-start gap-2 text-xs mt-2" style={{ color: C.text }}>
             <input type="checkbox" checked={!!f.rec.uteis} onChange={(e) => setRec("uteis", e.target.checked)} /> Pular também os feriados nacionais</label>}
           {ed && inicial.serieId && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Mudar a repetição vale desta ocorrência em diante · "Não se repete" encerra a rotina depois desta.</div>}
           {ed && !inicial.serieId && recorrente && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Esta demanda vira a primeira ocorrência da rotina.</div>}
@@ -388,8 +389,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         </div>
       </div>
 
-      {/* dependências */}
-      <div className="mb-3">
+      {/* dependências — v565: tarefa privada (e pessoal) não tem dependências */}
+      {publicaFinal && <div className="mb-3">
         <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Link2 size={13} /> Depende da conclusão de (demandas públicas de qualquer pessoa)</div>
         {depsSel.map((t) => <div key={t.id} className="flex items-center gap-2 text-xs py-0.5"><span className="font-semibold">#{t.id}</span><span className="flex-1 truncate">{t.titulo}</span><span style={{ color: C.sub }}>{t.responsavelNome} · {dBR(t.prazo)}</span><button onClick={() => set("dependencias", f.dependencias.filter((x) => x !== t.id))} style={{ color: C.sub }}><X size={13} /></button></div>)}
         <div className="relative">
@@ -398,16 +399,21 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             {depsOpc.map((t) => <button key={t.id} onClick={() => { set("dependencias", [...f.dependencias, t.id]); setBuscaDep(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">#{t.id} {t.titulo} <span style={{ color: C.sub }}>· {t.responsavelNome} · {dBR(t.prazo)}</span></button>)}
           </div>}
         </div>
-      </div>
+      </div>}
 
-      {/* arquivos (na criação; depois, pelo detalhe) */}
-      {!ed && (
+      {/* arquivos — v565: também na edição (a tarefa da agenda abre direto na edição) */}
+      {(
         <div>
-          <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos</div>
-          <label className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer" style={{ background: C.panel2, color: C.text }}><Upload size={12} /> anexar
+          {/* v565 — anexos mais limpos: área de toque maior e lista espaçada */}
+          <div className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos</div>
+          <label className="flex items-center justify-center gap-2 rounded-xl text-sm cursor-pointer py-4 px-3" style={{ border: `1.5px dashed ${C.line}`, color: C.sub, background: C.panel }}>
+            <Upload size={16} style={{ color: C.accent }} /> <span><b style={{ color: C.text }}>Anexar arquivos</b> · fotos, PDFs, planilhas</span>
             <input type="file" multiple className="hidden" onChange={(e) => { setArqs((a) => [...a, ...e.target.files]); e.target.value = ""; }} />
           </label>
-          {arqs.map((a, i) => <div key={i} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} /> <span className="flex-1 truncate">{a.name}</span><button onClick={() => setArqs((x) => x.filter((_, j) => j !== i))} style={{ color: C.sub }}><X size={12} /></button></div>)}
+          {arqs.length > 0 && <div className="mt-2 flex flex-col gap-1.5">
+            {arqs.map((a, i) => <div key={i} className="flex items-center gap-2.5 text-xs rounded-lg px-3 py-2" style={{ background: C.panel2 }}><FileText size={14} style={{ color: C.sub }} /> <span className="flex-1 truncate">{a.name}</span>
+              <button onClick={() => setArqs((x) => x.filter((_, j) => j !== i))} className="p-1 rounded" title="Tirar" style={{ color: C.sub }}><X size={14} /></button></div>)}
+          </div>}
         </div>
       )}
     </Janela>
@@ -617,7 +623,8 @@ export function Agenda({ user }) {
   const [sobre, setSobre] = useState(null);
   const [dir, setDir] = useState(0);                 // direção da navegação (animação)
   const [menuCard, setMenuCard] = useState(null);    // { x, y, t } — botão direito
-  const [sobreCard, setSobreCard] = useState(null);  // v561 — card sobre o qual a demanda arrastada vai ser posta (fica acima dele)
+  const [sobreCard, setSobreCard] = useState(null);
+  const rolouHoje = useRef(false);   // v565 — celular: abre já no dia de hoje  // v561 — card sobre o qual a demanda arrastada vai ser posta (fica acima dele)
   const H = hojeISO();
   const mobile = useMobile();   // v550
   const ano = Number(ref.slice(0, 4)), mes = Number(ref.slice(5, 7));
@@ -641,7 +648,7 @@ export function Agenda({ user }) {
   Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
-  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: visao === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publica: visao !== "PESSOAL" });
+  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: visao === "FUNCIONAL" || projetoId ? "FUNCIONAL" : "PESSOAL", publica: visao === "FUNCIONAL" || !!projetoId });   // v565 — nova tarefa começa pessoal
   const soltar = async (dia) => {
     const t = arrastando; setArrastando(null); setSobre(null);
     if (!t || t.prazo === dia) return;
@@ -760,7 +767,8 @@ export function Agenda({ user }) {
                   {dias.map((dia, k) => {
                     const l = porDia[dia] || [], hoje = dia === H;
                     return (
-                      <div key={dia} className="px-3 py-2.5 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.linha}`, background: hoje ? A.azulSoft : A.fundo }}>
+                      <div key={dia} ref={hoje ? (el) => { if (el && d && !rolouHoje.current) { rolouHoje.current = true; setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120); } } : undefined}
+                        className="px-3 py-2.5 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.linha}`, background: hoje ? A.azulSoft : A.fundo, scrollMarginTop: 8 }}>
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center justify-center rounded-md font-semibold" style={{ minWidth: 34, height: 32, fontSize: 18, background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : A.texto }}>{Number(dia.slice(8))}</span>
                           <span className="text-sm font-semibold" style={{ color: hoje ? A.azul : A.sub }}>{SEM_SEG[k % 7]}{hoje ? " · hoje" : ""}</span>
@@ -853,6 +861,9 @@ export function Agenda({ user }) {
           </div>
         )}
       </div>
+      {/* v565 — celular: + fixo no canto da tela (continua visível ao rolar) */}
+      {mobile && !form && !abrir && <button onClick={() => novaNoDia(H)} title="Nova tarefa" className="fixed z-30 flex items-center justify-center rounded-full shadow-xl"
+        style={{ right: 18, bottom: "calc(20px + env(safe-area-inset-bottom))", width: 58, height: 58, background: A.azul, color: "#fff" }}><Plus size={28} /></button>}
       {form && <TarefaForm user={user} inicial={form} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} editarDireto />}
       {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}

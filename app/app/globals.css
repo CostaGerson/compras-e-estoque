@@ -107,3 +107,5 @@ input[list]::-webkit-list-button{display:none!important}
    o fundo com a cor de terreno do OpenStreetMap esconde a fresta e os ladrilhos não ficam em camada própria (sem fade) */
 .ce-mapa.leaflet-container { background: #F2EFE9 !important; }
 .ce-mapa .leaflet-tile { will-change: auto !important; transition: none !important; }
+/* v565 — recorrência da tarefa: no celular os campos não passam da largura do card */
+.ce-rec select, .ce-rec input { max-width: 100%; }

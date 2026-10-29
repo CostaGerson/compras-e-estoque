@@ -230,6 +230,11 @@ export default function Home() {
   useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t);
     const q = new URLSearchParams(window.location.search).get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
+  // v565 — no celular o sistema abre direto na agenda (uma vez por aba: depois volta para a tela em que estava)
+  useEffect(() => {
+    if (!user?.id) return;
+    try { if (window.innerWidth < 768 && !sessionStorage.getItem("ce_mob_ini")) { sessionStorage.setItem("ce_mob_ini", "1"); setView("agenda"); } } catch {}
+  }, [user?.id]);
   useEffect(() => {
     setUser(lerSessao()); setCarregouSessao(true);
     try { setTokenReset(new URLSearchParams(window.location.search).get("redefinir")); } catch {}
