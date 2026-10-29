@@ -109,3 +109,8 @@ input[list]::-webkit-list-button{display:none!important}
 .ce-mapa .leaflet-tile { will-change: auto !important; transition: none !important; }
 /* v565 — recorrência da tarefa: no celular os campos não passam da largura do card */
 .ce-rec select, .ce-rec input { max-width: 100%; }
+/* v571 — rotas ao vivo: o ponto laranja percorre a perna atual (movimento entre os pontos); parado na parada, pulsa leve */
+@keyframes ce-percurso { 0% { left: 0%; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+.ce-percurso { animation: ce-percurso 2.4s linear infinite; }
+@keyframes ce-parado { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,26,.35); } 50% { box-shadow: 0 0 0 5px rgba(255,107,26,0); } }
+.ce-parado { animation: ce-parado 2s ease-in-out infinite; }
