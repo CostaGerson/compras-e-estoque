@@ -45,7 +45,7 @@ async function gerarDaSerie(s, limite) {
     await prisma.tarefa.createMany({ skipDuplicates: true, data: datas.map((d) => ({
       titulo: s.titulo, descricao: s.descricao, setor: s.setor, responsavelId: s.responsavelId, responsavelNome: s.responsavelNome,
       criadoPorId: s.criadoPorId, criadoPorNome: s.criadoPorNome, prazo: dUTC(d), tipo: "ROTINA", publica: s.publica, serieId: s.id,
-      hora: s.hora, horaFim: s.horaFim, natureza: s.natureza, projetoId: s.projetoId,
+      hora: s.hora, horaFim: s.horaFim, lembreteMin: s.lembreteMin, natureza: s.natureza, projetoId: s.projetoId,
       subtarefas: (s.subtarefas || []).map((x) => ({ texto: x.texto, feita: false })), dependencias: [],
     })) });
   }
@@ -58,7 +58,7 @@ const resumo = (t, abertas = {}) => ({
   serieId: t.serieId, recorrencia: t.recorrencia || null, subtarefas: t.subtarefas || [], dependencias: t.dependencias || [],
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
-  hora: t.hora || null, horaFim: t.horaFim || null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
+  hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
 });
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
@@ -119,6 +119,8 @@ function limpar(b) {
     dependencias: [...new Set((Array.isArray(b.dependencias) ? b.dependencias : []).map(Number).filter(Boolean))],
     hora: /^\d{2}:\d{2}$/.test(b.hora || "") ? b.hora : null,
     horaFim: /^\d{2}:\d{2}$/.test(b.horaFim || "") ? b.horaFim : null,
+    // v589 — aviso prévio em minutos (padrão 30; null = sem aviso; até 7 dias)
+    lembreteMin: b.lembreteMin === null ? null : b.lembreteMin === undefined || b.lembreteMin === "" ? 30 : Math.min(10080, Math.max(0, Math.round(Number(b.lembreteMin) || 0))),
     natureza: b.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL",
     projetoId: Number(b.projetoId) || null,
   };
@@ -182,7 +184,7 @@ export async function editar(id, b, u) {
   // alterar também as próximas da série (e a própria série)
   if (x.serieId && b.aplicarSerie) {
     const comuns = { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
-      hora: data.hora, horaFim: data.horaFim, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) };
+      hora: data.hora, horaFim: data.horaFim, lembreteMin: data.lembreteMin, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) };
     await prisma.tarefa.update({ where: { id: x.serieId }, data: { ...comuns, subtarefas: data.subtarefas.map((s) => ({ texto: s.texto, feita: false })) } });
     await prisma.tarefa.updateMany({ where: { serieId: x.serieId, prazo: { gt: x.prazo }, status: "ABERTA" }, data: comuns });
   }

@@ -262,12 +262,45 @@ export function LinhaTarefa({ t, proj, user, H, agora, onAbrir, onAcao, compacta
   );
 }
 
+/* v589 — aviso prévio no celular antes do início (padrão 30 min; escolhe da lista ou digita outro período) */
+const AVISOS = [[null, "Sem aviso"], [0, "Na hora do início"], [5, "5 min antes"], [10, "10 min antes"], [15, "15 min antes"], [30, "30 min antes"], [60, "1 h antes"], [120, "2 h antes"], [1440, "1 dia antes"]];
+const UNID_AVISO = [[1, "min"], [60, "horas"], [1440, "dias"]];
+function AvisoPrevio({ valor, onChange }) {
+  const preset = AVISOS.some(([m]) => m === valor);
+  const [outro, setOutro] = useState(!preset);
+  const unid0 = valor && valor % 1440 === 0 ? 1440 : valor && valor % 60 === 0 ? 60 : 1;
+  const [unid, setUnid] = useState(unid0);
+  const [qtd, setQtd] = useState(valor ? String(valor / unid0) : "");
+  const aplicar = (q, u) => { const n = Math.round(Number(String(q).replace(",", ".")) * u); if (n >= 0 && n <= 10080) onChange(n); };
+  return (
+    <div className="flex flex-wrap items-end gap-2 mb-3 text-xs" style={{ color: C.sub }}>
+      <label className="flex-1 min-w-[180px]">Aviso no celular
+        <select value={outro ? "OUTRO" : String(valor)} onChange={(e) => {
+          const v = e.target.value;
+          if (v === "OUTRO") { setOutro(true); if (!qtd) { setQtd("45"); setUnid(1); onChange(45); } else aplicar(qtd, unid); return; }
+          setOutro(false); onChange(v === "null" ? null : Number(v));
+        }} className={`${inp} mt-1`} style={inpS}>
+          {AVISOS.map(([m, t]) => <option key={String(m)} value={String(m)}>{t}</option>)}
+          <option value="OUTRO">Outro período…</option>
+        </select>
+      </label>
+      {outro && <>
+        <input value={qtd} onChange={(e) => { setQtd(e.target.value); aplicar(e.target.value, unid); }} inputMode="decimal" className={inp} style={{ ...inpS, width: 80 }} />
+        <select value={unid} onChange={(e) => { const u = Number(e.target.value); setUnid(u); aplicar(qtd, u); }} className={inp} style={{ ...inpS, width: 100 }}>
+          {UNID_AVISO.map(([u, t]) => <option key={u} value={u}>{t}</option>)}
+        </select>
+        <span className="pb-2">antes (máx. 7 dias)</span>
+      </>}
+    </div>
+  );
+}
+
 /* ======================= formulário (nova / editar) ======================= */
 export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, onOk }) {
   const ed = !!inicial.id;
   const criador = ed ? inicial.criadoPorId : user.id;
   const [f, setF] = useState({
-    hora: inicial.hora || "", horaFim: inicial.horaFim || "", natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
+    hora: inicial.hora || "", horaFim: inicial.horaFim || "", lembreteMin: inicial.lembreteMin === undefined ? 30 : inicial.lembreteMin, natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
     titulo: inicial.titulo || "", descricao: inicial.descricao || "", setor: inicial.setor || setorTarefaDe(user), responsavelId: inicial.responsavelId || "",
     prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" ? "URGENTE" : "PADRAO", publica: inicial.publica !== false,
     rec: { tipo: "NENHUMA", ...(inicial.recorrencia || {}) }, subtarefas: inicial.subtarefas || [], dependencias: inicial.dependencias || [], aplicarSerie: false,
@@ -298,7 +331,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: publicaFinal ? f.dependencias : [], recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: pessoal ? null : Number(f.projetoId) || null };
+      hora: f.hora || null, horaFim: f.horaFim || null, lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: pessoal ? null : Number(f.projetoId) || null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -359,6 +392,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <label className="text-xs" style={{ color: C.sub }}>Horário (opcional)<input type="time" value={f.hora} onChange={(e) => set("hora", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="time" value={f.horaFim} disabled={!f.hora} onChange={(e) => set("horaFim", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
       </div>
+      {f.hora && <AvisoPrevio valor={f.lembreteMin} onChange={(v) => set("lembreteMin", v)} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
@@ -767,7 +801,7 @@ export function Agenda({ user }) {
             ) : <div className="text-xl font-bold" style={{ color: A.texto }}>{proj ? proj.nome : "Agenda"}</div>}
             {mobile && <button onClick={() => setProjForm({})} title="Novo projeto" className="p-2 rounded-lg shrink-0" style={{ border: `1px solid ${A.linha}`, color: A.sub }}><Plus size={18} /></button>}
           </div>
-          <div className="pb-2"><AvisosPush user={user} C={C} rotulo="lembretes no celular (30 min antes de cada tarefa com horário)" compacto /></div>
+          <div className="pb-2"><AvisosPush user={user} C={C} rotulo="lembretes no celular (antes de cada tarefa com horário; padrão 30 min)" compacto /></div>
           <div className={`flex items-center gap-1 pb-2 ${mobile ? "flex-wrap" : ""}`}>
             <Aba k="calendario" t="Calendário" atual={tela} set={setTela} />
             <Aba k="tarefas" t="Tarefas" atual={tela} set={setTela} />
