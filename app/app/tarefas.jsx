@@ -676,6 +676,69 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
   );
 }
 
+/* v590 — celular: mês no estilo do calendário do iPhone (domingo primeiro, hoje em círculo vermelho, tarefas em pílulas).
+   Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
+const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
+const corPilula = (t, proj) => proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
+function MesMobile({ ref0, H, porDia, P, fotos, onDia, onMover, onNova, onAbrir, onConcluir, onSemana }) {
+  const ano = Number(ref0.slice(0, 4)), mes = Number(ref0.slice(5, 7));
+  const [sel, setSel] = useState(ref0.slice(0, 7) === H.slice(0, 7) ? H : `${ref0.slice(0, 7)}-01`);
+  useEffect(() => { setSel(ref0.slice(0, 7) === H.slice(0, 7) ? H : `${ref0.slice(0, 7)}-01`); }, [ref0.slice(0, 7)]);
+  const p1 = `${ref0.slice(0, 7)}-01`, desloc = dUTC(p1).getUTCDay();   // domingo = 0
+  const nDias = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  const cel = [...Array(desloc).fill(null), ...Array.from({ length: nDias }, (_, k) => somaDia(p1, k))];
+  while (cel.length % 7) cel.push(null);
+  const semanas = Array.from({ length: cel.length / 7 }, (_, k) => cel.slice(k * 7, k * 7 + 7));
+  const toque = useRef(null);
+  const lSel = porDia[sel] || [];
+  return (
+    <div onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
+      onTouchEnd={(e) => { const t0 = toque.current; toque.current = null; if (!t0) return; const dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onMover(dx < 0 ? 1 : -1); }}>
+      <div className="px-4 pt-3 pb-1 flex items-baseline gap-2">
+        <span className="text-[30px] font-bold leading-none" style={{ color: A.texto }}>{MESES[mes - 1].charAt(0).toUpperCase() + MESES[mes - 1].slice(1)}</span>
+        <span className="text-base font-semibold" style={{ color: A.sub }}>{ano}</span>
+      </div>
+      <div className="grid grid-cols-7 pb-1" style={{ borderBottom: `1px solid ${A.linha}` }}>
+        {SEM_DOM.map((x, i) => <div key={i} className="text-center text-[11px] font-semibold" style={{ color: A.sub }}>{x}</div>)}
+      </div>
+      {semanas.map((sem, i) => (
+        <div key={i} className="grid grid-cols-7" style={{ borderBottom: `1px solid ${A.linha}` }}>
+          {sem.map((dia, k) => {
+            if (!dia) return <div key={k} style={{ minHeight: 92 }} />;
+            const l = porDia[dia] || [], hoje = dia === H, marcado = dia === sel, fds = k === 0 || k === 6;
+            return (
+              <button key={dia} onClick={() => { setSel(dia); onDia?.(dia); }} className="flex flex-col items-center pt-1.5 pb-1 min-w-0" style={{ minHeight: 92 }}>
+                <span className="inline-flex items-center justify-center rounded-full text-[17px]" style={{ width: 32, height: 32, fontWeight: hoje || marcado ? 700 : 500,
+                  background: hoje ? "#FF3B30" : marcado ? A.texto : "transparent", color: hoje || marcado ? "#fff" : fds ? "#8E8E93" : A.texto, transition: "background .15s" }}>{Number(dia.slice(8))}</span>
+                <div className="w-full flex flex-col gap-[3px] mt-1 px-[2px]">
+                  {l.slice(0, 3).map((t) => { const c = corPilula(t, P[t.projetoId]); return (
+                    <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c }}>
+                      {t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
+                    </span>); })}
+                  {l.length > 3 && <span className="text-[10px] font-semibold" style={{ color: A.sub }}>+{l.length - 3}</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+      {/* tarefas do dia tocado */}
+      <div className="px-3 pt-3 pb-24">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-bold" style={{ color: sel === H ? "#FF3B30" : A.texto }}>{sel === H ? "Hoje" : ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][dUTC(sel).getUTCDay()]}, {Number(sel.slice(8))} de {MESES[Number(sel.slice(5, 7)) - 1]}</span>
+          <span className="flex-1" />
+          <button onClick={() => onSemana(sel)} className="text-xs font-semibold px-2 py-1.5 rounded-lg" style={{ color: A.azul }}>Ver semana</button>
+          <button onClick={() => onNova(sel)} title="Nova tarefa neste dia" className="p-1.5 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {lSel.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => onAbrir(t.id)} onConcluir={() => onConcluir(t)} />)}
+          {!lSel.length && <div className="text-sm py-3 text-center" style={{ color: "#B7B3B3" }}>Nenhuma tarefa neste dia.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // v561 — períodos do dia (como nas rotas): tarde = horário a partir de 12:00; sem horário fica na manhã
 const PERIODOS = [["Manhã", "MANHA"], ["Tarde", "TARDE"]];
 const periodoDe = (t) => (String(t.hora || "") >= "12:00" ? "TARDE" : "MANHA");
@@ -803,8 +866,14 @@ export function Agenda({ user }) {
           </div>
           <div className="pb-2"><AvisosPush user={user} C={C} rotulo="lembretes no celular (antes de cada tarefa com horário; padrão 30 min)" compacto /></div>
           <div className={`flex items-center gap-1 pb-2 ${mobile ? "flex-wrap" : ""}`}>
-            <Aba k="calendario" t="Calendário" atual={tela} set={setTela} />
-            <Aba k="tarefas" t="Tarefas" atual={tela} set={setTela} />
+            {mobile ? <>
+              {/* v590 — celular: semanal e mensal no lugar de Calendário / Tarefas */}
+              <Aba k="semana" t="Semanal" atual={modo} set={(k) => { setTela("calendario"); setModo(k); }} />
+              <Aba k="mes" t="Mensal" atual={modo} set={(k) => { setTela("calendario"); setModo(k); }} />
+            </> : <>
+              <Aba k="calendario" t="Calendário" atual={tela} set={setTela} />
+              <Aba k="tarefas" t="Tarefas" atual={tela} set={setTela} />
+            </>}
             <span className="w-4" />
             {mobile ? (
               <select value={visao} onChange={(e) => setVisao(e.target.value)} className="ml-auto rounded-md px-2 py-1.5 text-sm font-semibold" style={{ border: `1px solid ${A.linha}`, color: A.texto, background: A.fundo }}>
@@ -823,11 +892,11 @@ export function Agenda({ user }) {
               <button onClick={() => mover(-1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronLeft size={mobile ? 22 : 18} /></button>
               <button onClick={() => { setDir(0); setRef(H); }} className={mobile ? "text-sm px-2 py-2 font-semibold" : "text-sm px-1"} style={{ color: A.texto }}>Hoje</button>
               <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
-              <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>
+              {!(mobile && modo === "mes") && <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>}
               <span className="flex-1" />
-              <div className="flex rounded-md p-0.5" style={{ background: A.fundo2, border: `1px solid ${A.linha}` }}>
+              {!mobile && <div className="flex rounded-md p-0.5" style={{ background: A.fundo2, border: `1px solid ${A.linha}` }}>
                 {[["semana", "Semanas"], ["mes", "Mês"]].map(([k, t]) => <button key={k} onClick={() => setModo(k)} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: modo === k ? "#fff" : "transparent", color: modo === k ? A.texto : A.sub, boxShadow: modo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none", transition: "all .18s" }}>{t}</button>)}
-              </div>
+              </div>}
             </div>
             {!d && <div className="p-6"><Loader2 size={18} className="animate-spin" style={{ color: A.sub }} /></div>}
             <div key={`${modo}-${dias[0]}`} className={dir > 0 ? "anim-dir" : dir < 0 ? "anim-esq" : "anim-entrar"} style={{ flex: 1 }}>
@@ -863,18 +932,8 @@ export function Agenda({ user }) {
                   })}
                 </div>
               ) : mobile ? (
-                <div className="grid grid-cols-7">
-                  {SEM_SEG.map((s0) => <div key={s0} className="text-center text-[11px] py-1 font-semibold" style={{ color: A.sub }}>{s0}</div>)}
-                  {dias.map((dia) => {
-                    const fora = Number(dia.slice(5, 7)) !== mes, l = porDia[dia] || [], hoje = dia === H;
-                    return (
-                      <button key={dia} onClick={() => { setModo("semana"); setRef(dia); }} className="flex flex-col items-center gap-0.5 py-2" style={{ minHeight: 58, borderTop: `1px solid ${A.linha}`, background: fora ? A.fundo2 : A.fundo }}>
-                        <span className="inline-flex items-center justify-center rounded-full font-semibold" style={{ width: 30, height: 30, fontSize: 15, background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : fora ? "#B7B3B3" : A.texto }}>{Number(dia.slice(8))}</span>
-                        {l.length > 0 && <span className="text-[11px] font-bold px-1.5 rounded-full" style={{ background: l.some((t) => t.tipo === "URGENTE") ? A.cardVermBorda : A.azulSoft, color: A.texto }}>{l.length}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={setAbrir}
+                  onConcluir={alternarConcluida} onSemana={(dia) => { setModo("semana"); setRef(dia); }} />
               ) : (
               <div className="grid grid-cols-7" style={{ height: "100%" }}>
                 {dias.map((dia, k) => {
