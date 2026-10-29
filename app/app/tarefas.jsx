@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
+  Eye, EyeOff,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -712,7 +713,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, onDia, onMover, onNova, onAbrir,
                   background: hoje ? "#FF3B30" : marcado ? A.texto : "transparent", color: hoje || marcado ? "#fff" : fds ? "#8E8E93" : A.texto, transition: "background .15s" }}>{Number(dia.slice(8))}</span>
                 <div className="w-full flex flex-col gap-[3px] mt-1 px-[2px]">
                   {l.slice(0, 3).map((t) => { const c = corPilula(t, P[t.projetoId]); return (
-                    <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c }}>
+                    <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c, ...(t.status === "CONCLUIDA" ? { textDecoration: "line-through", opacity: 0.5 } : {}) }}>
                       {t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
                     </span>); })}
                   {l.length > 3 && <span className="text-[10px] font-semibold" style={{ color: A.sub }}>+{l.length - 3}</span>}
@@ -775,8 +776,13 @@ export function Agenda({ user }) {
   const P = useMemo(() => Object.fromEntries(projetos.map((p) => [p.id, p])), [projetos]);
   const fotos = useMemo(() => Object.fromEntries((d?.equipe || []).map((x) => [x.id, x.foto])), [d]);
   // v283 — concluída sai do calendário (continua na lista de Tarefas, filtro "Concluídas")
-  const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao));
-  const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao]);
+  // v591 — olho: mostra as concluídas (ficam guardadas; esmaecidas e riscadas no calendário). Lembra neste navegador.
+  const [verConcl, setVerConcl] = useState(false);
+  useEffect(() => { try { setVerConcl(localStorage.getItem("ce_agenda_concl") === "1"); } catch {} }, []);
+  const alternarConcl = () => setVerConcl((v) => { try { localStorage.setItem("ce_agenda_concl", v ? "0" : "1"); } catch {} return !v; });
+  const nConcl = (d?.tarefas || []).filter((t) => t.status === "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao)).length;
+  const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CANCELADA" && (verConcl || t.status !== "CONCLUIDA") && (visao === "GERAL" || t.natureza === visao));
+  const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl]);
   // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
   Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
@@ -894,6 +900,10 @@ export function Agenda({ user }) {
               <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
               {!(mobile && modo === "mes") && <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>}
               <span className="flex-1" />
+              <button onClick={alternarConcl} title={verConcl ? "Esconder concluídas" : "Mostrar concluídas"} className={`rounded-md flex items-center gap-1 text-xs font-semibold ${mobile ? "p-2" : "px-2 py-1.5"}`}
+                style={{ color: verConcl ? A.azul : A.sub, background: verConcl ? A.azulSoft : "transparent", transition: "all .18s" }}>
+                {verConcl ? <Eye size={mobile ? 20 : 16} /> : <EyeOff size={mobile ? 20 : 16} />}{nConcl > 0 && <span>{nConcl}</span>}
+              </button>
               {!mobile && <div className="flex rounded-md p-0.5" style={{ background: A.fundo2, border: `1px solid ${A.linha}` }}>
                 {[["semana", "Semanas"], ["mes", "Mês"]].map(([k, t]) => <button key={k} onClick={() => setModo(k)} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: modo === k ? "#fff" : "transparent", color: modo === k ? A.texto : A.sub, boxShadow: modo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none", transition: "all .18s" }}>{t}</button>)}
               </div>}
