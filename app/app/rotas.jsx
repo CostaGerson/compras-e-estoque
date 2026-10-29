@@ -389,7 +389,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
     carregarLeaflet().then((L) => {
       if (!vivo || !ref.current) return;
       if (!mapa.current) {
-        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, zoomSnap: 0.25, zoomDelta: 0.5, fadeAnimation: false });   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
+        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, wheelPxPerZoomLevel: 90, zoomSnap: 0.25, zoomDelta: 0.5, fadeAnimation: false });   // v560 — zoom com a rodinha do mouse   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(mapa.current);   // v428 — CARTO passou a exigir chave · v459 — OSM bloqueia pedido sem Referer (o domínio com https mandava no-referrer)
         camada.current = L.layerGroup().addTo(mapa.current);
       }
