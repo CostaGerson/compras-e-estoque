@@ -280,7 +280,7 @@ function CasarPedidoNota({ n, i, altN }) {
           <input type="radio" name={`casar-${i}`} checked={esc === "__NAO__"} onChange={() => set("__NAO__")} /> <span><b>Não casar agora</b> <span style={{ color: C.sub }}>— a NF fica no movimento fiscal sem pedido; os concluídos continuam com a crítica de falta de NF</span></span>
         </label>
       </div>
-      {!esc && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem escolha: o sistema tenta ligar sozinho (O.C., itens, NFs do KM).</div>}
+      {!esc && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Sem escolha: a NF fica sem pedido — o casamento é sempre manual (aqui ou na Produção).</div>}
     </div>
   );
 }

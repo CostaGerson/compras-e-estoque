@@ -174,3 +174,34 @@ export async function financeiroPedido(p) {
   return { nfs: out, contasTotal: r2(contas.reduce((s, c) => s + c.valor, 0)), recebido: r2(contas.filter((c) => c.status === "PAGO").reduce((s, c) => s + c.valor, 0)),
     emAberto: r2(contas.filter((c) => c.status === "ABERTO").reduce((s, c) => s + c.valor, 0)) };
 }
+
+// v556 — remove (uma vez) os casamentos NF ↔ pedido feitos pelas regras automáticas (itens, valor, KM, upload) a partir de out/2026.
+// Ficam só os manuais (casamento na conferência/Produção e "Incluir faturamento"). Pedido volta para em andamento com o saldo.
+const K_REMOVE = "FAT|REMOVE_AUTO_V556";
+const MANUAIS = ["CASAMENTO MANUAL", "INCLUIR FATURAMENTO"];
+const MARCAS = /^(FATURADO PELA\(S\) NF|FATURADO PELO VALOR DA NF|PARCIALMENTE FATURADO|FATURADO: NF)/;
+export async function removerCasamentosAutomaticos({ desde = "2026-10-01" } = {}) {
+  if (await prisma.finConfig.findUnique({ where: { chave: K_REMOVE } }).catch(() => null)) return null;
+  const { pecasDoPedido, QUEM_KM } = await import("@/lib/pedidos");
+  const d0 = new Date(`${desde}T00:00:00-03:00`);
+  const l = await prisma.pedidoVenda.findMany({ where: { interno: false, updatedAt: { gte: d0 }, OR: [
+    { status: "FATURADO", atualizadoPorNome: { in: ["SISTEMA", QUEM_KM] } }, { NOT: { faturamentoPendente: { equals: null } } }, { NOT: { nfsFaturadas: { equals: null } } }] },
+    select: { id: true, numero: true, status: true, total: true, qtd: true, cronoItens: true, qtEntregar: true, obs: true, nfsFaturadas: true, faturamentoPendente: true, nfNumero: true, faturadoEm: true, atualizadoPorNome: true } });
+  const log = [];
+  for (const p of l) {
+    const todas = Array.isArray(p.nfsFaturadas) ? p.nfsFaturadas : [];
+    const manuais = todas.filter((x) => x.modo === "MANUAL");
+    const pend = p.faturamentoPendente && !MANUAIS.includes(p.faturamentoPendente.origem) ? p.faturamentoPendente : null;
+    const fatAuto = p.status === "FATURADO" && ["SISTEMA", QUEM_KM].includes(p.atualizadoPorNome) && !(manuais.length && /CASADA|INCLU[ÍI]DA|CASAMENTO MANUAL|INCLUIR FATURAMENTO/.test(String(p.obs || "")));
+    if (!pend && !fatAuto && manuais.length === todas.length) continue;
+    const total = pecasDoPedido(p);
+    const vf = r2(manuais.reduce((s, x) => s + (Number(x.valor) || 0), 0)), pf = manuais.reduce((s, x) => s + (Number(x.pecas) || 0), 0);
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: {
+      status: "ANDAMENTO", nfsFaturadas: manuais, nfNumero: manuais.map((x) => x.numero).join(", ") || null, faturadoEm: null,
+      faturamentoPendente: pend ? null : p.faturamentoPendente, vlEntregar: r2(Math.max(0, Number(p.total) - vf)), qtEntregar: total ? Math.max(0, total - pf) : null,
+      obs: String(p.obs || "").split(" · ").filter((x) => !MARCAS.test(x)).join(" · ") || null, atualizadoPorNome: "SISTEMA (V556)" } });
+    log.push({ pedido: p.numero, antes: p.status, nfs: todas.filter((x) => x.modo !== "MANUAL").map((x) => x.numero).concat(fatAuto ? String(p.nfNumero || "").split(/[,\s]+/).filter(Boolean) : []), pendente: pend?.nfNumero || null });
+  }
+  await prisma.finConfig.create({ data: { chave: K_REMOVE, valor: JSON.stringify({ em: new Date().toISOString(), desde, revertidos: log.length, pedidos: log }).slice(0, 60000) } });
+  return log;
+}

@@ -465,7 +465,10 @@ export async function faturarPelasNfsItens() {
   return feitos;
 }
 
+// v556 — casamento NF ↔ pedido só MANUAL (movimento fiscal / Produção): as regras automáticas ficam desligadas
+export const CASAMENTO_AUTOMATICO = process.env.CASAMENTO_AUTOMATICO === "1";
 export async function faturarPelasNfs() {
+  if (!CASAMENTO_AUTOMATICO) { await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message)); return []; }
   // v372 — primeiro pelos itens das NFs (faturamento total ou parcial); depois a regra antiga por valor para as NFs sem XML
   await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message));   // v391 — pendentes com contas já lançadas
   const porItens = await faturarPelasNfsItens().catch((e) => { console.log("pedidos/faturar itens:", e.message); return []; });

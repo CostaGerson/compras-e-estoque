@@ -181,7 +181,7 @@ export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } =
           // v390 — faturado: KM marca F / saldo zerado, ou as NFs de saída do pedido no KM já cobrem o total (±2%)
           const somaNfs = r2((e.nfs || []).reduce((s, x) => s + (Number(x.valor) || 0), 0));
           const cobre = (e.nfs || []).length && Number(at.total) > 0 && somaNfs >= Number(at.total) * 0.98;
-          if (e.vlEntregar <= 0.009 || cobre) {
+          if ((e.vlEntregar <= 0.009 || cobre) && process.env.CASAMENTO_AUTOMATICO === "1") {   // v556 — faturamento só pelo casamento manual
             // v391 — só vira FATURADO com as contas das NFs lançadas; senão fica pendente ("NF emitida — lançar as contas")
             const ult = (e.nfs || []).map((x) => x.emissao).filter(Boolean).sort().pop() || e.ultFaturamento;
             delete data.vlEntregar; delete data.qtEntregar;   // saldo só zera quando faturar de fato (contas lançadas)

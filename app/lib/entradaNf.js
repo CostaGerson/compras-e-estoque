@@ -84,6 +84,8 @@ export async function faturarPeloUpload(n) {
   if (n.tipo !== "SAIDA") return null;
   const { faturarOuPendurar, efetivarFaturamentos, faturarPelasNfs } = await import("@/lib/pedidos");
   let feito = null;
+  const { CASAMENTO_AUTOMATICO } = await import("@/lib/pedidos");   // v556 — casamento só manual
+  if (!CASAMENTO_AUTOMATICO) { try { await efetivarFaturamentos(); } catch {} return null; }
   const p0 = await pedidoDaNf(n.numero, n.documento);
   if (p0) {
     const p = await prisma.pedidoVenda.findUnique({ where: { id: p0.id }, select: { id: true, status: true, total: true, cnpj: true, kmNfs: true, faturamentoPendente: true } });

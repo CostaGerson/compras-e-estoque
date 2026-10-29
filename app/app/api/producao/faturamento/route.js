@@ -5,6 +5,7 @@ import { nfsParaPedido, candidatosParaNota, casarNf, descasarNf } from "@/lib/fa
 
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
+  if (q.get("log") === "v556") { const { prisma } = await import("@/lib/prisma"); const c = await prisma.finConfig.findUnique({ where: { chave: "FAT|REMOVE_AUTO_V556" } }); return Response.json(c ? JSON.parse(c.valor) : { pendente: true }); }   // v556 — o que foi descasado
   const r = q.get("nota") ? await candidatosParaNota(q.get("nota")) : await nfsParaPedido(q.get("pedido"));
   return Response.json(r, { status: r?.error ? 400 : 200 });
 }
