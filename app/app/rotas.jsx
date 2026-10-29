@@ -220,7 +220,7 @@ export default function Rotas({ user, nova }) {
             const alvoDia = arr === x;
             return (
               <div key={x} {...alvo(x)} onClick={() => (grande ? novaNoDia(x) : setDia(x))} className="rounded-xl p-2 cursor-pointer flex flex-col min-w-0 transition-all"
-                style={{ gridColumn: pos + 1, gridRow: grande && colMapa ? "1 / span 2" : 1, minHeight: grande ? 520 : 260, background: alvoDia ? C.accentSoft : C.panel, border: `${sel || grande || alvoDia ? 2 : 1}px ${alvoDia ? "dashed" : "solid"} ${sel || grande || alvoDia ? (atrasado ? C.red : C.accent) : atrasado ? C.red : C.line}` }}
+                style={{ gridColumn: pos + 1, gridRow: grande && colMapa ? "1 / span 2" : 1, minHeight: grande ? (altGrade && colMapa ? 0 : 520) : altGrade && colMapa ? 0 : 260, ...(altGrade && colMapa ? { overflowY: "auto" } : {}), background: alvoDia ? C.accentSoft : C.panel, border: `${sel || grande || alvoDia ? 2 : 1}px ${alvoDia ? "dashed" : "solid"} ${sel || grande || alvoDia ? (atrasado ? C.red : C.accent) : atrasado ? C.red : C.line}` }}
                 title={grande ? "Clique na manhã ou na tarde para criar a demanda já com o período" : "Clique para abrir este dia"}>
                 <div className="flex items-baseline gap-1 mb-1.5">
                   <span className="text-xs font-semibold" style={{ color: atrasado ? C.red : grande ? C.accent : C.sub }}>{DIAS[i]}</span>
@@ -260,7 +260,7 @@ export default function Rotas({ user, nova }) {
           return (
             <>
               {passado && <div className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: C.panel2, color: C.sub }}>Vendo dias passados · <button onClick={() => { setRef(FOCO); setDia(FOCO); }} className="font-semibold" style={{ color: C.accent }}>voltar para hoje</button></div>}
-              <div ref={gradeRef} className="grid gap-2" style={{ gridTemplateColumns: tpl, ...(colMapa && altGrade ? { height: altGrade, gridTemplateRows: "minmax(260px, 34%) minmax(0, 1fr)" } : {}) }}>
+              <div ref={gradeRef} className="grid gap-2" style={{ gridTemplateColumns: tpl, ...(colMapa && altGrade ? { height: altGrade, gridTemplateRows: "minmax(190px, 25%) minmax(0, 1fr)" } : {}) }}>
                 {dias.map((x, pos) => card(x, pos))}
                 {colMapa && (
                   <div className="min-w-0" style={{ gridColumn: colMapa, gridRow: 2, minHeight: 0 }}>
@@ -389,7 +389,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
     carregarLeaflet().then((L) => {
       if (!vivo || !ref.current) return;
       if (!mapa.current) {
-        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, zoomSnap: 0.25, zoomDelta: 0.5 });   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
+        mapa.current = L.map(ref.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, zoomSnap: 0.25, zoomDelta: 0.5, fadeAnimation: false });   // v558 — zoom fracionado: enquadra os pontos o mais perto possível
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(mapa.current);   // v428 — CARTO passou a exigir chave · v459 — OSM bloqueia pedido sem Referer (o domínio com https mandava no-referrer)
         camada.current = L.layerGroup().addTo(mapa.current);
       }
@@ -421,7 +421,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
       enq.current = chave;
       enquadrar.current = () => {
         m.invalidateSize();
-        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [22, 22], maxZoom: 16 });
+        if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [16, fabrica?.lat != null && area === "RMBH" ? 40 : 18], paddingBottomRight: [16, 16], maxZoom: 16 });   // v559 — margem mínima (o logo da fábrica sobe 34px)
         else if (pts.length === 1) m.setView(pts[0], 15);
         else m.fitBounds(LIMITES[area], { padding: [4, 4] });
       };
@@ -438,7 +438,7 @@ function Mapa({ area, pontos, fabrica, motoristas = [], altura = 360 }) {
     return () => { clearTimeout(t); ro.disconnect(); };
   }, []);
   useEffect(() => () => { mapa.current?.remove(); mapa.current = null; }, []);
-  return <div ref={ref} className="ce-mapa rounded-lg overflow-hidden" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, background: "#E9EDF3", zIndex: 0 }} />;
+  return <div ref={ref} className="ce-mapa rounded-lg overflow-hidden" style={{ height: altura, minHeight: 260, flex: altura === "100%" ? 1 : undefined, background: "#F2EFE9", zIndex: 0 }} />;
 }
 function MapasDia({ demandas, fabrica, vivos, cheio }) {
   const mots = (vivos || []).filter((r) => r.posicao?.lat != null).map((r) => ({ lat: r.posicao.lat, lng: r.posicao.lng, rumo: r.posicao.rumo || 0, fresca: r.posicao.fresca, rotulo: `${sc(String(r.motoristaNome || "").split(" ")[0])} · R${r.id}${r.posicao.endereco ? ` · ${r.posicao.endereco}` : ""} · ${r.posicao.minAtras < 1 ? "agora" : `há ${r.posicao.minAtras} min`}` }));

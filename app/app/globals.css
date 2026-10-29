@@ -103,6 +103,7 @@ input[list]::-webkit-list-button{display:none!important}
   .card-asana:hover { transform: none; box-shadow: none; }
 }
 
-/* v558 — mapas (Leaflet): sem as linhas brancas entre os ladrilhos (zoom do navegador/zoom fracionado) */
-.ce-mapa .leaflet-tile-container img.leaflet-tile { width: 256.5px !important; height: 256.5px !important; outline: 1px solid transparent; }
-.ce-mapa .leaflet-tile { image-rendering: auto; }
+/* v559 — mapas (Leaflet): com o zoom do navegador/Windows fora de 100% o navegador deixa frestas de 1px entre os ladrilhos;
+   o fundo com a cor de terreno do OpenStreetMap esconde a fresta e os ladrilhos não ficam em camada própria (sem fade) */
+.ce-mapa.leaflet-container { background: #F2EFE9 !important; }
+.ce-mapa .leaflet-tile { will-change: auto !important; transition: none !important; }
