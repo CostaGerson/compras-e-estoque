@@ -4,6 +4,7 @@
 //   Valor cobrado na FPP = custo inteiro por peça (folha + custos), só sem o frete entrega; retorno à operação = FPP × peças do mês.
 import React, { useEffect, useState } from "react";
 import { Loader2, Truck } from "lucide-react";
+import FretesLogistica from "./fretesLogistica";   // v557 — fretes (CT-e)
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", red: "#D92D20", soft: "#FFF1E8" };
 const brl = (v) => (v == null ? "—" : (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -14,7 +15,27 @@ const MESL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho
 const nomeMes = (c) => `${MES[Number(c.slice(5, 7)) - 1]}/${c.slice(2, 4)}`;
 const nomeMesL = (c) => `${MESL[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`;
 
+// v557 — guias: custo logístico (DRE) · frete compra · frete entrega · fretes baixados
+const GUIAS = [["CUSTO", "Custo logístico"], ["COMPRA", "Frete compra"], ["ENTREGA", "Frete entrega"], ["BAIXADOS", "Fretes baixados"]];
 export default function AnaliseLogistica({ user }) {
+  const [guia, setGuia] = useState("CUSTO");
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <Truck size={22} style={{ color: C.accent }} />
+        <div className="text-lg font-bold" style={{ color: C.navy }}>Análise da logística</div>
+      </div>
+      <div className="flex gap-1 mb-4 overflow-x-auto" style={{ borderBottom: `1px solid ${C.line}` }}>
+        {GUIAS.map(([k, t]) => (
+          <button key={k} onClick={() => setGuia(k)} className="px-4 py-2 text-sm whitespace-nowrap" style={{ color: guia === k ? C.accent : C.sub, fontWeight: guia === k ? 700 : 500, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>{t}</button>
+        ))}
+      </div>
+      {guia === "CUSTO" ? <CustoLogistico user={user} /> : <FretesLogistica user={user} guia={guia} />}
+    </div>
+  );
+}
+
+function CustoLogistico({ user }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [sel, setSel] = useState(null);
@@ -36,9 +57,7 @@ export default function AnaliseLogistica({ user }) {
   return (
     <div>
       <div className="flex items-start gap-3 mb-3">
-        <Truck size={22} style={{ color: C.accent }} className="mt-0.5" />
         <div className="flex-1">
-          <div className="text-lg font-bold" style={{ color: C.navy }}>Análise da logística</div>
           <div className="text-xs" style={{ color: C.sub }}>
             Pessoal = folha da logística pela Matriz (igual em todos os meses); as demais contas vêm da DRE do mês. Peças = análise da expedição.
             O valor cobrado na FPP é o custo logístico inteiro por peça (folha + custos); só o <b>frete entrega</b> fica de fora, porque a FPP o cobra à parte (por volume).

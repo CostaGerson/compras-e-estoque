@@ -143,7 +143,7 @@ export async function detalhePedido(numero) {
     itens: itensOut, ocorrencias: oc, erroPcp,
     faturamento: { nfs, faturado: r2(nfs.reduce((s, n) => s + n.valor, 0)), pecasPendentes: p.qtEntregar != null ? p.qtEntregar : pecasTotal,
       valorPendente: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total), pecasTotal, pecasConcluidas: r.pecasConcluidas, pecasFaturadas: r.pecasFaturadas,
-      casadas: fin?.nfs || [], contasTotal: fin?.contasTotal || 0, recebido: fin?.recebido || 0, emAberto: fin?.emAberto || 0 },
+      casadas: fin?.nfs || [], fretes: fin?.fretes || [], contasTotal: fin?.contasTotal || 0, recebido: fin?.recebido || 0, emAberto: fin?.emAberto || 0 },
     comentarios,
   };
 }

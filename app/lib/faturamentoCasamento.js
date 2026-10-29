@@ -171,7 +171,10 @@ export async function financeiroPedido(p) {
         antecipado: !!t.antecipadoForma || t.cobranca === "DESCONTADO" })) });
   }
   const contas = out.flatMap((n) => n.contas);
-  return { nfs: out, contasTotal: r2(contas.reduce((s, c) => s + c.valor, 0)), recebido: r2(contas.filter((c) => c.status === "PAGO").reduce((s, c) => s + c.valor, 0)),
+  // v557 — fretes (CT-e) das NFs casadas (entrega) e das OCs com itens do pedido (compra)
+  let fretes = [];
+  try { fretes = await (await import("@/lib/fretes")).fretesDoPedido(p, out.map((n) => n.fiscalNotaId)); } catch (e) { console.log("financeiro/fretes:", e.message); }
+  return { nfs: out, fretes, contasTotal: r2(contas.reduce((s, c) => s + c.valor, 0)), recebido: r2(contas.filter((c) => c.status === "PAGO").reduce((s, c) => s + c.valor, 0)),
     emAberto: r2(contas.filter((c) => c.status === "ABERTO").reduce((s, c) => s + c.valor, 0)) };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2 } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";
@@ -275,6 +275,38 @@ function PedidoTela({ numero, user, onClose }) {
                     )) : <div className="text-[11px] pl-4 pt-1" style={{ color: C.yellow }}>sem contas a receber lançadas para esta NF</div>}
                   </div>
                 )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF casada com o pedido.{p.faturamento.nfs.length ? ` NFs do KM: ${p.faturamento.nfs.map((x) => x.numero).join(", ")}.` : ""}</div>}
+              </div>
+              {/* v557 — fretes (CT-e): entrega pelas NFs casadas · compra pelas OCs com itens do pedido */}
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Truck size={15} style={{ color: C.accent }} />
+                  <div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Fretes</div>
+                  {(p.faturamento.fretes || []).length > 0 && <span className="text-xs" style={{ color: C.sub }}>total {brl((p.faturamento.fretes || []).reduce((s, f) => s + f.valorFrete, 0))}</span>}
+                </div>
+                {(p.faturamento.fretes || []).length ? p.faturamento.fretes.map((f) => {
+                  const a = (k) => `/api/logistica/fretes?u=${user.id}&id=${f.id}&arq=${k}${k.endsWith("xml") ? "&baixar=1" : ""}`;
+                  return (
+                    <div key={f.id} className="py-2 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="px-1.5 py-0.5 rounded font-semibold" style={{ background: f.tipo === "COMPRA" ? "#FFF1E8" : "#E8F1FD", color: f.tipo === "COMPRA" ? C.accent : "#1570EF" }}>{f.tipo === "COMPRA" ? "Compra" : "Entrega"}</span>
+                        <span className="font-semibold">CT-e {f.numero}</span><span style={{ color: C.sub }}>{dOnly(f.emissao)} · {f.transportadora}</span>
+                        <span style={{ color: C.sub }}>NF {f.nfs.map((x) => x.numero).join(", ") || "—"}</span>
+                        <span className="ml-auto font-semibold">{brl(f.valorFrete)}{f.pct != null ? <span style={{ color: C.sub }}> · {brl(f.pct)}% da NF</span> : null}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 pl-1 pt-1" style={{ color: C.sub }}>
+                        <span>{f.origem || "?"} → {f.destino || "?"}{f.volumes != null ? ` · ${f.volumes} vol.` : ""}</span>
+                        <span>{f.entregue ? `entregue ${dOnly(f.entregue)} · ${f.diasTransporte} dia(s) de transporte` : `em trânsito${f.previsaoEntrega ? ` · previsão ${dOnly(f.previsaoEntrega)}` : ""}`}</span>
+                        {f.contas.map((c) => <span key={c.id} style={{ color: c.status === "PAGO" ? C.green : C.text }}>conta {brl(c.valor)} · {c.status === "PAGO" ? "paga" : `vence ${dOnly(c.vencimento)}`}</span>)}
+                        <span className="ml-auto flex gap-2">
+                          {f.ctePdf && <a href={a("cte-pdf")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={12} /> CT-e</a>}
+                          {f.cteXml && <a href={a("cte-xml")} className="inline-flex items-center gap-0.5 font-semibold" style={{ color: "#1570EF" }}><FileCode2 size={12} /> CT-e</a>}
+                          {f.nfs.some((x) => x.temPdf) && <a href={a("nf-pdf")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={12} /> NF</a>}
+                          {f.nfs.some((x) => x.temXml) && <a href={a("nf-xml")} className="inline-flex items-center gap-0.5 font-semibold" style={{ color: "#1570EF" }}><FileCode2 size={12} /> NF</a>}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }) : <div className="text-xs" style={{ color: C.sub }}>Nenhum CT-e ligado às NFs deste pedido (frete entrega) nem às OCs dos materiais dele (frete compra).</div>}
               </div>
           </div>
         )}

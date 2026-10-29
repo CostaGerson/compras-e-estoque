@@ -1522,6 +1522,7 @@ model FiscalNota {
   hashPdf       String?
   temPdf        Boolean   @default(false)
   ocId          Int?                             // v494 — NF de compra ligada a uma OC
+  frete         FreteCte?                        // v557 — CT-e: dados logísticos do frete
   parcelas      Json?                            // [{ parcela, vencimento, valor, tituloId, situacao: CRIADA|LIGADA|JA_LANCADA }]
   criadoPorId   Int?
   criadoPorNome String?
@@ -1530,6 +1531,43 @@ model FiscalNota {
 
   @@index([tipo, competencia])
   @@index([chave])
+}
+
+// v557 — CT-e subido no movimento fiscal: dados logísticos do frete (Análise da logística › Frete compra / Frete entrega / Fretes baixados).
+// O CT-e em si (XML/PDF e a conta a pagar) fica em FiscalNota (modelo "CT-e"); aqui ficam as NFs atendidas e os prazos.
+model FreteCte {
+  id               Int       @id @default(autoincrement())
+  fiscalNotaId     Int       @unique
+  chave            String    @unique              // chave do CT-e (44 dígitos)
+  numero           String
+  serie            String?
+  tipo             String                         // COMPRA (NF de terceiro para a Meridian) | ENTREGA (NF de saída da Meridian/NORT)
+  emissao          DateTime  @db.Date
+  transportadora   String
+  transpCnpj       String?
+  origemCidade     String?
+  origemUf         String?
+  destinoCidade    String?
+  destinoUf        String?
+  remetente        String?
+  remetenteCnpj    String?
+  destinatario     String?
+  destinatarioCnpj String?
+  tomador          String?
+  valorFrete       Decimal   @db.Decimal(14, 2)
+  valorCarga       Decimal?  @db.Decimal(14, 2)   // valor da carga declarado no CT-e (fallback do valor da NF)
+  volumes          Decimal?  @db.Decimal(14, 3)
+  pesoKg           Decimal?  @db.Decimal(14, 3)
+  previsaoEntrega  DateTime? @db.Date
+  chavesNf         Json      @default("[]")       // chaves das NF-e atendidas
+  entregueEm       DateTime? @db.Date             // baixa manual (entrega); compra também baixa pela baixa da OC
+  entregaPorNome   String?
+  entregaObs       String?
+  createdAt        DateTime  @default(now())
+
+  fiscalNota FiscalNota @relation(fields: [fiscalNotaId], references: [id], onDelete: Cascade)
+
+  @@index([tipo, emissao])
 }
 
 // v158 — ADM › Demandas: tarefas administrativas criadas pelo financeiro para a auxiliar administrativa

@@ -7,6 +7,7 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { r2, so, mesDe, dataUTC, validarRateio, nomeU } from "@/lib/finTitulos";
 import { abaterEntradaNaNf, registrarAbatimento, faturarPeloUpload } from "@/lib/entradaNf";
+import { lerCteObj, lerDacte, pareceDacte } from "@/lib/cte";   // v557 — CT-e
 
 export const PROPRIAS = { "48011287": "MERIDIAN", "55116246": "NORT" };
 export const empresaDoDoc = (d) => { const s = so(d); return s.length === 14 ? PROPRIAS[s.slice(0, 8)] || null : null; };
@@ -68,6 +69,8 @@ function lado(emitDoc, destDoc, tpNF) {
 export function lerXmlFiscal(xml, nome = "") {
   let d;
   try { d = P.parse(String(xml)); } catch { throw new Error("XML inválido."); }
+  const cte = lerCteObj(d, nome);   // v557 — CT-e: conta a pagar do frete + dados logísticos
+  if (cte) return cte;
   const inf = d?.nfeProc?.NFe?.infNFe || d?.NFe?.infNFe;
   if (inf) {
     const ide = inf.ide || {}, emit = inf.emit || {}, dest = inf.dest || {};
@@ -145,6 +148,7 @@ const docsDoTexto = (t) => {
 const valorApos = (t, rx) => { const m = rx.exec(t); return m ? brNum(m[1]) : 0; };
 
 export function lerPdfFiscal(texto, nome = "") {
+  if (pareceDacte(texto, nome)) { const c = lerDacte(texto, nome); if (c) return c; }   // v557 — DACTE
   const t = String(texto || "").replace(/\s+/g, " ");
   const chave = acharChave(t, nome);
   const docs = docsDoTexto(t.replace(/\d{44}/g, " "));
@@ -197,6 +201,7 @@ export function lerPdfFiscal(texto, nome = "") {
 /* ---------------- títulos ---------------- */
 export const tipoTitulo = (tipo) => (tipo === "SAIDA" ? "RECEBER" : "PAGAR");
 export function tituloPadrao(n) {
+  if (n.modelo === "CT-e") return (n.tituloCte || `FRETE CT-e ${n.numero}`).slice(0, 190);   // v557
   const base = n.tipo === "SAIDA" ? `NF ${n.numero}` : n.modelo === "NFS-e" ? `SERVIÇO NFS-e ${n.numero}` : `COMPRA NF ${n.numero}`;
   return n.empresa === "NORT" ? `NORT - ${base}` : base;
 }
@@ -232,6 +237,11 @@ async function contaParecida(tipo, n, p) {
 
 let contaVendaId;
 async function rateioPadrao(tipoT, n) {
+  // v557 — CT-e: frete compra (2111210) ou frete entrega (2111220)
+  if (n.modelo === "CT-e") {
+    const c = await prisma.finConta.findUnique({ where: { codigo: n.cte?.tipo === "ENTREGA" ? "2111220" : "2111210" }, select: { id: true } }).catch(() => null);
+    if (c) return { rateio: [{ contaId: c.id, pct: 100 }], origem: n.cte?.tipo === "ENTREGA" ? "FRETE ENTREGA" : "FRETE COMPRA" };
+  }
   const ant = n.documento ? await prisma.finTitulo.findMany({ where: { tipo: tipoT, documento: n.documento }, orderBy: { createdAt: "desc" }, take: 10, select: { rateio: true } }) : [];
   const r = ant.map((a) => a.rateio).find((x) => Array.isArray(x) && x.some((y) => y.contaId && y.pct > 0));
   if (r) return { rateio: r, origem: "ÚLTIMA CONTA DESTE PARCEIRO" };
@@ -285,7 +295,11 @@ export async function analisar(arquivos, { abrirPdf, senhas = [] } = {}) {
       if ((ok.length || cand.length) === 1) { existente = (ok[0] || cand[0]); n.chaveRegistro = existente.chaveRegistro; }
     }
     if (existente?.acao === ACAO_CONTAB) existente = null;   // v360 — veio só da contabilidade: segue como nota nova (substitui o aviso)
-    const semConta = motivoSemConta(n.natureza, n.cfops);
+    const semConta = n.modelo === "CT-e" ? (n.freteTomadorProprio ? null : "frete pago por outro tomador") : motivoSemConta(n.natureza, n.cfops);
+    // v557 — CT-e: NFs que o frete atende (as que já estão no sistema)
+    if (n.modelo === "CT-e" && n.cte) {
+      try { const { nfsDasChaves } = await import("@/lib/fretes"); n.freteNfs = await nfsDasChaves(n.cte.chavesNf); } catch (e) { console.log("fiscal/cte:", e.message); n.freteNfs = []; }
+    }
     const parcelas = [];
     for (const p of n.parcelas) {
       const ck = chaveParcela(n, p);
@@ -389,6 +403,7 @@ export async function gravar(notas, u) {
       if (n.pdf && !ex.temPdf) Object.assign(data, { pdf: n.pdf, pdfNome: n.pdfNome, hashPdf: n.hashPdf, temPdf: true });
       if (n.xml && !ex.temXml) Object.assign(data, { xml: n.xml, xmlNome: n.xmlNome, hashXml: n.hashXml, temXml: true });
       await prisma.fiscalNota.update({ where: { id: ex.id }, data });
+      if (n.modelo === "CT-e" && n.cte && n.xml) { try { const { gravarFrete } = await import("@/lib/fretes"); await gravarFrete(ex.id, n, { completar: true }); } catch (e) { console.log("fiscal/frete:", e.message); } }   // v557 — XML completa os dados do frete
       let an = 0;
       for (const p of Array.isArray(ex.parcelas) ? ex.parcelas : []) if (p.tituloId) an += await anexar(p.tituloId, arqs, quem).catch(() => 0);
       res.push({ numero: n.numero, situacao: "COMPLETADA", anexos: an });
@@ -458,6 +473,8 @@ export async function gravar(notas, u) {
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
+    // v557 — CT-e: dados logísticos do frete (Análise da logística › Frete compra / Frete entrega)
+    if (n.modelo === "CT-e" && n.cte) { try { const { gravarFrete } = await import("@/lib/fretes"); const f = await gravarFrete(reg.id, n); r.frete = f?.tipo || null; } catch (e) { console.log("fiscal/frete:", e.message); r.freteErro = e.message; } }
     // v555 — casamento escolhido na conferência: a NF atende este pedido (confere as peças com a expedição)
     if (n.tipo === "SAIDA" && n0.pedidoCasar) {
       try { const { casarNf } = await import("@/lib/faturamentoCasamento"); const c = await casarNf({ pedidoNumero: n0.pedidoCasar, fiscalNotaId: reg.id, quem }); r.casamento = c.error ? { pedido: n0.pedidoCasar, erro: c.error } : { pedido: c.pedido, completo: c.completo, aviso: c.aviso }; }

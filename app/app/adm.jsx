@@ -134,7 +134,7 @@ export default function MovimentoFiscal({ user }) {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex-1 min-w-[260px]">
           <div className="text-lg font-bold" style={{ color: C.navy }}>Movimento fiscal</div>
-          <div className="text-xs" style={{ color: C.sub }}>NFs de entrada viram contas a pagar · NFs de saída viram contas a receber (XML e/ou PDF)</div>
+          <div className="text-xs" style={{ color: C.sub }}>NFs de entrada viram contas a pagar · NFs de saída viram contas a receber · CT-e vira conta a pagar do frete e vai para a Análise da logística (XML e/ou PDF)</div>
         </div>
         {podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <Soltar onArquivos={(f) => setImportar([...f])} dica="Solte aqui" className="rounded-xl">
           <BtnP onClick={() => setImportar([])}><Upload size={15} /> Importar NFs</BtnP>
@@ -457,7 +457,7 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
                 <div className="font-semibold">Escolher ou arrastar NFs (XML, PDF ou .zip — pode misturar entrada e saída)</div>
                 <div className="text-xs" style={{ color: C.sub }}>
                   Pode soltar várias vezes: os arquivos ficam juntos aqui até você clicar em <b>Conferir</b>.
-                  O sistema identifica pelo CNPJ: Meridian/NORT emitente = <b>saída → contas a receber</b>; destinatária = <b>entrada → contas a pagar</b>.
+                  O sistema identifica pelo CNPJ: Meridian/NORT emitente = <b>saída → contas a receber</b>; destinatária = <b>entrada → contas a pagar</b>. CT-e (frete) = <b>conta a pagar do frete</b> e entra na Análise da logística.
                   XML e PDF da mesma nota juntos viram um registro só (o PDF fica anexado). PDF sozinho é lido e você confere os dados.
                 </div>
               </div>}
@@ -483,6 +483,27 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
       {notas && !notas.length && <div className="text-sm" style={{ color: C.sub }}>{feitas.length ? `Todas as notas foram gravadas (${feitas.length}). Solte mais arquivos ou clique em Concluir.` : "Nenhuma nota reconhecida."}</div>}
       {notas && notas.map((n, i) => <NotaConferencia key={chaveNota(n) || i} n={n} i={i} contas={contas} altN={altN} altP={altP} altValor={altValor} altVista={altVista} onGravar={st ? null : () => gravarUma(i)} />)}
     </Modal>
+  );
+}
+
+// v557 — CT-e na conferência: tipo do frete, NFs atendidas e dados da carga (vão para a Análise da logística)
+function FreteConferencia({ n }) {
+  const c = n.cte;
+  const nfs = n.freteNfs || [];
+  return (
+    <div className="mt-3 rounded-lg p-3 text-xs" style={{ border: `1px solid ${C.accent}55`, background: C.accentSoft }}>
+      <div className="flex items-center gap-2 font-bold mb-1" style={{ color: C.navy }}><Truck size={14} style={{ color: C.accent }} /> Frete {c.tipo === "ENTREGA" ? "entrega" : "compra"} <span className="font-normal" style={{ color: C.sub }}>— vai para Análise da logística › {c.tipo === "ENTREGA" ? "Frete entrega" : "Frete compra"}</span></div>
+      <div style={{ color: C.text }}>{[c.origemCidade, c.origemUf].filter(Boolean).join(" - ") || "?"} → {[c.destinoCidade, c.destinoUf].filter(Boolean).join(" - ") || "?"}
+        {c.volumes != null ? ` · ${c.volumes} volume(s)` : ""}{c.pesoKg != null ? ` · ${c.pesoKg} kg` : ""}{c.previsaoEntrega ? ` · previsão ${dBR(c.previsaoEntrega)}` : ""}</div>
+      {c.remetente && <div style={{ color: C.sub }}>Remetente: {c.remetente}{c.destinatario ? ` · Destinatário: ${c.destinatario}` : ""}</div>}
+      <div className="mt-1">
+        {nfs.map((x) => (
+          <div key={x.chave}><b>NF {x.numero}</b>{x.fonte ? <span style={{ color: C.sub }}> · {x.parceiro || ""} · {dBR(x.emissao)} · {moeda(x.valor)}{x.ocId ? " · ligada a OC" : ""}</span> : <span style={{ color: C.yellow }}> · ainda não está no sistema (liga sozinha quando a NF for subida)</span>}</div>
+        ))}
+        {!nfs.length && <div style={{ color: C.yellow }}>O CT-e não traz a chave da NF atendida.</div>}
+        {c.valorCarga ? <div style={{ color: C.sub }}>Valor da carga no CT-e {moeda(c.valorCarga)} · frete = {brl((Number(n.valor) / c.valorCarga) * 100)}% da carga</div> : null}
+      </div>
+    </div>
   );
 }
 
@@ -532,7 +553,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGrava
                 </div>
               )}
               <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                <Campo t={n.tipo === "SAIDA" ? "Cliente" : "Fornecedor"}><input value={n.parceiro || ""} onChange={(e) => altN(i, "parceiro", e.target.value.toUpperCase())} className={inp} style={{ ...inpS, borderColor: n.parceiro ? C.line : C.yellow }} /></Campo>
+                <Campo t={n.modelo === "CT-e" ? "Transportadora" : n.tipo === "SAIDA" ? "Cliente" : "Fornecedor"}><input value={n.parceiro || ""} onChange={(e) => altN(i, "parceiro", e.target.value.toUpperCase())} className={inp} style={{ ...inpS, borderColor: n.parceiro ? C.line : C.yellow }} /></Campo>
                 {n.decisao === "LANCAR" && <Campo t="Título da conta"><input value={n.titulo || ""} onChange={(e) => altN(i, "titulo", e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo>}
               </div>
             </>
@@ -585,6 +606,7 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGrava
               )}
             </>
           )}
+          {n.modelo === "CT-e" && n.cte && n.decisao !== "IGNORAR" && <FreteConferencia n={n} />}
           {n.decisao === "REGISTRAR" && <div className="text-xs" style={{ color: C.sub }}>A nota fica registrada no movimento fiscal (com os arquivos), sem gerar conta.</div>}
           {n.tipo === "SAIDA" && Array.isArray(n.pedidosCandidatos) && n.decisao !== "IGNORAR" && <CasarPedidoNota n={n} i={i} altN={altN} />}
           {n.decisao === "COMPLETAR" && <div className="text-xs" style={{ color: C.sub }}>O {n.existenteFalta} entra no registro que já existe e é anexado às contas dele.</div>}
