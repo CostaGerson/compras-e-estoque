@@ -63,6 +63,7 @@ const resumo = (t, abertas = {}) => ({
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await gerarOcorrencias(ate);
+  await limparLixeira().catch(() => null);   // v566
   const where = { modelo: false, status: { not: "CANCELADA" } };
   if (projetoId) where.projetoId = Number(projetoId);
   if (de || ate) where.prazo = { ...(de ? { gte: dUTC(de) } : {}), ...(ate ? { lte: dUTC(ate) } : {}) };
@@ -70,7 +71,7 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   if (escopo === "minhas") where.responsavelId = u.id;
   else if (escopo === "criadas") where.AND = [{ criadoPorId: u.id }, { OR: [{ publica: true }, { responsavelId: u.id }] }];
   else where.OR = [{ publica: true }, { responsavelId: u.id }];
-  const l = await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 3000, include: { _count: { select: { arquivos: true } } } });
+  const l = await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } });
   return enriquecer(l, u);
 }
 
@@ -235,9 +236,39 @@ export async function excluir(id, u) {
   if (!x) return { ok: true };
   if (!(x.criadoPorId === u.id || ehMaster(u))) return { error: "Só quem criou ou o master excluem." };
   await fecharSessoes({ tarefaId: x.id });
-  // ocorrência de série vira cancelada (senão a série recria); avulsa é apagada
-  if (x.serieId) await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CANCELADA" } });
-  else await prisma.tarefa.delete({ where: { id: x.id } });
+  // v566 — vai para a lixeira por 30 dias (com dados e arquivos); depois some. Concluídas e passadas nunca são apagadas.
+  await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CANCELADA", excluidaEm: new Date(), excluidaPorNome: nome(u), statusAntes: x.status === "CANCELADA" ? null : x.status } });
+  return { ok: true };
+}
+
+/* ---------------- v566 — lixeira (30 dias) ---------------- */
+export const DIAS_LIXEIRA = 30;
+export async function limparLixeira() {
+  const lim = new Date(Date.now() - DIAS_LIXEIRA * 86400000);
+  const velhas = await prisma.tarefa.findMany({ where: { excluidaEm: { lt: lim } }, select: { id: true, serieId: true } });
+  if (!velhas.length) return 0;
+  const ids = velhas.map((t) => t.id);
+  await prisma.tarefaArquivo.deleteMany({ where: { tarefaId: { in: ids } } });
+  await prisma.tarefaSessao.deleteMany({ where: { tarefaId: { in: ids } } }).catch(() => null);
+  // ocorrência de rotina fica como cancelada (sem dados) para a série não recriar; avulsa é apagada
+  const occ = velhas.filter((t) => t.serieId).map((t) => t.id);
+  if (occ.length) await prisma.tarefa.updateMany({ where: { id: { in: occ } }, data: { excluidaEm: null, descricao: null, subtarefas: [], retorno: null } });
+  await prisma.tarefa.deleteMany({ where: { id: { in: velhas.filter((t) => !t.serieId).map((t) => t.id) } } });
+  return velhas.length;
+}
+export async function lixeira(u) {
+  await limparLixeira().catch((e) => console.log("tarefas/lixeira:", e.message));
+  const lim = new Date(Date.now() - DIAS_LIXEIRA * 86400000);
+  const l = await prisma.tarefa.findMany({ where: { excluidaEm: { gte: lim }, ...(ehMaster(u) ? {} : { OR: [{ criadoPorId: u.id }, { responsavelId: u.id }] }) },
+    orderBy: { excluidaEm: "desc" }, include: { _count: { select: { arquivos: true } } } });
+  return l.map((t) => ({ ...resumo(t), excluidaEm: t.excluidaEm, excluidaPorNome: t.excluidaPorNome,
+    someEm: new Date(+t.excluidaEm + DIAS_LIXEIRA * 86400000).toISOString().slice(0, 10), podeRestaurar: t.criadoPorId === u.id || ehMaster(u) }));
+}
+export async function restaurar(id, u) {
+  const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
+  if (!x?.excluidaEm) return { error: "A demanda não está na lixeira." };
+  if (!(x.criadoPorId === u.id || ehMaster(u))) return { error: "Só quem criou ou o master restauram." };
+  await prisma.tarefa.update({ where: { id: x.id }, data: { status: x.statusAntes || "ABERTA", excluidaEm: null, excluidaPorNome: null, statusAntes: null } });
   return { ok: true };
 }
 

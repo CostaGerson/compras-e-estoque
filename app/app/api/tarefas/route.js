@@ -6,6 +6,7 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const u = await usuarioAtivo(sp.get("u"));
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
+  if (sp.get("lixeira")) { const { lixeira } = await import("@/lib/tarefas"); return Response.json({ tarefas: await lixeira(u) }); }   // v566
   const ok = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || "") ? s : null);
   const [tarefas, usuarios, equipe, projetos] = await Promise.all([
     listar(u, { de: ok(sp.get("de")), ate: ok(sp.get("ate")), escopo: sp.get("escopo") || "todas", incluirConcluidas: sp.get("pendentes") !== "1", projetoId: sp.get("projeto") }),

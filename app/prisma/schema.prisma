@@ -1737,6 +1737,9 @@ model Tarefa {
   concluidaPorNome String?
   hora             String?                       // v226: "HH:MM" (opcional)
   horaFim          String?                       // v226: "HH:MM" (opcional)
+  excluidaEm       DateTime?                     // v566 — lixeira: excluída (some depois de 30 dias)
+  excluidaPorNome  String?
+  statusAntes      String?                       // v566 — status antes de ir para a lixeira (para restaurar)
   ordem            Int?                          // v561 — ordem no dia/período da agenda (arrastar uma sobre a outra)
   lembreteChave    String?                       // v551 — "AAAA-MM-DD|HH:MM" do último lembrete enviado ao celular
   natureza         String    @default("FUNCIONAL") // v226: FUNCIONAL | PESSOAL (pessoal é sempre privada)

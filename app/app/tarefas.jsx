@@ -124,6 +124,16 @@ function EquipeAgora({ equipe, onAbrir }) {
   );
 }
 
+// v566 — arquivos colados (Ctrl+V): imagens viram "imagem-colada-AAAAMMDD-HHMMSS.png"
+function arquivosColados(e) {
+  const its = [...(e.clipboardData?.files || [])];
+  if (!its.length) return [];
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  const carimbo = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return its.map((f, i) => (/^image\//.test(f.type) && (!f.name || /^image\.\w+$/i.test(f.name))
+    ? new File([f], `imagem-colada-${carimbo}${its.length > 1 ? `-${i + 1}` : ""}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: f.type }) : f));
+}
+
 /* ======================= Tarefas ======================= */
 export default function Tarefas({ user, natureza = "GERAL", projetoId = null, embutido = false }) {
   const [d, setD] = useState(null);
@@ -135,9 +145,15 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
   const [form, setForm] = useState(null);
   const [abrir, setAbrir] = useState(null);
   const agora = useAgora();
-  const carregar = () => api(`/api/tarefas?u=${user.id}&escopo=${escopo}${projetoId ? `&projeto=${projetoId}` : ""}&de=${somaDia(hojeISO(), -365)}&ate=${somaDia(hojeISO(), 60)}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
-  useEffect(() => { carregar(); }, [escopo, projetoId]);
-  useEffect(() => { const i = setInterval(carregar, 60000); return () => clearInterval(i); }, [escopo, projetoId]);
+  // v566 — concluídas e todas: histórico completo (arquivado para sempre); lixeira: excluídas dos últimos 30 dias
+  const [lix, setLix] = useState(null);
+  const carregar = () => {
+    api(`/api/tarefas?u=${user.id}&escopo=${escopo}${projetoId ? `&projeto=${projetoId}` : ""}&de=${ver === "ABERTAS" ? somaDia(hojeISO(), -365) : "2000-01-01"}&ate=${somaDia(hojeISO(), ver === "ABERTAS" ? 60 : 400)}`).then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+    if (ver === "LIXEIRA") api(`/api/tarefas?u=${user.id}&lixeira=1`).then((j) => setLix(j.tarefas || [])).catch((e) => setErro(e.message));
+  };
+  useEffect(() => { carregar(); }, [escopo, projetoId, ver]);
+  useEffect(() => { const i = setInterval(carregar, 60000); return () => clearInterval(i); }, [escopo, projetoId, ver]);
+  const restaurar = async (t) => { try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "restaurar" }); carregar(); } catch (e) { alerta(e.message); } };
   const P = Object.fromEntries((d?.projetos || []).map((p) => [p.id, p]));
   const H = hojeISO();
   const lista = (d?.tarefas || []).filter((t) => (natureza === "GERAL" || t.natureza === natureza) && (setor === "TODOS" || t.setor === setor)
@@ -171,11 +187,27 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
       <div className="flex flex-wrap gap-2 mb-4">
         {[["todas", "Visíveis para mim"], ["minhas", "Para mim"], ["criadas", "Que eu pedi"]].map(([k, t]) => <button key={k} onClick={() => setEscopo(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold" style={escopo === k ? { background: C.accent, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
         <span className="w-3" />
-        {[["ABERTAS", "Em aberto"], ["CONCLUIDAS", "Concluídas"], ["TODAS", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setVer(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold" style={ver === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
+        {[["ABERTAS", "Em aberto"], ["CONCLUIDAS", "Concluídas"], ["TODAS", "Todas"], ["LIXEIRA", "Lixeira"]].map(([k, t]) => <button key={k} onClick={() => setVer(k)} className="px-2.5 py-1 rounded-full text-xs font-semibold" style={ver === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
       </div>
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Carregando…</div>}
-      {d && (
+      {ver === "LIXEIRA" && (
+        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="px-4 pt-3 pb-2 text-xs" style={{ color: C.sub }}>Demandas excluídas ficam aqui por 30 dias, com dados e arquivos, e depois somem. Concluídas e passadas nunca são apagadas: ficam em <b>Concluídas</b>.</div>
+          {!lix && <div className="px-4 py-4"><Loader2 size={16} className="animate-spin" style={{ color: C.sub }} /></div>}
+          {lix && !lix.length && <div className="px-4 py-10 text-center text-sm" style={{ color: C.sub }}>A lixeira está vazia.</div>}
+          {(lix || []).filter((t) => !busca || `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(busca.toUpperCase())).map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-[200px]">
+                <button onClick={() => setAbrir(t.id)} className="font-semibold text-left" style={{ color: C.text }}>#{t.id} {t.titulo}</button>
+                <div className="text-xs" style={{ color: C.sub }}>{t.responsavelNome} · prazo {dBR(t.prazo)}{t.nArquivos ? ` · ${t.nArquivos} arquivo(s)` : ""} · excluída {dBR(String(t.excluidaEm).slice(0, 10))}{t.excluidaPorNome ? ` por ${t.excluidaPorNome}` : ""} · some em {dBR(t.someEm)}</div>
+              </div>
+              {t.podeRestaurar && <Btn fundo={C.panel2} cor={C.text} onClick={() => restaurar(t)}><RotateCcw size={12} /> Restaurar</Btn>}
+            </div>
+          ))}
+        </div>
+      )}
+      {d && ver !== "LIXEIRA" && (
         <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           {grupos.filter(([, l]) => l.length).map(([t, l, cor]) => (
             <div key={t}>
@@ -248,6 +280,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const [st, setSt] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  // v566 — Ctrl+V com imagem (print, foto copiada) entra nos anexos
+  useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length) { e.preventDefault(); setArqs((a) => [...a, ...fs]); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); }, []);
   const setRec = (k, v) => setF((x) => ({ ...x, rec: { ...x.rec, [k]: v } }));
   useEffect(() => { api(`/api/tarefas?u=${user.id}&escopo=todas&pendentes=1`).then((j) => setPublicas(j.tarefas.filter((t) => t.publica && t.id !== inicial.id))).catch(() => setPublicas([])); }, []);
   const doSetor = usuarios.filter((u) => u.setorTarefa === f.setor);
@@ -407,7 +441,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           {/* v565 — anexos mais limpos: área de toque maior e lista espaçada */}
           <div className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos</div>
           <label className="flex items-center justify-center gap-2 rounded-xl text-sm cursor-pointer py-4 px-3" style={{ border: `1.5px dashed ${C.line}`, color: C.sub, background: C.panel }}>
-            <Upload size={16} style={{ color: C.accent }} /> <span><b style={{ color: C.text }}>Anexar arquivos</b> · fotos, PDFs, planilhas</span>
+            <Upload size={16} style={{ color: C.accent }} /> <span><b style={{ color: C.text }}>Anexar arquivos</b> · fotos, PDFs, planilhas · ou cole uma imagem (Ctrl+V)</span>
             <input type="file" multiple className="hidden" onChange={(e) => { setArqs((a) => [...a, ...e.target.files]); e.target.value = ""; }} />
           </label>
           {arqs.length > 0 && <div className="mt-2 flex flex-col gap-1.5">
@@ -433,6 +467,8 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const acao = async (a, extra = {}) => { try { await api(`/api/tarefas/${id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); await carregar(); onMudou?.(); } catch (e) { alerta(e.message); } };
   const excluir = async () => { if (!(await confirmar("Excluir esta demanda?"))) return; try { await api(`/api/tarefas/${id}`, "DELETE", { usuarioId: user.id }); onMudou?.(); onClose(); } catch (e) { alerta(e.message); } };
   const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alerta(e.message); } } carregar(); onMudou?.(); };
+  // v566 — Ctrl+V com imagem anexa direto na demanda aberta
+  useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length && !editar && !(editarDireto && t?.podeEditar)) { e.preventDefault(); anexar(fs); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); });
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
   const direto = editarDireto && t?.podeEditar;

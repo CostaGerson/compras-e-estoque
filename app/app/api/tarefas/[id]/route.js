@@ -20,6 +20,7 @@ export async function PATCH(req, { params }) {
     : b.acao === "reabrir" ? await reabrir(id, u)
     : b.acao === "subtarefa" ? await marcarSubtarefa(id, Number(b.indice), b.feita, u)
     : b.acao === "encerrarSerie" ? await encerrarSerie(id, u)
+    : b.acao === "restaurar" ? await (await import("@/lib/tarefas")).restaurar(id, u)   // v566 — lixeira
     : await editar(id, b.tarefa || {}, u);
   return Response.json(r, { status: r.error ? 400 : 200 });
 }
