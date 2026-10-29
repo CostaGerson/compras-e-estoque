@@ -1195,7 +1195,8 @@ function AoVivoRota({ r, onRota, primeira, agora }) {
             </div>}
             <div className="flex flex-col items-center shrink-0" style={{ width: 84 }} title={p.nome}>
               <span className={`rounded-full ${i === aqui ? "ce-parado" : ""}`} style={{ width: 12, height: 12, background: p.feito ? ESCURO : "#fff", border: `2px solid ${p.alvo || i === aqui ? C.accent : p.feito ? ESCURO : "#C0C6D0"}` }} />
-              <div className="text-[10px] leading-3 mt-0.5 w-full text-center truncate" style={{ color: p.alvo || i === aqui ? C.text : C.sub, fontWeight: p.alvo || i === aqui ? 600 : 400 }}>{p.fab ? "Fábrica" : p.nome}{!p.feito && p.eta && i > 0 ? <span className="tabular-nums font-normal" style={{ color: C.sub }}> {p.eta}</span> : null}</div>
+              <div className="text-[10px] leading-3 mt-0.5 w-full text-center truncate" style={{ color: p.alvo || i === aqui ? C.text : C.sub, fontWeight: p.alvo || i === aqui ? 600 : 400 }}>{p.fab ? "Fábrica" : p.nome}</div>
+              {!p.feito && p.eta && i > 0 && <div className="text-[10px] leading-3 tabular-nums" style={{ color: p.alvo || i === aqui ? C.accent : C.sub, fontWeight: p.alvo ? 600 : 400 }}>{p.eta}</div>}   {/* v581 — horário em linha própria (não corta) */}
             </div>
           </React.Fragment>
         ))}
