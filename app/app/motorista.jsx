@@ -7,7 +7,7 @@ import { Loader2, Phone, LogOut, RefreshCw, Undo2, Clock, MapPin } from "lucide-
 import AvisosPush from "./avisosPush";   // v466
 
 const C = { navy: "#001E41", accent: "#FF6B1A", green: "#12A150", greenSoft: "#E7F6EE", bg: "#F2F4F7", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", red: "#D92D20", waze: "#33CCFF", yellow: "#C08401", yellowSoft: "#FFF6DD" };
-const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COMPRA: ["🛒", "Compra"], RETORNO: ["🏭", "Retorno à fábrica"] };   // v521
+const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COLETA_ENTREGA: ["🔄", "Coleta e entrega"], COMPRA: ["🛒", "Compra"], RETORNO: ["🏭", "Retorno à fábrica"] };   // v521
 const sc = (t) => { const s0 = String(t || "").toLocaleLowerCase("pt-BR"); return s0.charAt(0).toLocaleUpperCase("pt-BR") + s0.slice(1); };
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : "");
 const hojeISO = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);

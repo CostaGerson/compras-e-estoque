@@ -10,7 +10,7 @@ const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const dUTC = (s) => new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
 const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
-export const OBJETIVOS = ["COLETA", "ENTREGA", "COMPRA"];
+export const OBJETIVOS = ["COLETA", "ENTREGA", "COLETA_ENTREGA", "COMPRA"];   // v563 — coleta e entrega
 export const VEICULOS = ["CARRO", "MOTO"];
 export const HORARIOS = ["FIXO", "MANHA", "TARDE", "ATE", "APOS", "ENTRE", "LIVRE"];
 const K_FABRICA = "ROTA|FABRICA";
@@ -271,7 +271,7 @@ export function mensagemWhats(bloco, paradas, links, av, canceladas = []) {
   const blocos = paradas.map((d, i) => {
     const fica = eta[d.id]?.tempoLocal ?? d.tempoLocal ?? PARADA_MIN;
     return [
-      `*${i + 1}. ${d.objetivo} · ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}${d.urgente ? " (URGENTE)" : ""}*`,
+      `*${i + 1}. ${d.objetivo === "COLETA_ENTREGA" ? "COLETA E ENTREGA" : d.objetivo} · ${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}${d.urgente ? " (URGENTE)" : ""}*`,
       semCep(d.endereco),
       d.telefone ? `Contato: ${[d.contato, d.telefone].filter(Boolean).join(" · ")}` : null,
       `Horário: ${horarioTxt(d)}${eta[d.id]?.chegada ? ` · chegada prevista ${eta[d.id].chegada}` : ""}`,
@@ -348,7 +348,7 @@ export async function atualizarCadastroEndereco(tipo, id, g) {
 
 export async function salvarDemanda(b, u) {
   const objetivo = OBJETIVOS.includes(b.objetivo) ? b.objetivo : null;
-  if (!objetivo) return { error: "Escolha o objetivo: coleta, entrega ou compra." };
+  if (!objetivo) return { error: "Escolha o objetivo: coleta, entrega, coleta e entrega ou compra." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data || ""))) return { error: "Informe a data." };
   const destinoNome = up(b.destinoNome);
   const endereco = String(b.endereco || "").trim();
@@ -441,7 +441,7 @@ export async function consolidarDemandas(ids, u) {
   const obs = [...new Set(l.map((x) => x.obs).filter(Boolean))].join(" · ") || null;
   const tl = l.map((x) => x.tempoLocal).filter((x) => x != null);
   const d = await prisma.rotaDemanda.update({ where: { id: fica.id }, data: {
-    tarefa: tarefas.join(" + ").slice(0, 200), objetivo: objs.length === 1 ? objs[0] : fica.objetivo, urgente: l.some((x) => x.urgente), obs,
+    tarefa: tarefas.join(" + ").slice(0, 200), objetivo: objs.length === 1 ? objs[0] : objs.every((o) => ["COLETA", "ENTREGA", "COLETA_ENTREGA"].includes(o)) ? "COLETA_ENTREGA" : fica.objetivo,   // v563 urgente: l.some((x) => x.urgente), obs,
     tempoLocal: tl.length ? Math.min(600, Math.max(...tl) + 5 * (l.length - 1)) : null,
     motoristaId: fica.motoristaId || l.find((x) => x.motoristaId)?.motoristaId || null, motoristaNome: fica.motoristaNome || l.find((x) => x.motoristaNome)?.motoristaNome || null,
   } });

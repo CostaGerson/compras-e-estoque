@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, ExternalLink, Undo2, Home, Copy, MessageCircle } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -23,12 +23,14 @@ const api = async (url, method = "GET", body) => {
   if (!r.ok) throw new Error(d.error || "Erro");
   return d;
 };
-const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COMPRA: ["Compra", ShoppingBag], RETORNO: ["Retorno", Home] };   // v521 — retorno à fábrica no meio da rota
+const OBJ = { COLETA: ["Coleta", Package], ENTREGA: ["Entrega", Truck], COLETA_ENTREGA: ["Coleta e entrega", ArrowLeftRight], COMPRA: ["Compra", ShoppingBag], RETORNO: ["Retorno", Home] };   // v563 — coleta e entrega   // v521 — retorno à fábrica no meio da rota
 const ST = { ABERTA: ["aberta", C.sub], NO_BLOCO: ["na rota", C.yellow], EM_EXECUCAO: ["em execução", C.accent], CONCLUIDA: ["concluída", C.green] };
 // v435 — cor por tipo: coleta laranja claro (v561; era cinza), entrega azul claro, compra amarela, frete por transportadora azul escuro;
 // concluída verde; urgente mantém a cor do tipo com borda vermelha
 const TIPO_COR = {
   COLETA: { bg: "#FFEBDC", bd: "#FFA463", tx: "#7A3300", sb: "#9A5A2E", pin: "#FFA463" },
+  // v563 — coleta e entrega: degradê do azul (entrega) para o laranja (coleta)
+  COLETA_ENTREGA: { bg: "linear-gradient(90deg, #E3F0FC 0%, #FFEBDC 100%)", bd: "#C9A08A", tx: "#3B3F5C", sb: "#5E5A6B", pin: "linear-gradient(135deg, #5BA4E6 0%, #FFA463 100%)" },
   ENTREGA: { bg: "#E3F0FC", bd: "#5BA4E6", tx: "#1D4F80", sb: "#4A6B8C", pin: "#5BA4E6" },
   COMPRA: { bg: "#FFF4CC", bd: "#E0A800", tx: "#6B4D00", sb: "#8A6D1F", pin: "#E0A800" },
   TRANSP: { bg: "#001E41", bd: "#001E41", tx: "#FFFFFF", sb: "#B8C4D6", pin: "#001E41" },
@@ -637,7 +639,7 @@ function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
         </div>
         <fieldset disabled={trava} className="p-5 grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <L t="Objetivo" span><Seg v={f.objetivo} opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COMPRA", "Compra"]]} on={(v) => set("objetivo", v)} /></L>
+          <L t="Objetivo" span><Seg v={f.objetivo} opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COLETA_ENTREGA", "Coleta e entrega"], ["COMPRA", "Compra"]]} on={(v) => set("objetivo", v)} /></L>
           <div className="col-span-2 relative">
             <div className="text-xs mb-1" style={{ color: C.sub }}>Destinatário <span style={{ color: "#9AA3B2" }}>· cadastrados ou locais do Google Maps; um nome novo fica salvo em Dados › Destinatários</span></div>
             <input value={q} onChange={(e) => { digitouQ.current = true; setQ(e.target.value); set("destinoNome", e.target.value.toUpperCase()); set("destinoId", null); set("destinoTipo", "OUTRO"); setAberto(true); }} onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
