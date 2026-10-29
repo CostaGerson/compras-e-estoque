@@ -1921,30 +1921,32 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
       {/* v414 — grade fixa (colunas alinhadas entre as aplicações); lixeira fora do bloco cinza */}
       {lista.map((a, i) => {
         const temArte = a.metodo === "SILK" || a.metodo === "DTF" || a.metodo === "BORDADO";
-        const lbl = (t, el) => <label className="block min-w-0"><div className="text-[11px] mb-1" style={{ color: C.sub }}>{t}</div>{el}</label>;
+        // v588 — linha centralizada: rótulos na mesma altura, controles com 34px, rateio do programa dentro do campo (não empurra a linha)
+        const lbl = (t, el) => <label className="block min-w-0"><div className="text-[11px] mb-1 truncate" style={{ color: C.sub }}>{t}</div><div className="flex items-center" style={{ height: 34 }}>{el}</div></label>;
+        const rateio = num(a.arte) > 0 ? num(a.arte) / Math.max(1, qtde || 1) : 0;
         return (
           <div key={i} className="flex items-center gap-2 mb-2">
-            <div className="flex-1 grid gap-3 items-end p-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(110px,1fr) minmax(110px,1fr) 110px 120px 210px 130px" }}>
-              {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+            <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(120px,1.3fr) minmax(120px,1.3fr) minmax(100px,1fr) minmax(130px,1.1fr) minmax(110px,1fr) auto" }}>
+              {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
                 {LOCAIS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
               </select>)}
-              {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+              {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
                 {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
               </select>)}
               {a.metodo === "SILK"
-                ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full px-2 py-1.5 rounded text-sm" style={sel}>
+                ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full h-full px-2 rounded text-sm" style={sel}>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
                   </select>)
-                : lbl(a.metodo === "BORDADO" ? "R$/aplicação" : "R$/peça", <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel} />)}
-              {lbl("Valor/peça", <div className="py-1.5 text-sm font-semibold whitespace-nowrap" style={{ color: C.text }}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1} × {brl(pc)})</span>}</div>)}
-              {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
+                : lbl(a.metodo === "BORDADO" ? "R$/aplicação" : "R$/peça", <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="w-full h-full px-2 rounded text-sm" style={sel} />)}
               {temArte
-                ? lbl(`${a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)`, <>
-                    <ArteInput value={a.arte || ""} onChange={(v) => mud(i, "arte", v)} qtde={qtde} rotulo={a.metodo === "BORDADO" ? "programa de bordado" : "arte / tela"} className="w-full px-2 py-1.5 rounded text-sm" style={sel}
+                ? lbl(`${a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)`, <div className="relative w-full h-full">
+                    <ArteInput value={a.arte || ""} onChange={(v) => mud(i, "arte", v)} qtde={qtde} rotulo={a.metodo === "BORDADO" ? "programa de bordado" : "arte / tela"} className="w-full h-full px-2 rounded text-sm" style={{ ...sel, paddingRight: rateio > 0 ? 92 : undefined }}
                       title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} />
-                    {num(a.arte) > 0 && <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>+{brl(num(a.arte) / Math.max(1, qtde || 1))}/pç</div>}
-                  </>)
+                    {rateio > 0 && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none whitespace-nowrap" style={{ color: C.sub }}>+{brl(rateio)}/pç</span>}
+                  </div>)
                 : <div />}
+              {lbl("Valor/peça", <div className="text-sm font-semibold whitespace-nowrap" style={{ color: C.text }} title={a.metodo === "SILK" ? `${a.cores || 1} × ${brl(pc)}` : undefined}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1}×)</span>}</div>)}
+              {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
             </div>
             <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="p-1.5 rounded shrink-0" style={{ color: C.sub }} title="Remover"><Trash2 size={15} /></button>
           </div>
