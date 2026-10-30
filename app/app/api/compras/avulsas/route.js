@@ -65,7 +65,7 @@ export async function GET(req) {
   for (const c of l) {
     let k = 0;
     for (const it of Array.isArray(c.itens) ? c.itens : []) {
-      if (!(it.nome && Number(it.quantidade) > 0)) continue;
+      if (!it.nome) continue;
       const chave = `ITEM${++k}`, ref = pedidoDoItemAvulsa(c, it);
       const certo = `AVULSA ${c.numero || `#${c.id}`} · ${ref ? `PEDIDO ${ref}` : "OPERAÇÃO"}`;
       const ci = cis.find((x) => x.pedidoNumero === `AV${c.id}` && x.chave === chave);
@@ -78,7 +78,7 @@ export async function GET(req) {
   const out = l.map((c) => {
     let k = 0;
     const itens = (Array.isArray(c.itens) ? c.itens : []).map((i) => {
-      if (!(i.nome && Number(i.quantidade) > 0)) return i;
+      if (!i.nome) return i;
       const chave = `ITEM${++k}`, num = `AV${c.id}`;
       const ci = cis.find((x) => x.pedidoNumero === num && x.chave === chave);
       const p = porOrigem[`${num}|${chave}`];

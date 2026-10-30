@@ -309,6 +309,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const [todos, setTodos] = useState(false);
   const [nova, setNova] = useState("");
   const [arqs, setArqs] = useState([]);
+  const [jaArqs, setJaArqs] = useState(Array.isArray(inicial.arquivos) ? inicial.arquivos : []);   // v592 — anexos já salvos aparecem na edição
+  const tirarJa = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${inicial.id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); setJaArqs((l) => l.filter((x) => x.id !== a.id)); } catch (e) { alerta(e.message); } };
   const [publicas, setPublicas] = useState(null);
   const [buscaDep, setBuscaDep] = useState("");
   const [st, setSt] = useState(false);
@@ -336,7 +338,10 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
-      for (const a of arqs) if (id) await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: a.name, mime: a.type, conteudo: await readB64(a) });
+      // v592 — falha num anexo não perde os outros e avisa qual não subiu
+      const falhas = [];
+      for (const a of arqs) if (id) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: a.name, mime: a.type, conteudo: await readB64(a) }); } catch (e) { falhas.push(`${a.name} (${e.message})`); } }
+      if (falhas.length) alerta(`Demanda salva, mas não foi possível anexar: ${falhas.join(", ")}.`);
       onOk();
     } catch (e) { setSt(false); setErro(e.message); }
   };
@@ -474,7 +479,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       {(
         <div>
           {/* v565 — anexos mais limpos: área de toque maior e lista espaçada */}
-          <div className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos</div>
+          <div className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos{jaArqs.length ? ` (${jaArqs.length} anexado${jaArqs.length > 1 ? "s" : ""})` : ""}</div>
+          {jaArqs.length > 0 && <div className="mb-2 flex flex-col gap-1.5">
+            {jaArqs.map((a) => <div key={a.id} className="flex items-center gap-2.5 text-xs rounded-lg px-3 py-2" style={{ background: C.panel2 }}><FileText size={14} style={{ color: C.accent }} />
+              <a href={`/api/tarefas/${inicial.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a>
+              <button onClick={() => tirarJa(a)} className="p-1 rounded" title="Excluir" style={{ color: C.sub }}><Trash2 size={13} /></button></div>)}
+          </div>}
           <label className="flex items-center justify-center gap-2 rounded-xl text-sm cursor-pointer py-4 px-3" style={{ border: `1.5px dashed ${C.line}`, color: C.sub, background: C.panel }}>
             <Upload size={16} style={{ color: C.accent }} /> <span><b style={{ color: C.text }}>Anexar arquivos</b> · fotos, PDFs, planilhas · ou cole uma imagem (Ctrl+V)</span>
             <input type="file" multiple className="hidden" onChange={(e) => { setArqs((a) => [...a, ...e.target.files]); e.target.value = ""; }} />
@@ -605,6 +615,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu, t
         {(t.hora || proj) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
       </div>
       {t.sessaoAberta && <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
+      {t.nArquivos > 0 && <Paperclip size={12} className="shrink-0" style={{ color: A.sub }} />}
       {t.natureza === "PESSOAL" && <Lock size={12} className="shrink-0" style={{ color: A.sub }} />}
     </div>
   );
@@ -626,6 +637,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu, t
       </div>
       <div className="flex items-center gap-1 pr-2 shrink-0">
         {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.yellow }} />}
+        {t.nArquivos > 0 && <Paperclip size={10} style={{ color: A.sub }} />}
         {t.natureza === "PESSOAL" && <Lock size={10} style={{ color: A.sub }} />}
         {proj && <span className="rounded-[3px]" title={proj.nome} style={{ width: 11, height: 11, background: proj.cor }} />}
       </div>

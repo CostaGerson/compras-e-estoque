@@ -1,6 +1,6 @@
 // v469 — PIC (pedido interno de compras) a partir do cruzamento com o estoque e OCs agrupadas por fornecedor
 import { prisma } from "@/lib/prisma";
-import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa } from "@/lib/compras";
+import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa, aDefinir } from "@/lib/compras";
 const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -28,7 +28,8 @@ export async function gerarPic(quem) {
       porArt[a].comprar = r3((porArt[a].comprar || 0) + q); porArt[a].paraCompra = r3((porArt[a].paraCompra || 0) + q);
     }
   }
-  const linhas = Object.values(porArt).filter((a) => a.comprar > 0 && origem[a.artigoId]);
+  const artDef = new Set(compra.filter(aDefinir).flatMap((i) => Object.keys(necessidade(i))));   // v592 — avulsa sem quantidade: o comprador define no PIC
+  const linhas = Object.values(porArt).filter((a) => (a.comprar > 0 || artDef.has(String(a.artigoId))) && origem[a.artigoId]);
   if (!linhas.length) return { error: "O que falta já está coberto pela sobra do estoque." };
   const arts = Object.fromEntries((await prisma.artigo.findMany({ where: { id: { in: linhas.map((a) => a.artigoId) } }, select: { id: true, fornecedorId: true, valorUnitario: true } })).map((a) => [a.id, a]));
   const pic = await prisma.pic.create({ data: { numero: `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, criadoPorNome: quem || null } });
@@ -251,7 +252,7 @@ export async function painelDemandas({ avulsasAbertas = false, soAvulsas = true 
   const avMap = {};
   for (const c of await prisma.compraAvulsa.findMany({ where: { id: { in: avIds } } })) {
     let k = 0;
-    for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && Number(it.quantidade) > 0) avMap[`AV${c.id}|ITEM${++k}`] = pedidoDoItemAvulsa(c, it);
+    for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome) avMap[`AV${c.id}|ITEM${++k}`] = pedidoDoItemAvulsa(c, it);
   }
   // v502 — data de criação da demanda (o item de compra mais antigo que originou a linha)
   const cisPic = await prisma.compraItem.findMany({ where: { picId: { in: [...new Set(its.map((i) => i.picId))] } }, select: { pedidoNumero: true, chave: true, createdAt: true } });
@@ -284,7 +285,7 @@ export async function painelDemandas({ avulsasAbertas = false, soAvulsas = true 
   const abertos = await prisma.compraItem.findMany({ where: { pedidoNumero: { startsWith: "AV" }, status: { in: ["LEVANTAMENTO", "ESTOQUE", "REPROVADO"] } }, orderBy: { id: "desc" } });
   const avs = Object.fromEntries((await prisma.compraAvulsa.findMany({ where: { id: { in: abertos.map((x) => Number(x.pedidoNumero.slice(2))).filter(Boolean) } }, select: { id: true, numero: true, status: true } })).map((a) => [a.id, a]));
   const avFull = Object.fromEntries((await prisma.compraAvulsa.findMany({ where: { id: { in: Object.keys(avs).map(Number) } } })).map((c) => [c.id, c]));
-  const pedAv = (num, chave) => { const c = avFull[Number(num.slice(2))]; if (!c) return null; let k = 0; for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && Number(it.quantidade) > 0 && `ITEM${++k}` === chave) return pedidoDoItemAvulsa(c, it); return null; };
+  const pedAv = (num, chave) => { const c = avFull[Number(num.slice(2))]; if (!c) return null; let k = 0; for (const it of Array.isArray(c.itens) ? c.itens : []) if (it.nome && `ITEM${++k}` === chave) return pedidoDoItemAvulsa(c, it); return null; };
   const extra = abertos.filter((x) => avs[Number(x.pedidoNumero.slice(2))] && avs[Number(x.pedidoNumero.slice(2))].status !== "CANCELADA").map((x) => {
     const d = (Array.isArray(x.demanda) ? x.demanda : [])[0] || {};
     const pr = pedAv(x.pedidoNumero, x.chave);

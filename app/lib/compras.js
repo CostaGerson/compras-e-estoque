@@ -366,9 +366,10 @@ const ordemEntrega = (a, b) => String(a.entrega ? new Date(a.entrega).toISOStrin
 // itens: [{ id, pedidoNumero, entrega, demanda }]; disponivel: { artigoId: qtd }
 // 1º atende pedidos inteiros (todos os itens), em ordem de entrega; 2º, com o que sobrou, itens inteiros em ordem de entrega.
 // Item nunca é atendido pela metade: ou sai 100% do estoque ou vai para compra.
+export const aDefinir = (i) => (Array.isArray(i?.demanda) ? i.demanda : []).some((d) => d && d.aDefinir);   // v592 — avulsa sem quantidade: vai para compra
 export function cruzarEstoque(itens, disponivel) {
   const disp = Object.fromEntries(Object.entries(disponivel).map(([k, v]) => [k, Math.max(0, Number(v) || 0)]));
-  const comDemanda = itens.filter((i) => Object.keys(necessidade(i)).length);
+  const comDemanda = itens.filter((i) => Object.keys(necessidade(i)).length && !aDefinir(i));
   const pedidos = {};
   for (const i of comDemanda) (pedidos[i.pedidoNumero] ||= { pedidoNumero: i.pedidoNumero, entrega: i.entrega, itens: [] }).itens.push(i);
   const lista = Object.values(pedidos).sort(ordemEntrega);
@@ -430,7 +431,7 @@ export async function sincronizarAvulsa(c, db = prisma) {
   const atuais = await db.compraItem.findMany({ where: { pedidoNumero: num } });
   if (c.status === "CANCELADA") { await db.compraItem.deleteMany({ where: { pedidoNumero: num } }); return; }
   const statusDe = { ABERTA: "LEVANTAMENTO", COMPRADA: "OC", RECEBIDA: "ENTREGUE" }[c.status] || "LEVANTAMENTO";
-  const its = (Array.isArray(c.itens) ? c.itens : []).filter((i) => i.nome && Number(i.quantidade) > 0);
+  const its = (Array.isArray(c.itens) ? c.itens : []).filter((i) => i.nome);   // v592 — quantidade em branco = a definir pelo comprador
   const chaves = new Set();
   for (const [idx, i] of its.entries()) {
     const chave = `ITEM${idx + 1}`; chaves.add(chave);
@@ -440,10 +441,10 @@ export async function sincronizarAvulsa(c, db = prisma) {
     if (!art) art = await db.artigo.create({ data: { categoria: "OUTROS", nome: i.nome, unidade, fornecedorId: forn, origem: "AVULSA" }, select: { id: true, categoria: true } });
     const ref = pedidoDoItemAvulsa(c, i);   // v475 — pedido por item · v496 — sem herdar o do cabeçalho
     const destino = ref ? `PEDIDO ${ref}` : "OPERAÇÃO";
-    const dados = { descricao: i.nome, quantidade: Number(i.quantidade), cliente: `AVULSA ${c.numero || `#${c.id}`} · ${destino}`,
+    const dados = { descricao: i.nome, quantidade: Number(i.quantidade) || 0, cliente: `AVULSA ${c.numero || `#${c.id}`} · ${destino}`,
       entrega: i.bomPara ? new Date(`${i.bomPara}T00:00:00Z`) : null, status: statusDe,
       demanda: [{ papel: "AVULSA", artigoId: art.id, nome: i.nome, categoria: art.categoria, unidade, fornecedorId: forn, fornecedor: i.fornecedorNome || null,
-        cor: null, codigo: null, largura: null, consumoPorPeca: 1, quantidade: Number(i.quantidade), valorUnitario: null, embalagem: null, obs: i.obs || null, equiparadoA: null }] };
+        cor: null, codigo: null, largura: null, consumoPorPeca: 1, quantidade: Number(i.quantidade) || 0, valorUnitario: null, embalagem: null, obs: i.obs || null, equiparadoA: null, ...(Number(i.quantidade) > 0 ? {} : { aDefinir: true }) }] };
     const ex = atuais.find((x) => x.chave === chave);
     if (ex) { if (ex.status === "LEVANTAMENTO" || ["OC", "ENTREGUE", "LEVANTAMENTO"].includes(ex.status)) await db.compraItem.update({ where: { id: ex.id }, data: dados }); }
     else await db.compraItem.create({ data: { pedidoNumero: num, chave, ...dados } });

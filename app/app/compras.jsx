@@ -440,7 +440,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
     if (falhas.length) alerta(`Não foi possível anexar: ${falhas.join(", ")}.`);
     setEd(null); carregar(); window.dispatchEvent(new Event("ce:avulsasMudou"));
   }
-  const abrirEdicao = (c) => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) });
+  const abrirEdicao = (c) => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: Number(i.quantidade) ? String(i.quantidade).replace(".", ",") : "", ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) });
   // v502 — o painel pede para abrir uma avulsa (clique no "Avulsa 0000x")
   useEffect(() => {
     const f = async (e) => { const id = e.detail?.id; let ll = l; if (!ll) { ll = await fetch("/api/compras/avulsas").then((r) => r.json()).catch(() => []); setL(ll); } const c = (ll || []).find((x) => x.id === id); if (c) abrirEdicao(c); };
@@ -464,7 +464,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
   const setIt = (i, k, v) => setEd((e) => ({ ...e, itens: e.itens.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
   // v587 — clonar: abre uma avulsa nova já com os itens da original (sem nº, status, "bom para" nem recebimento)
   const clonar = (c) => { const base = c.itens ? c : ed; setEd({ numero: "", destino: base.destino || "OPERACAO", pedidoRef: base.pedidoRef || "", pedidoCliente: base.pedidoCliente || "", obs: base.obs || "", clonadaDe: base.numero || `#${base.id}`,
-    itens: (base.itens || []).filter((i) => i && i.nome).map((i) => ({ nome: i.nome, quantidade: String(i.quantidade ?? "").replace(".", ","), unidade: i.unidade || "UN", fornecedorId: i.fornecedorId || null, fornecedorNome: i.fornecedorNome || "",
+    itens: (base.itens || []).filter((i) => i && i.nome).map((i) => ({ nome: i.nome, quantidade: Number(i.quantidade) ? String(i.quantidade).replace(".", ",") : "", unidade: i.unidade || "UN", fornecedorId: i.fornecedorId || null, fornecedorNome: i.fornecedorNome || "",
       pedidoRef: i.pedidoRef ?? (base.destino === "PEDIDO" ? base.pedidoRef || "" : ""), pedidoCliente: i.pedidoCliente ?? (base.destino === "PEDIDO" ? base.pedidoCliente || "" : ""), bomPara: "", obs: i.obs || "" })) }); };
   const novaAv = () => setEd({ numero: "", destino: "OPERACAO", pedidoRef: "", obs: "", itens: [{ nome: "", quantidade: "", unidade: "UN", fornecedorNome: "", pedidoRef: "", pedidoCliente: "", bomPara: "", obs: "" }] });
   return (
@@ -497,14 +497,14 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
               {c.status === "ABERTA" && <button onClick={() => status(c, "COMPRADA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.blue }}>marcar comprada</button>}
               {c.status === "COMPRADA" && <button onClick={() => status(c, "RECEBIDA")} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.green }}>marcar recebida</button>}
               {c.status !== "ABERTA" && <button onClick={() => status(c, c.status === "RECEBIDA" ? "COMPRADA" : "ABERTA")} title="Voltar para a fase anterior" className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>voltar</button>}
-              <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: String(i.quantidade ?? "").replace(".", ","), ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
+              <button onClick={() => setEd({ ...c, itens: (c.itens || []).map((i) => ({ ...i, quantidade: Number(i.quantidade) ? String(i.quantidade).replace(".", ",") : "", ...((c.itens || []).some((x) => x && Object.prototype.hasOwnProperty.call(x, "pedidoRef")) ? { pedidoRef: i.pedidoRef || "", pedidoCliente: i.pedidoCliente || "" } : { pedidoRef: c.destino === "PEDIDO" ? c.pedidoRef || "" : "", pedidoCliente: c.destino === "PEDIDO" ? c.pedidoCliente || "" : "" }) })) })} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}>editar</button>
               <button onClick={() => clonar(c)} title="Criar uma nova compra avulsa com os mesmos itens" className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><Copy size={12} /> clonar</button>   {/* v587 */}
               <button onClick={() => status(c, "CANCELADA")} title="Cancelar" style={{ color: C.sub }}><X size={15} /></button>
             </div>
             {(c.itens || []).map((i, k) => (
               <div key={k} className="grid gap-3 px-4 py-2 text-sm items-center" style={{ gridTemplateColumns: "minmax(0,1fr) 100px 200px 150px 190px", borderTop: k ? `1px solid ${C.line}` : "none" }}>
                 <div style={{ color: C.text }}>{i.nome}{i.obs ? <div className="text-[11px]" style={{ color: C.sub }}>{i.obs}</div> : null}</div>
-                <div className="font-semibold" style={{ color: C.accent }}>{qtdU(i.quantidade, i.unidade)}</div>
+                <div className="font-semibold" style={{ color: C.accent }}>{Number(i.quantidade) > 0 ? qtdU(i.quantidade, i.unidade) : <span title="O comprador define a quantidade no PIC" style={{ color: C.yellow }}>a definir</span>}</div>
                 <div className="text-xs truncate" style={{ color: C.sub }} title={[i.fornecedorNome, i.pedidoRef ? `Pedido ${i.pedidoRef} · ${i.pedidoCliente || ""}` : null].filter(Boolean).join("\n")}>
                   {i.pedidoRef ? <span className="font-semibold mr-1.5 px-1.5 py-0.5 rounded" style={{ background: C.blueSoft, color: C.blue }}>Ped. {i.pedidoRef}</span> : null}{i.fornecedorNome || ""}</div>
                 <EtapaItemAv i={i} />   {/* v493 */}
@@ -530,7 +530,7 @@ export function Avulsas({ user, soBotao }) {   // v502 — soBotao: só o botão
             return (
               <div key={k} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "minmax(0,1.8fr) 90px 80px minmax(0,1.2fr) minmax(0,1.3fr) 150px 24px" }}>
                 <input value={i.nome || ""} onChange={(e) => setIt(k, "nome", e.target.value)} placeholder="Nome do item" className="px-2 py-1.5 rounded text-sm" style={sel} />
-                <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" className="px-2 py-1.5 rounded text-sm" style={sel} />
+                <input value={i.quantidade ?? ""} onChange={(e) => setIt(k, "quantidade", e.target.value)} inputMode="decimal" placeholder="a definir" title="Em branco: o comprador define a quantidade" className="px-2 py-1.5 rounded text-sm" style={sel} />
                 <select value={i.unidade || "UN"} onChange={(e) => setIt(k, "unidade", e.target.value)} className="px-2 py-1.5 rounded text-sm" style={sel}>{UNIDADES_AV.map(([u, n]) => <option key={u} value={u}>{n}</option>)}</select>
                 <BuscaFornecedor valor={i.fornecedorNome} idAtual={i.fornecedorId} forns={forns} estilo={sel} placeholder="opcional · buscar no cadastro"
                   onEscolher={(f, v) => setEd((ee) => ({ ...ee, itens: ee.itens.map((x, j) => (j === k ? { ...x, fornecedorNome: f ? nomeFornCad(f) : v, fornecedorId: f ? f.id : null } : x)) }))} />
