@@ -32,7 +32,7 @@ import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
-import { CalendarDays as IcoAgenda, ListTodo } from "lucide-react";
+import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
@@ -201,6 +201,8 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("gestao");
+  const [pedidoAgenda, setPedidoAgenda] = useState(null);   // v592 — botões Agenda / Mês do topo no celular
+  const [modoAgenda, setModoAgenda] = useState("semana");
   const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
   const [gestaoInicial, setGestaoInicial] = useState(null);
   const [fppInicial, setFppInicial] = useState(null);
@@ -339,9 +341,14 @@ export default function Home() {
               <button onClick={() => setCollapsed(false)} title="Menu" className="flex items-center justify-center rounded-lg shrink-0" style={{ background: C.sidebar, color: "#fff", width: 40, height: 40 }}>
                 <ChevronRight size={22} />
               </button>
-              <button onClick={() => setView("agenda")} className="flex items-center gap-1.5 px-3 rounded-lg font-semibold text-sm shrink-0"
-                style={{ height: 40, background: view === "agenda" ? "#4573D2" : "#EAF0FB", color: view === "agenda" ? "#fff" : "#4573D2" }}>
+              <button onClick={() => { setView("agenda"); setPedidoAgenda((x) => ({ modo: "semana", n: (x?.n || 0) + 1 })); }} className="flex items-center gap-1.5 px-3 rounded-lg font-semibold text-sm shrink-0"
+                style={{ height: 40, background: view === "agenda" && modoAgenda !== "mes" ? "#4573D2" : "#EAF0FB", color: view === "agenda" && modoAgenda !== "mes" ? "#fff" : "#4573D2" }}>
                 <IcoAgenda size={18} /> Agenda
+              </button>
+              {/* v592 — atalho para a agenda mensal */}
+              <button onClick={() => { setView("agenda"); setPedidoAgenda((x) => ({ modo: "mes", n: (x?.n || 0) + 1 })); }} className="flex items-center gap-1.5 px-3 rounded-lg font-semibold text-sm shrink-0"
+                style={{ height: 40, background: view === "agenda" && modoAgenda === "mes" ? "#4573D2" : "#EAF0FB", color: view === "agenda" && modoAgenda === "mes" ? "#fff" : "#4573D2" }}>
+                <CalendarRange size={18} /> Mês
               </button>
               <div className="flex-1" />
               <TopoUsuario mobile user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
@@ -416,7 +423,7 @@ export default function Home() {
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
           {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}
-          {view === "agenda" && <Agenda user={user} />}
+          {view === "agenda" && <Agenda user={user} pedidoModo={pedidoAgenda} onModo={setModoAgenda} />}
           {view === "tarefas" && <Tarefas user={user} />}
           {view === "notificacoes" && <Notificacoes user={user} perfil={perfil} onIrEstoque={() => setView("estoque")} onMudou={bumpBadges} />}
           {view === "mensagens" && <Mensagens user={user} onMudou={bumpBadges} />}

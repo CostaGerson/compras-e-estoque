@@ -139,6 +139,14 @@ async function validarDeps(ids, proprioId) {
   return null;
 }
 
+// v592 — projeto da tarefa: pessoal só em projeto pessoal do próprio dono; funcional só em projeto funcional
+async function ajustarProjeto(t, criadorId) {
+  if (!t.projetoId) return t;
+  const p = await prisma.tarefaProjeto.findUnique({ where: { id: t.projetoId }, select: { ativo: true, natureza: true, donoId: true } });
+  const pessoalP = p?.natureza === "PESSOAL";
+  if (!p?.ativo || (t.natureza === "PESSOAL") !== pessoalP || (pessoalP && p.donoId !== criadorId)) t.projetoId = null;
+  return t;
+}
 // v226 — demanda atribuída por outra pessoa é funcional e pública; pessoal é sempre privada
 function regraNatureza(t, criadorId) {
   if (t.responsavelId && criadorId && t.responsavelId !== criadorId) { t.natureza = "FUNCIONAL"; t.publica = true; }
@@ -147,7 +155,7 @@ function regraNatureza(t, criadorId) {
 }
 
 export async function criar(b, u) {
-  const t = regraNatureza(limpar(b), u.id);
+  const t = await ajustarProjeto(regraNatureza(limpar(b), u.id), u.id);
   if (!t.titulo) return { error: "Escreva a demanda." };
   if (!t.setor) return { error: "Escolha o setor." };
   if (!t.responsavelId) return { error: "Escolha o colaborador." };
@@ -173,7 +181,7 @@ export async function editar(id, b, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
   if (!x || !podeVer(x, u)) return { error: "Demanda não encontrada." };
   if (!podeEditar(x, u)) return { error: "Só quem criou, o responsável ou o master editam." };
-  const t = regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId);
+  const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId), x.criadoPorId);
   if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
   const e = await validarDeps(t.dependencias, x.id); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
@@ -420,19 +428,23 @@ export { CORES_PROJETO };
 export async function listarProjetos(u) {
   const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true, OR: [{ publico: true }, { donoId: u.id }] }, orderBy: { nome: "asc" } });
   const n = await prisma.tarefa.groupBy({ by: ["projetoId"], where: { projetoId: { in: l.map((p) => p.id) }, modelo: false, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, _count: { _all: true } }).catch(() => []);
-  return l.map((p) => ({ id: p.id, nome: p.nome, cor: p.cor, publico: p.publico, donoId: p.donoId, donoNome: p.donoNome, abertas: n.find((x) => x.projetoId === p.id)?._count?._all || 0, podeEditar: p.donoId === u.id || ehMaster(u) }));
+  return l.map((p) => ({ id: p.id, nome: p.nome, cor: p.cor, publico: p.publico, donoId: p.donoId, donoNome: p.donoNome, natureza: p.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", abertas: n.find((x) => x.projetoId === p.id)?._count?._all || 0, podeEditar: p.donoId === u.id || ehMaster(u) }));
 }
 export async function salvarProjeto(b, u) {
   const nomeP = String(b.nome || "").trim().slice(0, 80);
   if (!nomeP) return { error: "Dê um nome ao projeto." };
-  const cor = /^#[0-9A-Fa-f]{6}$/.test(b.cor || "") ? b.cor : CORES_PROJETO[0];
+  // v592 — todo projeto tem cor definida · projeto pessoal é sempre privado
+  if (!/^#[0-9A-Fa-f]{6}$/.test(b.cor || "")) return { error: "Escolha a cor do projeto." };
+  const cor = b.cor.toUpperCase();
+  const natureza = b.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL";
+  const publico = natureza === "PESSOAL" ? false : b.publico !== false;
   if (b.id) {
     const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(b.id) } });
     if (!p) return { error: "Projeto não encontrado." };
     if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto altera." };
-    return { ok: true, projeto: await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { nome: nomeP, cor, publico: b.publico !== false } }) };
+    return { ok: true, projeto: await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { nome: nomeP, cor, publico, natureza } }) };
   }
-  return { ok: true, projeto: await prisma.tarefaProjeto.create({ data: { nome: nomeP, cor, publico: b.publico !== false, donoId: u.id, donoNome: nome(u) } }) };
+  return { ok: true, projeto: await prisma.tarefaProjeto.create({ data: { nome: nomeP, cor, publico, natureza, donoId: u.id, donoNome: nome(u) } }) };
 }
 export async function excluirProjeto(id, u) {
   const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(id) || 0 } });

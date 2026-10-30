@@ -232,7 +232,7 @@ export function LinhaTarefa({ t, proj, user, H, agora, onAbrir, onAcao, compacta
   const feitas = (t.subtarefas || []).filter((s) => s.feita).length;
   const atrasada = t.status !== "CONCLUIDA" && t.prazo < H;
   return (
-    <div onClick={onAbrir} className="anim-entrar flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}`, borderLeft: `4px solid ${cor}`, transition: "background .15s" }}>
+    <div onClick={onAbrir} className="anim-entrar flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}`, borderLeft: `4px solid ${proj?.cor || cor}`, background: proj?.cor ? `${proj.cor}14` : undefined, transition: "background .15s" }}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold truncate" style={{ color: C.text, textDecoration: t.status === "CONCLUIDA" ? "line-through" : "none" }}>{t.titulo}</span>
@@ -327,14 +327,15 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const atribuida = !!f.responsavelId && Number(f.responsavelId) !== criador;
   const pessoal = f.natureza === "PESSOAL" && !atribuida;
   const publicaFinal = atribuida ? true : pessoal ? false : f.publica;
-  // v565 — pessoal: sem projeto, sem colaborador (é de quem cria), sempre privada e sem dependências
-  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, ...(n === "PESSOAL" ? { responsavelId: criador, publica: false, projetoId: "", dependencias: [] } : {}) }));
+  // v565 — pessoal: sem colaborador (é de quem cria), sempre privada e sem dependências · v592: projeto pessoal permitido
+  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, projetoId: (projetos.find((p) => p.id === Number(x.projetoId)) || {}).natureza === n ? x.projetoId : "", ...(n === "PESSOAL" ? { responsavelId: criador, publica: false, dependencias: [] } : {}) }));
+  const projsOpc = projetos.filter((p) => (pessoal ? p.natureza === "PESSOAL" && p.donoId === criador : p.natureza !== "PESSOAL"));
   const dPrazo = f.prazo ? dUTC(f.prazo) : new Date();
   const salvar = async () => {
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: publicaFinal ? f.dependencias : [], recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: pessoal ? null : Number(f.projetoId) || null };
+      hora: f.hora || null, horaFim: f.horaFim || null, lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -367,12 +368,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
             })}
           </div>
         </div>
-        {!pessoal && <label className="text-xs" style={{ color: C.sub }}>Projeto
+        {<label className="text-xs" style={{ color: C.sub }}>{pessoal ? "Projeto pessoal" : "Projeto"}
           <div className="flex items-center gap-2 mt-1">
             {f.projetoId && <span className="rounded-[4px] shrink-0" style={{ width: 14, height: 14, background: (projetos.find((p) => p.id === Number(f.projetoId)) || {}).cor }} />}
             <select value={f.projetoId} onChange={(e) => set("projetoId", e.target.value)} className={inp} style={inpS}>
               <option value="">— sem projeto —</option>
-              {projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              {projsOpc.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
         </label>}
@@ -595,13 +596,14 @@ function AvatarMini({ foto, nome, size = 22 }) {
   return foto ? <img src={foto} alt="" className="rounded-full shrink-0 object-cover" style={{ width: size, height: size }} />
     : <span className="rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ width: size, height: size, background: "#C7C4C4", color: "#fff" }}>{iniciais(nome)}</span>;
 }
-const corCard = (t) => t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
+// v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
+const corCard = (t, proj) => proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
 function CardAgenda({ t, proj, foto, onClick, onDragStart, onConcluir, onMenu, toque }) {
   // v228 — card do tamanho fixo do Asana: título cortado numa linha; no hover o conteúdo desliza e aparece o check
   // v550 — toque (celular): card mais alto, check sempre visível, texto maior
-  const [bg, bd] = corCard(t);
+  const [bg, bd] = corCard(t, proj);
   const feita = t.status === "CONCLUIDA";
   if (toque) return (
     <div onClick={onClick} className="rounded-lg flex items-center gap-2 px-2 cursor-pointer select-none shrink-0" style={{ minHeight: 48, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: feita ? 0.6 : 1 }}>
@@ -661,8 +663,10 @@ function MenuCard({ x, y, t, onClose, onAbrir, onConcluir, onExcluir }) {
   );
 }
 
-function ProjetoForm({ user, inicial, onClose, onOk }) {
-  const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || CORES_PROJ[0], publico: inicial?.publico !== false });
+function ProjetoForm({ user, inicial, projetos = [], onClose, onOk }) {
+  // v592 — natureza do projeto (pessoal: só você, só tarefas pessoais) · cor sempre definida (sugere uma ainda não usada)
+  const livre = CORES_PROJ.find((c) => !projetos.some((p) => String(p.cor).toUpperCase() === c.toUpperCase())) || CORES_PROJ[projetos.length % CORES_PROJ.length];
+  const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || livre, natureza: inicial?.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publico: inicial?.natureza === "PESSOAL" ? false : inicial?.publico !== false });
   const [st, setSt] = useState(false), [erro, setErro] = useState("");
   const salvar = async () => { setSt(true); setErro(""); try { await api("/api/tarefas/projetos", "POST", { usuarioId: user.id, projeto: { id: inicial?.id, ...f } }); onOk(); } catch (e) { setErro(e.message); setSt(false); } };
   const excluir = async () => { if (!(await confirmar(`Excluir o projeto "${inicial.nome}"? As tarefas ficam, só saem do projeto.`))) return; try { await api("/api/tarefas/projetos", "DELETE", { usuarioId: user.id, id: inicial.id }); onOk(); } catch (e) { alerta(e.message); } };
@@ -674,6 +678,11 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
         <button onClick={salvar} disabled={st || !f.nome.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: A.azul, opacity: st || !f.nome.trim() ? 0.5 : 1 }}>{inicial?.id ? "Salvar" : "Criar projeto"}</button>
       </>}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Tipo</div>
+      <div className="flex gap-1 mb-3">
+        {[["PESSOAL", "Pessoal", "#7E3AF2"], ["FUNCIONAL", "Funcional", "#4573D2"]].map(([k, t, c]) => <button key={k} onClick={() => setF((x) => ({ ...x, natureza: k, publico: k === "PESSOAL" ? false : x.publico }))}
+          className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold" style={f.natureza === k ? { background: c, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
+      </div>
       <label className="block text-xs mb-3" style={{ color: C.sub }}>Nome
         <input value={f.nome} autoFocus onChange={(e) => setF((x) => ({ ...x, nome: e.target.value }))} className={`${inp} mt-1`} style={inpS} />
       </label>
@@ -681,10 +690,10 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
       <div className="flex flex-wrap gap-2 mb-3">
         {CORES_PROJ.map((c) => <button key={c} onClick={() => setF((x) => ({ ...x, cor: c }))} className="rounded-md" style={{ width: 26, height: 26, background: c, boxShadow: f.cor === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none", transform: f.cor === c ? "scale(1.1)" : "none" }} />)}
       </div>
-      <div className="flex gap-1">
+      {f.natureza === "PESSOAL" ? <div className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}><Lock size={11} /> Projeto pessoal: só você enxerga e ele recebe só as suas tarefas pessoais.</div> : <div className="flex gap-1">
         <button onClick={() => setF((x) => ({ ...x, publico: true }))} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={f.publico ? { background: A.azul, color: "#fff" } : { background: C.panel2, color: C.text }}><Globe size={12} /> Visível para todos</button>
         <button onClick={() => setF((x) => ({ ...x, publico: false }))} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={!f.publico ? { background: A.azul, color: "#fff" } : { background: C.panel2, color: C.text }}><Lock size={12} /> Só eu</button>
-      </div>
+      </div>}
     </Janela>
   );
 }
@@ -693,61 +702,80 @@ function ProjetoForm({ user, inicial, onClose, onOk }) {
    Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
 const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
 const corPilula = (t, proj) => proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
-function MesMobile({ ref0, H, porDia, P, fotos, onDia, onMover, onNova, onAbrir, onConcluir, onSemana }) {
-  const ano = Number(ref0.slice(0, 4)), mes = Number(ref0.slice(5, 7));
+function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana }) {
+  // v592 — rolar para baixo emenda o mês seguinte (infinito); o dia tocado abre embaixo do mês dele
+  const ano0 = Number(ref0.slice(0, 4)), mes0 = Number(ref0.slice(5, 7));
+  const meses = Array.from({ length: nMeses }, (_, k) => new Date(Date.UTC(ano0, mes0 - 1 + k, 1)).toISOString().slice(0, 7));
   const [sel, setSel] = useState(ref0.slice(0, 7) === H.slice(0, 7) ? H : `${ref0.slice(0, 7)}-01`);
   useEffect(() => { setSel(ref0.slice(0, 7) === H.slice(0, 7) ? H : `${ref0.slice(0, 7)}-01`); }, [ref0.slice(0, 7)]);
-  const p1 = `${ref0.slice(0, 7)}-01`, desloc = dUTC(p1).getUTCDay();   // domingo = 0
-  const nDias = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-  const cel = [...Array(desloc).fill(null), ...Array.from({ length: nDias }, (_, k) => somaDia(p1, k))];
-  while (cel.length % 7) cel.push(null);
-  const semanas = Array.from({ length: cel.length / 7 }, (_, k) => cel.slice(k * 7, k * 7 + 7));
   const toque = useRef(null);
+  const fim = useRef(null);
+  const painel = useRef(null);
+  const maisRef = useRef(onMais); maisRef.current = onMais;
+  useEffect(() => {
+    if (!fim.current || typeof IntersectionObserver === "undefined") return;
+    const ob = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) maisRef.current?.(); }, { rootMargin: "600px 0px" });
+    ob.observe(fim.current); return () => ob.disconnect();
+  }, [nMeses]);
   const lSel = porDia[sel] || [];
+  const tocarDia = (dia) => { setSel(dia); onDia?.(dia); setTimeout(() => painel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60); };
   return (
     <div onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
       onTouchEnd={(e) => { const t0 = toque.current; toque.current = null; if (!t0) return; const dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onMover(dx < 0 ? 1 : -1); }}>
-      <div className="px-4 pt-3 pb-1 flex items-baseline gap-2">
-        <span className="text-[30px] font-bold leading-none" style={{ color: A.texto }}>{MESES[mes - 1].charAt(0).toUpperCase() + MESES[mes - 1].slice(1)}</span>
-        <span className="text-base font-semibold" style={{ color: A.sub }}>{ano}</span>
-      </div>
-      <div className="grid grid-cols-7 pb-1" style={{ borderBottom: `1px solid ${A.linha}` }}>
+      <div className="grid grid-cols-7 py-1" style={{ borderBottom: `1px solid ${A.linha}`, position: "sticky", top: 0, zIndex: 5, background: A.fundo }}>
         {SEM_DOM.map((x, i) => <div key={i} className="text-center text-[11px] font-semibold" style={{ color: A.sub }}>{x}</div>)}
       </div>
-      {semanas.map((sem, i) => (
-        <div key={i} className="grid grid-cols-7" style={{ borderBottom: `1px solid ${A.linha}` }}>
-          {sem.map((dia, k) => {
-            if (!dia) return <div key={k} style={{ minHeight: 92 }} />;
-            const l = porDia[dia] || [], hoje = dia === H, marcado = dia === sel, fds = k === 0 || k === 6;
-            return (
-              <button key={dia} onClick={() => { setSel(dia); onDia?.(dia); }} className="flex flex-col items-center pt-1.5 pb-1 min-w-0" style={{ minHeight: 92 }}>
-                <span className="inline-flex items-center justify-center rounded-full text-[17px]" style={{ width: 32, height: 32, fontWeight: hoje || marcado ? 700 : 500,
-                  background: hoje ? "#FF3B30" : marcado ? A.texto : "transparent", color: hoje || marcado ? "#fff" : fds ? "#8E8E93" : A.texto, transition: "background .15s" }}>{Number(dia.slice(8))}</span>
-                <div className="w-full flex flex-col gap-[3px] mt-1 px-[2px]">
-                  {l.slice(0, 3).map((t) => { const c = corPilula(t, P[t.projetoId]); return (
-                    <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c, ...(t.status === "CONCLUIDA" ? { textDecoration: "line-through", opacity: 0.5 } : {}) }}>
-                      {t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
-                    </span>); })}
-                  {l.length > 3 && <span className="text-[10px] font-semibold" style={{ color: A.sub }}>+{l.length - 3}</span>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-      {/* tarefas do dia tocado */}
-      <div className="px-3 pt-3 pb-24">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-bold" style={{ color: sel === H ? "#FF3B30" : A.texto }}>{sel === H ? "Hoje" : ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][dUTC(sel).getUTCDay()]}, {Number(sel.slice(8))} de {MESES[Number(sel.slice(5, 7)) - 1]}</span>
-          <span className="flex-1" />
-          <button onClick={() => onSemana(sel)} className="text-xs font-semibold px-2 py-1.5 rounded-lg" style={{ color: A.azul }}>Ver semana</button>
-          <button onClick={() => onNova(sel)} title="Nova tarefa neste dia" className="p-1.5 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {lSel.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => onAbrir(t.id)} onConcluir={() => onConcluir(t)} />)}
-          {!lSel.length && <div className="text-sm py-3 text-center" style={{ color: "#B7B3B3" }}>Nenhuma tarefa neste dia.</div>}
-        </div>
-      </div>
+      {meses.map((ym) => {
+        const ano = Number(ym.slice(0, 4)), mes = Number(ym.slice(5, 7));
+        const p1 = `${ym}-01`, desloc = dUTC(p1).getUTCDay();   // domingo = 0
+        const nDias = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+        const cel = [...Array(desloc).fill(null), ...Array.from({ length: nDias }, (_, k) => somaDia(p1, k))];
+        while (cel.length % 7) cel.push(null);
+        const semanas = Array.from({ length: cel.length / 7 }, (_, k) => cel.slice(k * 7, k * 7 + 7));
+        return (
+          <div key={ym}>
+            <div className="px-4 pt-4 pb-1 flex items-baseline gap-2">
+              <span className="text-[28px] font-bold leading-none" style={{ color: ym === H.slice(0, 7) ? "#FF3B30" : A.texto }}>{MESES[mes - 1].charAt(0).toUpperCase() + MESES[mes - 1].slice(1)}</span>
+              <span className="text-base font-semibold" style={{ color: A.sub }}>{ano}</span>
+            </div>
+            {semanas.map((sem, i) => (
+              <div key={i} className="grid grid-cols-7" style={{ borderBottom: `1px solid ${A.linha}` }}>
+                {sem.map((dia, k) => {
+                  if (!dia) return <div key={k} style={{ minHeight: 92 }} />;
+                  const l = porDia[dia] || [], hoje = dia === H, marcado = dia === sel, fds = k === 0 || k === 6;
+                  return (
+                    <button key={dia} onClick={() => tocarDia(dia)} className="flex flex-col items-center pt-1.5 pb-1 min-w-0" style={{ minHeight: 92 }}>
+                      <span className="inline-flex items-center justify-center rounded-full text-[17px]" style={{ width: 32, height: 32, fontWeight: hoje || marcado ? 700 : 500,
+                        background: hoje ? "#FF3B30" : marcado ? A.texto : "transparent", color: hoje || marcado ? "#fff" : fds ? "#8E8E93" : A.texto, transition: "background .15s" }}>{Number(dia.slice(8))}</span>
+                      <div className="w-full flex flex-col gap-[3px] mt-1 px-[2px]">
+                        {l.slice(0, 3).map((t) => { const c = corPilula(t, P[t.projetoId]); return (
+                          <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c, ...(t.status === "CONCLUIDA" ? { textDecoration: "line-through", opacity: 0.5 } : {}) }}>
+                            {t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
+                          </span>); })}
+                        {l.length > 3 && <span className="text-[10px] font-semibold" style={{ color: A.sub }}>+{l.length - 3}</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            {/* tarefas do dia tocado: embaixo do mês dele */}
+            {sel.slice(0, 7) === ym && <div ref={painel} className="px-3 pt-3 pb-4" style={{ background: A.fundo2, borderBottom: `1px solid ${A.linha}`, scrollMarginBottom: 16 }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-bold" style={{ color: sel === H ? "#FF3B30" : A.texto }}>{sel === H ? "Hoje" : ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][dUTC(sel).getUTCDay()]}, {Number(sel.slice(8))} de {MESES[Number(sel.slice(5, 7)) - 1]}</span>
+                <span className="flex-1" />
+                <button onClick={() => onSemana(sel)} className="text-xs font-semibold px-2 py-1.5 rounded-lg" style={{ color: A.azul }}>Ver semana</button>
+                <button onClick={() => onNova(sel)} title="Nova tarefa neste dia" className="p-1.5 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {lSel.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => onAbrir(t.id)} onConcluir={() => onConcluir(t)} />)}
+                {!lSel.length && <div className="text-sm py-3 text-center" style={{ color: "#B7B3B3" }}>Nenhuma tarefa neste dia.</div>}
+              </div>
+            </div>}
+          </div>
+        );
+      })}
+      <div ref={fim} className="py-6 flex justify-center pb-24"><Loader2 size={16} className="animate-spin" style={{ color: A.sub }} /></div>
     </div>
   );
 }
@@ -755,9 +783,13 @@ function MesMobile({ ref0, H, porDia, P, fotos, onDia, onMover, onNova, onAbrir,
 // v561 — períodos do dia (como nas rotas): tarde = horário a partir de 12:00; sem horário fica na manhã
 const PERIODOS = [["Manhã", "MANHA"], ["Tarde", "TARDE"]];
 const periodoDe = (t) => (String(t.hora || "") >= "12:00" ? "TARDE" : "MANHA");
-export function Agenda({ user }) {
+export function Agenda({ user, pedidoModo, onModo }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
-  const [modo, setModo] = useState("semana");        // abre na semana atual
+  const [modo, setModo] = useState(pedidoModo?.modo === "mes" ? "mes" : "semana");        // abre na semana atual
+  // v592 — botão "Mês" do topo (celular) troca a visualização daqui de fora
+  useEffect(() => { if (pedidoModo?.modo) { setTela("calendario"); setModo(pedidoModo.modo); } }, [pedidoModo?.n]);
+  useEffect(() => { onModo?.(modo); }, [modo]);
+  const [nMeses, setNMeses] = useState(3);   // v592 — mês infinito no celular
   const [visao, setVisao] = useState("GERAL");       // GERAL | PESSOAL | FUNCIONAL
   const [projetoId, setProjetoId] = useState(null);
   const [ref, setRef] = useState(hojeISO());
@@ -781,9 +813,12 @@ export function Agenda({ user }) {
     const n = Math.ceil((Math.round((dUTC(fimMes) - dUTC(i)) / 86400000) + 1) / 7) * 7;
     return Array.from({ length: n }, (_, k) => somaDia(i, k));
   }, [modo, ref]);
-  const carregar = () => api(`/api/tarefas?u=${user.id}&escopo=${projetoId ? "todas" : "minhas"}${projetoId ? `&projeto=${projetoId}` : ""}&de=${dias[0]}&ate=${dias[dias.length - 1]}`)
+  useEffect(() => { setNMeses(3); }, [ref.slice(0, 7), modo]);
+  const infinito = mobile && modo === "mes";
+  const faixa = infinito ? [`${ref.slice(0, 7)}-01`, new Date(Date.UTC(ano, mes - 1 + nMeses, 0)).toISOString().slice(0, 10)] : [dias[0], dias[dias.length - 1]];
+  const carregar = () => api(`/api/tarefas?u=${user.id}&escopo=${projetoId ? "todas" : "minhas"}${projetoId ? `&projeto=${projetoId}` : ""}&de=${faixa[0]}&ate=${faixa[1]}`)
     .then(setD).catch(() => setD({ tarefas: [], usuarios: [], projetos: [], equipe: [] }));
-  useEffect(() => { carregar(); }, [dias[0], dias[dias.length - 1], projetoId]);
+  useEffect(() => { carregar(); }, [faixa[0], faixa[1], projetoId]);
   const projetos = d?.projetos || [];
   const P = useMemo(() => Object.fromEntries(projetos.map((p) => [p.id, p])), [projetos]);
   const fotos = useMemo(() => Object.fromEntries((d?.equipe || []).map((x) => [x.id, x.foto])), [d]);
@@ -799,7 +834,7 @@ export function Agenda({ user }) {
   Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
-  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: visao === "FUNCIONAL" || projetoId ? "FUNCIONAL" : "PESSOAL", publica: visao === "FUNCIONAL" || !!projetoId });   // v565 — nova tarefa começa pessoal
+  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
   const soltar = async (dia) => {
     const t = arrastando; setArrastando(null); setSobre(null);
     if (!t || t.prazo === dia) return;
@@ -851,11 +886,13 @@ export function Agenda({ user }) {
         <button onClick={() => alternarLat(true)} title="Esconder projetos" className="absolute rounded-md p-1" style={{ top: 10, right: 6, color: A.sub, zIndex: 1 }}><ChevronLeft size={18} /></button>
         <button onClick={() => setProjetoId(null)} className="text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
           style={{ width: "calc(100% - 30px)", background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
+        {/* v592 — projetos pessoais e funcionais */}
+        {[["PESSOAL", "Projetos pessoais"], ["FUNCIONAL", "Projetos funcionais"]].map(([nat, rot]) => <React.Fragment key={nat}>
         <div className="flex items-center px-3 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: A.sub }}>
-          <span className="flex-1">Projetos</span>
-          <button onClick={() => setProjForm({})} title="Novo projeto" style={{ color: A.sub }}><Plus size={14} /></button>
+          <span className="flex-1">{rot}</span>
+          <button onClick={() => setProjForm({ natureza: nat })} title={`Novo projeto ${nat === "PESSOAL" ? "pessoal" : "funcional"}`} style={{ color: A.sub }}><Plus size={14} /></button>
         </div>
-        {projetos.map((p) => (
+        {projetos.filter((p) => (p.natureza === "PESSOAL") === (nat === "PESSOAL")).map((p) => (
           <div key={p.id} className="group flex items-center rounded-lg" style={{ background: projetoId === p.id ? A.azulSoft : "transparent", transition: "all .18s" }}>
             <button onClick={() => setProjetoId(p.id)} className="flex-1 text-left px-3 py-1.5 text-sm flex items-center gap-2 min-w-0" style={{ color: A.texto }}>
               <span className="rounded-[4px] shrink-0" style={{ width: 12, height: 12, background: p.cor }} />
@@ -866,6 +903,7 @@ export function Agenda({ user }) {
             {p.podeEditar && <button onClick={() => setProjForm(p)} className="opacity-0 group-hover:opacity-100 px-1.5" title="Editar projeto" style={{ color: A.sub, transition: "opacity .15s" }}><Pencil size={12} /></button>}
           </div>
         ))}
+        </React.Fragment>)}
         {!projetos.length && <div className="px-3 text-[11px]" style={{ color: A.sub }}>Nenhum projeto. Crie no +.</div>}
       </aside>
       )}
@@ -877,7 +915,7 @@ export function Agenda({ user }) {
             {proj ? <span className="rounded-md shrink-0" style={{ width: 22, height: 22, background: proj.cor }} /> : <CalendarDays size={22} className="shrink-0" style={{ color: A.azul }} />}
             {mobile ? (
               <select value={projetoId || ""} onChange={(e) => setProjetoId(e.target.value ? Number(e.target.value) : null)} className="flex-1 min-w-0 rounded-lg px-2 py-2 font-bold" style={{ border: `1px solid ${A.linha}`, color: A.texto, background: A.fundo }}>
-                <option value="">Minha agenda</option>{projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.abertas ? ` (${p.abertas})` : ""}</option>)}
+                <option value="">Minha agenda</option>{[["PESSOAL", "Projetos pessoais"], ["FUNCIONAL", "Projetos funcionais"]].map(([nat, rot]) => { const l = projetos.filter((p) => (p.natureza === "PESSOAL") === (nat === "PESSOAL")); return l.length ? <optgroup key={nat} label={rot}>{l.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.abertas ? ` (${p.abertas})` : ""}</option>)}</optgroup> : null; })}
               </select>
             ) : <div className="text-xl font-bold" style={{ color: A.texto }}>{proj ? proj.nome : "Agenda"}</div>}
             {mobile && <button onClick={() => setProjForm({})} title="Novo projeto" className="p-2 rounded-lg shrink-0" style={{ border: `1px solid ${A.linha}`, color: A.sub }}><Plus size={18} /></button>}
@@ -954,7 +992,7 @@ export function Agenda({ user }) {
                   })}
                 </div>
               ) : mobile ? (
-                <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={setAbrir}
+                <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} nMeses={nMeses} onMais={() => setNMeses((n) => Math.min(n + 2, 36))} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={setAbrir}
                   onConcluir={alternarConcluida} onSemana={(dia) => { setModo("semana"); setRef(dia); }} />
               ) : (
               <div className="grid grid-cols-7" style={{ height: "100%" }}>
@@ -1018,7 +1056,7 @@ export function Agenda({ user }) {
       {form && <TarefaForm user={user} inicial={form} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} editarDireto />}
       {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}
-      {projForm && <ProjetoForm user={user} inicial={projForm} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
+      {projForm && <ProjetoForm user={user} inicial={projForm} projetos={projetos} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
     </div>
   );
 }
