@@ -26,7 +26,7 @@ const C = {
 const sabTxt = (r) => (r?.chaveOrigem === "MATRIZ|pessoal|SALARIO" || /^SAL[AÁ]RIO( |$)/.test(String(r?.titulo || "").toUpperCase()) ? " (com sábado)" : "");
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const moeda = (v) => "R$ " + brl(v);
+const moeda = (v) => "R$\u00A0" + brl(v);   // v596 — espaço que não quebra: R$ e valor na mesma linha
 const dBR = (s) => (s ? s.slice(0, 10).split("-").reverse().join("/") : "—");
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const mesAtual = () => hojeISO().slice(0, 7);
@@ -1902,7 +1902,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
           {item.status === "PAGO" && <div><span style={{ color: C.sub }}>{P ? "Pago" : "Recebido"}:</span> <b>{moeda(item.valorPago ?? item.valor)}</b> em {dBR(item.dataPagamento)}
             {item.liquidacao !== "RECOMPRA" && !ehAntecipado(item) && <button type="button" onClick={excluirPgto} className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }}>{P ? "EXCLUIR PAGAMENTO" : "EXCLUIR RECEBIMENTO"}</button>}</div>}
           {item.formaPagamento && <div><span style={{ color: C.sub }}>Forma:</span> {FORMAS_PGTO[item.formaPagamento] || item.formaPagamento}</div>}
-          {item.chavePix && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: C.sub }}>Chave PIX:</span> <span className="font-mono">{item.chavePix}</span></div>}
+          {item.chavePix && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: C.sub }}>Chave PIX:</span> <span className="font-mono font-bold" style={{ color: C.text }}>{item.chavePix}</span></div>}
           {item.nossoNumero && <div><span style={{ color: C.sub }}>Nosso nº:</span> {item.nossoNumero}</div>}
           {item.cobranca && <div><span style={{ color: C.sub }}>Cobrança:</span> {item.cobranca}</div>}
           {item.remessa && <div><span style={{ color: C.sub }}>Remessa:</span> nº {item.remessa}{item.remessaEm ? ` · ${dBR(item.remessaEm)}` : ""}</div>}
@@ -2248,7 +2248,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                 <tr key={it.id} style={{ borderTop: `1px solid ${C.line}` }}>
                   <td className="px-2 py-1.5">
                     <div className="font-semibold">{it.nome}{it.pago && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span>}</div>
-                    <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX {it.chavePix}</div>
+                    <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX <b style={{ color: C.text }}>{it.chavePix}</b></div>
                   </td>
                   <td className="px-2 py-1.5">{it.setorNome}</td>
                   <td className="px-2 py-1.5" style={{ color: C.sub }}>
@@ -2267,7 +2267,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                     {it.excepcional && <div style={{ color: C.red }}>pagamento excepcional · {it.justificativa || "sem justificativa"}</div>}
                     {it.observacao && <div>{it.observacao}</div>}
                   </td>
-                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{moeda(it.valor)}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums whitespace-nowrap">{moeda(it.valor)}</td>
                   <td className="px-2 whitespace-nowrap">
                     {it.pago
                       ? <button onClick={() => desfazer(it)} title="Desfazer a baixa" className="mr-2" style={{ color: C.sub }}><Undo2 size={13} /></button>
@@ -2592,7 +2592,7 @@ function PrestadorPicker({ lista, valor, onEscolher, onNovo }) {
               onClick={() => { onEscolher(p); setAberto(false); setBusca(""); }}
               className="w-full text-left px-3 py-1.5 text-sm">
               <div className="font-semibold">{p.nome}</div>
-              <div className="text-[11px]" style={{ color: C.sub }}>{p.chavePix}{p.capacidade ? ` · ${p.capacidade} pç/semana` : ""}</div>
+              <div className="text-[11px]" style={{ color: C.sub }}><b style={{ color: C.text }}>{p.chavePix}</b>{p.capacidade ? ` · ${p.capacidade} pç/semana` : ""}</div>
             </button>
           ))}
           <button type="button" onMouseDown={(e) => e.preventDefault()}
