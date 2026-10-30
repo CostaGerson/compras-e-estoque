@@ -278,12 +278,52 @@ model Pp {
   arquivoPedidoPdf  String?
   arquivoOpPdf      String?   // v320 — ordem de produção (PP do KM Sistemas)
   origem            String?   // v320 — "PEDIDOS" quando veio do upload de PV/PP (itens são atualizados pelos PDFs até alguém salvar no editor)
+  // v595 — lançamento de pedido sem o KM
+  interno           Boolean   @default(false)   // pedido interno: não gera contas, só dados gerenciais
+  emissao           String?   // AAAA-MM-DD
+  prazoDias         Int?
+  prazoTipo         String?   // UTEIS | CORRIDOS
+  entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
+  entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
+  pagamento         Json?     // { entrada: { data, valor } | null, parcelas: [{ dias, tipo, base, valor }] }
+  nfObs             String?   // observação que vai na NF (o nº do pedido e a OC entram sozinhos)
+  efetivadoEm       DateTime?
+  efetivadoPorNome  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   pv    Pv?      @relation(fields: [pvId], references: [id], onDelete: Cascade)
   itens PpItem[]
+  anexos PpAnexo[]
+}
+
+// v595 — anexos do lançamento (OC, solicitação, layout…), por arraste
+model PpAnexo {
+  id        Int      @id @default(autoincrement())
+  ppId      Int
+  nome      String
+  tipo      String?  // mime
+  categoria String?  // OC | SOLICITACAO | LAYOUT | OUTRO
+  tamanho   Int?
+  base64    String
+  criadoPorNome String?
+  createdAt DateTime @default(now())
+
+  pp Pp @relation(fields: [ppId], references: [id], onDelete: Cascade)
+  @@index([ppId])
+}
+
+// v595 — cadastro de itens do KM (solprodu + último detalhe de produção) — mesma nomenclatura no lançamento
+model KmProduto {
+  codigo     String   @id
+  kmId       Int?
+  nome       String
+  detalhe    String?  // texto do último detalhe (RTF já convertido)
+  parametros Json?    // [{ t, v }]
+  preco      Decimal? @db.Decimal(14, 4)
+  usos       Int      @default(0)
+  kmSyncEm   DateTime @default(now())
 }
 
 model PpItem {
@@ -300,6 +340,8 @@ model PpItem {
   parametrosJson    String?
   fotoBase64        String?
   valorTerceirizado Decimal? @db.Decimal(14, 2)
+  fppId             Int?      // v595 — FPP indexada no lançamento (artigo e rendimento vêm dela)
+  fppNumero         Int?
   etapaAtual        Etapa?
   createdAt         DateTime @default(now())
 
@@ -1863,6 +1905,10 @@ model PedidoVenda {
   cronoConcluido Boolean  @default(false)
   cronoItens    Json?                       // resumo por item (itemCode, situação, etapa, entrega, fim programado)
   formaEntrega  String?                     // v450 — PROPRIA | TRANSPORTADORA | FRETEBRAS | RETIRADA (da FPP ou escolhida na tarefa)
+  pagamento     Json?                       // v595 — condição montada no lançamento: { entrada, parcelas: [{ dias, tipo, base: EMISSAO|NF|ENTREGA, valor }] }
+  entregaModo   String?                     // v595 — UNICA | FRACIONADA | TERCEIROS
+  entregas      Json?                       // v595 — locais de entrega com a grade de cada um
+  nfObs         String?                     // v595 — texto das observações da NF (pedido + OC + obs)
   cronoCompras  Json?                       // v421 — compras pendentes do PCP (/api/ext/compras) das OPs do pedido: [{ produto, nome, fornecedor, pedido, dataPedido }]
   pvPdf         String?                     // base64
   ppPdf         String?

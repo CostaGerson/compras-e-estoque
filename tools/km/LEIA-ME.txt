@@ -22,3 +22,8 @@ v521 - CLIENTES do KM (todos os cadastrados em solclien)
   - depois de atualizar o projeto, rode de novo:  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar
   - conferir o mapeamento sem gravar:  .\km-sync.ps1 -Clientes -Previa   (abre km_clientes_previa.json)
   - mandar agora:                      .\km-sync.ps1 -Clientes
+
+v595 - ITENS (produtos) do KM (solprodu + ultimo detalhe de producao)
+  - vao sozinhos de hora em hora (minuto 10); usados no lancamento de pedidos (mesma nomenclatura do KM)
+  - depois de atualizar o projeto, rode de novo:  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar
+  - mandar agora:                      .\km-sync.ps1 -Produtos

@@ -8,8 +8,10 @@
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar     (roda sozinho a cada 1 minuto; -Minutos N para outro intervalo)
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Desinstalar
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Clientes     (v521: manda TODOS os clientes do KM agora; com -Previa so mostra)
+#   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Produtos     (v595: manda o cadastro de itens do KM agora)
 # v521: clientes do KM vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes)
+# v595: itens (produtos) do KM vao sozinhos de hora em hora (minuto 10)
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -47,6 +49,7 @@ if ($Configurar) {
   Copy-Item -Force (Join-Path $PSScriptRoot "km-sync.ps1") (Join-Path $pasta "km-sync.ps1")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-produtos.sql") (Join-Path $pasta "km-produtos.sql")
   Write-Host "Configurado em $cfgArq"
   exit 0
 }
@@ -58,6 +61,7 @@ if ($Instalar) {
   Copy-Item -Force (Join-Path $PSScriptRoot "km-sync.ps1") (Join-Path $pasta "km-sync.ps1")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-produtos.sql") (Join-Path $pasta "km-produtos.sql")
   if ($Minutos -lt 1) { $Minutos = 1 }
   # lancador .vbs: roda o PowerShell sem abrir/piscar janela
   $vbs = Join-Path $pasta "km-sync.vbs"
@@ -120,6 +124,23 @@ function EnviarClientes([bool]$soPrevia) {
 }
 if ($Clientes) { EnviarClientes ([bool]$Previa); exit 0 }
 
+# ---------- v595: itens (produtos) do KM ----------
+function EnviarProdutos([bool]$soPrevia) {
+  $arq = Join-Path $pasta "produtos.json"
+  if (-not (RodarSql "km-produtos.sql" $arq)) { return }
+  $u = $c.url.TrimEnd("/") + "/api/km/produtos" + $(if ($soPrevia) { "?previa=1" } else { "" })
+  try {
+    $w = Invoke-WebRequest -UseBasicParsing -Uri $u -Method Post -Body ([IO.File]::ReadAllBytes($arq)) -ContentType "application/json; charset=utf-8" -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 300
+    $r = [Text.Encoding]::UTF8.GetString($w.RawContentStream.ToArray()) | ConvertFrom-Json
+  } catch {
+    $msg = $_.Exception.Message
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $msg = "$msg - $($_.ErrorDetails.Message)" }
+    Log "ERRO ao enviar produtos: $msg"; return
+  }
+  Log ("PRODUTOS{0}: {1} recebidos | {2} gravados{3}" -f $(if ($soPrevia) { " (previa)" } else { "" }), $r.recebidos, [int]$r.gravados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }))
+}
+if ($Produtos) { EnviarProdutos ([bool]$Previa); exit 0 }
+
 # pedidos em andamento no sistema (consultados no KM mesmo fora do filtro)
 $abertos = ""
 try {
@@ -171,4 +192,5 @@ if (-not $Previa) {
     $pediu = ([Text.Encoding]::UTF8.GetString($wp.RawContentStream.ToArray())).Trim()
   } catch { }
   if ($pediu -eq "1" -or (Get-Date).Minute -eq 5) { EnviarClientes $false }
+  if ((Get-Date).Minute -eq 10) { EnviarProdutos $false }   # v595
 }

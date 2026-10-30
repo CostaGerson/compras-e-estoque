@@ -13,6 +13,7 @@ export const negadoPP = () => Response.json({ error: "PP: sem acesso para este u
 // tira os valores do pedido para quem não pode vê-los
 export function ppParaUsuario(pp, u) {
   if (!pp || veValoresPP(u)) return pp;
-  const { valorTotal, arquivoPedidoPdf, ...resto } = pp;   // v320 — o PV (pedido) tem preços: não vai para quem não vê valores
+  const { valorTotal, arquivoPedidoPdf, pagamento, condicaoPagamento, ...resto } = pp;   // v595 — prazo de pagamento também   // v320 — o PV (pedido) tem preços: não vai para quem não vê valores
   return { ...resto, valorTotal: null, arquivoPedidoPdf: null, temPv: false, ...(Array.isArray(pp.itens) ? { itens: pp.itens.map(({ valorUnitario, valorTotal, valorTerceirizado, ...it }) => ({ ...it, valorUnitario: null, valorTotal: null, valorTerceirizado: null })) } : {}) };
 }
+export const nomeQuem = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase() || null;   // v595

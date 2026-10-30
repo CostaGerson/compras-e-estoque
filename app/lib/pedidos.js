@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { lerPedidoPdf, lerCondicao } from "@/lib/pedidosLer";
 import { sincronizar } from "@/lib/cronograma";
+import { parcelasCalc } from "@/lib/pedidoLanc";   // v595
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const dUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
@@ -11,7 +12,7 @@ const hojeISO = () => { const d = new Date(Date.now() - 3 * 3600e3); return d.to
 const CAMPOS = Object.fromEntries(["id", "numero", "cliente", "clienteCodigo", "cnpj", "emissao", "despacho", "condicao", "entradaValor", "vendedor", "tipoPedido", "oc",
   "freteTipo", "frete", "total", "qtd", "itens", "status", "nfNumero", "faturadoEm", "entregaPrevista", "cronoSituacao", "cronoEtapa", "cronoEm", "obs",
   "cronoPrazo", "cronoFimProgramado", "cronoConcluido", "cronoItens", "interno", "qtEntregar", "vlEntregar", "fonte", "nfsFaturadas", "kmNfs", "faturamentoPendente",
-  "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt"].map((k) => [k, true]));
+  "criadoPorNome", "atualizadoPorNome", "createdAt", "updatedAt", "pagamento"].map((k) => [k, true]));
 export const chaveEntrada = (numero) => `PED|${numero}|ENTRADA`;
 // v323 — pedidos da NORT SPORTS são internos: não geram contas a receber nem entram na previsão de receitas
 export const ehInterno = (cliente, cnpj) => String(cnpj || "").replace(/\D/g, "").startsWith("55116246") || /\bNORT\b/i.test(String(cliente || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
@@ -273,6 +274,24 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
   const cond = lerCondicao(p.condicao);
   if (p.interno) return { interno: true, condicaoOk: true, entradaPct: 0, prazos: [], entrada: 0, entradaCalc: 0, entradaLancada: 0, entradaTitulos: [], restante: 0,
     base: iso(p.entregaPrevista) || iso(p.despacho), baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : "DESPACHO", atrasado: false, reprogramar: null, pronto: !!p.cronoConcluido, parcelas: [] };
+  // v595 — pedido lançado no sistema: prazo montado (entrada + parcelas por emissão / NF / entrega). Parcelas da emissão já estão no contas a receber
+  if (p.pagamento && (p.pagamento.entrada || (p.pagamento.parcelas || []).length)) {
+    const baseOrig = iso(p.entregaPrevista) || iso(p.despacho);
+    const pronto = !!p.cronoConcluido;
+    const atrasado = !pronto && !!baseOrig && baseOrig < hoje;
+    const base = !baseOrig || atrasado || (pronto && baseOrig < hoje) ? hoje : baseOrig;
+    const c = parcelasCalc(p.pagamento, r2(p.total), { emissao: iso(p.emissao), nf: base, entrega: base });
+    const entrada = c.entrada?.valor || 0;
+    const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO");
+    const entradaLancada = r2(lancadas.reduce((s, t) => s + Number(t.valor), 0));
+    const parcelas = [];
+    if (entrada > 0 && entradaLancada + Math.max(1, entrada * 0.005) < entrada) parcelas.push({ tipo: "ENTRADA", data: c.entrada.data && c.entrada.data > hoje ? c.entrada.data : hoje, valor: r2(entrada - entradaLancada), pendente: true });
+    for (const x of c.parcelas) if (x.base !== "EMISSAO") parcelas.push({ tipo: "PARCELA", n: x.n, de: x.de, dias: x.dias, data: x.data, valor: x.valor });
+    return { condicaoOk: c.ok, entradaPct: p.total > 0 ? entrada / Number(p.total) : 0, prazos: c.parcelas.map((x) => x.dias), entrada, entradaCalc: entrada, entradaLancada,
+      entradaTitulos: lancadas.map((t) => ({ id: t.id, valor: r2(t.valor), vencimento: iso(t.vencimento), status: t.status })),
+      restante: r2(c.parcelas.filter((x) => x.base !== "EMISSAO").reduce((s, x) => s + x.valor, 0)), base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE",
+      atrasado, reprogramar: atrasado ? (p.entregaPrevista ? "PCP" : "DESPACHO") : null, pronto, desconsiderado: false, parcelas };
+  }
   const entradaCalc = r2(r2(p.total) * cond.entradaPct);   // v403 — entrada é % do pedido (não do saldo a faturar)
   const entrada = p.entradaValor != null ? r2(p.entradaValor) : entradaCalc;
   const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO");

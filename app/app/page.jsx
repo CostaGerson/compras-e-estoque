@@ -35,6 +35,7 @@ import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, S
 import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import PedidoEditor from "./pedidoEditor";   // v595 — lançamento de pedido sem o KM
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -71,13 +72,13 @@ const ESTOQUE = [
   { art: "Zíper 6mm — Preto", end: "Corredor B · Célula 1", saldo: "1.500 un", origem: "NF 12.410", val: 2850 },
 ];
 const COMPONENTES = {
-  CAMISETA: ["MODELAGEM","TECIDO","GOLA DA CAMISETA","MANGA DA CAMISETA","BARRA DA CAMISETA","RECORTE DA CAMISETA","BOLSO DA CAMISETA","EXTRA DA CAMISETA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  CAMISA: ["MODELAGEM","TECIDO","GOLA DA CAMISA","PE DE GOLA","MANGA DA CAMISA","FECHAMENTO DA CAMISA","FRENTE DA CAMISA","COSTAS DA CAMISA","BARRA DA CAMISA","PUNHO DA CAMISA","RECORTE DA CAMISA","BOLSO DA CAMISA","EXTRA DA CAMISA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  POLO: ["MODELAGEM","TECIDO","GOLA DA POLO","FECHAMENTO DA POLO","MANGA DA POLO","FRENTE DA POLO","COSTAS DA POLO","BARRA DA POLO","RECORTE DA POLO","BOLSO DA POLO","EXTRA DA POLO","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  JAQUETA: ["MODELAGEM","TECIDO","GOLA","MANGA","FECHAMENTO","COSTAS","BARRA","PUNHO","RECORTE","BOLSO","FORRO","EXTRA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  CALÇA: ["MODELAGEM","TECIDO","FECHAMENTO DA CALÇA","COS DA CALÇA","BOLSO DIANTEIRO","BOLSO TRASEIRO","REFORÇO","EXTRA","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  JALECO: ["MOLDE","TECIDO","GOLA DO JALECO","FECHAMENTO DO JALECO","MANGA DO JALECO","BOLSO DO JALECO","EXTRA DO JALECO","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
-  AVENTAL: ["MODELAGEM","TECIDO","BOLSO DO AVENTAL","ALÇA DO AVENTAL","EXTRA DO AVENTAL","PERSONALIZAÇÃO","PERÍODO PERSONALIZAÇÃO","PERÍODO FACÇÃO","VALOR TERCEIRIZADO"],
+  CAMISETA: ["MODELAGEM","TECIDO","GOLA DA CAMISETA","MANGA DA CAMISETA","BARRA DA CAMISETA","RECORTE DA CAMISETA","BOLSO DA CAMISETA","EXTRA DA CAMISETA","PERSONALIZAÇÃO"],
+  CAMISA: ["MODELAGEM","TECIDO","GOLA DA CAMISA","PE DE GOLA","MANGA DA CAMISA","FECHAMENTO DA CAMISA","FRENTE DA CAMISA","COSTAS DA CAMISA","BARRA DA CAMISA","PUNHO DA CAMISA","RECORTE DA CAMISA","BOLSO DA CAMISA","EXTRA DA CAMISA","PERSONALIZAÇÃO"],
+  POLO: ["MODELAGEM","TECIDO","GOLA DA POLO","FECHAMENTO DA POLO","MANGA DA POLO","FRENTE DA POLO","COSTAS DA POLO","BARRA DA POLO","RECORTE DA POLO","BOLSO DA POLO","EXTRA DA POLO","PERSONALIZAÇÃO"],
+  JAQUETA: ["MODELAGEM","TECIDO","GOLA","MANGA","FECHAMENTO","COSTAS","BARRA","PUNHO","RECORTE","BOLSO","FORRO","EXTRA","PERSONALIZAÇÃO"],
+  CALÇA: ["MODELAGEM","TECIDO","FECHAMENTO DA CALÇA","COS DA CALÇA","BOLSO DIANTEIRO","BOLSO TRASEIRO","REFORÇO","EXTRA","PERSONALIZAÇÃO"],
+  JALECO: ["MOLDE","TECIDO","GOLA DO JALECO","FECHAMENTO DO JALECO","MANGA DO JALECO","BOLSO DO JALECO","EXTRA DO JALECO","PERSONALIZAÇÃO"],
+  AVENTAL: ["MODELAGEM","TECIDO","BOLSO DO AVENTAL","ALÇA DO AVENTAL","EXTRA DO AVENTAL","PERSONALIZAÇÃO"],
 };
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 const TODOS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
@@ -1310,12 +1311,14 @@ function LancarPP({ user }) {
   }, [modo]);
   const abrirPdf = (p, campo) => window.open(`/api/pp/${p.id}?arquivo=${campo}&_u=${user?.id}`, "_blank");
 
-  if (modo === "editor") return <PpEditor ppId={ppId} podeLancar={podeLancar} veVal={veVal} onVoltar={() => { setModo("lista"); setPpId(null); carregar(); }} />;
+  // v595 — editor novo (lançamento sem o KM)
+  if (modo === "editor") return <PedidoEditor ppId={ppId} podeLancar={podeLancar} veVal={veVal} uid={user?.id} componentes={COMPONENTES} tamanhos={TAMANHOS} imprimir={imprimirPP}
+    onVoltar={() => { setModo("lista"); setPpId(null); carregar(); }} />;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <div className="text-sm" style={{ color: C.sub }}>{lista.length} PP(s) lançado(s)</div>
+        <div className="text-sm" style={{ color: C.sub }}>{lista.length} pedido(s)</div>
         <div className="flex gap-2">
           {podeLancar && <>
             <input ref={inpUp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { subir(e.target.files); e.target.value = ""; }} />
@@ -1324,7 +1327,7 @@ function LancarPP({ user }) {
             </button>
           </>}
           {podeLancar && <button onClick={() => { setPpId(null); setModo("editor"); }} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
-            <Plus size={16} /> Novo PP
+            <Plus size={16} /> Novo pedido
           </button>}
         </div>
       </div>
@@ -1350,8 +1353,14 @@ function LancarPP({ user }) {
           <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum PP ainda.{podeLancar ? ' Clique em "Novo PP".' : ""}</div>
         ) : lista.map((p) => (
           <div key={p.id} className="flex px-4 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
-            <div className="w-28 font-medium">{p.numero || `#${p.id}`}</div>
-            <div className="flex-1">{p.clienteNome || "—"}</div>
+            <div className="w-28 font-medium">{p.numero || <span style={{ color: C.sub }}>rascunho</span>}
+              {/* v595 — situação do lançamento */}
+              <div className="text-[10px] font-semibold" style={{ color: p.status === "FATURADO" ? C.blue : p.efetivadoEm ? C.green : p.origem === "PEDIDOS" ? C.sub : C.yellow }}>
+                {p.status === "FATURADO" ? "FATURADO" : p.efetivadoEm ? "LANÇADO" : p.origem === "PEDIDOS" ? "" : "RASCUNHO"}{p.interno ? " · INTERNO" : ""}</div></div>
+            <div className="flex-1 min-w-0">{p.clienteNome || "—"}
+              {(p.anexos || []).length > 0 && <div className="flex flex-wrap gap-1 mt-0.5">
+                {p.anexos.map((a) => <button key={a.id} onClick={() => window.open(`/api/pp/${p.id}?anexo=${a.id}&_u=${user?.id}`, "_blank")} className="text-[11px] px-1.5 rounded truncate" style={{ maxWidth: 180, color: C.accent, border: `1px solid ${C.line}` }} title={a.nome}>📎 {a.nome}</button>)}
+              </div>}</div>
             <div className="w-24" style={{ color: C.sub }}>{p.oc || "—"}</div>
             <div className="w-20 text-right" style={{ color: C.sub }}>{p._count?.itens ?? 0}</div>
             {veVal && <div className="w-32 text-right" style={{ color: C.accent, fontWeight: 600 }}>{p.valorTotal != null ? ppMoney(p.valorTotal) : "—"}</div>}
@@ -1675,7 +1684,7 @@ function imprimirPP(f, itens, totalPecas, totalGeral, comValores = true) {
     const params = COMPONENTES[it.tipoPecaNome].map((comp) => {
       let val = it.parametros[comp];
       if (comp === "TECIDO" && val && typeof val === "object") {
-        val = `${esc(val.tipo)}${val.artigo ? " · " + esc(val.artigo) : ""}${val.medida ? " · " + esc(val.medida) : ""}`;
+        val = `${esc(val.tipo)}${val.artigo ? " · " + esc(val.artigo) : ""}${val.medida ? " · " + esc(val.medida) : ""}${val.forro ? " · forro " + esc(val.forro) : ""}${val.fpp ? " (FPP " + esc(String(val.fpp).padStart(5, "0")) + ")" : ""}`;
       } else { val = esc(val || "—"); }
       return `<tr><td class="pk">${esc(comp)}</td><td>${val}</td></tr>`;
     }).join("");
@@ -1746,6 +1755,8 @@ function imprimirPP(f, itens, totalPecas, totalGeral, comValores = true) {
     ${itensHtml}
     <div class="totais">Total do pedido: <b>${totalPecas} peças${comValores ? ` · ${money(totalGeral)}` : ""}</b></div>
     ${f.obs ? `<div class="obs"><b>Obs.:</b> ${esc(f.obs)}</div>` : ""}
+    ${f.entregasTexto ? `<div class="obs"><b>Locais de entrega:</b><br/>${esc(f.entregasTexto).replace(/\n/g, "<br/>")}</div>` : ""}
+    ${f.obsNfTexto ? `<div class="obs"><b>Obs. da NF:</b> ${esc(f.obsNfTexto)}</div>` : ""}
     <div class="rod">MERIDIAN · Confecção de uniformes — documento interno de produção</div>
     <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>
   </body></html>`;

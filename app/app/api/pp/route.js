@@ -1,18 +1,26 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioPP, negadoPP, ppParaUsuario } from "@/lib/pp";
+import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
+import { salvarPp } from "@/lib/pedidoEfetivar";   // v595
+import { proximoNumero } from "@/lib/pedidoLanc";
 import { garantirPpTodos } from "@/lib/pedidos";
 
 export async function GET(req) {
   const u = await usuarioPP(req, "ve");
   if (!u) return negadoPP();
+  // v595 — próximo número (prévia; o número é gravado ao efetivar)
+  if (new URL(req.url).searchParams.get("proximo") === "1") {
+    const [a, b] = await Promise.all([prisma.pp.findMany({ where: { numero: { not: null } }, select: { numero: true } }), prisma.pedidoVenda.findMany({ select: { numero: true } })]);
+    return Response.json({ numero: proximoNumero([...a, ...b].map((x) => x.numero)) });
+  }
   // v328 — todo pedido do sistema aparece no Lançar PP: cria as cascas que faltam
   try { await garantirPpTodos([u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase()); } catch {}
   // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({
     where: { status: { not: "EXCLUIDO" } },   // v552 — pedido na lixeira
     orderBy: { createdAt: "desc" },
-    select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } } },
+    select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } },
+      interno: true, efetivadoEm: true, entregaModo: true, anexos: { select: { id: true, nome: true, tipo: true, categoria: true }, orderBy: { id: "asc" } } },   // v595
   });
   const tem = async (campo) => new Set((await prisma.pp.findMany({ where: { [campo]: { not: null } }, select: { id: true } })).map((x) => x.id));
   const [pv, op, pc, lanc] = await Promise.all([tem("arquivoPedidoPdf"), tem("arquivoOpPdf"), tem("arquivoPcPdf"), tem("arquivoLancPdf")]);
@@ -30,48 +38,15 @@ const decPonto = (v) => {
   return isNaN(n) ? null : n;
 };
 
+// v595 — salvar (rascunho) pelo editor novo
 export async function POST(req) {
-  if (!(await usuarioPP(req))) return negadoPP();
+  const u = await usuarioPP(req);
+  if (!u) return negadoPP();
   const b = await req.json();
-  const itens = Array.isArray(b.itens) ? b.itens : [];
   try {
-    const pp = await prisma.pp.create({
-      data: {
-        numero: b.numero || null,
-        clienteNome: b.clienteNome || null,
-        clienteCnpj: b.clienteCnpj || null,
-        clienteIe: b.clienteIe || null,
-        clienteEndereco: b.clienteEndereco || null,
-        clienteContato: b.clienteContato || null,
-        oc: b.oc || null,
-        condicaoPagamento: b.condicaoPagamento || null,
-        prazoEntrega: b.prazoEntrega || null,
-        dtDespacho: b.dtDespacho || null,
-        tipoPedido: b.tipoPedido || null,
-        vendedor: b.vendedor || null,
-        obs: b.obs || null,
-        valorTotal: decPonto(b.valorTotal),
-        arquivoPcPdf: b.arquivoPcPdf || null,
-        arquivoLancPdf: b.arquivoLancPdf || null,
-        arquivoPedidoPdf: b.arquivoPedidoPdf || null,
-        arquivoOpPdf: b.arquivoOpPdf || null,
-        itens: {
-          create: itens.map((it) => ({
-            tipoPecaNome: it.tipoPecaNome || null,
-            codigo: it.codigo || null,
-            descricao: it.descricao || null,
-            quantidade: decPonto(it.quantidade) ?? 0,
-            valorUnitario: decPonto(it.valorUnitario),
-            valorTotal: decPonto(it.valorTotal),
-            gradeJson: it.gradeJson || null,
-            parametrosJson: it.parametrosJson || null,
-            fotoBase64: it.fotoBase64 || null,
-          })),
-        },
-      },
-    });
-    return Response.json({ id: pp.id }, { status: 201 });
+    const id = await salvarPp(null, b, nomeQuem(u));
+    return Response.json({ id }, { status: 201 });
   } catch (e) {
-    return Response.json({ error: "Falha ao salvar PP: " + (e?.message || String(e)) }, { status: 500 });
+    return Response.json({ error: "Falha ao salvar: " + (e?.message || String(e)) }, { status: 500 });
   }
 }
