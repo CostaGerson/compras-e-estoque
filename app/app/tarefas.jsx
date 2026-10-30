@@ -702,7 +702,7 @@ function ProjetoForm({ user, inicial, projetos = [], onClose, onOk }) {
    Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
 const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
 const corPilula = (t, proj) => proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
-function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana }) {
+function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana }) {
   // v592 — rolar para baixo emenda o mês seguinte (infinito); o dia tocado abre embaixo do mês dele
   const ano0 = Number(ref0.slice(0, 4)), mes0 = Number(ref0.slice(5, 7));
   const meses = Array.from({ length: nMeses }, (_, k) => new Date(Date.UTC(ano0, mes0 - 1 + k, 1)).toISOString().slice(0, 7));
@@ -712,6 +712,12 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, onMais, onDia, onMov
   const fim = useRef(null);
   const painel = useRef(null);
   const maisRef = useRef(onMais); maisRef.current = onMais;
+  // v594 — ao abrir o mês (ou tocar em "Mês" de novo) volta para o topo: o mês aparece primeiro, não a lista do dia
+  const raiz = useRef(null);
+  useEffect(() => {
+    const ir = () => { let el = raiz.current?.parentElement; while (el) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollTop) el.scrollTop = 0; el = el.parentElement; } window.scrollTo(0, 0); };
+    ir(); const t = setTimeout(ir, 80); return () => clearTimeout(t);
+  }, [topo, ref0.slice(0, 7)]);
   useEffect(() => {
     if (!fim.current || typeof IntersectionObserver === "undefined") return;
     const ob = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) maisRef.current?.(); }, { rootMargin: "600px 0px" });
@@ -720,7 +726,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, onMais, onDia, onMov
   const lSel = porDia[sel] || [];
   const tocarDia = (dia) => { setSel(dia); onDia?.(dia); setTimeout(() => painel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60); };
   return (
-    <div onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
+    <div ref={raiz} onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
       onTouchEnd={(e) => { const t0 = toque.current; toque.current = null; if (!t0) return; const dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onMover(dx < 0 ? 1 : -1); }}>
       <div className="grid grid-cols-7 py-1" style={{ borderBottom: `1px solid ${A.linha}`, position: "sticky", top: 0, zIndex: 5, background: A.fundo }}>
         {SEM_DOM.map((x, i) => <div key={i} className="text-center text-[11px] font-semibold" style={{ color: A.sub }}>{x}</div>)}
@@ -787,7 +793,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
   const [modo, setModo] = useState(pedidoModo?.modo === "mes" ? "mes" : "semana");        // abre na semana atual
   // v592 — botão "Mês" do topo (celular) troca a visualização daqui de fora
-  useEffect(() => { if (pedidoModo?.modo) { setTela("calendario"); setModo(pedidoModo.modo); } }, [pedidoModo?.n]);
+  const [topoMes, setTopoMes] = useState(0);
+  useEffect(() => { if (pedidoModo?.modo) { setTela("calendario"); setModo(pedidoModo.modo); if (pedidoModo.modo === "mes") { setRef(hojeISO()); setTopoMes((n) => n + 1); } } }, [pedidoModo?.n]);
   useEffect(() => { onModo?.(modo); }, [modo]);
   const [nMeses, setNMeses] = useState(3);   // v592 — mês infinito no celular
   const [visao, setVisao] = useState("GERAL");       // GERAL | PESSOAL | FUNCIONAL
@@ -992,7 +999,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                   })}
                 </div>
               ) : mobile ? (
-                <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} nMeses={nMeses} onMais={() => setNMeses((n) => Math.min(n + 2, 36))} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={setAbrir}
+                <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} nMeses={nMeses} topo={topoMes} onMais={() => setNMeses((n) => Math.min(n + 2, 36))} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={setAbrir}
                   onConcluir={alternarConcluida} onSemana={(dia) => { setModo("semana"); setRef(dia); }} />
               ) : (
               <div className="grid grid-cols-7" style={{ height: "100%" }}>
