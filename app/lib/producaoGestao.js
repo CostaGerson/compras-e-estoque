@@ -28,7 +28,9 @@ function resumoPedido(p, hoje) {
   const cp = Array.isArray(p.cronoCompras) ? p.cronoCompras : [];
   const nz = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   const fases = ci.map((i) => (cp.some((c) => nz(c.produto) === nz(i.produto)) && !/CONCLU/i.test(String(i.situacao || "")) ? "COMPRAS" : faseDe(i.situacao, i.etapa)));   // v421
-  const idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
+  // v618 — pedido lançado no sistema: até o PCP receber (A PROGRAMAR) a fase vem do nosso sistema = Compras; depois, do PCP do Maycon
+  let idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
+  if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf("COMPRAS");
   const fase = idx >= 0 ? FASES[idx] : "FORA";
   const prazo = iso(p.despacho) || iso(p.cronoPrazo);
   const previsto = iso(p.cronoFimProgramado) || iso(p.entregaPrevista);
@@ -62,7 +64,7 @@ function resumoPedido(p, hoje) {
 
 const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
   cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
-  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true };   // v450
+  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true };   // v450 · v618 fonte
 
 export async function gestaoProducao() {
   let sync = null; try { sync = await sincronizar({ intervaloMs: 60 * 1000 }); } catch (e) { sync = { ok: false, erro: e.message }; }
@@ -73,7 +75,7 @@ export async function gestaoProducao() {
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
-  const lista = ps.filter((p) => !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
+  const lista = ps.filter((p) => p.tipoPedido !== "SERVIÇO").filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
     .map((p) => resumoPedido(p, hoje));
   const total = lista.length;
   const cont = (f) => lista.filter(f).length;

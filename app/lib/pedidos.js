@@ -60,6 +60,22 @@ export function nfsDoPedido(p) {
 }
 
 // fatura já (contas lançadas) ou deixa pendente em andamento — "dados" é o que iria junto com status FATURADO
+// v618 — pedido do sistema que a regra automática marcou como faturado por uma NF (sem passar pelo faturamento do editor) volta para andamento
+export async function desfazerAutoFaturadosDoSistema() {
+  const ps = await prisma.pedidoVenda.findMany({ where: { fonte: "SISTEMA", OR: [{ status: "FATURADO" }, { faturamentoPendente: { not: null } }] }, select: { id: true, numero: true, total: true, qtd: true, obs: true, status: true } });
+  if (!ps.length) return 0;
+  const pps = await prisma.pp.findMany({ where: { numero: { in: ps.map((p) => p.numero) } }, select: { numero: true, status: true } });
+  const fatPeloEditor = new Set(pps.filter((x) => x.status === "FATURADO").map((x) => x.numero));
+  let n = 0;
+  for (const p of ps) {
+    if (fatPeloEditor.has(p.numero)) continue;
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { status: "ANDAMENTO", nfNumero: null, faturadoEm: null, nfsFaturadas: [], faturamentoPendente: null,
+      vlEntregar: Number(p.total), qtEntregar: p.qtd ?? null,
+      obs: String(p.obs || "").split(" · ").filter((x) => !/^(PARCIALMENTE FATURADO|FATURADO PEL)/.test(x)).join(" · ") || null } });
+    n++;
+  }
+  return n;
+}
 export async function faturarOuPendurar(id, cnpj, dados, origem) {
   const nums = nfsDe(dados.nfNumero);
   if (await contasLancadas(nums, cnpj)) {
@@ -383,7 +399,9 @@ export async function faturarPelasNfsItens() {
     }
     await prisma.finConfig.upsert({ where: { chave: K375 }, create: { chave: K375, valor: new Date().toISOString() }, update: { valor: new Date().toISOString() } });
   }
-  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false },
+  // v618 — pedido lançado no sistema fatura pelo editor (NF + contas); não é faturado sozinho por NF parecida
+  await desfazerAutoFaturadosDoSistema().catch((e) => console.log("pedidos/v618:", e.message));
+  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false, NOT: { fonte: "SISTEMA" } },
     select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, total: true, qtd: true, itens: true, oc: true, obs: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true, cronoItens: true } });
   if (!and.length) return [];
   const todosPv = await prisma.pedidoVenda.findMany({ select: { id: true, status: true, nfNumero: true, oc: true, cnpj: true, nfsFaturadas: true } });   // Json: filtra aqui, não no banco
@@ -522,7 +540,7 @@ export async function faturarPelasNfs() {
 // Somando o valor do pedido (ou o KM sem saldo a entregar), o pedido é faturado — FATURADO se as contas da(s) NF(s) já estão
 // lançadas no movimento de saída; senão fica "NF sem contas" até as contas entrarem.
 export async function faturarPelasNfsKm() {
-  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false },
+  const and = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false, NOT: { fonte: "SISTEMA" } },
     select: { id: true, numero: true, cnpj: true, total: true, frete: true, vlEntregar: true, obs: true, kmNfs: true, faturamentoPendente: true, nfsFaturadas: true } });
   if (!and.length) return [];
   const km = await prisma.kmNfSaida.findMany({ where: { pedido: { in: and.map((p) => p.numero) }, canceladaEm: null }, select: { numero: true, emissao: true, valor: true, pedido: true } }).catch(() => []);

@@ -99,11 +99,19 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
           {d?.sync?.erro && <span className="flex items-center gap-1" style={{ color: C.red }}><AlertTriangle size={12} /> {d.sync.erro}</span>}
           <button onClick={carregar} title="Atualizar" className="p-1 rounded" style={{ color: C.sub }}><RefreshCw size={13} /></button>
         </div>
-        {(atalhos || []).map((a) => {
-          const Ico = a.icon;
-          return <button key={a.key} onClick={() => ir(a.key)} title={a.desc} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>{Ico && <Ico size={13} />} {a.label}</button>;
-        })}
       </div>
+      {/* v618 — atalhos em cards grandes, acima dos indicadores */}
+      {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        {atalhos.map((a, i) => {
+          const Ico = a.icon;
+          return <button key={a.key} onClick={() => ir(a.key)} title={a.desc} className="card-asana flex items-center gap-3 px-4 py-4 rounded-xl text-left"
+            style={{ background: i === 0 ? C.accent : C.panel, border: `1px solid ${i === 0 ? C.accent : C.line}`, color: i === 0 ? "#fff" : C.text }}>
+            {Ico && <span className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 44, height: 44, background: i === 0 ? "rgba(255,255,255,.18)" : C.panel2, color: i === 0 ? "#fff" : C.navy }}><Ico size={22} /></span>}
+            <span className="min-w-0"><span className="block text-base font-bold leading-tight">{a.label}</span>
+              {a.desc && <span className="block text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: i === 0 ? "rgba(255,255,255,.85)" : C.sub }}>{a.desc}</span>}</span>
+          </button>;
+        })}
+      </div>}
       {erro && <div className="text-sm mb-3" style={{ color: C.red }}>{erro}</div>}
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Lendo o PCP…</div>}
       {d && (

@@ -103,7 +103,7 @@ const MENU = [
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
-    { key: "pp", label: "Lançar PP", icon: FileText, desc: "Pedidos de produção com grade, foto e parâmetros de cada peça" },
+    { key: "pp", label: "Lançar pedido", icon: FileText, desc: "Pedidos de venda, internos e de serviço: grade, foto, FPP e parâmetros de cada peça" },
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Sincronização de pedidos", icon: ClipboardList, desc: "Pedidos do KM em lista: situação no PCP, itens com FPP e ligação de cada item à FPP base" },
       { key: "comprasAvulsas", label: "Compras avulsas", icon: ShoppingCart, desc: "Demandas de compra avulsa (operação ou complemento de pedido): lançar, editar e marcar comprada" },   // v468

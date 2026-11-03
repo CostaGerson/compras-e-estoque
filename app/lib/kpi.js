@@ -75,8 +75,8 @@ export async function importarPecasVendidas2026() {
 // receita: planilha de recebimentos; faturamento: NFs de saída do mês (sem remessa, devolução e retorno) —
 // ainda sem NFs classificadas, o menu avisa. Peças produzidas não tem ranking até existir o chão de fábrica.
 export const KPIS_RANKING = {
-  vendasPecas: { unidade: "peças", fonte: "Pedidos emitidos no mês (relatório de vendas)" },
-  vendasValor: { unidade: "R$", fonte: "Pedidos emitidos no mês (relatório de vendas)" },
+  vendasPecas: { unidade: "peças", fonte: "Pedidos emitidos no mês" },
+  vendasValor: { unidade: "R$", fonte: "Pedidos emitidos no mês" },
   faturamentoValor: { unidade: "R$", fonte: "NFs de saída emitidas no mês", vazio: "Ainda não há NFs de saída classificadas neste mês." },
   receitaValor: { unidade: "R$", fonte: "Recebimentos do mês (análise financeira)" },
 };
@@ -95,6 +95,8 @@ export async function rankingClientes(ano, mes, kpi = "vendasPecas", limite = 10
     const comp = `${ano}-${String(mes).padStart(2, "0")}`;
     const rec = await prisma.finRecebimento.findMany({ where: { competencia: comp, bloco: { in: ["CREDITO", "BOLETO"] } }, select: { nomePagador: true, valor: true } });
     for (const x of rec) somar(x.nomePagador, x.valor);
+  } else if ((await import("@/lib/kpiAuto")).ehMesAuto(ano, mes)) {   // v618 — vendas por cliente dos pedidos lançados
+    for (const x of await (await import("@/lib/kpiAuto")).rankingVendasPedidos(ano, mes, kpi)) somar(x.cliente, x.v);
   } else {
     const l = await prisma.kpiVendaCliente.findMany({ where: { ano, mes, kpi } });
     for (const x of l) somar(x.cliente, cfg.unidade === "R$" ? x.valor : x.pecas);
@@ -159,13 +161,16 @@ export async function receitaDaDre(ano) {
 
 async function dadosDoAno(ano) {
   { const { sincronizarPecasKpi } = await import("@/lib/opAnalise"); await sincronizarPecasKpi(ano).catch(() => null); }   // v278 — peças = análise da expedição
-  const [meses, receitas, metaAno, dre] = await Promise.all([
+  const { kpiAutomatico, aplicarAutomatico } = await import("@/lib/kpiAuto");   // v618 — vendas, faturamento e peças pelo sistema
+  const [meses0, receitas, metaAno, dre, auto] = await Promise.all([
     prisma.kpiMes.findMany({ where: { ano }, orderBy: { mes: "asc" } }),
     prisma.kpiReceita.findMany({ where: { ano }, orderBy: [{ mes: "asc" }, { segmento: "asc" }] }),
     prisma.kpiAno.findUnique({ where: { ano } }),
     receitaDaDre(ano).catch(() => ({ tot: {}, canais: {} })),
+    kpiAutomatico(ano).catch((e) => { console.log("kpi/auto:", e.message); return {}; }),
   ]);
-  return { meses, receitas, metaAno, dre: dre.tot || {}, dreCanais: dre.canais || {} };
+  const meses = aplicarAutomatico(ano, meses0, auto);
+  return { meses, receitas, metaAno, dre: dre.tot || {}, dreCanais: dre.canais || {}, auto };
 }
 
 // Relatório completo do ano, no formato da planilha (com o ano anterior ao lado).
@@ -211,6 +216,7 @@ export async function relatorio(ano) {
       receita: { segmentos: cur.dre[mes] != null ? cur.dreCanais[mes] || {} : rc, segmentosManual: rc, total: rcTot || null, anterior: raTot || null, pop: div(rcTot, raTot),
         fonte: cur.dre[mes] != null ? "DRE" : rcMan ? "MANUAL" : null, manual: rcMan || null },
       metaVendasValor: n(c.metaVendasValor), metaReceitaValor: n(c.metaReceitaValor), metaVendasPecas: n(c.metaVendasPecas),
+      auto: !!c.automatico,   // v618 — vendas/faturamento/peças calculados pelo sistema
       observacao: c.observacao || null,
     };
   });
@@ -309,20 +315,20 @@ export async function painel(ano, mes) {
       chave: "vendasValor", rotulo: "Vendas", unidade: "R$",
       valor: l.vendas.atual, meta: metaMes(l.metaVendasValor, r.metas.vendas),
       serie: serie((x) => x.vendas.atual), metaSerie: serie((x) => metaMes(x.metaVendasValor, r.metas.vendas)),
-      fonte: "Lançamento manual — virá dos pedidos lançados no mês",
+      fonte: l.auto ? "Pedidos lançados no mês (sem internos e cancelados)" : "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
       chave: "vendasPecas", rotulo: "Vendas", unidade: "peças",
       // v213: meta própria de vendas em peças (METAS); sem ela, a de peças faturadas (regra antiga)
       valor: l.vendas.pecas, meta: metaMes(l.metaVendasPecas, r.metas.vendasPecas) ?? l.faturamento.metaPecas,
       serie: serie((x) => x.vendas.pecas), metaSerie: serie((x) => metaMes(x.metaVendasPecas, r.metas.vendasPecas) ?? x.faturamento.metaPecas),
-      fonte: "Lançamento manual — virá dos pedidos lançados no mês",
+      fonte: l.auto ? "Peças dos pedidos lançados no mês (sem internos, cancelados e serviços)" : "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
       chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
       valor: l.faturamento.atual, meta: metaMes(l.faturamento.metaValor, r.metas.faturamento),
       serie: serie((x) => x.faturamento.atual), metaSerie: serie((x) => metaMes(x.faturamento.metaValor, r.metas.faturamento)),
-      fonte: "Lançamento manual — virá das NFs de saída emitidas",
+      fonte: l.auto ? "NFs de saída de venda emitidas no mês" : "Lançamento manual — virá das NFs de saída emitidas",
     },
     {
       // v214 — ticket médio do mês = faturamento ÷ peças faturadas; meta = a de METAS (ano), ou a implícita nas metas do mês
@@ -335,7 +341,7 @@ export async function painel(ano, mes) {
       chave: "pecasFaturadas", rotulo: "Peças faturadas", unidade: "peças",
       valor: l.faturamento.pecas, meta: metaMes(l.faturamento.metaPecas, r.metas.pecasFaturadas),
       serie: serie((x) => x.faturamento.pecas), metaSerie: serie((x) => metaMes(x.faturamento.metaPecas, r.metas.pecasFaturadas)),
-      fonte: "Lançamento manual (peças produzidas = faturadas) — virá das NFs de saída",
+      fonte: l.auto ? "Peças das NFs de saída de venda do mês (peças produzidas = faturadas)" : "Lançamento manual (peças produzidas = faturadas) — virá das NFs de saída",
     },
     {
       chave: "receitaValor", rotulo: "Receita", unidade: "R$",
