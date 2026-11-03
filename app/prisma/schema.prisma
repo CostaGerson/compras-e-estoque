@@ -172,6 +172,24 @@ model FornecedorCnpj {
   fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
+// v620 — volume (etiqueta Zebra) de uma NF de compra: cada etiqueta tem um código de barras VOL0000001
+model EstoqueVolume {
+  id            Int      @id @default(autoincrement())
+  fiscalNotaId  Int?
+  notaFiscalId  Int?
+  artigoId      Int
+  quantidade    Decimal  @db.Decimal(14, 3)
+  unidade       String
+  nfNumero      String?
+  pedido        String?
+  entradaEm     DateTime @default(now())
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([fiscalNotaId])
+  @@index([artigoId])
+}
+
 // v619 — equivalência do nome do item na NF (por CNPJ do fornecedor) com o artigo interno; sugerida nas próximas NFs
 model ArtigoEquivalencia {
   id            Int      @id @default(autoincrement())

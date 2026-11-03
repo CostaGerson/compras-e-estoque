@@ -148,3 +148,37 @@ export async function pendentesEstoque() {
   return prisma.fiscalNota.findMany({ where: { estoqueStatus: "PENDENTE" }, orderBy: { emissao: "desc" }, take: 200,
     select: { id: true, numero: true, parceiro: true, emissao: true, valor: true } });
 }
+
+// ---------- v620 — volumes da NF (etiquetas Zebra) ----------
+export const codigoVolume = (id) => `VOL${String(id).padStart(7, "0")}`;
+export async function volumesDaNf(id) {
+  const n = await prisma.fiscalNota.findUnique({ where: { id: Number(id) || 0 }, select: { id: true, numero: true, parceiro: true, emissao: true, chave: true, xml: true, estoqueEm: true, estoqueStatus: true } });
+  if (!n) throw new Error("NF não encontrada.");
+  const qVol = [...String(n.xml || "").matchAll(/<qVol>\s*([\d.]+)\s*<\/qVol>/g)].reduce((s, m) => s + (Number(m[1]) || 0), 0) || null;
+  const especie = (String(n.xml || "").match(/<esp>([^<]*)<\/esp>/) || [])[1] || null;
+  const nota = n.chave ? await prisma.notaFiscal.findUnique({ where: { chave: n.chave }, select: { id: true } }) : null;
+  const its = nota ? await prisma.nfItem.findMany({ where: { nfId: nota.id, artigoId: { not: null } }, orderBy: { id: "asc" },
+    include: { artigo: { select: { id: true, nome: true, artigoInterno: true, cor: true, codigo: true, unidade: true, categoria: true, largura: true, composicao: true, fornecedor: { select: { nome: true, nomeFantasia: true, razaoSocial: true } } } } } }) : [];
+  const vols = await prisma.estoqueVolume.findMany({ where: { fiscalNotaId: n.id }, orderBy: { id: "asc" } });
+  return {
+    id: n.id, numero: n.numero, parceiro: n.parceiro, emissao: n.emissao, entrada: n.estoqueEm || null, estoqueStatus: n.estoqueStatus, qVol, especie, notaFiscalId: nota?.id || null,
+    itens: its.map((i) => ({ nfItemId: i.id, artigoId: i.artigoId, quantidade: Number(i.quantidade), descricaoNf: i.descricaoNf,
+      artigoInterno: i.artigo.artigoInterno || i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, categoria: i.artigo.categoria,
+      largura: i.artigo.largura != null ? Number(i.artigo.largura) : null, composicao: i.artigo.composicao,
+      fornecedor: i.artigo.fornecedor ? i.artigo.fornecedor.nomeFantasia || i.artigo.fornecedor.nome || i.artigo.fornecedor.razaoSocial : n.parceiro })),
+    volumes: vols.map((v) => ({ id: v.id, codigo: codigoVolume(v.id), artigoId: v.artigoId, quantidade: Number(v.quantidade), unidade: v.unidade, pedido: v.pedido, entradaEm: v.entradaEm })),
+  };
+}
+// grava as etiquetas novas (as existentes ficam; as tiradas da lista saem) e devolve todas com o código de barras
+export async function salvarVolumes(id, etiquetas, quem) {
+  const v = await volumesDaNf(id);
+  const manter = etiquetas.filter((e) => e.id).map((e) => Number(e.id));
+  await prisma.estoqueVolume.deleteMany({ where: { fiscalNotaId: v.id, id: { notIn: manter.length ? manter : [0] } } });
+  for (const e of etiquetas.filter((x) => x.id)) await prisma.estoqueVolume.updateMany({ where: { id: Number(e.id), fiscalNotaId: v.id }, data: { quantidade: r3(num(e.quantidade) || 0), unidade: UNS.includes(e.unidade) ? e.unidade : "M" } });
+  for (const e of etiquetas.filter((x) => !x.id)) {
+    if (!(num(e.quantidade) > 0) || !e.artigoId) continue;
+    await prisma.estoqueVolume.create({ data: { fiscalNotaId: v.id, notaFiscalId: v.notaFiscalId, artigoId: Number(e.artigoId), quantidade: r3(num(e.quantidade)),
+      unidade: UNS.includes(e.unidade) ? e.unidade : "M", nfNumero: v.numero, entradaEm: v.entrada || new Date(), criadoPorNome: quem || null } });
+  }
+  return volumesDaNf(id);
+}

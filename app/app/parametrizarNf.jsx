@@ -16,7 +16,7 @@ const fmt = (v) => (v == null ? "" : String(v).replace(".", ","));
 const Campo = ({ rot, children, cls = "" }) => <label className={`block text-xs ${cls}`} style={{ color: C.sub }}><span className="block mb-1">{rot}</span>{children}</label>;
 
 export default function ParametrizarNf({ user, id, onFim }) {
-  const [d, setD] = useState(null), [erro, setErro] = useState(""), [forns, setForns] = useState([]), [st, setSt] = useState(false), [fim, setFim] = useState(null);
+  const [d, setD] = useState(null), [erro, setErro] = useState(""), [forns, setForns] = useState([]), [st, setSt] = useState(false), [fim, setFim] = useState(null), [vols, setVols] = useState(false);
   useEffect(() => {
     fetch(`/api/fiscal/estoque?u=${user.id}&id=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error);
       setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, quantidade: fmt(it.dados.quantidade), largura: fmt(it.dados.largura), gramatura: fmt(it.dados.gramatura), valorUnitario: fmt(it.dados.valorUnitario) } })) }); })
@@ -34,6 +34,7 @@ export default function ParametrizarNf({ user, id, onFim }) {
     if (!r.ok || x.error) return alerta(x.error || "Não foi possível dar entrada no estoque.");
     setFim(x);
   };
+  if (vols) return <VolumesNf user={user} id={id} onFim={() => onFim(fim)} />;   // v620
   const inp = "w-full px-2 py-1.5 rounded-lg outline-none text-sm";
   const iS = { background: C.panel2, border: `1px solid ${C.line}`, color: C.text };
   return (
@@ -88,7 +89,8 @@ export default function ParametrizarNf({ user, id, onFim }) {
           })}
         </div>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
-          {fim ? <><span className="flex-1" /><button onClick={() => onFim(fim)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Fechar</button></> : <>
+          {fim ? <><span className="flex-1" /><button onClick={() => onFim(fim)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Fechar</button>
+            {!fim.jaNoEstoque && <button onClick={() => setVols(true)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Identificar volumes e imprimir etiquetas</button>}</> : <>
             <button disabled={!d || st || d?.estoqueStatus === "LANCADO"} onClick={() => enviar(true)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub, border: `1px solid ${C.line}`, background: C.panel }}
               title="Entra no estoque com o nome da NF como artigo interno">Dispensar parametrização</button>
             <span className="flex-1 text-[11px]" style={{ color: C.sub }}>Artigo igual já no estoque (categoria, fornecedor, artigo interno, cor, código, unidade e largura) soma a quantidade.</span>
@@ -96,6 +98,82 @@ export default function ParametrizarNf({ user, id, onFim }) {
             <button disabled={!d || st || d?.estoqueStatus === "LANCADO"} onClick={() => enviar(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>
               {st && <Loader2 size={14} className="animate-spin" />} Salvar e dar entrada no estoque</button>
           </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// v620 — identificação de volumes da NF: cada item com "+" para adicionar etiqueta (quantidade do volume) e impressão na Zebra
+export function VolumesNf({ user, id, onFim }) {
+  const [d, setD] = useState(null), [erro, setErro] = useState(""), [ets, setEts] = useState([]), [st, setSt] = useState(false);
+  const [tam, setTam] = useState(() => { try { return localStorage.getItem("ce_etiqueta_tam") || "100x60"; } catch { return "100x60"; } });
+  const carregar = () => fetch(`/api/fiscal/estoque?u=${user.id}&volumes=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error); setD(x);
+    setEts(x.volumes.map((v) => ({ ...v, quantidade: fmt(v.quantidade) }))); }).catch((e) => setErro(e.message));
+  useEffect(() => { carregar(); }, [id]);
+  const n = (v) => { const t = String(v ?? "").trim(); return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t) || 0; };
+  const somaDe = (aid) => ets.filter((e) => e.artigoId === aid).reduce((s, e) => s + n(e.quantidade), 0);
+  const mais = (it) => { const resto = Math.max(0, it.quantidade - somaDe(it.artigoId)); setEts((l) => [...l, { tmp: Math.random(), artigoId: it.artigoId, quantidade: fmt(Math.round(resto * 1000) / 1000), unidade: it.unidade }]); };
+  const imprimir = async () => {
+    setSt(true);
+    const r = await fetch("/api/fiscal/estoque", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "volumes", id, etiquetas: ets }) });
+    const x = await r.json().catch(() => ({})); setSt(false);
+    if (!r.ok || x.error) return alerta(x.error || "Não foi possível salvar as etiquetas.");
+    setD(x); setEts(x.volumes.map((v) => ({ ...v, quantidade: fmt(v.quantidade) })));
+    if (!x.volumes.length) return alerta("Adicione ao menos uma etiqueta (botão + do item).");
+    try { localStorage.setItem("ce_etiqueta_tam", tam); } catch {}
+    const porArt = Object.fromEntries(x.itens.map((i) => [i.artigoId, i]));
+    const { imprimirEtiquetas } = await import("./etiquetaZebra");
+    imprimirEtiquetas(x.volumes.map((v, k) => { const a = porArt[v.artigoId] || {}; return { codigo: v.codigo, artigoInterno: a.artigoInterno, cor: a.cor, codigoArtigo: a.codigo, largura: a.largura,
+      composicao: a.composicao, quantidade: v.quantidade, unidade: v.unidade, nfNumero: x.numero, fornecedor: a.fornecedor, entrada: v.entradaEm || x.entrada, ordem: k + 1, total: x.volumes.length }; }), { tamanho: tam });
+  };
+  const inp = "px-2 py-1 rounded-lg outline-none text-sm text-right";
+  const iS = { background: C.panel2, border: `1px solid ${C.line}`, color: C.text };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
+      <div className="w-full rounded-xl overflow-hidden flex flex-col anim-modal" style={{ maxWidth: 820, maxHeight: "92vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <PackageCheck size={18} style={{ color: C.accent }} />
+          <div className="flex-1 min-w-0"><div className="font-semibold" style={{ color: C.navy }}>Identificação de volumes{d ? ` · NF ${d.numero}` : ""}</div>
+            {d && <div className="text-xs" style={{ color: C.sub }}>{d.parceiro} · {d.qVol ? <b style={{ color: ets.length === d.qVol ? C.green : C.accent }}>{d.qVol} volume(s) na NF{d.especie ? ` (${String(d.especie).toLowerCase()})` : ""}</b> : "a NF não informa os volumes"} · {ets.length} etiqueta(s)</div>}</div>
+          <button onClick={() => onFim()} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F7F8FA" }}>
+          {erro && <div className="text-sm" style={{ color: C.red }}>{erro}</div>}
+          {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+          {d && !d.itens.length && <div className="text-sm" style={{ color: C.sub }}>A NF ainda não deu entrada no estoque: faça a parametrização primeiro.</div>}
+          {d && d.itens.map((it) => {
+            const minhas = ets.map((e, k) => [e, k]).filter(([e]) => e.artigoId === it.artigoId), soma = somaDe(it.artigoId), dif = Math.round((it.quantidade - soma) * 1000) / 1000;
+            return (
+              <div key={it.nfItemId} className="rounded-xl p-4 mb-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm" style={{ color: C.navy }}>{it.artigoInterno}</div>
+                    <div className="text-xs" style={{ color: C.sub }}>{[it.cor, it.codigo && `cód. ${it.codigo}`, it.largura && `larg. ${fmt(it.largura)} m`].filter(Boolean).join(" · ") || "—"} · NF: {it.descricaoNf}</div>
+                  </div>
+                  <div className="text-right text-xs" style={{ color: C.sub }}>total <b style={{ color: C.text }}>{fmt(it.quantidade)} {String(it.unidade).toLowerCase()}</b>
+                    <div style={{ color: Math.abs(dif) < 0.001 ? C.green : C.accent }}>{minhas.length ? (Math.abs(dif) < 0.001 ? "✓ etiquetado" : dif > 0 ? `faltam ${fmt(dif)}` : `sobra ${fmt(-dif)}`) : "sem etiqueta"}</div></div>
+                  <button onClick={() => mais(it)} title="Adicionar etiqueta (um volume)" className="flex items-center justify-center rounded-lg text-white font-bold" style={{ width: 34, height: 34, background: C.accent, fontSize: 20 }}>+</button>
+                </div>
+                {minhas.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
+                  {minhas.map(([e, k], j) => <div key={e.id || e.tmp} className="flex items-center gap-1 rounded-lg px-2 py-1" style={{ border: `1px dashed ${C.line}`, background: C.panel2 }}>
+                    <span className="text-[11px] font-semibold" style={{ color: C.sub }}>{e.codigo || `vol. ${j + 1}`}</span>
+                    <input value={e.quantidade} onChange={(ev) => setEts((l) => l.map((x, m) => (m === k ? { ...x, quantidade: ev.target.value } : x)))} className={`${inp} w-20`} style={iS} />
+                    <span className="text-xs" style={{ color: C.sub }}>{String(e.unidade).toLowerCase()}</span>
+                    <button onClick={() => setEts((l) => l.filter((_, m) => m !== k))} style={{ color: C.sub }} title="Tirar"><X size={13} /></button>
+                  </div>)}
+                </div>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          <label className="text-xs flex items-center gap-1" style={{ color: C.sub }}>Etiqueta
+            <select value={tam} onChange={(e) => setTam(e.target.value)} className="px-2 py-1 rounded-lg text-sm outline-none" style={iS}>{["100x60", "100x50", "100x75", "100x150", "80x50"].map((t) => <option key={t} value={t}>{t.replace("x", " × ")} mm</option>)}</select></label>
+          <span className="flex-1" />
+          <button onClick={() => onFim()} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Fechar</button>
+          <button disabled={!d || st} onClick={imprimir} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>
+            {st && <Loader2 size={14} className="animate-spin" />} Salvar e imprimir {ets.length || ""} etiqueta(s)</button>
         </div>
       </div>
     </div>

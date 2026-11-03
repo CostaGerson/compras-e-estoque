@@ -11,7 +11,7 @@ import {
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { BotoesCritica } from "./nfRegistro";   // v365
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
-import ParametrizarNf from "./parametrizarNf";   // v619 — NF de compra → artigo interno → estoque
+import ParametrizarNf, { VolumesNf } from "./parametrizarNf";   // v619 — NF de compra → artigo interno → estoque
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -92,6 +92,7 @@ export default function MovimentoFiscal({ user }) {
   const [erro, setErro] = useState("");
   const [importar, setImportar] = useState(null);   // null | [] (abre vazio) | arquivos soltos
   const [paramId, setParamId] = useState(null);   // v619
+  const [volId, setVolId] = useState(null);   // v620
   const [casarNota, setCasarNota] = useState(null);   // v555 — id da NF de saída para casar com pedido
   const [msg, setMsg] = useState("");
 
@@ -225,7 +226,8 @@ export default function MovimentoFiscal({ user }) {
                       {n.temXml && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=xml&baixar=1`} className="inline-flex items-center gap-0.5 mr-2 font-semibold" style={{ color: C.blue }}><FileCode2 size={13} /> XML</a>}
                       {n.temPdf && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={13} /> PDF</a>}
                       {n.estoqueStatus === "PENDENTE" && <button onClick={() => setParamId(n.id)} title="Parametrizar os itens e dar entrada no estoque" className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Dar entrada no estoque</button>}
-                      {n.estoqueStatus === "LANCADO" && <span className="block mt-1 text-[10px] font-semibold" style={{ color: C.green }}>✓ no estoque</span>}
+                      {n.estoqueStatus === "LANCADO" && <span className="flex items-center gap-1 mt-1 text-[10px] font-semibold" style={{ color: C.green }}>✓ no estoque
+                        <button onClick={() => setVolId(n.id)} title="Identificar volumes e imprimir etiquetas" className="px-1.5 py-0.5 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }}>Etiquetas</button></span>}
                     </td>
                     <td className="px-3 py-2">{!n.km && podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>
@@ -235,6 +237,7 @@ export default function MovimentoFiscal({ user }) {
           </table>
         </div>
       </div>
+      {volId && <VolumesNf user={user} id={volId} onFim={() => setVolId(null)} />}
       {paramId && <ParametrizarNf user={user} id={paramId} onFim={(x) => { setParamId(null); if (x) carregar(); }} />}
       {importar && <ImportarNfs user={user} iniciais={importar} onClose={() => setImportar(null)} onFim={(m) => { setImportar(null); setMsg(m); carregar(); }} />}
       {casarNota && <CasarNotaModal user={user} fiscalNotaId={casarNota} onClose={() => setCasarNota(null)} onFeito={carregar} />}
