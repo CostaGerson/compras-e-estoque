@@ -901,6 +901,12 @@ function Mensagens({ user, onMudou }) {
     if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro ao enviar"); return; }
     setComp({ paraId: "", texto: "", aviso: false }); setAba("enviadas"); carregar();
   };
+  const responderConvite = async (m, resposta) => {
+    const r = await fetch("/api/tarefas/convites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "responder", tarefaId: m.conviteTarefaId, resposta }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Não foi possível responder"); }
+    if (!m.lida) await fetch(`/api/mensagens/${m.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lida: true }) }).catch(() => {});
+    await carregar(); onMudou && onMudou();
+  };
   const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "" }); setAba("nova"); };
 
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
@@ -933,6 +939,17 @@ function Mensagens({ user, onMudou }) {
       <div style={{ flex: 1 }}>
         <div className="text-xs" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
         <div className="text-sm mt-0.5" style={{ color: C.text }}>{m.texto}</div>
+        {/* v607 — convite de evento: responde aqui mesmo; confirmado aparece na agenda da pessoa */}
+        {m.convite && <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {m.convite === "PENDENTE" ? <>
+            <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: C.green, color: "#fff" }}>Confirmar</button>
+            <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>Recusar</button>
+            <button onClick={() => responderConvite(m, "DEPOIS")} className="text-xs px-3 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>Decidir depois</button>
+          </> : <span className="text-xs font-semibold px-2 py-1 rounded" style={m.convite === "CONFIRMADO" ? { background: C.greenSoft, color: C.green } : { background: C.panel2, color: C.sub }}>
+            {m.convite === "CONFIRMADO" ? "✓ Confirmado — está na sua agenda" : m.convite === "RECUSADO" ? "Convite recusado" : m.convite === "CANCELADO" ? "Evento cancelado" : "Convite retirado"}</span>}
+          {m.convite === "RECUSADO" && <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs" style={{ color: C.accent }}>Mudar para confirmar</button>}
+          {m.convite === "CONFIRMADO" && <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs" style={{ color: C.sub }}>Não vou mais</button>}
+        </div>}
         <div className="flex gap-3 mt-2">
           <button onClick={() => responder(m)} className="text-xs font-medium" style={{ color: C.accent }}>Responder</button>
           {arquivada

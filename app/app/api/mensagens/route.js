@@ -16,6 +16,16 @@ export async function GET(req) {
   const recebidas = recebidasTodas.filter((m) => !m.arquivada).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)));
   const arquivadas = recebidasTodas.filter((m) => m.arquivada);
   const naoLidas = recebidas.filter((m) => !m.lida).length;
+  // v607 — convite de evento: situação atual da resposta de quem recebeu
+  const ids = [...new Set(recebidasTodas.map((m) => m.conviteTarefaId).filter(Boolean))];
+  if (ids.length) {
+    const cs = await prisma.tarefaConvite.findMany({ where: { usuarioId, tarefaId: { in: ids } }, select: { tarefaId: true, status: true } }).catch(() => []);
+    const ts = await prisma.tarefa.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, excluidaEm: true } }).catch(() => []);
+    for (const m of recebidasTodas) if (m.conviteTarefaId) {
+      const t = ts.find((x) => x.id === m.conviteTarefaId);
+      m.convite = !t || t.excluidaEm || t.status === "CANCELADA" ? "CANCELADO" : cs.find((c) => c.tarefaId === m.conviteTarefaId)?.status || "REMOVIDO";
+    }
+  }
   return Response.json({ recebidas, arquivadas, enviadas, naoLidas });
 }
 

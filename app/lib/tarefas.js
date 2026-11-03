@@ -34,9 +34,9 @@ const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos
   || (t.evento && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
-async function avisar(deId, paraId, texto) {
+async function avisar(deId, paraId, texto, extra = {}) {
   if (!paraId || paraId === deId) return;
-  await prisma.mensagem.create({ data: { deId, paraId, texto: String(texto).slice(0, 2000) } }).catch(() => {});
+  await prisma.mensagem.create({ data: { deId, paraId, texto: String(texto).slice(0, 2000), ...extra } }).catch(() => {});
 }
 
 // ---------- séries recorrentes ----------
@@ -524,7 +524,7 @@ async function sincronizarConvites(t, ids, u) {
   const quando = `${dataBR(t.prazo)}${t.hora ? ` às ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : t.periodo === "TARDE" ? " (tarde)" : t.periodo === "MANHA" ? " (manhã)" : ""}`;
   for (const x of us) {
     await prisma.tarefaConvite.create({ data: { tarefaId: t.id, usuarioId: x.id, usuarioNome: nome(x) } }).catch(() => null);
-    await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Abra a Agenda para confirmar, recusar ou decidir depois.`);
+    await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Confirme aqui mesmo ou pela Agenda.`, { conviteTarefaId: t.id });
     if (x.email && emailDisponivel()) await enviarEmail({ para: x.email, assunto: `Convite: ${t.titulo} — ${quando}`,
       html: `<p>Olá, ${x.nome}.</p><p><b>${nome(u)}</b> convidou você para <b>${t.titulo}</b> em <b>${quando}</b>.</p>${t.descricao ? `<p>${String(t.descricao).replace(/</g, "&lt;").replace(/\n/g, "<br>")}</p>` : ""}<p>Abra a Agenda no sistema para <b>confirmar</b>, <b>recusar</b> ou <b>decidir depois</b>.</p>` }).catch(() => null);
   }
