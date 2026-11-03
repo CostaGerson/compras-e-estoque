@@ -621,7 +621,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {(resultado.erros || []).map((e, k) => <div key={k} className="text-sm mb-1" style={{ color: C.red }}>✗ {e}</div>)}
           {(resultado.lancadas || []).length > 0 && <div className="mb-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Lançado no contas a receber</div>
             {resultado.lancadas.map((l, k) => <div key={k} className="text-sm">✓ {l.tipo} · {money(l.valor)} · vence {dataBR(l.data)}</div>)}</div>}
-          {(resultado.compras || []).length > 0 && <div className="text-sm mb-2">✓ {resultado.compras.length} item(ns) com FPP enviados ao levantamento de Compras.</div>}
+          <div className="text-sm mb-2">✓ Pedido enviado para a <b>Sincronização de pedidos</b> (Compras): lá as FPPs dos itens são confirmadas e o pedido segue para o levantamento.</div>
           {resultado.nfObs && <div className="text-sm mb-2"><span className="text-xs" style={{ color: C.sub }}>Obs. da NF: </span><b>{resultado.nfObs}</b></div>}
           {(resultado.avisos || []).map((e, k) => <div key={k} className="text-xs mb-1" style={{ color: C.yellow }}>⚠ {e}</div>)}
           <div className="flex justify-end mt-3"><button type="button" onClick={() => setResultado(null)} className="px-4 py-2 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>OK</button></div>

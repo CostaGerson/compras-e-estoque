@@ -15,9 +15,11 @@ const moeda = (v) => `R$ ${brl(v)}`;
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 // v400 — situação no PCP: pedido com itens em fases diferentes vem "CONCLUÍDO · EM PRODUÇÃO"; vale a fase menos avançada (concluído só quando tudo concluiu)
 const ORDEM_FASE = ["LEVANTAMENTO", "A PROGRAMAR", "EM PRODUÇÃO", "CONCLUÍDO"];
+const semPrefixoPcp = (s) => s === "FORA DO PCP" || s === "EM COMPRAS" || /^LIBERADO/.test(s || "");
 export function situacaoPcp(p) {
   if (!p.cronoSituacao) return null;
   if (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA") return "FORA DO PCP";
+  if (p.cronoSituacao === "EM COMPRAS" || /^LIBERADO/.test(p.cronoSituacao)) return p.cronoSituacao;   // v612 — pedido do sistema antes do PCP receber
   const partes = String(p.cronoSituacao).split(" · ").map((x) => x.trim()).filter((x) => x && !/^AGRUPADO/i.test(x));
   if (p.cronoConcluido) return "CONCLUÍDO";
   const abertas = partes.filter((x) => !/CONCLU/i.test(x));
@@ -128,7 +130,7 @@ export default function PedidosAndamento({ user }) {
     const pedidos = ordemDom.length ? ordemDom.map((k) => porId[k]).filter(Boolean) : lista;
     const dt = (s) => (s ? new Date(`${String(s).slice(0, 10)}T12:00:00Z`) : null);
     const situacao = (p) => p.status !== "ANDAMENTO" ? (p.status === "FATURADO" ? `FATURADO${p.nfNumero ? ` · NF ${p.nfNumero}` : ""}` : p.status)
-      : situacaoPcp(p) ? (situacaoPcp(p) === "FORA DO PCP" ? "FORA DO PCP" : `PCP: ${situacaoPcp(p)}`) : "EM ANDAMENTO";
+      : situacaoPcp(p) ? (semPrefixoPcp(situacaoPcp(p)) ? situacaoPcp(p) : `PCP: ${situacaoPcp(p)}`) : "EM ANDAMENTO";
     const linhas = pedidos.map((p) => ({
       Pedido: p.numero, Cliente: p.cliente, CNPJ: p.cnpj || "", Vendedor: p.vendedor || "", "O.C.": p.oc || "",
       "Emissão": dt(p.emissao), Entrega: dt(p.entregaPrevista || p.despacho), "Entrega pelo": p.previsao.baseOrigem === "CRONOGRAMA" ? "PCP" : "PV",
@@ -306,7 +308,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const [ed, setEd] = useState(null);
   // v392 — em andamento mostra a situação do pedido no PCP do Maycon; FATURADO só quando a NF é subida (contas lançadas)
   const pcpSit = situacaoPcp(p);
-  const st = { ANDAMENTO: [pcpSit && pcpSit !== "FORA DO PCP" ? `PCP: ${pcpSit}` : pcpSit ? "Fora do PCP" : "Em andamento", p.cronoConcluido ? C.green : C.accent, p.cronoConcluido ? C.greenSoft : C.accentSoft],
+  const st = { ANDAMENTO: [pcpSit && !semPrefixoPcp(pcpSit) ? `PCP: ${pcpSit}` : pcpSit === "FORA DO PCP" ? "Fora do PCP" : pcpSit ? pcpSit.charAt(0) + pcpSit.slice(1).toLowerCase() : "Em andamento", p.cronoConcluido ? C.green : C.accent, p.cronoConcluido ? C.greenSoft : C.accentSoft],
     FATURADO: ["Faturado", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2] }[p.status];
   const td = "px-2 py-2 text-center whitespace-nowrap";
   return (

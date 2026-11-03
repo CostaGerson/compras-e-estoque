@@ -212,6 +212,20 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
     if (!r.ok) return alerta(x.error || "Não foi possível vincular.");
     setResumo(null); carregar();
   }
+  // v612 — confirma de uma vez as FPPs indexadas no lançamento do pedido → itens vão para o levantamento
+  async function confirmarIndicadas(p, its) {
+    if (!(await confirmar(`Confirmar a FPP do lançamento em ${its.length} item(ns) do pedido ${p.numero}? A demanda de matéria-prima vai para o Levantamento.`))) return;
+    setUsando(true);
+    const erros = [];
+    for (const it of its) {
+      const r = await fetch("/api/compras/itens", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedidoNumero: p.numero, chave: it.chave, fppId: it.sugestoes[0].id, quem: nomeUser(user) }) });
+      if (!r.ok) { const x = await r.json().catch(() => ({})); erros.push(`${it.codigo || it.chave}: ${x.error || "erro"}`); }
+    }
+    setUsando(false);
+    if (erros.length) alerta(`Não foi possível confirmar:\n${erros.join("\n")}`);
+    carregar();
+  }
   async function dispensar(p) {   // v419 — pedido só para faturamento
     const motivo = (await perguntar(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras e não entra no levantamento nem no cruzamento.\n\nMotivo (opcional):`, "Só para faturamento"));
     if (motivo === null) return;
@@ -251,7 +265,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   return (
     <div className="w-full">
       <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
-      <p className="text-sm mb-3" style={{ color: C.sub }}>Pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
+      <p className="text-sm mb-3" style={{ color: C.sub }}>Todo pedido <b>lançado no sistema</b> entra aqui e sai quando os itens são liberados para programação (o PCP lê e recebe em A PROGRAMAR). Do KM: pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"], ["dispensadas", `Compras dispensadas (${(d.dispensados || []).length})`]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{l}</button>
@@ -282,7 +296,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       {!["avulsas", "dispensadas"].includes(filtro) && !lista.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido neste filtro.</div>}
       {/* v498 — sincronização de pedidos: lista ordenável; clicar no pedido abre os itens para ligar à FPP */}
       {!["avulsas", "dispensadas"].includes(filtro) && lista.length > 0 && (() => {
-        const sitPcp = (p) => (p.fasePcp === "FORA" ? "Fora do PCP" : /PROGRAMAR/i.test(p.situacaoPcp || "") ? "A programar" : p.fasePcp === "COMPRAS" ? "Compras" : p.situacaoPcp || "—");
+        const sitPcp = (p) => (p.proprio ? "Compras" : p.fasePcp === "FORA" ? "Fora do PCP" : /PROGRAMAR/i.test(p.situacaoPcp || "") ? "A programar" : p.fasePcp === "COMPRAS" ? "Compras" : p.situacaoPcp || "—");
         const val = { numero: (p) => p.numero, cliente: (p) => p.cliente || "", entrega: (p) => p.entrega || "9999", situacao: (p) => sitPcp(p), itens: (p) => p.total, fpp: (p) => p.comFpp };
         const ord = [...lista].sort((a, z) => { const x = val[ordem.k](a), y = val[ordem.k](z); return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR", { numeric: true })) * ordem.d; });
         const Th = ({ k, t, cls = "" }) => <th onClick={() => setOrdem((o) => ({ k, d: o.k === k ? -o.d : 1 }))} className={`px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap ${cls}`} title="Ordenar">{t}{ordem.k === k ? (ordem.d > 0 ? " ▲" : " ▼") : ""}</th>;
@@ -311,7 +325,12 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                       </tr>
                       {ab && (
                         <tr><td colSpan={8} className="px-4 pb-3 pt-1" style={{ background: "#FCFCFD" }}>
-                          {p.itensFora ? <div className="text-[11px] mb-1" style={{ color: C.sub }}>{p.itensFora} item(ns) já programado(s) no PCP não aparecem.</div> : null}
+                          {p.itensFora ? <div className="text-[11px] mb-1" style={{ color: C.sub }}>{p.itensFora} item(ns) {p.proprio ? "já liberado(s) para programação (com o PCP)" : "já programado(s) no PCP"} não aparecem.</div> : null}
+                          {(() => { const ind = p.itens.filter((it) => !it.vinculo && it.sugestoes?.[0]?.indicada); return ind.length > 0 && (   // v612
+                            <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-md text-xs" style={{ background: C.accentSoft, color: C.text }}>
+                              <span className="flex-1">{ind.length} item(ns) com <b>FPP indexada no lançamento</b>. Confira e confirme para irem ao levantamento.</span>
+                              <button disabled={usando} onClick={() => confirmarIndicadas(p, ind)} className="px-3 py-1.5 rounded-md font-semibold text-white" style={{ background: C.accent }}>{usando ? "Enviando…" : `Confirmar FPPs do lançamento (${ind.length})`}</button>
+                            </div>); })()}
                           <div className="space-y-2">
                             {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores}
                               onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
@@ -662,9 +681,9 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
           {it.sugestoes.length ? <span className="text-[11px]" style={{ color: C.sub }}>Sugestões:</span> : <span className="text-[11px]" style={{ color: C.sub }}>Nenhuma FPP parecida deste cliente.</span>}
           {it.sugestoes.map((s) => (
-            <button key={s.id} onClick={() => onSugestao(s.id)} title={`nome ${s.nome}% · valor ${s.valor}%`} className="text-xs px-2 py-1 rounded-md text-left" style={{ background: C.panel, border: `1px solid ${C.accent}55`, color: C.text }}>
+            <button key={s.id} onClick={() => onSugestao(s.id)} title={s.indicada ? "FPP indexada no lançamento do pedido" : `nome ${s.nome}% · valor ${s.valor}%`} className="text-xs px-2 py-1 rounded-md text-left" style={{ background: s.indicada ? C.accentSoft : C.panel, border: `1px solid ${s.indicada ? C.accent : C.accent + "55"}`, color: C.text }}>
               <b>FPP {fmtFpp(s.numero)}</b> · {s.nomeComercial || s.item}{veValores && s.valorProposto ? ` · ${brl(s.valorProposto)}` : ""}
-              <span className="ml-1 font-semibold" style={{ color: C.accent }}>{s.score}%</span>
+              {s.indicada ? <span className="ml-1 font-semibold" style={{ color: C.accent }}>do lançamento</span> : <span className="ml-1 font-semibold" style={{ color: C.accent }}>{s.score}%</span>}
             </button>
           ))}
           <button onClick={onBuscar} className="text-xs px-2 py-1 rounded-md flex items-center gap-1" style={{ color: C.sub, border: `1px dashed ${C.line}`, background: C.panel }}><Search size={11} /> buscar outra</button>

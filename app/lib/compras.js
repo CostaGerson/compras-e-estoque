@@ -224,7 +224,7 @@ export function itensDoPedido(p) {
     const cod = String(it.codigo || `ITEM${i + 1}`).trim();
     vistos[cod] = (vistos[cod] || 0) + 1;
     const qtd = Number(it.qtd) || (it.grade || []).reduce((s, g) => s + (Number(g.qtd) || 0), 0);
-    return { chave: vistos[cod] > 1 ? `${cod}#${vistos[cod]}` : cod, codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: n0(it.preco), grade: it.grade || [] };
+    return { chave: vistos[cod] > 1 ? `${cod}#${vistos[cod]}` : cod, codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: n0(it.preco), grade: it.grade || [], fppId: it.fppId ? Number(it.fppId) : null };   // v612 — FPP indexada no lançamento
   });
 }
 
@@ -585,6 +585,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     const o = (out[p.numero] ||= {
       pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
       condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: doPedido.length, itens: [],
+      fonte: p.fonte === "SISTEMA" ? "SISTEMA" : "KM", destino: "A_PROGRAMAR",   // v612 — o PCP recebe os itens liberados em A PROGRAMAR
     });
     o.itens.push({
       chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(i.quantidade),
