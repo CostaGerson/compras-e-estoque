@@ -201,7 +201,8 @@ export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS }
       for (const c of pend.filter((x) => !x.avulsa)) (comprasPorOp[soDig(c.orderNo)] ||= []).push({ produto: String(c.produto || ""), nome: String(c.nome || ""), fornecedor: String(c.fornecedor || "") || null, pedido: !!c.pedido, dataPedido: c.dataPedido || null });
       res.comprasPendentes = pend.filter((x) => !x.avulsa).length;
       if (jc) { try { res.avulsasPcp = await importarAvulsasPcp([...pend.filter((x) => x.avulsa), ...(Array.isArray(jc.concluidas) ? jc.concluidas.filter((x) => x.avulsa) : [])]); } catch (e) { res.avisoAvulsas = e.message; } }
-      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true, oc: true, fonte: true, tipoPedido: true } });
+      const aqui = await prisma.pedidoVenda.findMany({ select: { id: true, numero: true, status: true, oc: true, fonte: true, tipoPedido: true, itens: true } });
+      let sitC = {}; try { sitC = await (await import("@/lib/compras")).situacaoComprasSistema(aqui); } catch {}   // v627
       // v612 — pedido lançado no sistema que o PCP ainda não recebeu: a situação vem das compras (não é "fora do PCP")
       const libs = await prisma.compraItem.groupBy({ by: ["pedidoNumero"], where: { liberadoEm: { not: null }, pedidoNumero: { in: aqui.filter((p) => p.fonte === "SISTEMA").map((p) => p.numero) } }, _count: { _all: true } }).catch(() => []);
       const nLib = Object.fromEntries(libs.map((x) => [x.pedidoNumero, x._count._all]));
@@ -209,7 +210,7 @@ export async function sincronizar({ forcar = false, intervaloMs = INTERVALO_MS }
         const c = visaoDoPedido(g, ix[soDig(p.numero)] || [], soDig(p.numero));
         const ops = [...new Set([soDig(p.numero), ...(ix[soDig(p.numero)] || [])])];
         const cc = ops.flatMap((o) => comprasPorOp[o] || []);   // v421
-        const sitSem = p.fonte === "SISTEMA" && p.tipoPedido === "SERVIÇO" ? "A PROGRAMAR" : p.fonte === "SISTEMA" ? (nLib[p.numero] ? "LIBERADO · AGUARDANDO PCP" : "EM COMPRAS") : "NÃO ESTÁ NO CRONOGRAMA";
+        const sitSem = p.fonte === "SISTEMA" ? (sitC[p.numero] || "EM COMPRAS") : "NÃO ESTÁ NO CRONOGRAMA";
         if (!c) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { cronoSituacao: sitSem, cronoEtapa: null, cronoEm: new Date(res.em), entregaPrevista: null, cronoItens: [], cronoCompras: cc } }); continue; }
         res.casados++;
         await prisma.pedidoVenda.update({ where: { id: p.id }, data: {

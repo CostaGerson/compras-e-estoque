@@ -31,7 +31,7 @@ function resumoPedido(p, hoje) {
   // v618 — pedido lançado no sistema: até o PCP receber (A PROGRAMAR) a fase vem do nosso sistema = Compras; depois, do PCP do Maycon
   let idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
   // v621 — serviço e item liberado (aguardando o PCP receber) = A programar
-  if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf(p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "PROGRAMAR" : "COMPRAS");
+  if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf(p.tipoPedido === "SERVIÇO" || (p.sitCompras || p.cronoSituacao || "") === "A PROGRAMAR" || /^LIBERADO/.test(p.cronoSituacao || "") ? "PROGRAMAR" : "COMPRAS");
   const fase = idx >= 0 ? FASES[idx] : "FORA";
   const prazo = iso(p.despacho) || iso(p.cronoPrazo);
   const previsto = iso(p.cronoFimProgramado) || iso(p.entregaPrevista);
@@ -76,6 +76,8 @@ export async function gestaoProducao() {
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
+  // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
+  try { const { situacaoComprasSistema } = await import("@/lib/compras"); const sc = await situacaoComprasSistema(ps); for (const p of ps) if (sc[p.numero]) p.sitCompras = sc[p.numero]; } catch (e) { console.log("producao/sitCompras:", e.message); }
   const lista = ps.filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
     .map((p) => resumoPedido(p, hoje));
   const total = lista.length;

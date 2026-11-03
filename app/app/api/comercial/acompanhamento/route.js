@@ -67,7 +67,8 @@ export async function GET(req) {
     });
     // v621 — pedido do sistema ainda fora do PCP: itens do pedido com a situação do nosso sistema
     if (!itens.length && p.fonte === "SISTEMA") {
-      const sit = p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "A PROGRAMAR" : "EM COMPRAS";
+      const sc = await (await import("@/lib/compras")).situacaoComprasSistema([p]).catch(() => ({}));   // v627
+      const sit = sc[p.numero] === "A PROGRAMAR" ? "A PROGRAMAR" : "EM COMPRAS";
       const ent = iso(p.entregaPrevista) || iso(p.despacho);
       for (const [k, i] of (Array.isArray(p.itens) ? p.itens : []).entries()) itens.push({ itemCode: i.codigo || `ITEM${k + 1}`, op: p.numero, produto: i.descricao, pecas: Number(i.qtd) || 0, quantidade: Number(i.qtd) || 0,
         complemento: false, situacao: sit, etapa: null, prestador: null, desde: null, entrega: ent, prog: { k: "SEM", t: sit === "A PROGRAMAR" ? "aguardando o PCP programar" : "materiais em compras" }, etapas: [] });
@@ -81,13 +82,14 @@ export async function GET(req) {
     select: { fonte: true, tipoPedido: true, numero: true, emissao: true, cliente: true, vendedor: true, total: true, qtd: true, itens: true, status: true, cronoItens: true, cronoSituacao: true, cronoEm: true, entregaPrevista: true, despacho: true, nfNumero: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true },
   });
   const meus = a.todos ? lista : lista.filter((p) => doVendedor(a.u, p.vendedor));
+  let sitC = {}; try { sitC = await (await import("@/lib/compras")).situacaoComprasSistema(meus); } catch {}   // v627
   const pedidos = meus.map((p) => {
     const ci = (Array.isArray(p.cronoItens) ? p.cronoItens : []).filter((i) => !i.complemento);
     const ords = ci.map((i) => ordemDe(i.situacao));
     const min = ords.length ? Math.min(...ords) : null;
     const pior = min != null ? ci[ords.indexOf(min)] : null;
     // v621 — pedido lançado no sistema que o PCP ainda não recebeu: em compras · a programar (serviço/liberado)
-    const proprioSit = p.fonte === "SISTEMA" ? (p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "A PROGRAMAR" : "EM COMPRAS") : null;
+    const proprioSit = p.fonte === "SISTEMA" ? (sitC[p.numero] === "A PROGRAMAR" ? "A PROGRAMAR" : "EM COMPRAS") : null;
     const situacao = p.status === "FATURADO" ? "FATURADO" : p.status === "CANCELADO" ? "CANCELADO" : min == null ? (proprioSit || (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" ? "FORA DO PCP" : "SEM PCP")) : TXT[min];
     const pvItens = Array.isArray(p.itens) ? p.itens.length : 0;
     return { numero: p.numero, emissao: iso(p.emissao), cliente: p.cliente, vendedor: p.vendedor, itens: pvItens || ci.length, total: Number(p.total) || 0,

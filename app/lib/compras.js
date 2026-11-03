@@ -600,6 +600,22 @@ export async function tokenExterno(db = prisma, renovar = false) {
   return novo;
 }
 
+// v627 — situação em compras dos pedidos lançados no sistema (direto das compras, sem esperar a leitura do PCP):
+// todos os itens liberados (material principal garantido) ou serviço → A PROGRAMAR; senão EM COMPRAS
+export async function situacaoComprasSistema(peds, db = prisma) {
+  const sis = (peds || []).filter((p) => p.fonte === "SISTEMA");
+  if (!sis.length) return {};
+  const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: sis.map((p) => p.numero) }, liberadoEm: { not: null } }, select: { pedidoNumero: true, chave: true } });
+  const out = {};
+  for (const p of sis) {
+    if (p.tipoPedido === "SERVIÇO") { out[p.numero] = "A PROGRAMAR"; continue; }
+    const chaves = itensDoPedido(p).map((i) => i.chave);
+    const lib = new Set(cis.filter((c) => c.pedidoNumero === p.numero).map((c) => c.chave));
+    out[p.numero] = chaves.length && chaves.every((c) => lib.has(c)) ? "A PROGRAMAR" : lib.size ? "EM COMPRAS · PARTE A PROGRAMAR" : "EM COMPRAS";
+  }
+  return out;
+}
+
 // v622 — só para conhecimento do PCP: pedidos lançados no sistema com itens ainda em compras (não liberados)
 const ETAPA_COMPRA = { LEVANTAMENTO: "LEVANTAMENTO", REPROVADO: "LEVANTAMENTO", PIC: "PIC", OC: "ORDEM_DE_COMPRA", NF: "AGUARDANDO_RECEBIMENTO" };
 export async function emComprasParaPcp({ pedido } = {}, db = prisma) {

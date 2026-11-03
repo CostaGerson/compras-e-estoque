@@ -15,11 +15,11 @@ const moeda = (v) => `R$ ${brl(v)}`;
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 // v400 — situação no PCP: pedido com itens em fases diferentes vem "CONCLUÍDO · EM PRODUÇÃO"; vale a fase menos avançada (concluído só quando tudo concluiu)
 const ORDEM_FASE = ["LEVANTAMENTO", "A PROGRAMAR", "EM PRODUÇÃO", "CONCLUÍDO"];
-const semPrefixoPcp = (s) => s === "FORA DO PCP" || s === "EM COMPRAS" || s === "SERVIÇO" || /^LIBERADO/.test(s || "");
+const semPrefixoPcp = (s) => s === "FORA DO PCP" || /^EM COMPRAS/.test(s || "") || s === "SERVIÇO" || /^LIBERADO/.test(s || "");
 export function situacaoPcp(p) {
   if (!p.cronoSituacao) return null;
   if (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA") return "FORA DO PCP";
-  if (p.cronoSituacao === "EM COMPRAS" || p.cronoSituacao === "SERVIÇO" || /^LIBERADO/.test(p.cronoSituacao) || (p.cronoSituacao === "A PROGRAMAR" && !(p.cronoItens || []).length)) return p.cronoSituacao;   // v612 — pedido do sistema antes do PCP receber
+  if (/^EM COMPRAS/.test(p.cronoSituacao || "") || p.cronoSituacao === "SERVIÇO" || /^LIBERADO/.test(p.cronoSituacao) || (p.cronoSituacao === "A PROGRAMAR" && !(p.cronoItens || []).length)) return p.cronoSituacao;   // v612 — pedido do sistema antes do PCP receber
   const partes = String(p.cronoSituacao).split(" · ").map((x) => x.trim()).filter((x) => x && !/^AGRUPADO/i.test(x));
   if (p.cronoConcluido) return "CONCLUÍDO";
   const abertas = partes.filter((x) => !/CONCLU/i.test(x));
