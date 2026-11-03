@@ -172,6 +172,24 @@ model FornecedorCnpj {
   fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
+// v619 — equivalência do nome do item na NF (por CNPJ do fornecedor) com o artigo interno; sugerida nas próximas NFs
+model ArtigoEquivalencia {
+  id            Int      @id @default(autoincrement())
+  documento     String   // CNPJ do emitente
+  nomeNf        String   // xProd normalizado
+  cProd         String?
+  fornecedorId  Int?
+  artigoId      Int?
+  artigoInterno String
+  dados         Json?    // { categoria, artigoInterno, cor, codigo, composicao, largura, gramatura, unidade }
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([documento, nomeNf])
+  @@index([documento, cProd])
+}
+
 model Artigo {
   id            Int             @id @default(autoincrement())
   categoria     CategoriaArtigo @default(MALHA)
@@ -1567,6 +1585,9 @@ model FiscalNota {
   temPdf        Boolean   @default(false)
   ocId          Int?                             // v494 — NF de compra ligada a uma OC
   frete         FreteCte?                        // v557 — CT-e: dados logísticos do frete
+  estoqueStatus String?                          // v619 — NF de compra: PENDENTE (falta parametrizar/dar entrada) | LANCADO
+  estoqueEm     DateTime?
+  estoquePorNome String?
   parcelas      Json?                            // [{ parcela, vencimento, valor, tituloId, situacao: CRIADA|LIGADA|JA_LANCADA }]
   criadoPorId   Int?
   criadoPorNome String?

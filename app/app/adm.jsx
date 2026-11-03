@@ -11,6 +11,7 @@ import {
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { BotoesCritica } from "./nfRegistro";   // v365
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import ParametrizarNf from "./parametrizarNf";   // v619 — NF de compra → artigo interno → estoque
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moeda = (v) => "R$ " + brl(v);
@@ -90,6 +91,7 @@ export default function MovimentoFiscal({ user }) {
   const [lista, setLista] = useState(null);
   const [erro, setErro] = useState("");
   const [importar, setImportar] = useState(null);   // null | [] (abre vazio) | arquivos soltos
+  const [paramId, setParamId] = useState(null);   // v619
   const [casarNota, setCasarNota] = useState(null);   // v555 — id da NF de saída para casar com pedido
   const [msg, setMsg] = useState("");
 
@@ -222,6 +224,8 @@ export default function MovimentoFiscal({ user }) {
                     <td className="px-3 py-2 whitespace-nowrap">
                       {n.temXml && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=xml&baixar=1`} className="inline-flex items-center gap-0.5 mr-2 font-semibold" style={{ color: C.blue }}><FileCode2 size={13} /> XML</a>}
                       {n.temPdf && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={13} /> PDF</a>}
+                      {n.estoqueStatus === "PENDENTE" && <button onClick={() => setParamId(n.id)} title="Parametrizar os itens e dar entrada no estoque" className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Dar entrada no estoque</button>}
+                      {n.estoqueStatus === "LANCADO" && <span className="block mt-1 text-[10px] font-semibold" style={{ color: C.green }}>✓ no estoque</span>}
                     </td>
                     <td className="px-3 py-2">{!n.km && podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>
@@ -231,6 +235,7 @@ export default function MovimentoFiscal({ user }) {
           </table>
         </div>
       </div>
+      {paramId && <ParametrizarNf user={user} id={paramId} onFim={(x) => { setParamId(null); if (x) carregar(); }} />}
       {importar && <ImportarNfs user={user} iniciais={importar} onClose={() => setImportar(null)} onFim={(m) => { setImportar(null); setMsg(m); carregar(); }} />}
       {casarNota && <CasarNotaModal user={user} fiscalNotaId={casarNota} onClose={() => setCasarNota(null)} onFeito={carregar} />}
     </div>
@@ -406,7 +411,11 @@ export function ImportarNfs({ user, iniciais, onClose, onFim, pedidoNumero, ocId
     setRes([...feitas, ...out]);
   };
   const fechar = () => (feitas.length ? setRes(feitas) : onClose());
+  const [paramFeitas, setParamFeitas] = useState([]);   // v619
 
+  // v619 — NF de compra gravada: abre a parametrização (uma por vez) antes do resumo
+  const filaParam = (res || []).filter((r) => r.estoque?.id && !paramFeitas.includes(r.estoque.id));
+  if (res && filaParam.length) return <ParametrizarNf user={user} id={filaParam[0].estoque.id} onFim={() => setParamFeitas((l) => [...l, filaParam[0].estoque.id])} />;
   if (res) {
     const c = (s) => res.filter((r) => r.situacao === s).length;
     const baixadas = res.reduce((s, r) => s + (r.baixadas || 0), 0);

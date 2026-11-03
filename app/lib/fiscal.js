@@ -429,12 +429,20 @@ export async function gravar(notas, u) {
         },
       });
     } catch (e) {
-      if (String(e.code) === "P2002") { res.push({ numero: n.numero, situacao: "JA_IMPORTADA" }); continue; }
+      if (String(e.code) === "P2002") {
+        // v619 — já importada mas ainda sem entrada no estoque: abre a parametrização de novo
+        const ex = await prisma.fiscalNota.findUnique({ where: { chaveRegistro: n.chaveRegistro }, select: { id: true, estoqueStatus: true } }).catch(() => null);
+        res.push({ numero: n.numero, situacao: "JA_IMPORTADA", ...(ex?.estoqueStatus === "PENDENTE" ? { estoque: { id: ex.id } } : {}) });
+        continue;
+      }
       throw e;
     }
+    // v619 — NF de compra com XML: fica pendente de parametrização / entrada no estoque
+    try { const { precisaEstoque } = await import("@/lib/nfEstoque"); if (precisaEstoque(n)) await prisma.fiscalNota.update({ where: { id: reg.id }, data: { estoqueStatus: "PENDENTE" } }); reg.estoqueStatus = precisaEstoque(n) ? "PENDENTE" : null; } catch (e) { console.log("fiscal/estoque:", e.message); }
 
     const parc = [];
-    const r = { numero: n.numero, parceiro: n.parceiro, tipo: n.tipo, situacao: n.decisao === "LANCAR" ? "LANCADA" : "REGISTRADA", criadas: 0, ligadas: 0, valor: 0 };
+    const r = { numero: n.numero, parceiro: n.parceiro, tipo: n.tipo, situacao: n.decisao === "LANCAR" ? "LANCADA" : "REGISTRADA", criadas: 0, ligadas: 0, valor: 0,
+      ...(reg.estoqueStatus === "PENDENTE" ? { estoque: { id: reg.id } } : {}) };
     if (n.decisao === "LANCAR") {
       const marc = n.parcelas.filter((p) => p.marcado);
       const rt = validarRateio(n.rateio);
@@ -630,7 +638,7 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   const l = await prisma.fiscalNota.findMany({
     where, orderBy: [{ emissao: "desc" }, { id: "desc" }], take: 2000,
     select: { id: true, tipo: true, empresa: true, modelo: true, chave: true, numero: true, serie: true, emissao: true, parceiro: true, documento: true, natureza: true,
-      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true },
+      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true, estoqueStatus: true },
   });
   // v555 — pedido atendido por cada NF de saída (casamento manual ou pelas regras automáticas)
   const pedDaNf = new Map();
