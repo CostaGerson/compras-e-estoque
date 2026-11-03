@@ -1,0 +1,196 @@
+// v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
+//   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
+//   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
+import { parcelasCalc, DOCS_ENTREGA as DOCS } from "@/lib/pedidoLanc";
+
+const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const n = (v) => { const s = String(v ?? "").trim(); return (s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s)) || 0; };
+const money = (v) => "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dBR = (s) => (s && /^\d{4}-\d{2}-\d{2}/.test(String(s)) ? String(s).slice(0, 10).split("-").reverse().join("/") : s || "");
+const cap = (s) => String(s || "").toLowerCase().replace(/(^|\s|·)\S/g, (m) => m.toUpperCase());
+const BASE_TXT = { EMISSAO: "do pedido", NF: "da NF", ENTREGA: "da entrega" };
+
+function tecidoTxt(v) {
+  if (!v) return "";
+  if (typeof v !== "object") return esc(v);
+  return [v.tipo, v.artigo, v.medida, v.forro ? `forro ${v.forro}` : ""].filter(Boolean).map(esc).join(" · ") + (v.fpp ? ` <span class="mut">(FPP ${esc(String(v.fpp).padStart(5, "0"))})</span>` : "");
+}
+
+/**
+ * @param {"PP"|"PV"} tipo
+ * @param f   cabeçalho do pedido (editor): numero, emissao, clienteNome, clienteCnpj, clienteIe, clienteEndereco, clienteContato, oc, vendedor,
+ *            prazoEntrega, dtDespacho, tipoPedido, obs, obsNfTexto, entregaModo, entregas, pagamento, servico, interno
+ * @param itens [{ tipoPecaNome, codigo, descricao, valorUnitario, grade:[{tam,qtd}], parametros:{}, fotoBase64 }]
+ * @param componentes { tipoPeca: [parâmetros] } — ordem dos parâmetros de produção
+ */
+export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}) {
+  const PV = tipo === "PV";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const servico = !!f.servico || f.tipoPedido === "SERVIÇO";
+  const qtdDe = (it) => (it.grade || []).reduce((s, g) => s + n(g.qtd), 0);
+  const lista = (itens || []).filter((it) => String(it.descricao || "").trim() || qtdDe(it) > 0);
+  const totalPecas = lista.reduce((s, it) => s + qtdDe(it), 0);
+  const totalGeral = lista.reduce((s, it) => s + qtdDe(it) * n(it.valorUnitario), 0);
+  const agora = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const numero = f.numero || "—";
+  const titulo = PV ? (servico ? "Pedido de serviço" : "Pedido de venda") : "Pedido de produção";
+
+  // ---------- tabela de itens ----------
+  const linhas = lista.map((it, i) => {
+    const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
+    const tams = servico ? "—" : grade.map((g) => `${esc(g.tam)} ${esc(g.qtd)}`).join(" · ") || "—";
+    const tec = it.parametros?.TECIDO;
+    const det = servico ? "" : [cap(it.tipoPecaNome), it.codigo ? `cód. ${esc(it.codigo)}` : "", PV && tec ? (typeof tec === "object" ? [tec.tipo, tec.artigo].filter(Boolean).map(esc).join(" · ") : esc(tec)) : ""].filter(Boolean).join(" · ");
+    const q = qtdDe(it), vu = n(it.valorUnitario);
+    return `<tr>
+      <td class="num">${i + 1}</td>
+      <td><div class="it">${esc(it.descricao || cap(it.tipoPecaNome) || "—")}</div>${det ? `<div class="sub">${det}</div>` : ""}</td>
+      <td class="tam">${tams}</td>
+      <td class="r">${q.toLocaleString("pt-BR")}</td>
+      ${PV ? `<td class="r">${money(vu)}</td><td class="r b">${money(q * vu)}</td>` : ""}
+    </tr>`;
+  }).join("");
+
+  // ---------- PP: detalhamento de produção de cada item ----------
+  const producao = PV || servico ? "" : lista.map((it, i) => {
+    const comps = componentes[it.tipoPecaNome] || [];
+    const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
+    const params = [...comps, ...extras].map((c) => {
+      const v = it.parametros?.[c];
+      return `<tr><td class="pk">${esc(c)}</td><td>${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
+    }).join("");
+    const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
+    return `<div class="peca">
+      <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
+      <div class="peca-b">
+        ${it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vz">sem foto</div>`}
+        <div class="peca-i">
+          <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}<th class="tt">TOTAL</th></tr>
+            <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}<td class="tt">${qtdDe(it).toLocaleString("pt-BR")}</td></tr></table>
+          <table class="params">${params || `<tr><td class="pk">Parâmetros</td><td>—</td></tr>`}</table>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  // ---------- PV: condição de pagamento ----------
+  let pagHtml = "";
+  if (PV && !f.interno) {
+    const c = parcelasCalc(f.pagamento, totalGeral, { emissao: f.emissao });
+    const ls = [];
+    if (c.entrada) ls.push(`<tr><td>Entrada</td><td>${dBR(c.entrada.data) || "—"}</td><td class="r">${money(c.entrada.valor)}</td></tr>`);
+    for (const x of c.parcelas) ls.push(`<tr><td>Parcela ${x.n}/${x.de}</td><td>${x.dias} dias ${x.tipo === "UTEIS" ? "úteis" : "corridos"} ${BASE_TXT[x.base] || ""}${x.data ? ` · ${dBR(x.data)}` : ""}</td><td class="r">${money(x.valor)}</td></tr>`);
+    if (ls.length) pagHtml = `<div class="sec">Condição de pagamento</div><table class="pag">${ls.join("")}</table>`;
+  }
+
+  // ---------- entrega ----------
+  const entregas = f.entregaModo && f.entregaModo !== "UNICA" && Array.isArray(f.entregas) && f.entregas.length
+    ? `<div class="sec">${f.entregaModo === "TERCEIROS" ? "Entrega com terceiros" : "Entrega fracionada"}</div>
+      <table class="pag">${f.entregas.map((e, k) => `<tr><td class="b">${k + 1}. ${esc(e.local || "—")}</td><td>${esc(e.endereco || "—")}${e.responsavel ? ` · resp. ${esc(e.responsavel)}` : ""}${e.contato ? ` · ${esc(e.contato)}` : ""}${e.documento ? `<div class="mut">${esc(DOCS[e.documento] || e.documento)}</div>` : ""}</td></tr>`).join("")}</table>` : "";
+
+  const html = `<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>${PV ? "PV" : "PP"} ${esc(numero)} · Meridian</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 12mm 13mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Montserrat', Arial, sans-serif; color: #1F2733; margin: 0; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #001E41; padding-bottom: 9px; }
+  .marca img { height: 26px; display: block; }
+  .marca .t { font-weight: 800; letter-spacing: 6px; font-size: 24px; color: #001E41; }
+  .marca .s { color: #667085; font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 5px; }
+  .doc { text-align: right; }
+  .doc .k { color: #FF6B1A; font-weight: 700; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
+  .doc .n { color: #001E41; font-weight: 800; font-size: 22px; line-height: 1.15; }
+  .doc .d { color: #667085; font-size: 9.5px; }
+  .caixas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 12px; }
+  .cx { background: #EEF3FB; border-radius: 6px; padding: 9px 11px; }
+  .cx .h { color: #2E5C9A; font-weight: 700; font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 4px; }
+  .cx .nm { font-weight: 800; font-size: 12.5px; color: #001E41; margin-bottom: 2px; }
+  .cx div { line-height: 1.45; }
+  .mut { color: #667085; font-weight: 400; }
+  table.itens { width: 100%; border-collapse: collapse; margin-top: 2px; }
+  table.itens th { text-align: left; color: #2E5C9A; font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; padding: 6px 6px; border-bottom: 2px solid #001E41; }
+  table.itens td { padding: 7px 6px; border-bottom: 1px solid #E4E7EC; vertical-align: top; }
+  table.itens .num { width: 22px; color: #667085; }
+  table.itens .it { font-weight: 700; color: #001E41; }
+  table.itens .sub { color: #667085; font-size: 10px; margin-top: 1px; }
+  table.itens .tam { font-size: 10px; max-width: 190px; }
+  .r { text-align: right; white-space: nowrap; } .b { font-weight: 700; }
+  th.r { text-align: right; }
+  .tot { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .tot table { width: 270px; border-collapse: collapse; }
+  .tot td { padding: 5px 4px; }
+  .tot tr.g td { border-top: 1px solid #1F2733; border-bottom: 1px solid #E4E7EC; padding: 8px 4px; }
+  .tot tr.g td.v { font-size: 17px; font-weight: 800; color: #001E41; }
+  .sec { color: #2E5C9A; font-weight: 700; font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; margin: 14px 0 5px; }
+  table.pag { width: 100%; border-collapse: collapse; }
+  table.pag td { padding: 4px 6px; border-bottom: 1px solid #EEF0F3; vertical-align: top; }
+  .notas { margin-top: 14px; border-top: 1px solid #E4E7EC; padding-top: 8px; font-size: 10px; line-height: 1.55; }
+  .peca { border: 1px solid #E4E7EC; border-radius: 6px; margin-bottom: 9px; overflow: hidden; page-break-inside: avoid; }
+  .peca-h { background: #F5F7FB; border-bottom: 1px solid #E4E7EC; padding: 6px 9px; font-weight: 700; color: #001E41; display: flex; align-items: center; gap: 6px; }
+  .peca-h .bd { background: #001E41; color: #fff; border-radius: 50%; width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; }
+  .peca-h .q { margin-left: auto; color: #FF6B1A; }
+  .peca-b { display: flex; gap: 10px; padding: 9px; }
+  .foto { width: 125px; height: 125px; object-fit: cover; border-radius: 5px; border: 1px solid #E4E7EC; flex-shrink: 0; }
+  .foto.vz { display: flex; align-items: center; justify-content: center; color: #98A2B3; font-size: 9.5px; }
+  .peca-i { flex: 1; min-width: 0; }
+  table.grade { border-collapse: collapse; margin-bottom: 7px; }
+  table.grade th, table.grade td { border: 1px solid #D5DBE5; padding: 3px 8px; text-align: center; font-size: 10.5px; }
+  table.grade th { background: #001E41; color: #fff; font-size: 9.5px; }
+  table.grade .tt { background: #FFF0E6; color: #C2410C; font-weight: 700; }
+  table.grade th.tt { background: #FF6B1A; color: #fff; }
+  table.params { width: 100%; border-collapse: collapse; font-size: 10px; }
+  table.params td { border: 1px solid #EEF0F3; padding: 3px 6px; }
+  table.params td.pk { color: #667085; width: 34%; text-transform: uppercase; font-size: 9px; }
+  .rod { margin-top: 16px; display: flex; justify-content: space-between; color: #98A2B3; font-size: 8.5px; border-top: 1px solid #E4E7EC; padding-top: 5px; }
+</style></head><body>
+  <div class="top">
+    <div class="marca">
+      <img src="${origin}/meridian-wordmark.svg" onerror="this.outerHTML='<div class=&quot;t&quot;>MERIDIAN</div>'"/>
+      <div class="s">Confecção de uniformes · Meridian Ltda · CNPJ 48.011.287/0001-81</div>
+    </div>
+    <div class="doc"><div class="k">${titulo}</div><div class="n">Nº ${esc(numero)}</div><div class="d">Emissão ${dBR(f.emissao) || "—"}</div></div>
+  </div>
+
+  <div class="caixas">
+    <div class="cx"><div class="h">Cliente</div>
+      <div class="nm">${esc(f.clienteNome || "—")}</div>
+      ${f.clienteCnpj ? `<div>CNPJ/CPF ${esc(f.clienteCnpj)}${f.clienteIe ? ` · IE ${esc(f.clienteIe)}` : ""}</div>` : ""}
+      ${f.clienteEndereco ? `<div>${esc(f.clienteEndereco)}</div>` : ""}
+      ${f.clienteContato ? `<div>${esc(f.clienteContato)}</div>` : ""}
+    </div>
+    <div class="cx"><div class="h">Atendimento</div>
+      <div>Vendedor: <b>${esc(f.vendedor || "—")}</b></div>
+      <div>Prazo: <b>${esc(f.prazoEntrega || "—")}</b>${f.dtDespacho ? ` · despacho <b>${esc(f.dtDespacho)}</b>` : ""}</div>
+      ${f.oc ? `<div>OC do cliente: <b>${esc(f.oc)}</b></div>` : ""}
+      <div>Tipo: ${esc(cap(f.tipoPedido || (servico ? "serviço" : "venda normal")))}</div>
+    </div>
+  </div>
+
+  <table class="itens">
+    <tr><th>#</th><th>${servico ? "Serviço" : "Item"}</th><th>${servico ? "" : "Tamanhos"}</th><th class="r">Qtd</th>${PV ? `<th class="r">${servico ? "Valor unit." : "Preço/pç"}</th><th class="r">Subtotal</th>` : ""}</tr>
+    ${linhas || `<tr><td colspan="6" class="mut">Nenhum item.</td></tr>`}
+  </table>
+
+  <div class="tot"><table>
+    <tr><td class="mut">${servico ? "Quantidade total" : "Total de peças"}</td><td class="r b">${totalPecas.toLocaleString("pt-BR")}</td></tr>
+    ${PV ? `<tr class="g"><td class="b">Total</td><td class="r v">${money(totalGeral)}</td></tr>` : ""}
+  </table></div>
+
+  ${pagHtml}
+  ${entregas}
+  ${producao ? `<div class="sec">Detalhamento de produção</div>${producao}` : ""}
+
+  ${f.obs || (PV && f.obsNfTexto) ? `<div class="notas">
+    ${f.obs ? `<div><b>Observações:</b> ${esc(f.obs).replace(/\n/g, "<br/>")}</div>` : ""}
+    ${PV && f.obsNfTexto ? `<div><b>Dados para a NF:</b> ${esc(f.obsNfTexto)}</div>` : ""}
+  </div>` : ""}
+
+  <div class="rod"><span>${PV ? "Pedido de venda" : "Pedido de produção — documento interno, sem valores"} · Meridian</span><span>Impresso em ${agora}</span></div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { (alerta || window.alert)("Permita pop-ups para imprimir o pedido."); return; }
+  w.document.write(html); w.document.close();
+}

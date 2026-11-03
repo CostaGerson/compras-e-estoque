@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import {
   num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES,
   paramFora, tecidoDaFpp, numFpp,
@@ -297,11 +298,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   };
   const precisaEntrega = (f.pagamento?.parcelas || []).some((x) => x.base === "ENTREGA");
 
-  const imprimirAgora = () => imprimir({
+  const imprimirAgora = (tipo) => imprimirPedido(tipo, {
     ...f, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
     condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.servico ? "SERVIÇO" : f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
     entregasTexto: f.entregaModo === "UNICA" ? "" : f.entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS_ENTREGA[e.documento] || "—"}`).join("\n"),
-  }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, totalPecas, totalGeral, veVal);
+  }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, { componentes, alerta });
 
   if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -317,7 +318,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {f.servico && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>SERVIÇO</span>}
         </div>
         <div className="flex gap-2">
-          <button onClick={imprimirAgora} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir</button>
+          {!f.servico && <button onClick={() => imprimirAgora("PP")} title="Pedido de produção — sem valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>}
+          {veVal && <button onClick={() => imprimirAgora("PV")} title="Pedido de venda — com valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} className="px-3 py-2 rounded text-sm" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
             {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Efetivar lançamento"}</button>}

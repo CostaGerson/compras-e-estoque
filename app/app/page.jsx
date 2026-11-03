@@ -27,6 +27,7 @@ import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
+import { imprimirPedido } from "./impressaoPedido";   // v615
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
@@ -1513,7 +1514,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
     const d = await r.json();
     setSalvando(false);
     if (!r.ok) { alerta(d.error || "Erro ao salvar."); return; }
-    if (imprimirDepois) imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, veVal);
+    if (imprimirDepois) imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, false);
     onVoltar();
   };
 
@@ -1534,7 +1535,8 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
       <div className="flex items-center justify-between mb-4">
         <button onClick={onVoltar} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
         <div className="flex gap-2">
-          <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, veVal)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>
+          <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, false)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>
+          {veVal && <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, true)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
           {podeLancar && <button onClick={() => salvar(false)} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar PP"}</button>}
         </div>
       </div>
@@ -1688,7 +1690,9 @@ function ParamLinha({ comp, valor, onChange, buscarArtigo }) {
   );
 }
 
-function imprimirPP(f, itens, totalPecas, totalGeral, comValores = true) {
+// v615 — impressão no padrão novo: PP (sem valores) e PV (com valores) — app/impressaoPedido.js
+function imprimirPP(f, itens, totalPecas, totalGeral, comValores = true) { return imprimirPedido(comValores ? "PV" : "PP", f, itens, { componentes: COMPONENTES, alerta }); }
+function imprimirPPAntigo(f, itens, totalPecas, totalGeral, comValores = true) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const money = (n) => "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
