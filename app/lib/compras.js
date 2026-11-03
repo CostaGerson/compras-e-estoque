@@ -568,6 +568,28 @@ export async function tokenExterno(db = prisma, renovar = false) {
   return novo;
 }
 
+// v622 — só para conhecimento do PCP: pedidos lançados no sistema com itens ainda em compras (não liberados)
+const ETAPA_COMPRA = { LEVANTAMENTO: "LEVANTAMENTO", REPROVADO: "LEVANTAMENTO", PIC: "PIC", OC: "ORDEM_DE_COMPRA", NF: "AGUARDANDO_RECEBIMENTO" };
+export async function emComprasParaPcp({ pedido } = {}, db = prisma) {
+  const ps = await db.pedidoVenda.findMany({ where: { fonte: "SISTEMA", status: "ANDAMENTO", NOT: { tipoPedido: "SERVIÇO" }, ...(pedido ? { numero: String(pedido) } : {}) } });
+  if (!ps.length) return [];
+  const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: ps.map((p) => p.numero) } } });
+  const out = [];
+  for (const p of ps) {
+    const itens = itensDoPedido(p).map((i) => {
+      const c = cis.find((x) => x.pedidoNumero === p.numero && x.chave === i.chave);
+      if (c?.liberadoEm) return null;   // já está nos liberados (A PROGRAMAR)
+      return { chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: (Array.isArray(p.itens) ? p.itens : []).find((x) => String(x.codigo || "") === String(i.codigo || ""))?.grade || [],
+        etapaCompras: c ? ETAPA_COMPRA[c.status] || c.status : "SINCRONIZACAO", fppNumero: c?.fppNumero || null,
+        materialPrincipal: (Array.isArray(c?.demanda) ? c.demanda : []).filter((d) => ["PRINCIPAL", "REVENDA"].includes(d.papel)).map((d) => ({ nome: d.nome, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade })) };
+    }).filter(Boolean);
+    if (!itens.length) continue;
+    out.push({ pedido: p.numero, cliente: p.cliente, emissao: p.emissao, entrega: p.despacho, vendedor: p.vendedor, tipoPedido: p.tipoPedido, interno: p.interno, oc: p.oc, fonte: "SISTEMA",
+      situacao: "EM_COMPRAS", itens });
+  }
+  return out;
+}
+
 // itens liberados para programar, com o pedido completo (cabeçalho, grade, parâmetros da OP, FPP e materiais)
 export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
   // v613 — liberado = matéria-prima principal garantida (aviamentos podem estar pendentes)
