@@ -185,9 +185,28 @@ export async function efetivarPedido(id, quem) {
     } else if (!(x && atual?.status === "FATURADO")) await cancelarTitulo(chaveParcela(numero, i), quem);   // parcela que saiu/mudou de base
   }
 
-  // v612 — todo pedido lançado entra na Sincronização de pedidos (Compras) e segue de lá: a FPP indexada no lançamento
-  // aparece como "FPP do lançamento" para confirmar; nada vai direto para o levantamento.
+  // v617 — item com FPP indexada no lançamento vai direto para o levantamento; sem FPP passa pela Sincronização de pedidos
+  //        (pedido de serviço não passa por Compras)
   const compras = [];
+  const chaves = itensDoPedido({ itens });
+  for (let i = 0; i < (dados.tipoPedido === "SERVIÇO" ? 0 : itens.length); i++) {
+    const it = itens[i];
+    if (!it.fppId) continue;
+    try {
+      const fpp = await prisma.fpp.findUnique({ where: { id: Number(it.fppId) } });
+      if (!fpp) continue;
+      const ch = chaves[i].chave;
+      const at = await prisma.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: numero, chave: ch } } });
+      if (at && at.status !== "LEVANTAMENTO") continue;
+      if (at && at.fppId === fpp.id && Number(at.quantidade) === it.qtd) continue;
+      const demanda = await demandaDoItem(fpp, it.qtd);
+      const d = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: dados.cliente, entrega: dados.despacho,
+        fppId: fpp.id, fppNumero: fpp.numero, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem };
+      if (at) await prisma.compraItem.update({ where: { id: at.id }, data: d });
+      else await prisma.compraItem.create({ data: { pedidoNumero: numero, chave: ch, ...d } });
+      compras.push(ch);
+    } catch (e) { avisos.push(`Item ${i + 1}: não foi para Compras (${e.message}).`); }
+  }
   return { ok: true, numero, pedidoId: ped.id, lancadas, compras, avisos, nfObs };
 }
 
