@@ -831,12 +831,12 @@ function PopupConvites({ user, onMudou }) {
 
 /* v603 — régua de horários na lateral esquerda do dia em que a tarefa está sendo posicionada (troca de dia junto com o arraste) */
 const SLOTS_HORA = Array.from({ length: 32 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
-function ReguaDia({ dia, alvo, atual, h = 14 }) {
+function ReguaDia({ dia, alvo, atual, h = 26 }) {   // v610 — régua maior (mais fácil acertar o horário)
   return (
-    <div className="shrink-0 flex flex-col rounded-lg overflow-hidden anim-entrar" style={{ width: 50, background: "#fff", border: `1px solid ${A.cardBrancoBorda}`, boxShadow: "0 2px 8px rgba(30,31,33,.12)" }}>
+    <div className="shrink-0 flex flex-col rounded-lg overflow-hidden anim-entrar" style={{ width: 68, background: "#fff", border: `1px solid ${A.cardBrancoBorda}`, boxShadow: "0 2px 8px rgba(30,31,33,.12)" }}>
       {["", ...SLOTS_HORA].map((hh) => {
         const z = `h|${dia}|${hh}`, on = alvo === z, cheia = hh.endsWith(":00");
-        return <div key={z} data-zona={z} className="flex items-center justify-center text-[10px] leading-none"
+        return <div key={z} data-zona={z} className="flex items-center justify-center text-[12.5px] leading-none"
           style={{ height: h, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia || on ? 700 : 400,
             borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "s/ hora"}</div>;
       })}
@@ -847,11 +847,11 @@ function ReguaDia({ dia, alvo, atual, h = 14 }) {
 const SEM3 = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 function PainelHoras({ dia, alvo, atual }) {
   return (
-    <div className="fixed z-[70] left-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 64, background: "#fff", borderRight: `1px solid ${A.linha}`, boxShadow: "6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="fixed z-[70] left-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 74, background: "#fff", borderRight: `1px solid ${A.linha}`, boxShadow: "6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="text-[11px] font-bold text-center py-1.5 leading-tight" style={{ color: A.azul, borderBottom: `1px solid ${A.linha}` }}>{SEM3[dUTC(dia).getUTCDay()]}<br />{Number(dia.slice(8))}/{Number(dia.slice(5, 7))}</div>
       {["", ...SLOTS_HORA].map((hh) => {
         const z = `h|${dia}|${hh}`, on = alvo === z, cheia = hh.endsWith(":00");
-        return <div key={z} data-zona={z} className="flex-1 flex items-center justify-center text-[11px]"
+        return <div key={z} data-zona={z} className="flex-1 flex items-center justify-center text-[13px]"
           style={{ minHeight: 14, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia ? 700 : 400, borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "sem hora"}</div>;
       })}
     </div>
@@ -895,7 +895,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
   const lSel = porDia[sel] || [];
   const tocarDia = (dia) => { setSel(dia); onDia?.(dia); setTimeout(() => painel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60); };
   return (
-    <div ref={raiz} style={{ paddingLeft: arrastandoId ? 64 : 0, transition: "padding .15s" }} onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
+    <div ref={raiz} style={{ paddingLeft: arrastandoId ? 74 : 0, transition: "padding .15s" }} onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
       onTouchEnd={(e) => { const t0 = toque.current; toque.current = null; if (!t0 || arrastandoId) return; const dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onMover(dx < 0 ? 1 : -1); }}>
       <div className="grid grid-cols-7 py-1" style={{ borderBottom: `1px solid ${A.linha}`, position: "sticky", top: 0, zIndex: 5, background: A.fundo }}>
         {SEM_DOM.map((x, i) => <div key={i} className="text-center text-[11px] font-semibold" style={{ color: A.sub }}>{x}</div>)}
@@ -1292,7 +1292,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                           <button onClick={() => novaNoDia(dia)} title="Nova tarefa neste dia" className="p-2 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
                         </div>
                         <div className="flex gap-2">
-                          {comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={15} />}
+                          {comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={28} />}
                           <div className="flex-1 min-w-0 flex flex-col gap-2">
                             {PERIODOS.map(([rot, per]) => {
                               const ll = l.filter((t) => periodoDe(t) === per), zz = `${dia}|${per}`, aqui = alvo === `p|${zz}` || alvo?.startsWith(`c|${zz}|`);
@@ -1336,7 +1336,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                   // v604 — no mês, a linha do dia ampliado fica alta: os outros dias dela mostram tudo o que cabe (sem "+N mais" à toa)
                   const iAmp = modo === "mes" ? dias.indexOf(diaAmp) : -1, mesmaLinha = iAmp >= 0 && Math.floor(iAmp / 7) === Math.floor(k / 7);
                   const lim = mesmaLinha ? Math.max(4, (porDia[diaAmp] || []).length) : 4;
-                  const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 15 : 12} />;
+                  const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 26 : 22} />;
                   return (
                     <div key={dia} data-dia={dia} data-zona={`d|${dia}`} onClick={() => setSelDia(dia)}
                       className="group/dia px-2 pt-2 pb-3 flex flex-col gap-1.5 min-w-0"
