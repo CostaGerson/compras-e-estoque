@@ -1007,7 +1007,9 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CANCELADA" && (verConcl || t.status !== "CONCLUIDA") && (visao === "GERAL" || t.natureza === visao));
   const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl]);
   // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
-  Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
+  // v605 — sempre pela ordem de horário; sem horário vem depois (manhã antes de tarde), na ordem escolhida arrastando
+  Object.values(porDia).forEach((l) => l.sort((a, b) => (a.hora ? 0 : 1) - (b.hora ? 0 : 1) || (a.hora || "").localeCompare(b.hora || "") || (a.horaFim || "").localeCompare(b.horaFim || "")
+    || (a.hora ? 0 : (periodoDe(a) === "TARDE") - (periodoDe(b) === "TARDE")) || (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
   const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per ? { periodo: per } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
