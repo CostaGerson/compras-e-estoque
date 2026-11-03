@@ -364,14 +364,17 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   // v598 — pública depende só de públicas; privada/pessoal também das tarefas pessoais de quem é responsável
   const respFinal = pessoal ? criador : Number(f.responsavelId);
   const depsVal = (publicas || []).filter((t) => t.publica || (!publicaFinal && t.responsavelId === respFinal));
+  // v606 — diz o que falta em vez de só deixar o botão apagado
+  const faltando = [!f.titulo.trim() && "o que precisa ser feito (Demanda)", !f.responsavelId && "colaborador", !f.prazo && "data"].filter(Boolean);
   const depsSel = depsVal.filter((t) => f.dependencias.includes(t.id));
   const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(buscaDep.toUpperCase())).slice(0, 8);
   return (
     <Janela titulo={ed ? `Editar demanda #${inicial.id}` : "Nova demanda"} onClose={onClose} largura={720}
       rodape={<>
-        {erro && <span className="text-xs mr-auto" style={{ color: C.red }}>{erro}</span>}
+        {erro ? <span className="text-xs mr-auto" style={{ color: C.red }}>{erro}</span>
+          : faltando.length > 0 && <span className="text-xs mr-auto" style={{ color: C.sub }}>Para criar, preencha: <b style={{ color: C.text }}>{faltando.join(", ")}</b></span>}
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
-        <button onClick={salvar} disabled={st || !f.titulo.trim() || !f.responsavelId || !f.prazo} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff", opacity: st || !f.titulo.trim() || !f.responsavelId ? 0.5 : 1 }}>
+        <button onClick={salvar} disabled={st || faltando.length > 0} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff", opacity: st || !f.titulo.trim() || !f.responsavelId ? 0.5 : 1 }}>
           {st && <Loader2 size={14} className="animate-spin" />} {ed ? "Salvar" : "Criar demanda"}
         </button>
       </>}>
@@ -409,7 +412,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         </label>
       </div>}
       <label className="block text-xs mb-3" style={{ color: C.sub }}>Demanda
-        <input value={f.titulo} onChange={(e) => set("titulo", e.target.value)} autoFocus placeholder="O que precisa ser feito" className={`${inp} mt-1`} style={inpS} />
+        <input value={f.titulo} onChange={(e) => set("titulo", e.target.value)} autoFocus placeholder={f.evento ? "Nome do evento (obrigatório)" : "O que precisa ser feito (obrigatório)"} className={`${inp} mt-1`} style={inpS} />
         <textarea value={f.descricao} onChange={(e) => set("descricao", e.target.value)} rows={3} placeholder="Detalhes (opcional)" className={`${inp} mt-1`} style={{ ...inpS, resize: "vertical" }} />
       </label>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
