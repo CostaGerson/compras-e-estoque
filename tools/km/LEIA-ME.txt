@@ -27,3 +27,8 @@ v595 - ITENS (produtos) do KM (solprodu + ultimo detalhe de producao)
   - vao sozinhos de hora em hora (minuto 10); usados no lancamento de pedidos (mesma nomenclatura do KM)
   - depois de atualizar o projeto, rode de novo:  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Instalar
   - mandar agora:                      .\km-sync.ps1 -Produtos
+
+v630 - DESCOBRIR a parte fiscal do KM (naturezas de operacao, CFOP, NCM, tributacao) - SO LEITURA
+  cd C:\projetos\compras-e-estoque ; git pull ; cd tools\km
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Tributario
+  -> gera km-tributario.txt na Area de Trabalho; mande esse arquivo para o Claude montar a importacao.

@@ -11,7 +11,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Produtos     (v595: manda o cadastro de itens do KM agora)
 # v521: clientes do KM vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes
 # v595: itens (produtos) do KM vao sozinhos de hora em hora (minuto 10)
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos)
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos, [switch]$Tributario)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -140,6 +140,12 @@ function EnviarProdutos([bool]$soPrevia) {
   Log ("PRODUTOS{0}: {1} recebidos | {2} gravados{3}" -f $(if ($soPrevia) { " (previa)" } else { "" }), $r.recebidos, [int]$r.gravados, $(if ($r.erros.Count) { " | ERROS: " + ($r.erros -join "; ") } else { "" }))
 }
 if ($Produtos) { EnviarProdutos ([bool]$Previa); exit 0 }
+# v630 - descobrir a estrutura fiscal do KM (naturezas, CFOP, NCM, tributacao). SO LEITURA. Gera km-tributario.txt na Area de Trabalho.
+if ($Tributario) {
+  $arq = Join-Path ([Environment]::GetFolderPath("Desktop")) "km-tributario.txt"
+  if (RodarSql "km-tributario-descobrir.sql" $arq) { Write-Host "Pronto: $arq  (mande esse arquivo para o Claude)"; Start-Process notepad.exe $arq }
+  exit 0
+}
 
 # pedidos em andamento no sistema (consultados no KM mesmo fora do filtro)
 $abertos = ""
