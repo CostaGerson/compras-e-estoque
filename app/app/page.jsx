@@ -943,7 +943,7 @@ function Mensagens({ user, onMudou }) {
         {m.convite && <div className="flex items-center gap-2 mt-2 flex-wrap">
           {m.convite === "PENDENTE" ? <>
             <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: C.green, color: "#fff" }}>Confirmar</button>
-            <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>Recusar</button>
+            <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: "#FDECEC", color: "#D92D20" }}>Recusar</button>
             <button onClick={() => responderConvite(m, "DEPOIS")} className="text-xs px-3 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>Decidir depois</button>
           </> : <span className="text-xs font-semibold px-2 py-1 rounded" style={m.convite === "CONFIRMADO" ? { background: C.greenSoft, color: C.green } : { background: C.panel2, color: C.sub }}>
             {m.convite === "CONFIRMADO" ? "✓ Confirmado — está na sua agenda" : m.convite === "RECUSADO" ? "Convite recusado" : m.convite === "CANCELADO" ? "Evento cancelado" : "Convite retirado"}</span>}
