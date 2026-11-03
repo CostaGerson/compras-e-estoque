@@ -1328,6 +1328,9 @@ export function Agenda({ user, pedidoModo, onModo }) {
                   const l = porDia[dia] || [];
                   const hoje = dia === H, amp = dia === diaAmp, comRegua = arr && diaArr === dia;
                   const aquiDia = arr && alvo && alvo.split("|")[1] === dia;
+                  // v604 — no mês, a linha do dia ampliado fica alta: os outros dias dela mostram tudo o que cabe (sem "+N mais" à toa)
+                  const iAmp = modo === "mes" ? dias.indexOf(diaAmp) : -1, mesmaLinha = iAmp >= 0 && Math.floor(iAmp / 7) === Math.floor(k / 7);
+                  const lim = mesmaLinha ? Math.max(4, (porDia[diaAmp] || []).length) : 4;
                   const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 15 : 12} />;
                   return (
                     <div key={dia} data-dia={dia} data-zona={`d|${dia}`} onClick={() => setSelDia(dia)}
@@ -1365,11 +1368,11 @@ export function Agenda({ user, pedidoModo, onModo }) {
                         </div>
                       ) : (
                         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                          {(amp ? l : l.slice(0, 4)).map((t) => (
+                          {(amp ? l : l.slice(0, lim)).map((t) => (
                             <CardAgenda key={t.id} t={t} grande={amp} arrastado={arr?.t.id === t.id} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={(e) => { e.stopPropagation(); abrirT(t.id); }} pres={pressionar(t)}
                               onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
                           ))}
-                          {!amp && l.length > 4 && <button onClick={(e) => { e.stopPropagation(); setSelDia(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - 4} mais</button>}
+                          {!amp && l.length > lim && <button onClick={(e) => { e.stopPropagation(); setSelDia(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - lim} mais</button>}
                           <button onClick={(e) => { e.stopPropagation(); novaNoDia(dia); }} className="text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 opacity-0 group-hover/dia:opacity-100" style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
                             <Plus size={14} /> Adicionar
                           </button>
