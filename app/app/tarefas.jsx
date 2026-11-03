@@ -319,7 +319,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   // v566 — Ctrl+V com imagem (print, foto copiada) entra nos anexos
   useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length) { e.preventDefault(); setArqs((a) => [...a, ...fs]); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); }, []);
   const setRec = (k, v) => setF((x) => ({ ...x, rec: { ...x.rec, [k]: v } }));
-  useEffect(() => { api(`/api/tarefas?u=${user.id}&escopo=todas&pendentes=1`).then((j) => setPublicas(j.tarefas.filter((t) => t.publica && t.id !== inicial.id))).catch(() => setPublicas([])); }, []);
+  useEffect(() => { api(`/api/tarefas?u=${user.id}&escopo=todas&pendentes=1`).then((j) => setPublicas(j.tarefas.filter((t) => t.id !== inicial.id && !t.modelo))).catch(() => setPublicas([])); }, []);
   const doSetor = usuarios.filter((u) => u.setorTarefa === f.setor);
   const lista = todos || !doSetor.length ? usuarios : doSetor;
   const recorrente = f.rec.tipo && f.rec.tipo !== "NENHUMA";
@@ -327,14 +327,14 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const atribuida = !!f.responsavelId && Number(f.responsavelId) !== criador;
   const pessoal = f.natureza === "PESSOAL" && !atribuida;
   const publicaFinal = atribuida ? true : pessoal ? false : f.publica;
-  // v565 — pessoal: sem colaborador (é de quem cria), sempre privada e sem dependências · v592: projeto pessoal permitido
-  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, projetoId: (projetos.find((p) => p.id === Number(x.projetoId)) || {}).natureza === n ? x.projetoId : "", ...(n === "PESSOAL" ? { responsavelId: criador, publica: false, dependencias: [] } : {}) }));
+  // v565 — pessoal: sem colaborador (é de quem cria), sempre privada · v592: projeto pessoal permitido · v598: dependências voltaram na pessoal
+  const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, projetoId: (projetos.find((p) => p.id === Number(x.projetoId)) || {}).natureza === n ? x.projetoId : "", ...(n === "PESSOAL" ? { responsavelId: criador, publica: false } : {}) }));
   const projsOpc = projetos.filter((p) => (pessoal ? p.natureza === "PESSOAL" && p.donoId === criador : p.natureza !== "PESSOAL"));
   const dPrazo = f.prazo ? dUTC(f.prazo) : new Date();
   const salvar = async () => {
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
-      publica: publicaFinal, subtarefas: f.subtarefas, dependencias: publicaFinal ? f.dependencias : [], recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
+      publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
       hora: f.hora || null, horaFim: f.horaFim || null, lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
@@ -346,8 +346,11 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       onOk();
     } catch (e) { setSt(false); setErro(e.message); }
   };
-  const depsSel = (publicas || []).filter((t) => f.dependencias.includes(t.id));
-  const depsOpc = (publicas || []).filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(buscaDep.toUpperCase())).slice(0, 8);
+  // v598 — pública depende só de públicas; privada/pessoal também das tarefas pessoais de quem é responsável
+  const respFinal = pessoal ? criador : Number(f.responsavelId);
+  const depsVal = (publicas || []).filter((t) => t.publica || (!publicaFinal && t.responsavelId === respFinal));
+  const depsSel = depsVal.filter((t) => f.dependencias.includes(t.id));
+  const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(buscaDep.toUpperCase())).slice(0, 8);
   return (
     <Janela titulo={ed ? `Editar demanda #${inicial.id}` : "Nova demanda"} onClose={onClose} largura={720}
       rodape={<>
@@ -464,12 +467,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         </div>
       </div>
 
-      {/* dependências — v565: tarefa privada (e pessoal) não tem dependências */}
-      {publicaFinal && <div className="mb-3">
-        <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Link2 size={13} /> Depende da conclusão de (demandas públicas de qualquer pessoa)</div>
+      {/* dependências — v598: também na pessoal/privada (públicas + suas tarefas pessoais) */}
+      {<div className="mb-3">
+        <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Link2 size={13} /> Depende da conclusão de {publicaFinal ? "(demandas públicas de qualquer pessoa)" : "(demandas públicas ou suas tarefas pessoais)"}</div>
         {depsSel.map((t) => <div key={t.id} className="flex items-center gap-2 text-xs py-0.5"><span className="font-semibold">#{t.id}</span><span className="flex-1 truncate">{t.titulo}</span><span style={{ color: C.sub }}>{t.responsavelNome} · {dBR(t.prazo)}</span><button onClick={() => set("dependencias", f.dependencias.filter((x) => x !== t.id))} style={{ color: C.sub }}><X size={13} /></button></div>)}
         <div className="relative">
-          <input value={buscaDep} onChange={(e) => setBuscaDep(e.target.value)} placeholder={publicas ? "Buscar demanda pública…" : "carregando…"} className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+          <input value={buscaDep} onChange={(e) => setBuscaDep(e.target.value)} placeholder={publicas ? (publicaFinal ? "Buscar demanda pública…" : "Buscar demanda pública ou tarefa sua…") : "carregando…"} className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
           {depsOpc.length > 0 && <div className="absolute left-0 right-0 z-10 mt-1 rounded-lg shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
             {depsOpc.map((t) => <button key={t.id} onClick={() => { set("dependencias", [...f.dependencias, t.id]); setBuscaDep(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">#{t.id} {t.titulo} <span style={{ color: C.sub }}>· {t.responsavelNome} · {dBR(t.prazo)}</span></button>)}
           </div>}

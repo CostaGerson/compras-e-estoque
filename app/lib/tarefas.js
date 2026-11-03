@@ -101,8 +101,8 @@ export async function detalhe(id, u) {
   const users = await prisma.usuario.findMany({ where: { id: { in: [...new Set(t.sessoes.map((s) => s.usuarioId))] } }, select: { id: true, nome: true } });
   const U = Object.fromEntries(users.map((x) => [x.id, x.nome]));
   return { ...r, arquivos: t.arquivos, sessoes: t.sessoes.map((s) => ({ ...s, usuarioNome: U[s.usuarioId] || "?" })),
-    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true } }))
-      .filter((x) => (x.dependencias || []).includes(t.id) && (x.publica)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
+    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true } }))
+      .filter((x) => (x.dependencias || []).includes(t.id) && podeVer(x, u)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
 }
 
 // ---------- criar / editar ----------
@@ -129,12 +129,13 @@ function limpar(b) {
   return t;
 }
 
-async function validarDeps(ids, proprioId) {
+// v598 — tarefa pessoal (privada) também tem dependência: de demandas públicas ou das próprias tarefas pessoais
+async function validarDeps(ids, proprioId, t) {
   if (!ids.length) return null;
   if (proprioId && ids.includes(proprioId)) return "Uma demanda não pode depender dela mesma.";
-  const l = await prisma.tarefa.findMany({ where: { id: { in: ids } }, select: { id: true, publica: true, dependencias: true } });
+  const l = await prisma.tarefa.findMany({ where: { id: { in: ids } }, select: { id: true, publica: true, dependencias: true, responsavelId: true } });
   if (l.length !== ids.length) return "Alguma dependência não existe mais.";
-  if (l.some((x) => !x.publica)) return "Só dá para depender de demandas públicas.";
+  if (l.some((x) => !x.publica && (t?.publica || x.responsavelId !== t?.responsavelId))) return t?.publica ? "Demanda pública só pode depender de demandas públicas." : "Só dá para depender de demandas públicas ou das suas tarefas pessoais.";
   if (proprioId && l.some((x) => (x.dependencias || []).includes(proprioId))) return "Dependência circular: a outra demanda já depende desta.";
   return null;
 }
@@ -162,7 +163,7 @@ export async function criar(b, u) {
   if (!t.prazo) return { error: "Informe a data limite." };
   const resp = await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { id: true, nome: true, sobrenome: true, ativo: true } });
   if (!resp?.ativo) return { error: "Colaborador inválido." };
-  const e = await validarDeps(t.dependencias); if (e) return { error: e };
+  const e = await validarDeps(t.dependencias, null, t); if (e) return { error: e };
   const regra = normalizarRegra(b.recorrencia, t.prazo);
   const base = { ...t, prazo: dUTC(t.prazo), responsavelNome: nome(resp), criadoPorId: u.id, criadoPorNome: nome(u) };
   let criada;
@@ -183,7 +184,7 @@ export async function editar(id, b, u) {
   if (!podeEditar(x, u)) return { error: "Só quem criou, o responsável ou o master editam." };
   const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId), x.criadoPorId);
   if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
-  const e = await validarDeps(t.dependencias, x.id); if (e) return { error: e };
+  const e = await validarDeps(t.dependencias, x.id, t); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
   if (resp && !resp.ativo) return { error: "Colaborador inválido." };
   const data = { ...t, prazo: dUTC(t.prazo), tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
