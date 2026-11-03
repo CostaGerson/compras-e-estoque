@@ -179,6 +179,7 @@ const PODE = {
   terceirizados: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   notasfiscais: (u) => temAlguma(u, "nfEntrada", "contasPagar", "contasReceber", "faturamento"),
   dadosfin: (u) => temAlguma(u, "docsFinanceiros", "contasPagar", "contasReceber"),
+  tributario: (u) => temAlguma(u, "docsFinanceiros", "contasPagar", "contasReceber"),   // v629
   uploads: () => true,
 };
 function menuDoUsuario(u) {
