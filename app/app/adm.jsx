@@ -93,6 +93,7 @@ export default function MovimentoFiscal({ user }) {
   const [importar, setImportar] = useState(null);   // null | [] (abre vazio) | arquivos soltos
   const [paramId, setParamId] = useState(null);   // v619
   const [volId, setVolId] = useState(null);   // v620
+  const [soEtq, setSoEtq] = useState(false);   // v624 — só NFs com etiquetas não emitidas
   const [casarNota, setCasarNota] = useState(null);   // v555 — id da NF de saída para casar com pedido
   const [msg, setMsg] = useState("");
 
@@ -183,6 +184,10 @@ export default function MovimentoFiscal({ user }) {
         {tot.km > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> {tot.km} NF(s) emitida(s) no KM sem XML/PDF no sistema — importe os arquivos aqui (a crítica some sozinha).</div>}
         {tot.contab > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold" style={{ background: C.redSoft, color: C.red }}>{tot.contab} NF(s) sem conta lançada — verificar contas (importe o XML da nota aqui para lançar as contas; o aviso some).</div>}
         <div className="overflow-x-auto">
+          {(lista || []).some((n) => n.semEtiquetas) && <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ background: "#FDECEA", color: "#B42318", borderBottom: "1px solid #F5C2BC" }}>
+            ⚠ <b>{(lista || []).filter((n) => n.semEtiquetas).length}</b> NF(s) de compra com etiquetas de volume não emitidas — emita quando o material for recebido.
+            <button onClick={() => setSoEtq((v) => !v)} className="ml-auto px-2 py-0.5 rounded font-semibold" style={{ border: "1px solid #B42318", background: soEtq ? "#B42318" : "#fff", color: soEtq ? "#fff" : "#B42318" }}>{soEtq ? "Mostrar todas" : "Ver só estas"}</button>
+          </div>}
           <table className="w-full text-xs">
             <thead>
               <tr style={{ color: C.sub }}>
@@ -194,7 +199,7 @@ export default function MovimentoFiscal({ user }) {
             <tbody>
               {lista === null && <tr><td colSpan={9} className="px-3 py-6 text-center" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin inline" /></td></tr>}
               {lista && !lista.length && <tr><td colSpan={9} className="px-3 py-8 text-center" style={{ color: C.sub }}>Nenhuma nota neste período. Use <b>Importar NFs</b> ou arraste os arquivos para os cards acima.</td></tr>}
-              {(lista || []).map((n) => {
+              {(lista || []).filter((n) => !soEtq || n.semEtiquetas).map((n) => {
                 const T = TIPO[n.tipo] || TIPO.ENTRADA;
                 return (
                   <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, ...(n.critica ? { background: C.redSoft, color: C.red } : {}) }}>   {/* v360/v363 — crítica (sem conta lançada) */}
@@ -227,7 +232,8 @@ export default function MovimentoFiscal({ user }) {
                       {n.temPdf && <a href={`/api/fiscal/${n.id}?u=${user.id}&arq=pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold" style={{ color: C.red }}><FileText size={13} /> PDF</a>}
                       {n.estoqueStatus === "PENDENTE" && <button onClick={() => setParamId(n.id)} title="Parametrizar os itens e dar entrada no estoque" className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Dar entrada no estoque</button>}
                       {n.estoqueStatus === "LANCADO" && <span className="flex items-center gap-1 mt-1 text-[10px] font-semibold" style={{ color: C.green }}>✓ no estoque
-                        <button onClick={() => setVolId(n.id)} title="Identificar volumes e imprimir etiquetas" className="px-1.5 py-0.5 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text, background: "#fff" }}>Etiquetas</button></span>}
+                        <button onClick={() => setVolId(n.id)} title="Identificar volumes e imprimir etiquetas" className="px-1.5 py-0.5 rounded font-semibold" style={{ border: `1px solid ${n.semEtiquetas ? C.red : C.line}`, color: n.semEtiquetas ? C.red : C.text, background: "#fff" }}>{n.semEtiquetas ? "Emitir etiquetas" : "Etiquetas"}</button></span>}
+                      {n.semEtiquetas && <span className="block mt-1 text-[10px] font-semibold" style={{ color: C.red }} title="Emita as etiquetas quando o material for recebido">⚠ etiquetas não emitidas</span>}
                     </td>
                     <td className="px-3 py-2">{!n.km && podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>

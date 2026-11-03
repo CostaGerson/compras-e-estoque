@@ -649,6 +649,10 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
       for (const x of String(p.nfNumero || "").split(/[,\s]+/).filter(Boolean)) if (!pedDaNf.has(semZ(x))) pedDaNf.set(semZ(x), { numero: p.numero, status: p.status });
     }
   }
+  // v624 — NF de compra sem etiquetas de volume emitidas: crítica até emitir
+  const comEstoque = l.filter((n) => n.estoqueStatus).map((n) => n.id);
+  const comEtq = new Set(comEstoque.length ? (await prisma.estoqueVolume.groupBy({ by: ["fiscalNotaId"], where: { fiscalNotaId: { in: comEstoque } }, _count: { _all: true } }).catch(() => [])).map((x) => x.fiscalNotaId) : []);
+  for (const n of l) if (n.estoqueStatus) n.semEtiquetas = !comEtq.has(n.id);
   const ids = [...new Set(l.flatMap((n) => (Array.isArray(n.parcelas) ? n.parcelas : []).map((p) => p.tituloId)).filter(Boolean))];
   const ts = ids.length ? await prisma.finTitulo.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, vencimento: true, valor: true, valorPago: true } }) : [];
   const porId = Object.fromEntries(ts.map((t) => [t.id, t]));
