@@ -45,7 +45,9 @@ export async function gerarPic(quem) {
     } });
   }
   await prisma.compraItem.updateMany({ where: { id: { in: compra.map((i) => i.id) } }, data: { status: "PIC", picId: pic.id } });
-  return { ok: true, id: pic.id, numero, itens: compra.length, artigos: linhas.length };
+  // v613 — item com o tecido/malha principal coberto pelo estoque (falta só aviamento) já vai para o PCP
+  const libNoPic = (await reavaliarLiberacao([pic.id])).filter((x) => !x.avulsa).length;
+  return { ok: true, id: pic.id, numero, itens: compra.length, artigos: linhas.length, liberados: libNoPic };
 }
 
 export async function listarPics() {
@@ -363,10 +365,11 @@ export async function reabrirOc(ocId) {
   if (!o || o.status !== "RECEBIDA") return { error: "OC não está baixada." };
   await prisma.ordemCompra.update({ where: { id: o.id }, data: { status: o.nfNumero ? "NF_EMITIDA" : "ENVIADA", baixaEm: null, baixaPorNome: null, baixaJustificativa: null } });
   const pids = await picsDaOc(o.id);
-  const its = await prisma.compraItem.findMany({ where: { picId: { in: pids }, status: "ENTREGUE" } });
-  if (its.length) await prisma.compraItem.updateMany({ where: { id: { in: its.map((i) => i.id) } }, data: { status: "NF", liberadoEm: null, autorizadoEm: null } });
+  const antes = await prisma.compraItem.count({ where: { picId: { in: pids }, liberadoEm: { not: null } } });
+  await reavaliarLiberacao(pids);   // v613 — só volta quem perdeu a matéria-prima principal
   await statusNfItens(o.id).catch(() => null);
-  return { ok: true, voltaram: its.length };
+  const depois = await prisma.compraItem.count({ where: { picId: { in: pids }, liberadoEm: { not: null } } });
+  return { ok: true, voltaram: Math.max(0, antes - depois) };
 }
 
 async function picsDaOc(ocId) {
@@ -374,26 +377,50 @@ async function picsDaOc(ocId) {
   return [...new Set([oc.picId, ...oc.itens.map((i) => i.picItem?.picId)].filter(Boolean))];
 }
 
-// item de pedido fica liberado para o PCP (sistema do Maycon) quando todas as OCs dos materiais dele estão baixadas
-export async function liberarItensRecebidos(ocId) {
-  const pids = await picsDaOc(ocId);
+// v613 — matéria-prima principal do item (tecido/malha principal; produto de revenda/avulsa = o próprio material):
+// é ela que libera o item para o PCP do Maycon. Aviamentos (e forro/MP extra) não barram a programação.
+export function artigosPrincipais(it) {
+  const dem = Array.isArray(it.demanda) ? it.demanda : [];
+  let p = dem.filter((d) => ["PRINCIPAL", "REVENDA", "AVULSA"].includes(d.papel));
+  if (!p.length) p = dem.filter((d) => d.categoria !== "AVIAMENTO");
+  if (!p.length) p = dem;
+  return [...new Set(p.map((d) => String(d.equiparadoA || d.artigoId)))];
+}
+// situação de compra de cada artigo do PIC: [true = OC recebida, false = OC em aberto / sem OC]
+async function comprasDoPic(pid) {
+  const ocis = await prisma.ocItem.findMany({ where: { picItem: { picId: pid } }, include: { oc: { select: { status: true } } } });
+  const porArt = {};
+  for (const x of ocis) { if (x.oc.status === "CANCELADA") continue; (porArt[x.artigoId] ||= []).push(x.oc.status === "RECEBIDA"); }
+  const semOc = await prisma.picItem.findMany({ where: { picId: pid, ocItens: { none: {} } }, select: { artigoId: true } });
+  for (const s0 of semOc) (porArt[s0.artigoId] ||= []).push(false);
+  return porArt;
+}
+// reavalia os itens dos PICs: principal garantido (não precisou comprar = estoque, ou OCs dele recebidas) → liberado para o PCP;
+// tudo recebido → ENTREGUE; OC reaberta → volta. Chamado ao gerar o PIC, ao baixar e ao reabrir OC.
+export async function reavaliarLiberacao(pids) {
   const liberados = [];
-  for (const pid of pids) {
-    const ocis = await prisma.ocItem.findMany({ where: { picItem: { picId: pid } }, include: { oc: { select: { status: true } } } });
-    const porArt = {};
-    for (const x of ocis) { if (x.oc.status === "CANCELADA") continue; (porArt[x.artigoId] ||= []).push(x.oc.status === "RECEBIDA"); }
-    // artigo do PIC ainda sem OC: não está recebido
-    const semOc = await prisma.picItem.findMany({ where: { picId: pid, ocItens: { none: {} } }, select: { artigoId: true } });
-    for (const s of semOc) (porArt[s.artigoId] ||= []).push(false);
-    const its = await prisma.compraItem.findMany({ where: { picId: pid, status: { in: ["PIC", "OC", "NF"] } } });
+  for (const pid of [...new Set(pids)].filter(Boolean)) {
+    const porArt = await comprasDoPic(pid);
+    const ok = (a) => !porArt[a] || (porArt[a].length && porArt[a].every(Boolean));
+    const its = await prisma.compraItem.findMany({ where: { picId: pid, status: { in: ["PIC", "OC", "NF", "ENTREGUE"] } } });
     for (const it of its) {
-      const arts = Object.keys(necessidade(it)).map(Number).filter((a) => porArt[a]);   // só os materiais que foram comprados neste PIC
-      if (!arts.length || !arts.every((a) => porArt[a].length && porArt[a].every(Boolean))) continue;
-      const agora = new Date();
-      await prisma.compraItem.update({ where: { id: it.id }, data: { status: "ENTREGUE", liberadoEm: agora, autorizadoEm: agora } });
-      liberados.push({ pedido: it.pedidoNumero, chave: it.chave, descricao: it.descricao, avulsa: ehAvulsa(it.pedidoNumero) });
+      const comprados = Object.keys(necessidade(it)).filter((a) => porArt[a]);
+      const princOk = artigosPrincipais(it).every(ok);
+      const tudoOk = comprados.length > 0 && comprados.every(ok);
+      const agora = new Date(), data = {};
+      if (tudoOk && it.status !== "ENTREGUE") data.status = "ENTREGUE";
+      if (!tudoOk && it.status === "ENTREGUE") data.status = "NF";
+      if ((princOk || tudoOk) && !it.liberadoEm) { data.liberadoEm = agora; data.autorizadoEm = agora; }
+      if (!princOk && !tudoOk && it.liberadoEm) { data.liberadoEm = null; data.autorizadoEm = null; }
+      if (!Object.keys(data).length) continue;
+      await prisma.compraItem.update({ where: { id: it.id }, data });
+      if (data.liberadoEm) liberados.push({ pedido: it.pedidoNumero, chave: it.chave, descricao: it.descricao, avulsa: ehAvulsa(it.pedidoNumero), aviamentosPendentes: !tudoOk });
     }
   }
+  return liberados;
+}
+export async function liberarItensRecebidos(ocId) {
+  const liberados = await reavaliarLiberacao(await picsDaOc(ocId));
   const peds = liberados.filter((x) => !x.avulsa);
   return { liberados: peds.length, pedidos: [...new Set(peds.map((x) => x.pedido))] };
 }

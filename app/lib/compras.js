@@ -570,7 +570,8 @@ export async function tokenExterno(db = prisma, renovar = false) {
 
 // itens liberados para programar, com o pedido completo (cabeçalho, grade, parâmetros da OP, FPP e materiais)
 export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
-  const where = { status: { in: ["ESTOQUE", "ENTREGUE"] }, liberadoEm: { not: null } };
+  // v613 — liberado = matéria-prima principal garantida (aviamentos podem estar pendentes)
+  const where = { liberadoEm: { not: null }, status: { notIn: ["LEVANTAMENTO", "REPROVADO"] } };
   if (desde) where.liberadoEm = { gte: new Date(desde) };
   if (pedido) where.pedidoNumero = String(pedido);
   const itens = await db.compraItem.findMany({ where, orderBy: { liberadoEm: "asc" } });
@@ -591,6 +592,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(i.quantidade),
       grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [],
       origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm, fppNumero: i.fppNumero,
+      aviamentosPendentes: !["ESTOQUE", "ENTREGUE"].includes(i.status),   // v613 — principal ok; aviamento ainda chegando
       materiais: (i.demanda || []).map((d) => ({ nome: d.nome, categoria: d.categoria, fornecedor: d.fornecedor, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade, obs: d.obs || null })),
     });
   }
