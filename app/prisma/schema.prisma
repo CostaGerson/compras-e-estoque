@@ -182,6 +182,7 @@ model EstoqueVolume {
   unidade       String
   nfNumero      String?
   pedido        String?
+  justificativa String?  // v623 — etiqueta além dos volumes da NF
   entradaEm     DateTime @default(now())
   criadoPorNome String?
   createdAt     DateTime @default(now())

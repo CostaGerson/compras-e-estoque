@@ -166,19 +166,25 @@ export async function volumesDaNf(id) {
       artigoInterno: i.artigo.artigoInterno || i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, categoria: i.artigo.categoria,
       largura: i.artigo.largura != null ? Number(i.artigo.largura) : null, composicao: i.artigo.composicao,
       fornecedor: i.artigo.fornecedor ? i.artigo.fornecedor.nomeFantasia || i.artigo.fornecedor.nome || i.artigo.fornecedor.razaoSocial : n.parceiro })),
-    volumes: vols.map((v) => ({ id: v.id, codigo: codigoVolume(v.id), artigoId: v.artigoId, quantidade: Number(v.quantidade), unidade: v.unidade, pedido: v.pedido, entradaEm: v.entradaEm })),
+    volumes: vols.map((v) => ({ id: v.id, codigo: codigoVolume(v.id), artigoId: v.artigoId, quantidade: Number(v.quantidade), unidade: v.unidade, pedido: v.pedido, entradaEm: v.entradaEm, justificativa: v.justificativa })),
   };
 }
 // grava as etiquetas novas (as existentes ficam; as tiradas da lista saem) e devolve todas com o código de barras
 export async function salvarVolumes(id, etiquetas, quem) {
   const v = await volumesDaNf(id);
+  // v623 — mais etiquetas que os volumes da NF: cada etiqueta a mais precisa de justificativa escrita
+  if (v.qVol && etiquetas.length > v.qVol) {
+    const extras = etiquetas.slice(v.qVol).filter((e) => !e.id && !(String(e.justificativa || "").trim().length >= 5));
+    if (extras.length) return { ...v, error: `A NF tem ${v.qVol} volume(s): justifique as etiquetas a mais.` };
+  }
   const manter = etiquetas.filter((e) => e.id).map((e) => Number(e.id));
   await prisma.estoqueVolume.deleteMany({ where: { fiscalNotaId: v.id, id: { notIn: manter.length ? manter : [0] } } });
   for (const e of etiquetas.filter((x) => x.id)) await prisma.estoqueVolume.updateMany({ where: { id: Number(e.id), fiscalNotaId: v.id }, data: { quantidade: r3(num(e.quantidade) || 0), unidade: UNS.includes(e.unidade) ? e.unidade : "M" } });
   for (const e of etiquetas.filter((x) => !x.id)) {
     if (!(num(e.quantidade) > 0) || !e.artigoId) continue;
     await prisma.estoqueVolume.create({ data: { fiscalNotaId: v.id, notaFiscalId: v.notaFiscalId, artigoId: Number(e.artigoId), quantidade: r3(num(e.quantidade)),
-      unidade: UNS.includes(e.unidade) ? e.unidade : "M", nfNumero: v.numero, entradaEm: v.entrada || new Date(), criadoPorNome: quem || null } });
+      unidade: UNS.includes(e.unidade) ? e.unidade : "M", nfNumero: v.numero, entradaEm: v.entrada || new Date(), criadoPorNome: quem || null,
+      justificativa: e.justificativa ? String(e.justificativa).trim().slice(0, 500) : null } });
   }
   return volumesDaNf(id);
 }

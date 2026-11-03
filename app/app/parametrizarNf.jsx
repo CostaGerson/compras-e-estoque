@@ -3,7 +3,7 @@
 // A equivalência (fornecedor + nome na NF → artigo interno) fica salva para as próximas NFs.
 import React, { useEffect, useState } from "react";
 import { Loader2, X, PackageCheck, Link2 } from "lucide-react";
-import { alerta, confirmar } from "./dialogo";
+import { alerta, confirmar, perguntar } from "./dialogo";
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", navy: "#001E41", red: "#D92D20" };
@@ -113,7 +113,18 @@ export function VolumesNf({ user, id, onFim }) {
   useEffect(() => { carregar(); }, [id]);
   const n = (v) => { const t = String(v ?? "").trim(); return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t) || 0; };
   const somaDe = (aid) => ets.filter((e) => e.artigoId === aid).reduce((s, e) => s + n(e.quantidade), 0);
-  const mais = (it) => { const resto = Math.max(0, it.quantidade - somaDe(it.artigoId)); setEts((l) => [...l, { tmp: Math.random(), artigoId: it.artigoId, quantidade: fmt(Math.round(resto * 1000) / 1000), unidade: it.unidade }]); };
+  const mais = async (it) => {
+    // v623 — passou dos volumes da NF: aviso + justificativa escrita obrigatória
+    let justificativa = null;
+    if (d?.qVol && ets.length >= d.qVol) {
+      let j = await perguntar(`A NF ${d.numero} tem ${d.qVol} volume(s) e já há ${ets.length} etiqueta(s).\nPara criar mais uma etiqueta, escreva a justificativa:`, "");
+      while (j !== null && String(j).trim().length < 5) j = await perguntar("A justificativa precisa ter pelo menos 5 letras. Por que há mais volumes que os da NF?", j || "");
+      if (j === null) return;
+      justificativa = String(j).trim();
+    }
+    const resto = Math.max(0, it.quantidade - somaDe(it.artigoId));
+    setEts((l) => [...l, { tmp: Math.random(), artigoId: it.artigoId, quantidade: fmt(Math.round(resto * 1000) / 1000), unidade: it.unidade, justificativa }]);
+  };
   const imprimir = async () => {
     setSt(true);
     const r = await fetch("/api/fiscal/estoque", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "volumes", id, etiquetas: ets }) });
@@ -157,7 +168,7 @@ export function VolumesNf({ user, id, onFim }) {
                 </div>
                 {minhas.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
                   {minhas.map(([e, k], j) => <div key={e.id || e.tmp} className="flex items-center gap-1 rounded-lg px-2 py-1" style={{ border: `1px dashed ${C.line}`, background: C.panel2 }}>
-                    <span className="text-[11px] font-semibold" style={{ color: C.sub }}>{e.codigo || `vol. ${j + 1}`}</span>
+                    <span className="text-[11px] font-semibold" style={{ color: e.justificativa ? C.accent : C.sub }} title={e.justificativa ? `Além dos volumes da NF: ${e.justificativa}` : ""}>{e.codigo || `vol. ${j + 1}`}{e.justificativa ? " *" : ""}</span>
                     <input value={e.quantidade} onChange={(ev) => setEts((l) => l.map((x, m) => (m === k ? { ...x, quantidade: ev.target.value } : x)))} className={`${inp} w-20`} style={iS} />
                     <span className="text-xs" style={{ color: C.sub }}>{String(e.unidade).toLowerCase()}</span>
                     <button onClick={() => setEts((l) => l.filter((_, m) => m !== k))} style={{ color: C.sub }} title="Tirar"><X size={13} /></button>
