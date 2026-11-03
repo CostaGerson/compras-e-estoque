@@ -826,11 +826,11 @@ function PopupConvites({ user, onMudou }) {
   );
 }
 
-/* v597 — marco de horários lateral: aparece ao arrastar uma tarefa do dia ampliado; soltar num horário grava a hora */
+/* v601 — régua no lado esquerdo · v597 — marco de horários lateral: aparece ao arrastar uma tarefa do dia ampliado; soltar num horário grava a hora */
 const SLOTS_HORA = Array.from({ length: 32 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
 function PainelHoras({ alvo, atual, onSobre, onSoltar }) {
   return (
-    <div className="fixed z-[70] right-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 78, background: "#fff", borderLeft: `1px solid ${A.linha}`, boxShadow: "-6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="fixed z-[70] left-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 78, background: "#fff", borderRight: `1px solid ${A.linha}`, boxShadow: "6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="text-[10px] font-bold text-center py-1.5 tracking-wide" style={{ color: A.sub, borderBottom: `1px solid ${A.linha}` }}>HORÁRIO</div>
       {["", ...SLOTS_HORA].map((h) => {
         const z = `h|${h}`, on = alvo === z, cheia = h.endsWith(":00");
@@ -1078,7 +1078,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
     const achar = () => { const z = document.elementFromPoint(pos[0], pos[1])?.closest?.("[data-zona]")?.dataset.zona || null; if (z !== alvo) { alvo = z; setAlvoToq(z); } };
     const passo = () => {
       const m = 90, hh = window.innerHeight, v = pos[1] < m ? -(m - pos[1]) / 5 : pos[1] > hh - m ? (pos[1] - (hh - m)) / 5 : 0;
-      if (v && rol && !(horas && pos[0] > window.innerWidth - 80)) { rol.scrollTop += v; achar(); }
+      if (v && rol && !(horas && pos[0] < 80)) { rol.scrollTop += v; achar(); }
       raf = requestAnimationFrame(passo);
     };
     raf = requestAnimationFrame(passo);
