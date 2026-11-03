@@ -831,9 +831,9 @@ function PopupConvites({ user, onMudou }) {
 }
 
 /* v603 — régua de horários na lateral esquerda do dia em que a tarefa está sendo posicionada (troca de dia junto com o arraste) */
-// v634 — 06:00 até 23:30 (cobre até 00h)
-const SLOTS_HORA = Array.from({ length: 36 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
-function ReguaDia({ dia, alvo, atual, h = 26 }) {   // v610 — régua maior (mais fácil acertar o horário)
+// v634 — dia inteiro: 00:00 até 23:30 (o último bloco vai até 00h)
+const SLOTS_HORA = Array.from({ length: 48 }, (_, k) => `${String(Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
+function ReguaDia({ dia, alvo, atual, h = 21 }) {   // v610 — régua maior (mais fácil acertar o horário)
   return (
     <div className="shrink-0 flex flex-col rounded-lg overflow-hidden anim-entrar" style={{ width: 68, background: "#fff", border: `1px solid ${A.cardBrancoBorda}`, boxShadow: "0 2px 8px rgba(30,31,33,.12)" }}>
       {["", ...SLOTS_HORA].map((hh) => {
@@ -853,8 +853,8 @@ function PainelHoras({ dia, alvo, atual }) {
       <div className="text-[11px] font-bold text-center py-1.5 leading-tight" style={{ color: A.azul, borderBottom: `1px solid ${A.linha}` }}>{SEM3[dUTC(dia).getUTCDay()]}<br />{Number(dia.slice(8))}/{Number(dia.slice(5, 7))}</div>
       {["", ...SLOTS_HORA].map((hh) => {
         const z = `h|${dia}|${hh}`, on = alvo === z, cheia = hh.endsWith(":00");
-        return <div key={z} data-zona={z} className="flex-1 flex items-center justify-center text-[13px]"
-          style={{ minHeight: 14, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia ? 700 : 400, borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "sem hora"}</div>;
+        return <div key={z} data-zona={z} className="flex-1 flex items-center justify-center text-[11px]"
+          style={{ minHeight: 10, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia ? 700 : 400, borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "sem hora"}</div>;
       })}
     </div>
   );
@@ -1302,7 +1302,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                           <button onClick={() => novaNoDia(dia)} title="Nova tarefa neste dia" className="p-2 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
                         </div>
                         <div className="flex gap-2">
-                          {comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={28} />}
+                          {comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={22} />}
                           <div className="flex-1 min-w-0 flex flex-col gap-2">
                             {PERIODOS.map(([rot, per]) => {
                               const ll = l.filter((t) => periodoDe(t) === per), zz = `${dia}|${per}`, aqui = alvo === `p|${zz}` || alvo?.startsWith(`c|${zz}|`);
@@ -1346,7 +1346,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                   // v604 — no mês, a linha do dia ampliado fica alta: os outros dias dela mostram tudo o que cabe (sem "+N mais" à toa)
                   const iAmp = modo === "mes" ? dias.indexOf(diaAmp) : -1, mesmaLinha = iAmp >= 0 && Math.floor(iAmp / 7) === Math.floor(k / 7);
                   const lim = mesmaLinha ? Math.max(4, (porDia[diaAmp] || []).length) : 4;
-                  const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 26 : 22} />;
+                  const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 20 : 18} />;
                   return (
                     <div key={dia} data-dia={dia} data-zona={`d|${dia}`} onClick={() => setSelDia(dia)}
                       className="group/dia px-2 pt-2 pb-3 flex flex-col gap-1.5 min-w-0"
