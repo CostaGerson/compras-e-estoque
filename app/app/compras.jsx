@@ -990,6 +990,62 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
 // ---------- v469 — PIC: o comprador preenche fornecedor e valor; gera as OCs agrupadas por fornecedor ----------
 let _fornPic = null;
 const nomeFornec = (f) => f.nomeFantasia || f.nome || f.razaoSocial || "";
+// v609 — cadastro de fornecedor sem sair do PIC (popup no centro)
+function NovoFornecedorModal({ nome, onClose, onCriado }) {
+  const [f, setF] = useState({ nome: String(nome || "").trim().toUpperCase(), nomeFantasia: "", razaoSocial: "", inscricaoEstadual: "", logradouro: "", numero: "", complemento: "", bairro: "", municipio: "", uf: "", cep: "", preposto: "", telefones: "", emailNf: "", obs: "" });
+  const [cnpjs, setCnpjs] = useState([{ cnpj: "", razaoSocial: "" }]);
+  const [st, setSt] = useState(false), [erro, setErro] = useState("");
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const Campo = ({ k, rot, ph, cls = "" }) => <label className={`block text-xs ${cls}`} style={{ color: C.sub }}>{rot}
+    <input value={f[k]} onChange={(e) => set(k, e.target.value)} placeholder={ph} className="w-full mt-1 px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>;
+  const salvar = async () => {
+    setErro(""); if (!f.nome.trim()) return setErro("Informe o nome comercial.");
+    setSt(true);
+    const r = await fetch("/api/fornecedores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, cnpjs }) });
+    const j = await r.json().catch(() => ({})); setSt(false);
+    if (!r.ok) return setErro(j.error || "Erro ao salvar.");
+    onCriado(j);
+  };
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(3,10,22,0.55)" }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden" style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="font-semibold" style={{ color: C.navy }}>Novo fornecedor</div>
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {Campo({ k: "nome", rot: "Nome comercial *", ph: "Ex.: Malharia SP" })}{Campo({ k: "nomeFantasia", rot: "Nome fantasia" })}
+            {Campo({ k: "razaoSocial", rot: "Razão social" })}{Campo({ k: "inscricaoEstadual", rot: "Inscrição estadual" })}
+          </div>
+          <div className="text-xs font-semibold" style={{ color: C.sub }}>CNPJ(s)</div>
+          {cnpjs.map((c, i) => <div key={i} className="grid grid-cols-2 gap-2">
+            <input value={c.cnpj} onChange={(e) => setCnpjs((l) => l.map((x, j) => (j === i ? { ...x, cnpj: e.target.value } : x)))} placeholder="00.000.000/0000-00" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+            <input value={c.razaoSocial} onChange={(e) => setCnpjs((l) => l.map((x, j) => (j === i ? { ...x, razaoSocial: e.target.value } : x)))} placeholder="Razão social do CNPJ" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+          </div>)}
+          <button onClick={() => setCnpjs((l) => [...l, { cnpj: "", razaoSocial: "" }])} className="text-xs" style={{ color: C.accent }}>+ adicionar outro CNPJ</button>
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>ENDEREÇO</div>
+          <div className="grid grid-cols-6 gap-3">
+            {Campo({ k: "logradouro", rot: "Logradouro", cls: "col-span-4" })}{Campo({ k: "numero", rot: "Número", cls: "col-span-1" })}{Campo({ k: "cep", rot: "CEP", cls: "col-span-1" })}
+            {Campo({ k: "complemento", rot: "Complemento", cls: "col-span-2" })}{Campo({ k: "bairro", rot: "Bairro", cls: "col-span-2" })}{Campo({ k: "municipio", rot: "Município", cls: "col-span-1" })}{Campo({ k: "uf", rot: "UF", cls: "col-span-1" })}
+          </div>
+          <div className="text-xs font-semibold pt-1" style={{ color: C.sub }}>CONTATO</div>
+          <div className="grid grid-cols-2 gap-3">
+            {Campo({ k: "preposto", rot: "Preposto (contato)" })}{Campo({ k: "telefones", rot: "Telefone(s)", ph: "Separe vários por ;" })}
+            {Campo({ k: "emailNf", rot: "E-mail p/ NFs, boletos e cotações", cls: "col-span-2" })}
+          </div>
+          <label className="block text-xs" style={{ color: C.sub }}>Observações
+            <textarea value={f.obs} onChange={(e) => set("obs", e.target.value)} rows={2} className="w-full mt-1 px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}`, resize: "vertical" }} /></label>
+          {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
+          <button onClick={onClose} className="px-4 py-2 rounded text-sm" style={{ color: C.sub, border: `1px solid ${C.line}`, background: C.panel }}>Cancelar</button>
+          <button onClick={salvar} disabled={st} className="px-4 py-2 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: st ? 0.6 : 1 }}>{st ? "Salvando…" : "Cadastrar e usar"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const numBR = (v) => (v == null || v === "" ? "" : String(v).replace(".", ","));
 const lerNum = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
 export function PicCompras({ user, fases, ir }) {
@@ -1002,6 +1058,7 @@ export function PicCompras({ user, fases, ir }) {
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); const f = lerFoco("pic"); if (f) rolarDestacar(`pic-${f}`); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
+  const [novoForn, setNovoForn] = useState(null);   // v609 — { item, nome, extra? }
   const val = (i) => ({ fornecedor: i.fornecedor || "", valor: numBR(i.valorUnitario), qtd: numBR(i.quantidade), extras: (i.fornecedoresCotacao || []).map((f) => f.nome), ...(ed[i.id] || {}) });   // v482 — extras: outros fornecedores p/ cotação
   const set = (i, k, v) => setEd((e) => ({ ...e, [i.id]: { ...val(i), ...e[i.id], [k]: v } }));
   const linhas = (p) => p.itens.filter((i) => !i.oc).map((i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor }; });
@@ -1085,6 +1142,9 @@ export function PicCompras({ user, fases, ir }) {
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
+      {novoForn && <NovoFornecedorModal nome={novoForn.nome} onClose={() => setNovoForn(null)} onCriado={(f) => {
+        _fornPic = [...forns, f]; setForns(_fornPic); set(novoForn.item, "fornecedor", nomeFornec(f)); setNovoForn(null);
+      }} />}
       {(l || []).map((p) => {
         const abertos = p.itens.filter((i) => !i.oc);
         const tot = p.itens.reduce((s0, i) => { const v = val(i); return s0 + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }, 0);
@@ -1101,9 +1161,11 @@ export function PicCompras({ user, fases, ir }) {
                 const marc = doPic.filter((i) => sel.has(i.id));
                 const lista = marc.length ? marc : doPic;
                 const rot = marc.length ? ` (${marc.length})` : "";
+                // v609 — o botão de OC mostra quantas OCs saem (uma por fornecedor), não quantos itens
+                const nForn = new Set(lista.map((i) => val(i).fornecedor.trim().toUpperCase()).filter(Boolean)).size;
                 return <span className="flex items-center gap-1.5 ml-1">
                   <button disabled={oc} onClick={() => cotacao(lista)} title={marc.length ? "Cotação dos itens marcados deste PIC" : "Cotação de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Gerar cotação{rot}</button>
-                  <button disabled={oc} onClick={() => acaoItens("ocsItens", lista)} title={marc.length ? "OCs dos itens marcados deste PIC" : "OCs de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />} Gerar OCs{rot}</button>
+                  <button disabled={oc} onClick={() => acaoItens("ocsItens", lista)} title={marc.length ? "OCs dos itens marcados deste PIC" : "OCs de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />} Gerar {nForn || ""} OC{nForn === 1 ? "" : "s"}{nForn ? ` · ${lista.length} ite${lista.length === 1 ? "m" : "ns"}` : ""}</button>
                 </span>;
               })()}
             </div>
@@ -1133,6 +1195,8 @@ export function PicCompras({ user, fases, ir }) {
                   <div className="w-56">{trav ? <span className="text-xs">{i.fornecedor} · <b style={{ color: C.green }}>{i.oc.numero}</b></span>
                     : <div className="space-y-1">
                         <div className="flex items-center gap-1"><div className="flex-1 min-w-0"><BuscaFornecedor valor={v.fornecedor} idAtual={porNome[v.fornecedor.trim().toUpperCase()]?.id} forns={forns} estilo={{ border: `1px solid ${C.line}` }} onEscolher={(f, txt) => set(i, "fornecedor", f ? nomeFornec(f) : txt)} /></div>
+                          {semF && <button type="button" onClick={() => setNovoForn({ item: i, nome: v.fornecedor })} title="Fornecedor fora do cadastro — cadastrar agora" className="shrink-0 rounded-md text-[11px] font-semibold px-1.5" style={{ height: 26, background: C.red, color: "#fff" }}>Cadastrar</button>}
+                          {!v.fornecedor.trim() && <button type="button" onClick={() => setNovoForn({ item: i, nome: "" })} title="Cadastrar fornecedor novo" className="shrink-0 rounded-md text-[11px] font-semibold px-1.5" style={{ height: 26, border: `1px solid ${C.line}`, color: C.sub }}>Novo</button>}
                           {v.extras.length < 4 && <button type="button" onClick={() => set(i, "extras", [...v.extras, ""])} title="Adicionar outro fornecedor para cotação (até 5)" className="shrink-0 rounded-md font-bold text-sm flex items-center justify-center" style={{ width: 26, height: 26, border: `1px solid ${C.accent}`, color: C.accent }}>+</button>}</div>
                         {v.extras.map((n, j) => (   // v482 — outros fornecedores para cotação
                           <div key={j} className="flex items-center gap-1"><div className="flex-1 min-w-0"><BuscaFornecedor valor={n} idAtual={porNome[String(n || "").trim().toUpperCase()]?.id} forns={forns} placeholder={`cotar também com…`} estilo={{ border: `1px dashed ${C.line}`, fontSize: 12 }}
