@@ -1,10 +1,10 @@
 "use client";
 // v169 — Tarefas (demandas entre setores), Agenda (mensal/semanal) e status das pessoas
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, PartyPopper, AlertTriangle,
+  Eye, EyeOff, Users, AlertTriangle,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -422,9 +422,9 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         {[["", "—"], ["MANHA", "Manhã"], ["TARDE", "Tarde"]].map(([k, t]) => <button key={k} onClick={() => set("periodo", k)} className="px-2.5 py-1 rounded-lg font-semibold" style={f.periodo === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
       </div>}
       {/* v600 — evento: convidados recebem mensagem, e-mail e popup na agenda (confirmar / recusar / decidir depois) */}
-      <div className="rounded-lg p-3 mb-3" style={{ background: f.evento ? "#FFF8E6" : C.panel2 }}>
+      <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2, border: f.evento ? `1px solid ${C.line}` : "1px solid transparent" }}>
         <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
-          <input type="checkbox" checked={f.evento} onChange={(e) => set("evento", e.target.checked)} /><PartyPopper size={14} style={{ color: "#C98A00" }} /> Evento com convidados
+          <input type="checkbox" checked={f.evento} onChange={(e) => set("evento", e.target.checked)} /><CalendarDays size={14} style={{ color: A.azul }} /> Evento com convidados
         </label>
         {f.evento && <>
           <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: C.sub }}>Pessoas necessárias (efetivo)
@@ -585,7 +585,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         <div className="text-2xl font-bold mb-4" style={{ color: "#1E1F21", textDecoration: t.status === "CONCLUIDA" ? "line-through" : "none" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
         {/* v600 — convidado responde aqui também */}
         {t.meuConvite && <div className="flex items-center gap-2 flex-wrap mb-3 p-3 rounded-lg text-sm" style={{ background: t.meuConvite === "PENDENTE" ? "#FCEFC7" : C.panel2 }}>
-          <PartyPopper size={15} style={{ color: "#C98A00" }} /> <span className="flex-1">{t.meuConvite === "PENDENTE" ? "Você foi convidado para este evento." : t.meuConvite === "CONFIRMADO" ? "Você confirmou presença." : "Você recusou este convite."}</span>
+          <CalendarDays size={15} style={{ color: A.azul }} /> <span className="flex-1">{t.meuConvite === "PENDENTE" ? "Você foi convidado para este evento." : t.meuConvite === "CONFIRMADO" ? "Você confirmou presença." : "Você recusou este convite."}</span>
           {t.meuConvite !== "CONFIRMADO" && <Btn onClick={async () => { await responderConviteApi(user, t.id, "CONFIRMAR"); carregar(); onMudou?.(); }}>Confirmar</Btn>}
           {t.meuConvite !== "RECUSADO" && <Btn fundo={C.redSoft} cor={C.red} onClick={async () => { await responderConviteApi(user, t.id, "RECUSAR"); carregar(); onMudou?.(); }}>Recusar</Btn>}
         </div>}
@@ -681,9 +681,9 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
     </div>
   );
   return (
-    <div draggable={t.podeEditar} onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu?.(e.clientX, e.clientY); }}
+    <div {...(pres || {})} onDragStart={(e) => e.preventDefault()} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); if (Date.now() - (globalThis.__ceToque || 0) > 1500) onMenu?.(e.clientX, e.clientY); }}
       title={`${t.titulo}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
-      className="card-asana group relative rounded-md flex items-center overflow-hidden cursor-pointer select-none shrink-0"
+      className="card-asana group relative rounded-md flex items-center overflow-hidden cursor-pointer select-none shrink-0" draggable={false}
       style={{ ...(grande ? { minHeight: 36 } : { height: 36 }), background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.4 : feita ? 0.6 : 1 }}>
       <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"}
         className={`absolute left-1.5 flex items-center justify-center rounded-full ${feita ? "" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"}`}
@@ -798,7 +798,7 @@ function PopupConvites({ user, onMudou }) {
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.35)" }}>
       <div className="rounded-2xl shadow-2xl w-full anim-modal" style={{ maxWidth: 480, background: "#fff", maxHeight: "85vh", overflowY: "auto" }}>
         {p.convites.length > 0 && <div className="p-4">
-          <div className="flex items-center gap-2 mb-3"><PartyPopper size={18} style={{ color: "#C98A00" }} /><b className="flex-1">Convite{p.convites.length > 1 ? "s" : ""} para você</b>
+          <div className="flex items-center gap-2 mb-3"><CalendarDays size={18} style={{ color: A.azul }} /><b className="flex-1">Convite{p.convites.length > 1 ? "s" : ""} para você</b>
             <button onClick={depoisTodos} className="text-xs" style={{ color: A.sub }}>Decidir depois</button></div>
           {p.convites.map((x) => <div key={x.tarefaId} className="rounded-xl p-3 mb-2" style={{ border: `1px solid ${A.linha}` }}>
             <div className="font-semibold">{x.titulo.charAt(0) + x.titulo.slice(1).toLowerCase()}</div>
@@ -826,21 +826,30 @@ function PopupConvites({ user, onMudou }) {
   );
 }
 
-/* v601 — régua no lado esquerdo · v597 — marco de horários lateral: aparece ao arrastar uma tarefa do dia ampliado; soltar num horário grava a hora */
+/* v603 — régua de horários na lateral esquerda do dia em que a tarefa está sendo posicionada (troca de dia junto com o arraste) */
 const SLOTS_HORA = Array.from({ length: 32 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
-function PainelHoras({ alvo, atual, onSobre, onSoltar }) {
+function ReguaDia({ dia, alvo, atual, h = 14 }) {
   return (
-    <div className="fixed z-[70] left-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 78, background: "#fff", borderRight: `1px solid ${A.linha}`, boxShadow: "6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <div className="text-[10px] font-bold text-center py-1.5 tracking-wide" style={{ color: A.sub, borderBottom: `1px solid ${A.linha}` }}>HORÁRIO</div>
-      {["", ...SLOTS_HORA].map((h) => {
-        const z = `h|${h}`, on = alvo === z, cheia = h.endsWith(":00");
-        return (
-          <div key={z} data-zona={z}
-            {...(onSoltar ? { onDragOver: (e) => { e.preventDefault(); onSobre?.(z); }, onDrop: (e) => { e.preventDefault(); onSoltar(h); } } : {})}
-            className="flex-1 flex items-center justify-center text-[11px]"
-            style={{ minHeight: 16, background: on ? A.azul : (atual || "") === h ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !h ? A.texto : A.sub, fontWeight: cheia ? 700 : 400,
-              borderTop: cheia ? `1px solid ${A.linha}` : "none", transition: "background .1s" }}>{h || "sem hora"}</div>
-        );
+    <div className="shrink-0 flex flex-col rounded-lg overflow-hidden anim-entrar" style={{ width: 50, background: "#fff", border: `1px solid ${A.cardBrancoBorda}`, boxShadow: "0 2px 8px rgba(30,31,33,.12)" }}>
+      {["", ...SLOTS_HORA].map((hh) => {
+        const z = `h|${dia}|${hh}`, on = alvo === z, cheia = hh.endsWith(":00");
+        return <div key={z} data-zona={z} className="flex items-center justify-center text-[10px] leading-none"
+          style={{ height: h, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia || on ? 700 : 400,
+            borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "s/ hora"}</div>;
+      })}
+    </div>
+  );
+}
+// celular, mês: a grade é pequena demais para abrir o dia — a régua fica fixa à esquerda com o dia sob o dedo
+const SEM3 = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+function PainelHoras({ dia, alvo, atual }) {
+  return (
+    <div className="fixed z-[70] left-0 flex flex-col anim-entrar" style={{ top: 0, bottom: 0, width: 64, background: "#fff", borderRight: `1px solid ${A.linha}`, boxShadow: "6px 0 18px rgba(30,31,33,.15)", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="text-[11px] font-bold text-center py-1.5 leading-tight" style={{ color: A.azul, borderBottom: `1px solid ${A.linha}` }}>{SEM3[dUTC(dia).getUTCDay()]}<br />{Number(dia.slice(8))}/{Number(dia.slice(5, 7))}</div>
+      {["", ...SLOTS_HORA].map((hh) => {
+        const z = `h|${dia}|${hh}`, on = alvo === z, cheia = hh.endsWith(":00");
+        return <div key={z} data-zona={z} className="flex-1 flex items-center justify-center text-[11px]"
+          style={{ minHeight: 14, background: on ? A.azul : (atual || "") === hh ? A.azulSoft : "transparent", color: on ? "#fff" : cheia || !hh ? A.texto : A.sub, fontWeight: cheia ? 700 : 400, borderTop: cheia ? `1px solid ${A.linha}` : "none" }}>{hh || "sem hora"}</div>;
       })}
     </div>
   );
@@ -883,7 +892,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
   const lSel = porDia[sel] || [];
   const tocarDia = (dia) => { setSel(dia); onDia?.(dia); setTimeout(() => painel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60); };
   return (
-    <div ref={raiz} onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
+    <div ref={raiz} style={{ paddingLeft: arrastandoId ? 64 : 0, transition: "padding .15s" }} onTouchStart={(e) => { toque.current = [e.touches[0].clientX, e.touches[0].clientY]; }}
       onTouchEnd={(e) => { const t0 = toque.current; toque.current = null; if (!t0 || arrastandoId) return; const dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onMover(dx < 0 ? 1 : -1); }}>
       <div className="grid grid-cols-7 py-1" style={{ borderBottom: `1px solid ${A.linha}`, position: "sticky", top: 0, zIndex: 5, background: A.fundo }}>
         {SEM_DOM.map((x, i) => <div key={i} className="text-center text-[11px] font-semibold" style={{ color: A.sub }}>{x}</div>)}
@@ -934,7 +943,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
               <div className="flex flex-col gap-1.5">
                 {/* v597 — segurar a tarefa: arrasta para outro dia do mês ou abre o marco de horários ao lado */}
                 {lSel.map((t) => <CardAgenda key={t.id} toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => onAbrir(t.id)} onConcluir={() => onConcluir(t)}
-                  pres={pressionar?.(t, true)} arrastado={arrastandoId === t.id} />)}
+                  pres={pressionar?.(t)} arrastado={arrastandoId === t.id} />)}
                 {lSel.length > 0 && <div className="text-[11px] text-center pt-1" style={{ color: "#B7B3B3" }}>Segure uma tarefa para mudar o dia ou o horário</div>}
                 {!lSel.length && <div className="text-sm py-3 text-center" style={{ color: "#B7B3B3" }}>Nenhuma tarefa neste dia.</div>}
               </div>
@@ -966,11 +975,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [form, setForm] = useState(null);
   const [abrir, setAbrir] = useState(null);
   const [projForm, setProjForm] = useState(null);
-  const [arrastando, setArrastando] = useState(null);
-  const [sobre, setSobre] = useState(null);
   const [dir, setDir] = useState(0);                 // direção da navegação (animação)
   const [menuCard, setMenuCard] = useState(null);    // { x, y, t } — botão direito
-  const [sobreCard, setSobreCard] = useState(null);
   const rolouHoje = useRef(false);   // v565 — celular: abre já no dia de hoje  // v561 — card sobre o qual a demanda arrastada vai ser posta (fica acima dele)
   const H = hojeISO();
   const mobile = useMobile();   // v550
@@ -1005,14 +1011,12 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
   const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per ? { periodo: per } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
-  const soltar = async (dia, tt) => {
-    const t = tt || arrastando; setArrastando(null); setSobre(null);
+  const soltar = async (dia, t) => {
     if (!t || t.prazo === dia) return;
     try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: { prazo: dia } }); carregar(); } catch (e) { alerta(e.message); }
   };
   // v561 — manhã e tarde (como nas rotas): solta no período ou acima de outra demanda; a ordem fica gravada
-  const soltarEm = async (dia, per, antesId, tt) => {
-    const t = tt || arrastando; setArrastando(null); setSobre(null); setSobreCard(null);
+  const soltarEm = async (dia, per, antesId, t) => {
     if (!t || antesId === t.id) return;
     const mud = {};
     if (t.prazo !== dia) mud.prazo = dia;
@@ -1026,20 +1030,20 @@ export function Agenda({ user, pedidoModo, onModo }) {
       carregar();
     } catch (e) { alerta(e.message); carregar(); }
   };
-  const fimArrasto = () => { setArrastando(null); setSobre(null); setSobreCard(null); };
-  // v597 — soltar no marco de horários: grava a hora (mantém a duração se tiver fim) e reordena o período pelo horário
+  // v597/v603 — soltar na régua: grava dia e hora (mantém a duração se tiver fim) e reordena o período pelo horário
   const minH = (x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3, 5));
-  const definirHora = async (tt, h) => {
-    const t = tt || arrastando; setArrastando(null); setSobre(null); setSobreCard(null);
+  const definirHora = async (t, dia, h) => {
     if (!t) return;
     const mud = { hora: h || null, horaFim: null };
+    if (dia && dia !== t.prazo) mud.prazo = dia;
     if (h && t.hora && t.horaFim) { const f = Math.min(minH(h) + minH(t.horaFim) - minH(t.hora), 23 * 60 + 59); if (f > minH(h)) mud.horaFim = `${String(Math.floor(f / 60)).padStart(2, "0")}:${String(f % 60).padStart(2, "0")}`; }
-    if ((t.hora || null) === mud.hora && (t.horaFim || null) === mud.horaFim) return;
+    if (!mud.prazo && (t.hora || null) === mud.hora && (t.horaFim || null) === mud.horaFim) return;
+    const d0 = mud.prazo || t.prazo;
     // v600 — aviso de conflito com outra tarefa no mesmo horário
-    const c = conflitosHora((porDia[t.prazo] || []).filter((x) => x.id !== t.id && x.responsavelId === t.responsavelId), mud.hora, mud.horaFim);
+    const c = conflitosHora((porDia[d0] || []).filter((x) => x.id !== t.id && x.responsavelId === t.responsavelId), mud.hora, mud.horaFim);
     if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((x) => `• ${x.hora}${x.horaFim ? `–${x.horaFim}` : ""} ${x.titulo}`).join("\n")}\n\nColocar mesmo assim?`))) return;
     const nova = { ...t, ...mud }, per = periodoDe(nova);
-    const ids = [...(porDia[t.prazo] || []).filter((x) => x.id !== t.id && periodoDe(x) === per), nova]
+    const ids = [...(porDia[d0] || []).filter((x) => x.id !== t.id && periodoDe(x) === per), nova]
       .sort((a, b) => (a.hora || "00:00").localeCompare(b.hora || "00:00") || a.id - b.id).map((x) => x.id);
     try {
       await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: mud });
@@ -1049,59 +1053,106 @@ export function Agenda({ user, pedidoModo, onModo }) {
   };
   // v597 — dia ampliado (PC): hoje começa ampliado; clicar em outro dia amplia ele
   const [selDia, setSelDia] = useState(H);
-  const selK = dias.indexOf(selDia) >= 0 ? dias.indexOf(selDia) % 7 : -1;
-  // v597 — celular: segurar a tarefa e arrastar (entre dias e períodos; no dia ampliado abre o marco de horários)
-  const [toq, setToq] = useState(null);          // { t, x, y, horas }
-  const [alvoToq, setAlvoToq] = useState(null);  // data-zona sob o dedo
-  const toqAtivo = useRef(false), semClique = useRef(0);
+  /* v603 — arraste único para PC (mouse), iPad e celular (segurar 0,45 s): o dia sob o ponteiro amplia e mostra a régua de horários
+     à esquerda; ao passar para outro dia, a régua vai junto. A tela não "pula": o dia novo fica parado sob o dedo/mouse. */
+  const [arr, setArr] = useState(null);          // { t, x, y, toque }
+  const [alvo, setAlvo] = useState(null);        // data-zona sob o ponteiro
+  const [diaArr, setDiaArr] = useState(null);    // dia em que a tarefa está sendo posicionada
+  const arrAtivo = useRef(false), semClique = useRef(0), diaArrRef = useRef(null), ancora = useRef(null), rolRef = useRef(null);
+  const diaAmp = arr && diaArr ? diaArr : selDia;
+  const selK = dias.indexOf(diaAmp) >= 0 ? dias.indexOf(diaAmp) % 7 : -1;
   useEffect(() => {
-    if (!mobile) return;
     // listener fixo e não-passivo: só bloqueia a rolagem enquanto uma tarefa está sendo arrastada
-    const h = (e) => { if (toqAtivo.current && e.cancelable) e.preventDefault(); };
+    const h = (e) => { if (arrAtivo.current && e.cancelable) e.preventDefault(); };
     document.addEventListener("touchmove", h, { passive: false });
     return () => document.removeEventListener("touchmove", h);
-  }, [mobile]);
+  }, []);
   const rolante = (el) => { while (el && el !== document.body) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) return el; el = el.parentElement; } return document.scrollingElement; };
-  const soltarToque = (t, z) => {
+  const mudarDia = (dia) => {
+    if (!dia || dia === diaArrRef.current) return;
+    const el = document.querySelector(`[data-dia="${dia}"]`);
+    ancora.current = el ? { dia, top: el.getBoundingClientRect().top } : null;
+    diaArrRef.current = dia; setDiaArr(dia);
+  };
+  // mantém o dia novo parado sob o ponteiro quando o dia anterior encolhe
+  useLayoutEffect(() => {
+    const a = ancora.current; ancora.current = null;
+    if (!a || !rolRef.current) return;
+    const el = document.querySelector(`[data-dia="${a.dia}"]`); if (!el) return;
+    const dy = el.getBoundingClientRect().top - a.top;
+    if (Math.abs(dy) > 1) rolRef.current.scrollTop += dy;
+  }, [diaArr]);
+  const soltarZona = (t, z) => {
     if (!z) return;
     const [k, a, b, c] = z.split("|");
     if (k === "p") soltarEm(a, b, null, t);
     else if (k === "c") soltarEm(a, b, Number(c), t);
     else if (k === "d") soltar(a, t);
-    else if (k === "h") definirHora(t, a);
+    else if (k === "h") definirHora(t, a, b);
+    setSelDia(a);
   };
-  const iniciarToque = (t, horas, x, y, el) => {
-    try { navigator.vibrate?.(25); } catch {}
-    const rol = rolante(el);
-    let pos = [x, y], alvo = null, raf = 0;
-    toqAtivo.current = true; setToq({ t, x, y, horas });
-    const achar = () => { const z = document.elementFromPoint(pos[0], pos[1])?.closest?.("[data-zona]")?.dataset.zona || null; if (z !== alvo) { alvo = z; setAlvoToq(z); } };
+  const iniciar = (t, x, y, el, toque) => {
+    if (toque) { try { navigator.vibrate?.(25); } catch {} }
+    rolRef.current = rolante(el);
+    let pos = [x, y], z = null, raf = 0, tmDia = 0, diaPend = null;
+    arrAtivo.current = true; diaArrRef.current = null; setArr({ t, x, y, toque }); mudarDia(t.prazo);
+    document.body.style.userSelect = "none"; document.body.style.cursor = toque ? "" : "grabbing";
+    const achar = () => {
+      const nz = document.elementFromPoint(pos[0], pos[1])?.closest?.("[data-zona]")?.dataset.zona || null;
+      if (nz !== z) { z = nz; setAlvo(nz); }
+      const nd = z ? z.split("|")[1] : null;
+      if (nd && nd !== diaArrRef.current) { if (nd !== diaPend) { diaPend = nd; clearTimeout(tmDia); tmDia = setTimeout(() => { mudarDia(diaPend); diaPend = null; requestAnimationFrame(achar); }, 140); } }
+      else { clearTimeout(tmDia); diaPend = null; }
+    };
     const passo = () => {
-      const m = 90, hh = window.innerHeight, v = pos[1] < m ? -(m - pos[1]) / 5 : pos[1] > hh - m ? (pos[1] - (hh - m)) / 5 : 0;
-      if (v && rol && !(horas && pos[0] < 80)) { rol.scrollTop += v; achar(); }
+      const m = 70, hh = window.innerHeight, v = pos[1] < m ? -(m - pos[1]) / 5 : pos[1] > hh - m ? (pos[1] - (hh - m)) / 5 : 0;
+      if (v && rolRef.current) { rolRef.current.scrollTop += v; achar(); }
       raf = requestAnimationFrame(passo);
     };
     raf = requestAnimationFrame(passo);
-    const mv = (ev) => { const q = ev.touches[0]; pos = [q.clientX, q.clientY]; setToq((s) => s && { ...s, x: pos[0], y: pos[1] }); achar(); };
+    const mover = (px, py) => { pos = [px, py]; setArr((s) => s && { ...s, x: px, y: py }); achar(); };
+    const mvT = (ev) => { const q = ev.touches[0]; mover(q.clientX, q.clientY); };
+    const mvM = (ev) => mover(ev.clientX, ev.clientY);
+    const tecla = (ev) => { if (ev.key === "Escape") fim({ type: "cancelar" }); };
     const fim = (ev) => {
       if (ev.cancelable) ev.preventDefault();
-      cancelAnimationFrame(raf); toqAtivo.current = false; semClique.current = Date.now();
-      document.removeEventListener("touchmove", mv); document.removeEventListener("touchend", fim); document.removeEventListener("touchcancel", fim);
-      setToq(null); setAlvoToq(null);
-      if (ev.type === "touchend") soltarToque(t, alvo);
+      cancelAnimationFrame(raf); clearTimeout(tmDia); arrAtivo.current = false; semClique.current = Date.now();
+      document.removeEventListener("touchmove", mvT); document.removeEventListener("touchend", fim); document.removeEventListener("touchcancel", fim);
+      document.removeEventListener("mousemove", mvM); document.removeEventListener("mouseup", fim); document.removeEventListener("keydown", tecla);
+      document.body.style.userSelect = ""; document.body.style.cursor = "";
+      // o clique que o navegador dispara logo após soltar não abre nada
+      const parar = (e) => { e.stopPropagation(); e.preventDefault(); };
+      document.addEventListener("click", parar, true); setTimeout(() => document.removeEventListener("click", parar, true), 80);
+      diaArrRef.current = null; setArr(null); setAlvo(null); setDiaArr(null);
+      if (ev.type === "touchend" || ev.type === "mouseup") soltarZona(t, z);
     };
-    document.addEventListener("touchmove", mv, { passive: false }); document.addEventListener("touchend", fim, { passive: false }); document.addEventListener("touchcancel", fim);
+    if (toque) { document.addEventListener("touchmove", mvT, { passive: false }); document.addEventListener("touchend", fim, { passive: false }); document.addEventListener("touchcancel", fim); }
+    else { document.addEventListener("mousemove", mvM); document.addEventListener("mouseup", fim); }
+    document.addEventListener("keydown", tecla);
+    requestAnimationFrame(achar);
   };
-  const pressionar = (t, horas) => !mobile || !t.podeEditar ? undefined : {
-    onContextMenu: (e) => e.preventDefault(),
+  const pressionar = (t) => !t.podeEditar ? undefined : {
+    onMouseDown: (e) => {
+      if (e.button !== 0 || arrAtivo.current || e.target.closest("button")) return;
+      const x0 = e.clientX, y0 = e.clientY, el = e.currentTarget;
+      const mv = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 5) { parar(); iniciar(t, ev.clientX, ev.clientY, el, false); } };
+      const parar = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", parar); };
+      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", parar);
+    },
     onTouchStart: (e) => {
-      if (toqAtivo.current) return;
+      globalThis.__ceToque = Date.now();
+      if (arrAtivo.current || e.target.closest("button")) return;
       const p0 = e.touches[0], x0 = p0.clientX, y0 = p0.clientY, el = e.currentTarget;
       const parar = () => { clearTimeout(tm); document.removeEventListener("touchmove", mv0); document.removeEventListener("touchend", parar); document.removeEventListener("touchcancel", parar); };
       const mv0 = (ev) => { const q = ev.touches[0]; if (Math.hypot(q.clientX - x0, q.clientY - y0) > 10) parar(); };
-      const tm = setTimeout(() => { parar(); iniciarToque(t, horas, x0, y0, el); }, 450);
+      const tm = setTimeout(() => { parar(); iniciar(t, x0, y0, el, true); }, 450);
       document.addEventListener("touchmove", mv0, { passive: true }); document.addEventListener("touchend", parar); document.addEventListener("touchcancel", parar);
     },
+  };
+  const rotZona = (z) => {
+    if (!z) return "solte para mover";
+    const [k, a, b] = z.split("|"), dd = `${SEM3[dUTC(a).getUTCDay()]} ${Number(a.slice(8))}`;
+    return k === "h" ? `${dd} · ${b || "sem horário"}` : k === "d" ? dd : `${dd} · ${b === "TARDE" ? "tarde" : "manhã"}`;
   };
   const abrirT = (id) => { if (Date.now() - semClique.current > 600) setAbrir(id); };
   const proj = projetoId ? P[projetoId] : null;
@@ -1224,10 +1275,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
               {mobile && modo === "semana" ? (
                 <div className="flex flex-col">
                   {dias.map((dia, k) => {
-                    const l = porDia[dia] || [], hoje = dia === H;
+                    const l = porDia[dia] || [], hoje = dia === H, comRegua = arr && diaArr === dia;
                     return (
-                      <div key={dia} ref={hoje ? (el) => { if (el && d && !rolouHoje.current) { rolouHoje.current = true; setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120); } } : undefined}
-                        className="px-3 py-2.5 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.linha}`, background: hoje ? A.azulSoft : A.fundo, scrollMarginTop: 8 }}>
+                      <div key={dia} data-dia={dia} data-zona={`d|${dia}`} ref={hoje ? (el) => { if (el && d && !rolouHoje.current) { rolouHoje.current = true; setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120); } } : undefined}
+                        className="px-3 py-2.5 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.linha}`, background: comRegua ? "#F3F7FE" : hoje ? A.azulSoft : A.fundo, scrollMarginTop: 8, boxShadow: comRegua ? `inset 3px 0 0 ${A.azul}` : "none" }}>
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center justify-center rounded-md font-semibold" style={{ minWidth: 34, height: 32, fontSize: 18, background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : A.texto }}>{Number(dia.slice(8))}</span>
                           <span className="text-sm font-semibold" style={{ color: hoje ? A.azul : A.sub }}>{SEM_SEG[k % 7]}{hoje ? " · hoje" : ""}</span>
@@ -1235,65 +1286,75 @@ export function Agenda({ user, pedidoModo, onModo }) {
                           {l.length > 0 && <span className="text-xs" style={{ color: A.sub }}>{l.length}</span>}
                           <button onClick={() => novaNoDia(dia)} title="Nova tarefa neste dia" className="p-2 rounded-lg" style={{ color: A.azul }}><Plus size={20} /></button>
                         </div>
-                        {PERIODOS.map(([rot, per]) => {
-                          const ll = l.filter((t) => periodoDe(t) === per), zz = `${dia}|${per}`, aqui = alvoToq === `p|${zz}` || alvoToq?.startsWith(`c|${zz}|`);
-                          return (
-                            <div key={per} data-zona={`p|${zz}`} className="rounded-lg p-1.5 flex flex-col gap-1.5"
-                              style={{ background: aqui ? A.azulSoft : A.fundo2, outline: aqui ? `2px dashed ${A.azul}` : "none", minHeight: toq ? 56 : undefined, transition: "background .12s" }}>
-                              <div className="flex items-center text-[11px] font-bold tracking-wide px-1" style={{ color: A.sub }}>
-                                <span className="flex-1">{rot.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</span>
-                                <button onClick={() => novaNoDia(dia, per)} title={`Nova tarefa de ${rot.toLowerCase()}`} className="p-1 rounded" style={{ color: A.azul }}><Plus size={16} /></button>
-                              </div>
-                              {ll.map((t) => <div key={t.id} data-zona={`c|${zz}|${t.id}`} style={{ borderTop: `3px solid ${alvoToq === `c|${zz}|${t.id}` && toq?.t.id !== t.id ? A.azul : "transparent"}`, marginTop: -3 }}>
-                                <CardAgenda toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => abrirT(t.id)} onConcluir={() => alternarConcluida(t)}
-                                  pres={pressionar(t, true)} arrastado={toq?.t.id === t.id} /></div>)}
-                            </div>
-                          );
-                        })}
+                        <div className="flex gap-2">
+                          {comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={15} />}
+                          <div className="flex-1 min-w-0 flex flex-col gap-2">
+                            {PERIODOS.map(([rot, per]) => {
+                              const ll = l.filter((t) => periodoDe(t) === per), zz = `${dia}|${per}`, aqui = alvo === `p|${zz}` || alvo?.startsWith(`c|${zz}|`);
+                              return (
+                                <div key={per} data-zona={`p|${zz}`} className="rounded-lg p-1.5 flex flex-col gap-1.5"
+                                  style={{ background: aqui ? A.azulSoft : A.fundo2, outline: aqui ? `2px dashed ${A.azul}` : "none", minHeight: arr ? 56 : undefined, flex: comRegua ? 1 : undefined, transition: "background .12s" }}>
+                                  <div className="flex items-center text-[11px] font-bold tracking-wide px-1" style={{ color: A.sub }}>
+                                    <span className="flex-1">{rot.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</span>
+                                    <button onClick={() => novaNoDia(dia, per)} title={`Nova tarefa de ${rot.toLowerCase()}`} className="p-1 rounded" style={{ color: A.azul }}><Plus size={16} /></button>
+                                  </div>
+                                  {ll.map((t) => <div key={t.id} data-zona={`c|${zz}|${t.id}`} style={{ borderTop: `3px solid ${alvo === `c|${zz}|${t.id}` && arr?.t.id !== t.id ? A.azul : "transparent"}`, marginTop: -3 }}>
+                                    <CardAgenda toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => abrirT(t.id)} onConcluir={() => alternarConcluida(t)}
+                                      pres={pressionar(t)} arrastado={arr?.t.id === t.id} /></div>)}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               ) : mobile ? (
                 <MesMobile ref0={ref} H={H} porDia={porDia} P={P} fotos={fotos} nMeses={nMeses} topo={topoMes} onMais={() => setNMeses((n) => Math.min(n + 2, 36))} onMover={mover} onNova={(dia) => novaNoDia(dia)} onAbrir={abrirT}
-                  pressionar={pressionar} alvo={alvoToq} arrastandoId={toq?.t.id}
+                  pressionar={pressionar} alvo={alvo} arrastandoId={arr?.t.id}
                   onConcluir={alternarConcluida} onSemana={(dia) => { setModo("semana"); setRef(dia); }} />
               ) : (
               <>
-              {/* v597 — dia ampliado: a coluna do dia escolhido (hoje, ao abrir) fica mais larga e, no mês, mostra todas as tarefas */}
-              <div className="grid" style={{ minHeight: "100%", gridTemplateColumns: Array.from({ length: 7 }, (_, i) => (i === selK ? (modo === "semana" ? "1.9fr" : "2.4fr") : "1fr")).join(" "), transition: "grid-template-columns .25s ease" }}>
+              {/* v597 — dia ampliado: a coluna do dia escolhido (hoje, ao abrir) fica mais larga e, no mês, mostra todas as tarefas
+                  v603 — arrastando: o dia sob o ponteiro amplia e ganha a régua de horários à esquerda · cabeçalho dos dias fixo ao rolar */}
+              {(() => { const cols = Array.from({ length: 7 }, (_, i) => (i === selK ? (arr ? (modo === "semana" ? "2.6fr" : "2.8fr") : modo === "semana" ? "1.9fr" : "2.4fr") : "1fr")).join(" "); return <>
+              <div className="grid" style={{ gridTemplateColumns: cols, transition: "grid-template-columns .25s ease", position: "sticky", top: 0, zIndex: 6, background: A.fundo, borderBottom: `1px solid ${A.linha}` }}>
+                {SEM_SEG.map((x, i) => <div key={x} className="text-[12px] font-semibold px-3 py-1.5" style={{ color: i === selK ? A.azul : A.sub, borderLeft: i ? `1px solid ${A.linha}` : "none" }}>{x}</div>)}
+              </div>
+              <div className="grid" style={{ minHeight: "100%", gridTemplateColumns: cols, transition: "grid-template-columns .25s ease" }}>
                 {dias.map((dia, k) => {
                   const mDia = Number(dia.slice(5, 7)), fora = modo === "mes" && ((mDia - mes + 12) % 2 === 1);
                   const l = porDia[dia] || [];
-                  const hoje = dia === H, amp = dia === selDia;
+                  const hoje = dia === H, amp = dia === diaAmp, comRegua = arr && diaArr === dia;
+                  const aquiDia = arr && alvo && alvo.split("|")[1] === dia;
+                  const regua = comRegua && <ReguaDia dia={dia} alvo={alvo} atual={arr.t.prazo === dia ? arr.t.hora : null} h={modo === "semana" ? 15 : 12} />;
                   return (
-                    <div key={dia} {...(modo === "mes" ? { onDragOver: (e) => { if (arrastando) { e.preventDefault(); setSobre(dia); } }, onDragLeave: () => setSobre(null), onDrop: (e) => { e.preventDefault(); soltar(dia); } } : {})}
-                      onClick={() => setSelDia(dia)}
+                    <div key={dia} data-dia={dia} data-zona={`d|${dia}`} onClick={() => setSelDia(dia)}
                       className="group/dia px-2 pt-2 pb-3 flex flex-col gap-1.5 min-w-0"
                       style={{ minHeight: modo === "semana" ? 560 : 130, borderLeft: k % 7 ? `1px solid ${A.linha}` : "none", borderTop: modo === "mes" && k >= 7 ? `1px solid ${A.linha}` : "none",
-                        background: sobre === dia ? A.azulSoft : fora ? A.fundo2 : A.fundo, boxShadow: amp ? `inset 0 0 0 2px ${A.azul}55` : "none", transition: "background .15s, box-shadow .2s" }}>
-                      {(modo === "semana" || k < 7) && <div className="text-[12px] px-1" style={{ color: A.sub }}>{SEM_SEG[k % 7]}</div>}
+                        background: aquiDia ? "#F3F7FE" : fora ? A.fundo2 : A.fundo, boxShadow: amp ? `inset 0 0 0 2px ${A.azul}${arr ? "AA" : "55"}` : "none", transition: "background .15s, box-shadow .2s" }}>
                       <div className="px-1 mb-1 flex items-center gap-1.5">
                         <span className="inline-flex items-center justify-center rounded-md font-medium" style={{ minWidth: modo === "semana" ? 34 : 24, height: modo === "semana" ? 32 : 24, fontSize: modo === "semana" ? 19 : 13,
                           background: hoje ? A.azul : "transparent", color: hoje ? "#fff" : A.texto, padding: "0 6px" }}>{Number(dia.slice(8))}</span>
                         {modo === "mes" && Number(dia.slice(8)) === 1 && <span className="text-[12px] font-bold" style={{ color: A.azul }}>{MESES[mDia - 1]}{mDia === 1 ? ` ${dia.slice(0, 4)}` : ""}</span>}
                         {amp && l.length > 0 && <span className="text-[11px] ml-auto" style={{ color: A.sub }}>{l.length} tarefa{l.length > 1 ? "s" : ""}</span>}
                       </div>
+                      <div className="flex-1 flex gap-1.5 min-w-0">
+                      {regua}
                       {modo === "semana" ? (
-                        <div className="flex-1 flex flex-col gap-2">
+                        <div className="flex-1 min-w-0 flex flex-col gap-2">
                           {PERIODOS.map(([rot, per]) => {
-                            const ll = l.filter((t) => periodoDe(t) === per), zona = `${dia}|${per}`;
+                            const ll = l.filter((t) => periodoDe(t) === per), zz = `${dia}|${per}`, aqui = alvo === `p|${zz}` || alvo?.startsWith(`c|${zz}|`);
                             return (
-                              <div key={per} onDragOver={(e) => { if (arrastando) { e.preventDefault(); setSobre(zona); } }} onDrop={(e) => { e.preventDefault(); soltarEm(dia, per, null); }}
+                              <div key={per} data-zona={`p|${zz}`}
                                 onClick={(e) => { e.stopPropagation(); if (amp) novaNoDia(dia, per); else setSelDia(dia); }} title={amp ? `Clique para criar uma tarefa de ${rot.toLowerCase()}` : "Clique para ampliar o dia"}
-                                className="flex-1 flex flex-col gap-1 rounded-lg p-1.5 cursor-pointer" style={{ background: sobre === zona ? A.azulSoft : A.fundo2, outline: sobre === zona ? `2px dashed ${A.azul}` : "none", transition: "background .15s" }}>
+                                className="flex-1 flex flex-col gap-1 rounded-lg p-1.5 cursor-pointer" style={{ background: aqui ? A.azulSoft : A.fundo2, outline: aqui ? `2px dashed ${A.azul}` : "none", transition: "background .15s" }}>
                                 <div className="text-[10px] font-bold tracking-wide px-0.5" style={{ color: A.sub }}>{rot.toUpperCase()}{ll.length ? ` · ${ll.length}` : ""}</div>
                                 {ll.map((t) => (
-                                  <div key={t.id} onClick={(e) => e.stopPropagation()} onDragEnd={fimArrasto}
-                                    onDragOver={(e) => { if (arrastando) { e.preventDefault(); e.stopPropagation(); setSobre(zona); setSobreCard(t.id); } }}
-                                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); soltarEm(dia, per, t.id); }}
-                                    style={{ borderTop: `2px solid ${arrastando && sobreCard === t.id && arrastando.id !== t.id ? A.azul : "transparent"}` }}>
-                                    <CardAgenda t={t} grande={amp} arrastado={arrastando?.id === t.id} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => setAbrir(t.id)} onDragStart={() => setArrastando(t)}
+                                  <div key={t.id} data-zona={`c|${zz}|${t.id}`} onClick={(e) => e.stopPropagation()}
+                                    style={{ borderTop: `2px solid ${alvo === `c|${zz}|${t.id}` && arr?.t.id !== t.id ? A.azul : "transparent"}` }}>
+                                    <CardAgenda t={t} grande={amp} arrastado={arr?.t.id === t.id} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => abrirT(t.id)} pres={pressionar(t)}
                                       onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
                                   </div>
                                 ))}
@@ -1302,18 +1363,24 @@ export function Agenda({ user, pedidoModo, onModo }) {
                             );
                           })}
                         </div>
-                      ) : (amp ? l : l.slice(0, 4)).map((t) => (
-                        <CardAgenda key={t.id} t={t} grande={amp} arrastado={arrastando?.id === t.id} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={(e) => { e.stopPropagation(); setAbrir(t.id); }} onDragStart={() => setArrastando(t)} onDragEnd={fimArrasto}
-                          onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
-                      ))}
-                      {modo === "mes" && !amp && l.length > 4 && <button onClick={(e) => { e.stopPropagation(); setSelDia(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - 4} mais</button>}
-                      {modo === "mes" && <button onClick={(e) => { e.stopPropagation(); novaNoDia(dia); }} className={`text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 ${modo === "mes" ? "opacity-0 group-hover/dia:opacity-100" : ""}`} style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
-                        <Plus size={14} /> {modo === "semana" ? "Adicionar uma tarefa" : "Adicionar"}
-                      </button>}
+                      ) : (
+                        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                          {(amp ? l : l.slice(0, 4)).map((t) => (
+                            <CardAgenda key={t.id} t={t} grande={amp} arrastado={arr?.t.id === t.id} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={(e) => { e.stopPropagation(); abrirT(t.id); }} pres={pressionar(t)}
+                              onConcluir={() => alternarConcluida(t)} onMenu={(x, y) => setMenuCard({ x, y, t })} />
+                          ))}
+                          {!amp && l.length > 4 && <button onClick={(e) => { e.stopPropagation(); setSelDia(dia); }} className="text-[11px] text-left px-1" style={{ color: A.azul }}>+{l.length - 4} mais</button>}
+                          <button onClick={(e) => { e.stopPropagation(); novaNoDia(dia); }} className="text-left px-1 py-1 rounded-md text-[13px] flex items-center gap-1 opacity-0 group-hover/dia:opacity-100" style={{ color: A.sub, transition: "opacity .15s, background .15s" }}>
+                            <Plus size={14} /> Adicionar
+                          </button>
+                        </div>
+                      )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
+              </>; })()}
               {modo === "mes" && <Sentinela dep={nMeses} onMais={() => setNMeses((n) => Math.min(n + 2, 36))} />}
               </>
               )}
@@ -1322,13 +1389,14 @@ export function Agenda({ user, pedidoModo, onModo }) {
         )}
       </div>
       <PopupConvites user={user} onMudou={carregar} />
-      {/* v597 — marco de horários: PC (arrastando uma tarefa do dia ampliado) e celular (segurando uma tarefa do dia tocado) */}
-      {!mobile && arrastando && <PainelHoras alvo={sobre} atual={arrastando.hora} onSobre={setSobre} onSoltar={(h) => definirHora(null, h)} />}
-      {mobile && toq?.horas && <PainelHoras alvo={alvoToq} atual={toq.t.hora} />}
-      {mobile && toq && <div className="fixed z-[80] pointer-events-none rounded-lg px-3 py-2 text-[13px] font-semibold shadow-2xl"
-        style={{ left: Math.max(8, Math.min(toq.x - 110, (typeof window !== "undefined" ? window.innerWidth : 400) - 228)), top: toq.y - 58, width: 220, background: "#fff", border: `2px solid ${A.azul}`, color: A.texto, transform: "rotate(-2deg)" }}>
-        <div className="truncate">{toq.t.titulo.charAt(0) + toq.t.titulo.slice(1).toLowerCase()}</div>
-        <div className="text-[11px] font-normal" style={{ color: A.sub }}>{alvoToq?.startsWith("h|") ? (alvoToq.slice(2) || "sem horário") : alvoToq?.startsWith("d|") ? `dia ${Number(alvoToq.slice(10, 12))}` : alvoToq ? `${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dUTC(alvoToq.split("|")[1]).getUTCDay()]} ${Number(alvoToq.split("|")[1].slice(8))} · ${alvoToq.split("|")[2] === "TARDE" ? "tarde" : "manhã"}` : "solte para mover"}</div>
+      {/* v603 — celular, mês: régua fixa à esquerda com o dia sob o dedo */}
+      {mobile && modo === "mes" && arr && <PainelHoras dia={diaArr || arr.t.prazo} alvo={alvo} atual={(diaArr || arr.t.prazo) === arr.t.prazo ? arr.t.hora : null} />}
+      {/* fantasma da tarefa acompanhando o mouse/dedo, com o destino */}
+      {arr && <div className="fixed z-[80] pointer-events-none rounded-lg px-3 py-2 text-[13px] font-semibold shadow-2xl"
+        style={{ left: arr.toque ? Math.max(8, Math.min(arr.x - 110, (typeof window !== "undefined" ? window.innerWidth : 400) - 228)) : arr.x + 14, top: arr.toque ? arr.y - 62 : arr.y + 12, width: arr.toque ? 220 : 210,
+          background: "#fff", border: `2px solid ${A.azul}`, color: A.texto, transform: "rotate(-2deg)" }}>
+        <div className="truncate">{arr.t.titulo.charAt(0) + arr.t.titulo.slice(1).toLowerCase()}</div>
+        <div className="text-[11px] font-normal" style={{ color: alvo?.startsWith("h|") ? A.azul : A.sub }}>{rotZona(alvo)}</div>
       </div>}
       {/* v565 — celular: + fixo no canto da tela (continua visível ao rolar) */}
       {mobile && !form && !abrir && <button onClick={() => novaNoDia(H)} title="Nova tarefa" className="fixed z-30 flex items-center justify-center rounded-full shadow-xl"
