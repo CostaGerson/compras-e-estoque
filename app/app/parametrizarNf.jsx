@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, X, PackageCheck, Link2 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
+import { SeletorTipo, ehCategoriaTipo, sugerirTipo, carregarTipos } from "./artigosInternos";   // v625
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", navy: "#001E41", red: "#D92D20" };
@@ -19,12 +20,21 @@ export default function ParametrizarNf({ user, id, onFim }) {
   const [d, setD] = useState(null), [erro, setErro] = useState(""), [forns, setForns] = useState([]), [st, setSt] = useState(false), [fim, setFim] = useState(null), [vols, setVols] = useState(false);
   useEffect(() => {
     fetch(`/api/fiscal/estoque?u=${user.id}&id=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error);
+      // v625 — malha/tecido: o artigo interno vira o TIPO (sugerido pelo nome da NF se ainda não for um tipo)
+      carregarTipos().then((tipos) => setD((s) => s && ({ ...s, itens: s.itens.map((it) => ehCategoriaTipo(it.dados.categoria) && !tipos.some((t) => t.categoria === it.dados.categoria && t.nome === it.dados.artigoInterno)
+        ? { ...it, dados: { ...it.dados, artigoInterno: sugerirTipo(it.dados.artigoInterno, it.dados.categoria, tipos) || sugerirTipo(it.xProd, it.dados.categoria, tipos) || it.dados.artigoInterno } } : it) })));
       setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, quantidade: fmt(it.dados.quantidade), largura: fmt(it.dados.largura), gramatura: fmt(it.dados.gramatura), valorUnitario: fmt(it.dados.valorUnitario) } })) }); })
       .catch((e) => setErro(e.message));
     fetch("/api/fornecedores").then((r) => r.json()).then((x) => setForns(Array.isArray(x) ? x : [])).catch(() => {});
   }, [id]);
   const set = (i, k, v) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => (j === i ? { ...it, dados: { ...it.dados, [k]: v } } : it)) }));
   const enviar = async (dispensar) => {
+    // v625 — malha/tecido: artigo interno precisa ser um dos tipos (Cadastros › Artigos › Artigos internos)
+    if (!dispensar) {
+      const tipos = await carregarTipos();
+      const fora = d.itens.filter((it) => !it.dados.ignorar && ehCategoriaTipo(it.dados.categoria) && !tipos.some((t) => t.categoria === it.dados.categoria && t.nome === it.dados.artigoInterno));
+      if (fora.length) return alerta(`Escolha o tipo (artigo interno) de: ${fora.map((it) => it.xProd).join("; ")}.`);
+    }
     if (dispensar && !(await confirmar("Dispensar a parametrização? Os itens entram no estoque com o nome da NF como artigo interno (nada é salvo como equivalência).")))
       return;
     setSt(true);
@@ -66,14 +76,17 @@ export default function ParametrizarNf({ user, id, onFim }) {
                   <label className="text-[11px] flex items-center gap-1 cursor-pointer" style={{ color: C.sub }}><input type="checkbox" checked={!!v.ignorar} onChange={(e) => set(i, "ignorar", e.target.checked)} /> não entra no estoque</label>
                 </div>
                 {!v.ignorar && <>
-                  <div className="flex gap-1 mb-3">{CATS.map(([k, t]) => <button key={k} type="button" onClick={() => set(i, "categoria", k)} className="px-3 py-1.5 rounded-lg text-sm"
+                  <div className="flex gap-1 mb-3">{CATS.map(([k, t]) => <button key={k} type="button" onClick={async () => { set(i, "categoria", k); if (ehCategoriaTipo(k)) { const tipos = await carregarTipos();
+                      if (!tipos.some((t) => t.categoria === k && t.nome === v.artigoInterno)) set(i, "artigoInterno", sugerirTipo(it.xProd, k, tipos) || ""); } }} className="px-3 py-1.5 rounded-lg text-sm"
                     style={v.categoria === k ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}`, fontWeight: 600 } : { background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>)}</div>
                   <div className="grid grid-cols-3 gap-3">
                     <Campo rot="Fornecedor"><select value={v.fornecedorId || ""} onChange={(e) => set(i, "fornecedorId", Number(e.target.value) || null)} className={inp} style={iS}>
                       {!forns.some((f) => f.id === v.fornecedorId) && v.fornecedorId && <option value={v.fornecedorId}>{d.fornecedor ? nomeF(d.fornecedor) : `#${v.fornecedorId}`}</option>}
                       {forns.map((f) => <option key={f.id} value={f.id}>{nomeF(f)}</option>)}</select></Campo>
                     <Campo rot="Artigo NF (vem da nota)"><div className={inp} style={{ ...iS, color: C.sub }} title={it.xProd}><span className="block truncate">{it.xProd}</span></div></Campo>
-                    <Campo rot="Artigo interno"><input value={v.artigoInterno || ""} onChange={(e) => set(i, "artigoInterno", e.target.value)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} /></Campo>
+                    <Campo rot={ehCategoriaTipo(v.categoria) ? `Artigo interno (tipo de ${v.categoria === "MALHA" ? "malha" : "plano"})` : "Artigo interno"}>{ehCategoriaTipo(v.categoria)
+                      ? <SeletorTipo categoria={v.categoria} valor={v.artigoInterno} onChange={(x) => set(i, "artigoInterno", x)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />
+                      : <input value={v.artigoInterno || ""} onChange={(e) => set(i, "artigoInterno", e.target.value)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />}</Campo>
                     <Campo rot="Cor"><input value={v.cor || ""} onChange={(e) => set(i, "cor", e.target.value)} className={inp} style={iS} /></Campo>
                     <Campo rot="Código"><input value={v.codigo || ""} onChange={(e) => set(i, "codigo", e.target.value)} className={inp} style={iS} /></Campo>
                     <Campo rot="Quantidade"><div className="flex gap-1"><input value={v.quantidade} onChange={(e) => set(i, "quantidade", e.target.value)} className={inp} style={iS} />

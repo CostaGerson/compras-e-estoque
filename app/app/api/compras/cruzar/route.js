@@ -1,7 +1,7 @@
 // v406 — cruza o levantamento com o estoque (saldo − reservas) e autoriza o atendimento pelo estoque
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { itensAbertos, necessidade, disponivelEstoque, simularCruzamento as simular } from "@/lib/compras";
+import { itensAbertos, necessidade, disponivelEstoque, simularCruzamento as simular, gravarEquiparacaoAuto } from "@/lib/compras";
 import { avisarLeandro } from "@/lib/avisoLeandro";   // v483
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 
@@ -47,6 +47,7 @@ export async function POST(req) {
   }
   if (falta.length) return Response.json({ error: `Estoque não cobre: ${falta.join(", ")}. Atualize o cruzamento.` }, { status: 409 });
   const agora = new Date();
+  await gravarEquiparacaoAuto(itens);   // v625 — demanda casada com o estoque pelo artigo interno + cor
   await prisma.compraItem.updateMany({ where: { id: { in: itens.map((i) => i.id) } }, data: { status: "ESTOQUE", autorizadoEm: agora, liberadoEm: agora, autorizadoPorNome: b.quem || null } });
   // v483 — Leandro recebe o aviso de que as demandas foram atendidas pelo estoque
   const linhas = itens.map((i) => `${/^AV\d+$/.test(i.pedidoNumero) ? "AVULSA" : "PEDIDO"} ${i.pedidoNumero} ${i.chave}${i.descricao ? ` (${i.descricao})` : ""}`);

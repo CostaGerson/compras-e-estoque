@@ -1,6 +1,6 @@
 // v469 — PIC (pedido interno de compras) a partir do cruzamento com o estoque e OCs agrupadas por fornecedor
 import { prisma } from "@/lib/prisma";
-import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa, aDefinir } from "@/lib/compras";
+import { simularCruzamento, necessidade, ehAvulsa, pedidoDoItemAvulsa, aDefinir, gravarEquiparacaoAuto } from "@/lib/compras";
 const juntaEnd = (o) => [[o.logradouro, o.numero].filter(Boolean).join(", "), o.complemento, o.bairro, [o.municipio, o.uf].filter(Boolean).join(" - "), o.cep ? `CEP ${o.cep}` : null].filter(Boolean).join(", ");
 
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -44,6 +44,7 @@ export async function gerarPic(quem) {
       info: { nome: a.nome, cor: a.cor || null, codigo: a.codigo || null, largura: a.largura || null, unidade: a.unidade, embalagem: a.embalagem || null, demanda: a.paraCompra, sobra: a.sobra, pedidos: origem[a.artigoId] },
     } });
   }
+  await gravarEquiparacaoAuto(compra);   // v625
   await prisma.compraItem.updateMany({ where: { id: { in: compra.map((i) => i.id) } }, data: { status: "PIC", picId: pic.id } });
   // v613 — item com o tecido/malha principal coberto pelo estoque (falta só aviamento) já vai para o PCP
   const libNoPic = (await reavaliarLiberacao([pic.id])).filter((x) => !x.avulsa).length;

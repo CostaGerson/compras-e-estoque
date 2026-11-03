@@ -172,6 +172,17 @@ model FornecedorCnpj {
   fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
+// v625 — artigos internos (tipo do material de malha e tecido plano) — editável em Cadastros › Artigos › Artigos internos
+model ArtigoTipoInterno {
+  id        Int      @id @default(autoincrement())
+  categoria String   // MALHA | TECIDO
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([categoria, nome])
+}
+
 // v620 — volume (etiqueta Zebra) de uma NF de compra: cada etiqueta tem um código de barras VOL0000001
 model EstoqueVolume {
   id            Int      @id @default(autoincrement())

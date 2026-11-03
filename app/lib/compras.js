@@ -495,7 +495,39 @@ export async function itensAbertos(db = prisma) {
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
   for (const i of itens) if (!i.cliente && porNum[i.pedidoNumero]?.cliente) i.cliente = porNum[i.pedidoNumero].cliente;   // v524 — nome do cliente sempre presente
   // v417/v418 — item programado/em produção no PCP sai do levantamento
-  return itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));
+  const abertos = itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));
+  try { await equipararPeloEstoque(abertos, db); } catch (e) { console.log("compras/equiparar estoque:", e.message); }   // v625
+  return abertos;
+}
+
+// v625 — demanda × estoque pelo ARTIGO INTERNO (tipo de malha/tecido) + COR (+ CÓDIGO quando a demanda tem código):
+// a demanda sem estoque próprio passa a usar (em memória) o artigo do estoque equivalente com saldo; grava ao autorizar/gerar PIC.
+export async function equipararPeloEstoque(itens, db = prisma) {
+  const { tiposInternos, casaEstoque, CATS_TIPO } = await import("@/lib/artigosInternos");
+  const dems = itens.flatMap((i) => (Array.isArray(i.demanda) ? i.demanda : []).filter((d) => !d.equiparadoA && CATS_TIPO.includes(d.categoria)));
+  if (!dems.length) return itens;
+  const tipos = await tiposInternos(db);
+  const est = await db.artigo.findMany({ where: { ativo: true, categoria: { in: CATS_TIPO }, quantidade: { gt: 0 } },
+    select: { id: true, categoria: true, nome: true, artigoInterno: true, cor: true, codigo: true, unidade: true, quantidade: true } });
+  if (!est.length) return itens;
+  const proprios = Object.fromEntries((await db.artigo.findMany({ where: { id: { in: [...new Set(dems.map((d) => d.artigoId))] } },
+    select: { id: true, artigoInterno: true, nome: true, quantidade: true } })).map((a) => [a.id, a]));
+  for (const d of dems) {
+    const a = proprios[d.artigoId];
+    if (a && Number(a.quantidade) > 0) continue;   // o próprio artigo tem estoque: fica com ele
+    const dem = { categoria: d.categoria, nome: d.nome || a?.nome, artigoInterno: a?.artigoInterno || null, cor: d.cor, codigo: d.codigo, unidade: d.unidade };
+    const c = est.filter((e) => e.id !== d.artigoId && casaEstoque(dem, e, tipos)).sort((x, y) => Number(y.quantidade) - Number(x.quantidade))[0];
+    if (c) { d.equiparadoA = c.id; d.autoEstoque = true; }
+  }
+  return itens;
+}
+// grava a equiparação automática (ao autorizar o atendimento pelo estoque ou gerar o PIC)
+export async function gravarEquiparacaoAuto(itens, db = prisma) {
+  for (const i of itens) {
+    const dem = Array.isArray(i.demanda) ? i.demanda : [];
+    if (!dem.some((d) => d.autoEstoque)) continue;
+    await db.compraItem.update({ where: { id: i.id }, data: { demanda: dem.map(({ autoEstoque, ...d }) => d) } }).catch(() => null);
+  }
 }
 
 // reservas do estoque: itens atendidos pelo estoque cujo material ainda não seguiu para a produção.

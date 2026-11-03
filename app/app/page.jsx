@@ -28,6 +28,7 @@ import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "l
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { imprimirPedido } from "./impressaoPedido";   // v615
+import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
@@ -2325,6 +2326,16 @@ function NovaFmeModal({ user, perfil, artigos, usuarios, fornecedores, onArtigos
   );
 }
 /* ===== Artigos & Fornecedores (ligado ao banco) ===== */
+// v625 — artigo interno: malha/tecido escolhe o tipo da lista; outras categorias, texto livre
+function CampoInterno({ categoria, value, onChange, placeholder }) {
+  if (!ehCategoriaTipo(categoria)) return <In label="Artigo Interno" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />;
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Artigo Interno ({categoria === "MALHA" ? "tipo de malha" : "tipo de plano"})</div>
+      <SeletorTipo categoria={categoria} valor={value} onChange={onChange} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+    </div>
+  );
+}
 function In({ label, ...p }) {
   return (
     <div>
@@ -2730,7 +2741,20 @@ function gruposDuplicados(artigos) {
   return Object.values(mapa).filter((g) => g.length > 1);
 }
 
-function ArtigosPane({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
+function ArtigosPane(props) {   // v625 — abas Artigos | Artigos internos
+  const [sub, setSub] = useState("artigos");
+  if (props.modoEstoque) return <ArtigosPaneBase {...props} />;
+  return (
+    <div>
+      <div className="flex gap-1 mb-4">
+        {[["artigos", "Artigos"], ["internos", "Artigos internos"]].map(([k, l]) => <button key={k} onClick={() => setSub(k)} className="px-3 py-1.5 rounded-md text-sm"
+          style={{ background: sub === k ? C.accentSoft : C.panel, color: sub === k ? C.accent : C.sub, border: `1px solid ${sub === k ? C.accent : C.line}` }}>{l}</button>)}
+      </div>
+      {sub === "internos" ? <ArtigosInternosPane /> : <ArtigosPaneBase {...props} />}
+    </div>
+  );
+}
+function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [verMov, setVerMov] = useState(null);
@@ -3058,7 +3082,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
               {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
             </Sel>
             <In label="Artigo NF (vem da nota)" value={f.nome} onChange={(e) => set("nome", e.target.value)} />
-            <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} />
+            <CampoInterno categoria={f.categoria} value={f.artigoInterno} onChange={(v) => set("artigoInterno", v)} />
           </div>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <InCor label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
@@ -3254,7 +3278,7 @@ function ArtigoForm({ fornecedores, master, onSaved }) {
           {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
         </Sel>
         <In label="Artigo NF (vem da nota)" value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome como consta na NF" />
-        <In label="Artigo Interno" value={f.artigoInterno} onChange={(e) => set("artigoInterno", e.target.value)} placeholder="Seu nome padrão" />
+        <CampoInterno categoria={f.categoria} value={f.artigoInterno} onChange={(v) => set("artigoInterno", v)} placeholder="Seu nome padrão" />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-3">
         <InCor label="Cor" value={f.cor} onChange={(e) => set("cor", e.target.value)} />
