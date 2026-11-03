@@ -1246,7 +1246,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
                               </div>
                               {ll.map((t) => <div key={t.id} data-zona={`c|${zz}|${t.id}`} style={{ borderTop: `3px solid ${alvoToq === `c|${zz}|${t.id}` && toq?.t.id !== t.id ? A.azul : "transparent"}`, marginTop: -3 }}>
                                 <CardAgenda toque t={t} proj={P[t.projetoId]} foto={fotos[t.responsavelId]} onClick={() => abrirT(t.id)} onConcluir={() => alternarConcluida(t)}
-                                  pres={pressionar(t, false)} arrastado={toq?.t.id === t.id} /></div>)}
+                                  pres={pressionar(t, true)} arrastado={toq?.t.id === t.id} /></div>)}
                             </div>
                           );
                         })}
@@ -1323,7 +1323,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
       </div>
       <PopupConvites user={user} onMudou={carregar} />
       {/* v597 — marco de horários: PC (arrastando uma tarefa do dia ampliado) e celular (segurando uma tarefa do dia tocado) */}
-      {!mobile && arrastando && arrastando.prazo === selDia && <PainelHoras alvo={sobre} atual={arrastando.hora} onSobre={setSobre} onSoltar={(h) => definirHora(null, h)} />}
+      {!mobile && arrastando && <PainelHoras alvo={sobre} atual={arrastando.hora} onSobre={setSobre} onSoltar={(h) => definirHora(null, h)} />}
       {mobile && toq?.horas && <PainelHoras alvo={alvoToq} atual={toq.t.hora} />}
       {mobile && toq && <div className="fixed z-[80] pointer-events-none rounded-lg px-3 py-2 text-[13px] font-semibold shadow-2xl"
         style={{ left: Math.max(8, Math.min(toq.x - 110, (typeof window !== "undefined" ? window.innerWidth : 400) - 228)), top: toq.y - 58, width: 220, background: "#fff", border: `2px solid ${A.azul}`, color: A.texto, transform: "rotate(-2deg)" }}>
