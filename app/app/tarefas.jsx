@@ -831,7 +831,8 @@ function PopupConvites({ user, onMudou }) {
 }
 
 /* v603 — régua de horários na lateral esquerda do dia em que a tarefa está sendo posicionada (troca de dia junto com o arraste) */
-const SLOTS_HORA = Array.from({ length: 32 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
+// v634 — 06:00 até 23:30 (cobre até 00h)
+const SLOTS_HORA = Array.from({ length: 36 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
 function ReguaDia({ dia, alvo, atual, h = 26 }) {   // v610 — régua maior (mais fácil acertar o horário)
   return (
     <div className="shrink-0 flex flex-col rounded-lg overflow-hidden anim-entrar" style={{ width: 68, background: "#fff", border: `1px solid ${A.cardBrancoBorda}`, boxShadow: "0 2px 8px rgba(30,31,33,.12)" }}>
