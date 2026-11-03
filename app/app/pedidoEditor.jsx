@@ -100,7 +100,8 @@ const vazioF = () => ({
 
 export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir }) {
   const TIPOS = Object.keys(componentes);
-  const novoItem = () => ({ tipoPecaNome: TIPOS.includes("POLO") ? "POLO" : TIPOS[0], codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
+  const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
+    codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   // v614 — pedido de serviço: item = tipo de serviço (texto livre) · quantidade · valor unitário (total calculado)
   const novoServico = () => ({ tipoPecaNome: "SERVIÇO", codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
@@ -140,7 +141,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         const tams = new Set(grade.map((g) => g.tam));
         if (d.tipoPedido === "SERVIÇO") return { ...novoServico(), descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ",") };
-        return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || TIPOS[0]), codigo: it.codigo || "", descricao: it.descricao || "",
+        return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: [...grade, ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null };
@@ -275,6 +276,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     setSalvando(false);
   };
   const efetivar = async () => {
+    const semTipo = itens.findIndex((it) => !it.tipoPecaNome);   // v631
+    if (semTipo >= 0) { alerta(`Item ${semTipo + 1}: escolha o tipo de peça.`); return; }
     if (!confEnt.ok && f.entregaModo !== "UNICA") { alerta("A soma das grades das entregas não bate com o pedido. Confira os locais de entrega."); return; }
     setSalvando(true);
     try {
@@ -439,8 +442,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <Card key={i} titulo={`Item ${i + 1}`} extra={podeLancar && <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={16} /></button>}>
             <div className="grid grid-cols-6 gap-3 mb-3">
               <Campo label="Tipo de peça">
-                <select value={it.tipoPecaNome} onChange={(e) => upItem(i, { tipoPecaNome: e.target.value })} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inp}>
-                  {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+                <select value={it.tipoPecaNome} onChange={(e) => upItem(i, { tipoPecaNome: e.target.value })} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, ...(it.tipoPecaNome ? {} : { color: C.sub }) }}>
+                  <option value="" disabled>Selecione…</option>
+                  {TIPOS.map((t) => <option key={t} value={t} style={{ color: C.text }}>{t}</option>)}
                 </select>
               </Campo>
               <Campo label="Código (cadastro do KM)">
