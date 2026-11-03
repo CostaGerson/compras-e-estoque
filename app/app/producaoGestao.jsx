@@ -12,8 +12,8 @@ const C = {
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
   navy: "#001E41", trilho: "#E9EDF3",
 };
-const FASE_TXT = { COMPRAS: "Compras", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
-const FASE_COR = { COMPRAS: C.yellow, CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
+const FASE_TXT = { COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+const FASE_COR = { COMPRAS: C.yellow, PROGRAMAR: "#B54708", CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dBR = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : "—");
 const dh = (s) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");

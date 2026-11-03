@@ -32,7 +32,7 @@ export async function GET(req) {
   if (!a) return Response.json({ error: "Sem acesso." }, { status: 403 });
 
   if (q.get("numero")) {
-    const p = await prisma.pedidoVenda.findFirst({ where: { numero: q.get("numero") }, select: { numero: true, vendedor: true, cliente: true, entregaPrevista: true, despacho: true, status: true } });
+    const p = await prisma.pedidoVenda.findFirst({ where: { numero: q.get("numero") }, select: { numero: true, vendedor: true, cliente: true, entregaPrevista: true, despacho: true, status: true, fonte: true, tipoPedido: true, itens: true, cronoSituacao: true } });
     if (!p) return Response.json({ error: "Pedido não encontrado." }, { status: 404 });
     if (!a.todos && !doVendedor(a.u, p.vendedor)) return Response.json({ error: "Este pedido é de outro vendedor." }, { status: 403 });
     let pcp;
@@ -65,13 +65,20 @@ export async function GET(req) {
         situacao: TXT[ord], etapa: i.etapaAtual || aberta?.etapa || null, prestador: aberta?.prestador || null, desde, entrega: i.entrega, prog,
         etapas: es.map((e) => ({ etapa: e.etapa, subetapa: e.subetapa, prestador: e.prestador, inicio: e.inicio, planejadoFim: e.planejadoFim, entrada: e.entrada, saida: e.saida, concluida: e.concluida })) };
     });
+    // v621 — pedido do sistema ainda fora do PCP: itens do pedido com a situação do nosso sistema
+    if (!itens.length && p.fonte === "SISTEMA") {
+      const sit = p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "A PROGRAMAR" : "EM COMPRAS";
+      const ent = iso(p.entregaPrevista) || iso(p.despacho);
+      for (const [k, i] of (Array.isArray(p.itens) ? p.itens : []).entries()) itens.push({ itemCode: i.codigo || `ITEM${k + 1}`, op: p.numero, produto: i.descricao, pecas: Number(i.qtd) || 0, quantidade: Number(i.qtd) || 0,
+        complemento: false, situacao: sit, etapa: null, prestador: null, desde: null, entrega: ent, prog: { k: "SEM", t: sit === "A PROGRAMAR" ? "aguardando o PCP programar" : "materiais em compras" }, etapas: [] });
+    }
     return Response.json({ numero: p.numero, cliente: p.cliente, vendedor: p.vendedor, status: p.status, agrupado: pcp.agrupado, ops: pcp.ops, itens });
   }
 
   const lista = await prisma.pedidoVenda.findMany({
     where: { interno: false, ...(q.get("todos") === "1" ? {} : { status: "ANDAMENTO" }) },
     orderBy: [{ emissao: "desc" }, { numero: "desc" }],
-    select: { numero: true, emissao: true, cliente: true, vendedor: true, total: true, qtd: true, itens: true, status: true, cronoItens: true, cronoSituacao: true, cronoEm: true, entregaPrevista: true, despacho: true, nfNumero: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true },
+    select: { fonte: true, tipoPedido: true, numero: true, emissao: true, cliente: true, vendedor: true, total: true, qtd: true, itens: true, status: true, cronoItens: true, cronoSituacao: true, cronoEm: true, entregaPrevista: true, despacho: true, nfNumero: true, nfsFaturadas: true, vlEntregar: true, qtEntregar: true },
   });
   const meus = a.todos ? lista : lista.filter((p) => doVendedor(a.u, p.vendedor));
   const pedidos = meus.map((p) => {
@@ -79,7 +86,9 @@ export async function GET(req) {
     const ords = ci.map((i) => ordemDe(i.situacao));
     const min = ords.length ? Math.min(...ords) : null;
     const pior = min != null ? ci[ords.indexOf(min)] : null;
-    const situacao = p.status === "FATURADO" ? "FATURADO" : p.status === "CANCELADO" ? "CANCELADO" : min == null ? (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" ? "FORA DO PCP" : "SEM PCP") : TXT[min];
+    // v621 — pedido lançado no sistema que o PCP ainda não recebeu: em compras · a programar (serviço/liberado)
+    const proprioSit = p.fonte === "SISTEMA" ? (p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "A PROGRAMAR" : "EM COMPRAS") : null;
+    const situacao = p.status === "FATURADO" ? "FATURADO" : p.status === "CANCELADO" ? "CANCELADO" : min == null ? (proprioSit || (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" ? "FORA DO PCP" : "SEM PCP")) : TXT[min];
     const pvItens = Array.isArray(p.itens) ? p.itens.length : 0;
     return { numero: p.numero, emissao: iso(p.emissao), cliente: p.cliente, vendedor: p.vendedor, itens: pvItens || ci.length, total: Number(p.total) || 0,
       situacao, etapa: min === 2 ? pior?.etapa || null : null, entrega: iso(p.entregaPrevista) || iso(p.despacho), status: p.status,

@@ -12,7 +12,7 @@ const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDig
 const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 const SIT = {
   LEVANTAMENTO: [C.sub, C.panel2], "A PROGRAMAR": [C.yellow, C.yellowSoft], "EM PRODUÇÃO": [C.blue, C.blueSoft], "CONCLUÍDO": [C.green, C.greenSoft],
-  FATURADO: [C.green, C.greenSoft], CANCELADO: [C.sub, C.panel2], "FORA DO PCP": [C.red, C.redSoft], "SEM PCP": [C.sub, C.panel2],
+  FATURADO: [C.green, C.greenSoft], CANCELADO: [C.sub, C.panel2], "FORA DO PCP": [C.red, C.redSoft], "SEM PCP": [C.sub, C.panel2], "EM COMPRAS": [C.accent, C.accentSoft],   // v621
 };
 const PROG = { ATRASADO: [C.red, C.redSoft, AlertTriangle, "Atrasado"], ADIANTADO: [C.green, C.greenSoft, CheckCircle2, "Adiantado"], OK: [C.blue, C.blueSoft, CheckCircle2, "Em dia"], SEM: [C.sub, C.panel2, Clock, "Sem programação"] };
 

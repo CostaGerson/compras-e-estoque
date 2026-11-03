@@ -596,5 +596,15 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       materiais: (i.demanda || []).map((d) => ({ nome: d.nome, categoria: d.categoria, fornecedor: d.fornecedor, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade, obs: d.obs || null })),
     });
   }
+  // v621 — pedido de serviço lançado no sistema: vai direto para o PCP em A PROGRAMAR (não passa por compras)
+  const servs = await db.pedidoVenda.findMany({ where: { fonte: "SISTEMA", tipoPedido: "SERVIÇO", status: "ANDAMENTO", ...(pedido ? { numero: String(pedido) } : {}), ...(desde ? { createdAt: { gte: new Date(desde) } } : {}) } }).catch(() => []);
+  for (const p of servs) {
+    if (out[p.numero]) continue;
+    const its = itensDoPedido(p);
+    out[p.numero] = { pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
+      condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: its.length, fonte: "SISTEMA", destino: "A_PROGRAMAR", servico: true,
+      itens: its.map((i) => ({ chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: [], op: null, parametros: [], origemMaterial: "SERVICO",
+        liberadoEm: p.createdAt, fppNumero: null, materiais: [], aviamentosPendentes: false })) };
+  }
   return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens }));
 }

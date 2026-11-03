@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { sincronizar, pcpDoPedido } from "@/lib/cronograma";
 import { itensDoPedido } from "@/lib/compras";
 
-export const FASES = ["COMPRAS", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
-export const FASE_TXT = { COMPRAS: "Compras", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+export const FASES = ["COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];   // v621 — A programar
+export const FASE_TXT = { COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -30,7 +30,8 @@ function resumoPedido(p, hoje) {
   const fases = ci.map((i) => (cp.some((c) => nz(c.produto) === nz(i.produto)) && !/CONCLU/i.test(String(i.situacao || "")) ? "COMPRAS" : faseDe(i.situacao, i.etapa)));   // v421
   // v618 — pedido lançado no sistema: até o PCP receber (A PROGRAMAR) a fase vem do nosso sistema = Compras; depois, do PCP do Maycon
   let idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
-  if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf("COMPRAS");
+  // v621 — serviço e item liberado (aguardando o PCP receber) = A programar
+  if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf(p.tipoPedido === "SERVIÇO" || /^LIBERADO|A PROGRAMAR/.test(p.cronoSituacao || "") ? "PROGRAMAR" : "COMPRAS");
   const fase = idx >= 0 ? FASES[idx] : "FORA";
   const prazo = iso(p.despacho) || iso(p.cronoPrazo);
   const previsto = iso(p.cronoFimProgramado) || iso(p.entregaPrevista);
@@ -75,7 +76,7 @@ export async function gestaoProducao() {
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
-  const lista = ps.filter((p) => p.tipoPedido !== "SERVIÇO").filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
+  const lista = ps.filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
     .map((p) => resumoPedido(p, hoje));
   const total = lista.length;
   const cont = (f) => lista.filter(f).length;

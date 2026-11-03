@@ -19,7 +19,7 @@ const semPrefixoPcp = (s) => s === "FORA DO PCP" || s === "EM COMPRAS" || s === 
 export function situacaoPcp(p) {
   if (!p.cronoSituacao) return null;
   if (p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA") return "FORA DO PCP";
-  if (p.cronoSituacao === "EM COMPRAS" || p.cronoSituacao === "SERVIÇO" || /^LIBERADO/.test(p.cronoSituacao)) return p.cronoSituacao;   // v612 — pedido do sistema antes do PCP receber
+  if (p.cronoSituacao === "EM COMPRAS" || p.cronoSituacao === "SERVIÇO" || /^LIBERADO/.test(p.cronoSituacao) || (p.cronoSituacao === "A PROGRAMAR" && !(p.cronoItens || []).length)) return p.cronoSituacao;   // v612 — pedido do sistema antes do PCP receber
   const partes = String(p.cronoSituacao).split(" · ").map((x) => x.trim()).filter((x) => x && !/^AGRUPADO/i.test(x));
   if (p.cronoConcluido) return "CONCLUÍDO";
   const abertas = partes.filter((x) => !/CONCLU/i.test(x));
