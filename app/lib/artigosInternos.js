@@ -1,5 +1,5 @@
 // v625 — artigos internos (tipo do material): o nome interno de malha e tecido plano é sempre um destes tipos.
-// O levantamento casa demanda × estoque pelo TIPO + COR (+ CÓDIGO quando a demanda tem código), não pelo fornecedor/nome da NF.
+// O levantamento casa demanda × estoque pelo TIPO + COR (fornecedor e código podem variar), não pelo nome da NF.
 // Lista editável em Cadastros › Artigos › Artigos internos (tabela ArtigoTipoInterno; esta é a carga inicial).
 export const TIPOS_INICIAIS = {
   MALHA: ["PV", "PP", "ALGODAO 30.1 PENTEADO", "ALGODAO 30.1 CARDADO", "DRY FIT POLIESTER", "DRY FIT POLIESTER COM ELASTANO", "DRY FIT FURADINHO", "POLIAMIDA",
@@ -31,13 +31,12 @@ export function tipoDoArtigo(a, tipos) {
   return tipoDoTexto(a.artigoInterno, ts) || tipoDoTexto(a.nome, ts);
 }
 const cmp = (s) => normTipo(s);
-// demanda (artigo da FPP) × artigo do estoque: mesma categoria e tipo, mesma cor, e o mesmo código quando a demanda tem código
+// v626 — demanda (artigo da FPP) × artigo do estoque: mesmo artigo interno (tipo) e mesma cor; fornecedor e código podem variar
 export function casaEstoque(dem, est, tipos) {
   if (!CATS_TIPO.includes(dem.categoria) || dem.categoria !== est.categoria) return false;
   const a = tipoDoArtigo(dem, tipos), b = tipoDoArtigo(est, tipos);
   if (!a || !b || a.nome !== b.nome) return false;
   if (cmp(dem.cor) !== cmp(est.cor)) return false;
-  if (cmp(dem.codigo) && cmp(dem.codigo) !== cmp(est.codigo)) return false;
   if (dem.unidade && est.unidade && dem.unidade !== est.unidade) return false;
   return true;
 }

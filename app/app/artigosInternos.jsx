@@ -46,7 +46,7 @@ export function ArtigosInternosPane() {
   if (!l) return <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>;
   return (
     <div>
-      <p className="text-sm mb-4" style={{ color: C.sub }}>O <b>artigo interno</b> de malha e tecido plano é sempre um destes tipos. O levantamento casa a demanda dos pedidos com o estoque pelo <b>tipo + cor</b> (e o código, quando a demanda tem código) — não pelo nome que veio na NF.</p>
+      <p className="text-sm mb-4" style={{ color: C.sub }}>O <b>artigo interno</b> de malha e tecido plano é sempre um destes tipos. O levantamento casa a demanda dos pedidos com o estoque pelo <b>tipo + cor</b> — fornecedor e código podem variar; o nome que veio na NF não conta.</p>
       <div className="grid md:grid-cols-2 gap-4">
         {[["MALHA", "Malha"], ["TECIDO", "Plano (tecido)"]].map(([cat, rot]) => {
           const ls = l.filter((t) => t.categoria === cat);

@@ -500,7 +500,7 @@ export async function itensAbertos(db = prisma) {
   return abertos;
 }
 
-// v625 — demanda × estoque pelo ARTIGO INTERNO (tipo de malha/tecido) + COR (+ CÓDIGO quando a demanda tem código):
+// v625/v626 — demanda × estoque pelo ARTIGO INTERNO (tipo de malha/tecido) + COR (fornecedor e código podem variar):
 // a demanda sem estoque próprio passa a usar (em memória) o artigo do estoque equivalente com saldo; grava ao autorizar/gerar PIC.
 export async function equipararPeloEstoque(itens, db = prisma) {
   const { tiposInternos, casaEstoque, CATS_TIPO } = await import("@/lib/artigosInternos");
