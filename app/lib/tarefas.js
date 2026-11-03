@@ -1,6 +1,7 @@
 // v169 — Tarefas: demandas entre setores, recorrência, subtarefas, arquivos, dependências, play/stop e status das pessoas
 import { prisma } from "@/lib/prisma";
 import { ehMaster, setorTarefaDe, SETORES_TAREFA, NOME_SETOR_TAREFA } from "@/lib/acesso";
+import { enviarEmail, emailDisponivel } from "@/lib/email";
 import { normalizarRegra, datasDaSerie, descreverRecorrencia, proximoDiaUtil } from "@/lib/recorrencia";
 // v283 — recorrência editável (marcar/alterar/tirar na edição), opção "só dias úteis" e série com erro não trava as demais
 
@@ -29,7 +30,8 @@ const podeVer = (t, u, R) => {
   if (p) return t.responsavelId === u.id || acessoProj(p, u);
   return t.publica || t.responsavelId === u.id;
 };
-const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null);
+const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null)
+  || (t.evento && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
 async function avisar(deId, paraId, texto) {
@@ -56,7 +58,7 @@ async function gerarDaSerie(s, limite) {
     await prisma.tarefa.createMany({ skipDuplicates: true, data: datas.map((d) => ({
       titulo: s.titulo, descricao: s.descricao, setor: s.setor, responsavelId: s.responsavelId, responsavelNome: s.responsavelNome,
       criadoPorId: s.criadoPorId, criadoPorNome: s.criadoPorNome, prazo: dUTC(d), tipo: "ROTINA", publica: s.publica, serieId: s.id,
-      hora: s.hora, horaFim: s.horaFim, lembreteMin: s.lembreteMin, natureza: s.natureza, projetoId: s.projetoId,
+      hora: s.hora, horaFim: s.horaFim, periodo: s.periodo, lembreteMin: s.lembreteMin, natureza: s.natureza, projetoId: s.projetoId,
       subtarefas: (s.subtarefas || []).map((x) => ({ texto: x.texto, feita: false })), dependencias: [],
     })) });
   }
@@ -70,6 +72,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
+  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null,
 });
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
@@ -79,13 +82,18 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   if (projetoId) where.projetoId = Number(projetoId);
   if (de || ate) where.prazo = { ...(de ? { gte: dUTC(de) } : {}), ...(ate ? { lte: dUTC(ate) } : {}) };
   if (!incluirConcluidas) where.status = { notIn: ["CANCELADA", "CONCLUIDA"] };
-  if (escopo === "minhas") where.responsavelId = u.id;
+  // v600 — convites (pendentes e confirmados) entram na agenda do convidado
+  const conv = await prisma.tarefaConvite.findMany({ where: { usuarioId: u.id, status: { not: "RECUSADO" } }, select: { tarefaId: true } });
+  const convIds = new Set(conv.map((c) => c.tarefaId));
+  if (escopo === "minhas") where.OR = [{ responsavelId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
+  // v600 — "Minha agenda": as minhas + as que eu criei para outras pessoas (antes sumiam e pareciam não salvas) + convites
+  else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
   else if (escopo === "criadas") where.AND = [{ criadoPorId: u.id }, { OR: [{ publica: true }, { responsavelId: u.id }] }];
   const R = await projRestritos();
   const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
-  if (escopo !== "minhas" && escopo !== "criadas") where.OR = [{ publica: true }, { responsavelId: u.id }, ...(meusProj.length ? [{ projetoId: { in: meusProj } }] : [])];
+  if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ publica: true }, { responsavelId: u.id }, ...(meusProj.length ? [{ projetoId: { in: meusProj } }] : []), ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => podeVer(t, u, R));
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || (escopo === "agenda" && t.criadoPorId === u.id && t.publica));
   return enriquecer(l, u);
 }
 
@@ -97,6 +105,8 @@ async function enriquecer(l, u) {
   const serieIds = [...new Set(l.map((t) => t.serieId).filter(Boolean))];
   const series = serieIds.length ? await prisma.tarefa.findMany({ where: { id: { in: serieIds } }, select: { id: true, recorrencia: true } }) : [];
   const S = Object.fromEntries(series.map((x) => [x.id, x.recorrencia]));
+  const evIds = l.filter((t) => t.evento).map((t) => t.id);
+  const convs = evIds.length ? await prisma.tarefaConvite.findMany({ where: { tarefaId: { in: evIds } }, orderBy: { usuarioNome: "asc" } }) : [];
   return l.map((t) => {
     const r = resumo(t, abertas);
     r.recorrencia = t.serieId ? S[t.serieId] || null : null;
@@ -104,6 +114,12 @@ async function enriquecer(l, u) {
     r.deps = (t.dependencias || []).map((id) => D[id] || { id, titulo: "(demanda removida)", status: "CONCLUIDA" });
     r.bloqueada = r.deps.some((x) => x.status !== "CONCLUIDA" && x.status !== "CANCELADA");
     r.podeEditar = podeEditar(t, u);
+    if (t.evento) {
+      r.convites = convs.filter((c) => c.tarefaId === t.id).map((c) => ({ usuarioId: c.usuarioId, nome: c.usuarioNome, status: c.status }));
+      r.confirmados = r.convites.filter((c) => c.status === "CONFIRMADO").length;
+      r.efetivoOk = !t.efetivo || r.confirmados >= t.efetivo;
+      r.meuConvite = r.convites.find((c) => c.usuarioId === u.id)?.status || null;
+    }
     return r;
   });
 }
@@ -138,7 +154,11 @@ function limpar(b) {
     lembreteMin: b.lembreteMin === null ? null : b.lembreteMin === undefined || b.lembreteMin === "" ? 30 : Math.min(10080, Math.max(0, Math.round(Number(b.lembreteMin) || 0))),
     natureza: b.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL",
     projetoId: Number(b.projetoId) || null,
+    periodo: b.periodo === "TARDE" || b.periodo === "MANHA" ? b.periodo : null,
+    evento: !!b.evento,
+    efetivo: b.evento && Number(b.efetivo) > 0 ? Math.min(9999, Math.round(Number(b.efetivo))) : null,
   };
+  if (t.hora) t.periodo = null;
   if (t.hora && t.horaFim && t.horaFim <= t.hora) t.horaFim = null;
   if (!t.hora) t.horaFim = null;
   return t;
@@ -190,6 +210,7 @@ export async function criar(b, u) {
     criada = await prisma.tarefa.findFirst({ where: { serieId: serie.id }, orderBy: { prazo: "asc" } });
     if (criada && t.dependencias.length) await prisma.tarefa.update({ where: { id: criada.id }, data: { dependencias: t.dependencias } });
   } else criada = await prisma.tarefa.create({ data: base });
+  if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
   await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`);
   return { ok: true, tarefa: criada };
 }
@@ -205,6 +226,7 @@ export async function editar(id, b, u) {
   if (resp && !resp.ativo) return { error: "Colaborador inválido." };
   const data = { ...t, prazo: dUTC(t.prazo), tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
   let up = await prisma.tarefa.update({ where: { id: x.id }, data });
+  if (b.convidados !== undefined || !t.evento) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
   if (b.recorrencia !== undefined) up = (await mudarRecorrencia(up, b.recorrencia)) || up;
   // alterar também as próximas da série (e a própria série)
   if (x.serieId && b.aplicarSerie) {
@@ -486,6 +508,59 @@ export async function excluirProjeto(id, u) {
   if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto exclui." };
   await prisma.tarefa.updateMany({ where: { projetoId: p.id }, data: { projetoId: null } });
   await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { ativo: false } });
+  return { ok: true };
+}
+
+// ---------- v600: eventos com convidados ----------
+const dataBR = (d) => iso(d).split("-").reverse().join("/");
+async function sincronizarConvites(t, ids, u) {
+  const quer = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((id) => id && id !== t.responsavelId))];
+  const ja = await prisma.tarefaConvite.findMany({ where: { tarefaId: t.id } });
+  const sair = ja.filter((c) => !quer.includes(c.usuarioId)).map((c) => c.id);
+  if (sair.length) await prisma.tarefaConvite.deleteMany({ where: { id: { in: sair } } });
+  const novos = quer.filter((id) => !ja.some((c) => c.usuarioId === id));
+  if (!novos.length) return;
+  const us = await prisma.usuario.findMany({ where: { id: { in: novos }, ativo: true }, select: { id: true, nome: true, sobrenome: true, email: true } });
+  const quando = `${dataBR(t.prazo)}${t.hora ? ` às ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : t.periodo === "TARDE" ? " (tarde)" : t.periodo === "MANHA" ? " (manhã)" : ""}`;
+  for (const x of us) {
+    await prisma.tarefaConvite.create({ data: { tarefaId: t.id, usuarioId: x.id, usuarioNome: nome(x) } }).catch(() => null);
+    await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Abra a Agenda para confirmar, recusar ou decidir depois.`);
+    if (x.email && emailDisponivel()) await enviarEmail({ para: x.email, assunto: `Convite: ${t.titulo} — ${quando}`,
+      html: `<p>Olá, ${x.nome}.</p><p><b>${nome(u)}</b> convidou você para <b>${t.titulo}</b> em <b>${quando}</b>.</p>${t.descricao ? `<p>${String(t.descricao).replace(/</g, "&lt;").replace(/\n/g, "<br>")}</p>` : ""}<p>Abra a Agenda no sistema para <b>confirmar</b>, <b>recusar</b> ou <b>decidir depois</b>.</p>` }).catch(() => null);
+  }
+}
+// pendências que aparecem no popup ao abrir a agenda: convites a responder (1x por dia) e, para o criador, eventos abaixo do efetivo (1x por dia)
+export async function pendenciasAgenda(u) {
+  const hoje = hojeSP();
+  const aberto = { status: { notIn: ["CONCLUIDA", "CANCELADA"] }, excluidaEm: null, prazo: { gte: dUTC(hoje) } };
+  const cs = await prisma.tarefaConvite.findMany({ where: { usuarioId: u.id, status: "PENDENTE", OR: [{ perguntadoEm: null }, { perguntadoEm: { not: hoje } }] } });
+  const ts = cs.length ? await prisma.tarefa.findMany({ where: { id: { in: cs.map((c) => c.tarefaId) }, ...aberto } }) : [];
+  const convites = ts.map((t) => ({ tarefaId: t.id, titulo: t.titulo, prazo: iso(t.prazo), hora: t.hora, horaFim: t.horaFim, periodo: t.periodo, criadoPorNome: t.criadoPorNome, descricao: t.descricao }))
+    .sort((a, b) => a.prazo.localeCompare(b.prazo));
+  const evs = await prisma.tarefa.findMany({ where: { criadoPorId: u.id, evento: true, efetivo: { gt: 0 }, ...aberto, OR: [{ efetivoAvisoEm: null }, { efetivoAvisoEm: { not: hoje } }] } });
+  const cc = evs.length ? await prisma.tarefaConvite.findMany({ where: { tarefaId: { in: evs.map((t) => t.id) } } }) : [];
+  const efetivo = evs.map((t) => { const l = cc.filter((c) => c.tarefaId === t.id); return { tarefaId: t.id, titulo: t.titulo, prazo: iso(t.prazo), hora: t.hora, efetivo: t.efetivo,
+    confirmados: l.filter((c) => c.status === "CONFIRMADO").length, pendentes: l.filter((c) => c.status === "PENDENTE").map((c) => c.usuarioNome), recusados: l.filter((c) => c.status === "RECUSADO").length }; })
+    .filter((x) => x.confirmados < x.efetivo).sort((a, b) => a.prazo.localeCompare(b.prazo));
+  return { convites, efetivo };
+}
+export async function responderConvite(u, tarefaId, resp) {
+  const c = await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: Number(tarefaId) || 0, usuarioId: u.id } } });
+  if (!c) return { error: "Convite não encontrado." };
+  if (resp === "DEPOIS") { await prisma.tarefaConvite.update({ where: { id: c.id }, data: { perguntadoEm: hojeSP() } }); return { ok: true }; }
+  const status = resp === "CONFIRMAR" ? "CONFIRMADO" : resp === "RECUSAR" ? "RECUSADO" : null;
+  if (!status) return { error: "Resposta inválida." };
+  await prisma.tarefaConvite.update({ where: { id: c.id }, data: { status, respondidoEm: new Date(), perguntadoEm: hojeSP() } });
+  const t = await prisma.tarefa.findUnique({ where: { id: c.tarefaId }, select: { id: true, titulo: true, criadoPorId: true, efetivo: true } });
+  if (t) {
+    const n = t.efetivo ? await prisma.tarefaConvite.count({ where: { tarefaId: t.id, status: "CONFIRMADO" } }) : 0;
+    await avisar(u.id, t.criadoPorId, `${status === "CONFIRMADO" ? "✅" : "❌"} ${nome(u)} ${status === "CONFIRMADO" ? "confirmou presença" : "recusou"} em "${t.titulo}"${t.efetivo ? ` — ${n} de ${t.efetivo} confirmados` : ""}.`);
+  }
+  return { ok: true };
+}
+export async function efetivoVisto(u, ids) {
+  const l = (Array.isArray(ids) ? ids : []).map(Number).filter(Boolean);
+  if (l.length) await prisma.tarefa.updateMany({ where: { id: { in: l }, criadoPorId: u.id }, data: { efetivoAvisoEm: hojeSP() } });
   return { ok: true };
 }
 

@@ -1788,6 +1788,10 @@ model Tarefa {
   lembreteMin      Int?      @default(30)        // v589 — aviso no celular X minutos antes do início (null = sem aviso)
   natureza         String    @default("FUNCIONAL") // v226: FUNCIONAL | PESSOAL (pessoal é sempre privada)
   projetoId        Int?                          // v226: TarefaProjeto
+  periodo          String?                       // v600 — MANHA | TARDE quando não tem horário (soltar no período não inventa hora)
+  evento           Boolean   @default(false)     // v600 — evento com convidados (confirmam presença)
+  efetivo          Int?                          // v600 — pessoas necessárias: amarelo até atingir as confirmações
+  efetivoAvisoEm   String?                       // v600 — "AAAA-MM-DD" do último aviso diário ao criador
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   arquivos         TarefaArquivo[]
@@ -1797,6 +1801,21 @@ model Tarefa {
   @@index([responsavelId])
   @@index([prazo])
   @@index([status])
+}
+
+// v600 — convidados de um evento da agenda: PENDENTE (exclamação amarela, pergunta todo dia) | CONFIRMADO (aparece na agenda) | RECUSADO
+model TarefaConvite {
+  id           Int       @id @default(autoincrement())
+  tarefaId     Int
+  usuarioId    Int
+  usuarioNome  String    @default("")
+  status       String    @default("PENDENTE")
+  respondidoEm DateTime?
+  perguntadoEm String?                          // "AAAA-MM-DD" do último "decidir depois"
+  createdAt    DateTime  @default(now())
+
+  @@unique([tarefaId, usuarioId])
+  @@index([usuarioId])
 }
 
 // v226 — projetos da agenda (cada um com uma cor; a tarefa do projeto ganha o quadradinho da cor)

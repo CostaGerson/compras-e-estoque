@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users,
+  Eye, EyeOff, Users, PartyPopper, AlertTriangle,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -296,6 +296,11 @@ function AvisoPrevio({ valor, onChange }) {
   );
 }
 
+// v600 — tarefas com horário que se sobrepõem (sem "até" = conta 30 min)
+const minHH = (x) => Number(String(x).slice(0, 2)) * 60 + Number(String(x).slice(3, 5));
+const intervalo = (h, hf) => { const a = minHH(h); return [a, hf && minHH(hf) > a ? minHH(hf) : a + 30]; };
+export const conflitosHora = (lista, h, hf) => { if (!h) return []; const [a, b] = intervalo(h, hf); return lista.filter((t) => t.hora && t.status !== "CONCLUIDA" && t.status !== "CANCELADA" && (() => { const [c, d] = intervalo(t.hora, t.horaFim); return a < d && c < b; })()); };
+
 /* ======================= formulário (nova / editar) ======================= */
 export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, onOk }) {
   const ed = !!inicial.id;
@@ -305,7 +310,10 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     titulo: inicial.titulo || "", descricao: inicial.descricao || "", setor: inicial.setor || setorTarefaDe(user), responsavelId: inicial.responsavelId || "",
     prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" ? "URGENTE" : "PADRAO", publica: inicial.publica !== false,
     rec: { tipo: "NENHUMA", ...(inicial.recorrencia || {}) }, subtarefas: inicial.subtarefas || [], dependencias: inicial.dependencias || [], aplicarSerie: false,
+    // v600 — período sem horário, evento com convidados e pessoas necessárias
+    periodo: inicial.periodo || "", evento: !!inicial.evento, efetivo: inicial.efetivo || "", convidados: (inicial.convites || []).map((c) => c.usuarioId),
   });
+  const [buscaConv, setBuscaConv] = useState("");
   const [todos, setTodos] = useState(false);
   const [nova, setNova] = useState("");
   const [arqs, setArqs] = useState([]);
@@ -333,10 +341,16 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const projsOpc = projetos.filter((p) => p.id === Number(inicial.projetoId) || (pessoal ? p.natureza === "PESSOAL" && (p.donoId === criador || (p.membros || []).includes(criador)) : p.natureza !== "PESSOAL"));
   const dPrazo = f.prazo ? dUTC(f.prazo) : new Date();
   const salvar = async () => {
+    // v600 — aviso de duas tarefas no mesmo horário (do mesmo responsável, no mesmo dia)
+    if (f.hora && publicas) {
+      const rf = pessoal ? criador : Number(f.responsavelId);
+      const c = conflitosHora(publicas.filter((t) => t.id !== inicial.id && t.prazo === f.prazo && t.responsavelId === rf), f.hora, f.horaFim);
+      if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((t) => `• ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""} ${t.titulo}`).join("\n")}\n\nSalvar mesmo assim?`))) return;
+    }
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
+      hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -404,6 +418,33 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="time" value={f.horaFim} disabled={!f.hora} onChange={(e) => set("horaFim", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
       </div>
       {f.hora && <AvisoPrevio valor={f.lembreteMin} onChange={(v) => set("lembreteMin", v)} />}
+      {!f.hora && <div className="flex items-center gap-1 mb-3 text-xs" style={{ color: C.sub }}>Período (sem horário):
+        {[["", "—"], ["MANHA", "Manhã"], ["TARDE", "Tarde"]].map(([k, t]) => <button key={k} onClick={() => set("periodo", k)} className="px-2.5 py-1 rounded-lg font-semibold" style={f.periodo === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
+      </div>}
+      {/* v600 — evento: convidados recebem mensagem, e-mail e popup na agenda (confirmar / recusar / decidir depois) */}
+      <div className="rounded-lg p-3 mb-3" style={{ background: f.evento ? "#FFF8E6" : C.panel2 }}>
+        <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
+          <input type="checkbox" checked={f.evento} onChange={(e) => set("evento", e.target.checked)} /><PartyPopper size={14} style={{ color: "#C98A00" }} /> Evento com convidados
+        </label>
+        {f.evento && <>
+          <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: C.sub }}>Pessoas necessárias (efetivo)
+            <input type="number" min={0} value={f.efetivo} onChange={(e) => set("efetivo", e.target.value)} placeholder="opcional" className="w-24 rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+            <span className="text-[11px]">fica amarelo até esse número confirmar; você recebe a situação todo dia</span>
+          </div>
+          <div className="text-xs mt-2 mb-1" style={{ color: C.sub }}>Convidados ({f.convidados.length})</div>
+          {f.convidados.length > 0 && <div className="flex flex-wrap gap-1 mb-1">
+            {f.convidados.map((id) => { const x = usuarios.find((u) => u.id === id); const st = (inicial.convites || []).find((c) => c.usuarioId === id)?.status || "NOVO";
+              const [cor, fundo, rot] = st === "CONFIRMADO" ? ["#3F8A5F", "#E3F4EA", "confirmou"] : st === "RECUSADO" ? [C.red, C.redSoft, "recusou"] : st === "PENDENTE" ? ["#8A5A00", "#FCEFC7", "pendente"] : [C.text, "#fff", "novo"];
+              return <span key={id} className="text-[11px] rounded-full pl-2 pr-1 py-0.5 flex items-center gap-1" style={{ background: fundo, color: cor, border: `1px solid ${C.line}` }}>{x?.nome || `#${id}`} · {rot}
+                <button onClick={() => set("convidados", f.convidados.filter((y) => y !== id))}><X size={11} /></button></span>; })}
+          </div>}
+          <input value={buscaConv} onChange={(e) => setBuscaConv(e.target.value)} placeholder="Buscar pessoa para convidar…" className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+          {buscaConv && <div className="rounded-lg mt-1" style={{ border: `1px solid ${C.line}`, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
+            {usuarios.filter((x) => !f.convidados.includes(x.id) && x.id !== (pessoal ? criador : Number(f.responsavelId)) && String(x.nome).toUpperCase().includes(buscaConv.toUpperCase())).slice(0, 10)
+              .map((x) => <button key={x.id} onClick={() => { set("convidados", [...f.convidados, x.id]); setBuscaConv(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">{x.nome}</button>)}
+          </div>}
+        </>}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
@@ -542,6 +583,16 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
       {t && <>
         {/* v226 — layout do detalhe no estilo Asana */}
         <div className="text-2xl font-bold mb-4" style={{ color: "#1E1F21", textDecoration: t.status === "CONCLUIDA" ? "line-through" : "none" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
+        {/* v600 — convidado responde aqui também */}
+        {t.meuConvite && <div className="flex items-center gap-2 flex-wrap mb-3 p-3 rounded-lg text-sm" style={{ background: t.meuConvite === "PENDENTE" ? "#FCEFC7" : C.panel2 }}>
+          <PartyPopper size={15} style={{ color: "#C98A00" }} /> <span className="flex-1">{t.meuConvite === "PENDENTE" ? "Você foi convidado para este evento." : t.meuConvite === "CONFIRMADO" ? "Você confirmou presença." : "Você recusou este convite."}</span>
+          {t.meuConvite !== "CONFIRMADO" && <Btn onClick={async () => { await responderConviteApi(user, t.id, "CONFIRMAR"); carregar(); onMudou?.(); }}>Confirmar</Btn>}
+          {t.meuConvite !== "RECUSADO" && <Btn fundo={C.redSoft} cor={C.red} onClick={async () => { await responderConviteApi(user, t.id, "RECUSAR"); carregar(); onMudou?.(); }}>Recusar</Btn>}
+        </div>}
+        {t.evento && t.convites?.length > 0 && <div className="mb-3 text-xs">
+          <div className="font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Users size={13} /> Convidados{t.efetivo ? ` · ${t.confirmados} de ${t.efetivo} necessários` : ` · ${t.confirmados} confirmados`}</div>
+          <div className="flex flex-wrap gap-1">{t.convites.map((c) => <span key={c.usuarioId} className="rounded-full px-2 py-0.5" style={c.status === "CONFIRMADO" ? { background: "#E3F4EA", color: "#3F8A5F" } : c.status === "RECUSADO" ? { background: C.redSoft, color: C.red } : { background: "#FCEFC7", color: "#8A5A00" }}>{c.nome}</span>)}</div>
+        </div>}
         <div className="mb-4">
           <Linha k="Responsável"><b>{t.responsavelNome}</b>{t.criadoPorId !== t.responsavelId && <span className="text-xs" style={{ color: C.sub }}>pedido por {t.criadoPorNome} em {dBR(t.createdAt)}</span>}</Linha>
           <Linha k="Data de conclusão"><span style={{ color: t.status !== "CONCLUIDA" && t.prazo < hojeISO() ? C.red : t.prazo === hojeISO() ? C.green : "#1E1F21", fontWeight: 600 }}>{t.prazo === hojeISO() ? "Hoje" : dBR(t.prazo)}</span>{t.hora && <span className="flex items-center gap-1"><Clock size={13} /> {t.hora}{t.horaFim ? `–${t.horaFim}` : ""}</span>}{t.recorrenciaTexto && <span className="flex items-center gap-1 text-xs" style={{ color: C.blue }}><Repeat size={12} /> {t.recorrenciaTexto}</span>}</Linha>
@@ -601,7 +652,8 @@ function AvatarMini({ foto, nome, size = 22 }) {
     : <span className="rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ width: size, height: size, background: "#C7C4C4", color: "#fff" }}>{iniciais(nome)}</span>;
 }
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
-const corCard = (t, proj) => proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
+// v600 — evento abaixo das pessoas necessárias fica amarelo
+const corCard = (t, proj) => t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
 function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir, onMenu, toque, grande, pres, arrastado }) {
@@ -621,6 +673,8 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
         <div className="text-[15px] leading-tight" style={{ textDecoration: feita ? "line-through" : "none", overflowWrap: "anywhere" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
         {(t.hora || proj) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
       </div>
+      {t.meuConvite === "PENDENTE" && <span title="Convite aguardando sua decisão" className="shrink-0 rounded-full flex items-center justify-center text-[12px] font-black" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>!</span>}
+      {t.evento && <span className="text-[11px] font-semibold flex items-center gap-0.5 shrink-0" style={{ color: A.sub }}><Users size={12} />{t.confirmados || 0}{t.efetivo ? `/${t.efetivo}` : ""}</span>}
       {t.sessaoAberta && <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
       {t.nArquivos > 0 && <Paperclip size={12} className="shrink-0" style={{ color: A.sub }} />}
       {t.natureza === "PESSOAL" && <Lock size={12} className="shrink-0" style={{ color: A.sub }} />}
@@ -644,6 +698,8 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
         </span>
       </div>
       <div className="flex items-center gap-1 pr-2 shrink-0">
+        {t.meuConvite === "PENDENTE" && <span title="Convite aguardando sua decisão" className="rounded-full flex items-center justify-center text-[10px] font-black" style={{ width: 15, height: 15, background: "#F5B700", color: "#fff" }}>!</span>}
+        {t.evento && <span className="text-[10px] font-semibold flex items-center gap-0.5" style={{ color: A.sub }} title={t.efetivo ? `${t.confirmados} de ${t.efetivo} confirmados` : `${t.confirmados} confirmados`}><Users size={10} />{t.confirmados || 0}{t.efetivo ? `/${t.efetivo}` : ""}</span>}
         {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.yellow }} />}
         {t.nArquivos > 0 && <Paperclip size={10} style={{ color: A.sub }} />}
         {t.natureza === "PESSOAL" && <Lock size={10} style={{ color: A.sub }} />}
@@ -725,6 +781,51 @@ function ProjetoForm({ user, inicial, projetos = [], usuarios = [], onClose, onO
   );
 }
 
+// v600 — responder convite
+async function responderConviteApi(user, tarefaId, resposta) {
+  try { await api("/api/tarefas/convites", "POST", { usuarioId: user.id, acao: "responder", tarefaId, resposta }); } catch (e) { alerta(e.message); }
+}
+// v600 — popup ao abrir a agenda: convites a responder (volta todo dia até decidir) e, para quem criou, eventos abaixo das pessoas necessárias
+function PopupConvites({ user, onMudou }) {
+  const [p, setP] = useState(null);
+  useEffect(() => { api(`/api/tarefas/convites?u=${user.id}`).then(setP).catch(() => {}); }, []);
+  if (!p || (!p.convites.length && !p.efetivo.length)) return null;
+  const quando = (x) => `${dBR(x.prazo)}${x.hora ? ` às ${x.hora}${x.horaFim ? `–${x.horaFim}` : ""}` : x.periodo === "TARDE" ? " · tarde" : x.periodo === "MANHA" ? " · manhã" : ""}`;
+  const responder = async (x, r) => { await responderConviteApi(user, x.tarefaId, r); setP((v) => ({ ...v, convites: v.convites.filter((y) => y.tarefaId !== x.tarefaId) })); if (r !== "DEPOIS") onMudou?.(); };
+  const fecharEfetivo = async () => { try { await api("/api/tarefas/convites", "POST", { usuarioId: user.id, acao: "visto", ids: p.efetivo.map((x) => x.tarefaId) }); } catch {} setP((v) => ({ ...v, efetivo: [] })); };
+  const depoisTodos = async () => { for (const x of p.convites) await responderConviteApi(user, x.tarefaId, "DEPOIS"); setP((v) => ({ ...v, convites: [] })); };
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.35)" }}>
+      <div className="rounded-2xl shadow-2xl w-full anim-modal" style={{ maxWidth: 480, background: "#fff", maxHeight: "85vh", overflowY: "auto" }}>
+        {p.convites.length > 0 && <div className="p-4">
+          <div className="flex items-center gap-2 mb-3"><PartyPopper size={18} style={{ color: "#C98A00" }} /><b className="flex-1">Convite{p.convites.length > 1 ? "s" : ""} para você</b>
+            <button onClick={depoisTodos} className="text-xs" style={{ color: A.sub }}>Decidir depois</button></div>
+          {p.convites.map((x) => <div key={x.tarefaId} className="rounded-xl p-3 mb-2" style={{ border: `1px solid ${A.linha}` }}>
+            <div className="font-semibold">{x.titulo.charAt(0) + x.titulo.slice(1).toLowerCase()}</div>
+            <div className="text-xs mb-1" style={{ color: A.sub }}>{quando(x)} · convite de {x.criadoPorNome}</div>
+            {x.descricao && <div className="text-xs mb-2 whitespace-pre-wrap" style={{ color: A.texto }}>{x.descricao}</div>}
+            <div className="flex gap-1.5">
+              <button onClick={() => responder(x, "CONFIRMAR")} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: "#3F8A5F" }}>Confirmar</button>
+              <button onClick={() => responder(x, "RECUSAR")} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}>Recusar</button>
+              <button onClick={() => responder(x, "DEPOIS")} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{ background: "#FCEFC7", color: "#8A5A00" }}>Decidir depois</button>
+            </div>
+          </div>)}
+        </div>}
+        {!p.convites.length && p.efetivo.length > 0 && <div className="p-4">
+          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#D99A00" }} /><b className="flex-1">Eventos ainda sem as pessoas necessárias</b></div>
+          {p.efetivo.map((x) => <div key={x.tarefaId} className="rounded-xl p-3 mb-2" style={{ background: "#FFF8E6", border: "1px solid #F1D58A" }}>
+            <div className="font-semibold">{x.titulo.charAt(0) + x.titulo.slice(1).toLowerCase()}</div>
+            <div className="text-xs" style={{ color: A.sub }}>{quando(x)}</div>
+            <div className="text-sm mt-1"><b>{x.confirmados} de {x.efetivo}</b> confirmados{x.recusados ? ` · ${x.recusados} recusaram` : ""}</div>
+            {x.pendentes.length > 0 && <div className="text-[11px] mt-0.5" style={{ color: A.sub }}>Ainda não responderam: {x.pendentes.join(", ")}</div>}
+          </div>)}
+          <button onClick={fecharEfetivo} className="w-full py-2 rounded-lg text-sm font-semibold text-white mt-1" style={{ background: A.azul }}>Ok, vi</button>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 /* v597 — marco de horários lateral: aparece ao arrastar uma tarefa do dia ampliado; soltar num horário grava a hora */
 const SLOTS_HORA = Array.from({ length: 32 }, (_, k) => `${String(6 + Math.floor(k / 2)).padStart(2, "0")}:${k % 2 ? "30" : "00"}`);
 function PainelHoras({ alvo, atual, onSobre, onSoltar }) {
@@ -757,7 +858,7 @@ function Sentinela({ onMais, dep }) {
 /* v590 — celular: mês no estilo do calendário do iPhone (domingo primeiro, hoje em círculo vermelho, tarefas em pílulas).
    Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
 const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
-const corPilula = (t, proj) => proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
+const corPilula = (t, proj) => (t.evento && t.efetivo && !t.efetivoOk ? "#D99A00" : null) || proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
 function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana, pressionar, alvo, arrastandoId }) {
   // v592 — rolar para baixo emenda o mês seguinte (infinito); o dia tocado abre embaixo do mês dele
   const ano0 = Number(ref0.slice(0, 4)), mes0 = Number(ref0.slice(5, 7));
@@ -813,7 +914,7 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
                       <div className="w-full flex flex-col gap-[3px] mt-1 px-[2px]">
                         {l.slice(0, 3).map((t) => { const c = corPilula(t, P[t.projetoId]); return (
                           <span key={t.id} className="block truncate rounded-[4px] px-1 text-[10px] font-semibold leading-[15px] text-left" style={{ background: `${c}2E`, color: c === "#8A8B8C" ? A.texto : c, ...(t.status === "CONCLUIDA" ? { textDecoration: "line-through", opacity: 0.5 } : {}) }}>
-                            {t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
+                            {t.meuConvite === "PENDENTE" && <b style={{ color: "#D99A00" }}>! </b>}{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
                           </span>); })}
                         {l.length > 3 && <span className="text-[10px] font-semibold" style={{ color: A.sub }}>+{l.length - 3}</span>}
                       </div>
@@ -848,7 +949,8 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
 
 // v561 — períodos do dia (como nas rotas): tarde = horário a partir de 12:00; sem horário fica na manhã
 const PERIODOS = [["Manhã", "MANHA"], ["Tarde", "TARDE"]];
-const periodoDe = (t) => (String(t.hora || "") >= "12:00" ? "TARDE" : "MANHA");
+// v600 — sem horário vale o período escolhido (soltar no período não inventa hora)
+const periodoDe = (t) => (t.hora ? (t.hora >= "12:00" ? "TARDE" : "MANHA") : t.periodo === "TARDE" ? "TARDE" : "MANHA");
 export function Agenda({ user, pedidoModo, onModo }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
   const [modo, setModo] = useState(pedidoModo?.modo === "mes" ? "mes" : "semana");        // abre na semana atual
@@ -884,7 +986,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
   useEffect(() => { setNMeses(3); }, [ref.slice(0, 7), modo]);
   const infinito = modo === "mes";
   const faixa = infinito ? [mobile ? `${ref.slice(0, 7)}-01` : dias[0], mobile ? new Date(Date.UTC(ano, mes - 1 + nMeses, 0)).toISOString().slice(0, 10) : dias[dias.length - 1]] : [dias[0], dias[dias.length - 1]];
-  const carregar = () => api(`/api/tarefas?u=${user.id}&escopo=${projetoId ? "todas" : "minhas"}${projetoId ? `&projeto=${projetoId}` : ""}&de=${faixa[0]}&ate=${faixa[1]}`)
+  const carregar = () => api(`/api/tarefas?u=${user.id}&escopo=${projetoId ? "todas" : "agenda"}${projetoId ? `&projeto=${projetoId}` : ""}&de=${faixa[0]}&ate=${faixa[1]}`)
     .then(setD).catch(() => setD({ tarefas: [], usuarios: [], projetos: [], equipe: [] }));
   useEffect(() => { carregar(); }, [faixa[0], faixa[1], projetoId]);
   const projetos = d?.projetos || [];
@@ -902,7 +1004,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
   Object.values(porDia).forEach((l) => l.sort((a, b) => (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || (a.hora || "99").localeCompare(b.hora || "99") || a.id - b.id));
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
-  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per === "TARDE" ? { hora: "13:00" } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
+  const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per ? { periodo: per } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
   const soltar = async (dia, tt) => {
     const t = tt || arrastando; setArrastando(null); setSobre(null);
     if (!t || t.prazo === dia) return;
@@ -914,7 +1016,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
     if (!t || antesId === t.id) return;
     const mud = {};
     if (t.prazo !== dia) mud.prazo = dia;
-    if (periodoDe(t) !== per) { mud.hora = per === "TARDE" ? "13:00" : "08:00"; mud.horaFim = null; }
+    if (periodoDe(t) !== per) { mud.periodo = per; if (t.hora) { mud.hora = null; mud.horaFim = null; } }
     const resto = (porDia[dia] || []).filter((x) => periodoDe(x) === per && x.id !== t.id).map((x) => x.id);
     const k = antesId ? resto.indexOf(antesId) : -1;
     const ids = k >= 0 ? [...resto.slice(0, k), t.id, ...resto.slice(k)] : [...resto, t.id];
@@ -933,6 +1035,9 @@ export function Agenda({ user, pedidoModo, onModo }) {
     const mud = { hora: h || null, horaFim: null };
     if (h && t.hora && t.horaFim) { const f = Math.min(minH(h) + minH(t.horaFim) - minH(t.hora), 23 * 60 + 59); if (f > minH(h)) mud.horaFim = `${String(Math.floor(f / 60)).padStart(2, "0")}:${String(f % 60).padStart(2, "0")}`; }
     if ((t.hora || null) === mud.hora && (t.horaFim || null) === mud.horaFim) return;
+    // v600 — aviso de conflito com outra tarefa no mesmo horário
+    const c = conflitosHora((porDia[t.prazo] || []).filter((x) => x.id !== t.id && x.responsavelId === t.responsavelId), mud.hora, mud.horaFim);
+    if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((x) => `• ${x.hora}${x.horaFim ? `–${x.horaFim}` : ""} ${x.titulo}`).join("\n")}\n\nColocar mesmo assim?`))) return;
     const nova = { ...t, ...mud }, per = periodoDe(nova);
     const ids = [...(porDia[t.prazo] || []).filter((x) => x.id !== t.id && periodoDe(x) === per), nova]
       .sort((a, b) => (a.hora || "00:00").localeCompare(b.hora || "00:00") || a.id - b.id).map((x) => x.id);
@@ -1216,6 +1321,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
           </div>
         )}
       </div>
+      <PopupConvites user={user} onMudou={carregar} />
       {/* v597 — marco de horários: PC (arrastando uma tarefa do dia ampliado) e celular (segurando uma tarefa do dia tocado) */}
       {!mobile && arrastando && arrastando.prazo === selDia && <PainelHoras alvo={sobre} atual={arrastando.hora} onSobre={setSobre} onSoltar={(h) => definirHora(null, h)} />}
       {mobile && toq?.horas && <PainelHoras alvo={alvoToq} atual={toq.t.hora} />}
