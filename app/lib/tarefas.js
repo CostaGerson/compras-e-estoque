@@ -18,7 +18,18 @@ export async function usuarioAtivo(id) {
   const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: SEL_U });
   return u && u.ativo ? u : null;
 }
-const podeVer = (t, u) => t.publica || t.responsavelId === u.id;
+// v599 — projeto restrito (não é "todos"): só o dono, as pessoas selecionadas e o responsável da tarefa veem as tarefas dele
+async function projRestritos() {
+  const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true, publico: false }, select: { id: true, donoId: true, membros: true } });
+  return Object.fromEntries(l.map((p) => [p.id, p]));
+}
+const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.id);
+const podeVer = (t, u, R) => {
+  const p = R && t.projetoId ? R[t.projetoId] : null;
+  if (p) return t.responsavelId === u.id || acessoProj(p, u);
+  return t.publica || t.responsavelId === u.id;
+};
+const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null);
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
 async function avisar(deId, paraId, texto) {
@@ -70,8 +81,11 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   if (!incluirConcluidas) where.status = { notIn: ["CANCELADA", "CONCLUIDA"] };
   if (escopo === "minhas") where.responsavelId = u.id;
   else if (escopo === "criadas") where.AND = [{ criadoPorId: u.id }, { OR: [{ publica: true }, { responsavelId: u.id }] }];
-  else where.OR = [{ publica: true }, { responsavelId: u.id }];
-  const l = await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } });
+  const R = await projRestritos();
+  const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
+  if (escopo !== "minhas" && escopo !== "criadas") where.OR = [{ publica: true }, { responsavelId: u.id }, ...(meusProj.length ? [{ projetoId: { in: meusProj } }] : [])];
+  const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
+    .filter((t) => podeVer(t, u, R));
   return enriquecer(l, u);
 }
 
@@ -96,13 +110,14 @@ async function enriquecer(l, u) {
 
 export async function detalhe(id, u) {
   const t = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 }, include: { arquivos: { select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true } }, sessoes: { orderBy: { inicio: "desc" }, take: 50 } } });
-  if (!t || !podeVer(t, u)) return null;
+  if (!t || !(await podeVerA(t, u))) return null;
+  const R = await projRestritos();
   const [r] = await enriquecer([{ ...t, _count: { arquivos: t.arquivos.length } }], u);
   const users = await prisma.usuario.findMany({ where: { id: { in: [...new Set(t.sessoes.map((s) => s.usuarioId))] } }, select: { id: true, nome: true } });
   const U = Object.fromEntries(users.map((x) => [x.id, x.nome]));
   return { ...r, arquivos: t.arquivos, sessoes: t.sessoes.map((s) => ({ ...s, usuarioNome: U[s.usuarioId] || "?" })),
-    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true } }))
-      .filter((x) => (x.dependencias || []).includes(t.id) && podeVer(x, u)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
+    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true, projetoId: true } }))
+      .filter((x) => (x.dependencias || []).includes(t.id) && podeVer(x, u, R)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
 }
 
 // ---------- criar / editar ----------
@@ -140,12 +155,13 @@ async function validarDeps(ids, proprioId, t) {
   return null;
 }
 
-// v592 — projeto da tarefa: pessoal só em projeto pessoal do próprio dono; funcional só em projeto funcional
-async function ajustarProjeto(t, criadorId) {
-  if (!t.projetoId) return t;
-  const p = await prisma.tarefaProjeto.findUnique({ where: { id: t.projetoId }, select: { ativo: true, natureza: true, donoId: true } });
-  const pessoalP = p?.natureza === "PESSOAL";
-  if (!p?.ativo || (t.natureza === "PESSOAL") !== pessoalP || (pessoalP && p.donoId !== criadorId)) t.projetoId = null;
+// v592 — projeto da tarefa · v599: basta o projeto estar ativo e quem cria ter acesso a ele
+// (a natureza não expulsa mais a tarefa: projeto transportado entre pessoal e funcional leva as tarefas junto)
+async function ajustarProjeto(t, criadorId, manter) {
+  if (!t.projetoId || t.projetoId === manter) return t;
+  const p = await prisma.tarefaProjeto.findUnique({ where: { id: t.projetoId }, select: { ativo: true, natureza: true, donoId: true, publico: true, membros: true } });
+  const ok = p?.ativo && (p.donoId === criadorId || (p.membros || []).includes(criadorId) || (p.publico && p.natureza !== "PESSOAL"));
+  if (!ok) t.projetoId = null;
   return t;
 }
 // v226 — demanda atribuída por outra pessoa é funcional e pública; pessoal é sempre privada
@@ -180,9 +196,9 @@ export async function criar(b, u) {
 
 export async function editar(id, b, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !podeVer(x, u)) return { error: "Demanda não encontrada." };
+  if (!x || !(await podeVerA(x, u))) return { error: "Demanda não encontrada." };
   if (!podeEditar(x, u)) return { error: "Só quem criou, o responsável ou o master editam." };
-  const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId), x.criadoPorId);
+  const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId), x.criadoPorId, x.projetoId);
   if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
   const e = await validarDeps(t.dependencias, x.id, t); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
@@ -298,7 +314,7 @@ async function fecharSessoes(where) {
 
 export async function play(id, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !podeVer(x, u)) return { error: "Demanda não encontrada." };
+  if (!x || !(await podeVerA(x, u))) return { error: "Demanda não encontrada." };
   if (x.responsavelId !== u.id) return { error: "Só o responsável inicia o trabalho na demanda." };
   if (x.status === "CONCLUIDA") return { error: "Demanda já concluída." };
   const deps = (x.dependencias || []).length ? await prisma.tarefa.findMany({ where: { id: { in: x.dependencias }, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, select: { id: true, titulo: true } }) : [];
@@ -318,7 +334,7 @@ export async function stop(id, u) {
 
 export async function concluir(id, retorno, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !podeVer(x, u)) return { error: "Demanda não encontrada." };
+  if (!x || !(await podeVerA(x, u))) return { error: "Demanda não encontrada." };
   if (!(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
   await fecharSessoes({ tarefaId: x.id });
   await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nome(u), retorno: String(retorno || "").trim().slice(0, 4000) || null, emAndamentoDesde: null } });
@@ -340,7 +356,7 @@ export async function reabrir(id, u) {
 
 export async function marcarSubtarefa(id, i, feita, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !podeVer(x, u) || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
+  if (!x || !(await podeVerA(x, u)) || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
   const l = [...(x.subtarefas || [])];
   if (!l[i]) return { error: "Subtarefa não encontrada." };
   l[i] = { ...l[i], feita: !!feita };
@@ -351,7 +367,7 @@ export async function marcarSubtarefa(id, i, feita, u) {
 // ---------- arquivos ----------
 export async function anexar(id, a, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !podeVer(x, u) || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
+  if (!x || !(await podeVerA(x, u)) || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
   const tam = Buffer.byteLength(String(a.conteudo || ""), "base64");
   if (!tam) return { error: "Arquivo vazio." };
   if (tam > 15 * 1048576) return { error: "Arquivo acima de 15 MB." };
@@ -427,9 +443,9 @@ export { SETORES_TAREFA, NOME_SETOR_TAREFA };
 const CORES_PROJETO = ["#4573D2", "#5DA283", "#E8384F", "#FD612C", "#F1BD6C", "#9E47FF", "#4ECBC4", "#E362E3", "#8D84E8", "#FC979A", "#AECF55", "#6D6E6F"];
 export { CORES_PROJETO };
 export async function listarProjetos(u) {
-  const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true, OR: [{ publico: true }, { donoId: u.id }] }, orderBy: { nome: "asc" } });
+  const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true, OR: [{ publico: true }, { donoId: u.id }, { membros: { has: u.id } }] }, orderBy: { nome: "asc" } });
   const n = await prisma.tarefa.groupBy({ by: ["projetoId"], where: { projetoId: { in: l.map((p) => p.id) }, modelo: false, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, _count: { _all: true } }).catch(() => []);
-  return l.map((p) => ({ id: p.id, nome: p.nome, cor: p.cor, publico: p.publico, donoId: p.donoId, donoNome: p.donoNome, natureza: p.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", abertas: n.find((x) => x.projetoId === p.id)?._count?._all || 0, podeEditar: p.donoId === u.id || ehMaster(u) }));
+  return l.map((p) => ({ id: p.id, nome: p.nome, cor: p.cor, publico: p.publico, donoId: p.donoId, donoNome: p.donoNome, membros: p.membros || [], acesso: p.publico ? "TODOS" : (p.membros || []).length ? "SELECIONADOS" : "SO_EU", natureza: p.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", abertas: n.find((x) => x.projetoId === p.id)?._count?._all || 0, podeEditar: p.donoId === u.id || ehMaster(u) }));
 }
 export async function salvarProjeto(b, u) {
   const nomeP = String(b.nome || "").trim().slice(0, 80);
@@ -438,14 +454,31 @@ export async function salvarProjeto(b, u) {
   if (!/^#[0-9A-Fa-f]{6}$/.test(b.cor || "")) return { error: "Escolha a cor do projeto." };
   const cor = b.cor.toUpperCase();
   const natureza = b.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL";
-  const publico = natureza === "PESSOAL" ? false : b.publico !== false;
+  // v599 — acesso: TODOS (só funcional) | SELECIONADOS (dono + membros) | SO_EU
+  let acesso = ["TODOS", "SELECIONADOS", "SO_EU"].includes(b.acesso) ? b.acesso : b.publico === false ? "SO_EU" : "TODOS";
+  if (natureza === "PESSOAL" && acesso === "TODOS") acesso = "SO_EU";
+  const publico = acesso === "TODOS";
+  let membros = [];
+  if (acesso === "SELECIONADOS") {
+    const ids = [...new Set((Array.isArray(b.membros) ? b.membros : []).map(Number).filter(Boolean))];
+    membros = ids.length ? (await prisma.usuario.findMany({ where: { id: { in: ids }, ativo: true }, select: { id: true } })).map((x) => x.id) : [];
+  }
   if (b.id) {
     const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(b.id) } });
     if (!p) return { error: "Projeto não encontrado." };
     if (!(p.donoId === u.id || ehMaster(u))) return { error: "Só o dono do projeto altera." };
-    return { ok: true, projeto: await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { nome: nomeP, cor, publico, natureza } }) };
+    membros = membros.filter((id) => id !== p.donoId);
+    const up = await prisma.tarefaProjeto.update({ where: { id: p.id }, data: { nome: nomeP, cor, publico, natureza, membros } });
+    // v599 — transporte entre pessoal e funcional: as tarefas vão junto
+    if ((p.natureza === "PESSOAL") !== (natureza === "PESSOAL")) {
+      if (natureza === "FUNCIONAL") await prisma.tarefa.updateMany({ where: { projetoId: p.id }, data: { natureza: "FUNCIONAL" } });
+      // pessoal: só a tarefa que é da própria pessoa vira pessoal; atribuída por outro continua funcional, dentro do projeto
+      else for (const t of await prisma.tarefa.findMany({ where: { projetoId: p.id }, select: { id: true, criadoPorId: true, responsavelId: true } }))
+        if (!t.criadoPorId || t.criadoPorId === t.responsavelId) await prisma.tarefa.update({ where: { id: t.id }, data: { natureza: "PESSOAL", publica: false } });
+    }
+    return { ok: true, projeto: up };
   }
-  return { ok: true, projeto: await prisma.tarefaProjeto.create({ data: { nome: nomeP, cor, publico, natureza, donoId: u.id, donoNome: nome(u) } }) };
+  return { ok: true, projeto: await prisma.tarefaProjeto.create({ data: { nome: nomeP, cor, publico, natureza, membros: membros.filter((id) => id !== u.id), donoId: u.id, donoNome: nome(u) } }) };
 }
 export async function excluirProjeto(id, u) {
   const p = await prisma.tarefaProjeto.findUnique({ where: { id: Number(id) || 0 } });
@@ -461,7 +494,8 @@ export async function ordenar(ids, u) {
   const l = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(Boolean))].slice(0, 200);
   if (!l.length) return { ok: true };
   const ts = await prisma.tarefa.findMany({ where: { id: { in: l } } });
-  const ok = new Set(ts.filter((t) => podeVer(t, u)).map((t) => t.id));
+  const R = await projRestritos();
+  const ok = new Set(ts.filter((t) => podeVer(t, u, R)).map((t) => t.id));
   let n = 0;
   for (const id of l) { if (!ok.has(id)) continue; n++; await prisma.tarefa.update({ where: { id }, data: { ordem: n } }); }
   return { ok: true };

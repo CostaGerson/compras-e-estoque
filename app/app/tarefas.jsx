@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff,
+  Eye, EyeOff, Users,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -329,7 +329,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const publicaFinal = atribuida ? true : pessoal ? false : f.publica;
   // v565 — pessoal: sem colaborador (é de quem cria), sempre privada · v592: projeto pessoal permitido · v598: dependências voltaram na pessoal
   const setNatureza = (n) => setF((x) => ({ ...x, natureza: n, projetoId: (projetos.find((p) => p.id === Number(x.projetoId)) || {}).natureza === n ? x.projetoId : "", ...(n === "PESSOAL" ? { responsavelId: criador, publica: false } : {}) }));
-  const projsOpc = projetos.filter((p) => (pessoal ? p.natureza === "PESSOAL" && p.donoId === criador : p.natureza !== "PESSOAL"));
+  // v599 — projeto atual da tarefa sempre fica na lista (projeto transportado entre pessoal/funcional não perde a tarefa)
+  const projsOpc = projetos.filter((p) => p.id === Number(inicial.projetoId) || (pessoal ? p.natureza === "PESSOAL" && (p.donoId === criador || (p.membros || []).includes(criador)) : p.natureza !== "PESSOAL"));
   const dPrazo = f.prazo ? dUTC(f.prazo) : new Date();
   const salvar = async () => {
     setSt(true); setErro("");
@@ -668,12 +669,19 @@ function MenuCard({ x, y, t, onClose, onAbrir, onConcluir, onExcluir }) {
   );
 }
 
-function ProjetoForm({ user, inicial, projetos = [], onClose, onOk }) {
+function ProjetoForm({ user, inicial, projetos = [], usuarios = [], onClose, onOk }) {
   // v592 — natureza do projeto (pessoal: só você, só tarefas pessoais) · cor sempre definida (sugere uma ainda não usada)
   const livre = CORES_PROJ.find((c) => !projetos.some((p) => String(p.cor).toUpperCase() === c.toUpperCase())) || CORES_PROJ[projetos.length % CORES_PROJ.length];
-  const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || livre, natureza: inicial?.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publico: inicial?.natureza === "PESSOAL" ? false : inicial?.publico !== false });
+  // v599 — acesso: todos (só funcional) · pessoas selecionadas · só eu
+  const ac0 = inicial?.acesso || (inicial?.natureza === "PESSOAL" ? "SO_EU" : inicial?.publico === false ? "SO_EU" : "TODOS");
+  const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || livre, natureza: inicial?.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", acesso: ac0, membros: inicial?.membros || [] });
+  const [buscaM, setBuscaM] = useState("");
+  const dono = inicial?.donoId || user.id;
+  const candidatos = usuarios.filter((x) => x.id !== dono && (!buscaM || String(x.nome).toUpperCase().includes(buscaM.toUpperCase())));
+  const marcar = (id) => setF((x) => ({ ...x, membros: x.membros.includes(id) ? x.membros.filter((y) => y !== id) : [...x.membros, id] }));
+  const mudouTipo = inicial?.id && (inicial.natureza === "PESSOAL") !== (f.natureza === "PESSOAL");
   const [st, setSt] = useState(false), [erro, setErro] = useState("");
-  const salvar = async () => { setSt(true); setErro(""); try { await api("/api/tarefas/projetos", "POST", { usuarioId: user.id, projeto: { id: inicial?.id, ...f } }); onOk(); } catch (e) { setErro(e.message); setSt(false); } };
+  const salvar = async () => { setSt(true); setErro(""); try { await api("/api/tarefas/projetos", "POST", { usuarioId: user.id, projeto: { id: inicial?.id, ...f, publico: f.acesso === "TODOS" } }); onOk(); } catch (e) { setErro(e.message); setSt(false); } };
   const excluir = async () => { if (!(await confirmar(`Excluir o projeto "${inicial.nome}"? As tarefas ficam, só saem do projeto.`))) return; try { await api("/api/tarefas/projetos", "DELETE", { usuarioId: user.id, id: inicial.id }); onOk(); } catch (e) { alerta(e.message); } };
   return (
     <Janela titulo={inicial?.id ? "Editar projeto" : "Novo projeto"} onClose={onClose} largura={460}
@@ -685,7 +693,7 @@ function ProjetoForm({ user, inicial, projetos = [], onClose, onOk }) {
       </>}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>Tipo</div>
       <div className="flex gap-1 mb-3">
-        {[["PESSOAL", "Pessoal", "#7E3AF2"], ["FUNCIONAL", "Funcional", "#4573D2"]].map(([k, t, c]) => <button key={k} onClick={() => setF((x) => ({ ...x, natureza: k, publico: k === "PESSOAL" ? false : x.publico }))}
+        {[["PESSOAL", "Pessoal", "#7E3AF2"], ["FUNCIONAL", "Funcional", "#4573D2"]].map(([k, t, c]) => <button key={k} onClick={() => setF((x) => ({ ...x, natureza: k, acesso: k === "PESSOAL" && x.acesso === "TODOS" ? "SO_EU" : x.acesso }))}
           className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold" style={f.natureza === k ? { background: c, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
       </div>
       <label className="block text-xs mb-3" style={{ color: C.sub }}>Nome
@@ -695,10 +703,24 @@ function ProjetoForm({ user, inicial, projetos = [], onClose, onOk }) {
       <div className="flex flex-wrap gap-2 mb-3">
         {CORES_PROJ.map((c) => <button key={c} onClick={() => setF((x) => ({ ...x, cor: c }))} className="rounded-md" style={{ width: 26, height: 26, background: c, boxShadow: f.cor === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none", transform: f.cor === c ? "scale(1.1)" : "none" }} />)}
       </div>
-      {f.natureza === "PESSOAL" ? <div className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}><Lock size={11} /> Projeto pessoal: só você enxerga e ele recebe só as suas tarefas pessoais.</div> : <div className="flex gap-1">
-        <button onClick={() => setF((x) => ({ ...x, publico: true }))} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={f.publico ? { background: A.azul, color: "#fff" } : { background: C.panel2, color: C.text }}><Globe size={12} /> Visível para todos</button>
-        <button onClick={() => setF((x) => ({ ...x, publico: false }))} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={!f.publico ? { background: A.azul, color: "#fff" } : { background: C.panel2, color: C.text }}><Lock size={12} /> Só eu</button>
+      {mudouTipo && <div className="text-[11px] mb-3 rounded-lg px-2 py-1.5" style={{ background: "#FFF6E5", color: "#8A5A00" }}>As tarefas do projeto vão junto para {f.natureza === "PESSOAL" ? "pessoal" : "funcional"}{f.natureza === "PESSOAL" ? " (as atribuídas por outra pessoa continuam funcionais, dentro do projeto)" : ""}.</div>}
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Quem vê as tarefas do projeto</div>
+      <div className="flex gap-1 mb-2">
+        {[...(f.natureza === "PESSOAL" ? [] : [["TODOS", "Todos", Globe]]), ["SELECIONADOS", "Pessoas selecionadas", Users], ["SO_EU", "Só eu", Lock]].map(([k, t, Ico]) => <button key={k} onClick={() => setF((x) => ({ ...x, acesso: k }))}
+          className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1" style={f.acesso === k ? { background: A.azul, color: "#fff" } : { background: C.panel2, color: C.text }}><Ico size={12} /> {t}</button>)}
+      </div>
+      {f.acesso === "SELECIONADOS" && <div className="rounded-lg mb-1" style={{ border: `1px solid ${C.line}` }}>
+        <input value={buscaM} onChange={(e) => setBuscaM(e.target.value)} placeholder={`Buscar pessoa… (${f.membros.length} selecionada${f.membros.length === 1 ? "" : "s"})`} className="w-full px-2 py-1.5 text-xs outline-none rounded-t-lg" style={{ borderBottom: `1px solid ${C.line}` }} />
+        <div style={{ maxHeight: 200, overflowY: "auto" }}>
+          {candidatos.map((x) => <label key={x.id} className="flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-gray-50">
+            <input type="checkbox" checked={f.membros.includes(x.id)} onChange={() => marcar(x.id)} /><span className="flex-1 truncate">{x.nome}</span>
+          </label>)}
+          {!candidatos.length && <div className="px-2 py-2 text-xs" style={{ color: C.sub }}>Ninguém encontrado.</div>}
+        </div>
       </div>}
+      <div className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}>
+        {f.acesso === "TODOS" ? <><Globe size={11} /> Todos veem as tarefas públicas do projeto.</> : <><Lock size={11} /> Só {f.acesso === "SELECIONADOS" ? "você e as pessoas marcadas" : "você"} veem as tarefas do projeto (o responsável sempre vê a própria tarefa).</>}
+      </div>
     </Janela>
   );
 }
@@ -985,6 +1007,12 @@ export function Agenda({ user, pedidoModo, onModo }) {
     if (!(await confirmar(`Excluir "${t.titulo}"?`))) return;
     try { await api(`/api/tarefas/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { alerta(e.message); }
   };
+  // v599 — transportar projeto entre pessoal e funcional (as tarefas vão junto)
+  const [arrProj, setArrProj] = useState(null), [sobreSec, setSobreSec] = useState(null);
+  const transportarProj = async (p, nat) => {
+    if (!(await confirmar(`Transformar "${p.nome}" em projeto ${nat === "PESSOAL" ? "pessoal" : "funcional"}? ${p.abertas ? `As ${p.abertas} tarefas abertas vão junto.` : "As tarefas vão junto."}${nat === "PESSOAL" && p.acesso === "TODOS" ? " O acesso passa para \"Só eu\" (dá para escolher pessoas depois)." : ""}`))) return;
+    try { await api("/api/tarefas/projetos", "POST", { usuarioId: user.id, projeto: { id: p.id, nome: p.nome, cor: p.cor, natureza: nat, acesso: nat === "PESSOAL" && p.acesso === "TODOS" ? "SO_EU" : p.acesso, membros: p.membros } }); carregar(); } catch (e) { alerta(e.message); }
+  };
   // v510 — lateral recolhida (lembra neste navegador)
   const [latFechada, setLatFechada] = useState(false);
   useEffect(() => { try { setLatFechada(localStorage.getItem("ce_agenda_lat") === "0"); } catch {} }, []);
@@ -1007,23 +1035,30 @@ export function Agenda({ user, pedidoModo, onModo }) {
         <button onClick={() => setProjetoId(null)} className="text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
           style={{ width: "calc(100% - 30px)", background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
         {/* v592 — projetos pessoais e funcionais */}
-        {[["PESSOAL", "Projetos pessoais"], ["FUNCIONAL", "Projetos funcionais"]].map(([nat, rot]) => <React.Fragment key={nat}>
+        {/* v599 — arrastar um projeto para a outra seção transporta ele (e as tarefas) entre pessoal e funcional */}
+        {[["PESSOAL", "Projetos pessoais"], ["FUNCIONAL", "Projetos funcionais"]].map(([nat, rot]) => <div key={nat}
+          onDragOver={(e) => { if (arrProj && arrProj.natureza !== nat) { e.preventDefault(); setSobreSec(nat); } }} onDragLeave={() => setSobreSec(null)}
+          onDrop={(e) => { e.preventDefault(); const p = arrProj; setArrProj(null); setSobreSec(null); if (p && p.natureza !== nat) transportarProj(p, nat); }}
+          className="rounded-lg pb-1" style={{ background: sobreSec === nat ? A.azulSoft : "transparent", outline: sobreSec === nat ? `2px dashed ${A.azul}` : arrProj && arrProj.natureza !== nat ? `1px dashed ${A.cardBrancoBorda}` : "none", transition: "background .15s" }}>
         <div className="flex items-center px-3 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: A.sub }}>
           <span className="flex-1">{rot}</span>
           <button onClick={() => setProjForm({ natureza: nat })} title={`Novo projeto ${nat === "PESSOAL" ? "pessoal" : "funcional"}`} style={{ color: A.sub }}><Plus size={14} /></button>
         </div>
         {projetos.filter((p) => (p.natureza === "PESSOAL") === (nat === "PESSOAL")).map((p) => (
-          <div key={p.id} className="group flex items-center rounded-lg" style={{ background: projetoId === p.id ? A.azulSoft : "transparent", transition: "all .18s" }}>
+          <div key={p.id} draggable={p.podeEditar} onDragStart={() => setArrProj(p)} onDragEnd={() => { setArrProj(null); setSobreSec(null); }}
+            title={p.podeEditar ? "Arraste para a outra seção para transformar em projeto " + (p.natureza === "PESSOAL" ? "funcional" : "pessoal") : undefined}
+            className="group flex items-center rounded-lg" style={{ background: projetoId === p.id ? A.azulSoft : "transparent", opacity: arrProj?.id === p.id ? 0.4 : 1, transition: "all .18s" }}>
             <button onClick={() => setProjetoId(p.id)} className="flex-1 text-left px-3 py-1.5 text-sm flex items-center gap-2 min-w-0" style={{ color: A.texto }}>
               <span className="rounded-[4px] shrink-0" style={{ width: 12, height: 12, background: p.cor }} />
               <span className="truncate flex-1">{p.nome}</span>
-              {!p.publico && <Lock size={10} style={{ color: A.sub }} />}
+              {p.acesso === "SELECIONADOS" ? <Users size={10} style={{ color: A.sub }} /> : !p.publico && <Lock size={10} style={{ color: A.sub }} />}
               {p.abertas > 0 && <span className="text-[10px]" style={{ color: A.sub }}>{p.abertas}</span>}
             </button>
             {p.podeEditar && <button onClick={() => setProjForm(p)} className="opacity-0 group-hover:opacity-100 px-1.5" title="Editar projeto" style={{ color: A.sub, transition: "opacity .15s" }}><Pencil size={12} /></button>}
           </div>
         ))}
-        </React.Fragment>)}
+        {arrProj && arrProj.natureza !== nat && <div className="text-[11px] px-3 py-1" style={{ color: A.azul }}>Solte aqui para virar {nat === "PESSOAL" ? "pessoal" : "funcional"}</div>}
+        </div>)}
         {!projetos.length && <div className="px-3 text-[11px]" style={{ color: A.sub }}>Nenhum projeto. Crie no +.</div>}
       </aside>
       )}
@@ -1195,7 +1230,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
       {form && <TarefaForm user={user} inicial={form} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setForm(null)} onOk={() => { setForm(null); carregar(); }} />}
       {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} editarDireto />}
       {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}
-      {projForm && <ProjetoForm user={user} inicial={projForm} projetos={projetos} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
+      {projForm && <ProjetoForm user={user} inicial={projForm} projetos={projetos} usuarios={d?.usuarios || []} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
     </div>
   );
 }

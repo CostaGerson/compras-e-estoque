@@ -1808,6 +1808,7 @@ model TarefaProjeto {
   donoNome  String?
   publico   Boolean  @default(true)            // privado: só o dono vê
   natureza  String   @default("FUNCIONAL")     // v592 — PESSOAL (sempre privado, só tarefas pessoais do dono) | FUNCIONAL
+  membros   Int[]    @default([])              // v599 — com acesso restrito: só dono + estes usuários veem as tarefas do projeto
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
