@@ -19,19 +19,21 @@ export const chaveParcela = (numero, i) => `PED|${numero}|PARC|${i}`;
 const CAMPOS_PP = ["clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "clienteContato", "oc", "vendedor", "obs", "nfObs"];
 export async function salvarPp(id, b, quem) {
   const itens = Array.isArray(b.itens) ? b.itens : [];
-  const interno = !!b.interno;
+  const servico = !!b.servico;   // v614 — pedido de serviço: cliente, prazo, itens com tipo de serviço, quantidade e valor
+  const interno = !servico && !!b.interno;
   const emissao = /^\d{4}-\d{2}-\d{2}$/.test(String(b.emissao || "")) ? b.emissao : hojeISO();
   const prazoDias = b.prazoDias === "" || b.prazoDias == null ? null : Math.max(0, Math.round(num(b.prazoDias)));
   const prazoTipo = b.prazoTipo === "UTEIS" ? "UTEIS" : "CORRIDOS";
   const despacho = prazoDias != null ? somaDias(emissao, prazoDias, prazoTipo) : null;
-  const total = r2(itens.reduce((s, it) => s + qtdGrade(it.grade) * num(it.valorUnitario), 0));
+  const qtdIt = (it) => (servico ? num(it.quantidade ?? qtdGrade(it.grade)) : qtdGrade(it.grade));
+  const total = r2(itens.reduce((s, it) => s + qtdIt(it) * num(it.valorUnitario), 0));
   const data = {
     ...Object.fromEntries(CAMPOS_PP.map((k) => [k, b[k] ? String(b[k]).trim() || null : null])),
-    interno, tipoPedido: interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo,
+    interno, tipoPedido: servico ? "SERVIÇO" : interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo,
     prazoEntrega: prazoDias != null ? `${prazoDias} DIAS ${prazoTipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"}` : null,
     dtDespacho: brData(despacho),
-    entregaModo: ["UNICA", "FRACIONADA", "TERCEIROS"].includes(b.entregaModo) ? b.entregaModo : "UNICA",
-    entregas: b.entregaModo && b.entregaModo !== "UNICA" && Array.isArray(b.entregas) ? b.entregas : [],
+    entregaModo: !servico && ["UNICA", "FRACIONADA", "TERCEIROS"].includes(b.entregaModo) ? b.entregaModo : "UNICA",
+    entregas: !servico && b.entregaModo && b.entregaModo !== "UNICA" && Array.isArray(b.entregas) ? b.entregas : [],
     pagamento: interno ? null : (b.pagamento || null),
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,
@@ -41,7 +43,9 @@ export async function salvarPp(id, b, quem) {
     quantidade: qtdGrade(it.grade), valorUnitario: num(it.valorUnitario) || null, valorTotal: r2(qtdGrade(it.grade) * num(it.valorUnitario)) || null,
     gradeJson: JSON.stringify(it.grade || []),
     parametrosJson: JSON.stringify(Object.fromEntries(Object.entries(it.parametros || {}).filter(([k]) => !paramFora(k)))),
-    fotoBase64: it.fotoBase64 || null, fppId: it.fppId ? Number(it.fppId) : null, fppNumero: it.fppNumero != null ? Number(it.fppNumero) : null,
+    fotoBase64: servico ? null : it.fotoBase64 || null, fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
+    ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
+      quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
   }));
   let pp;
   if (id) {
@@ -74,12 +78,13 @@ export function criticas(pp) {
   const itens = (pp.itens || []).map((it) => ({ ...it, grade: safe(it.gradeJson, []) }));
   if (!String(pp.clienteNome || "").trim()) erros.push("Informe o cliente.");
   if (!pp.interno && so(pp.clienteCnpj).length < 11) avisos.push("Cliente sem CNPJ/CPF.");
-  if (!itens.length || itens.every((it) => qtdGrade(it.grade) <= 0)) erros.push("Lance ao menos um item com grade.");
+  const serv = pp.tipoPedido === "SERVIÇO";
+  if (!itens.length || itens.every((it) => qtdGrade(it.grade) <= 0)) erros.push(serv ? "Lance ao menos um serviço com quantidade." : "Lance ao menos um item com grade.");
   itens.forEach((it, i) => {
-    if (qtdGrade(it.grade) <= 0) erros.push(`Item ${i + 1}: grade vazia.`);
-    if (!String(it.descricao || "").trim()) erros.push(`Item ${i + 1}: sem descrição.`);
-    if (!pp.interno && !(num(it.valorUnitario) > 0)) erros.push(`Item ${i + 1}: sem valor unitário.`);
-    if (!it.fppId) avisos.push(`Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);
+    if (qtdGrade(it.grade) <= 0) erros.push(serv ? `Serviço ${i + 1}: sem quantidade.` : `Item ${i + 1}: grade vazia.`);
+    if (!String(it.descricao || "").trim()) erros.push(serv ? `Serviço ${i + 1}: informe o tipo de serviço.` : `Item ${i + 1}: sem descrição.`);
+    if (!pp.interno && !(num(it.valorUnitario) > 0)) erros.push(`${serv ? "Serviço" : "Item"} ${i + 1}: sem valor unitário.`);
+    if (!serv && !it.fppId) avisos.push(`Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);
   });
   if (pp.prazoDias == null) erros.push("Informe o prazo de entrega (dias).");
   const ce = conferirEntregas(itens, pp.entregas, pp.entregaModo);
@@ -155,7 +160,7 @@ export async function efetivarPedido(id, quem) {
   const dados = {
     cliente: up(pp.clienteNome) || "SEM CLIENTE", cnpj: so(pp.clienteCnpj) || null, emissao: pp.emissao ? dUTC(pp.emissao) : dUTC(hojeISO()),
     despacho: despacho ? dUTC(despacho) : null, condicao: pp.condicaoPagamento || null, entradaValor: calc ? (calc.entrada?.valor || 0) : null,
-    vendedor: up(pp.vendedor), tipoPedido: pp.interno ? "INTERNO" : "VENDA NORMAL", oc: up(pp.oc), total, qtd, itens, interno: !!pp.interno,
+    vendedor: up(pp.vendedor), tipoPedido: pp.tipoPedido === "SERVIÇO" ? "SERVIÇO" : pp.interno ? "INTERNO" : "VENDA NORMAL", oc: up(pp.oc), total, qtd, itens, interno: !!pp.interno,
     obs: pp.obs || null, pagamento: pag || null, entregaModo: pp.entregaModo || "UNICA", entregas: pp.entregas || [], nfObs, fonte: "SISTEMA", atualizadoPorNome: quem,
   };
   const ped = atual

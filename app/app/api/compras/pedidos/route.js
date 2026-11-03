@@ -30,7 +30,7 @@ function comIndicada(it, sug, fppPorId) {
 export async function GET() {
   const pedidos = await prisma.pedidoVenda.findMany({
     where: { status: "ANDAMENTO" },
-    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, despacho: true, itens: true, interno: true, cronoSituacao: true, cronoItens: true, cronoCompras: true, cronoPrazo: true, vendedor: true, total: true, fonte: true },
+    select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, despacho: true, itens: true, interno: true, cronoSituacao: true, cronoItens: true, cronoCompras: true, cronoPrazo: true, vendedor: true, total: true, fonte: true, tipoPedido: true },
     orderBy: [{ despacho: "asc" }, { numero: "asc" }],
   });
   const numeros = pedidos.map((p) => p.numero);
@@ -51,6 +51,7 @@ export async function GET() {
     // v612 — pedido lançado no sistema: entra aqui ao ser lançado e fica até os itens serem liberados para programação
     //        (aí o PCP do Maycon lê e recebe em A PROGRAMAR). Não depende de estar no cronograma.
     const proprio = p.fonte === "SISTEMA";
+    if (proprio && p.tipoPedido === "SERVIÇO") continue;   // v614 — pedido de serviço não tem matéria-prima
     const fase = proprio ? "COMPRAS" : faseCompraPcp(p);
     if (fase === "PRODUCAO") { emProducao++; continue; }
     let itensFora = 0;   // v418 — itens do pedido já programados/em produção no PCP

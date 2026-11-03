@@ -91,7 +91,7 @@ function Modal({ titulo, onFechar, children, largura = 640 }) {
 }
 
 const vazioF = () => ({
-  numero: "", emissao: hojeISO(), interno: false, clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
+  numero: "", emissao: hojeISO(), interno: false, servico: false, clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
   oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaModo: "UNICA", entregas: [],
   pagamento: { entrada: null, parcelas: [] }, status: "EM_LANCAMENTO", efetivadoEm: null,
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
@@ -100,6 +100,8 @@ const vazioF = () => ({
 export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir }) {
   const TIPOS = Object.keys(componentes);
   const novoItem = () => ({ tipoPecaNome: TIPOS.includes("POLO") ? "POLO" : TIPOS[0], codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
+  // v614 — pedido de serviço: item = tipo de serviço (texto livre) · quantidade · valor unitário (total calculado)
+  const novoServico = () => ({ tipoPecaNome: "SERVIÇO", codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
   const [ppId, setPpId] = useState(ppId0 || null);
   const [f, setF] = useState(vazioF());
@@ -129,12 +131,14 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         emissao: d.emissao || (d.createdAt ? String(d.createdAt).slice(0, 10) : hojeISO()),
         prazoDias: d.prazoDias != null ? String(d.prazoDias) : "", prazoTipo: d.prazoTipo || "UTEIS", entregaModo: d.entregaModo || "UNICA",
         entregas: Array.isArray(d.entregas) ? d.entregas : [], pagamento: d.pagamento || { entrada: null, parcelas: [] },
-        clienteCnpj: fmtCnpj(d.clienteCnpj),
+        clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
       const its = (d.itens || []).map((it) => {
         let par = {}; try { par = it.parametrosJson ? JSON.parse(it.parametrosJson) : {}; } catch {}
         let grade = []; try { grade = it.gradeJson ? JSON.parse(it.gradeJson) : []; } catch {}
         const tams = new Set(grade.map((g) => g.tam));
+        if (d.tipoPedido === "SERVIÇO") return { ...novoServico(), descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
+          quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ",") };
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || TIPOS[0]), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: [...grade, ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
@@ -152,7 +156,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   }, [ppId0]);
 
   // ---------- cálculos ----------
-  const somaItem = (it) => qtdGrade(it.grade);
+  const somaItem = (it) => (f.servico ? num(it.quantidade) : qtdGrade(it.grade));
   const totalItem = (it) => somaItem(it) * num(it.valorUnitario);
   const totalGeral = itens.reduce((s, it) => s + totalItem(it), 0);
   const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
@@ -181,6 +185,14 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   };
   const cnpjSemCadastro = (() => { const d = dig(f.clienteCnpj); return (d.length === 14 || d.length === 11) && clientes.length > 0 && !clientes.some((x) => dig(x.cnpj) === d); })();
 
+  // v614 — troca o tipo do pedido; produto ↔ serviço converte os itens (descrição, quantidade e valor ficam)
+  const trocarTipo = (v) => {
+    const serv = v === "SERVICO";
+    setF((s) => ({ ...s, servico: serv, interno: v === "INTERNO", ...(serv ? { entregaModo: "UNICA", entregas: [] } : {}) }));
+    if (serv !== f.servico) setItens((arr) => arr.map((it) => serv
+      ? { ...novoServico(), descricao: it.descricao, valorUnitario: it.valorUnitario, quantidade: qtdGrade(it.grade) ? String(qtdGrade(it.grade)) : "" }
+      : { ...novoItem(), descricao: it.descricao, valorUnitario: it.valorUnitario }));
+  };
   // ---------- itens ----------
   const upItem = (i, patch) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, ...patch } : it)));
   const upGrade = (i, gi, qtd) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, grade: it.grade.map((g, k) => (k === gi ? { ...g, qtd } : g)) } : it)));
@@ -287,9 +299,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
   const imprimirAgora = () => imprimir({
     ...f, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
-    condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
+    condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.servico ? "SERVIÇO" : f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
     entregasTexto: f.entregaModo === "UNICA" ? "" : f.entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS_ENTREGA[e.documento] || "—"}`).join("\n"),
-  }, itens, totalPecas, totalGeral, veVal);
+  }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, totalPecas, totalGeral, veVal);
 
   if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -302,6 +314,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <span className="text-lg font-bold">Pedido {numeroExib || "—"}{!f.numero && numeroExib ? <span className="text-xs font-normal ml-1" style={{ color: C.sub }}>(prévia — número gravado ao efetivar)</span> : null}</span>
           <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ color: badge[1], border: `1px solid ${badge[1]}` }}>{badge[0]}</span>
           {f.interno && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>INTERNO</span>}
+          {f.servico && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>SERVIÇO</span>}
         </div>
         <div className="flex gap-2">
           <button onClick={imprimirAgora} className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir</button>
@@ -362,9 +375,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         <div className="grid grid-cols-4 gap-3">
           <Campo label="Tipo de pedido">
             <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
-              {[[false, "Venda normal"], [true, "Interno"]].map(([v, t]) => (
-                <button key={t} type="button" onClick={() => set("interno", v)} className="flex-1 px-2 py-1.5" style={{ background: f.interno === v ? C.accent : C.panel2, color: f.interno === v ? "#fff" : C.sub, fontWeight: f.interno === v ? 600 : 400 }}>{t}</button>
-              ))}
+              {[["VENDA", "Venda normal"], ["INTERNO", "Interno"], ["SERVICO", "Serviço"]].map(([v, t]) => { const atual = f.servico ? "SERVICO" : f.interno ? "INTERNO" : "VENDA"; return (
+                <button key={t} type="button" disabled={efetivado && (v === "SERVICO") !== f.servico} title={efetivado && (v === "SERVICO") !== f.servico ? "Pedido já efetivado: não muda entre produto e serviço" : ""}
+                  onClick={() => trocarTipo(v)} className="flex-1 px-2 py-1.5" style={{ background: atual === v ? C.accent : C.panel2, color: atual === v ? "#fff" : C.sub, fontWeight: atual === v ? 600 : 400 }}>{t}</button>
+              ); })}
             </div>
           </Campo>
           <Campo label="Nº do pedido"><div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ ...inp, color: f.numero ? C.text : C.sub }}>{f.numero || (proximo ? `${proximo} (automático)` : "automático")}</div></Campo>
@@ -398,7 +412,24 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       </Card>
 
       {/* ---------- Itens ---------- */}
-      {itens.map((it, i) => {
+      {f.servico && <Card titulo="Serviços" extra={veVal && <span className="text-sm">Total <b style={{ color: C.accent }}>{money(totalGeral)}</b></span>}>
+        <div className="grid gap-2 text-xs font-semibold mb-1" style={{ color: C.sub, gridTemplateColumns: "1fr 110px 140px 140px 28px" }}>
+          <span>Tipo de serviço</span><span className="text-right">Quantidade</span>{veVal ? <><span className="text-right">Valor unit. (R$)</span><span className="text-right">Total</span></> : <><span /><span /></>}<span />
+        </div>
+        {itens.map((it, i) => (
+          <div key={i} className="grid gap-2 items-center mb-2" style={{ gridTemplateColumns: "1fr 110px 140px 140px 28px" }}>
+            <input value={it.descricao} onChange={(e) => upItem(i, { descricao: e.target.value })} placeholder="ex.: bordado de logo no peito, silk 2 cores, costura de faixa…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inp} />
+            <input value={it.quantidade} onChange={(e) => upItem(i, { quantidade: e.target.value })} placeholder="0" className="w-full px-2 py-1.5 rounded outline-none text-sm text-right" style={inp} />
+            {veVal ? <>
+              <input value={it.valorUnitario} onChange={(e) => upItem(i, { valorUnitario: e.target.value })} placeholder="0,00" className="w-full px-2 py-1.5 rounded outline-none text-sm text-right" style={inp} />
+              <div className="text-right text-sm font-semibold" style={{ color: C.text }}>{money(totalItem(it))}</div>
+            </> : <><span /><span /></>}
+            {podeLancar && itens.length > 1 ? <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={15} /></button> : <span />}
+          </div>
+        ))}
+        {podeLancar && <button type="button" onClick={() => setItens((arr) => [...arr, novoServico()])} className="mt-1 px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Adicionar serviço</button>}
+      </Card>}
+      {!f.servico && itens.map((it, i) => {
         const comps = componentes[it.tipoPecaNome] || [];
         const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k) && !paramFora(k));
         const tec = it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object" ? it.parametros.TECIDO : null;
@@ -479,12 +510,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           </Card>
         );
       })}
-      {podeLancar && <button type="button" onClick={() => setItens((arr) => [...arr, novoItem()])} className="px-4 py-2 rounded font-medium flex items-center gap-1 mb-4" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>
+      {podeLancar && !f.servico && <button type="button" onClick={() => setItens((arr) => [...arr, novoItem()])} className="px-4 py-2 rounded font-medium flex items-center gap-1 mb-4" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>
         <Plus size={16} /> Adicionar item
       </button>}
 
       {/* ---------- Entrega ---------- */}
-      <Card titulo="Entrega">
+      {!f.servico && <Card titulo="Entrega">
         <div className="flex gap-2 mb-3">
           {Object.entries(MODOS_ENTREGA).map(([v, t]) => (
             <button key={v} type="button" onClick={() => { set("entregaModo", v); if (v !== "UNICA" && !f.entregas.length) setF((s) => ({ ...s, entregaModo: v, entregas: [{ endereco: "", local: "", responsavel: "", contato: "", documento: v === "TERCEIROS" ? "" : "VENDA", grade: {} }] })); }}
@@ -540,9 +571,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               : <span className="text-sm" style={{ color: C.red }}>✗ {confEnt.semLocais ? "Cadastre os locais de entrega." : confEnt.itens.map((x) => `item ${x.idx + 1}: ${Object.entries(x.dif).map(([t, d]) => `${t} ${d > 0 ? "falta " + d : "sobra " + -d}`).join(", ")}`).join(" · ")}</span>}
           </div>
         </>}
-      </Card>
+      </Card>}
 
       {/* ---------- Pagamento ---------- */}
+      
       {!f.interno ? veVal && (
         <Card titulo="Prazo de pagamento" extra={<span className="text-sm">Total do pedido <b style={{ color: C.accent }}>{money(totalGeral)}</b></span>}>
           <div className="flex gap-2 mb-3">
@@ -621,7 +653,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {(resultado.erros || []).map((e, k) => <div key={k} className="text-sm mb-1" style={{ color: C.red }}>✗ {e}</div>)}
           {(resultado.lancadas || []).length > 0 && <div className="mb-2"><div className="text-xs mb-1" style={{ color: C.sub }}>Lançado no contas a receber</div>
             {resultado.lancadas.map((l, k) => <div key={k} className="text-sm">✓ {l.tipo} · {money(l.valor)} · vence {dataBR(l.data)}</div>)}</div>}
-          <div className="text-sm mb-2">✓ Pedido enviado para a <b>Sincronização de pedidos</b> (Compras): lá as FPPs dos itens são confirmadas e o pedido segue para o levantamento.</div>
+          {f.servico ? <div className="text-sm mb-2">✓ Pedido de serviço lançado (não passa por Compras).</div>
+            : <div className="text-sm mb-2">✓ Pedido enviado para a <b>Sincronização de pedidos</b> (Compras): lá as FPPs dos itens são confirmadas e o pedido segue para o levantamento.</div>}
           {resultado.nfObs && <div className="text-sm mb-2"><span className="text-xs" style={{ color: C.sub }}>Obs. da NF: </span><b>{resultado.nfObs}</b></div>}
           {(resultado.avisos || []).map((e, k) => <div key={k} className="text-xs mb-1" style={{ color: C.yellow }}>⚠ {e}</div>)}
           <div className="flex justify-end mt-3"><button type="button" onClick={() => setResultado(null)} className="px-4 py-2 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>OK</button></div>
