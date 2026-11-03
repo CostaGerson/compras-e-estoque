@@ -24,6 +24,59 @@ const fmtCnpj = (s) => { const d = dig(s); return d.length === 14 ? d.replace(/^
 const DIAS_SEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const diaSem = (s) => (s ? DIAS_SEM[new Date(s + "T12:00:00Z").getUTCDay()] : "");
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+// v632 — grades: masculina (padrão, sempre) + especiais (infantil em anos, babylook "BL …") inseridas pelo botão
+const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
+const secaoTam = (t) => (/^\d+$/.test(String(t)) ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
+const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
+export function GradeEditor({ grade, tamanhos, onChange }) {
+  const G = gradesDe(tamanhos);
+  const ativas = ["MASC", ...["INF", "BL"].filter((k) => grade.some((g) => secaoTam(g.tam) === k))];
+  const [menu, setMenu] = useState(false);
+  const up = (tam, qtd) => onChange(grade.map((g) => (g.tam === tam ? { ...g, qtd } : g)));
+  const passo = (g, d) => up(g.tam, String(Math.max(0, num(g.qtd) + d)));
+  const inserir = (k) => { const tem = new Set(grade.map((g) => g.tam)); onChange([...grade, ...G[k].tams.filter((t) => !tem.has(t)).map((t) => ({ tam: t, qtd: "" }))]); setMenu(false); };
+  const remover = async (k) => {
+    const q = grade.filter((g) => secaoTam(g.tam) === k).reduce((s, g) => s + num(g.qtd), 0);
+    if (q && !(await confirmar(`Remover a grade ${G[k].rot.toLowerCase()} com ${q} peça(s)?`))) return;
+    onChange(grade.filter((g) => secaoTam(g.tam) !== k));
+  };
+  const faltam = ["INF", "BL"].filter((k) => !ativas.includes(k));
+  return (
+    <div className="mb-3">
+      {ativas.map((k) => {
+        const linhas = grade.filter((g) => secaoTam(g.tam) === k);
+        return (
+          <div key={k} className="mb-2">
+            <div className="flex items-center text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.sub }}>{G[k].rot}
+              <span className="ml-2 font-normal normal-case">{linhas.reduce((s, g) => s + num(g.qtd), 0)} pç</span>
+              {k !== "MASC" && <button type="button" onClick={() => remover(k)} className="ml-auto normal-case font-normal flex items-center gap-1" style={{ color: C.red }}><X size={12} /> remover</button>}
+            </div>
+            <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(0, 1fr))` }}>
+              {linhas.map((g) => (
+                <div key={g.tam} className="rounded-lg px-1 pt-1 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? C.accent : C.line}` }}>
+                  <div className="text-[11px] font-semibold" style={{ color: C.sub }}>{k === "BL" ? g.tam.slice(3) : g.tam}</div>
+                  <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="0"
+                    className="w-full bg-transparent outline-none text-center text-lg font-bold" style={{ color: num(g.qtd) ? C.text : "#98A2B3" }} />
+                  <div className="flex justify-between px-1 text-sm leading-none">
+                    <button type="button" onClick={() => passo(g, -1)} style={{ color: C.sub }}>–</button>
+                    <button type="button" onClick={() => passo(g, 1)} style={{ color: C.accent }}>+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {faltam.length > 0 && <div className="relative inline-block">
+        <button type="button" onClick={() => setMenu(!menu)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.accent, border: `1px dashed ${C.accent}` }}><Plus size={12} /> Inserir grade especial</button>
+        {menu && <div className="absolute z-20 mt-1 rounded-md shadow-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          {faltam.map((k) => <button key={k} type="button" onClick={() => inserir(k)} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: C.text }}>{G[k].rot}</button>)}
+        </div>}
+      </div>}
+    </div>
+  );
+}
+
 const CATS = { OC: "OC do cliente", SOLICITACAO: "Solicitação", LAYOUT: "Layout / arte", OUTRO: "Outro" };
 const catDoNome = (nome, tipo) => {
   const n = norm(nome);
@@ -143,7 +196,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ",") };
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
-          grade: [...grade, ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
+          grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null };
       });
       setItens(its.length ? its : [novoItem()]);
@@ -486,14 +539,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}</div>
-                <div className="grid gap-1 mb-3" style={{ gridTemplateColumns: `repeat(${Math.min(it.grade.length, 12)}, minmax(0, 1fr))` }}>
-                  {it.grade.map((g, gi) => (
-                    <div key={g.tam + gi}>
-                      <div className="text-center text-xs font-semibold py-0.5" style={{ color: C.sub }}>{g.tam}</div>
-                      <input value={g.qtd} onChange={(e) => upGrade(i, gi, e.target.value)} className="w-full px-1 py-1 rounded outline-none text-center text-sm" style={inp} />
-                    </div>
-                  ))}
-                </div>
+                <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {[...comps, ...extras].map((comp) => comp === "TECIDO" ? (

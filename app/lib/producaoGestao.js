@@ -20,14 +20,16 @@ export function faseDe(situacao, etapa) {
   if (/SILK|DTF|BORDADO|SUBLIMA|PERSONALIZ|ESTAMP|TRANSFER/.test(e)) return "PERSONALIZACAO";
   if (/CORTE/.test(e)) return "CORTE";
   if (/PRODU/.test(s)) return "CORTE";   // v423 — em produção sem etapa informada: já saiu de compras
-  return "COMPRAS";   // levantamento, compras, a programar
+  if (/PROGRAMAR/.test(s)) return "PROGRAMAR";   // v633 — recebido pelo PCP em A PROGRAMAR continua em "A programar" (não volta para Compras)
+  return "COMPRAS";   // levantamento, compras
 }
 
 function resumoPedido(p, hoje) {
   const ci = (Array.isArray(p.cronoItens) ? p.cronoItens : []).filter((i) => !i.complemento);
   const cp = Array.isArray(p.cronoCompras) ? p.cronoCompras : [];
   const nz = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
-  const fases = ci.map((i) => (cp.some((c) => nz(c.produto) === nz(i.produto)) && !/CONCLU/i.test(String(i.situacao || "")) ? "COMPRAS" : faseDe(i.situacao, i.etapa)));   // v421
+  // v633 — pedido do sistema: aviamento pendente no PCP não devolve o item para Compras (só a matéria-prima principal bloqueia, e essa já foi garantida aqui)
+  const fases = ci.map((i) => (p.fonte !== "SISTEMA" && cp.some((c) => nz(c.produto) === nz(i.produto)) && !/CONCLU/i.test(String(i.situacao || "")) ? "COMPRAS" : faseDe(i.situacao, i.etapa)));   // v421
   // v618 — pedido lançado no sistema: até o PCP receber (A PROGRAMAR) a fase vem do nosso sistema = Compras; depois, do PCP do Maycon
   let idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
   // v621 — serviço e item liberado (aguardando o PCP receber) = A programar

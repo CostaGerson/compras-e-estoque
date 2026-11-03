@@ -491,6 +491,13 @@ function FichaModal({ user, pessoa, onClose }) {
               </div>
             )}
             <label className="text-xs block mb-2" style={{ color: C.sub }}>Nome completo<input value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value.toUpperCase())} className={inp} style={inpS} /></label>
+            {/* v633 — link da pasta do funcionário (Drive, OneDrive, rede…) */}
+            <label className="text-xs block mb-2" style={{ color: C.sub }}>Link da pasta do funcionário
+              <div className="flex gap-2">
+                <input value={dados.pastaLink || ""} onChange={(e) => setDados((x) => ({ ...x, pastaLink: e.target.value.trim() }))} placeholder="https://drive.google.com/…" className={inp} style={inpS} />
+                {/^https?:\/\//i.test(dados.pastaLink || "") && <a href={dados.pastaLink} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap self-end" style={{ background: C.accent, color: "#fff" }}>Abrir pasta</a>}
+              </div>
+            </label>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               {CAMPOS_FICHA.map(([k, t, tp]) => (
                 <label key={k} className="text-xs" style={{ color: C.sub, gridColumn: tp === "wide" ? "1 / -1" : undefined }}>{t}
