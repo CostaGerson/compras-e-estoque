@@ -147,7 +147,8 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
   <div class="top">
     <div class="marca">
       <img src="${origin}/meridian-wordmark.svg" onerror="this.outerHTML='<div class=&quot;t&quot;>MERIDIAN</div>'"/>
-      <div class="s">Confecção de uniformes · Meridian Ltda · CNPJ 48.011.287/0001-81</div>
+      <div class="s">Meridian Ltda · CNPJ 48.011.287/0001-81</div>
+      <div class="s" style="margin-top:2px">R. Dr. Natalino Triginelli, 281 · Jardim Atlântico · Belo Horizonte/MG · CEP 31710-420</div>
     </div>
     <div class="doc"><div class="k">${titulo}</div><div class="n">Nº ${esc(numero)}</div><div class="d">Emissão ${dBR(f.emissao) || "—"}</div></div>
   </div>
