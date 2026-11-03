@@ -651,7 +651,8 @@ const SEM_SEG = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const inicioSemanaSeg = (s) => somaDia(s, -((dUTC(s).getUTCDay() + 6) % 7));   // segunda-feira
 const iniciais = (n) => String(n || "?").split(" ").filter(Boolean).slice(0, 2).map((x) => x[0]).join("");
 function AvatarMini({ foto, nome, size = 22 }) {
-  return foto ? <img src={foto} alt="" className="rounded-full shrink-0 object-cover" style={{ width: size, height: size }} />
+  // v611 — sem arrastar/prévia nativa da foto (no iPhone o toque longo na foto cancelava o arraste da tarefa)
+  return foto ? <img src={foto} alt="" draggable={false} className="rounded-full shrink-0 object-cover" style={{ width: size, height: size, pointerEvents: "none", WebkitUserDrag: "none", WebkitTouchCallout: "none" }} />
     : <span className="rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ width: size, height: size, background: "#C7C4C4", color: "#fff" }}>{iniciais(nome)}</span>;
 }
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
@@ -666,7 +667,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
   const feita = t.status === "CONCLUIDA";
   if (toque) return (
     <div onClick={onClick} {...(pres || {})} className="rounded-lg flex items-center gap-2 px-2 cursor-pointer select-none shrink-0"
-      style={{ minHeight: 48, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.35 : feita ? 0.6 : 1, WebkitTouchCallout: "none", WebkitUserSelect: "none", transition: "opacity .15s" }}>
+      style={{ minHeight: 48, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.35 : feita ? 0.6 : 1, WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTapHighlightColor: "transparent", transition: "opacity .15s" }}>
       <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"} className="flex items-center justify-center rounded-full shrink-0"
         style={{ width: 28, height: 28, border: `2px solid ${feita ? "#5DA283" : "#6D6E6F"}`, background: feita ? "#5DA283" : "rgba(255,255,255,.8)" }}>
         <svg width="13" height="13" viewBox="0 0 12 12"><path d="M2.5 6.2l2.2 2.2 4.8-4.9" fill="none" stroke={feita ? "#fff" : "#6D6E6F"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -1101,12 +1102,17 @@ export function Agenda({ user, pedidoModo, onModo }) {
     rolRef.current = rolante(el);
     let pos = [x, y], z = null, raf = 0, tmDia = 0, diaPend = null;
     arrAtivo.current = true; diaArrRef.current = null; setArr({ t, x, y, toque }); mudarDia(t.prazo);
-    document.body.style.userSelect = "none"; document.body.style.cursor = toque ? "" : "grabbing";
+    document.body.style.userSelect = "none"; document.body.style.webkitUserSelect = "none"; document.body.style.cursor = toque ? "" : "grabbing";
+    try { window.getSelection()?.removeAllRanges(); } catch {}
+    const semSel = (e) => e.preventDefault();
+    document.addEventListener("selectstart", semSel); document.addEventListener("contextmenu", semSel);
+    // v611 — celular/mês: só troca o dia da régua parando ~0,5 s em cima dele (passar pelos dias a caminho da régua não muda o dia)
+    const esperaDia = mobile && modo === "mes" ? 550 : 140;
     const achar = () => {
       const nz = document.elementFromPoint(pos[0], pos[1])?.closest?.("[data-zona]")?.dataset.zona || null;
       if (nz !== z) { z = nz; setAlvo(nz); }
       const nd = z ? z.split("|")[1] : null;
-      if (nd && nd !== diaArrRef.current) { if (nd !== diaPend) { diaPend = nd; clearTimeout(tmDia); tmDia = setTimeout(() => { mudarDia(diaPend); diaPend = null; requestAnimationFrame(achar); }, 140); } }
+      if (nd && nd !== diaArrRef.current) { if (nd !== diaPend) { diaPend = nd; clearTimeout(tmDia); tmDia = setTimeout(() => { mudarDia(diaPend); diaPend = null; requestAnimationFrame(achar); }, esperaDia); } }
       else { clearTimeout(tmDia); diaPend = null; }
     };
     const passo = () => {
@@ -1124,7 +1130,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
       cancelAnimationFrame(raf); clearTimeout(tmDia); arrAtivo.current = false; semClique.current = Date.now();
       document.removeEventListener("touchmove", mvT); document.removeEventListener("touchend", fim); document.removeEventListener("touchcancel", fim);
       document.removeEventListener("mousemove", mvM); document.removeEventListener("mouseup", fim); document.removeEventListener("keydown", tecla);
-      document.body.style.userSelect = ""; document.body.style.cursor = "";
+      document.body.style.userSelect = ""; document.body.style.webkitUserSelect = ""; document.body.style.cursor = "";
+      document.removeEventListener("selectstart", semSel); document.removeEventListener("contextmenu", semSel);
       // o clique que o navegador dispara logo após soltar não abre nada
       const parar = (e) => { e.stopPropagation(); e.preventDefault(); };
       document.addEventListener("click", parar, true); setTimeout(() => document.removeEventListener("click", parar, true), 80);
@@ -1137,6 +1144,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
     requestAnimationFrame(achar);
   };
   const pressionar = (t) => !t.podeEditar ? undefined : {
+    onContextMenu: (e) => { if (Date.now() - (globalThis.__ceToque || 0) < 1500) e.preventDefault(); },
     onMouseDown: (e) => {
       if (e.button !== 0 || arrAtivo.current || e.target.closest("button")) return;
       const x0 = e.clientX, y0 = e.clientY, el = e.currentTarget;
@@ -1150,7 +1158,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
       const p0 = e.touches[0], x0 = p0.clientX, y0 = p0.clientY, el = e.currentTarget;
       const parar = () => { clearTimeout(tm); document.removeEventListener("touchmove", mv0); document.removeEventListener("touchend", parar); document.removeEventListener("touchcancel", parar); };
       const mv0 = (ev) => { const q = ev.touches[0]; if (Math.hypot(q.clientX - x0, q.clientY - y0) > 10) parar(); };
-      const tm = setTimeout(() => { parar(); iniciar(t, x0, y0, el, true); }, 450);
+      // v611 — 300 ms: começa antes do toque longo do próprio iPhone (seleção/menu), que cancelava o arraste
+      const tm = setTimeout(() => { parar(); iniciar(t, x0, y0, el, true); }, 300);
       document.addEventListener("touchmove", mv0, { passive: true }); document.addEventListener("touchend", parar); document.addEventListener("touchcancel", parar);
     },
   };
