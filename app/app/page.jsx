@@ -29,6 +29,7 @@ import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { imprimirPedido } from "./impressaoPedido";   // v615
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
+import Tributario from "./tributario";   // v628
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
@@ -137,6 +138,7 @@ const MENU = [
     { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
+    { key: "tributario", label: "Tributário", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Naturezas de operação, NCM dos produtos e emitente — dados para emitir a NF-e pelo Bling" },   // v628
     { key: "uploads", label: "Uploads", icon: FolderUp, perfis: [...GESTAO_TODOS, "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
@@ -423,6 +425,7 @@ export default function Home() {
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
+          {view === "tributario" && pode("tributario") && <Tributario user={user} tiposPeca={Object.keys(COMPONENTES)} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
           {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}

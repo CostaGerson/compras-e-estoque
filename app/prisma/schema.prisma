@@ -172,6 +172,49 @@ model FornecedorCnpj {
   fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
+// v628 — Tributário (dados para a emissão da NF-e pelo Bling)
+model TribNatureza {
+  id              Int      @id @default(autoincrement())
+  nome            String
+  tipo            String   @default("SAIDA")     // SAIDA | ENTRADA
+  uso             String?                        // VENDA | ADQUIRIDA | REMESSA | CONTA_ORDEM | SERVICO | DEVOLUCAO | OUTRO — escolha automática no faturamento
+  finalidade      Int      @default(1)           // 1 normal · 2 complementar · 3 ajuste · 4 devolução
+  cfopEstado      String?
+  cfopForaEstado  String?
+  consumidorFinal Boolean  @default(false)
+  presenca        Int      @default(9)           // indPres: 0 não se aplica · 1 presencial · 2 internet · 3 teleatendimento · 9 outros
+  icmsCst         String?                        // CST (regime normal) ou CSOSN (Simples)
+  icmsAliquota    Decimal? @db.Decimal(7, 4)
+  icmsReducao     Decimal? @db.Decimal(7, 4)     // % de redução da base
+  icmsStAliquota  Decimal? @db.Decimal(7, 4)
+  ipiCst          String?
+  ipiEnquadramento String?
+  ipiAliquota     Decimal? @db.Decimal(7, 4)
+  pisCst          String?
+  pisAliquota     Decimal? @db.Decimal(7, 4)
+  cofinsCst       String?
+  cofinsAliquota  Decimal? @db.Decimal(7, 4)
+  issAliquota     Decimal? @db.Decimal(7, 4)     // serviço (NFS-e)
+  infoComplementar String?
+  blingId         String?                        // id da natureza de operação no Bling
+  padrao          Boolean  @default(false)       // padrão do uso
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+model TribProduto {
+  id            Int      @id @default(autoincrement())
+  tipoPeca      String   @unique                 // POLO, CAMISETA… · SERVIÇO
+  ncm           String?
+  cest          String?
+  origem        Int      @default(0)             // 0 nacional … 8
+  unidade       String   @default("UN")
+  gtin          String?                          // "SEM GTIN" quando não tem
+  codigoServico String?                          // item da lista LC 116 (serviço)
+  obs           String?
+  updatedAt     DateTime @updatedAt
+}
+
 // v625 — artigos internos (tipo do material de malha e tecido plano) — editável em Cadastros › Artigos › Artigos internos
 model ArtigoTipoInterno {
   id        Int      @id @default(autoincrement())
