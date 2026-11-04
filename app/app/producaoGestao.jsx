@@ -1,7 +1,7 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory, Filter } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";
@@ -51,6 +51,11 @@ const Chip = ({ cor, fundo, children }) => <span className="text-[11px] px-2 py-
 const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.accent}>A faturar</Chip> : f === "NF_SEM_CONTAS" ? <Chip cor={C.yellow} fundo={C.yellowSoft}>NF sem contas</Chip> : null);
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
+// v641 — opções do filtro de status (um pedido pode ter mais de uma)
+const FASES_UI = ["COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
+const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["CRITICA", "Com crítica"]];
+const statusDe = (p) => [p.status, p.faturar, p.critica ? "CRITICA" : null].filter(Boolean);
+const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
 
 export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, componentes = {}, veVal = false }) {
   const [d, setD] = useState(null);
@@ -61,6 +66,9 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
   const [aberto, setAberto] = useState(null);
   const [lixeira, setLixeira] = useState(false);   // v552
   const [casar, setCasar] = useState(null);   // v555 — nº do pedido para casar com NF
+  const [fFase, setFFase] = useState([]);   // v641 — filtro por fase (clique no título da coluna)
+  const [fStatus, setFStatus] = useState([]);   // v641 — filtro por status
+  const [menu, setMenu] = useState(null);   // "fase" | "status"
   // v553 — excluir só pela lista de pedidos da Produção, com justificativa obrigatória
   const excluir = async (p) => {
     const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.cliente})?\n\nEle vai para a lixeira (Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
@@ -78,18 +86,53 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
     if (!d) return [];
     const termos = sem(q).split(/\s+/).filter(Boolean);
     let l = d.pedidos.filter((p) => !filtro || (filtro === "emDia" ? p.status === "EM DIA" : filtro === "atrasados" ? p.status === "ATRASADO" : filtro === "semana" ? p.semana : filtro === "faturar" ? p.faturar === "A_FATURAR" : filtro === "criticas" ? !!p.critica : true));
+    if (fFase.length) l = l.filter((p) => fFase.includes(p.fase));
+    if (fStatus.length) l = l.filter((p) => statusDe(p).some((x) => fStatus.includes(x)));
     if (termos.length) l = l.filter((p) => { const hay = sem(`${p.numero} ${p.cliente} ${p.oc || ""} ${p.itensTxt} ${p.total.toFixed(2)} ${p.total.toFixed(2).replace(".", ",")}`); return termos.every((t) => hay.includes(t)); });
     const val = { fase: (p) => (p.faseIdx < 0 ? 99 : p.faseIdx), numero: (p) => p.numero, cliente: (p) => p.cliente || "", pecas: (p) => p.pecas, total: (p) => p.total,
       prazo: (p) => p.prazo || "9", previsto: (p) => p.previsto || "9", status: (p) => (p.status === "ATRASADO" ? 0 : 1) };
     const f = val[ord.k] || val.fase;
     return [...l].sort((a, b) => { const x = f(a), y = f(b); const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y)); return (c || String(a.prazo || "9").localeCompare(String(b.prazo || "9"))) * ord.dir; });
-  }, [d, filtro, q, ord]);
+  }, [d, filtro, q, ord, fFase, fStatus]);
 
   const Th = ({ k, children, w }) => (
     <th onClick={() => setOrd((o) => ({ k, dir: o.k === k ? -o.dir : 1 }))} className="text-left px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap" style={{ width: w }}>
       <span className="inline-flex items-center gap-1">{children}{ord.k === k && (ord.dir > 0 ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}</span>
     </th>
   );
+  // v641 — título de Fase/Status abre o filtro (seleção múltipla) e a ordenação
+  const ThFiltro = ({ k, children, opcoes, sel, setSel }) => {
+    const aberto = menu === k;
+    const tog = (v) => setSel((a) => (a.includes(v) ? a.filter((x) => x !== v) : [...a, v]));
+    return (
+      <th className="text-left px-3 py-2 font-semibold select-none whitespace-nowrap relative">
+        <button onClick={(e) => { e.stopPropagation(); setMenu(aberto ? null : k); }} className="inline-flex items-center gap-1" style={{ color: sel.length ? C.accent : C.sub }}>
+          {children}{sel.length ? <span className="px-1 rounded text-[10px] font-bold" style={{ background: C.accent, color: "#fff" }}>{sel.length}</span> : null}
+          <Filter size={11} />{ord.k === k && (ord.dir > 0 ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+        </button>
+        {aberto && (
+          <div onClick={(e) => e.stopPropagation()} className="absolute z-30 mt-1 rounded-lg shadow-xl py-1 font-normal" style={{ background: C.panel, border: `1px solid ${C.line}`, minWidth: 210, left: 0, color: C.text }}>
+            {opcoes.map(([v, el, n]) => (
+              <label key={v} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={sel.includes(v)} onChange={() => tog(v)} style={{ accentColor: C.accent }} />
+                <span className="flex-1">{el}</span><span className="text-[11px]" style={{ color: C.sub }}>{n}</span>
+              </label>
+            ))}
+            <div className="flex items-center gap-2 px-3 pt-1.5 mt-1 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
+              <button onClick={() => setOrd({ k, dir: 1 })} className="flex items-center gap-0.5" style={{ color: C.sub }}><ChevronUp size={12} /> Ordenar</button>
+              <button onClick={() => setOrd({ k, dir: -1 })} className="flex items-center gap-0.5" style={{ color: C.sub }}><ChevronDown size={12} /> Inverter</button>
+              <span className="flex-1" />
+              {sel.length > 0 && <button onClick={() => setSel([])} className="font-semibold" style={{ color: C.accent }}>Limpar</button>}
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  };
+  const conta = (fn) => (d ? d.pedidos.filter(fn).length : 0);
+  const opFase = [...FASES_UI, "FORA"].map((f) => [f, <ChipFase f={f} />, conta((p) => p.fase === f)]).filter(([f, , n]) => n > 0 || fFase.includes(f));
+  const opStatus = STATUS_OPC.map(([v]) => [v, <ChipStatusOpc v={v} />, conta((p) => statusDe(p).includes(v))]).filter(([v, , n]) => n > 0 || fStatus.includes(v));
+  useEffect(() => { if (!menu) return; const f = () => setMenu(null); window.addEventListener("click", f); return () => window.removeEventListener("click", f); }, [menu]);
   const k = d?.kpis;
   const pc = (f) => (d ? d.pedidos.filter(f).reduce((s0, p) => s0 + (Number(p.pecas) || 0), 0) : 0);   // v422 — peças por card
   return (
@@ -125,7 +168,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
             <CardKpi rotulo="A faturar" n={k.faturar || 0} total={k.andamento} cor={C.accent} ativo={filtro === "faturar"} onClick={() => setFiltro(filtro === "faturar" ? null : "faturar")} sub={k.criticas ? `${k.criticas} com crítica` : "concluídos no PCP"} pecas={pc((p) => p.faturar === "A_FATURAR")} />
           </div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
+            <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){fFase.length ? ` · fase: ${fFase.map((x) => FASE_TXT[x]).join(", ")}` : ""}{fStatus.length ? ` · status: ${fStatus.map((x) => STATUS_OPC.find((o) => o[0] === x)?.[1]).join(", ")}` : ""}{filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
             <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
               <Search size={14} style={{ color: C.sub }} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, nº do pedido, valor ou item…" className="py-1.5 text-sm outline-none w-72" />
@@ -133,10 +176,10 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
             </div>
             <button onClick={() => setLixeira(true)} title="Pedidos excluídos" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Trash2 size={14} /> Excluídos</button>
           </div>
-          <div className="rounded-lg overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, overflowX: "clip" }}>   {/* v641 — sem overflow vertical para o filtro da coluna aparecer */}
             <table className="w-full text-sm">
               <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
-                <tr><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th><Th k="fase">Fase</Th><Th k="status">Status</Th><th /></tr>
+                <tr><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
               </thead>
               <tbody>
                 {lista.map((p) => (
