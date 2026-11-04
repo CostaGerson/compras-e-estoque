@@ -363,7 +363,7 @@ function RankingClientes({ user, ano, mes, kpi, rotulo, onClose }) {
                   <div className="mt-1 mb-1 flex flex-col gap-1" style={{ marginLeft: 26 }}>
                     {c.membros.map((m, j) => (
                       <div key={m.cliente} className="flex items-center gap-2 text-[11px]">
-                        <span className="tabular-nums" style={{ color: C.sub, width: 18 }}>{j + 1}º</span>
+                        <span className="tabular-nums" style={{ color: C.sub, width: 18 }} title="Colocação do cliente fora do grupo">{m.posicao ?? j + 1}º</span>
                         <span className="flex-1 truncate" title={m.cliente} style={{ color: C.text }}>{m.cliente}</span>
                         <span className="tabular-nums" style={{ color: C.sub }}>{fmt(m.valor)} · {c.valor ? Math.round((m.valor / c.valor) * 100) : 0}%</span>
                       </div>

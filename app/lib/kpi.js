@@ -107,6 +107,8 @@ export async function rankingClientes(ano, mes, kpi = "vendasPecas", limite = 10
   }
   const arred = (v) => (cfg.unidade === "R$" ? r2(v) : Math.round(v));
   const porCliente = [...mapa.entries()].map(([cliente, v]) => ({ cliente, valor: arred(v) })).filter((x) => x.valor > 0);
+  // v675 — colocação de cada cliente como se estivesse fora do grupo (ranking só de clientes)
+  [...porCliente].sort((a, b) => b.valor - a.valor || a.cliente.localeCompare(b.cliente)).forEach((x, i) => { x.posicao = i + 1; });
   // v647 — clientes de um grupo entram juntos na ordenação (o grupo abre a posição de cada cliente)
   const grupos = await prisma.clienteGrupo.findMany({ include: { clientes: { select: { razaoSocial: true, nomeFantasia: true, cnpj: true } } } }).catch(() => []);
   const nz = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
