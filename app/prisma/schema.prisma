@@ -2404,7 +2404,15 @@ model OcArquivo {
 // v501 — OS de facção do Cronograma PCP (FECHADA) lançadas no contas a pagar: uma OS nunca é lançada duas vezes
 model FaccaoOsPcp {
   id            Int      @id @default(autoincrement())
-  os            Int      @unique
+  os            Int                               // v669 — deixa de ser única: recebimento parcial gera várias contas por OS
+  lancamento    String?                           // v669 — chave do PCP ("12" ou "12-1"); uma ativa por chave (controlado no código)
+  parcela       Int?                              // 0 = fechamento · 1, 2… = recebimentos parciais
+  status        String   @default("LANCADA")      // LANCADA | ESTORNADA | DESCARTADA | REATIVADA (histórico fica)
+  motivo        String?
+  estornadoPorNome  String?
+  estornadoEm       DateTime?
+  descartadoPorNome String?
+  descartadoEm      DateTime?
   dados         Json                              // a OS como veio do PCP
   semanaItemId  Int?                              // item dos terceirizados da semana criado
   tituloId      Int?
@@ -2412,6 +2420,8 @@ model FaccaoOsPcp {
   valor         Decimal  @db.Decimal(14, 2)
   lancadoPorNome String?
   createdAt     DateTime @default(now())
+  @@index([os])
+  @@index([lancamento])
 }
 
 // v552 — lixeira de pedidos: o pedido excluído sai do sistema (cópia completa aqui) e o KM / relatórios não o recriam

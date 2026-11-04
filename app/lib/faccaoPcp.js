@@ -43,36 +43,53 @@ function sextaDe(venc) {
   return new Date(d.getTime() + add * 86400e3).toISOString().slice(0, 10);
 }
 
-// tela de conferência: OS fechadas do PCP + se já foram lançadas + facção e conta encontradas
+// v669 — chave da conta no PCP: "lancamento" ("12", "12-1"); PCP antigo sem o campo → nº da OS
+export const chaveConta = (c) => String(c?.lancamento ?? c?.os ?? "").trim();
+// registros antigos (antes da v669) ganham a chave = nº da OS
+async function migrarChaves() {
+  const velhos = await prisma.faccaoOsPcp.findMany({ where: { lancamento: null }, select: { id: true, os: true } });
+  for (const v of velhos) await prisma.faccaoOsPcp.update({ where: { id: v.id }, data: { lancamento: String(v.os), parcela: 0 } }); }
+
+// tela de conferência: contas do PCP (fechamento e parciais) + lançada / descartada + facção e conta encontradas
 export async function conferirFaccoes({ desde } = {}) {
   let j;
   try { j = await getPcp(`/api/ext/faccao/apagar${desde ? `?desde=${encodeURIComponent(desde)}` : ""}`); }
   catch (e) { return { erro: /HTTP 404/.test(e.message) ? "O endereço de facções do Cronograma ainda não está publicado (o Maycon está construindo)." : e.message, contas: [] }; }
-  const contas = (Array.isArray(j?.contas) ? j.contas : []).filter((c) => String(c.status || "").toUpperCase() === "FECHADA" && Number(c.os));
-  const ja = Object.fromEntries((await prisma.faccaoOsPcp.findMany({ where: { os: { in: contas.map((c) => Number(c.os)) } } })).map((x) => [x.os, x]));
+  // v669 — FECHADA (parcela 0) e PARCIAL (recebimentos parciais) são contas a pagar
+  const contas = (Array.isArray(j?.contas) ? j.contas : []).filter((c) => ["FECHADA", "PARCIAL"].includes(String(c.status || "").toUpperCase()) && Number(c.os) && chaveConta(c));
+  await migrarChaves();
+  const regs = await prisma.faccaoOsPcp.findMany({ where: { lancamento: { in: contas.map(chaveConta) } }, orderBy: { id: "asc" } });
+  const ja = {}, desc = {}, hist = {};
+  for (const x of regs) { (hist[x.lancamento] ||= []).push(x); if (x.status === "LANCADA") ja[x.lancamento] = x; if (x.status === "DESCARTADA") desc[x.lancamento] = x; }
   const prest = await prisma.prestador.findMany({ where: { tipo: "TERCEIRIZADO" } });
   const out = [];
   for (const c of contas) {
     const p = await acharFaccao(c, prest);
     const { grupo, setor } = grupoSetor(c);
-    out.push({ ...c, os: Number(c.os), valorLiquido: r2(c.valorLiquido), valorBruto: r2(c.valorBruto),
-      lancada: !!ja[Number(c.os)], lancadaEm: ja[Number(c.os)]?.createdAt || null, lancadaPor: ja[Number(c.os)]?.lancadoPorNome || null,
+    const k = chaveConta(c), L = ja[k], D = desc[k];
+    const item = L?.semanaItemId ? await prisma.finSemanaItem.findUnique({ where: { id: L.semanaItemId }, select: { pago: true, lancamentoId: true } }) : null;
+    out.push({ ...c, lancamento: k, os: Number(c.os), parcela: c.parcela ?? 0, valorLiquido: r2(c.valorLiquido), valorBruto: r2(c.valorBruto), jaLancadoEmPartes: c.jaLancadoEmPartes != null ? r2(c.jaLancadoEmPartes) : null,
+      lancada: !!L, lancadaEm: L?.createdAt || null, lancadaPor: L?.lancadoPorNome || null, paga: !!(item && (item.pago || item.lancamentoId)),
+      descartada: !!D, descartadaPor: D?.descartadoPorNome || null, descartadaEm: D?.descartadoEm || null, motivoDescarte: D?.motivo || null,
+      estornos: (hist[k] || []).filter((x) => x.status === "ESTORNADA").map((x) => ({ por: x.estornadoPorNome, em: x.estornadoEm, motivo: x.motivo, valor: r2(x.valor) })),
       prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo } : null, grupo, setor, conta: contaDoSetor(grupo, setor), sexta: c.vencimento ? sextaDe(c.vencimento) : null });
   }
-  out.sort((a, b) => (a.lancada - b.lancada) || String(a.vencimento || "").localeCompare(String(b.vencimento || "")) || a.os - b.os);
+  out.sort((a, b) => (a.lancada - b.lancada) || (a.descartada - b.descartada) || String(a.vencimento || "").localeCompare(String(b.vencimento || "")) || a.os - b.os || (a.parcela || 0) - (b.parcela || 0));
   return { ok: true, geradoEm: j?.geradoEm || null, contas: out };
 }
 
-// lança as OS escolhidas: [{ os, prestadorId?, setor? }] (o operador pode corrigir facção e tipo de peça)
+// lança as contas escolhidas: [{ lancamento, prestadorId?, setor? }] (o operador pode corrigir facção e tipo de peça)
 export async function lancarFaccoes(escolhas, quem) {
   const conf = await conferirFaccoes();
   if (conf.erro) return { error: conf.erro };
   await garantirContasPrestadores();
   const res = [], semanas = new Set();
   for (const e of escolhas || []) {
-    const c = conf.contas.find((x) => x.os === Number(e.os));
-    if (!c) { res.push({ os: e.os, erro: "OS não está mais fechada no PCP." }); continue; }
-    if (c.lancada || (await prisma.faccaoOsPcp.findUnique({ where: { os: c.os } }))) { res.push({ os: c.os, erro: "Já lançada." }); continue; }
+    const k = String(e.lancamento ?? e.os);
+    const c = conf.contas.find((x) => x.lancamento === k);
+    if (!c) { res.push({ os: e.os, lancamento: k, erro: "Conta não está mais no PCP." }); continue; }
+    if (c.descartada) { res.push({ os: c.os, lancamento: k, erro: "Descartada — reative em Todas." }); continue; }
+    if (c.lancada || (await prisma.faccaoOsPcp.findFirst({ where: { lancamento: k, status: "LANCADA" } }))) { res.push({ os: c.os, lancamento: k, erro: "Já lançada." }); continue; }
     const p = e.prestadorId ? await prisma.prestador.findUnique({ where: { id: Number(e.prestadorId) } }) : c.prestador ? await prisma.prestador.findUnique({ where: { id: c.prestador.id } }) : null;
     if (!p) { res.push({ os: c.os, erro: `Facção "${c.faccao}" não encontrada no cadastro de terceirizados.` }); continue; }
     const grupo = c.grupo, setor = e.setor && grupo === "FACCAO" ? e.setor : c.setor;
@@ -85,16 +102,16 @@ export async function lancarFaccoes(escolhas, quem) {
       tituloId: casca.id, grupo, prestadorId: p.id, nome: p.nome.toUpperCase(), chavePix: p.chavePix || "", setor, contaId: conta.id,
       linhas: [{ pedido: c.pedido || "", item: `${c.produto || ""}${c.itemCode ? ` (${c.itemCode})` : ""}`.toUpperCase().slice(0, 200), qtd: 1, unitario: c.valorLiquido, total: c.valorLiquido }],
       valor: c.valorLiquido, dataRecebimento: c.retornadoEm ? dUTC(c.retornadoEm) : null, vencimentoNegociado: dUTC(venc), prazoDias: 0,
-      descricao: `OS ${c.os} PCP · ${c.servico || "FACÇÃO"}`.toUpperCase(),
+      descricao: `OS ${c.lancamento} PCP · ${c.servico || "FACÇÃO"}${c.status === "PARCIAL" ? " · PARCIAL" : ""}`.toUpperCase(),
       observacao: [`PCP OS ${c.os}${c.romaneio ? ` · ROMANEIO ${c.romaneio}` : ""}`, c.itemCode ? `ITEM ${c.itemCode}` : null, c.refProduto ? `REF ${c.refProduto}` : null,
         `ENVIADAS ${c.quantidadeEnviada ?? "—"} · APROVADAS ${c.quantidadeAprovada ?? "—"}${c.quantidadePerdida ? ` · PERDA ${c.quantidadePerdida}` : ""}${c.quantidadeSegunda ? ` · 2ª ${c.quantidadeSegunda}` : ""}`,
         `UNIT. R$ ${r2(c.valorUnitario).toFixed(2).replace(".", ",")} · BRUTO R$ ${c.valorBruto.toFixed(2).replace(".", ",")}${desc ? ` · DESCONTOS: ${desc}` : ""}`, `FECHADA EM ${c.fechadaEm || "—"} · VENC. ${venc.split("-").reverse().join("/")}`,
         p.chavePix ? null : "SEM PIX NO CADASTRO"].filter(Boolean).join(" · ").toUpperCase().slice(0, 1000),
       criadoPorNome: quem || null,
     } });
-    await prisma.faccaoOsPcp.create({ data: { os: c.os, dados: c, semanaItemId: item.id, tituloId: casca.id, prestadorId: p.id, valor: c.valorLiquido, lancadoPorNome: quem || null } });
+    await prisma.faccaoOsPcp.create({ data: { os: c.os, lancamento: c.lancamento, parcela: c.parcela ?? 0, status: "LANCADA", dados: c, semanaItemId: item.id, tituloId: casca.id, prestadorId: p.id, valor: c.valorLiquido, lancadoPorNome: quem || null } });
     semanas.add(casca.id);
-    res.push({ os: c.os, ok: true, valor: c.valorLiquido, sexta: sextaDe(venc), faccao: p.nome });
+    res.push({ os: c.os, lancamento: c.lancamento, ok: true, valor: c.valorLiquido, sexta: sextaDe(venc), faccao: p.nome });
   }
   for (const t of semanas) await recalcular(t);
   return { ok: true, resultados: res };
@@ -105,4 +122,51 @@ export async function listaFaccoes() {
   const l = await prisma.prestador.findMany({ where: { tipo: "TERCEIRIZADO" }, orderBy: { nome: "asc" } });
   return l.map((p) => ({ id: p.id, nome: p.nome, documento: so(p.documento) || "", nomeKm: p.nomeKm || null, ativo: p.ativo,
     servicos: (Array.isArray(p.servicos) ? p.servicos : []).map(String) }));
+}
+
+// v669 — estornar (Lançadas): apaga o item do contas a pagar e devolve a conta para "A lançar". Título com baixa → recusa.
+export async function estornarFaccoes(chaves, quem, motivo) {
+  const res = [], semanas = new Set();
+  for (const k0 of chaves || []) {
+    const k = String(k0);
+    const r = await prisma.faccaoOsPcp.findFirst({ where: { lancamento: k, status: "LANCADA" } });
+    if (!r) { res.push({ lancamento: k, erro: "Não está lançada." }); continue; }
+    const it = r.semanaItemId ? await prisma.finSemanaItem.findUnique({ where: { id: r.semanaItemId } }) : null;
+    if (it && (it.pago || it.lancamentoId)) { res.push({ lancamento: k, erro: "Já tem baixa (paga) no contas a pagar — cancele a baixa antes de estornar." }); continue; }
+    if (it) { await prisma.finSemanaItem.delete({ where: { id: it.id } }); semanas.add(it.tituloId); }
+    await prisma.faccaoOsPcp.update({ where: { id: r.id }, data: { status: "ESTORNADA", estornadoPorNome: quem || null, estornadoEm: new Date(), motivo: motivo ? String(motivo).slice(0, 500) : null } });
+    res.push({ lancamento: k, ok: true, valor: r2(r.valor) });
+  }
+  for (const t of semanas) await recalcular(t).catch(() => null);
+  return { ok: true, resultados: res };
+}
+// v669 — descartar (A lançar): sai da fila sem lançamento; continua em "Todas" com o motivo
+export async function descartarFaccoes(chaves, quem, motivo) {
+  if (String(motivo || "").trim().length < 3) return { error: "Escreva o motivo do descarte." };
+  const conf = await conferirFaccoes();
+  if (conf.erro) return { error: conf.erro };
+  const res = [];
+  for (const k0 of chaves || []) {
+    const k = String(k0);
+    const c = conf.contas.find((x) => x.lancamento === k);
+    if (!c) { res.push({ lancamento: k, erro: "Conta não está no PCP." }); continue; }
+    if (c.lancada) { res.push({ lancamento: k, erro: "Já lançada — estorne antes." }); continue; }
+    if (c.descartada) { res.push({ lancamento: k, ok: true }); continue; }
+    await prisma.faccaoOsPcp.create({ data: { os: c.os, lancamento: k, parcela: c.parcela ?? 0, status: "DESCARTADA", dados: c, valor: c.valorLiquido || 0,
+      motivo: String(motivo).trim().slice(0, 500), descartadoPorNome: quem || null, descartadoEm: new Date() } });
+    res.push({ lancamento: k, ok: true });
+  }
+  return { ok: true, resultados: res };
+}
+// v669 — reativar (Todas): desfaz o descarte; a conta volta para "A lançar"
+export async function reativarFaccoes(chaves, quem) {
+  const res = [];
+  for (const k0 of chaves || []) {
+    const k = String(k0);
+    const r = await prisma.faccaoOsPcp.findFirst({ where: { lancamento: k, status: "DESCARTADA" } });
+    if (!r) { res.push({ lancamento: k, erro: "Não está descartada." }); continue; }
+    await prisma.faccaoOsPcp.update({ where: { id: r.id }, data: { status: "REATIVADA", motivo: `${r.motivo || ""} · REATIVADA POR ${quem || "?"} EM ${new Date().toLocaleDateString("pt-BR")}`.slice(0, 500) } });
+    res.push({ lancamento: k, ok: true });
+  }
+  return { ok: true, resultados: res };
 }

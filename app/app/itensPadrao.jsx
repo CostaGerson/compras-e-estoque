@@ -46,6 +46,8 @@ export default function ItensPadrao({ user, componentes = {} }) {
   const [clientes, setClientes] = useState([]);
   const [pop, setPop] = useState(null);   // v657 — crítica do preço aberta
   useEffect(() => { if (!pop) return; const f = () => setPop(null); window.addEventListener("click", f); return () => window.removeEventListener("click", f); }, [pop]);
+  // v669 — excluir direto da lista
+  const excluir = async (i) => { if (!(await confirmar(`Excluir o item padrão ${i.nomeInterno}?`))) return; const r = await fetch(`/api/itens-padrao/${i.id}`, { method: "DELETE", headers: { "x-usuario-id": String(user?.id || "") } }); if (!r.ok) alerta("Não foi possível excluir."); carregar(); };
   const carregar = () => fetch("/api/itens-padrao").then((r) => r.json()).then((d) => setL(Array.isArray(d) ? d : [])).catch(() => setL([]));
   useEffect(() => { carregar(); fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
 
@@ -93,13 +95,14 @@ export default function ItensPadrao({ user, componentes = {} }) {
         <Cel w={90} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.ncm || "—"}</Cel>
         <Cel w={110} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.gtin || "—"}</Cel>
         <Cel w={60} cls="text-xs" st={{ color: C.sub }}>{i.anexos.length ? <span className="inline-flex items-center gap-1"><Paperclip size={12} />{i.anexos.length}</span> : "—"}</Cel>
+        <td className="px-2 py-1.5 text-right"><button onClick={(e) => { e.stopPropagation(); excluir(i); }} title="Excluir item padrão" style={{ color: C.sub }}><Trash2 size={14} /></button></td>
       </tr>
     );
   };
   const cabecalho = (
     <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
       <tr><Th k="nomeInterno">Nome interno</Th><Th k="nomeNf">Nome NF</Th><Th k="tipo">Tipo de peça</Th><Th k="codigo">Código</Th><Th k="clientes">Clientes</Th>
-        <Th k="fpp">FPP</Th><Th k="preco">Preço atual</Th><Th k="ncm">NCM</Th><Th k="gtin">GTIN/EAN</Th><Th k="anexos">Anexos</Th></tr>
+        <Th k="fpp">FPP</Th><Th k="preco">Preço atual</Th><Th k="ncm">NCM</Th><Th k="gtin">GTIN/EAN</Th><Th k="anexos">Anexos</Th><th /></tr>
     </thead>
   );
   // por cliente: o item aparece em cada cliente dele; sem cliente no fim
@@ -139,7 +142,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
       {!l ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div> : modo === "lista" ? (
         <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm">{cabecalho}<tbody>{lista.map(linha)}
-            {!lista.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
+            {!lista.length && <tr><td colSpan={11} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
         </div>
       ) : (
         <div className="space-y-4">
