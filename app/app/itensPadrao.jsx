@@ -63,21 +63,26 @@ export default function ItensPadrao({ user, componentes = {} }) {
       {children}{sort.k === k ? (sort.dir > 0 ? " ▲" : " ▼") : ""}
     </th>
   );
-  const linha = (i) => (
-    <tr key={i.id} onClick={() => setAbrir({ id: i.id })} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
-      <td className="px-3 py-2 font-semibold" style={{ color: C.navy }}>{i.nomeInterno}</td>
-      <td className="px-3 py-2" style={{ color: C.text }}>{i.nomeNf}</td>
-      <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{i.tipoPecaNome || "—"}</td>
-      <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{i.codigo || "—"}</td>
-      <td className="px-3 py-2 text-xs" style={{ color: C.sub, maxWidth: 220 }}>{i.clientes.length ? i.clientes.map((c) => c.nome).join(", ") : "—"}</td>
-      <td className="px-3 py-2 text-xs whitespace-nowrap" style={{ color: C.sub }}>{i.fppNumero ? `FPP ${numFpp(i.fppNumero)}` : "—"}</td>
-      <td className="px-3 py-2 whitespace-nowrap tabular-nums font-semibold" style={{ color: C.text }}>{brl(i.precoAtual)}</td>
-      <td className="px-3 py-2"><Critica c={i.critica} curto /></td>
-      <td className="px-3 py-2 text-xs tabular-nums" style={{ color: C.sub }}>{i.ncm || "—"}</td>
-      <td className="px-3 py-2 text-xs tabular-nums" style={{ color: C.sub }}>{i.gtin || "—"}</td>
-      <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{i.anexos.length ? <span className="inline-flex items-center gap-1"><Paperclip size={12} />{i.anexos.length}</span> : "—"}</td>
-    </tr>
-  );
+  // v656 — linha fina: tudo em uma linha; o que não cabe é cortado (o texto inteiro aparece ao passar o mouse)
+  const Cel = ({ children, w, cls = "", st = {}, t }) => <td className={`px-3 py-1.5 ${cls}`} style={{ maxWidth: w, ...st }}><div className="truncate" title={t ?? (typeof children === "string" ? children : undefined)}>{children}</div></td>;
+  const linha = (i) => {
+    const cl = i.clientes.map((c) => c.nome);
+    return (
+      <tr key={i.id} onClick={() => setAbrir({ id: i.id })} className="cursor-pointer hover:bg-gray-50 whitespace-nowrap" style={{ borderTop: `1px solid ${C.line}` }}>
+        <Cel w={220} cls="font-semibold" st={{ color: C.navy }}>{i.nomeInterno}</Cel>
+        <Cel w={220} st={{ color: C.text }}>{i.nomeNf}</Cel>
+        <Cel w={110} cls="text-xs" st={{ color: C.sub }}>{i.tipoPecaNome || "—"}</Cel>
+        <Cel w={90} cls="text-xs" st={{ color: C.sub }}>{i.codigo || "—"}</Cel>
+        <Cel w={240} cls="text-xs" st={{ color: C.sub }} t={cl.join(", ")}>{cl.length ? <>{cl[0]}{cl.length > 1 && <span className="ml-1 px-1 rounded text-[10px] font-semibold" style={{ background: C.panel2, color: C.text }}>+{cl.length - 1}</span>}</> : "—"}</Cel>
+        <Cel w={90} cls="text-xs" st={{ color: C.sub }}>{i.fppNumero ? `FPP ${numFpp(i.fppNumero)}` : "—"}</Cel>
+        <Cel w={100} cls="tabular-nums font-semibold" st={{ color: C.text }}>{brl(i.precoAtual)}</Cel>
+        <Cel w={130}><Critica c={i.critica} curto /></Cel>
+        <Cel w={90} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.ncm || "—"}</Cel>
+        <Cel w={110} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.gtin || "—"}</Cel>
+        <Cel w={60} cls="text-xs" st={{ color: C.sub }}>{i.anexos.length ? <span className="inline-flex items-center gap-1"><Paperclip size={12} />{i.anexos.length}</span> : "—"}</Cel>
+      </tr>
+    );
+  };
   const cabecalho = (
     <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
       <tr><Th k="nomeInterno">Nome interno</Th><Th k="nomeNf">Nome NF</Th><Th k="tipo">Tipo de peça</Th><Th k="codigo">Código</Th><Th k="clientes">Clientes</Th>
