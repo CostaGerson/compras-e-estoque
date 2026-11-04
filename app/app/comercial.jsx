@@ -580,7 +580,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
                   onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
-                <Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} />
+                <div className="col-span-2"><Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} text full /></div>   {/* v663 — campo largo */}
                 <ClienteCombo clientes={clientes} value={f.clienteNome}
                   onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null }))}
                   onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
