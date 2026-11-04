@@ -168,12 +168,12 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
             <CardKpi rotulo="A faturar" n={k.faturar || 0} total={k.andamento} cor={C.accent} ativo={filtro === "faturar"} onClick={() => setFiltro(filtro === "faturar" ? null : "faturar")} sub={k.criticas ? `${k.criticas} com crítica` : "concluídos no PCP"} pecas={pc((p) => p.faturar === "A_FATURAR")} />
           </div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-sm font-semibold flex-1" style={{ color: C.navy }}>{lista.length} pedido(s){fFase.length ? ` · fase: ${fFase.map((x) => FASE_TXT[x]).join(", ")}` : ""}{fStatus.length ? ` · status: ${fStatus.map((x) => STATUS_OPC.find((o) => o[0] === x)?.[1]).join(", ")}` : ""}{filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
             <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
               <Search size={14} style={{ color: C.sub }} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, nº do pedido, valor ou item…" className="py-1.5 text-sm outline-none w-72" />
               {q && <button onClick={() => setQ("")} style={{ color: C.sub }}><X size={13} /></button>}
             </div>
+            <div className="text-sm font-semibold flex-1 ml-1" style={{ color: C.navy }}>{lista.length} pedido(s){fFase.length ? ` · fase: ${fFase.map((x) => FASE_TXT[x]).join(", ")}` : ""}{fStatus.length ? ` · status: ${fStatus.map((x) => STATUS_OPC.find((o) => o[0] === x)?.[1]).join(", ")}` : ""}{filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
             <button onClick={() => setLixeira(true)} title="Pedidos excluídos" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Trash2 size={14} /> Excluídos</button>
           </div>
           <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, overflowX: "clip" }}>   {/* v641 — sem overflow vertical para o filtro da coluna aparecer */}
