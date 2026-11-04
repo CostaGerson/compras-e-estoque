@@ -44,6 +44,8 @@ export default function ItensPadrao({ user, componentes = {} }) {
   const [sort, setSort] = useState({ k: "nomeInterno", dir: 1 });
   const [abrir, setAbrir] = useState(null);   // {} novo · {id}
   const [clientes, setClientes] = useState([]);
+  const [pop, setPop] = useState(null);   // v657 — crítica do preço aberta
+  useEffect(() => { if (!pop) return; const f = () => setPop(null); window.addEventListener("click", f); return () => window.removeEventListener("click", f); }, [pop]);
   const carregar = () => fetch("/api/itens-padrao").then((r) => r.json()).then((d) => setL(Array.isArray(d) ? d : [])).catch(() => setL([]));
   useEffect(() => { carregar(); fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
 
@@ -75,8 +77,19 @@ export default function ItensPadrao({ user, componentes = {} }) {
         <Cel w={90} cls="text-xs" st={{ color: C.sub }}>{i.codigo || "—"}</Cel>
         <Cel w={240} cls="text-xs" st={{ color: C.sub }} t={cl.join(", ")}>{cl.length ? <>{cl[0]}{cl.length > 1 && <span className="ml-1 px-1 rounded text-[10px] font-semibold" style={{ background: C.panel2, color: C.text }}>+{cl.length - 1}</span>}</> : "—"}</Cel>
         <Cel w={90} cls="text-xs" st={{ color: C.sub }}>{i.fppNumero ? `FPP ${numFpp(i.fppNumero)}` : "—"}</Cel>
-        <Cel w={100} cls="tabular-nums font-semibold" st={{ color: C.text }}>{brl(i.precoAtual)}</Cel>
-        <Cel w={130}><Critica c={i.critica} curto /></Cel>
+        <td className="px-3 py-1.5 relative" style={{ maxWidth: 120 }}>
+          {i.critica ? <button onClick={(e) => { e.stopPropagation(); setPop(pop === i.id ? null : i.id); }} className="tabular-nums font-semibold inline-flex items-center gap-1" style={{ color: C.red }} title="Preço diferente da FPP — clique para ver">
+            {brl(i.precoAtual)} <AlertTriangle size={12} /></button>
+            : <span className="tabular-nums font-semibold" style={{ color: C.text }}>{brl(i.precoAtual)}</span>}
+          {pop === i.id && i.critica && (
+            <div onClick={(e) => e.stopPropagation()} className="absolute z-30 right-0 mt-1 rounded-lg shadow-xl p-3 text-xs whitespace-nowrap" style={{ background: C.panel, border: `1px solid ${C.line}`, top: "100%" }}>
+              <div className="font-semibold mb-1" style={{ color: C.red }}>Preço diferente da FPP</div>
+              <div className="flex justify-between gap-6"><span style={{ color: C.sub }}>Valor de venda FPP {numFpp(i.fppNumero)}</span><b>{brl(i.critica.fpp)}</b></div>
+              <div className="flex justify-between gap-6"><span style={{ color: C.sub }}>Preço atual praticado</span><b style={{ color: C.red }}>{brl(i.critica.preco)}</b></div>
+              <div className="flex justify-between gap-6"><span style={{ color: C.sub }}>Diferença</span><b>{brl(i.critica.dif)}{i.critica.pct != null ? ` (${i.critica.pct > 0 ? "+" : ""}${String(i.critica.pct).replace(".", ",")}%)` : ""}</b></div>
+            </div>
+          )}
+        </td>
         <Cel w={90} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.ncm || "—"}</Cel>
         <Cel w={110} cls="text-xs tabular-nums" st={{ color: C.sub }}>{i.gtin || "—"}</Cel>
         <Cel w={60} cls="text-xs" st={{ color: C.sub }}>{i.anexos.length ? <span className="inline-flex items-center gap-1"><Paperclip size={12} />{i.anexos.length}</span> : "—"}</Cel>
@@ -86,7 +99,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
   const cabecalho = (
     <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
       <tr><Th k="nomeInterno">Nome interno</Th><Th k="nomeNf">Nome NF</Th><Th k="tipo">Tipo de peça</Th><Th k="codigo">Código</Th><Th k="clientes">Clientes</Th>
-        <Th k="fpp">FPP</Th><Th k="preco">Preço atual</Th><Th k="critica">Crítica</Th><Th k="ncm">NCM</Th><Th k="gtin">GTIN/EAN</Th><Th k="anexos">Anexos</Th></tr>
+        <Th k="fpp">FPP</Th><Th k="preco">Preço atual</Th><Th k="ncm">NCM</Th><Th k="gtin">GTIN/EAN</Th><Th k="anexos">Anexos</Th></tr>
     </thead>
   );
   // por cliente: o item aparece em cada cliente dele; sem cliente no fim
@@ -124,14 +137,14 @@ export default function ItensPadrao({ user, componentes = {} }) {
         {nCrit > 0 && <span style={{ color: C.red }}> · {nCrit} com preço diferente da FPP</span>}
       </div>
       {!l ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div> : modo === "lista" ? (
-        <div className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm">{cabecalho}<tbody>{lista.map(linha)}
-            {!lista.length && <tr><td colSpan={11} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
+            {!lista.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
         </div>
       ) : (
         <div className="space-y-4">
           {porCliente.map(({ c, itens }) => (
-            <div key={c.id} className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div key={c.id} className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="px-3 py-2 text-sm font-bold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}><Users size={14} style={{ color: C.accent }} /> {c.nome}<span className="text-xs font-normal" style={{ color: C.sub }}>{itens.length} item(ns)</span></div>
               <table className="w-full text-sm">{cabecalho}<tbody>{itens.map(linha)}</tbody></table>
             </div>
