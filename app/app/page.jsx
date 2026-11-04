@@ -28,6 +28,7 @@ import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "l
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
 import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { imprimirPedido } from "./impressaoPedido";   // v615
+import { gruposDuplicados, internoDe, semInterno } from "@/lib/artigoConsolidar";   // v640
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
 import Tributario from "./tributario";   // v628
 import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
@@ -2736,19 +2737,7 @@ function ResumoCard({ rotulo, valor, destaque }) {
   );
 }
 // agrupa artigos que são o mesmo item: fornecedor (pelo NOME comercial) + nome NF + cor + valor (regra do Igor)
-function gruposDuplicados(artigos) {
-  const norm = (s) => (s == null ? "" : String(s)).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const val = (v) => (v == null || v === "" ? "" : (Number(v) || 0).toFixed(4));
-  // usa o NOME do fornecedor (assim "Têxtil MN" em cadastros diferentes conta como o mesmo);
-  // se o fornecedor está sem nome, cai no id pra não juntar fornecedores distintos por engano
-  const chaveForn = (a) => (a.fornecedor?.nome && a.fornecedor.nome.trim() ? "n:" + norm(a.fornecedor.nome) : "i:" + (a.fornecedorId || "0"));
-  const mapa = {};
-  for (const a of artigos) {
-    const chave = [chaveForn(a), norm(a.nome), norm(a.cor), val(a.valorUnitario)].join("|");
-    (mapa[chave] = mapa[chave] || []).push(a);
-  }
-  return Object.values(mapa).filter((g) => g.length > 1);
-}
+// v640 — regra de consolidação em lib/artigoConsolidar.js
 
 function ArtigosPane(props) {   // v625 — abas Artigos | Artigos internos
   const [sub, setSub] = useState("artigos");
@@ -2776,11 +2765,25 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const [dataAte, setDataAte] = useState("");
   const [classe, setClasse] = useState("");
   const onSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  // v640 — ocultar colunas (fica salvo no navegador)
+  const chaveCols = modoEstoque ? "ce_estoque_cols_ocultas" : "ce_artigos_cols_ocultas";
+  const [ocultas, setOcultas] = useState(() => { try { return JSON.parse(localStorage.getItem(chaveCols) || "[]"); } catch { return []; } });
+  const mudarOcultas = (fn) => setOcultas((o) => { const n = fn(o); try { localStorage.setItem(chaveCols, JSON.stringify(n)); } catch {} return n; });
+  const vis = (k) => !ocultas.includes(k);
+  const ocultar = (k) => mudarOcultas((o) => [...new Set([...o, k])]);
+  const COLS_NOME = { categoria: "Categoria", nome: "Artigo NF", interno: "Artigo interno", fornecedor: "Fornecedor", cor: "Cor", codigo: "Código", saldo: "Saldo",
+    composicao: "Composição", movimento: "Movimento", preco: "Preço", valor: "Valor total", ultima: "Última compra" };
+  const Th = ({ k, label, campoKey, className }) => !vis(k) ? null : (
+    <div className={className + " flex items-start gap-1 group"}>
+      {campoKey ? <ThSort label={label} campoKey={campoKey} sort={sort} onSort={onSort} className="min-w-0" /> : <div className="min-w-0">{label}</div>}
+      <button onClick={(e) => { e.stopPropagation(); ocultar(k); }} title={`Ocultar coluna ${COLS_NOME[k]}`} className="shrink-0 opacity-40 hover:opacity-100" style={{ color: C.sub, marginTop: 1 }}><EyeOff size={12} /></button>
+    </div>
+  );
 
   const campos = {
     categoria: [(a) => a.categoria, "texto"],
     nome: [(a) => a.nome, "texto"],
-    interno: [(a) => a.artigoInterno, "texto"],
+    interno: [(a) => internoDe(a), "texto"],
     fornecedor: [(a) => a.fornecedor?.nome, "texto"],
     cor: [(a) => a.cor, "texto"],
     codigo: [(a) => a.codigo, "texto"],
@@ -2909,43 +2912,50 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
 
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
+      {ocultas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2 text-xs" style={{ color: C.sub }}>
+          <Eye size={13} /> Colunas ocultas:
+          {ocultas.map((k) => <button key={k} onClick={() => mudarOcultas((o) => o.filter((x) => x !== k))} className="px-2 py-0.5 rounded-full" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} title="Mostrar de novo">{COLS_NOME[k] || k} ✕</button>)}
+          <button onClick={() => mudarOcultas(() => [])} className="px-2 py-0.5 font-semibold" style={{ color: C.accent }}>mostrar todas</button>
+        </div>
+      )}
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: modoEstoque ? 1080 : 1000, fontSize: 12, textTransform: "uppercase" }}>   {/* v639 — cabe na tela com a barra lateral aberta */}
+        <div style={{ minWidth: Math.max(640, (modoEstoque ? 1080 : 1000) - ocultas.length * 90), fontSize: 12, textTransform: "uppercase" }}>   {/* v639 — cabe na tela com a barra lateral aberta */}
         <div className="flex gap-2 px-3 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-[84px] shrink-0" />
-          <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-[1.3] min-w-0" />
-          <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1 min-w-0" />
-          <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1 min-w-0" />
-          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24 shrink-0" />
-          <ThSort label="Código" campoKey="codigo" sort={sort} onSort={onSort} className="w-16 shrink-0" />
-          {modoEstoque && <ThSort label="Saldo" campoKey="quantidade" sort={sort} onSort={onSort} className="w-[84px] shrink-0" />}
-          <div className="flex-1 min-w-0">Composição · larg. · gram.</div>
-          {modoEstoque && <div className="w-36 shrink-0">Movimento</div>}
-          {modoEstoque && master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-[76px] shrink-0" />}
-          {modoEstoque && master && <div className="w-24 shrink-0">Valor total</div>}
-          {!modoEstoque && <div className="w-56">Última compra</div>}
+          {Th({ k: "categoria", label: "Categoria", campoKey: "categoria", className: "w-[84px] shrink-0" })}
+          {Th({ k: "nome", label: "Artigo NF", campoKey: "nome", className: "flex-[1.3] min-w-0" })}
+          {Th({ k: "interno", label: "Artigo Interno", campoKey: "interno", className: "flex-1 min-w-0" })}
+          {Th({ k: "fornecedor", label: "Fornecedor", campoKey: "fornecedor", className: "flex-1 min-w-0" })}
+          {Th({ k: "cor", label: "Cor", campoKey: "cor", className: "w-24 shrink-0" })}
+          {Th({ k: "codigo", label: "Código", campoKey: "codigo", className: "w-16 shrink-0" })}
+          {modoEstoque && Th({ k: "saldo", label: "Saldo", campoKey: "quantidade", className: "w-[84px] shrink-0" })}
+          {Th({ k: "composicao", label: "Composição · larg. · gram.", className: "flex-1 min-w-0" })}
+          {modoEstoque && Th({ k: "movimento", label: "Movimento", className: "w-36 shrink-0" })}
+          {modoEstoque && master && Th({ k: "preco", label: "Preço", campoKey: "preco", className: "w-[76px] shrink-0" })}
+          {modoEstoque && master && Th({ k: "valor", label: "Valor total", className: "w-24 shrink-0" })}
+          {!modoEstoque && Th({ k: "ultima", label: "Última compra", className: "w-56 shrink-0" })}
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
           <div key={a.id} onClick={() => setEditando(a)} className="flex gap-2 px-3 py-2.5 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, overflowWrap: "anywhere" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            <div className="w-[84px] shrink-0"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
-            <div className="flex-[1.3] min-w-0 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>
-            <div className="flex-1 min-w-0" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
-            <div className="flex-1 min-w-0" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
+            {vis("categoria") && <div className="w-[84px] shrink-0"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>}
+            {vis("nome") && <div className="flex-[1.3] min-w-0 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>}
+            {vis("interno") && <div className="flex-1 min-w-0" style={{ color: internoDe(a) ? C.text : C.sub }} title={semInterno(a.categoria) ? "Aviamentos e outros não têm artigo interno: vale o nome da NF" : ""}>{internoDe(a) || "—"}</div>}
+            {vis("fornecedor") && <div className="flex-1 min-w-0" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
-            </div>
-            <div className="w-24 shrink-0 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></div>
-            <div className="w-16 shrink-0" style={{ color: C.sub }}>{a.codigo || "—"}</div>
-            {modoEstoque && <div className="w-[84px] shrink-0" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
-            <div className="flex-1 min-w-0" style={{ color: C.sub }}>
+            </div>}
+            {vis("cor") && <div className="w-24 shrink-0 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></div>}
+            {vis("codigo") && <div className="w-16 shrink-0" style={{ color: C.sub }}>{a.codigo || "—"}</div>}
+            {modoEstoque && vis("saldo") && <div className="w-[84px] shrink-0" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
+            {vis("composicao") && <div className="flex-1 min-w-0" style={{ color: C.sub }}>
               <div>{a.composicao || "—"}</div>
               {(a.largura || gramRend(a) !== "—") && <div className="text-[11px]">{[a.largura ? `${a.largura} m` : "", gramRend(a) !== "—" ? gramRend(a) : ""].filter(Boolean).join(" · ")}</div>}
-            </div>
-            {modoEstoque && <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
-            {modoEstoque && master && <div className="w-[76px] shrink-0" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
-            {modoEstoque && master && <div className="w-24 shrink-0" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
-            {!modoEstoque && (
+            </div>}
+            {modoEstoque && vis("movimento") && <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
+            {modoEstoque && master && vis("preco") && <div className="w-[76px] shrink-0" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {modoEstoque && master && vis("valor") && <div className="w-24 shrink-0" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
+            {!modoEstoque && vis("ultima") && (
               <div className="w-56 shrink-0" style={{ color: C.sub }}>
                 {(master && a.valorUnitario) || ultimaCompraResto(a) ? (
                   <>
@@ -3001,7 +3011,7 @@ function DuplicadosModal({ artigos, fornecedores, onClose, onSaved }) {
           <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
         </div>
         <div className="p-5">
-          <div className="text-xs mb-3" style={{ color: C.sub }}>Mesmo fornecedor + mesmo nome (Artigo NF) + mesma cor + mesmo valor. Mesclar soma o saldo em um só (mantém o mais antigo) e inativa os outros. O histórico de entradas/saídas é preservado.</div>
+          <div className="text-xs mb-3" style={{ color: C.sub }}>Só consolida com o mesmo artigo interno (aviamentos e outros: o nome da NF) + mesmo fornecedor + mesma largura/rendimento/gramatura + mesma cor e código. Mesclar soma o saldo em um só (mantém o mais antigo) e inativa os outros. O histórico de entradas/saídas é preservado.</div>
           {grupos.length === 0 && <div className="text-sm" style={{ color: C.sub }}>Nenhum duplicado encontrado ✓</div>}
           {grupos.map((g, i) => (
             <div key={i} className="rounded-lg mb-3" style={{ border: `1px solid ${C.line}` }}>
