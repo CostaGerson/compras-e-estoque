@@ -188,7 +188,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-3 py-2" style={{ color: C.text }}>{p.cliente}<div className="text-[11px] truncate" style={{ color: C.sub, maxWidth: 380 }} title={p.itensTxt}>{p.nItens} item(ns){p.oc ? ` · OC ${p.oc}` : ""}</div></td>
                     <td className="px-3 py-2 tabular-nums">{p.pecas}</td>
                     <td className="px-3 py-2 tabular-nums whitespace-nowrap">{brl(p.total)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}{p.semana && <span className="ml-1 text-[10px] font-bold" style={{ color: C.accent }}>semana</span>}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.previsto && p.prazo && p.previsto > p.prazo ? C.red : C.text }}>{dBR(p.previsto)}</td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
