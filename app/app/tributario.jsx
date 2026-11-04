@@ -132,26 +132,26 @@ function Produtos({ d, post, tiposPeca }) {
       <div className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <table className="w-full text-xs">
           <thead><tr className="text-left align-bottom" style={{ background: C.panel2, color: C.sub }}>
-            {["Classe", "O que entra", "NCM", "CEST", "Origem", "Unid.", "GTIN", "ICMS · CST (cód.)", "ICMS · alíq. MG %", "PIS/COFINS · CST (cód.)", "PIS · alíq. %", "COFINS · alíq. %", "IPI · CST (cód.)", "IPI · alíq. %", "Cód. serviço"].map((h) => <th key={h} className="px-2 py-2 leading-tight" style={{ maxWidth: 90 }}>{h}</th>)}
+            {["Classe", "O que entra", "NCM", "CEST", "Origem", "Unid.", "GTIN", "ICMS · CST (cód.)", "ICMS · alíq. MG %", "PIS/COFINS · CST (cód.)", "PIS · alíq. %", "COFINS · alíq. %", "IPI · CST (cód.)", "IPI · alíq. %", "Cód. serviço"].map((h, k) => <th key={h} className={`px-2 py-2 leading-tight align-bottom ${k < 2 ? "text-left" : "text-center"}`}>{h}</th>)}   {/* v680 — títulos alinhados com o conteúdo */}
           </tr></thead>
-          <tbody>{tipos.map((t) => { const r = rows[t] || vazio(t); const sv = t === "SERVIÇO"; const I = (k, w = 70, props = {}) => <input value={r[k] ?? ""} onChange={(e) => set(t, k, e.target.value)} className="rounded outline-none text-xs" style={{ ...pequeno, width: w }} {...props} />;
+          <tbody>{tipos.map((t) => { const r = rows[t] || vazio(t); const sv = t === "SERVIÇO"; const I = (k, w = 70, props = {}) => <input value={r[k] ?? ""} onChange={(e) => set(t, k, e.target.value)} className="rounded outline-none text-xs text-center" style={{ ...pequeno, width: w }} {...props} />;
             return (
             <tr key={t} style={{ borderTop: `1px solid ${C.line}` }}>
               <td className="px-2 py-1 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{t}{tiposPeca.includes(t) && <span className="ml-1 text-[9px] px-1 rounded" style={{ background: C.accentSoft, color: C.accent }} title="Tipo de peça usado no lançamento de pedido">peça</span>}</td>
               <td className="px-2 py-1" style={{ minWidth: 300 }}><input value={r.descricao ?? ""} onChange={(e) => set(t, "descricao", e.target.value)} title={r.descricao || ""} className="rounded outline-none text-xs w-full" style={pequeno} /></td>   {/* v680 — campo largo */}
-              <td className="px-2 py-1"><input value={fNcm(r.ncm)} onChange={(e) => set(t, "ncm", e.target.value)} disabled={sv} placeholder={sv ? "—" : "0000.00.00"} className="rounded outline-none text-xs tabular-nums" style={{ ...pequeno, width: 108 }} /></td>
-              <td className="px-2 py-1">{I("cest", 64, { disabled: sv })}</td>
-              <td className="px-2 py-1"><select value={r.origem ?? 0} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={sv} className="rounded outline-none text-xs" style={{ ...pequeno, width: 96 }}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
-              <td className="px-2 py-1">{I("unidade", 44)}</td>
-              <td className="px-2 py-1">{I("gtin", 72, { disabled: sv })}</td>
-              <td className="px-2 py-1">{I("icmsCst", 40)}</td>
-              <td className="px-2 py-1">{I("icmsAliquotaInterna", 44)}</td>
-              <td className="px-2 py-1">{I("pisCofinsCst", 40)}</td>
-              <td className="px-2 py-1">{I("pisAliquota", 48)}</td>
-              <td className="px-2 py-1">{I("cofinsAliquota", 44)}</td>
-              <td className="px-2 py-1">{I("ipiCst", 40)}</td>
-              <td className="px-2 py-1">{I("ipiAliquota", 40)}</td>
-              <td className="px-2 py-1">{I("codigoServico", 60, { disabled: !sv, placeholder: sv ? "ex.: 14.09" : "" })}</td>
+              <td className="px-2 py-1 text-center"><input value={fNcm(r.ncm)} onChange={(e) => set(t, "ncm", e.target.value)} disabled={sv} placeholder={sv ? "—" : "0000.00.00"} className="rounded outline-none text-xs tabular-nums text-center" style={{ ...pequeno, width: 108 }} /></td>
+              <td className="px-2 py-1 text-center">{I("cest", 64, { disabled: sv })}</td>
+              <td className="px-2 py-1 text-center"><select value={r.origem ?? 0} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={sv} className="rounded outline-none text-xs" style={{ ...pequeno, width: 96 }}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
+              <td className="px-2 py-1 text-center">{I("unidade", 44)}</td>
+              <td className="px-2 py-1 text-center">{I("gtin", 72, { disabled: sv })}</td>
+              <td className="px-2 py-1 text-center">{I("icmsCst", 40)}</td>
+              <td className="px-2 py-1 text-center">{I("icmsAliquotaInterna", 44)}</td>
+              <td className="px-2 py-1 text-center">{I("pisCofinsCst", 40)}</td>
+              <td className="px-2 py-1 text-center">{I("pisAliquota", 48)}</td>
+              <td className="px-2 py-1 text-center">{I("cofinsAliquota", 44)}</td>
+              <td className="px-2 py-1 text-center">{I("ipiCst", 40)}</td>
+              <td className="px-2 py-1 text-center">{I("ipiAliquota", 40)}</td>
+              <td className="px-2 py-1 text-center">{I("codigoServico", 60, { disabled: !sv, placeholder: sv ? "ex.: 14.09" : "" })}</td>
             </tr>); })}</tbody>
         </table>
       </div>
