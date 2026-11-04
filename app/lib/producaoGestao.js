@@ -102,12 +102,22 @@ export async function detalhePedido(numero) {
   const vinc = await prisma.compraItem.findMany({ where: { pedidoNumero: p.numero } });
   const porChave = Object.fromEntries(vinc.map((v) => [v.chave, v]));
   const ci = Array.isArray(p.cronoItens) ? p.cronoItens : [];
-  const itensOut = itens.map((i) => {
+  // v638 — guia OP: parâmetros de produção, tipo de peça e foto de cada item (a foto vem do lançamento) + anexos do lançamento
+  const pp = await prisma.pp.findFirst({ where: { numero: p.numero }, orderBy: { id: "desc" },
+    select: { id: true, origem: true, arquivoPedidoPdf: true, arquivoOpPdf: true, itens: { select: { codigo: true, fotoBase64: true }, orderBy: { id: "asc" } },
+      anexos: { select: { id: true, nome: true, tipo: true, categoria: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } } }).catch(() => null);
+  const brutos = Array.isArray(p.itens) ? p.itens : [];
+  const ppIts = pp?.itens || [];
+  const fotoDe = (idx, cod) => (ppIts.length === brutos.length ? ppIts[idx]?.fotoBase64 : ppIts.find((x) => cod && x.codigo === cod)?.fotoBase64) || null;
+  const itensOut = itens.map((i, idx) => {
     const v = porChave[i.chave];
+    const bruto = brutos[idx] || {};
     const c = ci.find((x) => String(x.itemCode || "") === String(i.chave).split("#")[0]);
     return { chave: i.chave, codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco, grade: i.grade,
       fppId: v?.fppId || null, fppNumero: v?.fppNumero || null, compra: v?.status || null,
-      fase: c ? faseDe(c.situacao, c.etapa) : null, etapa: c?.etapa || null, situacao: c?.situacao || null };
+      fase: c ? faseDe(c.situacao, c.etapa) : null, etapa: c?.etapa || null, situacao: c?.situacao || null,
+      tipoPeca: bruto.tipoPeca || null, parametros: Array.isArray(bruto.parametros) ? bruto.parametros.filter((x) => x && x.t && x.v) : [], foto: fotoDe(idx, i.codigo),
+      op: c?.op || null, previsto: c?.fimProgramado || c?.entrega || null };
   });
   // ocorrências
   const oc = [];
@@ -147,7 +157,9 @@ export async function detalhePedido(numero) {
   const pecasTotal = itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
   return {
     ...r, emissao: iso(p.emissao), obs: p.obs || "", condicao: p.condicao || null, criadoPorNome: p.criadoPorNome || null,
-    itens: itensOut, ocorrencias: oc, erroPcp,
+    itens: itensOut, ocorrencias: oc, erroPcp, fonte: p.fonte || null, tipoPedido: p.tipoPedido || null, nfObs: p.nfObs || null,
+    pp: pp ? { id: pp.id, origem: pp.origem || null, temPv: !!pp.arquivoPedidoPdf, temOp: !!pp.arquivoOpPdf } : null,
+    anexos: pp?.anexos || [],
     faturamento: { nfs, faturado: r2(nfs.reduce((s, n) => s + n.valor, 0)), pecasPendentes: p.qtEntregar != null ? p.qtEntregar : pecasTotal,
       valorPendente: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total), pecasTotal, pecasConcluidas: r.pecasConcluidas, pecasFaturadas: r.pecasFaturadas,
       casadas: fin?.nfs || [], fretes: fin?.fretes || [], contasTotal: fin?.contasTotal || 0, recebido: fin?.recebido || 0, emAberto: fin?.emAberto || 0 },

@@ -57,12 +57,12 @@ const PEDIDOS = [
   { id: "25100242", cliente: "ANAC BRASÍLIA", pecas: "Jaqueta", qtd: 80, status: "Em compras", entrega: "18/08" },
   { id: "26060068", cliente: "ULTRASONIC", pecas: "Jaleco, Polo", qtd: 150, status: "Aguardando estoque", entrega: "20/08" },
   { id: "26070073", cliente: "SEGURA", pecas: "Camisa", qtd: 60, status: "Em produção", entrega: "22/08" },
-  { id: "26070040", cliente: "ATRATIVA SERVICE", pecas: "Avental", qtd: 120, status: "Lançamento PP", entrega: "26/08" },
+  { id: "26070040", cliente: "ATRATIVA SERVICE", pecas: "Avental", qtd: 120, status: "Lançamento OP", entrega: "26/08" },
   { id: "25100215", cliente: "NORT CAMPINAS", pecas: "Camiseta", qtd: 300, status: "Concluído", entrega: "05/07" },
 ];
-const STATUS_COL = ["Lançamento PP", "Em compras", "Aguardando estoque", "Em produção", "Concluído"];
+const STATUS_COL = ["Lançamento OP", "Em compras", "Aguardando estoque", "Em produção", "Concluído"];
 const STATUS_COLOR = {
-  "Lançamento PP": C.yellow, "Em compras": C.blue, "Aguardando estoque": C.accent,
+  "Lançamento OP": C.yellow, "Em compras": C.blue, "Aguardando estoque": C.accent,
   "Em produção": C.green, "Concluído": C.sub,
 };
 const ARTIGOS = [
@@ -402,7 +402,7 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
-          {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} />}
+          {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} componentes={COMPONENTES} veVal={veValoresPP(user)} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} irPic={() => ir("pic")} />}
@@ -1351,7 +1351,7 @@ function LancarPP({ user }) {
           {podeLancar && <>
             <input ref={inpUp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { subir(e.target.files); e.target.value = ""; }} />
             <button disabled={subindo} onClick={() => inpUp.current?.click()} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}`, opacity: subindo ? 0.5 : 1 }}>
-              {subindo ? "Lendo…" : "Subir PV e PP (KM)"}
+              {subindo ? "Lendo…" : "Subir PV e OP (KM)"}
             </button>
           </>}
           {podeLancar && <button onClick={() => { setPpId(null); setModo("editor"); }} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
@@ -1361,7 +1361,7 @@ function LancarPP({ user }) {
       </div>
       {podeLancar && <div tabIndex={0} title="Clique aqui e aperte Ctrl+V" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(e.dataTransfer.files); }}
         className="rounded-lg px-4 py-2.5 mb-3 text-xs" style={{ border: `1px dashed ${C.line}`, color: C.sub, background: C.panel }}>
-        Arraste ou cole (Ctrl+V) os PDFs do KM — PV (pedido de venda) e PP (ordem de produção), vários de uma vez. Os pedidos subidos no Financeiro também aparecem aqui.
+        Arraste ou cole (Ctrl+V) os PDFs do KM — PV (pedido de venda) e OP (ordem de produção), vários de uma vez. Os pedidos subidos no Financeiro também aparecem aqui.
       </div>}
       {resUp && <div className="rounded-lg px-4 py-2 mb-3 text-xs" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         {resUp.map((r, i) => <div key={i} style={{ color: r.erro ? "#C33" : C.text }}>{r.erro ? "✗" : "✓"} <b>{r.nome}</b> {r.erro || (r.tipo === "POSICAO" ? `Posição de Vendas · ${r.lidos} lidos, ${r.criados} novo(s)` : `${r.tipo} · pedido ${r.numero} · ${r.cliente || ""}${r.novo ? " · novo" : " · atualizado"}`)}</div>)}
@@ -1378,7 +1378,7 @@ function LancarPP({ user }) {
           <div className="w-28"></div>
         </div>
         {lista.length === 0 ? (
-          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum PP ainda.{podeLancar ? ' Clique em "Novo PP".' : ""}</div>
+          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhuma OP ainda.{podeLancar ? ' Clique em "Novo pedido".' : ""}</div>
         ) : lista.map((p) => (
           <div key={p.id} className="flex px-4 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
             <div className="w-28 font-medium">{p.numero || <span style={{ color: C.sub }}>rascunho</span>}
@@ -1393,14 +1393,14 @@ function LancarPP({ user }) {
             <div className="w-20 text-right" style={{ color: C.sub }}>{p._count?.itens ?? 0}</div>
             {veVal && <div className="w-32 text-right" style={{ color: C.accent, fontWeight: 600 }}>{p.valorTotal != null ? ppMoney(p.valorTotal) : "—"}</div>}
             <div className="w-40 flex justify-center gap-2 text-xs font-semibold">
-              {[["temPv", "arquivoPedidoPdf", "PV"], ["temOp", "arquivoOpPdf", "PP"], ["temPc", "arquivoPcPdf", "PC"], ["temLanc", "arquivoLancPdf", "SOL"]].filter(([k]) => p[k]).map(([k, campo, t]) => (
+              {[["temPv", "arquivoPedidoPdf", "PV"], ["temOp", "arquivoOpPdf", "OP"], ["temPc", "arquivoPcPdf", "PC"], ["temLanc", "arquivoLancPdf", "SOL"]].filter(([k]) => p[k]).map(([k, campo, t]) => (
                 <button key={k} onClick={() => abrirPdf(p, campo)} className="px-1.5 rounded" style={{ color: C.accent, border: `1px solid ${C.line}` }} title="Abrir PDF">{t}</button>
               ))}
-              {p.origem === "PEDIDOS" && <span className="px-1.5 rounded" style={{ color: C.sub, background: C.panel2 }} title="Veio do upload de PV/PP">KM</span>}
+              {p.origem === "PEDIDOS" && <span className="px-1.5 rounded" style={{ color: C.sub, background: C.panel2 }} title="Veio do upload de PV/OP">KM</span>}
             </div>
             <div className="w-28 flex justify-end gap-2">
               <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
-              {podeLancar && <button onClick={async () => { if ((await confirmar("Excluir este PP?"))) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
+              {podeLancar && <button onClick={async () => { if ((await confirmar("Excluir esta OP?"))) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
             </div>
           </div>
         ))}
@@ -1545,9 +1545,9 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
       <div className="flex items-center justify-between mb-4">
         <button onClick={onVoltar} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
         <div className="flex gap-2">
-          <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, false)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>
+          <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, false)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir OP</button>
           {veVal && <button onClick={() => imprimirPP({ ...f, valorTotal: totalGeral }, itens, totalPecas, totalGeral, true)} className="px-4 py-2 rounded flex items-center gap-1" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
-          {podeLancar && <button onClick={() => salvar(false)} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar PP"}</button>}
+          {podeLancar && <button onClick={() => salvar(false)} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar OP"}</button>}
         </div>
       </div>
 
@@ -1559,7 +1559,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
         <div className="flex gap-3">
           {anexo("1 · PC do cliente", "arquivoPcPdf")}
           {anexo("2 · Solicitação de lançamento", "arquivoLancPdf")}
-          {anexo("3 · Pedido (base do PP)", "arquivoPedidoPdf")}
+          {anexo("3 · Pedido (base da OP)", "arquivoPedidoPdf")}
           {anexo("4 · Ordem de produção (KM)", "arquivoOpPdf")}
         </div>
       </div>}
@@ -1568,7 +1568,7 @@ function PpEditor({ ppId, onVoltar, podeLancar = true, veVal = true }) {
       <div className="rounded-lg p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="font-semibold text-sm mb-3">Dados do pedido</div>
         <div className="grid grid-cols-4 gap-3">
-          <In label="PP nº" value={f.numero} onChange={(e) => set("numero", e.target.value)} placeholder="ex.: 26070078" />
+          <In label="OP nº" value={f.numero} onChange={(e) => set("numero", e.target.value)} placeholder="ex.: 26070078" />
           <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />
           <In label="Tipo de pedido" value={f.tipoPedido} onChange={(e) => set("tipoPedido", e.target.value)} />
           <In label="Vendedor" value={f.vendedor} onChange={(e) => set("vendedor", e.target.value)} />
@@ -1793,7 +1793,7 @@ function imprimirPPAntigo(f, itens, totalPecas, totalGeral, comValores = true) {
   </body></html>`;
 
   const w = window.open("", "_blank");
-  if (!w) { alerta("Permita pop-ups para imprimir o PP."); return; }
+  if (!w) { alerta("Permita pop-ups para imprimir a OP."); return; }
   w.document.write(html); w.document.close();
 }
 
@@ -1902,7 +1902,7 @@ async function gerarPdfFme(fme, responsavelNome) {
   const cols = [
     { t: "Item", x: 10, w: 54 },
     { t: "Cor", x: 64, w: 22 },
-    { t: "PP", x: 86, w: 20 },
+    { t: "OP", x: 86, w: 20 },
     { t: "Un", x: 106, w: 9 },
     { t: "Qtd retir.", x: 115, w: 22 },
     { t: "Qtd devol.", x: 137, w: 22 },
@@ -2298,7 +2298,7 @@ function NovaFmeModal({ user, perfil, artigos, usuarios, fornecedores, onArtigos
                     <input value={it.qtd} onChange={(e) => setItem(i, "qtd", e.target.value)} inputMode="decimal" placeholder={rotuloQtd(it.artigo.unidade)} className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
                   </div>
                   <div className="w-28">
-                    <input value={it.pp} onChange={(e) => setItem(i, "pp", e.target.value)} placeholder="PP" className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
+                    <input value={it.pp} onChange={(e) => setItem(i, "pp", e.target.value)} placeholder="OP" className="w-full px-2 py-1 rounded outline-none text-sm" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, textTransform: "uppercase" }} />
                   </div>
                   <button onClick={() => remover(i)} className="w-8 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>
                 </div>

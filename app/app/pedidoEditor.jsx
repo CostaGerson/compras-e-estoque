@@ -374,7 +374,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {f.servico && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>SERVIÇO</span>}
         </div>
         <div className="flex gap-2">
-          {!f.servico && <button onClick={() => imprimirAgora("PP")} title="Pedido de produção — sem valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PP</button>}
+          {!f.servico && <button onClick={() => imprimirAgora("PP")} title="Ordem de produção — sem valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir OP</button>}
           {veVal && <button onClick={() => imprimirAgora("PV")} title="Pedido de venda — com valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} className="px-3 py-2 rounded text-sm" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>

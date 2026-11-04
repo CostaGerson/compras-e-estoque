@@ -173,7 +173,7 @@ export default function PedidosAndamento({ user }) {
         <div className="flex-1" />
         <input ref={inp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
         <button disabled={enviando} onClick={() => inp.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: enviando ? 0.5 : 1 }}>
-          {enviando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Subir PV e PP
+          {enviando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Subir PV e OP
         </button>
       </div>
 
@@ -251,7 +251,7 @@ export default function PedidosAndamento({ user }) {
               {R.qtdSemCondicao > 0 && <Aviso onClick={() => tog("semCondicao")} ativo={vista === "semCondicao"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
               {R.qtdNfSemContas > 0 && <Aviso onClick={() => tog("nfSemContas")} ativo={vista === "nfSemContas"} cor={C.blue} bg={C.blueSoft}>{R.qtdNfSemContas} com NF emitida no KM — suba a NF no movimento fiscal para faturar</Aviso>}
               {R.qtdForaPcp > 0 && <Aviso onClick={() => tog("foraPcp")} ativo={vista === "foraPcp"} cor={C.sub} bg={C.panel2}><span title={(R.foraPcp || []).join(", ")}>{R.qtdForaPcp} pedido(s) antigo(s) fora do PCP do Maycon — ocultos</span></Aviso>}
-              {R.qtdSemPv > 0 && <Aviso onClick={() => tog("semPv")} ativo={vista === "semPv"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com PP — suba o PV para ter os valores</Aviso>}
+              {R.qtdSemPv > 0 && <Aviso onClick={() => tog("semPv")} ativo={vista === "semPv"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemPv} só com OP — suba o PV para ter os valores</Aviso>}
               {R.qtdSemCrono > 0 && CR?.temToken && <Aviso onClick={() => tog("semCrono")} ativo={vista === "semCrono"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCrono} sem programação no Cronograma — previsto pela DT despacho do PV</Aviso>}
               {R.qtdNfSugerida > 0 && <Aviso onClick={() => tog("nfSugerida")} ativo={vista === "nfSugerida"} cor={C.blue} bg={C.blueSoft}>{R.qtdNfSugerida} com NF de saída que parece ser o faturamento — confira e marque como faturado</Aviso>}
             </div>
@@ -287,7 +287,7 @@ export default function PedidosAndamento({ user }) {
                 </tr>
               </thead>
               <tbody>
-                {!lista.length && <tr><td colSpan={13} className="px-3 py-6 text-center" style={{ color: C.sub }}>{vista ? "Nenhum pedido neste filtro." : "Nenhum pedido. Suba os PDFs de PV e PP."}</td></tr>}
+                {!lista.length && <tr><td colSpan={13} className="px-3 py-6 text-center" style={{ color: C.sub }}>{vista ? "Nenhum pedido neste filtro." : "Nenhum pedido. Suba os PDFs de PV e OP."}</td></tr>}
                 {lista.map((p) => <LinhaPedido key={p.id} p={p} aberto={aberto === p.id} onToggle={() => setAberto(aberto === p.id ? null : p.id)}
                   user={user} salvar={salvar} lancarEntrada={lancarEntrada} excluir={excluir} comp={comp} />)}
               </tbody>
@@ -431,7 +431,7 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
                     ))}
                   </tbody>
                 </table>
-                {!p.temPp && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>Sem PP: suba a ordem de produção para ver os dados de produção.</div>}
+                {!p.temPp && <div className="text-[11px] mt-2" style={{ color: C.yellow }}>Sem OP: suba a ordem de produção para ver os dados de produção.</div>}
                 {/* v376 — avisos e faturamento completos (na linha ficam resumidos) */}
                 {(v.reprogramar || v.pronto || p.interno || p.vendedor || (Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length) || p.nfNumero) && (
                   <div className="mt-3 pt-2 text-[11px] grid gap-0.5" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>

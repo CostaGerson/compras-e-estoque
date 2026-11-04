@@ -1,10 +1,11 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";
+import { imprimirPedido, dadosImpressaoPp, dadosImpressaoPedido } from "./impressaoPedido";   // v638 — Imprimir PV / OP no card
 import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
 
 const C = {
@@ -51,7 +52,7 @@ const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.ac
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
 
-export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
+export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, componentes = {}, veVal = false }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState(null);
@@ -157,7 +158,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido }) {
           </div>
         </>
       )}
-      {aberto && <PedidoTela numero={aberto} user={user} onClose={() => setAberto(null)} />}
+      {aberto && <PedidoTela numero={aberto} user={user} componentes={componentes} veVal={veVal} onClose={() => setAberto(null)} />}
       {casar && <CasarPedidoModal user={user} pedido={casar} onClose={() => setCasar(null)} onFeito={carregar} />}
       {lixeira && <LixeiraPedidos user={user} onClose={() => setLixeira(false)} onRestaurado={carregar} />}
     </div>
@@ -204,13 +205,14 @@ function LixeiraPedidos({ user, onClose, onRestaurado }) {
 
 // ---------- pedido em tela grande ----------
 let _usuarios = null;
-function PedidoTela({ numero, user, onClose }) {
+function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) {
   const [p, setP] = useState(null);
   const [erro, setErro] = useState("");
   const [obs, setObs] = useState("");
   const [salvObs, setSalvObs] = useState(false);
   const [verFpp, setVerFpp] = useState(null);
-  const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro
+  const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro · v638 — OP (ordem de produção, item a item)
+  const [imprimindo, setImprimindo] = useState("");
   const [fatura, setFatura] = useState(false);   // v450 — Incluir faturamento
   const [casarNf, setCasarNf] = useState(false);   // v555
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
@@ -220,6 +222,26 @@ function PedidoTela({ numero, user, onClose }) {
     await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "obs", numero, obs, autorNome: nomeU(user) }) });
     setSalvObs(false); carregar();
   }
+  // v638 — Imprimir PV / OP: lançamento do sistema → mesmo layout do editor; veio do KM → PDF do KM; sem nada → dados do pedido
+  async function imprimir(tipo) {
+    if (!p) return;
+    const arq = tipo === "PV" ? "arquivoPedidoPdf" : "arquivoOpPdf";
+    const temPdf = tipo === "PV" ? p.pp?.temPv : p.pp?.temOp;
+    if (p.pp && p.pp.origem === "PEDIDOS" && temPdf) { window.open(`/api/pp/${p.pp.id}?arquivo=${arq}&_u=${user?.id}`, "_blank"); return; }
+    setImprimindo(tipo);
+    try {
+      if (p.pp && p.pp.origem !== "PEDIDOS") {
+        const d = await fetch(`/api/pp/${p.pp.id}`, { headers: { "x-usuario-id": String(user?.id || "") } }).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); return x; });
+        const { f, itens } = dadosImpressaoPp(d, veVal);
+        imprimirPedido(tipo, f, itens, { componentes, alerta });
+      } else {
+        const { f, itens } = dadosImpressaoPedido(p);
+        imprimirPedido(tipo, f, itens, { componentes, alerta });
+      }
+    } catch (e) { alerta(e.message); }
+    setImprimindo("");
+  }
+  const abrirAnexo = (a) => window.open(`/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}`, "_blank");
   const editarFpp = (id) => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "fpp", fppId: id, voltar: { v: "pedido", numero } } })); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -232,18 +254,21 @@ function PedidoTela({ numero, user, onClose }) {
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
+          {p && p.tipoPedido !== "SERVIÇO" && <button onClick={() => imprimir("OP")} disabled={!!imprimindo} title="Ordem de produção — sem valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "OP" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir OP</button>}
+          {p && veVal && <button onClick={() => imprimir("PV")} disabled={!!imprimindo} title="Pedido de venda — com valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "PV" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir PV</button>}
           {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
         {p?.critica && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={15} /> {p.critica}</div>}
         {p?.parcial && !p?.critica && p.faturamento?.valorPendente > 0 && <div className="px-5 py-2 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>Faturamento parcial: falta{p.faturamento.pecasPendentes != null ? ` ${p.faturamento.pecasPendentes} peça(s) ·` : ""} {brl(p.faturamento.valorPendente)} — o saldo segue acompanhado no PCP do Maycon.</div>}
         <div className="flex gap-1 px-5" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
-          {[["geral", "Visão geral"], ["financeiro", "Financeiro"]].map(([k, t]) => (
+          {[["geral", "Visão geral"], ["op", "OP"], ["financeiro", "Financeiro"]].map(([k, t]) => (
             <button key={k} onClick={() => setGuia(k)} className="px-4 py-2 text-sm" style={{ color: guia === k ? C.accent : C.sub, fontWeight: guia === k ? 700 : 500, borderBottom: guia === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>{t}</button>
           ))}
         </div>
         {erro && <div className="p-5 text-sm" style={{ color: C.red }}>{erro}</div>}
         {!p && !erro && <div className="p-5 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+        {p && guia === "op" && <GuiaOp p={p} componentes={componentes} verFpp={setVerFpp} />}
         {p && guia === "financeiro" && (
           <div className="flex-1 overflow-auto p-4 space-y-4">
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -333,6 +358,28 @@ function PedidoTela({ numero, user, onClose }) {
                   <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={2} className="w-full px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}` }} />
                   {obs !== (p.obs || "") && <button onClick={salvarObs} disabled={salvObs} className="mt-1 px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>{salvObs ? "Salvando…" : "Salvar observação"}</button>}
                 </div>
+                {p.nfObs && <div className="mt-2"><div className="text-xs mb-0.5" style={{ color: C.sub }}>Observação da NF</div><div className="text-xs" style={{ color: C.text }}>{p.nfObs}</div></div>}
+              </div>
+
+              {/* v638 — anexos do lançamento (OC, solicitação, layout…) */}
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-2 mb-2"><Paperclip size={15} style={{ color: C.accent }} /><div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Anexos</div>{p.anexos.length > 0 && <span className="text-xs" style={{ color: C.sub }}>{p.anexos.length}</span>}</div>
+                {p.anexos.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {p.anexos.map((a) => (
+                      <button key={a.id} onClick={() => abrirAnexo(a)} title={`${a.nome}${a.criadoPorNome ? ` · ${a.criadoPorNome}` : ""}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs max-w-[260px]" style={{ border: `1px solid ${C.line}`, background: C.panel2 }}>
+                        {a.categoria && <span className="px-1 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{ANEXO_CAT[a.categoria] || a.categoria}</span>}
+                        <span className="truncate" style={{ color: C.text }}>{a.nome}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : <div className="text-xs" style={{ color: C.sub }}>{p.pp ? "Nenhum anexo no lançamento." : "Pedido sem lançamento no sistema — sem anexos."}</div>}
+                {p.pp?.origem === "PEDIDOS" && (p.pp.temPv || p.pp.temOp) && (
+                  <div className="flex gap-2 mt-2">
+                    {p.pp.temOp && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoOpPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> OP do KM</button>}
+                    {veVal && p.pp.temPv && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoPedidoPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> PV do KM</button>}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -387,6 +434,83 @@ function PedidoTela({ numero, user, onClose }) {
     </div>
   );
 }
+
+// v638 — guia OP: todos os dados de cada item do pedido (grade, parâmetros de produção, tecido/FPP, foto) e a fase de cada um no PCP
+const ANEXO_CAT = { OC: "OC", SOLICITACAO: "Solicitação", LAYOUT: "Layout", OUTRO: "Outro" };
+function GuiaOp({ p, componentes, verFpp }) {
+  const tot = p.itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
+  const porFase = {};
+  for (const i of p.itens) { const f = i.fase || "FORA"; porFase[f] = (porFase[f] || 0) + (Number(i.qtd) || 0); }
+  return (
+    <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="rounded-xl p-4 flex flex-wrap items-center gap-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <Factory size={18} style={{ color: C.accent }} />
+        <div><div className="text-xs" style={{ color: C.sub }}>Ordem de produção</div><div className="font-bold" style={{ color: C.navy }}>{p.numero} · {p.itens.length} item(ns) · {tot.toLocaleString("pt-BR")} peças</div></div>
+        <div className="flex flex-wrap gap-2 ml-auto">
+          {Object.entries(porFase).sort((a, b) => (FASE_ORD[a[0]] ?? 99) - (FASE_ORD[b[0]] ?? 99)).map(([f, q]) => (
+            <span key={f} className="flex items-center gap-1 text-xs"><ChipFase f={f} /><span style={{ color: C.sub }}>{q.toLocaleString("pt-BR")} pç</span></span>
+          ))}
+        </div>
+        {p.erroPcp && <div className="w-full text-xs" style={{ color: C.red }}>PCP indisponível: {p.erroPcp}</div>}
+      </div>
+      {p.itens.map((i, k) => {
+        const comps = componentes[i.tipoPeca] || [];
+        const pars = [...(i.parametros || [])].sort((a, b) => { const x = comps.indexOf(a.t), y = comps.indexOf(b.t); return (x < 0 ? 999 : x) - (y < 0 ? 999 : y); });
+        const grade = (i.grade || []).filter((g) => Number(g.qtd) > 0);
+        return (
+          <div key={i.chave} className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+              <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: C.navy, color: "#fff" }}>{k + 1}</span>
+              <span className="text-sm font-bold" style={{ color: C.text }}>{i.descricao || "—"}</span>
+              <span className="text-xs" style={{ color: C.sub }}>{[i.tipoPeca, i.codigo ? `cód. ${i.codigo}` : ""].filter(Boolean).join(" · ")}</span>
+              <span className="ml-auto text-sm font-bold" style={{ color: C.navy }}>{(Number(i.qtd) || 0).toLocaleString("pt-BR")} pç</span>
+            </div>
+            <div className="flex gap-4 p-4">
+              <div className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center" style={{ width: 150, height: 150, background: C.panel2, border: `1px solid ${C.line}` }}>
+                {i.foto ? <img src={i.foto} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span className="text-xs" style={{ color: C.sub }}>sem foto</span>}
+              </div>
+              <div className="flex-1 min-w-0 space-y-3">
+                {/* fase no PCP */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs rounded-lg px-3 py-2" style={{ background: i.fase ? `${FASE_COR[i.fase] || C.sub}12` : C.panel2 }}>
+                  <span className="font-semibold" style={{ color: C.sub }}>PCP</span>
+                  {i.fase ? <ChipFase f={i.fase} /> : <span style={{ color: C.sub }}>{p.fase === "COMPRAS" || p.fase === "PROGRAMAR" ? `${FASE_TXT[p.fase]} (ainda não está no PCP)` : "item não encontrado no PCP"}</span>}
+                  {i.etapa && <span><span style={{ color: C.sub }}>etapa </span><b>{i.etapa}</b></span>}
+                  {i.situacao && <span><span style={{ color: C.sub }}>situação </span><b>{i.situacao}</b></span>}
+                  {i.previsto && <span><span style={{ color: C.sub }}>prev. término </span><b>{dOnly(i.previsto)}</b></span>}
+                  {i.op && i.op !== p.numero && <span><span style={{ color: C.sub }}>OP PCP </span><b>{i.op}</b></span>}
+                </div>
+                {/* grade */}
+                {grade.length > 0 && (
+                  <table className="text-xs" style={{ borderCollapse: "collapse" }}>
+                    <tbody>
+                      <tr>{grade.map((g) => <th key={g.tam} className="px-2.5 py-1 font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel2, color: C.sub }}>{g.tam}</th>)}<th className="px-2.5 py-1" style={{ border: `1px solid ${C.line}`, background: C.navy, color: "#fff" }}>TOTAL</th></tr>
+                      <tr>{grade.map((g) => <td key={g.tam} className="px-2.5 py-1 text-center" style={{ border: `1px solid ${C.line}` }}>{g.qtd}</td>)}<td className="px-2.5 py-1 text-center font-bold" style={{ border: `1px solid ${C.line}` }}>{(Number(i.qtd) || 0).toLocaleString("pt-BR")}</td></tr>
+                    </tbody>
+                  </table>
+                )}
+                {/* parâmetros de produção */}
+                {pars.length ? (
+                  <div className="grid gap-x-4 gap-y-1 text-xs" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+                    {pars.map((x) => (
+                      <div key={x.t} className="flex gap-2 py-0.5" style={{ borderBottom: `1px dashed ${C.line}` }}>
+                        <span className="shrink-0 font-semibold" style={{ color: C.sub, minWidth: 90 }}>{x.t}</span><span className="min-w-0" style={{ color: C.text }}>{x.v}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-xs" style={{ color: C.sub }}>Sem parâmetros de produção informados.</div>}
+                <div className="flex items-center gap-2 text-xs">
+                  {i.fppId ? <button onClick={() => verFpp(i)} className="flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> FPP {fmtFpp(i.fppNumero)}</button> : <span style={{ color: C.sub }}>sem FPP</span>}
+                  {i.compra && <span style={{ color: C.sub }}>compras: <b style={{ color: C.text }}>{i.compra}</b></span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+const FASE_ORD = { COMPRAS: 0, PROGRAMAR: 1, CORTE: 2, PERSONALIZACAO: 3, COSTURA: 4, EXPEDICAO: 5, CONCLUIDO: 6, FORA: 7 };
 
 function Comentarios({ numero, user, lista, onNovo }) {
   const [txt, setTxt] = useState("");

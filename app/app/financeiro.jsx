@@ -295,7 +295,7 @@ function FinDashboard({ user, ir }) {
           ["meses", CalendarRange, "Análise financeira", "Indicadores do ano, DRE do mês, importação e identificação"],
           ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
           ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
-          ["pedidos", FileStack, "Pedidos em andamento", "PV e PP: valor, condição, entrada e previsão de receitas"],
+          ["pedidos", FileStack, "Pedidos em andamento", "PV e OP: valor, condição, entrada e previsão de receitas"],
           ["patrimonio", Building2, "Patrimônio", "Bens da empresa, valores e NF de compra"],
         ].map(([v, Ico, t, sub]) => (
           <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>

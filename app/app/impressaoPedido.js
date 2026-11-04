@@ -1,7 +1,7 @@
 // v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
 //   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
 //   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
-import { parcelasCalc, DOCS_ENTREGA as DOCS } from "@/lib/pedidoLanc";
+import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora } from "@/lib/pedidoLanc";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n = (v) => { const s = String(v ?? "").trim(); return (s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s)) || 0; };
@@ -33,7 +33,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
   const totalGeral = lista.reduce((s, it) => s + qtdDe(it) * n(it.valorUnitario), 0);
   const agora = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   const numero = f.numero || "—";
-  const titulo = PV ? (servico ? "Pedido de serviço" : "Pedido de venda") : "Pedido de produção";
+  const titulo = PV ? (servico ? "Pedido de serviço" : "Pedido de venda") : "Ordem de produção";
 
   // ---------- tabela de itens ----------
   const linhas = lista.map((it, i) => {
@@ -88,7 +88,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
     ? `<div class="sec">${f.entregaModo === "TERCEIROS" ? "Entrega com terceiros" : "Entrega fracionada"}</div>
       <table class="pag">${f.entregas.map((e, k) => `<tr><td class="b">${k + 1}. ${esc(e.local || "—")}</td><td>${esc(e.endereco || "—")}${e.responsavel ? ` · resp. ${esc(e.responsavel)}` : ""}${e.contato ? ` · ${esc(e.contato)}` : ""}${e.documento ? `<div class="mut">${esc(DOCS[e.documento] || e.documento)}</div>` : ""}</td></tr>`).join("")}</table>` : "";
 
-  const html = `<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>${PV ? "PV" : "PP"} ${esc(numero)} · Meridian</title>
+  const html = `<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>${PV ? "PV" : "OP"} ${esc(numero)} · Meridian</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   @page { size: A4; margin: 12mm 13mm; }
@@ -187,11 +187,46 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
     ${PV && f.obsNfTexto ? `<div><b>Dados para a NF:</b> ${esc(f.obsNfTexto)}</div>` : ""}
   </div>` : ""}
 
-  <div class="rod"><span>${PV ? "Pedido de venda" : "Pedido de produção — documento interno, sem valores"} · Meridian</span><span>Impresso em ${agora}</span></div>
+  <div class="rod"><span>${PV ? "Pedido de venda" : "Ordem de produção — documento interno, sem valores"} · Meridian</span><span>Impresso em ${agora}</span></div>
   <script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>
 </body></html>`;
 
   const w = window.open("", "_blank");
   if (!w) { (alerta || window.alert)("Permita pop-ups para imprimir o pedido."); return; }
   w.document.write(html); w.document.close();
+}
+
+// v638 — monta cabeçalho e itens da impressão a partir do lançamento gravado (GET /api/pp/:id), como o editor faz
+//   usado no card do pedido em Produção › Gestão (Imprimir PV / Imprimir OP)
+export function dadosImpressaoPp(d, veVal = true) {
+  const js = (v, def) => { try { return v ? JSON.parse(v) : def; } catch { return def; } };
+  const servico = d.tipoPedido === "SERVIÇO";
+  const itens = (d.itens || []).map((it) => {
+    const grade = js(it.gradeJson, []);
+    const base = { tipoPecaNome: it.tipoPecaNome || "", codigo: it.codigo || "", descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario) : "",
+      parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "" };
+    return servico ? { ...base, grade: [{ tam: "UN", qtd: grade.reduce((q, g) => q + (n(g.qtd) || 0), 0) }] } : { ...base, grade };
+  });
+  const total = itens.reduce((s, it) => s + (it.grade || []).reduce((q, g) => q + n(g.qtd), 0) * n(it.valorUnitario), 0);
+  const emissao = d.emissao || (d.createdAt ? String(d.createdAt).slice(0, 10) : "");
+  const despacho = d.prazoDias != null && emissao ? somaDias(emissao, Number(d.prazoDias), d.prazoTipo || "UTEIS") : null;
+  const entregas = Array.isArray(d.entregas) ? d.entregas : [];
+  const f = {
+    ...d, emissao, servico, interno: !!d.interno, valorTotal: total, dtDespacho: despacho ? dataBRl(despacho) : d.dtDespacho || "",
+    prazoEntrega: d.prazoDias != null ? `${d.prazoDias} dias ${d.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : d.prazoEntrega || "",
+    condicaoPagamento: d.interno ? "INTERNO" : veVal ? (d.pagamento ? textoCondicao(d.pagamento, total) : d.condicaoPagamento || "") : "",
+    tipoPedido: servico ? "SERVIÇO" : d.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: textoObsNf({ numero: d.numero, oc: d.oc, nfObs: d.nfObs }),
+    entregasTexto: (d.entregaModo || "UNICA") === "UNICA" ? "" : entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS[e.documento] || "—"}`).join("\n"),
+  };
+  return { f, itens };
+}
+
+// v638 — pedido que não tem lançamento no sistema (veio do KM): imprime com os dados do pedido de venda
+export function dadosImpressaoPedido(p) {
+  const servico = p.tipoPedido === "SERVIÇO";
+  const itens = (p.itens || []).map((i) => ({ tipoPecaNome: i.tipoPeca || "", codigo: i.codigo || "", descricao: i.descricao || "", valorUnitario: i.preco != null ? String(i.preco) : "",
+    grade: servico || !(i.grade || []).length ? [{ tam: "UN", qtd: i.qtd }] : i.grade, parametros: Object.fromEntries((i.parametros || []).map((x) => [x.t, x.v])), fotoBase64: i.foto || "" }));
+  const f = { numero: p.numero, emissao: p.emissao, clienteNome: p.cliente, oc: p.oc, vendedor: p.vendedor, dtDespacho: p.prazo ? dataBRl(p.prazo) : "", servico,
+    tipoPedido: p.tipoPedido || "VENDA NORMAL", condicaoPagamento: p.condicao || "", obs: p.obs || "", obsNfTexto: p.nfObs || "", valorTotal: p.total };
+  return { f, itens };
 }
