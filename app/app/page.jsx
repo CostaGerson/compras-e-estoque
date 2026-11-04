@@ -2910,44 +2910,43 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
       {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: modoEstoque ? 1620 : 1280, fontSize: 12, textTransform: "uppercase" }}>
-        <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-24" />
-          <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-28" />
-          <ThSort label="Código" campoKey="codigo" sort={sort} onSort={onSort} className="w-24" />
-          {modoEstoque && <ThSort label="Saldo" campoKey="quantidade" sort={sort} onSort={onSort} className="w-24" />}
-          <div className="flex-1">Composição</div>
-          <div className="w-20">Largura</div>
-          <div className="w-28">Gram./Rend.</div>
-          {modoEstoque && <div className="w-44">Movimento</div>}
-          {modoEstoque && master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-24" />}
-          {modoEstoque && master && <div className="w-28">Valor total</div>}
+        <div style={{ minWidth: modoEstoque ? 1080 : 1000, fontSize: 12, textTransform: "uppercase" }}>   {/* v639 — cabe na tela com a barra lateral aberta */}
+        <div className="flex gap-2 px-3 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <ThSort label="Categoria" campoKey="categoria" sort={sort} onSort={onSort} className="w-[84px] shrink-0" />
+          <ThSort label="Artigo NF" campoKey="nome" sort={sort} onSort={onSort} className="flex-[1.3] min-w-0" />
+          <ThSort label="Artigo Interno" campoKey="interno" sort={sort} onSort={onSort} className="flex-1 min-w-0" />
+          <ThSort label="Fornecedor" campoKey="fornecedor" sort={sort} onSort={onSort} className="flex-1 min-w-0" />
+          <ThSort label="Cor" campoKey="cor" sort={sort} onSort={onSort} className="w-24 shrink-0" />
+          <ThSort label="Código" campoKey="codigo" sort={sort} onSort={onSort} className="w-16 shrink-0" />
+          {modoEstoque && <ThSort label="Saldo" campoKey="quantidade" sort={sort} onSort={onSort} className="w-[84px] shrink-0" />}
+          <div className="flex-1 min-w-0">Composição · larg. · gram.</div>
+          {modoEstoque && <div className="w-36 shrink-0">Movimento</div>}
+          {modoEstoque && master && <ThSort label="Preço" campoKey="preco" sort={sort} onSort={onSort} className="w-[76px] shrink-0" />}
+          {modoEstoque && master && <div className="w-24 shrink-0">Valor total</div>}
           {!modoEstoque && <div className="w-56">Última compra</div>}
         </div>
         {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
         {lista.map((a) => (
-          <div key={a.id} onClick={() => setEditando(a)} className="flex px-4 py-3 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}` }}
+          <div key={a.id} onClick={() => setEditando(a)} className="flex gap-2 px-3 py-2.5 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, overflowWrap: "anywhere" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            <div className="w-24"><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
-            <div className="flex-1 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>
-            <div className="flex-1" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
-            <div className="flex-1" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
+            <div className="w-[84px] shrink-0"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>
+            <div className="flex-[1.3] min-w-0 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>
+            <div className="flex-1 min-w-0" style={{ color: a.artigoInterno ? C.text : C.sub }}>{a.artigoInterno || "—"}</div>
+            <div className="flex-1 min-w-0" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </div>
-            <div className="w-28 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span>{a.cor || "—"}</span></div>
-            <div className="w-24" style={{ color: C.sub }}>{a.codigo || "—"}</div>
-            {modoEstoque && <div className="w-24" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
-            <div className="flex-1" style={{ color: C.sub }}>{a.composicao || "—"}</div>
-            <div className="w-20" style={{ color: C.sub }}>{a.largura ? `${a.largura} m` : "—"}</div>
-            <div className="w-28" style={{ color: C.sub }}>{gramRend(a)}</div>
-            {modoEstoque && <div className="w-44" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
-            {modoEstoque && master && <div className="w-24" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
-            {modoEstoque && master && <div className="w-28" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
+            <div className="w-24 shrink-0 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></div>
+            <div className="w-16 shrink-0" style={{ color: C.sub }}>{a.codigo || "—"}</div>
+            {modoEstoque && <div className="w-[84px] shrink-0" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
+            <div className="flex-1 min-w-0" style={{ color: C.sub }}>
+              <div>{a.composicao || "—"}</div>
+              {(a.largura || gramRend(a) !== "—") && <div className="text-[11px]">{[a.largura ? `${a.largura} m` : "", gramRend(a) !== "—" ? gramRend(a) : ""].filter(Boolean).join(" · ")}</div>}
+            </div>
+            {modoEstoque && <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
+            {modoEstoque && master && <div className="w-[76px] shrink-0" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
+            {modoEstoque && master && <div className="w-24 shrink-0" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
             {!modoEstoque && (
-              <div className="w-56" style={{ color: C.sub }}>
+              <div className="w-56 shrink-0" style={{ color: C.sub }}>
                 {(master && a.valorUnitario) || ultimaCompraResto(a) ? (
                   <>
                     {master && a.valorUnitario && (
