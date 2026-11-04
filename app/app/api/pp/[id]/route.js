@@ -15,6 +15,15 @@ export async function GET(req, { params }) {
     if (!a) return Response.json({ error: "Anexo não encontrado." }, { status: 404 });
     return new Response(Buffer.from(a.base64, "base64"), { headers: { "Content-Type": a.tipo || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
   }
+  // v650 — ?item=ID&k=n → arquivo n do item
+  const itq = new URL(req.url).searchParams.get("item");
+  if (itq) {
+    const it = await prisma.ppItem.findFirst({ where: { id: Number(itq), ppId: id }, select: { anexosJson: true } });
+    const a = Array.isArray(it?.anexosJson) ? it.anexosJson[Number(new URL(req.url).searchParams.get("k")) || 0] : null;
+    if (!a?.base64) return Response.json({ error: "Arquivo não encontrado." }, { status: 404 });
+    const m = String(a.base64).match(/^data:([^;,]+)[^,]*,/);
+    return new Response(Buffer.from(String(a.base64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Content-Type": a.mime || m?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome || "arquivo")}"` } });
+  }
   const arq = new URL(req.url).searchParams.get("arquivo");
   if (arq) {
     if (!["arquivoPedidoPdf", "arquivoOpPdf", "arquivoPcPdf", "arquivoLancPdf"].includes(arq)) return Response.json({ error: "Arquivo inválido." }, { status: 400 });

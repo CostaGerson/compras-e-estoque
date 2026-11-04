@@ -23,7 +23,20 @@ function tecidoTxt(v) {
  * @param itens [{ tipoPecaNome, codigo, descricao, valorUnitario, grade:[{tam,qtd}], parametros:{}, fotoBase64 }]
  * @param componentes { tipoPeca: [parâmetros] } — ordem dos parâmetros de produção
  */
-export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}) {
+// v650 — anexos na OP: imagem entra como figura; PDF é desenhado página a página (pdf.js) antes de imprimir
+//   a = { nome, mime|tipo, src } (src: data URL ou URL do sistema)
+const ehPdf = (a) => /pdf/i.test(a.mime || a.tipo || "") || /\.pdf$/i.test(a.nome || "") || /^data:application\/pdf/.test(a.src || "");
+const ehImg = (a) => /^image\//i.test(a.mime || a.tipo || "") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.nome || "") || /^data:image\//.test(a.src || "");
+function anexosHtml(lista, titulo) {
+  const l = (lista || []).filter((a) => a && a.src);
+  if (!l.length) return "";
+  return `<div class="anx-bloco">${titulo ? `<div class="anx-t">${esc(titulo)}</div>` : ""}${l.map((a) => ehImg(a)
+    ? `<figure class="anx"><img src="${esc(a.src)}"/><figcaption>${esc(a.nome || "")}</figcaption></figure>`
+    : ehPdf(a) ? `<figure class="anx"><div class="pdf" data-src="${esc(a.src)}"><span class="mut">carregando ${esc(a.nome || "PDF")}…</span></div><figcaption>${esc(a.nome || "")}</figcaption></figure>`
+    : `<div class="mut">Anexo ${esc(a.nome || "")} (formato não imprimível)</div>`).join("")}</div>`;
+}
+
+export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [] } = {}) {
   const PV = tipo === "PV";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const servico = !!f.servico || f.tipoPedido === "SERVIÇO";
@@ -70,6 +83,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
           <table class="params">${params || `<tr><td class="pk">Parâmetros</td><td>—</td></tr>`}</table>
         </div>
       </div>
+      ${anexosHtml((it.anexos || []).map((a) => ({ ...a, src: a.src || a.base64 })), "Arquivos do item")}
     </div>`;
   }).join("");
 
@@ -187,8 +201,48 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta } = {}
     ${PV && f.obsNfTexto ? `<div><b>Dados para a NF:</b> ${esc(f.obsNfTexto)}</div>` : ""}
   </div>` : ""}
 
+  ${!PV && (anexos || []).length ? `<div class="sec">Anexos do pedido</div>${anexosHtml(anexos)}` : ""}
+
   <div class="rod"><span>${PV ? "Pedido de venda" : "Ordem de produção — documento interno, sem valores"} · Meridian</span><span>Impresso em ${agora}</span></div>
-  <script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>
+  <style>
+    .anx-bloco { margin-top: 8px; } .anx-t { font-weight: 700; font-size: 10px; text-transform: uppercase; color: #667085; margin: 6px 0 4px; letter-spacing: .4px; }
+    figure.anx { margin: 0 0 8px; break-inside: avoid; page-break-inside: avoid; } figure.anx img { max-width: 100%; max-height: 250mm; display: block; border: 1px solid #E4E7EC; }
+    figure.anx figcaption { font-size: 9px; color: #667085; margin-top: 2px; } .pdf img { margin-bottom: 4px; }
+  </style>
+  <script>
+    window.__pdfPend = document.querySelectorAll(".pdf[data-src]").length;
+    window.onload = function () {
+      var t0 = Date.now();
+      (function esperar() {
+        var imgs = Array.prototype.every.call(document.images, function (i) { return i.complete; });
+        if ((window.__pdfPend <= 0 && imgs) || Date.now() - t0 > 20000) setTimeout(function () { window.print(); }, 300); else setTimeout(esperar, 200);
+      })();
+    };
+  </script>
+  <script type="module">
+    const els = [...document.querySelectorAll(".pdf[data-src]")];
+    if (els.length) {
+      try {
+        const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs");
+        pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs";
+        for (const el of els) {
+          try {
+            const src = el.dataset.src;
+            const data = src.startsWith("data:") ? Uint8Array.from(atob(src.split(",")[1]), (c) => c.charCodeAt(0)) : new Uint8Array(await (await fetch(src)).arrayBuffer());
+            const doc = await pdfjs.getDocument({ data }).promise;
+            el.innerHTML = "";
+            for (let p = 1; p <= Math.min(doc.numPages, 30); p++) {
+              const pg = await doc.getPage(p); const vp = pg.getViewport({ scale: 1.6 });
+              const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+              await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+              const img = document.createElement("img"); img.src = cv.toDataURL("image/jpeg", 0.85); el.appendChild(img);
+            }
+          } catch (e) { el.innerHTML = '<span class="mut">Não consegui desenhar este PDF.</span>'; }
+          window.__pdfPend--;
+        }
+      } catch (e) { els.forEach((el) => { el.innerHTML = '<span class="mut">Não consegui carregar o leitor de PDF (sem internet?).</span>'; }); window.__pdfPend = 0; }
+    }
+  </script>
 </body></html>`;
 
   const w = window.open("", "_blank");
@@ -204,7 +258,8 @@ export function dadosImpressaoPp(d, veVal = true) {
   const itens = (d.itens || []).map((it) => {
     const grade = js(it.gradeJson, []);
     const base = { tipoPecaNome: it.tipoPecaNome || "", codigo: it.codigo || "", descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario) : "",
-      parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "" };
+      parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "",
+      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };
     return servico ? { ...base, grade: [{ tam: "UN", qtd: grade.reduce((q, g) => q + (n(g.qtd) || 0), 0) }] } : { ...base, grade };
   });
   const total = itens.reduce((s, it) => s + (it.grade || []).reduce((q, g) => q + n(g.qtd), 0) * n(it.valorUnitario), 0);

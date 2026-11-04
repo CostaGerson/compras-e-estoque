@@ -431,6 +431,7 @@ model PpItem {
   gradeJson         String?
   parametrosJson    String?
   fotoBase64        String?
+  anexosJson        Json?     // v650 — arquivos do item além da foto: [{ nome, mime, base64 }] (saem na OP abaixo do item)
   valorTerceirizado Decimal? @db.Decimal(14, 2)
   fppId             Int?      // v595 — FPP indexada no lançamento (artigo e rendimento vêm dela)
   fppNumero         Int?

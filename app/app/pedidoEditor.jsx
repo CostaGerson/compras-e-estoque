@@ -197,7 +197,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
-          parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null };
+          parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
+          anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };   // v650
       });
       setItens(its.length ? its : [novoItem()]);
       setAnexos((d.anexos || []).map((a) => ({ ...a })));
@@ -285,7 +286,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const params = Object.fromEntries(Object.entries(d.parametros || {}).filter(([k, v]) => v && !paramFora(k) && k !== "TECIDO"));
     if (rf) params.TECIDO = tecidoDaFpp(rf);
     const tipo = TIPOS.includes(d.tipoPecaNome) ? d.tipoPecaNome : tipoPeca(d.nomeNf, TIPOS) || "";
-    const item = { ...novoItem(), tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
+    // v650 — layout e tabela de medidas do item padrão viram arquivos do item (saem na OP)
+    const anexosPadrao = [];
+    for (const a of d.anexos || []) {
+      try { const b = await fetch(`/api/itens-padrao/${d.id}?anexo=${a.id}`).then((r) => r.blob()); anexosPadrao.push({ nome: `${a.tipo === "MEDIDAS" ? "Tabela de medidas" : "Layout"} · ${a.nome}`, mime: a.mime || b.type || null, base64: await readB64(b) }); } catch {}
+    }
+    const item = { ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
       valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id };
     // ocupa o primeiro item vazio; senão acrescenta
     setItens((arr) => { const k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); return k >= 0 ? arr.map((it, j) => (j === k ? item : it)) : [...arr, item]; });
@@ -381,7 +387,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     ...f, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
     condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.servico ? "SERVIÇO" : f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
     entregasTexto: f.entregaModo === "UNICA" ? "" : f.entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS_ENTREGA[e.documento] || "—"}`).join("\n"),
-  }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, { componentes, alerta });
+  }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, { componentes, alerta,
+    anexos: anexos.map((a) => ({ nome: a.nome, mime: a.tipo, src: a.base64 || (a.id && ppId ? `/api/pp/${ppId}?anexo=${a.id}&_u=${uid}` : "") })) });   // v650
 
   if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -581,6 +588,19 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                 </label>
                 {it.fotoBase64 && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1" style={{ color: "#C77" }}>remover foto</button>}
+                {/* v650 — arquivos do item (além da foto): saem na OP abaixo dos detalhes do item */}
+                <div className="mt-2" style={{ width: 120 }}>
+                  <label className="block text-[11px] text-center px-1 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>
+                    <Paperclip size={11} className="inline mr-0.5" />Arquivos do item
+                    <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x) }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); e.target.value = ""; }} />
+                  </label>
+                  {(it.anexos || []).map((a, k) => (
+                    <div key={k} className="flex items-center gap-1 text-[11px] mt-1">
+                      <button type="button" onClick={() => { const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : `<img src="${a.base64}" style="max-width:100%"/>`); }} className="truncate flex-1 text-left" style={{ color: C.text }} title={a.nome}>{a.nome}</button>
+                      <button type="button" onClick={() => upItem(i, { anexos: it.anexos.filter((_, j) => j !== k) })} style={{ color: "#C77" }}><X size={11} /></button>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}</div>

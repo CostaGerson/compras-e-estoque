@@ -297,7 +297,8 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
       if (p.pp && p.pp.origem !== "PEDIDOS") {
         const d = await fetch(`/api/pp/${p.pp.id}`, { headers: { "x-usuario-id": String(user?.id || "") } }).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); return x; });
         const { f, itens } = dadosImpressaoPp(d, veVal);
-        imprimirPedido(tipo, f, itens, { componentes, alerta });
+        const anexos = (d.anexos || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}` }));   // v650
+        imprimirPedido(tipo, f, itens, { componentes, alerta, anexos });
       } else {
         const { f, itens } = dadosImpressaoPedido(p);
         imprimirPedido(tipo, f, itens, { componentes, alerta });
@@ -331,7 +332,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
         </div>
         {erro && <div className="p-5 text-sm" style={{ color: C.red }}>{erro}</div>}
         {!p && !erro && <div className="p-5 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-        {p && guia === "op" && <GuiaOp p={p} componentes={componentes} verFpp={setVerFpp} anexos={<AnexosCard p={p} user={user} veVal={veVal} />} />}
+        {p && guia === "op" && <GuiaOp p={p} user={user} componentes={componentes} verFpp={setVerFpp} anexos={<AnexosCard p={p} user={user} veVal={veVal} />} />}
         {p && guia === "financeiro" && (
           <div className="flex-1 overflow-auto p-4 space-y-4">
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -506,7 +507,7 @@ function AnexosCard({ p, user, veVal }) {
 }
 // v638 — guia OP: todos os dados de cada item do pedido (grade, parâmetros de produção, tecido/FPP, foto) e a fase de cada um no PCP
 const ANEXO_CAT = { OC: "OC", SOLICITACAO: "Solicitação", LAYOUT: "Layout", OUTRO: "Outro" };
-function GuiaOp({ p, componentes, verFpp, anexos }) {
+function GuiaOp({ p, user, componentes, verFpp, anexos }) {
   const tot = p.itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
   const porFase = {};
   for (const i of p.itens) { const f = i.fase || "FORA"; porFase[f] = (porFase[f] || 0) + (Number(i.qtd) || 0); }
@@ -568,6 +569,19 @@ function GuiaOp({ p, componentes, verFpp, anexos }) {
                     ))}
                   </div>
                 ) : <div className="text-xs" style={{ color: C.sub }}>Sem parâmetros de produção informados.</div>}
+                {/* v650 — arquivos do item */}
+                {(i.anexos || []).length > 0 && p.pp && (
+                  <div>
+                    <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Arquivos do item</div>
+                    <div className="flex flex-wrap gap-2">
+                      {i.anexos.map((a) => { const url = `/api/pp/${p.pp.id}?item=${a.itemId}&k=${a.k}&_u=${user?.id}`; const img = /^image\//.test(a.mime || "") || /\.(png|jpe?g|gif|webp)$/i.test(a.nome || "");
+                        return <a key={`${a.itemId}-${a.k}`} href={url} target="_blank" rel="noreferrer" title={a.nome} className="flex flex-col items-center gap-1 rounded-lg p-1.5 text-[11px]" style={{ border: `1px solid ${C.line}`, background: C.panel2, width: 110 }}>
+                          {img ? <img src={url} alt="" style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 4 }} /> : <span className="flex items-center justify-center" style={{ width: 96, height: 72, color: C.red }}><FileText size={28} /></span>}
+                          <span className="truncate w-full text-center" style={{ color: C.text }}>{a.nome}</span>
+                        </a>; })}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-xs">
                   {i.fppId ? <button onClick={() => verFpp(i)} className="flex items-center gap-1 px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> FPP {fmtFpp(i.fppNumero)}</button> : <span style={{ color: C.sub }}>sem FPP</span>}
                   {i.compra && <span style={{ color: C.sub }}>compras: <b style={{ color: C.text }}>{i.compra}</b></span>}

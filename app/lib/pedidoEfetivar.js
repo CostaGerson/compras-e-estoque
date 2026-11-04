@@ -43,7 +43,9 @@ export async function salvarPp(id, b, quem) {
     quantidade: qtdGrade(it.grade), valorUnitario: num(it.valorUnitario) || null, valorTotal: r2(qtdGrade(it.grade) * num(it.valorUnitario)) || null,
     gradeJson: JSON.stringify(it.grade || []),
     parametrosJson: JSON.stringify(Object.fromEntries(Object.entries(it.parametros || {}).filter(([k]) => !paramFora(k)))),
-    fotoBase64: servico ? null : it.fotoBase64 || null, fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
+    fotoBase64: servico ? null : it.fotoBase64 || null,
+    anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64 })) : undefined,   // v650
+    fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
   }));
