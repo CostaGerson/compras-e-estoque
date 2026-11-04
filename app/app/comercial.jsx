@@ -50,7 +50,7 @@ function calcVolta(params, tipo, e = {}, over = {}) {
   const perTec = (p) => (p ? (num(p.arte) / qt) + POS.reduce((s, [k]) => s + num(p[k]), 0) : 0);
   const aberta = ehPecaAberta(e.item), revenda = ehRevenda(e.item, tipo);   // v512
   const v = {
-    corte: revenda ? 0 : aberta ? num(e.abCorte) : Number(pg("PECA", e.item, "corte")) || 0,
+    corte: revenda || corteLaserDe(e) != null ? 0 : aberta ? num(e.abCorte) : Number(pg("PECA", e.item, "corte")) || 0,   // v659 — corte a laser é terceirizado
     silk: (e.silk?.interno ? perTec(e.silk) : 0) + persPorTecnica(e, params, true).silk,
     bordado: (e.bordado?.interno ? perTec(e.bordado) : 0) + persPorTecnica(e, params, true).bordado,
     sublimacao: (e.sublimacao?.interno ? perTec(e.sublimacao) : 0) + persPorTecnica(e, params, true).sublimacao,
@@ -167,10 +167,17 @@ function sc(t) {
   const i = low.search(/\p{L}/u);
   return i < 0 ? low : low.slice(0, i) + low.charAt(i).toLocaleUpperCase("pt-BR") + low.slice(i + 1);
 }
-const nomeLocal = (k) => (LOCAIS_PERS.find((x) => x[0] === k) || [k, k])[1];
+const nomeLocal = (k) => (k === "TOTAL" ? "Total" : (LOCAIS_PERS.find((x) => x[0] === k) || [k, k])[1]);   // v659
 const nomeMetodo = (k) => (METODOS_PERS.find((x) => x[0] === k) || [k, k])[1];
 const silkPorCorDe = (params) => Number(params?.OPERACIONAL?.silkPorCor) || 0.8;
 // valor por peça de uma aplicação
+// v659 — sublimação: local "Total" e corte interno ou a laser. Laser: o valor informado substitui o corte da ficha
+//   e o corte passa a ser terceirizado (não volta para a fábrica).
+const LOCAL_TOTAL = ["TOTAL", "Total"];
+function corteLaserDe(e) {
+  const a = (Array.isArray(e?.personalizacoes) ? e.personalizacoes : []).find((x) => x.metodo === "SUBLIMACAO" && x.corteSub === "LASER" && num(x.corteLaser) > 0);
+  return a ? num(a.corteLaser) : null;
+}
 function valorAplicacao(a, params) {
   if (!a) return 0;
   return a.metodo === "SILK" ? (Number(a.cores) || 0) * silkPorCorDe(params) : num(a.valor);
@@ -365,7 +372,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
     const qt = Math.max(1, num(f.qtde));
     // v512 — acessório: valores digitados na ficha; revenda: sem matéria-prima, aviamentos e produção
     const rendCons = revenda ? 0 : aberta ? num(f.abRend) : pget("PECA", f.item, "valor");           // rendimento(peças/kg) ou consumo(m/peça)
-    const corte = revenda ? 0 : aberta ? num(f.abCorte) : pget("PECA", f.item, "corte");
+    const laser = corteLaserDe(f);   // v659
+    const corte = revenda ? 0 : laser != null ? laser : aberta ? num(f.abCorte) : pget("PECA", f.item, "corte");
     const prodPeca = revenda ? 0 : aberta ? num(f.abAcab) : isMalha ? pget("PECA", f.item, "exped") : pget("PECA", f.item, "acab");
     const volProp = (aberta || revenda ? 1 : pget("PECA", f.item, "volProp")) || 1;
     const reembolso = revenda ? 0 : cget("REEMBOLSO_CONSUMO");
@@ -704,12 +712,14 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
               <div className="flex flex-wrap gap-3">
                 {aberta ? (
                   <>
-                    <Inp label="Corte (R$/peça)" value={f.abCorte} onChange={(v) => set("abCorte", v)} />
+                    {corteLaserDe(f) != null ? <div className="text-xs rounded px-2 py-1.5" style={{ background: C.accentSoft, color: C.accent }}>Corte a laser (terceirizado): <b>{brl(corteLaserDe(f))}</b>/peça</div>
+                      : <Inp label="Corte (R$/peça)" value={f.abCorte} onChange={(v) => set("abCorte", v)} />}
                     <Inp label={tipo === "MALHA" ? "Expedição (R$/peça)" : "Acabamento (R$/peça)"} value={f.abAcab} onChange={(v) => set("abAcab", v)} />
                   </>
                 ) : (
                   <>
-                    <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />
+                    {corteLaserDe(f) != null ? <div className="text-xs rounded px-2 py-1.5" style={{ background: C.accentSoft, color: C.accent }}>Corte a laser (terceirizado): <b>{brl(corteLaserDe(f))}</b>/peça</div>
+                      : <Ref label="Corte" grupo="PECA" chave={f.item} campo="corte" pget={pget} over={over} setOver={setOver} modo={modoOverride} />}
                     <Ref label={tipo === "MALHA" ? "Expedição" : "Acabamento"} grupo="PECA" chave={f.item} campo={tipo === "MALHA" ? "exped" : "acab"} pget={pget} over={over} setOver={setOver} modo={modoOverride} />
                   </>
                 )}
@@ -1908,11 +1918,15 @@ function ArteInput({ value, onChange, qtde, rotulo = "arte", className, style, t
 
 function PersAplicacoes({ lista, onChange, params, qtde }) {
   const pc = silkPorCorDe(params);
-  const add = () => onChange([...lista, { local: "PEITO_E", metodo: "SILK", cores: 1, valor: "", interno: true }]);
+  const add = () => onChange([...lista, { metodo: "SILK", local: "PEITO_E", cores: 1, valor: "", interno: true }]);
   const mud = (i, k, v) => onChange(lista.map((a, j) => {
     if (j !== i) return a;
     const n = { ...a, [k]: v };
-    if (k === "metodo") n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
+    if (k === "metodo") {
+      n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
+      if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; if (n.local === "TOTAL") n.local = "PEITO_E"; }
+      else n.corteSub = n.corteSub || "";   // v659 — pergunta: corte interno ou laser
+    }
     return n;
   }));
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
@@ -1927,11 +1941,12 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
         return (
           <div key={i} className="flex items-center gap-2 mb-2">
             <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(120px,1.3fr) minmax(120px,1.3fr) minmax(100px,1fr) minmax(130px,1.1fr) minmax(110px,1fr) auto" }}>
-              {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
-                {LOCAIS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-              </select>)}
+              {/* v659 — método primeiro; sublimação tem o local "Total" */}
               {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
                 {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+              </select>)}
+              {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
+                {(a.metodo === "SUBLIMACAO" ? [LOCAL_TOTAL, ...LOCAIS_PERS] : LOCAIS_PERS).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
               </select>)}
               {a.metodo === "SILK"
                 ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full h-full px-2 rounded text-sm" style={sel}>
@@ -1944,7 +1959,15 @@ function PersAplicacoes({ lista, onChange, params, qtde }) {
                       title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} />
                     {rateio > 0 && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none whitespace-nowrap" style={{ color: C.sub }}>+{brl(rateio)}/pç</span>}
                   </div>)
-                : <div />}
+                : a.metodo === "SUBLIMACAO"
+                  ? lbl(a.corteSub === "LASER" ? "Corte a laser (R$/peça)" : "Corte", <div className="flex gap-1 w-full h-full">
+                      <select value={a.corteSub || ""} onChange={(e) => mud(i, "corteSub", e.target.value)} className="h-full px-1 rounded text-sm" style={{ ...sel, width: a.corteSub === "LASER" ? 76 : "100%", borderColor: a.corteSub ? C.line : C.accent }}>
+                        <option value="" disabled>Interno ou laser?</option><option value="INTERNO">Interno</option><option value="LASER">Laser</option>
+                      </select>
+                      {a.corteSub === "LASER" && <input value={a.corteLaser || ""} onChange={(e) => mud(i, "corteLaser", e.target.value)} inputMode="decimal" placeholder="valor"
+                        title="Substitui o corte da ficha; corte a laser é terceirizado (não volta para a fábrica)" className="flex-1 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: num(a.corteLaser) > 0 ? C.line : C.accent }} autoFocus />}
+                    </div>)
+                  : <div />}
               {lbl("Valor/peça", <div className="text-sm font-semibold whitespace-nowrap" style={{ color: C.text }} title={a.metodo === "SILK" ? `${a.cores || 1} × ${brl(pc)}` : undefined}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1}×)</span>}</div>)}
               {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
             </div>
