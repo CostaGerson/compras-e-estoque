@@ -553,11 +553,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   {TIPOS.map((t) => <option key={t} value={t} style={{ color: C.text }}>{t}</option>)}
                 </select>
               </Campo>
-              <Campo label="Código (cadastro do KM)">
-                <Auto value={it.codigo} onChange={(v) => upItem(i, { codigo: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="código…"
-                  render={(p) => <span><b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}</span></span>} />
-              </Campo>
-              <Campo label="Descrição do produto · busca no cadastro do KM" cls="col-span-3">
+              {/* v662 — campo "Código (cadastro do KM)" removido; o código continua vindo ao escolher o item na busca */}
+              <Campo label="Descrição do produto · busca no cadastro do KM" cls="col-span-4">
                 <Auto value={it.descricao} onChange={(v) => upItem(i, { descricao: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="digite para buscar o item…"
                   render={(p) => <span><b>{p.descricao}</b> <span style={{ color: C.sub }}>· {p.codigo}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
               </Campo>
