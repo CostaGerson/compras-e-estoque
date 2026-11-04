@@ -1202,9 +1202,12 @@ export function Agenda({ user, pedidoModo, onModo }) {
         </div>
       ) : (
       <aside className="shrink-0 py-4 px-2 relative" style={{ width: 220, borderRight: `1px solid ${A.linha}`, background: A.fundo2 }}>
-        <button onClick={() => alternarLat(true)} title="Esconder projetos" className="absolute rounded-md p-1" style={{ top: 10, right: 6, color: A.sub, zIndex: 1 }}><ChevronLeft size={18} /></button>
-        <button onClick={() => setProjetoId(null)} className="text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
-          style={{ width: "calc(100% - 30px)", background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
+        {/* v637 — seta de esconder alinhada ao centro do card Minha agenda */}
+        <div className="flex items-center gap-1">
+          <button onClick={() => setProjetoId(null)} className="flex-1 min-w-0 text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+            style={{ background: !projetoId ? A.azulSoft : "transparent", color: !projetoId ? A.azul : A.texto, transition: "all .18s" }}><CalendarDays size={15} /> Minha agenda</button>
+          <button onClick={() => alternarLat(true)} title="Esconder projetos" className="shrink-0 rounded-md p-1" style={{ color: A.sub }}><ChevronLeft size={18} /></button>
+        </div>
         {/* v592 — projetos pessoais e funcionais */}
         {/* v599 — arrastar um projeto para a outra seção transporta ele (e as tarefas) entre pessoal e funcional */}
         {[["PESSOAL", "Projetos pessoais"], ["FUNCIONAL", "Projetos funcionais"]].map(([nat, rot]) => <div key={nat}
