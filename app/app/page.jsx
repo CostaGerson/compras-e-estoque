@@ -30,6 +30,8 @@ import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
 import { imprimirPedido } from "./impressaoPedido";   // v615
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
 import Tributario from "./tributario";   // v628
+import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
+function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import AnaliseLogistica from "./analiseLogistica";
@@ -279,6 +281,7 @@ export default function Home() {
   // tela que o usuário não tem: vai para a primeira que ele tem
   if (!["mensagens", "notificacoes", "agenda", "tarefas"].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
   const caminho = caminhoMenu(menu, view) || [];
+  const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
   const noAtual = caminho[caminho.length - 1];
   const ir = (k) => { setView(k); setTab("lista"); };
   const fasesCompras = FASES_COMPRAS.map(([k]) => k).filter((k) => pode(k));   // v415
@@ -320,7 +323,7 @@ export default function Home() {
     <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
       {mobile && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40" style={{ background: "rgba(0,30,65,.45)" }} />}
       <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${mobile ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : mobile ? "min(280px, 85vw)" : 240 }}>
-      <aside style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
+      <aside data-demo-livre style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
           <button onClick={() => irInicio(perfil === "RH" ? "rh" : "gestao")} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
@@ -340,9 +343,10 @@ export default function Home() {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0">
+        <ModoDemo tudo={["gestao", "financeiro", "comercial", "rh"].includes(caminho[0]?.key)} />   {/* v636 */}
         {mobile ? (
           /* v561 — celular: cabeçalho em duas linhas, mais alto, com a Agenda em destaque e a foto maior */
-          <header className="flex flex-col px-2 pt-2 pb-1.5 gap-1.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+          <header data-demo-livre className="flex flex-col px-2 pt-2 pb-1.5 gap-1.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
             <div className="flex items-center gap-2">
               <button onClick={() => setCollapsed(false)} title="Menu" className="flex items-center justify-center rounded-lg shrink-0" style={{ background: C.sidebar, color: "#fff", width: 40, height: 40 }}>
                 <ChevronRight size={22} />
@@ -359,12 +363,12 @@ export default function Home() {
               <div className="flex-1" />
               <TopoUsuario mobile user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
                 onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
-                onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} />
+                onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} demo={podeDemo} />
             </div>
             <div className="flex items-center gap-2 px-1"><div className="text-sm flex-1 min-w-0">{migalha}</div><SugestaoBotao user={user} tela={noAtual?.label || view} /></div>
           </header>
         ) : (
-        <header className={`flex items-center justify-between ${mobile ? "px-2 py-1 gap-1" : "px-5 py-1.5"}`} style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
+        <header data-demo-livre className={`flex items-center justify-between ${mobile ? "px-2 py-1 gap-1" : "px-5 py-1.5"}`} style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>   {/* v385 — mais baixa */}
           <div className="flex items-center gap-2 min-w-0">
             {collapsed && (
               <button onClick={() => setCollapsed(false)} title="Expandir menu"
@@ -377,7 +381,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
-              onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} />
+              onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} demo={podeDemo} />
           </div>
         </header>
         )}
@@ -734,7 +738,7 @@ function Badge({ n }) {
   );
 }
 
-function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens, onIrAgenda, agendaAtiva, mobile }) {
+function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onIrNotificacoes, onIrMensagens, onIrAgenda, agendaAtiva, mobile, demo }) {
   const [naoVistos, setNaoVistos] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const nomeCompleto = `${user.nome} ${user.sobrenome || ""}`.trim();
@@ -757,6 +761,7 @@ function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onI
 
   return (
     <div className={`flex items-center ${mobile ? "gap-2.5" : "gap-4"}`}>
+      {demo && <ChaveDemo mobile={mobile} />}
       <button onClick={onIrNotificacoes} title="Notificações" className={mobile ? "flex items-center justify-center" : ""} style={{ position: "relative", color: naoVistos ? "#E5484D" : C.sub, ...(mobile ? { width: 34, height: 40 } : {}) }}>
         <Bell size={mobile ? 22 : 20} /><Badge n={naoVistos} />
       </button>
