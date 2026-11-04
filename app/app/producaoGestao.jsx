@@ -78,6 +78,22 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
     const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Erro.");
     carregar();
   };
+  // v645 — excluir vários de uma vez (uma justificativa para todos)
+  const [marcados, setMarcados] = useState([]);
+  const excluirVarios = async () => {
+    const ps = (d?.pedidos || []).filter((p) => marcados.includes(p.numero));
+    if (!ps.length) return;
+    const motivo = await perguntar(`Excluir ${ps.length} pedido(s)?\n\n${ps.slice(0, 12).map((p) => `${p.numero} · ${p.cliente}`).join("\n")}${ps.length > 12 ? `\n… e mais ${ps.length - 12}` : ""}\n\nEles vão para a lixeira (Excluídos) e deixam de aparecer na produção, compras, faturamento e previsões; o KM não os recria. Dá para restaurar.\n\nJustificativa (obrigatória, vale para todos):`, "");
+    if (motivo === null || motivo === undefined) return;
+    if (String(motivo).trim().length < 5) return alerta("Escreva a justificativa da exclusão (mínimo 5 caracteres).");
+    const erros = [];
+    for (const p of ps) {
+      const r = await fetch("/api/producao/lixeira", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero: p.numero, motivo, quem: nomeU(user) }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); erros.push(`${p.numero}: ${j.error || "erro"}`); }
+    }
+    setMarcados([]); carregar();
+    if (erros.length) alerta(`Não excluídos:\n${erros.join("\n")}`);
+  };
   useEffect(() => { if (abrirPedido?.numero) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
   const carregar = () => fetch("/api/producao/gestao").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 60 * 1000); return () => clearInterval(t); }, []);
@@ -174,16 +190,21 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
               {q && <button onClick={() => setQ("")} style={{ color: C.sub }}><X size={13} /></button>}
             </div>
             <div className="text-sm font-semibold flex-1 ml-1" style={{ color: C.navy }}>{lista.length} pedido(s){fFase.length ? ` · fase: ${fFase.map((x) => FASE_TXT[x]).join(", ")}` : ""}{fStatus.length ? ` · status: ${fStatus.map((x) => STATUS_OPC.find((o) => o[0] === x)?.[1]).join(", ")}` : ""}{filtro ? ` · ${{ emDia: "em dia", atrasados: "atrasados", semana: "entrega na semana", faturar: "a faturar", criticas: "com crítica" }[filtro]}` : ""}</div>
+            {marcados.length > 0 && <button onClick={excluirVarios} className="flex items-center gap-1 px-2.5 py-1.5 rounded text-sm font-semibold" style={{ background: C.red, color: "#fff" }}><Trash2 size={14} /> Excluir {marcados.length} selecionado(s)</button>}
+            {marcados.length > 0 && <button onClick={() => setMarcados([])} className="text-xs" style={{ color: C.sub }}>limpar seleção</button>}
             <button onClick={() => setLixeira(true)} title="Pedidos excluídos" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Trash2 size={14} /> Excluídos</button>
           </div>
           <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, overflowX: "clip" }}>   {/* v641 — sem overflow vertical para o filtro da coluna aparecer */}
             <table className="w-full text-sm">
               <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
-                <tr><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
+                <tr><th className="pl-3 pr-1 py-2 w-6"><input type="checkbox" title="Selecionar todos da lista" style={{ accentColor: C.accent }}
+                  checked={lista.length > 0 && lista.every((p) => marcados.includes(p.numero))} onChange={(e) => setMarcados(e.target.checked ? [...new Set([...marcados, ...lista.map((p) => p.numero)])] : marcados.filter((n) => !lista.some((p) => p.numero === n)))} /></th><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
               </thead>
               <tbody>
                 {lista.map((p) => (
                   <tr key={p.numero} onClick={() => setAberto(p.numero)} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="pl-3 pr-1 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={marcados.includes(p.numero)} style={{ accentColor: C.accent }}
+                      onChange={() => setMarcados((m) => (m.includes(p.numero) ? m.filter((x) => x !== p.numero) : [...m, p.numero]))} /></td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{p.numero}</td>
                     <td className="px-3 py-2" style={{ color: C.text }}>{p.cliente}<div className="text-[11px] truncate" style={{ color: C.sub, maxWidth: 380 }} title={p.itensTxt}>{p.nItens} item(ns){p.oc ? ` · OC ${p.oc}` : ""}</div></td>
                     <td className="px-3 py-2 tabular-nums">{p.pecas}</td>
@@ -195,7 +216,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
-                {!lista.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
+                {!lista.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
               </tbody>
             </table>
           </div>
