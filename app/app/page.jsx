@@ -413,7 +413,7 @@ export default function Home() {
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
           {view === "comprasCruzamento" && pode("comprasCruzamento") && <Levantamento key="cruz" fase="cruzamento" user={user} veValores={veValoresPP(user)} irPic={() => ir("pic")} />}
-          {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos />}
+          {view === "comprasAtendidos" && pode("comprasAtendidos") && <Atendidos user={user} />}
           {view === "comprasAvulsas" && pode("comprasAvulsas") && (   // v468 — card próprio em Compras
             <div>
               <div className="text-lg font-bold mb-3" style={{ color: C.navy }}>Compras avulsas</div>

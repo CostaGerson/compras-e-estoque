@@ -24,6 +24,11 @@ export async function POST(req) {
 
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
+  // v685 — excluir demanda de compra em qualquer etapa: { ids, excluir: true, quem }
+  if (Array.isArray(b.ids) && b.excluir) {
+    const { excluirDemandas } = await import("@/lib/compras");
+    return Response.json(await excluirDemandas(b.ids, b.quem));
+  }
   // v415 — devolução em lote para Pedidos: { ids: [compraItem.id] } (só os que estão no levantamento)
   if (Array.isArray(b.ids)) {
     const ids = b.ids.map(Number).filter(Boolean);

@@ -169,16 +169,37 @@ export function FasesCompras({ atual, fases, ir }) {
   );
 }
 // barra de seleção com a devolução para a fase anterior
-function BarraDevolver({ n, rotulo, onDevolver, onLimpar, ocupado }) {
+function BarraDevolver({ n, rotulo, onDevolver, onLimpar, ocupado, onExcluir }) {
   if (!n) return null;
   return (
     <div className="flex items-center gap-2 sticky bottom-0 py-3 z-10" style={{ background: "#F7F8FA" }}>
       <button disabled={ocupado} onClick={onDevolver} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}` }}>
         {ocupado ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />} {rotulo} ({n})
       </button>
+      {onExcluir && <button disabled={ocupado} onClick={onExcluir} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 text-white" style={{ background: C.red }}><Trash2 size={15} /> Excluir demanda ({n})</button>}
       <button onClick={onLimpar} className="text-xs" style={{ color: C.sub }}>limpar seleção</button>
     </div>
   );
+}
+// v685 — "ITEM1" → "ITEM 1"
+const ch = (c) => String(c || "").replace(/^ITEM(\d)/i, "ITEM $1");
+// v685 — excluir demanda em qualquer etapa / gerar de novo as demandas de um pedido
+const ETAPA = { LEVANTAMENTO: "levantamento", ESTOQUE: "atendida pelo estoque", PIC: "no PIC", OC: "em ordem de compra", NF: "com NF", ENTREGUE: "entregue" };
+export async function excluirDemandas(ids, user, rotulo) {
+  if (!ids.length) return false;
+  if (!(await confirmar(`Excluir ${rotulo || `${ids.length} demanda(s) de compra`}? Sai de onde estiver (levantamento, estoque, PIC ou OC) e não volta sozinha. Para recriar, use "Gerar demandas de novo" no pedido.`))) return false;
+  const r = await fetch("/api/compras/itens", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, excluir: true, quem: nomeUser(user) }) });
+  const x = await r.json().catch(() => ({}));
+  if (!r.ok) { await alerta(x.error || "Erro ao excluir."); return false; }
+  return true;
+}
+export async function regerarDemandas(numero, user) {
+  if (!(await confirmar(`Gerar de novo as demandas de compra do pedido ${numero}? As demandas atuais (em qualquer etapa) são apagadas e recriadas no levantamento pela FPP de cada item.`))) return false;
+  const r = await fetch("/api/compras/regerar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: numero, quem: nomeUser(user) }) });
+  const x = await r.json().catch(() => ({}));
+  if (!r.ok) { await alerta(x.error || "Erro."); return false; }
+  await alerta(`${x.gerados} demanda(s) gerada(s) no levantamento${x.apagados ? ` (${x.apagados} anterior(es) apagada(s))` : ""}.${x.semFpp?.length ? `\nSem FPP (vincule em Compras › Pedidos): ${x.semFpp.map(ch).join(", ")}` : ""}`);
+  return true;
 }
 async function devolverItens(ids, dest) {
   const url = dest === "pedidos" ? "/api/compras/itens" : "/api/compras/cruzar";
@@ -321,7 +342,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                         <td className="px-3 py-2 text-center"><Chip cor={sit === "Fora do PCP" ? C.sub : sit === "Compras" ? C.accent : C.blue} fundo={sit === "Fora do PCP" ? C.panel2 : sit === "Compras" ? C.accentSoft : C.blueSoft}>{sit}</Chip></td>
                         <td className="px-3 py-2 text-center">{p.total}</td>
                         <td className="px-3 py-2 text-center font-semibold" style={{ color: ok ? C.green : C.accent }}>{p.comFpp}/{p.total}</td>
-                        <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras" className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button></td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">{p.comFpp > 0 && <button onClick={async (e) => { e.stopPropagation(); if (await regerarDemandas(p.numero, user)) carregar(); }} title="Apaga e gera de novo as demandas de compra do pedido" className="text-xs px-2 py-1 rounded-md mr-1" style={{ border: `1px solid ${C.line}`, color: C.accent, background: C.panel }}><RefreshCw size={11} className="inline -mt-0.5" /> Gerar demandas</button>}<button onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras" className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button></td>
                       </tr>
                       {ab && (
                         <tr><td colSpan={8} className="px-4 pb-3 pt-1" style={{ background: "#FCFCFD" }}>
@@ -336,7 +357,8 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                               onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
                               onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
                               onBuscar={() => setBusca({ item: it, pedido: p })}
-                              onDesvincular={() => desvincular(p, it)} />)}
+                              onDesvincular={() => desvincular(p, it)}
+                              onExcluir={async () => { if (await excluirDemandas([it.vinculo.id], user, `a demanda do item ${it.codigo || ch(it.chave)} (${ETAPA[it.vinculo.status] || it.vinculo.status})`)) carregar(); }} />)}
                           </div>
                         </td></tr>
                       )}
@@ -648,7 +670,7 @@ function AnexosAvulsa({ avulsaId, pendentes, setPendentes, quem, onMudou }) {
   );
 }
 
-function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular }) {
+function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular, onExcluir }) {
   const v = it.vinculo;
   return (
     <div className="rounded-md px-3 py-2.5" style={{ background: C.panel2, border: `1px solid ${v ? C.green + "55" : C.line}` }}>
@@ -668,6 +690,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
             </button>
             {v.status === "LEVANTAMENTO" && <button onClick={onBuscar} className="text-xs px-2 py-1 rounded" style={{ color: C.sub, border: `1px solid ${C.line}`, background: C.panel }}>trocar</button>}
             {v.status === "LEVANTAMENTO" && <button onClick={onDesvincular} title="Tirar a FPP" className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Unlink size={12} /></button>}
+            {onExcluir && <button onClick={onExcluir} title="Excluir a demanda de compra (em qualquer etapa)" className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Trash2 size={12} /> excluir demanda</button>}
           </div>
           {!(v.demanda || []).length && <div className="mt-1.5 text-xs flex items-center gap-1" style={{ color: C.yellow }}><AlertTriangle size={12} /> A FPP não tem artigo — sem demanda gerada.</div>}
           {(v.demanda || []).map((dm, i) => (
@@ -746,7 +769,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
         <button onClick={() => setAba("cruzamento")} title="Cruza com o saldo de estoque (menos reservas) e sugere os atendimentos" className="ml-auto mb-1 px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: aba === "cruzamento" ? C.navy : C.accent, color: "#fff" }}><Boxes size={14} /> Cruzar com estoque</button>
       </div>
       {aba === "cruzamento" && <Cruzamento user={user} veValores={veValores} onMudou={carregar} irPic={irPic} />}
-      {aba === "atendidos" && <Atendidos />}   {/* v483 */}
+      {aba === "atendidos" && <Atendidos user={user} />}   {/* v483 */}
 
       {!["cruzamento", "atendidos"].includes(aba) && !d.linhas.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma demanda no levantamento. Vincule a FPP base nos itens em Compras › Pedidos.</div>}
 
@@ -799,30 +822,32 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
         </div>
       )}
 
-      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada).</div>}
+      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada) ou excluir a demanda.</div>}
       {aba === "itens" && porPedido.map((p) => (
         <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>
             {(() => { const ids = [...new Set(p.linhas.map((l) => l.itemId))]; const todos = ids.every((x) => marc.has(x));
               return <input type="checkbox" checked={todos} title="Marcar o pedido inteiro" onChange={() => setMarc((s0) => { const n = new Set(s0); ids.forEach((x) => (todos ? n.delete(x) : n.add(x))); return n; })} />; })()}
-            {rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
+            {rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span>
+            {!/^AV\d+$/.test(p.numero) && <button onClick={async () => { if (await regerarDemandas(p.numero, user)) carregar(); }} title="Apaga e gera de novo as demandas do pedido pela FPP de cada item" className="ml-auto text-xs font-normal px-2 py-0.5 rounded flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.accent }}><RefreshCw size={11} /> Gerar demandas de novo</button>}</div>
           {p.linhas.map((l, i) => (
             <div key={i} className="flex px-4 py-2 text-xs gap-2" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
               <input type="checkbox" checked={marc.has(l.itemId)} onChange={() => tog(l.itemId)} style={{ visibility: i && p.linhas[i - 1].itemId === l.itemId ? "hidden" : "visible" }} />
-              <div className="w-56 truncate" style={{ color: C.text }} title={l.descricao}>{l.chave} · {l.descricao} <span style={{ color: C.sub }}>({l.qtdPecas} pç)</span></div>
+              <div className="w-56 truncate" style={{ color: C.text }} title={l.descricao}>{ch(l.chave)} · {l.descricao} <span style={{ color: C.sub }}>({l.qtdPecas} pç)</span></div>
               <div className="flex-1"><b>{l.nome}</b>{l.papel === "FORRO" ? " (forro)" : ""} <span style={{ color: C.sub }}>{detArtigo(l)}{l.obs ? ` · obs: ${l.obs}` : ""}</span>{l.equiparadoA && <span style={{ color: C.green }}> → junto com {detArtigo(nomeArt[l.equiparadoA] || {})}</span>}</div>
               <div className="w-24 text-right font-semibold" style={{ color: C.accent }}>{qtdU(l.quantidade, l.unidade)}</div>
             </div>
           ))}
         </div>
       ))}
-      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())} />}
+      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
+        onExcluir={async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />}
     </div>
   );
 }
 
 // ---------- v415 — itens atendidos pelo estoque (podem voltar ao levantamento) ----------
-export function Atendidos({ fases, ir }) {
+export function Atendidos({ fases, ir, user }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [marc, setMarc] = useState(new Set());
@@ -853,9 +878,9 @@ export function Atendidos({ fases, ir }) {
           <div className="px-4 py-2 text-sm font-semibold" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>{rotPed(p.numero, p.cliente)} <span className="font-normal text-xs" style={{ color: C.sub }}>· entrega {dBR(p.entrega ? String(p.entrega).slice(0, 10) : null)}</span></div>
           {p.itens.map((i) => (
             <label key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}`, cursor: i.seguiu ? "default" : "pointer" }}>
-              <input type="checkbox" disabled={i.seguiu} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
+              <input type="checkbox" checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
               <div className="flex-1">
-                <div className="text-sm" style={{ color: C.text }}>{i.chave} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
+                <div className="text-sm" style={{ color: C.text }}>{ch(i.chave)} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
                 <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
                 <div style={{ color: C.sub }}>Autorizado {i.autorizadoEm ? new Date(i.autorizadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}{i.autorizadoPorNome ? ` por ${i.autorizadoPorNome}` : ""}</div>
               </div>
@@ -864,7 +889,8 @@ export function Atendidos({ fases, ir }) {
           ))}
         </div>
       ))}
-      <BarraDevolver n={marc.size} rotulo="Devolver para o levantamento" ocupado={ocupado} onDevolver={devolver} onLimpar={() => setMarc(new Set())} />
+      <BarraDevolver n={marc.size} rotulo="Devolver para o levantamento" ocupado={ocupado} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
+        onExcluir={async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />
     </div>
   );
 }
@@ -936,7 +962,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
               <label key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs cursor-pointer" style={{ borderTop: `1px solid ${C.line}` }}>
                 <input type="checkbox" disabled={i.semDemanda} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
                 <div className="flex-1">
-                  <div className="text-sm" style={{ color: C.text }}>{i.chave} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
+                  <div className="text-sm" style={{ color: C.text }}>{ch(i.chave)} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
                   <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
                 </div>
                 {!i.semDemanda && (i.atendido ? <span className="flex items-center gap-1.5"><Chip cor={C.green} fundo={C.greenSoft}>estoque atende</Chip>
@@ -954,7 +980,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
           {d.reprovados.map((i) => (
             <div key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="flex-1">
-                <div className="text-sm" style={{ color: C.text }}>{rotPed(i.pedidoNumero, i.cliente)} · {i.chave} · {i.descricao}</div>
+                <div className="text-sm" style={{ color: C.text }}>{rotPed(i.pedidoNumero, i.cliente)} · {ch(i.chave)} · {i.descricao}</div>
                 <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}{i.autorizadoPorNome ? ` · reprovado por ${i.autorizadoPorNome}` : ""}</div>
               </div>
               <button onClick={() => reprovar([i.id], true)} className="text-[11px] px-2 py-0.5 rounded flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.sub }}><Undo2 size={11} /> desfazer</button>
@@ -1199,7 +1225,7 @@ export function PicCompras({ user, fases, ir }) {
                   <div className="w-5">{!trav && <input type="checkbox" checked={sel.has(i.id)} onChange={() => togSel(i.id)} title="Escolher para cotação/OC (pode misturar PICs)" />}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate" style={{ color: C.text }}>{inf.nome || `Artigo #${i.artigoId}`} <span className="text-xs font-normal" style={{ color: C.sub }}>{[inf.cor, inf.codigo].filter(Boolean).join(" · ")}</span></div>
-                    <div className="text-[11px] truncate" style={{ color: C.sub }} title={(inf.pedidos || []).map((x) => `${x.avulsa ? "Avulsa" : "Pedido"} ${x.pedido} ${x.chave} · ${qtdU(x.quantidade, inf.unidade)}`).join("\n")}>
+                    <div className="text-[11px] truncate" style={{ color: C.sub }} title={(inf.pedidos || []).map((x) => `${x.avulsa ? "Avulsa" : "Pedido"} ${x.pedido} ${ch(x.chave)} · ${qtdU(x.quantidade, inf.unidade)}`).join("\n")}>
                       {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}
                     </div>

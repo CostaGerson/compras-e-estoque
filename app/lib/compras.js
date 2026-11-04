@@ -453,9 +453,10 @@ export async function sincronizarAvulsa(c, db = prisma) {
   const atuais = await db.compraItem.findMany({ where: { pedidoNumero: num } });
   if (c.status === "CANCELADA") { await db.compraItem.deleteMany({ where: { pedidoNumero: num } }); return; }
   const statusDe = { ABERTA: "LEVANTAMENTO", COMPRADA: "OC", RECEBIDA: "ENTREGUE" }[c.status] || "LEVANTAMENTO";
-  const its = (Array.isArray(c.itens) ? c.itens : []).filter((i) => i.nome);   // v592 — quantidade em branco = a definir pelo comprador
+  // v685 — linha com a demanda excluída (removidaCompras) não volta; a chave segue a posição original da linha
+  const its = (Array.isArray(c.itens) ? c.itens : []).map((i, idx) => ({ i, idx })).filter(({ i }) => i.nome && !i.removidaCompras);   // v592 — quantidade em branco = a definir pelo comprador
   const chaves = new Set();
-  for (const [idx, i] of its.entries()) {
+  for (const { i, idx } of its) {
     const chave = `ITEM${idx + 1}`; chaves.add(chave);
     const unidade = ["UN", "M", "KG", "PC"].includes(i.unidade) ? i.unidade : "UN";
     const forn = i.fornecedorId ? Number(i.fornecedorId) : null;
@@ -699,4 +700,40 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
         liberadoEm: p.createdAt, fppNumero: null, materiais: [], aviamentosPendentes: false })) };
   }
   return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens }));
+}
+
+// ---------- v685 — excluir demanda de compra em qualquer etapa e gerar de novo as demandas de um pedido ----------
+export async function excluirDemandas(ids, quem, db = prisma) {
+  const l = await db.compraItem.findMany({ where: { id: { in: (ids || []).map(Number).filter(Boolean) } } });
+  for (const v of l) {
+    if (/^AV\d+$/.test(v.pedidoNumero)) {   // compra avulsa: a linha fica marcada para não voltar
+      const c = await db.compraAvulsa.findUnique({ where: { id: Number(v.pedidoNumero.slice(2)) } }).catch(() => null);
+      const k = Number(String(v.chave).replace(/\D/g, "")) - 1;
+      if (c && Array.isArray(c.itens) && c.itens[k]) await db.compraAvulsa.update({ where: { id: c.id }, data: { itens: c.itens.map((x, j) => (j === k ? { ...x, removidaCompras: true, removidaPor: quem || null } : x)) } }).catch(() => null);
+    }
+    await db.compraItem.delete({ where: { id: v.id } });
+  }
+  return { ok: true, excluidos: l.length, etapas: l.map((v) => ({ pedido: v.pedidoNumero, chave: v.chave, status: v.status })) };
+}
+// apaga as demandas do pedido (em qualquer etapa) e gera de novo, no levantamento, pelos itens com FPP
+export async function regerarDemandasPedido(numero, quem, db = prisma) {
+  const p = await db.pedidoVenda.findUnique({ where: { numero: String(numero) } });
+  if (!p) return { error: "Pedido não encontrado." };
+  const antes = await db.compraItem.findMany({ where: { pedidoNumero: p.numero } });
+  const fppAntes = Object.fromEntries(antes.map((v) => [v.chave, v.fppId]));
+  await db.compraItem.deleteMany({ where: { pedidoNumero: p.numero } });
+  await db.compraDispensa.deleteMany({ where: { pedidoNumero: p.numero } }).catch(() => null);
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
+  let gerados = 0; const semFpp = [];
+  for (const it of itensDoPedido(p)) {
+    const fppId = it.fppId || fppAntes[it.chave] || null;
+    if (!fppId) { semFpp.push(it.chave); continue; }
+    const fpp = await db.fpp.findUnique({ where: { id: Number(fppId) } });
+    if (!fpp) { semFpp.push(it.chave); continue; }
+    const demanda = await demandaDoItem(fpp, it.qtd, db, params, it.corFpp || null);
+    await db.compraItem.create({ data: { pedidoNumero: p.numero, chave: it.chave, descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: p.cliente, entrega: p.despacho,
+      fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem || null } });
+    gerados++;
+  }
+  return { ok: true, apagados: antes.length, gerados, semFpp };
 }
