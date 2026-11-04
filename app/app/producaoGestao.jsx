@@ -54,7 +54,7 @@ const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{F
 // v641 — opções do filtro de status (um pedido pode ter mais de uma)
 const FASES_UI = ["COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
 const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["CRITICA", "Com crítica"]];
-const statusDe = (p) => [p.status, p.faturar, p.critica ? "CRITICA" : null].filter(Boolean);
+const statusDe = (p) => [p.status, p.faturar, p.critica || p.criticaPrazo ? "CRITICA" : null].filter(Boolean);
 const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
 
 export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, componentes = {}, veVal = false }) {
@@ -210,7 +210,8 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-3 py-2 tabular-nums">{p.pecas}</td>
                     <td className="px-3 py-2 tabular-nums whitespace-nowrap">{brl(p.total)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.previsto && p.prazo && p.previsto > p.prazo ? C.red : C.text }}>{dBR(p.previsto)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.criticaPrazo ? C.red : C.text, fontWeight: p.criticaPrazo ? 700 : 400 }} title={p.criticaPrazo || ""}>
+                      <span className="inline-flex items-center gap-1">{dBR(p.previsto)}{p.criticaPrazo && <AlertTriangle size={13} />}</span></td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
                     <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
@@ -324,6 +325,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
         {p?.critica && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={15} /> {p.critica}</div>}
+        {p?.criticaPrazo && <div className="flex items-center gap-2 px-5 py-2 text-sm font-semibold" style={{ background: C.redSoft, color: C.red, borderTop: p.critica ? `1px solid ${C.red}33` : "none" }}><AlertTriangle size={15} /> {p.criticaPrazo}</div>}
         {p?.parcial && !p?.critica && p.faturamento?.valorPendente > 0 && <div className="px-5 py-2 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>Faturamento parcial: falta{p.faturamento.pecasPendentes != null ? ` ${p.faturamento.pecasPendentes} peça(s) ·` : ""} {brl(p.faturamento.valorPendente)} — o saldo segue acompanhado no PCP do Maycon.</div>}
         <div className="flex gap-1 px-5" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
           {[["geral", "Visão geral"], ["op", "OP"], ["financeiro", "Financeiro"]].map(([k, t]) => (
@@ -414,7 +416,8 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
                 <div className="grid gap-3 text-sm" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
                   {[["Cliente", p.cliente], ["OC do cliente", p.oc || "—"], ["Vendedor", p.vendedor || "—"], ["Condição", p.condicao || "—"],
                     ["Emissão", dBR(p.emissao)], ["Entrega", dBR(p.prazo)], ["Prev. término", dBR(p.previsto)], ["Valor", brl(p.total)]].map(([l, v]) => (
-                    <div key={l} className="min-w-0"><div className="text-xs" style={{ color: C.sub }}>{l}</div><div className="font-semibold truncate" style={{ color: C.text }} title={String(v)}>{v}</div></div>
+                    <div key={l} className="min-w-0"><div className="text-xs" style={{ color: C.sub }}>{l}</div>
+                      <div className="font-semibold truncate flex items-center gap-1" style={{ color: l === "Prev. término" && p.criticaPrazo ? C.red : C.text }} title={l === "Prev. término" && p.criticaPrazo ? p.criticaPrazo : String(v)}>{v}{l === "Prev. término" && p.criticaPrazo && <AlertTriangle size={13} />}</div></div>
                   ))}
                 </div>
                 <div className="mt-3">
@@ -547,7 +550,7 @@ function GuiaOp({ p, user, componentes, verFpp, anexos }) {
                   {i.fase ? <ChipFase f={i.fase} /> : <span style={{ color: C.sub }}>{p.fase === "COMPRAS" || p.fase === "PROGRAMAR" ? `${FASE_TXT[p.fase]} (ainda não está no PCP)` : "item não encontrado no PCP"}</span>}
                   {i.etapa && <span><span style={{ color: C.sub }}>etapa </span><b>{i.etapa}</b></span>}
                   {i.situacao && <span><span style={{ color: C.sub }}>situação </span><b>{i.situacao}</b></span>}
-                  {i.previsto && <span><span style={{ color: C.sub }}>prev. término </span><b>{dOnly(i.previsto)}</b></span>}
+                  {i.previsto && <span><span style={{ color: C.sub }}>prev. término </span><b style={{ color: p.prazo && String(i.previsto).slice(0, 10) > p.prazo ? C.red : undefined }}>{dOnly(i.previsto)}</b></span>}
                   {i.op && i.op !== p.numero && <span><span style={{ color: C.sub }}>OP PCP </span><b>{i.op}</b></span>}
                 </div>
                 {/* grade */}

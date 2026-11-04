@@ -60,6 +60,8 @@ function resumoPedido(p, hoje) {
     aFaturar: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total),
     pecas: itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0), nItens: itens.length,
     itensTxt: itens.map((i) => `${i.codigo || ""} ${i.descricao || ""}`).join(" | "),
+    // v651 — programado para terminar depois da entrega
+    criticaPrazo: fase !== "CONCLUIDO" && prazo && previsto && previsto > prazo ? `Previsão de término (${previsto.split("-").reverse().join("/")}) depois da entrega (${prazo.split("-").reverse().join("/")}) · ${Math.round((new Date(previsto) - new Date(prazo)) / 864e5)} dia(s) de atraso previsto` : null,
     prazo, previsto, fase, faseIdx: idx >= 0 ? idx : -1, status: atrasado ? "ATRASADO" : "EM DIA", semana,
     situacaoPcp: p.cronoSituacao || null,
   };
