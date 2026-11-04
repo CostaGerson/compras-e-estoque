@@ -55,11 +55,12 @@ export function GradeEditor({ grade, tamanhos, onChange }) {
               {linhas.map((g) => (
                 <div key={g.tam} className="rounded-lg px-1 pt-1 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? C.accent : C.line}` }}>
                   <div className="text-[11px] font-semibold" style={{ color: C.sub }}>{k === "BL" ? g.tam.slice(3) : g.tam}</div>
-                  <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="0"
-                    className="w-full bg-transparent outline-none text-center text-lg font-bold" style={{ color: num(g.qtd) ? C.text : "#98A2B3" }} />
-                  <div className="flex justify-between px-1 text-sm leading-none">
-                    <button type="button" onClick={() => passo(g, -1)} style={{ color: C.sub }}>–</button>
-                    <button type="button" onClick={() => passo(g, 1)} style={{ color: C.accent }}>+</button>
+                  {/* v672 — sem a barrinha piscando (digitar substitui o número) e botões – / + maiores */}
+                  <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} onFocus={(e) => e.target.select()} inputMode="numeric" placeholder="0"
+                    className="w-full bg-transparent outline-none text-center text-lg font-bold" style={{ color: num(g.qtd) ? C.text : "#98A2B3", caretColor: "transparent" }} />
+                  <div className="flex justify-between gap-1 pb-0.5">
+                    <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: C.sub, background: "#fff", border: `1px solid ${C.line}` }}>–</button>
+                    <button type="button" onClick={() => passo(g, 1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#fff", background: C.accent }}>+</button>
                   </div>
                 </div>
               ))}
