@@ -683,7 +683,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
       </button>
       <AvatarMini foto={foto} nome={t.responsavelNome} size={24} />
       <div className="flex-1 min-w-0 py-1.5">
-        <div className="text-[15px] leading-tight" style={{ textDecoration: feita ? "line-through" : "none", overflowWrap: "anywhere" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
+        <div className="text-[15px] leading-tight truncate" style={{ textDecoration: feita ? "line-through" : "none" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
         {(t.hora || proj) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
       </div>
       {t.meuConvite === "PENDENTE" && <span title="Convite aguardando sua decisão" className="shrink-0 rounded-full flex items-center justify-center text-[12px] font-black" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>!</span>}
@@ -698,7 +698,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
     <div {...(pres || {})} onDragStart={(e) => e.preventDefault()} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); if (Date.now() - (globalThis.__ceToque || 0) > 1500) onMenu?.(e.clientX, e.clientY); }}
       title={`${t.titulo}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
       className="card-asana group relative rounded-md flex items-center overflow-hidden cursor-pointer select-none shrink-0" draggable={false}
-      style={{ ...(grande ? { minHeight: 36 } : { height: 36 }), background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.4 : feita ? 0.6 : 1 }}>
+      style={{ height: 36, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.4 : feita ? 0.6 : 1 }}>
       <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"}
         className={`absolute left-1.5 flex items-center justify-center rounded-full ${feita ? "" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"}`}
         style={{ width: 18, height: 18, border: `1.5px solid ${feita ? "#5DA283" : "#6D6E6F"}`, background: feita ? "#5DA283" : "rgba(255,255,255,.7)", transition: "all .18s ease" }}>
@@ -707,7 +707,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
       <div className={`flex items-center gap-1.5 min-w-0 flex-1 pl-2 pr-1 ${feita ? "translate-x-5" : "group-hover:translate-x-5"}`} style={{ transition: "transform .18s ease" }}>
         <AvatarMini foto={foto} nome={t.responsavelNome} size={20} />
         {/* v597 — dia ampliado: título inteiro (quebra a linha) */}
-        <span className={grande ? "text-[12.5px] leading-snug py-1.5" : "truncate text-[12.5px] leading-none"} style={{ textDecoration: feita ? "line-through" : "none", ...(grande ? { overflowWrap: "anywhere" } : {}) }}>
+        <span className="truncate text-[12.5px] leading-none" style={{ textDecoration: feita ? "line-through" : "none" }}>   {/* v649 — sempre uma linha, com reticências */}
           {t.hora && <b className="mr-1">{t.hora}</b>}{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}
         </span>
       </div>
