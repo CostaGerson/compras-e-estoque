@@ -67,7 +67,13 @@ export async function listarItensPadrao({ q, cliente } = {}) {
       parametros: true, updatedAt: true, atualizadoPorNome: true, fotoBase64: !!q, anexos: { select: { id: true, tipo: true, nome: true } } } });
   const ctx = await contexto(itens);
   let l = itens.map((i) => montar(i, ctx));
-  if (cliente) l = l.filter((i) => (i.clienteIds || []).map(Number).includes(Number(cliente)));
+  if (cliente) {
+    // v658 — cliente de um grupo vê os itens padrão de todo o grupo (cliente que entrar no grupo depois já recebe)
+    const c = await prisma.cliente.findUnique({ where: { id: Number(cliente) }, select: { grupoId: true } }).catch(() => null);
+    const ids = new Set([Number(cliente)]);
+    if (c?.grupoId) for (const x of await prisma.cliente.findMany({ where: { grupoId: c.grupoId }, select: { id: true } })) ids.add(x.id);
+    l = l.filter((i) => (i.clienteIds || []).map(Number).some((id) => ids.has(id)));
+  }
   if (q) {
     const n = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
     const pal = n(q).split(/\s+/).filter(Boolean);

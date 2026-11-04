@@ -166,6 +166,8 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const [buscaCli, setBuscaCli] = useState("");
   const [buscaFpp, setBuscaFpp] = useState("");
   const [fpps, setFpps] = useState([]);
+  const [grupos, setGrupos] = useState([]);   // v658 — grupos de clientes: escolher o grupo põe todos os clientes dele
+  useEffect(() => { fetch("/api/clientes/grupos").then((r) => r.json()).then((g) => setGrupos(Array.isArray(g) ? g : [])).catch(() => {}); }, []);
   const H = { "Content-Type": "application/json", "x-usuario-id": String(user?.id || "") };
   const TIPOS = Object.keys(componentes);
   const ler = () => fetch(`/api/itens-padrao/${id}`).then((r) => r.json()).then((d) => setF({ ...vazio(), ...d, precoAtual: d.precoAtual != null ? String(d.precoAtual).replace(".", ",") : "", parametros: d.parametros || {}, clienteIds: (d.clienteIds || []).map(Number) }));
@@ -184,6 +186,10 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const comps = (componentes[f.tipoPecaNome] || []).filter((c) => !PARAM_FORA.includes(c));
   const extras = Object.keys(f.parametros || {}).filter((k) => !comps.includes(k) && !PARAM_FORA.includes(k));
   const cliSel = clientes.filter((c) => f.clienteIds.includes(c.id));
+  const grpOpc = buscaCli.trim().length >= 2 ? grupos.filter((g) => norm([g.nome, g.cnpj, ...g.clientes.map((c) => `${c.razaoSocial} ${c.nomeFantasia || ""}`)].join(" ")).includes(norm(buscaCli)) && g.clientes.some((c) => !f.clienteIds.includes(c.id))).slice(0, 5) : [];
+  const addIds = (ids) => set("clienteIds", [...new Set([...f.clienteIds, ...ids])]);
+  // grupos com todos os clientes já no item aparecem como etiqueta
+  const gruposNoItem = grupos.filter((g) => g.clientes.length && g.clientes.every((c) => f.clienteIds.includes(c.id)));
   const cliOpc = buscaCli.trim().length >= 2 ? clientes.filter((c) => !f.clienteIds.includes(c.id) && norm([c.razaoSocial, c.nomeFantasia, c.cnpj].join(" ")).includes(norm(buscaCli))).slice(0, 8) : [];
 
   // v655 — ao trazer a FPP, o que ela já tem entra sozinho (só preenche o que estiver vazio)
@@ -194,7 +200,7 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
       nomeInterno: x.nomeInterno || nome, nomeNf: x.nomeNf || nome,
       tipoPecaNome: x.tipoPecaNome || tipoPeca(`${p.item || ""} ${p.nomeComercial || ""}`, TIPOS) || "",
       precoAtual: x.precoAtual || (p.valorProposto != null ? String(Number(p.valorProposto).toFixed(2)).replace(".", ",") : ""),
-      clienteIds: cli && !x.clienteIds.includes(cli.id) ? [...x.clienteIds, cli.id] : x.clienteIds,
+      clienteIds: cli ? [...new Set([...x.clienteIds, cli.id, ...(grupos.find((g) => g.clientes.some((c) => c.id === cli.id))?.clientes || []).map((c) => c.id)])] : x.clienteIds,
       parametros: { ...x.parametros, TECIDO: { tipo: p.tecidoTipo, artigo: [p.artigo, p.artigoCor].filter(Boolean).join(" · "), medida: p.medida, forro: p.forro || null, fpp: p.numero } } };
   });
   const anexar = async (tipo, files) => {
@@ -246,10 +252,14 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {cliSel.map((c) => <span key={c.id} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{nomeCli(c)}<button onClick={() => set("clienteIds", f.clienteIds.filter((x) => x !== c.id))}><X size={11} /></button></span>)}
           {!cliSel.length && <span className="text-xs" style={{ color: C.sub }}>nenhum cliente</span>}
+          {gruposNoItem.map((g) => <span key={`g${g.id}`} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: C.navy, color: "#fff" }} title={g.clientes.map((c) => c.razaoSocial).join(", ")}>
+            <Users size={11} /> GRUPO {g.nome} · {g.clientes.length}<button onClick={() => set("clienteIds", f.clienteIds.filter((id) => !g.clientes.some((c) => c.id === id)))}><X size={11} /></button></span>)}
         </div>
         <div className="relative">
           <input value={buscaCli} onChange={(e) => setBuscaCli(e.target.value)} placeholder="adicionar cliente: nome ou CNPJ…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} />
-          {cliOpc.length > 0 && <div className="absolute z-20 left-0 right-0 mt-1 rounded shadow-lg max-h-56 overflow-y-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          {(cliOpc.length > 0 || grpOpc.length > 0) && <div className="absolute z-20 left-0 right-0 mt-1 rounded shadow-lg max-h-64 overflow-y-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            {grpOpc.map((g) => <button key={`g${g.id}`} onClick={() => { addIds(g.clientes.map((c) => c.id)); setBuscaCli(""); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: "#F2F5FA" }}>
+              <Users size={13} style={{ color: C.navy }} /><b>GRUPO {g.nome}</b><span style={{ color: C.sub }}>· {g.clientes.length} cliente(s): {g.clientes.map((c) => c.nomeFantasia || c.razaoSocial).join(", ")}</span></button>)}
             {cliOpc.map((c) => <button key={c.id} onClick={() => { set("clienteIds", [...f.clienteIds, c.id]); setBuscaCli(""); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>{c.razaoSocial || c.nomeFantasia}<span style={{ color: C.sub }}> · {c.cnpj || ""}</span></button>)}
           </div>}
         </div>
