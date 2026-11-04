@@ -4,7 +4,7 @@ import Acompanhamento from "./acompanhamento";   // v381
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload,
 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
@@ -604,6 +604,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 </div>
               </div>
             </Card>
+
+            {/* v665 — anexos da FPP */}
+            <AnexosFpp fppId={editId} user={user} />
 
             {revenda && (
               <Card title="Produto revenda">
@@ -2152,6 +2155,56 @@ function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar
         </div>
       </div>
     </div>
+  );
+}
+
+// v665 — anexos da FPP: arraste ou selecione; antes de salvar a ficha ficam guardados e sobem ao salvar
+function AnexosFpp({ fppId, user }) {
+  const [l, setL] = useState([]);
+  const [pend, setPend] = useState([]);
+  const [sobre, setSobre] = useState(false);
+  const [ocup, setOcup] = useState(false);
+  const quem = `${user?.nome || ""} ${user?.sobrenome || ""}`.trim().toUpperCase();
+  const ler = () => (fppId ? fetch(`/api/fpp/${fppId}/anexos`, { cache: "no-store" }).then((r) => r.json()).then((d) => setL(Array.isArray(d) ? d : [])).catch(() => {}) : setL([]));
+  const b64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+  const subir = async (arqs) => {
+    setOcup(true);
+    for (const a of arqs) { const r = await fetch(`/api/fpp/${fppId}/anexos`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...a, quem }) }); if (!r.ok) { const j = await r.json().catch(() => ({})); alerta(`${a.nome}: ${j.error || "erro ao anexar"}`); } }
+    setOcup(false); ler();
+  };
+  useEffect(() => { ler(); }, [fppId]);
+  useEffect(() => { if (fppId && pend.length) { const p = pend; setPend([]); subir(p); } }, [fppId]);
+  const adicionar = async (files) => {
+    const arqs = [];
+    for (const x of [...(files || [])]) { if (x.size > 20 * 1048576) { alerta(`${x.name}: maior que 20 MB.`); continue; } arqs.push({ nome: x.name, mime: x.type || null, base64: await b64(x) }); }
+    if (!arqs.length) return;
+    if (fppId) subir(arqs); else setPend((p) => [...p, ...arqs]);
+  };
+  const tirar = async (a) => { if (!(await confirmar(`Excluir o anexo ${a.nome}?`))) return; await fetch(`/api/fpp/${fppId}/anexos?anexo=${a.id}`, { method: "DELETE" }); ler(); };
+  const img = (m, n) => /^image\//.test(m || "") || /\.(png|jpe?g|gif|webp)$/i.test(n || "");
+  return (
+    <Card title={`Anexos${l.length + pend.length ? ` (${l.length + pend.length})` : ""}`}>
+      <div onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
+        onDrop={(e) => { e.preventDefault(); setSobre(false); adicionar(e.dataTransfer.files); }}
+        className="rounded-lg px-4 py-3 text-xs text-center mb-2" style={{ border: `2px dashed ${sobre ? C.accent : C.line}`, background: sobre ? C.accentSoft : C.panel2, color: C.sub }}>
+        <Paperclip size={13} className="inline mr-1" />Arraste aqui layout, referência, ficha técnica do cliente… ou{" "}
+        <label className="cursor-pointer font-semibold" style={{ color: C.accent }}>selecione<input type="file" multiple className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} /></label>
+        {ocup && <span className="ml-2" style={{ color: C.accent }}>enviando…</span>}
+      </div>
+      {(l.length > 0 || pend.length > 0) && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+        {l.map((a) => { const url = `/api/fpp/${fppId}/anexos?arquivo=${a.id}`;
+          return <div key={a.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+            <a href={url} target="_blank" rel="noreferrer" className="block" style={{ height: 80, background: C.panel2 }} title={a.nome}>
+              {img(a.mime, a.nome) ? <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div className="flex flex-col items-center justify-center h-full" style={{ color: C.accent }}><FileText size={24} /><span className="text-[10px] font-semibold mt-0.5">{(a.nome.split(".").pop() || "").toUpperCase()}</span></div>}
+            </a>
+            <div className="flex items-center gap-1 px-2 py-1"><span className="flex-1 text-[11px] truncate" title={`${a.nome}${a.criadoPorNome ? ` · ${a.criadoPorNome}` : ""}`}>{a.nome}</span>
+              <button type="button" onClick={() => tirar(a)} style={{ color: C.sub }} title="Excluir"><Trash2 size={12} /></button></div>
+          </div>; })}
+        {pend.map((a, k) => <div key={`p${k}`} className="rounded-lg px-2 py-2 text-[11px] flex items-center gap-1" style={{ border: `1px dashed ${C.accent}` }}>
+          <span className="flex-1 truncate">{a.nome}</span><span style={{ color: C.accent }}>sobe ao salvar</span>
+          <button type="button" onClick={() => setPend((p) => p.filter((_, j) => j !== k))} style={{ color: C.sub }}><X size={11} /></button></div>)}
+      </div>}
+    </Card>
   );
 }
 

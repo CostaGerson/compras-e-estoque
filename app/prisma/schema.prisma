@@ -2463,3 +2463,16 @@ model ItemPadraoAnexo {
   item          ItemPadrao @relation(fields: [itemId], references: [id], onDelete: Cascade)
   @@index([itemId])
 }
+
+// v665 — arquivos anexados à FPP (layout, referência, ficha técnica do cliente…)
+model FppAnexo {
+  id            Int      @id @default(autoincrement())
+  fppId         Int
+  nome          String
+  mime          String?
+  tamanho       Int?
+  base64        String
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  @@index([fppId])
+}
