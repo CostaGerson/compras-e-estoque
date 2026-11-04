@@ -45,6 +45,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
   const [abrir, setAbrir] = useState(null);   // {} novo · {id}
   const [clientes, setClientes] = useState([]);
   const [pop, setPop] = useState(null);   // v657 — crítica do preço aberta
+  const [verPadrao, setVerPadrao] = useState(false);   // v682
   useEffect(() => { if (!pop) return; const f = () => setPop(null); window.addEventListener("click", f); return () => window.removeEventListener("click", f); }, [pop]);
   // v669 — excluir direto da lista
   const excluir = async (i) => { if (!(await confirmar(`Excluir o item padrão ${i.nomeInterno}?`))) return; const r = await fetch(`/api/itens-padrao/${i.id}`, { method: "DELETE", headers: { "x-usuario-id": String(user?.id || "") } }); if (!r.ok) alerta("Não foi possível excluir."); carregar(); };
@@ -55,8 +56,8 @@ export default function ItensPadrao({ user, componentes = {} }) {
     if (!l) return [];
     const pal = norm(q).split(/\s+/).filter(Boolean);
     let x = l.filter((i) => (!cli || (i.clienteIds || []).map(Number).includes(Number(cli)))
-      && (!pal.length || pal.every((w) => norm([i.nomeInterno, i.nomeNf, i.codigo, i.tipoPecaNome, i.ncm, i.gtin, i.fppNumero && numFpp(i.fppNumero), ...i.clientes.map((c) => c.nome)].join(" ")).includes(w))));
-    const val = { nomeInterno: (i) => i.nomeInterno, nomeNf: (i) => i.nomeNf, tipo: (i) => i.tipoPecaNome || "", codigo: (i) => i.codigo || "", clientes: (i) => i.clientes.map((c) => c.nome).join(", "),
+      && (!pal.length || pal.every((w) => norm([i.codigoPadrao, i.nomeInterno, i.nomeNf, i.codigo, i.tipoPecaNome, i.ncm, i.gtin, i.fppNumero && numFpp(i.fppNumero), ...i.clientes.map((c) => c.nome)].join(" ")).includes(w))));
+    const val = { codigoPadrao: (i) => i.codigoPadrao || "~", nomeInterno: (i) => i.nomeInterno, nomeNf: (i) => i.nomeNf, tipo: (i) => i.tipoPecaNome || "", codigo: (i) => i.codigo || "", clientes: (i) => i.clientes.map((c) => c.nome).join(", "),
       fpp: (i) => i.fppNumero ?? 1e9, preco: (i) => i.precoAtual ?? -1, critica: (i) => (i.critica ? 0 : 1), ncm: (i) => i.ncm || "", gtin: (i) => i.gtin || "", anexos: (i) => i.anexos.length };
     const f = val[sort.k] || val.nomeInterno;
     return [...x].sort((a, b) => { const p = f(a), r = f(b); return (typeof p === "number" ? p - r : String(p).localeCompare(String(r))) * sort.dir; });
@@ -73,6 +74,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
     const cl = i.clientes.map((c) => c.nome);
     return (
       <tr key={i.id} onClick={() => setAbrir({ id: i.id })} className="cursor-pointer hover:bg-gray-50 whitespace-nowrap" style={{ borderTop: `1px solid ${C.line}` }}>
+        <Cel w={110} cls="font-bold tabular-nums text-xs" st={{ color: C.navy }}>{i.codigoPadrao || "—"}</Cel>
         <Cel w={220} cls="font-semibold" st={{ color: C.navy }}>{i.nomeInterno}</Cel>
         <Cel w={220} st={{ color: C.text }}>{i.nomeNf}</Cel>
         <Cel w={110} cls="text-xs" st={{ color: C.sub }}>{i.tipoPecaNome || "—"}</Cel>
@@ -101,7 +103,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
   };
   const cabecalho = (
     <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
-      <tr><Th k="nomeInterno">Nome interno</Th><Th k="nomeNf">Nome NF</Th><Th k="tipo">Tipo de peça</Th><Th k="codigo">Código</Th><Th k="clientes">Clientes</Th>
+      <tr><Th k="codigoPadrao">Código</Th><Th k="nomeInterno">Nome interno</Th><Th k="nomeNf">Nome NF</Th><Th k="tipo">Tipo de peça</Th><Th k="codigo">Código</Th><Th k="clientes">Clientes</Th>
         <Th k="fpp">FPP</Th><Th k="preco">Preço atual</Th><Th k="ncm">NCM</Th><Th k="gtin">GTIN/EAN</Th><Th k="anexos">Anexos</Th><th /></tr>
     </thead>
   );
@@ -133,6 +135,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
             <button key={k} onClick={() => setModo(k)} className="px-3 py-1.5 text-sm flex items-center gap-1" style={{ background: modo === k ? C.accentSoft : C.panel, color: modo === k ? C.accent : C.sub }}><I size={14} /> {t}</button>
           ))}
         </div>
+        <button onClick={() => setVerPadrao(true)} className="px-3 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} title="Siglas por tipo e variações dos códigos">Padrão de códigos</button>
         <button onClick={() => setAbrir({})} className="px-4 py-1.5 rounded font-semibold flex items-center gap-1 text-sm" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo item padrão</button>
       </div>
       <div className="text-xs mb-2" style={{ color: C.sub }}>
@@ -142,7 +145,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
       {!l ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div> : modo === "lista" ? (
         <div className="rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm">{cabecalho}<tbody>{lista.map(linha)}
-            {!lista.length && <tr><td colSpan={11} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
+            {!lista.length && <tr><td colSpan={12} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum item padrão{q || cli ? " neste filtro" : ". Clique em “Novo item padrão”."}</td></tr>}</tbody></table>
         </div>
       ) : (
         <div className="space-y-4">
@@ -155,6 +158,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
           {!porCliente.length && <div className="text-sm" style={{ color: C.sub }}>Nenhum item.</div>}
         </div>
       )}
+      {verPadrao && <PadraoCodigosModal onClose={() => setVerPadrao(false)} tiposPeca={Object.keys(componentes)} />}
       {abrir && <ItemPadraoModal id={abrir.id} user={user} componentes={componentes} clientes={clientes} onClose={() => setAbrir(null)} onSaved={() => { setAbrir(null); carregar(); }} />}
     </div>
   );
@@ -181,7 +185,10 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
     return () => clearTimeout(t);
   }, [buscaFpp]);
   const [km, setKm] = useState([]);   // v668 — sugestões do cadastro do KM
+  const [padrao, setPadrao] = useState(null);   // v682 — padrão de códigos (siglas e variações)
+  useEffect(() => { fetch("/api/itens-padrao/codigos", { cache: "no-store" }).then((r) => r.json()).then(setPadrao).catch(() => {}); }, []);
   const tKm = React.useRef(null);
+  useEffect(() => { if (f && !f.id) { const sg = padrao?.tipos?.[f.tipoPecaNome]?.sigla; sugerirPadrao(f, !!(sg && f.codigoPadrao && !String(f.codigoPadrao).startsWith(sg + "."))); } }, [f?.tipoPecaNome, f?.codigo, padrao]);
   if (!f) return <Moldura onClose={onClose}><div className="text-sm" style={{ color: C.sub }}>Carregando…</div></Moldura>;
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setParam = (k, v) => setF((x) => ({ ...x, parametros: { ...x.parametros, [k]: v } }));
@@ -198,6 +205,19 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const cliOpc = buscaCli.trim().length >= 2 ? clientes.filter((c) => !f.clienteIds.includes(c.id) && norm([c.razaoSocial, c.nomeFantasia, c.cnpj].join(" ")).includes(norm(buscaCli))).slice(0, 8) : [];
 
   // v668 — código do KM: busca no cadastro de itens do KM e puxa as informações técnicas (código exato → automático)
+  // v682 — código no nosso padrão (SIGLA.VAR.SEQ): sugerido pelo tipo de peça e pelo código do KM; dá para alterar
+  async function sugerirPadrao(x, forcar) {
+    if (!x?.tipoPecaNome || (x.codigoPadrao && !forcar)) return;
+    const r = await fetch(`/api/itens-padrao/codigos?sugerir=1&tipo=${encodeURIComponent(x.tipoPecaNome)}&km=${encodeURIComponent(x.codigo || "")}&nome=${encodeURIComponent(x.nomeInterno || x.nomeNf || "")}`, { cache: "no-store" }).then((y) => y.json()).catch(() => null);
+    if (r?.codigo) setF((y) => ({ ...y, codigoPadrao: r.codigo }));
+  }
+  const tipoPad = padrao?.tipos?.[f?.tipoPecaNome] || null;
+  const varAtual = f?.codigoPadrao ? Number(String(f.codigoPadrao).split(".")[1]) || null : null;
+  const trocarVariacao = async (n) => {
+    if (!tipoPad) return;
+    const r = await fetch(`/api/itens-padrao/codigos?proximo=1&sigla=${tipoPad.sigla}&variacao=${n}`, { cache: "no-store" }).then((y) => y.json()).catch(() => null);
+    if (r?.codigo) setF((y) => ({ ...y, codigoPadrao: r.codigo }));
+  };
   const usarKm = (p) => { setKm([]); setF((x) => {
     const params = Object.fromEntries((p.parametros || []).filter((y) => y && y.t && y.v).map((y) => [String(y.t).toUpperCase(), y.v]));
     const nome = String(p.descricao || "").toUpperCase();
@@ -313,6 +333,17 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
         )}
       </div>
 
+      {/* v682 — código no nosso padrão: SIGLA (tipo) . VARIAÇÃO . SEQUÊNCIA */}
+      <div className="rounded-lg px-3 py-2 mb-3 flex flex-wrap items-end gap-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <Campo l="Código padrão (SIGLA.VARIAÇÃO.SEQUÊNCIA)"><input value={f.codigoPadrao || ""} onChange={(e) => set("codigoPadrao", e.target.value.toUpperCase())} placeholder={tipoPad ? `${tipoPad.sigla}.001.0001` : "escolha o tipo de peça"} className="px-2 py-1.5 rounded outline-none text-sm font-bold tabular-nums" style={{ ...inpS, width: 170, color: C.navy }} /></Campo>
+        <Campo l="Variação"><select value={varAtual || ""} onChange={(e) => trocarVariacao(Number(e.target.value))} disabled={!tipoPad} className="px-2 py-1.5 rounded outline-none text-sm" style={{ ...inpS, minWidth: 220 }}>
+          <option value="">{tipoPad ? "—" : "tipo de peça sem sigla"}</option>
+          {(tipoPad?.variacoes || []).map((v) => <option key={v.n} value={v.n}>{String(v.n).padStart(3, "0")} · {v.nome}</option>)}
+          {varAtual && !(tipoPad?.variacoes || []).some((v) => v.n === varAtual) && <option value={varAtual}>{String(varAtual).padStart(3, "0")} · (sem nome no padrão)</option>}
+        </select></Campo>
+        <button type="button" onClick={() => sugerirPadrao(f, true)} disabled={!f.tipoPecaNome} className="px-3 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>sugerir</button>
+        <span className="text-[11px] pb-2" style={{ color: C.sub }}>sugerido pelo tipo de peça e pelo código do KM · a sequência é a próxima livre · dá para alterar</span>
+      </div>
       <div className="grid grid-cols-4 gap-3 mb-3">
         <Campo l="Tipo de peça"><select value={f.tipoPecaNome || ""} onChange={(e) => set("tipoPecaNome", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS}>
           <option value="">—</option>{TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}{f.tipoPecaNome && !TIPOS.includes(f.tipoPecaNome) && <option value={f.tipoPecaNome}>{f.tipoPecaNome}</option>}</select></Campo>
@@ -378,5 +409,56 @@ function Moldura({ titulo, onClose, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// v682 — padrão de códigos: sigla por tipo de peça e variações (001, 002…) de cada tipo
+function PadraoCodigosModal({ onClose, tiposPeca }) {
+  const [t, setT] = useState(null);
+  const [sel, setSel] = useState("");
+  const [novoTipo, setNovoTipo] = useState("");
+  const [salv, setSalv] = useState(false);
+  useEffect(() => { fetch("/api/itens-padrao/codigos", { cache: "no-store" }).then((r) => r.json()).then((d) => { const x = { ...(d.tipos || {}) }; for (const tp of tiposPeca) if (!x[tp]) x[tp] = { sigla: "", variacoes: [] }; setT(x); setSel(Object.keys(x)[0] || ""); }).catch(() => setT({})); }, []);
+  const up = (tp, patch) => setT((x) => ({ ...x, [tp]: { ...x[tp], ...patch } }));
+  const salvar = async () => {
+    setSalv(true);
+    const r = await fetch("/api/itens-padrao/codigos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipos: t }) });
+    const j = await r.json().catch(() => ({})); setSalv(false);
+    if (!r.ok) return alerta(j.error || "Erro ao salvar.");
+    onClose();
+  };
+  const v = t?.[sel];
+  return (
+    <Moldura onClose={onClose} titulo="Padrão de códigos dos produtos">
+      <div className="text-xs mb-3" style={{ color: C.sub }}>Código = <b>SIGLA</b> do tipo · <b>VARIAÇÃO</b> do produto (3 dígitos) · <b>SEQUÊNCIA</b> automática (4 dígitos). Ex.: CL.001.0001 = calça de elástico com 2 bolsos frontais e 2 traseiros; CL.001.0002 = …</div>
+      {!t ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div> : (
+        <div className="flex gap-4">
+          <div className="w-56 shrink-0 rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+            {Object.keys(t).sort().map((tp) => <button key={tp} onClick={() => setSel(tp)} className="w-full text-left px-3 py-2 text-sm flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: sel === tp ? C.accentSoft : C.panel }}>
+              <span className="flex-1 truncate">{tp}</span><b className="tabular-nums" style={{ color: t[tp].sigla ? C.navy : C.red }}>{t[tp].sigla || "?"}</b></button>)}
+            <div className="flex gap-1 p-2"><input value={novoTipo} onChange={(e) => setNovoTipo(e.target.value.toUpperCase())} placeholder="novo tipo" className="flex-1 min-w-0 px-2 py-1 rounded text-xs outline-none" style={inpS} />
+              <button onClick={() => { const n = novoTipo.trim(); if (n && !t[n]) { setT((x) => ({ ...x, [n]: { sigla: "", variacoes: [] } })); setSel(n); } setNovoTipo(""); }} style={{ color: C.accent }}><Plus size={16} /></button></div>
+          </div>
+          {v && <div className="flex-1 min-w-0">
+            <div className="flex items-end gap-3 mb-3">
+              <Campo l={`Sigla de ${sel}`}><input value={v.sigla || ""} onChange={(e) => up(sel, { sigla: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4) })} className="px-2 py-1.5 rounded outline-none text-sm font-bold" style={{ ...inpS, width: 90 }} /></Campo>
+              <span className="text-xs pb-2" style={{ color: C.sub }}>2 a 4 letras · não pode repetir entre tipos</span>
+            </div>
+            <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Variações</div>
+            {(v.variacoes || []).map((x, k) => <div key={k} className="flex items-center gap-2 mb-1.5">
+              <input value={String(x.n).padStart(3, "0")} onChange={(e) => up(sel, { variacoes: v.variacoes.map((y, j) => (j === k ? { ...y, n: Number(e.target.value.replace(/\D/g, "")) || 0 } : y)) })} className="px-2 py-1 rounded outline-none text-sm font-bold tabular-nums text-center" style={{ ...inpS, width: 64 }} />
+              <input value={x.nome} onChange={(e) => up(sel, { variacoes: v.variacoes.map((y, j) => (j === k ? { ...y, nome: e.target.value.toUpperCase() } : y)) })} placeholder={`ex.: ${sel} SOCIAL`} className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inpS} />
+              <span className="text-[11px] tabular-nums" style={{ color: C.sub, width: 92 }}>{v.sigla ? `${v.sigla}.${String(x.n).padStart(3, "0")}.0001` : ""}</span>
+              <button onClick={() => up(sel, { variacoes: v.variacoes.filter((_, j) => j !== k) })} style={{ color: C.sub }}><X size={13} /></button>
+            </div>)}
+            <button onClick={() => up(sel, { variacoes: [...(v.variacoes || []), { n: (v.variacoes || []).reduce((m, y) => Math.max(m, y.n), 0) + 1, nome: "" }] })} className="text-xs font-semibold" style={{ color: C.accent }}>+ variação</button>
+          </div>}
+        </div>
+      )}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="px-3 py-1.5 rounded text-sm" style={{ color: C.sub }}>Cancelar</button>
+        <button onClick={salvar} disabled={salv || !t} className="px-4 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salv ? 0.6 : 1 }}>{salv ? "Salvando…" : "Salvar padrão"}</button>
+      </div>
+    </Moldura>
   );
 }

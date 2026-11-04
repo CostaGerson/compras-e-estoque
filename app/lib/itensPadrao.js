@@ -26,6 +26,8 @@ export function criticaPreco(preco, fppValor) {
 
 export async function dadosItemPadrao(b) {
   const nomeInterno = up(b.nomeInterno), nomeNf = up(b.nomeNf);
+  if (b.codigoPadrao && !/^[A-Z]{2,4}\.\d{3}\.\d{4}$/.test(String(b.codigoPadrao).trim().toUpperCase())) return { error: "Código padrão no formato SIGLA.000.0000 (ex.: CL.001.0001)." };
+  if (b.codigoPadrao) { const dono = await prisma.itemPadrao.findUnique({ where: { codigoPadrao: String(b.codigoPadrao).trim().toUpperCase() }, select: { id: true, nomeInterno: true } }); if (dono && dono.id !== Number(b.id)) return { error: `Código ${String(b.codigoPadrao).toUpperCase()} já é do item ${dono.nomeInterno}.` }; }
   if (!nomeInterno) return { error: "Informe o nome interno." };
   if (!nomeNf) return { error: "Informe o nome que sai na NF." };
   const fppId = Number(b.fppId) || null;
@@ -36,6 +38,7 @@ export async function dadosItemPadrao(b) {
     clienteIds: [...new Set((Array.isArray(b.clienteIds) ? b.clienteIds : []).map(Number).filter(Boolean))],
     fppId: fpp ? fppId : null, fppNumero: fpp?.numero ?? null,
     tipoPecaNome: up(b.tipoPecaNome), codigo: up(b.codigo), parametros: params,
+    codigoPadrao: up(b.codigoPadrao),   // v682
     fotoBase64: b.fotoBase64 || null, precoAtual: num(b.precoAtual), ncm: so(b.ncm).slice(0, 8) || null, gtin: so(b.gtin).slice(0, 14) || null,
     obs: b.obs ? String(b.obs).trim().slice(0, 2000) : null,
   };
@@ -63,7 +66,7 @@ const montar = (i, { F, Cl }) => {
 
 export async function listarItensPadrao({ q, cliente } = {}) {
   const itens = await prisma.itemPadrao.findMany({ where: { ativo: true }, orderBy: { nomeInterno: "asc" },
-    select: { id: true, nomeInterno: true, nomeNf: true, clienteIds: true, fppId: true, fppNumero: true, tipoPecaNome: true, codigo: true, precoAtual: true, ncm: true, gtin: true,
+    select: { id: true, codigoPadrao: true, nomeInterno: true, nomeNf: true, clienteIds: true, fppId: true, fppNumero: true, tipoPecaNome: true, codigo: true, precoAtual: true, ncm: true, gtin: true,
       parametros: true, updatedAt: true, atualizadoPorNome: true, fotoBase64: !!q, anexos: { select: { id: true, tipo: true, nome: true } } } });
   const ctx = await contexto(itens);
   let l = itens.map((i) => montar(i, ctx));
@@ -77,7 +80,7 @@ export async function listarItensPadrao({ q, cliente } = {}) {
   if (q) {
     const n = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
     const pal = n(q).split(/\s+/).filter(Boolean);
-    l = l.filter((i) => pal.every((w) => n([i.nomeInterno, i.nomeNf, i.codigo, i.tipoPecaNome, ...i.clientes.map((c) => c.nome)].join(" ")).includes(w))).slice(0, 15);
+    l = l.filter((i) => pal.every((w) => n([i.codigoPadrao, i.nomeInterno, i.nomeNf, i.codigo, i.tipoPecaNome, ...i.clientes.map((c) => c.nome)].join(" ")).includes(w))).slice(0, 15);
   }
   return l;
 }
@@ -86,4 +89,52 @@ export async function detalheItemPadrao(id) {
   const i = await prisma.itemPadrao.findUnique({ where: { id: Number(id) }, include: { anexos: { select: { id: true, tipo: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } } });
   if (!i) return null;
   return montar(i, await contexto([i]));
+}
+
+// ---------- v682 — padrão de códigos dos produtos (sugestão #45) ----------
+//   SIGLA (tipo do produto) . VARIAÇÃO (3 dígitos, cadastro por tipo: 001 calça de elástico, 002 calça social…) . SEQUÊNCIA (4 dígitos, automática)
+//   ex.: CL.001.0001 = calça de elástico com 2 bolsos frontais e 2 traseiros · CL.001.0002 = …
+const K_COD = "COD|PADRAO";
+export const SIGLAS_PADRAO = { CAMISETA: "CT", POLO: "PL", CAMISA: "CM", JAQUETA: "JQ", "CALÇA": "CL", JALECO: "JL", AVENTAL: "AV", BERMUDA: "BM", AGASALHO: "AG", "BONÉ": "BN", MEIA: "MA", SERVIÇO: "SV" };
+export async function padraoCodigos() {
+  const c = await prisma.finConfig.findUnique({ where: { chave: K_COD } }).catch(() => null);
+  let v = {}; try { v = JSON.parse(c?.valor || "{}"); } catch {}
+  const tipos = { ...Object.fromEntries(Object.entries(SIGLAS_PADRAO).map(([t, s]) => [t, { sigla: s, variacoes: [] }])), ...(v.tipos || {}) };
+  return { tipos };
+}
+export async function salvarPadraoCodigos(tipos) {
+  const limpo = {};
+  const siglas = new Set();
+  for (const [t, x] of Object.entries(tipos || {})) {
+    const tipo = up(t); const sigla = String(x?.sigla || "").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4);
+    if (!tipo || !sigla) continue;
+    if (siglas.has(sigla)) return { error: `Sigla ${sigla} repetida.` };
+    siglas.add(sigla);
+    const vs = (Array.isArray(x.variacoes) ? x.variacoes : []).map((y) => ({ n: Math.max(1, Math.min(999, Number(y.n) || 0)), nome: up(y.nome) })).filter((y) => y.nome);
+    limpo[tipo] = { sigla, variacoes: [...new Map(vs.map((y) => [y.n, y])).values()].sort((a, b) => a.n - b.n) };
+  }
+  await prisma.finConfig.upsert({ where: { chave: K_COD }, create: { chave: K_COD, valor: JSON.stringify({ tipos: limpo }) }, update: { valor: JSON.stringify({ tipos: limpo }) } });
+  return { ok: true };
+}
+const p3 = (n) => String(n).padStart(3, "0"), p4 = (n) => String(n).padStart(4, "0");
+// próximo código livre para SIGLA.VAR
+export async function proximoCodigo(sigla, variacao) {
+  const pre = `${String(sigla).toUpperCase()}.${p3(Number(variacao) || 1)}.`;
+  const l = await prisma.itemPadrao.findMany({ where: { codigoPadrao: { startsWith: pre } }, select: { codigoPadrao: true } });
+  const max = l.reduce((m, x) => Math.max(m, Number(String(x.codigoPadrao).slice(pre.length)) || 0), 0);
+  return `${pre}${p4(max + 1)}`;
+}
+// sugestão para um item (tipo de peça + código do KM): sigla do tipo; variação pelo KM (CT.01.001.0001 → 001) ou pelo nome; sequência livre
+export async function sugerirCodigo({ tipoPeca, codigoKm, nome } = {}) {
+  const { tipos } = await padraoCodigos();
+  const t = tipos[up(tipoPeca)];
+  if (!t) return { error: "Tipo de peça sem sigla no padrão de códigos." };
+  const nz = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  let v = null;
+  const mKm = String(codigoKm || "").match(/(?:^|\.)(\d{3})\.\d{3,4}$/);
+  if (mKm) v = Number(mKm[1]);
+  const porNome = (t.variacoes || []).filter((x) => nz(nome).includes(nz(x.nome))).sort((a, b) => b.nome.length - a.nome.length)[0];
+  if (porNome) v = porNome.n;
+  if (!v) v = (t.variacoes || [])[0]?.n || 1;
+  return { sigla: t.sigla, variacao: v, variacaoNome: (t.variacoes || []).find((x) => x.n === v)?.nome || null, codigo: await proximoCodigo(t.sigla, v) };
 }

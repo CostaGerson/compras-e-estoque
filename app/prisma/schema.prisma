@@ -2461,6 +2461,7 @@ model ItemPadrao {
   fppNumero         Int?
   tipoPecaNome      String?
   codigo            String?             // código do cadastro do KM
+  codigoPadrao      String?  @unique    // v682 — nosso padrão: SIGLA.VARIAÇÃO.SEQUÊNCIA (ex.: CL.001.0001)
   parametros        Json?               // { COMPONENTE: valor } — mesmos parâmetros do item no pedido (TECIDO pode ser objeto)
   fotoBase64        String?
   precoAtual        Decimal? @db.Decimal(14, 2)   // preço praticado hoje
