@@ -27,8 +27,9 @@ function tecidoTxt(v) {
 //   a = { nome, mime|tipo, src } (src: data URL ou URL do sistema)
 const ehPdf = (a) => /pdf/i.test(a.mime || a.tipo || "") || /\.pdf$/i.test(a.nome || "") || /^data:application\/pdf/.test(a.src || "");
 const ehImg = (a) => /^image\//i.test(a.mime || a.tipo || "") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.nome || "") || /^data:image\//.test(a.src || "");
+const semCache = (src) => (!src || /^data:/.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}_t=${Date.now()}`);   // v660
 function anexosHtml(lista, titulo) {
-  const l = (lista || []).filter((a) => a && a.src);
+  const l = (lista || []).filter((a) => a && a.src).map((a) => ({ ...a, src: semCache(a.src) }));
   if (!l.length) return "";
   return `<div class="anx-bloco">${titulo ? `<div class="anx-t">${esc(titulo)}</div>` : ""}${l.map((a) => ehImg(a)
     ? `<figure class="anx"><img src="${esc(a.src)}"/><figcaption>${esc(a.nome || "")}</figcaption></figure>`

@@ -19,7 +19,7 @@ export async function GET(req, { params }) {
     if (sp.get("anexo")) { const a = await prisma.ppAnexo.findFirst({ where: { id: Number(sp.get("anexo")), ppId } }); if (a) { nome = a.nome; mime = a.tipo; b64 = a.base64; } }
     else { const its = await prisma.ppItem.findMany({ where: { ppId }, orderBy: { id: "asc" }, select: { anexosJson: true } }); const a = (its[Number(sp.get("item"))]?.anexosJson || [])[Number(sp.get("k"))]; if (a) { nome = a.nome; mime = a.mime; b64 = a.base64; } }
     if (!b64) return new Response("Não encontrado.", { status: 404 });
-    return new Response(Buffer.from(String(b64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Content-Type": mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(nome)}"` } });
+    return new Response(Buffer.from(String(b64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(nome)}"` } });
   }
   return Response.json(await opDaTarefa(t));
 }

@@ -13,7 +13,7 @@ export async function GET(req, { params }) {
   if (anx) {
     const a = await prisma.ppAnexo.findFirst({ where: { id: Number(anx), ppId: id } });
     if (!a) return Response.json({ error: "Anexo não encontrado." }, { status: 404 });
-    return new Response(Buffer.from(a.base64, "base64"), { headers: { "Content-Type": a.tipo || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+    return new Response(Buffer.from(a.base64, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.tipo || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
   }
   // v650 — ?item=ID&k=n → arquivo n do item
   const itq = new URL(req.url).searchParams.get("item");
@@ -22,7 +22,7 @@ export async function GET(req, { params }) {
     const a = Array.isArray(it?.anexosJson) ? it.anexosJson[Number(new URL(req.url).searchParams.get("k")) || 0] : null;
     if (!a?.base64) return Response.json({ error: "Arquivo não encontrado." }, { status: 404 });
     const m = String(a.base64).match(/^data:([^;,]+)[^,]*,/);
-    return new Response(Buffer.from(String(a.base64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Content-Type": a.mime || m?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome || "arquivo")}"` } });
+    return new Response(Buffer.from(String(a.base64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || m?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome || "arquivo")}"` } });
   }
   const arq = new URL(req.url).searchParams.get("arquivo");
   if (arq) {
@@ -32,14 +32,14 @@ export async function GET(req, { params }) {
     const v = pp1?.[arq];
     if (!v) return Response.json({ error: "PDF não encontrado." }, { status: 404 });
     const nome = { arquivoPedidoPdf: "PV", arquivoOpPdf: "PP", arquivoPcPdf: "PC", arquivoLancPdf: "LANCAMENTO" }[arq];
-    return new Response(Buffer.from(String(v).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${nome} ${r.numero || id}.pdf"` } });
+    return new Response(Buffer.from(String(v).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${nome} ${r.numero || id}.pdf"` } });
   }
   const pp = await prisma.pp.findUnique({
     where: { id },
     include: { itens: { orderBy: { id: "asc" } }, anexos: { select: { id: true, nome: true, tipo: true, categoria: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } },
   });
   if (!pp) return Response.json({ error: "PP não encontrado" }, { status: 404 });
-  return Response.json(ppParaUsuario(pp, u));
+  return Response.json(ppParaUsuario(pp, u), { headers: { "Cache-Control": "no-store" } });   // v660 — nunca devolve o lançamento antigo do cache
 }
 
 export async function DELETE(req, { params }) {

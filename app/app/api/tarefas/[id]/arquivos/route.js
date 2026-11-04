@@ -10,7 +10,7 @@ export async function GET(req, { params }) {
   if (!u || !(await detalhe(params.id, u))) return new Response("Sem acesso.", { status: 403 });
   const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(sp.get("arquivo")) || 0, tarefaId: Number(params.id) } });
   if (!a) return new Response("Não encontrado.", { status: 404 });
-  return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+  return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
 }
 
 // POST { usuarioId, nome, mime, conteudo }

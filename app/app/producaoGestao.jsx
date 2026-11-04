@@ -296,7 +296,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
     setImprimindo(tipo);
     try {
       if (p.pp && p.pp.origem !== "PEDIDOS") {
-        const d = await fetch(`/api/pp/${p.pp.id}`, { headers: { "x-usuario-id": String(user?.id || "") } }).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); return x; });
+        const d = await fetch(`/api/pp/${p.pp.id}`, { cache: "no-store", headers: { "x-usuario-id": String(user?.id || "") } }).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); return x; });
         const { f, itens } = dadosImpressaoPp(d, veVal);
         const anexos = (d.anexos || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}` }));   // v650
         imprimirPedido(tipo, f, itens, { componentes, alerta, anexos });

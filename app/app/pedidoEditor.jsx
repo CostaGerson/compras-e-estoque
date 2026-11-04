@@ -157,7 +157,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   // v614 — pedido de serviço: item = tipo de serviço (texto livre) · quantidade · valor unitário (total calculado)
   const novoServico = () => ({ tipoPecaNome: "SERVIÇO", codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
-  const api = (url, o = {}) => fetch(url, { ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
+  const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
   const [ppId, setPpId] = useState(ppId0 || null);
   const [f, setF] = useState(vazioF());
   const [itens, setItens] = useState([novoItem()]);
