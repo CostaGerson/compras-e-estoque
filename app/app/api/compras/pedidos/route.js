@@ -73,7 +73,7 @@ export async function GET() {
       if (v && v.status === "LEVANTAMENTO" && (Number(v.quantidade) !== it.qtd || revVazia || fppMudou) && v.fppId) {
         const fpp = await prisma.fpp.findUnique({ where: { id: v.fppId } });
         if (fpp) {
-          const demanda = await demandaDoItem(fpp, it.qtd);
+          const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, v.corFpp || it.corFpp || null);   // v664
           v = await prisma.compraItem.update({ where: { id: v.id }, data: { quantidade: it.qtd, valorUnitario: it.preco, descricao: it.descricao,
             demanda: demanda.map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null })) } });
         }

@@ -13,9 +13,9 @@ export async function POST(req) {
   if (!fpp) return Response.json({ error: "FPP não encontrada." }, { status: 404 });
   const atual = await prisma.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: p.numero, chave: it.chave } } });
   if (atual && atual.status !== "LEVANTAMENTO") return Response.json({ error: `Item já está em ${atual.status} — não dá para trocar a FPP.` }, { status: 409 });
-  const demanda = await demandaDoItem(fpp, it.qtd);
+  const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, it.corFpp || null);   // v664
   const dados = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco, cliente: p.cliente, entrega: p.despacho,
-    fppId: fpp.id, fppNumero: fpp.numero, status: "LEVANTAMENTO", demanda, vinculadoPorNome: b.quem || null };
+    fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: b.quem || null };
   const v = atual
     ? await prisma.compraItem.update({ where: { id: atual.id }, data: dados })
     : await prisma.compraItem.create({ data: { pedidoNumero: p.numero, chave: it.chave, ...dados } });

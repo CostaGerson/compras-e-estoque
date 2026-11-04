@@ -140,6 +140,7 @@ export function resumoFpp(f) {
     valorProposto: f.valorProposto ?? null,
     artigo: String(e.nomeArtigo || "").trim().toUpperCase() || null,
     artigoCor: det.cor || null, artigoCodigo: det.codigo || null,
+    cores: [det.cor ? { cor: det.cor, codigo: det.codigo || null } : null, ...(Array.isArray(det.variantes) ? det.variantes.filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })) : [])].filter(Boolean),   // v664
     tecidoTipo: malha ? "MALHA" : "PLANO",
     rendimento: malha ? rc : null, consumo: malha ? null : rc,
     medida: rc ? (malha ? `Rend. ${fmt(rc, 2)} pç/kg` : `Consumo ${fmt(rc)} m/pç`) : "",
@@ -147,6 +148,6 @@ export function resumoFpp(f) {
   };
 }
 // valor do parâmetro TECIDO montado pela FPP
-export const tecidoDaFpp = (rf) => (rf ? { tipo: rf.tecidoTipo, artigo: [rf.artigo, rf.artigoCor].filter(Boolean).join(" · ") || "", medida: rf.medida,
+export const tecidoDaFpp = (rf, cor) => (rf ? { tipo: rf.tecidoTipo, artigo: [rf.artigo, cor || rf.artigoCor].filter(Boolean).join(" · ") || "", medida: rf.medida, ...((rf.cores || []).length > 1 ? { cor: cor || rf.artigoCor || null } : {}),
   fpp: rf.numero, forro: rf.forro ? `${rf.forro}${rf.consumoForro ? ` · ${fmt(rf.consumoForro)} m/pç` : ""}` : "" } : null);
 export const numFpp = (n) => (n != null ? String(n).padStart(5, "0") : "");

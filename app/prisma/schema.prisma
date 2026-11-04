@@ -2114,6 +2114,7 @@ model KmSyncLog {
 // A chave é pedido + item (os PpItem são refeitos a cada sincronização do KM, então não servem de âncora).
 model CompraItem {
   id            Int       @id @default(autoincrement())
+  corFpp        String?   // v664 — cor escolhida no pedido quando a FPP tem várias cores do mesmo tecido
   pedidoNumero  String
   chave         String    // código do item no pedido (#2, #3… quando o código se repete)
   descricao     String?

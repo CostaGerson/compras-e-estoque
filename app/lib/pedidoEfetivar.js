@@ -131,7 +131,8 @@ function itensPv(pp) {
       .map(([t, v]) => ({ t, v: typeof v === "object" ? [v.tipo, v.artigo, v.medida, v.forro ? `FORRO ${v.forro}` : ""].filter(Boolean).join(" · ") : String(v) }));
     const qtd = grade.reduce((s, g) => s + g.qtd, 0);
     return { codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: num(it.valorUnitario), total: r2(qtd * num(it.valorUnitario)), grade, parametros: params,
-      fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null };
+      fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null,
+      corFpp: (() => { const t = safe(it.parametrosJson, {}).TECIDO; return t && typeof t === "object" && t.cor ? String(t.cor).toUpperCase() : null; })() };   // v664
   });
 }
 
@@ -200,10 +201,10 @@ export async function efetivarPedido(id, quem) {
       const ch = chaves[i].chave;
       const at = await prisma.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: numero, chave: ch } } });
       if (at && at.status !== "LEVANTAMENTO") continue;
-      if (at && at.fppId === fpp.id && Number(at.quantidade) === it.qtd) continue;
-      const demanda = await demandaDoItem(fpp, it.qtd);
+      if (at && at.fppId === fpp.id && Number(at.quantidade) === it.qtd && (at.corFpp || null) === (it.corFpp || null)) continue;
+      const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, it.corFpp || null);
       const d = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: dados.cliente, entrega: dados.despacho,
-        fppId: fpp.id, fppNumero: fpp.numero, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem };
+        fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem };
       if (at) await prisma.compraItem.update({ where: { id: at.id }, data: d });
       else await prisma.compraItem.create({ data: { pedidoNumero: numero, chave: ch, ...d } });
       compras.push(ch);

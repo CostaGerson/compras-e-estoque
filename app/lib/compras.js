@@ -54,7 +54,19 @@ function paramGet(params, tipo, grupo, chave, campo, overrides) {
 
 // matérias-primas da FPP com consumo por peça (na unidade de compra)
 // ref diz onde o detalhe mora em entradas: { campo } | { campo, chave } | { campo, idx }
-export function materiaisDaFpp(fpp, params = []) {
+// v664 — FPP com várias cores do mesmo tecido: det.variantes [{ cor, codigo, artigoId }]; corSel escolhe a do pedido
+export function detComCor(det, corSel) {
+  const d = det || {};
+  if (!corSel || !Array.isArray(d.variantes) || !d.variantes.length) return d;
+  const n = norm(corSel);
+  if (d.cor && norm(d.cor) === n) return d;
+  const v = d.variantes.find((x) => x && x.cor && norm(x.cor) === n);
+  if (!v) return d;
+  const { artigoId, ...resto } = d;
+  return { ...resto, cor: v.cor, codigo: v.codigo || null, ...(v.artigoId ? { artigoId: v.artigoId } : {}) };
+}
+export const coresDoDet = (d) => [d?.cor ? { cor: d.cor, codigo: d.codigo || null } : null, ...((d?.variantes || []).filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })))].filter(Boolean);
+export function materiaisDaFpp(fpp, params = [], corSel = null) {
   const e = fpp.entradas || {};
   const r = fpp.resultados || {};
   const ov = fpp.overrides || {};
@@ -77,7 +89,7 @@ export function materiaisDaFpp(fpp, params = []) {
   if (nomeP) {
     const consumo = tipo === "MALHA" ? (rendCons ? 1 / rendCons : 0) : rendCons;
     out.push({ papel: "PRINCIPAL", ref: { campo: "artigoDet" }, categoria: tipo === "MALHA" ? "MALHA" : "TECIDO", unidade: tipo === "MALHA" ? "KG" : "M",
-      nome: nomeP.toUpperCase(), det: e.artigoDet || {}, consumoPorPeca: consumo, valorUnitario: n0(e.mpValor),
+      nome: nomeP.toUpperCase(), det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: consumo, valorUnitario: n0(e.mpValor),
       base: tipo === "MALHA" ? `${String(rendCons).replace(".", ",")} peças/kg` : `${String(rendCons).replace(".", ",")} m/peça` });
   }
   const nomeF = String(e.nomeArtigoForro || "").trim();
@@ -210,8 +222,18 @@ export async function sincronizarArtigosFpp(fpp, db = prisma) {
     // sem detalhe, o cadastro pelo nome acontece quando a FPP vira base de um pedido (demandaDoItem)
     if (!temAlgumDetalhe(m.det)) continue;
     const id = await artigoDaFpp(m, fpp, db);
-    const atual = lerDet(novas, m.ref);
-    if (atual.artigoId !== id) { novas = gravarDet(novas, m.ref, { ...atual, artigoId: id }); mudou = true; }
+    let atual = lerDet(novas, m.ref);
+    if (atual.artigoId !== id) { atual = { ...atual, artigoId: id }; novas = gravarDet(novas, m.ref, atual); mudou = true; }
+    // v664 — demais cores do mesmo tecido também entram no cadastro de artigos
+    if (Array.isArray(atual.variantes) && atual.variantes.length) {
+      const vs = [];
+      for (const v of atual.variantes) {
+        if (!v || vazio(v.cor)) { vs.push(v); continue; }
+        const vid = await artigoDaFpp({ ...m, det: { ...m.det, cor: v.cor, codigo: v.codigo || null, artigoId: undefined } }, fpp, db);
+        vs.push({ ...v, artigoId: vid }); if (v.artigoId !== vid) mudou = true;
+      }
+      novas = gravarDet(novas, m.ref, { ...atual, variantes: vs });
+    }
   }
   if (mudou) await db.fpp.update({ where: { id: fpp.id }, data: { entradas: novas } });
   return mudou;
@@ -224,7 +246,7 @@ export function itensDoPedido(p) {
     const cod = String(it.codigo || `ITEM${i + 1}`).trim();
     vistos[cod] = (vistos[cod] || 0) + 1;
     const qtd = Number(it.qtd) || (it.grade || []).reduce((s, g) => s + (Number(g.qtd) || 0), 0);
-    return { chave: vistos[cod] > 1 ? `${cod}#${vistos[cod]}` : cod, codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: n0(it.preco), grade: it.grade || [], fppId: it.fppId ? Number(it.fppId) : null };   // v612 — FPP indexada no lançamento
+    return { chave: vistos[cod] > 1 ? `${cod}#${vistos[cod]}` : cod, codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: n0(it.preco), grade: it.grade || [], fppId: it.fppId ? Number(it.fppId) : null, corFpp: it.corFpp || null };   // v664   // v612 — FPP indexada no lançamento
   });
 }
 
@@ -270,14 +292,14 @@ export async function refazerDemandasDaFpp(fppId, db = prisma) {
   if (!fpp) return 0;
   const its = await db.compraItem.findMany({ where: { fppId: fpp.id, status: "LEVANTAMENTO" } });
   for (const v of its) {
-    const demanda = await demandaDoItem(fpp, Number(v.quantidade), db);
+    const demanda = await demandaDoItem(fpp, Number(v.quantidade), db, null, v.corFpp || null);
     await db.compraItem.update({ where: { id: v.id }, data: { demanda: demanda.map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null })) } });
   }
   return its.length;
 }
-export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null) {
+export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null, corSel = null) {
   const params = params0 || await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
-  const mats = materiaisDaFpp(fpp, params);
+  const mats = materiaisDaFpp(fpp, params, corSel);
   const ids = mats.map((m) => (m.det || {}).artigoId).filter(Boolean);
   const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } }) : [];
   const porId = Object.fromEntries(arts.map((a) => [a.id, a]));
@@ -480,7 +502,7 @@ export async function refazerLevantamento(db = prisma, forcar = false) {
   let n = 0;
   for (const v of its) {
     const fpp = fpps[v.fppId]; if (!fpp) continue;
-    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
     if (chave(nova) !== chave(v.demanda)) { await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } }); n++; }
   }
   return n;

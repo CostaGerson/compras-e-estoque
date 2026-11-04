@@ -567,6 +567,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 <span className="font-semibold" style={{ color: C.green }}>FPP {numFpp(it.fppNumero)}</span>
                 <span style={{ color: C.text }}>{it.fpp ? `${it.fpp.nomeComercial || it.fpp.item}${it.fpp.cliente ? " · " + it.fpp.cliente : ""}` : ""}</span>
                 {it.fpp && <span style={{ color: C.sub }}>· {it.fpp.tecidoTipo} · {it.fpp.artigo || "sem artigo"}{it.fpp.medida ? ` · ${it.fpp.medida}` : ""}{it.fpp.forro ? ` · forro ${it.fpp.forro}` : ""}</span>}
+                {/* v664 — FPP com várias cores do mesmo tecido: escolher a cor deste item (vai para compras) */}
+                {it.fpp && (it.fpp.cores || []).length > 1 && <select value={it.parametros?.TECIDO?.cor || ""} onChange={(e) => upItem(i, { parametros: { ...it.parametros, TECIDO: tecidoDaFpp(it.fpp, e.target.value) } })}
+                  className="px-2 py-1 rounded text-xs font-semibold" style={{ ...inp, borderColor: it.parametros?.TECIDO?.cor ? C.line : C.accent }}>
+                  <option value="">cor do tecido…</option>{it.fpp.cores.map((c) => <option key={c.cor} value={c.cor}>{c.cor}{c.codigo ? ` · ${c.codigo}` : ""}</option>)}
+                </select>}
                 {podeLancar && <span className="ml-auto flex gap-2">
                   <button type="button" onClick={() => setFppModal(i)} className="text-xs underline" style={{ color: C.accent }}>trocar</button>
                   <button type="button" onClick={() => tirarFpp(i)} className="text-xs underline" style={{ color: C.sub }}>tirar</button>
