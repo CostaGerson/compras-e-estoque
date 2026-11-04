@@ -17,7 +17,7 @@ const C = {
   accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
   yellow: "#D99A00", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41", cinza: "#98A2B3", cinzaSoft: "#F2F4F7",
 };
-export const TIPO = { ROTINA: ["Rotina", C.blue, C.blueSoft], URGENTE: ["Urgente", C.red, C.redSoft], PADRAO: ["Padrão", C.cinza, C.cinzaSoft] };
+export const TIPO = { ROTINA: ["Rotina", C.cinza, C.cinzaSoft]   /* v646 — recorrente não tem cor própria: só o ícone */, URGENTE: ["Urgente", C.red, C.redSoft], PADRAO: ["Padrão", C.cinza, C.cinzaSoft] };
 export const STATUS_P = { DISPONIVEL: ["Disponível", C.green], OCUPADO: ["Ocupado", C.yellow], REUNIAO: ["Em reunião", C.navy], INATIVO: ["Inativo", C.cinza] };
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -172,7 +172,7 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex-1 min-w-[240px]">
           {!embutido && <div className="text-lg font-bold" style={{ color: C.navy }}>Tarefas</div>}
-          <div className="text-xs" style={{ color: C.sub }}>Demandas entre os setores · rotina <b style={{ color: C.blue }}>azul</b> · urgente <b style={{ color: C.red }}>vermelho</b> · padrão <b style={{ color: C.cinza }}>cinza</b></div>
+          <div className="text-xs" style={{ color: C.sub }}>Demandas entre os setores · recorrente <Repeat size={11} className="inline" style={{ color: C.sub }} /> · urgente <b style={{ color: C.red }}>vermelho</b> · padrão <b style={{ color: C.cinza }}>cinza</b></div>
         </div>
         <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 200 }} /></div>
         <Btn onClick={() => setForm({ prazo: H, setor: setorTarefaDe(user), responsavelId: user.id, projetoId, natureza: natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publica: natureza !== "PESSOAL" })}><Plus size={14} /> Nova demanda</Btn>
@@ -240,7 +240,7 @@ export function LinhaTarefa({ t, proj, user, H, agora, onAbrir, onAcao, compacta
           {!t.publica && <Lock size={12} style={{ color: C.sub }} title="Privada" />}
           {t.natureza === "PESSOAL" && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: "#F3E8FF", color: "#7E3AF2" }}>PESSOAL</span>}
           {proj && <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: C.sub }}><span className="rounded-[3px]" style={{ width: 10, height: 10, background: proj.cor }} />{proj.nome}</span>}
-          {t.serieId && <Repeat size={12} style={{ color: C.blue }} title={t.recorrenciaTexto} />}
+          {t.serieId && <Repeat size={12} style={{ color: C.sub }} title={t.recorrenciaTexto} />}
           {t.bloqueada && <span className="text-[10px] font-semibold flex items-center gap-0.5" style={{ color: C.yellow }}><Link2 size={11} /> aguardando</span>}
         </div>
         <div className="text-[11px] flex flex-wrap gap-x-3" style={{ color: C.sub }}>
@@ -657,7 +657,7 @@ function AvatarMini({ foto, nome, size = 22 }) {
 }
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
 // v600 — evento abaixo das pessoas necessárias fica amarelo
-const corCard = (t, proj) => t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : t.tipo === "ROTINA" ? [A.cardAzul, A.cardAzulBorda] : [A.cardBranco, A.cardBrancoBorda];
+const corCard = (t, proj) => t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
 function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir, onMenu, toque, grande, pres, arrastado }) {
@@ -682,6 +682,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
       {t.sessaoAberta && <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
       {t.nArquivos > 0 && <Paperclip size={12} className="shrink-0" style={{ color: A.sub }} />}
       {t.natureza === "PESSOAL" && <Lock size={12} className="shrink-0" style={{ color: A.sub }} />}
+      {t.serieId && <Repeat size={12} className="shrink-0" style={{ color: A.sub }} title="Recorrente" />}
     </div>
   );
   return (
@@ -707,6 +708,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
         {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.yellow }} />}
         {t.nArquivos > 0 && <Paperclip size={10} style={{ color: A.sub }} />}
         {t.natureza === "PESSOAL" && <Lock size={10} style={{ color: A.sub }} />}
+        {t.serieId && <Repeat size={10} style={{ color: A.sub }} title="Recorrente" />}   {/* v646 */}
         {proj && <span className="rounded-[3px]" title={proj.nome} style={{ width: 11, height: 11, background: proj.cor }} />}
       </div>
     </div>
@@ -872,7 +874,7 @@ function Sentinela({ onMais, dep }) {
 /* v590 — celular: mês no estilo do calendário do iPhone (domingo primeiro, hoje em círculo vermelho, tarefas em pílulas).
    Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
 const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
-const corPilula = (t, proj) => (t.evento && t.efetivo && !t.efetivoOk ? "#D99A00" : null) || proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : t.tipo === "ROTINA" ? "#4573D2" : "#8A8B8C");
+const corPilula = (t, proj) => (t.evento && t.efetivo && !t.efetivoOk ? "#D99A00" : null) || proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : "#8A8B8C");
 function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana, pressionar, alvo, arrastandoId }) {
   // v592 — rolar para baixo emenda o mês seguinte (infinito); o dia tocado abre embaixo do mês dele
   const ano0 = Number(ref0.slice(0, 4)), mes0 = Number(ref0.slice(5, 7));
