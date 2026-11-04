@@ -1903,6 +1903,8 @@ model Tarefa {
   evento           Boolean   @default(false)     // v600 — evento com convidados (confirmam presença)
   efetivo          Int?                          // v600 — pessoas necessárias: amarelo até atingir as confirmações
   efetivoAvisoEm   String?                       // v600 — "AAAA-MM-DD" do último aviso diário ao criador
+  decisao          Json?                         // v655 — { opcoes: [texto], envolvidos: [ids], votos: { id: { opcao, nome, em } }, resultado?: { tipo: UNANIME|PAUTA, opcao?, reuniaoId? } }
+  reuniao          Json?                         // v655 — reunião de gestão: { tipo: "GESTAO", mes: "AAAA-MM", pautas: [{ id, texto, origem: FIXA|DECISAO|MANUAL, decisaoId?, autor }] }
   layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

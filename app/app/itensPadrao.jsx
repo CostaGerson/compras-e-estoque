@@ -18,6 +18,14 @@ const numFpp = (n) => (n != null ? String(n).padStart(5, "0") : "");
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 const nomeCli = (c) => c.nomeFantasia || c.razaoSocial || "—";
 const PARAM_FORA = ["TECIDO"];   // tecido vem da FPP
+// v655 — tipo de peça pelo nome do item (mesma regra do lançamento)
+const tipoPeca = (d, tipos) => {
+  const n = norm(d);
+  const t = /CAMISETA|T-SHIRT|REGATA|BABY ?LOOK/.test(n) ? "CAMISETA" : /\bPOLO\b/.test(n) ? "POLO" : /CAMISA/.test(n) ? "CAMISA"
+    : /JAQUETA|MOLETOM|BLUSAO|CASACO|AGASALHO|COLETE|PARKA/.test(n) ? "JAQUETA" : /CALCA|BERMUDA|SHORT|MACACAO/.test(n) ? "CALÇA"
+    : /JALECO/.test(n) ? "JALECO" : /AVENTAL/.test(n) ? "AVENTAL" : null;
+  return t && tipos.includes(t) ? t : null;
+};
 
 function Critica({ c, curto }) {
   if (!c) return null;
@@ -160,6 +168,17 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const cliSel = clientes.filter((c) => f.clienteIds.includes(c.id));
   const cliOpc = buscaCli.trim().length >= 2 ? clientes.filter((c) => !f.clienteIds.includes(c.id) && norm([c.razaoSocial, c.nomeFantasia, c.cnpj].join(" ")).includes(norm(buscaCli))).slice(0, 8) : [];
 
+  // v655 — ao trazer a FPP, o que ela já tem entra sozinho (só preenche o que estiver vazio)
+  const usarFpp = (p) => setF((x) => {
+    const nome = String(p.nomeComercial || p.item || "").toUpperCase();
+    const cli = p.cliente ? clientes.find((c) => norm(c.razaoSocial) === norm(p.cliente) || norm(c.nomeFantasia) === norm(p.cliente)) : null;
+    return { ...x, fpp: p, fppId: p.id,
+      nomeInterno: x.nomeInterno || nome, nomeNf: x.nomeNf || nome,
+      tipoPecaNome: x.tipoPecaNome || tipoPeca(`${p.item || ""} ${p.nomeComercial || ""}`, TIPOS) || "",
+      precoAtual: x.precoAtual || (p.valorProposto != null ? String(Number(p.valorProposto).toFixed(2)).replace(".", ",") : ""),
+      clienteIds: cli && !x.clienteIds.includes(cli.id) ? [...x.clienteIds, cli.id] : x.clienteIds,
+      parametros: { ...x.parametros, TECIDO: { tipo: p.tecidoTipo, artigo: [p.artigo, p.artigoCor].filter(Boolean).join(" · "), medida: p.medida, forro: p.forro || null, fpp: p.numero } } };
+  });
   const anexar = async (tipo, files) => {
     const arr = Array.from(files || []);
     if (!f.id) { const add = await Promise.all(arr.map(async (x) => ({ tipo, nome: x.name, mime: x.type, base64: await readB64(x) }))); setPend((p) => [...p, ...add]); return; }
@@ -225,6 +244,7 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
             <span className="font-semibold" style={{ color: C.green }}>FPP {numFpp(f.fpp.numero)}</span>
             <span style={{ color: C.text }}>{f.fpp.nomeComercial || f.fpp.item}{f.fpp.cliente ? ` · ${f.fpp.cliente}` : ""}</span>
             <span style={{ color: C.sub }}>· valor de venda {brl(f.fpp.valorProposto)}</span>
+            {(f.fpp.artigo || f.parametros?.TECIDO?.artigo) && <span className="w-full text-xs" style={{ color: C.sub }}>Tecido: {[f.fpp.tecidoTipo || f.parametros?.TECIDO?.tipo, f.fpp.artigo ? [f.fpp.artigo, f.fpp.artigoCor].filter(Boolean).join(" · ") : f.parametros?.TECIDO?.artigo, f.fpp.medida || f.parametros?.TECIDO?.medida, (f.fpp.forro || f.parametros?.TECIDO?.forro) ? `forro ${f.fpp.forro || f.parametros.TECIDO.forro}` : ""].filter(Boolean).join(" · ")}</span>}
             <button onClick={() => setF((x) => ({ ...x, fpp: null, fppId: null }))} className="ml-auto text-xs underline" style={{ color: C.sub }}>tirar</button>
           </div>
         ) : (
@@ -232,7 +252,7 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
             <div className="text-xs mb-1" style={{ color: C.sub }}>FPP de origem</div>
             <input value={buscaFpp} onChange={(e) => setBuscaFpp(e.target.value)} placeholder="nº da FPP, item ou cliente…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inpS, background: C.panel }} />
             {fpps.length > 0 && <div className="absolute z-20 left-0 right-0 mt-1 rounded shadow-lg max-h-56 overflow-y-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              {fpps.map((p) => <button key={p.id} onClick={() => { setF((x) => ({ ...x, fpp: p, fppId: p.id })); setBuscaFpp(""); setFpps([]); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+              {fpps.map((p) => <button key={p.id} onClick={() => { usarFpp(p); setBuscaFpp(""); setFpps([]); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <b>FPP {numFpp(p.numero)}</b> · {p.nomeComercial || p.item}<span style={{ color: C.sub }}>{p.cliente ? ` · ${p.cliente}` : ""} · {brl(p.valorProposto)}</span></button>)}
             </div>}
           </div>

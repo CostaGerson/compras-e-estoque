@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -321,7 +321,10 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     rec: { tipo: "NENHUMA", ...(inicial.recorrencia || {}) }, subtarefas: inicial.subtarefas || [], dependencias: inicial.dependencias || [], aplicarSerie: false,
     // v600 — período sem horário, evento com convidados e pessoas necessárias
     periodo: inicial.periodo || "", evento: !!inicial.evento, efetivo: inicial.efetivo || "", convidados: (inicial.convites || []).map((c) => c.usuarioId),
+    // v655 — decisão: envolvidos marcam uma das opções
+    decisao: !!inicial.decisao, opcoes: inicial.decisao?.opcoes?.length ? inicial.decisao.opcoes : ["", ""], envolvidos: inicial.decisao?.envolvidos || [],
   });
+  const [buscaEnv, setBuscaEnv] = useState("");
   const [buscaConv, setBuscaConv] = useState("");
   const [todos, setTodos] = useState(false);
   const [nova, setNova] = useState("");
@@ -357,10 +360,12 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       const c = conflitosHora(publicas.filter((t) => t.id !== inicial.id && t.prazo === f.prazo && t.responsavelId === rf), f.hora, f.horaFim);
       if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((t) => `• ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""} ${t.titulo}`).join("\n")}\n\nSalvar mesmo assim?`))) return;
     }
+    if (f.decisao && (f.opcoes.filter((o) => o.trim()).length < 2 || !f.envolvidos.length)) { setErro("Decisão: informe pelo menos 2 opções e os envolvidos."); return; }
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin, natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
+      hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin,
+      ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -434,7 +439,33 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       {!f.hora && <div className="flex items-center gap-1 mb-3 text-xs" style={{ color: C.sub }}>Período (sem horário):
         {[["", "—"], ["MANHA", "Manhã"], ["TARDE", "Tarde"]].map(([k, t]) => <button key={k} onClick={() => set("periodo", k)} className="px-2.5 py-1 rounded-lg font-semibold" style={f.periodo === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
       </div>}
+      {/* v655 — decisão: situação na descrição, envolvidos e opções para marcar */}
+      {!f.evento && !inicial.reuniao && <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2, border: f.decisao ? "1px solid #9E47FF" : "1px solid transparent" }}>
+        <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
+          <input type="checkbox" checked={f.decisao} disabled={!!inicial.decisao} onChange={(e) => set("decisao", e.target.checked)} /><Vote size={14} style={{ color: "#7E3AF2" }} /> Decisão (os envolvidos marcam uma opção)
+        </label>
+        {f.decisao && <>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Descreva a situação na descrição. Unanimidade: você recebe o resultado e decide. Sem unanimidade: vira pauta da próxima reunião de gestão.</div>
+          <div className="text-xs mt-2 mb-1" style={{ color: C.sub }}>Opções</div>
+          {f.opcoes.map((o, k) => <div key={k} className="flex items-center gap-1 mb-1">
+            <span className="text-[11px] w-4" style={{ color: C.sub }}>{k + 1}.</span>
+            <input value={o} onChange={(e) => set("opcoes", f.opcoes.map((x, j) => (j === k ? e.target.value : x)))} placeholder={`Opção ${k + 1}`} className="flex-1 rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+            {f.opcoes.length > 2 && <button onClick={() => set("opcoes", f.opcoes.filter((_, j) => j !== k))} style={{ color: C.sub }}><X size={12} /></button>}
+          </div>)}
+          <button onClick={() => set("opcoes", [...f.opcoes, ""])} className="text-[11px] font-semibold" style={{ color: "#7E3AF2" }}>+ opção</button>
+          <div className="text-xs mt-2 mb-1" style={{ color: C.sub }}>Envolvidos ({f.envolvidos.length})</div>
+          {f.envolvidos.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{f.envolvidos.map((id) => { const x = usuarios.find((u) => u.id === id); const votou = inicial.decisao?.votos?.[id];
+            return <span key={id} className="text-[11px] rounded-full pl-2 pr-1 py-0.5 flex items-center gap-1" style={{ background: votou ? "#E3F4EA" : "#fff", border: `1px solid ${C.line}` }}>{x?.nome || `#${id}`}{votou ? " · votou" : ""}
+              <button onClick={() => set("envolvidos", f.envolvidos.filter((y) => y !== id))}><X size={11} /></button></span>; })}</div>}
+          <input value={buscaEnv} onChange={(e) => setBuscaEnv(e.target.value)} placeholder="Buscar pessoa envolvida…" className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+          {buscaEnv && <div className="rounded-lg mt-1" style={{ border: `1px solid ${C.line}`, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
+            {usuarios.filter((x) => !f.envolvidos.includes(x.id) && String(x.nome).toUpperCase().includes(buscaEnv.toUpperCase())).slice(0, 10)
+              .map((x) => <button key={x.id} onClick={() => { set("envolvidos", [...f.envolvidos, x.id]); setBuscaEnv(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">{x.nome}</button>)}
+          </div>}
+        </>}
+      </div>}
       {/* v600 — evento: convidados recebem mensagem, e-mail e popup na agenda (confirmar / recusar / decidir depois) */}
+      {!f.decisao && <>
       <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2, border: f.evento ? `1px solid ${C.line}` : "1px solid transparent" }}>
         <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
           <input type="checkbox" checked={f.evento} onChange={(e) => set("evento", e.target.checked)} /><CalendarDays size={14} style={{ color: A.azul }} /> Evento com convidados
@@ -458,6 +489,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           </div>}
         </>}
       </div>
+      </>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
@@ -579,7 +611,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const [sobreDet, setSobreDet] = useState(false);   // v652
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
-  const direto = editarDireto && t?.podeEditar && !t?.layout;   // v654 — tarefa de layout abre no detalhe
+  const direto = editarDireto && t?.podeEditar && !t?.layout && !t?.decisao && !t?.reuniao;   // v655 — decisão e reunião abrem no detalhe   // v654 — tarefa de layout abre no detalhe
   if ((editar || direto) && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => (direto ? onClose() : setEditar(false))} onOk={() => { setEditar(false); carregar(); onMudou?.(); if (direto) onClose(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
@@ -620,6 +652,8 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         </div>
         {t.descricao && <div className="text-sm whitespace-pre-wrap mb-3 p-3 rounded-lg" style={{ background: C.panel2 }}>{t.descricao}</div>}
         {t.layout && <LayoutTarefa t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
+        {t.decisao && <DecisaoPainel t={t} user={user} acao={acao} />}
+        {t.reuniao && <ReuniaoPainel t={t} user={user} acao={acao} />}
         <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ border: `1px solid ${rodando ? C.yellow : C.line}`, background: rodando ? C.yellowSoft : C.panel }}>
           <Clock size={16} style={{ color: rodando ? C.yellow : C.sub }} />
           <div className="text-sm"><b>{duracao(t.tempoTotal + (rodando ? (agora - new Date(t.sessaoAberta.inicio)) / 1000 : 0))}</b> de trabalho registrado{rodando && <span style={{ color: C.yellow }}> · em andamento há {duracao((agora - new Date(t.sessaoAberta.inicio)) / 1000)}</span>}</div>
@@ -654,6 +688,61 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         </div>}
       </>}
     </Janela>
+  );
+}
+
+/* v655 — decisão: cada envolvido marca uma opção; resultado unânime ou pauta da reunião de gestão */
+function DecisaoPainel({ t, user, acao }) {
+  const d = t.decisao || {};
+  const votos = d.votos || {};
+  const meuVoto = votos[user.id]?.opcao;
+  const envolvido = (d.envolvidos || []).includes(user.id);
+  const faltam = (d.envolvidos || []).length - Object.keys(votos).length;
+  const R = d.resultado;
+  const mostrar = !!R || !envolvido || !!meuVoto;   // o voto dos outros aparece depois de votar
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ border: "2px solid #9E47FF", background: "#F5EEFF" }}>
+      <div className="flex items-center gap-2 mb-2"><Vote size={16} style={{ color: "#7E3AF2" }} /><span className="text-sm font-bold" style={{ color: "#7E3AF2" }}>Decisão</span>
+        <span className="text-xs" style={{ color: C.sub }}>{Object.keys(votos).length}/{(d.envolvidos || []).length} marcaram{!R && faltam > 0 ? ` · faltam ${faltam}` : ""}</span></div>
+      {R && <div className="text-sm font-semibold mb-2 p-2 rounded-lg" style={R.tipo === "UNANIME" ? { background: "#E3F4EA", color: "#3F8A5F" } : { background: "#FCEFC7", color: "#8A5A00" }}>
+        {R.tipo === "UNANIME" ? `Unanimidade: “${R.opcao}”` : `Sem unanimidade — foi para a pauta da reunião de gestão${R.reuniaoData ? ` de ${dBR(R.reuniaoData)}` : ""}.`}</div>}
+      <div className="flex flex-col gap-1.5">
+        {(d.opcoes || []).map((o) => { const quem = Object.values(votos).filter((v) => v.opcao === o); const sel = meuVoto === o;
+          return <button key={o} disabled={!envolvido || !!R} onClick={() => acao("votar", { opcao: o })} className="flex items-center gap-2 text-left text-sm rounded-lg px-3 py-2"
+            style={{ background: sel ? "#7E3AF2" : "#fff", color: sel ? "#fff" : C.text, border: `1px solid ${sel ? "#7E3AF2" : C.line}`, cursor: envolvido && !R ? "pointer" : "default" }}>
+            <span className="rounded-full shrink-0" style={{ width: 14, height: 14, border: `2px solid ${sel ? "#fff" : "#9E47FF"}`, background: sel ? "#fff" : "transparent" }} />
+            <span className="flex-1">{o}</span>
+            {mostrar && <span className="text-[11px]" style={{ color: sel ? "#fff" : C.sub }}>{quem.length ? quem.map((v) => v.nome.split(" ")[0]).join(", ") : "—"}</span>}
+          </button>; })}
+      </div>
+      {envolvido && !R && <div className="text-[11px] mt-2" style={{ color: C.sub }}>{meuVoto ? "Você pode trocar sua opção até todos marcarem." : "Marque a sua opção."}</div>}
+      {!envolvido && !R && <div className="text-[11px] mt-2" style={{ color: C.sub }}>Aguardando os envolvidos.</div>}
+    </div>
+  );
+}
+
+/* v655 — reunião de gestão: pautas (fixas, decisões sem unanimidade e as que os convidados incluírem) */
+function ReuniaoPainel({ t, user, acao }) {
+  const [txt, setTxt] = useState("");
+  const P = t.reuniao?.pautas || [];
+  const pode = t.responsavelId === user.id || (t.convites || []).some((c) => c.usuarioId === user.id);
+  const ORI = { FIXA: ["fixa", C.panel2, C.sub], DECISAO: ["decisão", "#F5EEFF", "#7E3AF2"], MANUAL: ["incluída", C.blueSoft, C.blue] };
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ border: `2px solid ${C.navy || "#001E41"}`, background: "#F2F5FA" }}>
+      <div className="flex items-center gap-2 mb-2"><Landmark size={16} style={{ color: "#001E41" }} /><span className="text-sm font-bold" style={{ color: "#001E41" }}>Reunião de gestão · pautas</span><span className="text-xs" style={{ color: C.sub }}>{P.length}</span></div>
+      <ol className="flex flex-col gap-1">
+        {P.map((p, k) => <li key={p.id} className="flex items-start gap-2 text-sm rounded-lg px-3 py-1.5" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <span className="text-xs font-bold" style={{ color: C.sub, minWidth: 16 }}>{k + 1}.</span>
+          <span className="flex-1">{p.texto}{p.autor && p.origem === "MANUAL" ? <span className="text-[11px]" style={{ color: C.sub }}> · {p.autor}</span> : null}</span>
+          <span className="text-[10px] font-semibold px-1.5 rounded shrink-0" style={{ background: ORI[p.origem]?.[1], color: ORI[p.origem]?.[2] }}>{ORI[p.origem]?.[0] || ""}</span>
+          {p.origem !== "FIXA" && pode && <button onClick={async () => (await confirmar("Tirar esta pauta?")) && acao("tirarPauta", { pautaId: p.id })} style={{ color: C.sub }}><X size={12} /></button>}
+        </li>)}
+      </ol>
+      {pode && <div className="flex gap-2 mt-2">
+        <input value={txt} onChange={(e) => setTxt(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter" && txt.trim()) { await acao("pauta", { texto: txt }); setTxt(""); } }} placeholder="Acrescentar pauta…" className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
+        <Btn cor="#001E41" disabled={!txt.trim()} onClick={async () => { await acao("pauta", { texto: txt }); setTxt(""); }}><Plus size={12} /> Pauta</Btn>
+      </div>}
+    </div>
   );
 }
 
@@ -787,6 +876,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
       {t.sessaoAberta && <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: C.yellow }} />}
       {t.nArquivos > 0 && <Paperclip size={12} className="shrink-0" style={{ color: A.sub }} />}
       {t.natureza === "PESSOAL" && <Lock size={12} className="shrink-0" style={{ color: A.sub }} />}
+      {t.decisao && <Vote size={12} className="shrink-0" style={{ color: "#7E3AF2" }} />}{t.reuniao && <Landmark size={12} className="shrink-0" style={{ color: "#001E41" }} />}
       {t.serieId && <Repeat size={12} className="shrink-0" style={{ color: A.sub }} title="Recorrente" />}
     </div>
   );
@@ -813,6 +903,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
         {t.sessaoAberta && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.yellow }} />}
         {t.nArquivos > 0 && <Paperclip size={10} style={{ color: A.sub }} />}
         {t.natureza === "PESSOAL" && <Lock size={10} style={{ color: A.sub }} />}
+        {t.decisao && <Vote size={10} style={{ color: "#7E3AF2" }} title="Decisão" />}{t.reuniao && <Landmark size={10} style={{ color: "#001E41" }} title="Reunião de gestão" />}
         {t.serieId && <Repeat size={10} style={{ color: A.sub }} title="Recorrente" />}   {/* v646 */}
         {proj && <span className="rounded-[3px]" title={proj.nome} style={{ width: 11, height: 11, background: proj.cor }} />}
       </div>

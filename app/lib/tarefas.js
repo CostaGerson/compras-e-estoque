@@ -31,7 +31,7 @@ const podeVer = (t, u, R) => {
   return t.publica || t.responsavelId === u.id;
 };
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null)
-  || (t.evento && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v600 — convidado vê o evento
+  || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
 async function avisar(deId, paraId, texto, extra = {}) {
@@ -41,6 +41,7 @@ async function avisar(deId, paraId, texto, extra = {}) {
 
 // ---------- séries recorrentes ----------
 export async function gerarOcorrencias(ate) {
+  try { await (await import("@/lib/decisoes")).garantirReuniaoDoMes(); } catch (e) { console.error("[tarefas] reunião de gestão:", e?.message); }   // v655
   const limite = ate && ate > somaDia(hojeSP(), HORIZONTE_DIAS) ? ate : somaDia(hojeSP(), HORIZONTE_DIAS);
   const series = await prisma.tarefa.findMany({ where: { modelo: true, status: { not: "CANCELADA" } } });
   for (const s of series) {
@@ -72,7 +73,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
-  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null,   // v654
+  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
 });
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
@@ -211,6 +212,7 @@ export async function criar(b, u) {
     if (criada && t.dependencias.length) await prisma.tarefa.update({ where: { id: criada.id }, data: { dependencias: t.dependencias } });
   } else criada = await prisma.tarefa.create({ data: base });
   if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
+  if (criada && b.decisao) await (await import("@/lib/decisoes")).salvarDecisao(criada, b.decisao, u);   // v655
   await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`);
   return { ok: true, tarefa: criada };
 }
@@ -226,7 +228,8 @@ export async function editar(id, b, u) {
   if (resp && !resp.ativo) return { error: "Colaborador inválido." };
   const data = { ...t, prazo: dUTC(t.prazo), tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
   let up = await prisma.tarefa.update({ where: { id: x.id }, data });
-  if (b.convidados !== undefined || !t.evento) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
+  if (b.convidados !== undefined || (!t.evento && !x.decisao)) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
+  if (b.decisao !== undefined || x.decisao) await (await import("@/lib/decisoes")).salvarDecisao(up, b.decisao !== undefined ? b.decisao : x.decisao, u);   // v655
   if (b.recorrencia !== undefined) up = (await mudarRecorrencia(up, b.recorrencia)) || up;
   // v653 — recorrente: mudar o projeto ou os dados de uma muda a série e todas as demais em aberto
   //   (arrastar na agenda só muda dia/hora desta; o projeto vale também para as concluídas, que seguem no projeto)
@@ -517,7 +520,7 @@ export async function excluirProjeto(id, u) {
 
 // ---------- v600: eventos com convidados ----------
 const dataBR = (d) => iso(d).split("-").reverse().join("/");
-async function sincronizarConvites(t, ids, u) {
+export async function sincronizarConvites(t, ids, u) {
   const quer = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((id) => id && id !== t.responsavelId))];
   const ja = await prisma.tarefaConvite.findMany({ where: { tarefaId: t.id } });
   const sair = ja.filter((c) => !quer.includes(c.usuarioId)).map((c) => c.id);
