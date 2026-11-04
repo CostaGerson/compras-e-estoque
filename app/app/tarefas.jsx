@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -1204,6 +1204,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
   // v283 — concluída sai do calendário (continua na lista de Tarefas, filtro "Concluídas")
   // v591 — olho: mostra as concluídas (ficam guardadas; esmaecidas e riscadas no calendário). Lembra neste navegador.
   const [verConcl, setVerConcl] = useState(false);
+  // v683 — dias passados sem tarefas ficam ocultos (semana); o botão ao lado do de concluídas mostra
+  const [verPassados, setVerPassados] = useState(false);
+  useEffect(() => { try { setVerPassados(localStorage.getItem("ce_agenda_passados") === "1"); } catch {} }, []);
+  const alternarPassados = () => setVerPassados((v) => { try { localStorage.setItem("ce_agenda_passados", v ? "0" : "1"); } catch {} return !v; });
   useEffect(() => { try { setVerConcl(localStorage.getItem("ce_agenda_concl") === "1"); } catch {} }, []);
   const alternarConcl = () => setVerConcl((v) => { try { localStorage.setItem("ce_agenda_concl", v ? "0" : "1"); } catch {} return !v; });
   const nConcl = (d?.tarefas || []).filter((t) => t.status === "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao)).length;
@@ -1267,7 +1271,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [diaArr, setDiaArr] = useState(null);    // dia em que a tarefa está sendo posicionada
   const arrAtivo = useRef(false), semClique = useRef(0), diaArrRef = useRef(null), ancora = useRef(null), rolRef = useRef(null);
   const diaAmp = arr && diaArr ? diaArr : selDia;
-  const selK = dias.indexOf(diaAmp) >= 0 ? dias.indexOf(diaAmp) % 7 : -1;
+  const diasVis = modo === "semana" && !verPassados ? dias.filter((x) => x >= H || (porDia[x] || []).length > 0) : dias;   // v683
+  const nOcultos = dias.length - diasVis.length;
+  const nCols = modo === "semana" ? diasVis.length || 1 : 7;
+  const selK = diasVis.indexOf(diaAmp) >= 0 ? diasVis.indexOf(diaAmp) % nCols : -1;
   useEffect(() => {
     // listener fixo e não-passivo: só bloqueia a rolagem enquanto uma tarefa está sendo arrastada
     const h = (e) => { if (arrAtivo.current && e.cancelable) e.preventDefault(); };
@@ -1483,6 +1490,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
                 style={{ color: verConcl ? A.azul : A.sub, background: verConcl ? A.azulSoft : "transparent", transition: "all .18s" }}>
                 {verConcl ? <Eye size={mobile ? 20 : 16} /> : <EyeOff size={mobile ? 20 : 16} />}{nConcl > 0 && <span>{nConcl}</span>}
               </button>
+              {modo === "semana" && (nOcultos > 0 || verPassados) && <button onClick={alternarPassados} title={verPassados ? "Ocultar dias passados sem tarefas" : "Mostrar dias passados sem tarefas"} className={`rounded-md flex items-center gap-1 text-xs font-semibold ${mobile ? "p-2" : "px-2 py-1.5"}`}
+                style={{ color: verPassados ? A.azul : A.sub, background: verPassados ? A.azulSoft : "transparent", transition: "all .18s" }}>
+                <History size={mobile ? 20 : 16} />{!verPassados && nOcultos > 0 && <span>{nOcultos}</span>}
+              </button>}
               {!mobile && <div className="flex rounded-md p-0.5" style={{ background: A.fundo2, border: `1px solid ${A.linha}` }}>
                 {[["semana", "Semanas"], ["mes", "Mês"]].map(([k, t]) => <button key={k} onClick={() => setModo(k)} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: modo === k ? "#fff" : "transparent", color: modo === k ? A.texto : A.sub, boxShadow: modo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none", transition: "all .18s" }}>{t}</button>)}
               </div>}
@@ -1492,7 +1503,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
               {/* v550 — celular: semana em lista vertical (um dia embaixo do outro); mês em grade compacta com a quantidade */}
               {mobile && modo === "semana" ? (
                 <div className="flex flex-col">
-                  {dias.map((dia, k) => {
+                  {diasVis.map((dia) => {
+                    const k = dias.indexOf(dia);
                     const l = porDia[dia] || [], hoje = dia === H, comRegua = arr && diaArr === dia;
                     return (
                       <div key={dia} data-dia={dia} data-zona={`d|${dia}`} ref={hoje ? (el) => { if (el && d && !rolouHoje.current) { rolouHoje.current = true; setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120); } } : undefined}
@@ -1536,12 +1548,12 @@ export function Agenda({ user, pedidoModo, onModo }) {
               <>
               {/* v597 — dia ampliado: a coluna do dia escolhido (hoje, ao abrir) fica mais larga e, no mês, mostra todas as tarefas
                   v603 — arrastando: o dia sob o ponteiro amplia e ganha a régua de horários à esquerda · cabeçalho dos dias fixo ao rolar */}
-              {(() => { const cols = Array.from({ length: 7 }, (_, i) => (i === selK ? (arr ? (modo === "semana" ? "2.6fr" : "2.8fr") : modo === "semana" ? "1.9fr" : "2.4fr") : "1fr")).join(" "); return <>
+              {(() => { const cols = Array.from({ length: nCols }, (_, i) => (i === selK ? (arr ? (modo === "semana" ? "2.6fr" : "2.8fr") : modo === "semana" ? "1.9fr" : "2.4fr") : "1fr")).join(" "); return <>
               <div className="grid" style={{ gridTemplateColumns: cols, transition: "grid-template-columns .25s ease", position: "sticky", top: 0, zIndex: 6, background: A.fundo, borderBottom: `1px solid ${A.linha}` }}>
-                {SEM_SEG.map((x, i) => <div key={x} className="text-[12px] font-semibold px-3 py-1.5" style={{ color: i === selK ? A.azul : A.sub, borderLeft: i ? `1px solid ${A.linha}` : "none" }}>{x}</div>)}
+                {(modo === "semana" ? diasVis.map((x) => SEM_SEG[dias.indexOf(x) % 7]) : SEM_SEG).map((x, i) => <div key={x} className="text-[12px] font-semibold px-3 py-1.5" style={{ color: i === selK ? A.azul : A.sub, borderLeft: i ? `1px solid ${A.linha}` : "none" }}>{x}</div>)}
               </div>
               <div className="grid" style={{ minHeight: "100%", gridTemplateColumns: cols, transition: "grid-template-columns .25s ease" }}>
-                {dias.map((dia, k) => {
+                {diasVis.map((dia, k) => {
                   const mDia = Number(dia.slice(5, 7)), fora = modo === "mes" && ((mDia - mes + 12) % 2 === 1);
                   const l = porDia[dia] || [];
                   const hoje = dia === H, amp = dia === diaAmp, comRegua = arr && diaArr === dia;
