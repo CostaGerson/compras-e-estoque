@@ -177,6 +177,8 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
     const t = setTimeout(() => fetch(`/api/pp/catalogo?fpp=${encodeURIComponent(buscaFpp)}`, { headers: H }).then((r) => r.json()).then((d) => setFpps(Array.isArray(d) ? d : [])).catch(() => setFpps([])), 250);
     return () => clearTimeout(t);
   }, [buscaFpp]);
+  const [km, setKm] = useState([]);   // v668 — sugestões do cadastro do KM
+  const tKm = React.useRef(null);
   if (!f) return <Moldura onClose={onClose}><div className="text-sm" style={{ color: C.sub }}>Carregando…</div></Moldura>;
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setParam = (k, v) => setF((x) => ({ ...x, parametros: { ...x.parametros, [k]: v } }));
@@ -192,6 +194,26 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const gruposNoItem = grupos.filter((g) => g.clientes.length && g.clientes.every((c) => f.clienteIds.includes(c.id)));
   const cliOpc = buscaCli.trim().length >= 2 ? clientes.filter((c) => !f.clienteIds.includes(c.id) && norm([c.razaoSocial, c.nomeFantasia, c.cnpj].join(" ")).includes(norm(buscaCli))).slice(0, 8) : [];
 
+  // v668 — código do KM: busca no cadastro de itens do KM e puxa as informações técnicas (código exato → automático)
+  const usarKm = (p) => { setKm([]); setF((x) => {
+    const params = Object.fromEntries((p.parametros || []).filter((y) => y && y.t && y.v).map((y) => [String(y.t).toUpperCase(), y.v]));
+    const nome = String(p.descricao || "").toUpperCase();
+    return { ...x, codigo: p.codigo, nomeNf: x.nomeNf || nome, nomeInterno: x.nomeInterno || nome,
+      tipoPecaNome: x.tipoPecaNome || tipoPeca(p.descricao, TIPOS) || "",
+      precoAtual: x.precoAtual || (p.preco != null ? String(Number(p.preco).toFixed(2)).replace(".", ",") : ""),
+      parametros: { ...params, ...Object.fromEntries(Object.entries(x.parametros || {}).filter(([k, v]) => v && (k === "TECIDO" || !params[k]))) } };
+  }); };
+  const digitarCodigo = (v) => {
+    set("codigo", v);
+    clearTimeout(tKm.current);
+    if (String(v).trim().length < 2) { setKm([]); return; }
+    tKm.current = setTimeout(async () => {
+      const r = await fetch(`/api/pp/catalogo?q=${encodeURIComponent(v)}`, { headers: H }).then((x) => x.json()).catch(() => []);
+      const l = Array.isArray(r) ? r : [];
+      const ex = l.find((o) => String(o.codigo || "").trim().toUpperCase() === String(v).trim().toUpperCase());
+      if (ex) usarKm(ex); else setKm(l.slice(0, 10));
+    }, 300);
+  };
   // v655 — ao trazer a FPP, o que ela já tem entra sozinho (só preenche o que estiver vazio)
   const usarFpp = (p) => setF((x) => {
     const nome = String(p.nomeComercial || p.item || "").toUpperCase();
@@ -290,7 +312,13 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
       <div className="grid grid-cols-4 gap-3 mb-3">
         <Campo l="Tipo de peça"><select value={f.tipoPecaNome || ""} onChange={(e) => set("tipoPecaNome", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS}>
           <option value="">—</option>{TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}{f.tipoPecaNome && !TIPOS.includes(f.tipoPecaNome) && <option value={f.tipoPecaNome}>{f.tipoPecaNome}</option>}</select></Campo>
-        <Campo l="Código (cadastro do KM)"><input value={f.codigo || ""} onChange={(e) => set("codigo", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm uppercase" style={inpS} /></Campo>
+        <Campo l="Código (cadastro do KM)"><div className="relative">
+          <input value={f.codigo || ""} onChange={(e) => digitarCodigo(e.target.value)} onBlur={() => setTimeout(() => setKm([]), 150)} placeholder="digite o código ou o nome…" className="w-full px-2 py-1.5 rounded outline-none text-sm uppercase" style={inpS} />
+          {km.length > 0 && <div className="absolute z-30 left-0 mt-1 rounded shadow-lg max-h-64 overflow-y-auto" style={{ background: C.panel, border: `1px solid ${C.line}`, width: 420 }}>
+            {km.map((p) => <button key={p.codigo} onMouseDown={(e) => { e.preventDefault(); usarKm(p); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></button>)}
+          </div>}
+        </div></Campo>
         <Campo l="NCM"><input value={f.ncm || ""} onChange={(e) => set("ncm", e.target.value)} placeholder="8 dígitos" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} /></Campo>
         <Campo l="GTIN/EAN (opcional)"><input value={f.gtin || ""} onChange={(e) => set("gtin", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} /></Campo>
       </div>

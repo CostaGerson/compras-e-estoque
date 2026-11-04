@@ -107,7 +107,7 @@ function Card({ titulo, extra, children }) {
     </div>
   );
 }
-function Auto({ value, onChange, onPick, buscar, render, placeholder, minimo = 2 }) {
+function Auto({ value, onChange, onPick, buscar, render, placeholder, minimo = 2, exato }) {
   const [aberto, setAberto] = useState(false);
   const [ops, setOps] = useState([]);
   const timer = useRef(null);
@@ -115,7 +115,13 @@ function Auto({ value, onChange, onPick, buscar, render, placeholder, minimo = 2
     onChange(v);
     clearTimeout(timer.current);
     if (!v || v.length < minimo) { setOps([]); setAberto(false); return; }
-    timer.current = setTimeout(async () => { const r = await buscar(v); setOps((r || []).slice(0, 10)); setAberto((r || []).length > 0); }, 200);
+    timer.current = setTimeout(async () => {
+      const r = await buscar(v);
+      // v668 — código digitado igual ao de um item do KM: puxa os dados sozinho
+      const ex = exato ? (r || []).find((o) => String(o[exato] || "").trim().toUpperCase() === String(v).trim().toUpperCase()) : null;
+      if (ex) { onPick(ex); setOps([]); setAberto(false); return; }
+      setOps((r || []).slice(0, 10)); setAberto((r || []).length > 0);
+    }, 250);
   };
   return (
     <div style={{ position: "relative" }}>
@@ -553,8 +559,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   {TIPOS.map((t) => <option key={t} value={t} style={{ color: C.text }}>{t}</option>)}
                 </select>
               </Campo>
-              {/* v662 — campo "Código (cadastro do KM)" removido; o código continua vindo ao escolher o item na busca */}
-              <Campo label="Descrição do produto · busca no cadastro do KM" cls="col-span-4">
+              {/* v668 — código do KM de volta: ao digitar, busca o item e puxa as informações técnicas */}
+              <Campo label="Código (cadastro do KM)">
+                <Auto value={it.codigo} onChange={(v) => upItem(i, { codigo: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="código…" exato="codigo"
+                  render={(p) => <span><b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
+              </Campo>
+              <Campo label="Descrição do produto · busca no cadastro do KM" cls="col-span-3">
                 <Auto value={it.descricao} onChange={(v) => upItem(i, { descricao: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="digite para buscar o item…"
                   render={(p) => <span><b>{p.descricao}</b> <span style={{ color: C.sub }}>· {p.codigo}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
               </Campo>
