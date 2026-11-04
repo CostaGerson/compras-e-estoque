@@ -42,7 +42,8 @@ export function useModoDemo(tudo) {
     const hl = typeof CSS !== "undefined" && CSS.highlights && typeof Highlight !== "undefined";
     let est = document.getElementById("ce-demo-css");
     if (!est) { est = document.createElement("style"); est.id = "ce-demo-css"; document.head.appendChild(est); }
-    est.textContent = `::highlight(ce-demo){color:transparent;background-color:#D0D5DD;}
+    // v661 — números embaçados (como no gráfico), sem tarja: texto transparente + sombra desfocada no lugar
+    est.textContent = `::highlight(ce-demo){color:transparent;background-color:transparent;text-shadow:0 0 7px rgba(31,39,51,.85),0 0 12px rgba(31,39,51,.45);}
       [data-demo-oculto]{filter:blur(6px)!important;user-select:none;}`;
     const marcados = new Set();
     const regexes = tudo ? [RX_DINHEIRO, RX_PCT, RX_NUM] : [RX_DINHEIRO, RX_PCT];
