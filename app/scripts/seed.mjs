@@ -24,6 +24,11 @@ try {
   } else {
     console.log("Seed: master já existe, nada a fazer.");
   }
+  // v654 — arte finalista: ayrllon / ayrllon123 (recebe as tarefas de criação de layout)
+  if (!(await prisma.usuario.findUnique({ where: { login: "ayrllon" } }))) {
+    await prisma.usuario.create({ data: { nome: "AYRLLON", sobrenome: "(ARTE FINALISTA)", email: "", login: "ayrllon", senha: "ayrllon123", setor: "ARTE", ativo: true } });
+    console.log("Seed: arte finalista 'ayrllon' criado.");
+  }
   // RH: lorraine / rh123 (só cria se não existir)
   const rh = await prisma.usuario.findUnique({ where: { login: "lorraine" } });
   if (!rh) {

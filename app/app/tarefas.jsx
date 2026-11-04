@@ -579,7 +579,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const [sobreDet, setSobreDet] = useState(false);   // v652
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
-  const direto = editarDireto && t?.podeEditar;
+  const direto = editarDireto && t?.podeEditar && !t?.layout;   // v654 — tarefa de layout abre no detalhe
   if ((editar || direto) && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => (direto ? onClose() : setEditar(false))} onOk={() => { setEditar(false); carregar(); onMudou?.(); if (direto) onClose(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
@@ -619,6 +619,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
           <Linha k="Setor">{NOME_SETOR_TAREFA[t.setor]}</Linha>
         </div>
         {t.descricao && <div className="text-sm whitespace-pre-wrap mb-3 p-3 rounded-lg" style={{ background: C.panel2 }}>{t.descricao}</div>}
+        {t.layout && <LayoutTarefa t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ border: `1px solid ${rodando ? C.yellow : C.line}`, background: rodando ? C.yellowSoft : C.panel }}>
           <Clock size={16} style={{ color: rodando ? C.yellow : C.sub }} />
           <div className="text-sm"><b>{duracao(t.tempoTotal + (rodando ? (agora - new Date(t.sessaoAberta.inicio)) / 1000 : 0))}</b> de trabalho registrado{rodando && <span style={{ color: C.yellow }}> · em andamento há {duracao((agora - new Date(t.sessaoAberta.inicio)) / 1000)}</span>}</div>
@@ -653,6 +654,85 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         </div>}
       </>}
     </Janela>
+  );
+}
+
+/* v654 — tarefa de layout: OP dos itens, layout de cada item (criação) e aprovar/reprovar (vendedor) */
+function LayoutTarefa({ t, user, onMudou }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [ocup, setOcup] = useState("");
+  const L = t.layout || {};
+  const criacao = L.etapa === "CRIACAO";
+  const meu = t.responsavelId === user.id;
+  const aberta = t.status !== "CONCLUIDA" && t.status !== "CANCELADA";
+  const ler = () => fetch(`/api/tarefas/${t.id}/layout?u=${user.id}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); }).catch((e) => setErro(e.message));
+  useEffect(() => { ler(); }, [t.id, t.arquivos?.length]);
+  const post = async (corpo) => { const r = await fetch(`/api/tarefas/${t.id}/layout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); const x = await r.json().catch(() => ({})); if (!r.ok) throw new Error(x.error || "Erro."); return x; };
+  const urlArq = (a) => `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`;
+  const subir = async (idx, file) => {
+    if (!file) return; setOcup(`up${idx}`);
+    try {
+      const r = await api(`/api/tarefas/${t.id}/arquivos`, "POST", { usuarioId: user.id, nome: `LAYOUT item ${idx + 1} · ${file.name}`, mime: file.type, conteudo: await readB64(file) });
+      await post({ acao: "marcar", idx, arquivoId: r.arquivo.id }); await ler(); onMudou?.();
+    } catch (e) { alerta(e.message); }
+    setOcup("");
+  };
+  const acao = async (a) => { setOcup(a); try { await post({ acao: a, motivo }); onMudou?.(); await ler(); } catch (e) { alerta(e.message); } setOcup(""); };
+  const abrirOp = async () => {
+    if (!d) return;
+    const { imprimirPedido } = await import("./impressaoPedido");
+    const base = `/api/tarefas/${t.id}/layout?u=${user.id}`;
+    imprimirPedido("OP", { numero: d.pedido.numero, emissao: d.pedido.emissao, clienteNome: d.pedido.cliente, vendedor: d.pedido.vendedor, oc: d.pedido.oc, obs: d.pedido.obs,
+      prazoEntrega: d.pedido.prazoDias != null ? `${d.pedido.prazoDias} dias ${d.pedido.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "" },
+      d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
+        fotoBase64: "", anexos: [...(i.arquivo ? [{ nome: `Layout · ${i.arquivo.nome}`, mime: i.arquivo.mime, src: urlArq(i.arquivo) }] : []), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
+      { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta });
+  };
+  const img = (a) => /^image\//.test(a?.mime || "") || /\.(png|jpe?g|gif|webp)$/i.test(a?.nome || "");
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ border: `2px solid ${criacao ? "#9E47FF" : C.accent}`, background: criacao ? "#F5EEFF" : C.accentSoft }}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-sm font-bold" style={{ color: criacao ? "#7E3AF2" : C.accent }}>🎨 {criacao ? "Criação de layout" : "Aprovação de layout"}</span>
+        <span className="text-xs" style={{ color: C.sub }}>pedido {L.numero} · {L.cliente}{L.vendedor ? ` · vendedor ${L.vendedor}` : ""}</span>
+        <button onClick={abrirOp} disabled={!d} className="ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> Abrir OP</button>
+      </div>
+      {L.motivo && criacao && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.redSoft, color: C.red }}>Reprovado: {L.motivo}</div>}
+      {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
+      {!d && !erro && <Loader2 size={15} className="animate-spin" style={{ color: C.sub }} />}
+      {d && d.itens.map((i) => (
+        <div key={i.idx} className="rounded-lg p-2.5 mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 rounded overflow-hidden flex items-center justify-center" style={{ width: 92, height: 92, background: C.panel2, border: `1px solid ${C.line}` }}>
+              {i.arquivo ? (img(i.arquivo) ? <a href={urlArq(i.arquivo)} target="_blank" rel="noreferrer"><img src={urlArq(i.arquivo)} alt="" style={{ width: 92, height: 92, objectFit: "contain" }} /></a>
+                : <a href={urlArq(i.arquivo)} target="_blank" rel="noreferrer" className="text-[11px] text-center px-1" style={{ color: C.red }}><FileText size={22} className="mx-auto" />{i.arquivo.nome}</a>)
+                : <span className="text-[11px]" style={{ color: C.sub }}>sem layout</span>}
+            </div>
+            <div className="flex-1 min-w-0 text-xs">
+              <div className="text-sm font-semibold" style={{ color: C.text }}>{i.idx + 1}. {i.descricao || "—"}</div>
+              <div style={{ color: C.sub }}>{[i.tipoPecaNome, i.codigo ? `cód. ${i.codigo}` : "", i.fppNumero ? `FPP ${String(i.fppNumero).padStart(5, "0")}` : ""].filter(Boolean).join(" · ")}</div>
+              {i.grade.length > 0 && <div className="mt-0.5" style={{ color: C.text }}>{i.grade.map((g) => `${g.tam}:${g.qtd}`).join("  ")} · <b>{i.grade.reduce((s0, g) => s0 + Number(g.qtd || 0), 0)} pç</b></div>}
+              {Object.entries(i.parametros || {}).filter(([k, v]) => v && typeof v !== "object").length > 0 && <div className="mt-1 flex flex-wrap gap-x-3" style={{ color: C.sub }}>
+                {Object.entries(i.parametros).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => <span key={k}><b>{k}</b> {String(v)}</span>)}</div>}
+              {criacao && meu && aberta && <label className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded cursor-pointer font-semibold" style={{ border: "1px dashed #7E3AF2", color: "#7E3AF2" }}
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(i.idx, e.dataTransfer.files?.[0]); }}>
+                {ocup === `up${i.idx}` ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {i.arquivo ? "Trocar layout" : "Anexar layout"} <span className="font-normal" style={{ color: C.sub }}>(ou arraste)</span>
+                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { subir(i.idx, e.target.files?.[0]); e.target.value = ""; }} /></label>}
+            </div>
+          </div>
+        </div>
+      ))}
+      {d && criacao && meu && aberta && <div className="flex justify-end"><Btn cor="#7E3AF2" disabled={!!ocup || d.itens.some((i) => !i.arquivo)} onClick={() => acao("enviar")}>{ocup === "enviar" ? "Enviando…" : "Enviar para aprovação do vendedor"}</Btn></div>}
+      {d && !criacao && meu && aberta && <div className="mt-1">
+        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Motivo (obrigatório para reprovar)" className={inp} style={inpS} />
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn fundo={C.redSoft} cor={C.red} disabled={!!ocup} onClick={() => acao("reprovar")}>Reprovar</Btn>
+          <Btn cor={C.green} disabled={!!ocup} onClick={() => acao("aprovar")}><CheckCircle2 size={13} /> Aprovar layout</Btn>
+        </div>
+      </div>}
+      {!aberta && <div className="text-xs" style={{ color: C.sub }}>{t.retorno}</div>}
+    </div>
   );
 }
 

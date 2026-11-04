@@ -72,7 +72,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
-  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null,
+  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null,   // v654
 });
 
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {

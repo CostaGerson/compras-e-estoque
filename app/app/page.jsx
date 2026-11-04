@@ -180,6 +180,7 @@ const PODE = {
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
   artigos: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
+  itensPadrao: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "COMERCIAL"),   // v654 — faltava (o menu não mostrava Itens padrão)
   freelancers: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   terceirizados: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   notasfiscais: (u) => temAlguma(u, "nfEntrada", "contasPagar", "contasReceber", "faturamento"),

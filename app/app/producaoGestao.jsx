@@ -541,7 +541,7 @@ function GuiaOp({ p, user, componentes, verFpp, anexos }) {
             </div>
             <div className="flex gap-4 p-4">
               <div className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center" style={{ width: 150, height: 150, background: C.panel2, border: `1px solid ${C.line}` }}>
-                {i.foto ? <img src={i.foto} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span className="text-xs" style={{ color: C.sub }}>sem foto</span>}
+                {i.foto ? <img src={i.foto} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span className="text-xs" style={{ color: C.sub }}>sem layout</span>}
               </div>
               <div className="flex-1 min-w-0 space-y-3">
                 {/* fase no PCP */}

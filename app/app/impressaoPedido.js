@@ -76,7 +76,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     return `<div class="peca">
       <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
-        ${it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vz">sem foto</div>`}
+        ${it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vz">sem layout</div>`}
         <div class="peca-i">
           <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}<th class="tt">TOTAL</th></tr>
             <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}<td class="tt">${qtdDe(it).toLocaleString("pt-BR")}</td></tr></table>

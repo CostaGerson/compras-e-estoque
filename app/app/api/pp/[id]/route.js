@@ -66,7 +66,12 @@ export async function POST(req, { params }) {
   if (!u) return negadoPP();
   const b = await req.json().catch(() => ({}));
   try {
-    if (b.acao === "efetivar") return Response.json(await efetivarPedido(Number(params.id), nomeQuem(u)));
+    if (b.acao === "efetivar") {
+      const r = await efetivarPedido(Number(params.id), nomeQuem(u));
+      // v654 — item sem layout: tarefa de criação de layout para o arte finalista (o pedido segue normal)
+      if (r?.ok) { try { const { gerarCriacaoLayout } = await import("@/lib/layoutFluxo"); r.tarefaLayout = await gerarCriacaoLayout(Number(params.id), u); } catch (e) { console.log("layout:", e.message); } }
+      return Response.json(r);
+    }
     if (b.acao === "faturar") return Response.json(await faturarPedido(Number(params.id), b, nomeQuem(u)));
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (e) { console.log("pp acao:", e); return Response.json({ error: e.message }, { status: 500 }); }

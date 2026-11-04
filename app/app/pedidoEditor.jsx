@@ -368,6 +368,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       if (d.error) throw new Error(d.error);
       if (d.ok) setF((s) => ({ ...s, numero: d.numero, efetivadoEm: new Date().toISOString(), status: s.status === "FATURADO" ? "FATURADO" : "LANCADO" }));
       setResultado(d);
+      if (d.tarefaLayout) alerta("Há item sem layout: o pedido seguiu normal e foi criada a tarefa de criação de layout para o arte finalista.");   // v654
     } catch (e) { alerta(e.message); }
     setSalvando(false);
   };
@@ -431,7 +432,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             return (
               <div key={a.id || `n${k}`} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${a.id ? C.line : C.accent}` }}>
                 <button type="button" onClick={() => abrirAnexo(a)} className="block w-full" style={{ height: 90, background: C.panel2 }} title="Abrir">
-                  {img && src ? <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {img && src ? <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                     : <div className="flex flex-col items-center justify-center h-full" style={{ color: C.accent }}><FileText size={28} /><span className="text-xs mt-1 font-semibold">{(a.nome.split(".").pop() || "").toUpperCase()}</span></div>}
                 </button>
                 <div className="px-2 py-1.5">
@@ -520,7 +521,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {!f.servico && podeLancar && padroes.length > 0 && (
         <div className="rounded-lg p-4 mb-4" style={{ background: C.accentSoft, border: `2px solid ${C.accent}` }}>
           <div className="flex items-center gap-2 mb-2"><Search size={16} style={{ color: C.accent }} /><span className="font-bold text-sm" style={{ color: C.accent }}>Itens padrão de {f.clienteNome || "este cliente"} ({padroes.length})</span>
-            <span className="text-xs" style={{ color: C.sub }}>· digite o nome do item: os dados entram preenchidos (nome da NF, preço, parâmetros, foto e FPP)</span></div>
+            <span className="text-xs" style={{ color: C.sub }}>· digite o nome do item: os dados entram preenchidos (nome da NF, preço, parâmetros, layout e FPP)</span></div>
           <div style={{ position: "relative" }}>
             <input value={buscaPadrao} onChange={(e) => setBuscaPadrao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && opPadrao[0]) { e.preventDefault(); usarPadrao(opPadrao[0]); } }}
               placeholder="nome interno, nome da NF ou código do item padrão…" className="w-full px-3 py-2.5 rounded outline-none text-base font-semibold" style={{ background: C.panel, border: `1px solid ${C.accent}`, textTransform: "uppercase" }} />
@@ -581,13 +582,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
             <div className="flex gap-4">
               <div className="w-36 shrink-0">
-                <div className="text-xs mb-1" style={{ color: C.sub }}>Foto da peça</div>
+                <div className="text-xs mb-1" style={{ color: it.fotoBase64 ? C.sub : C.accent }}>Layout da peça{it.fotoBase64 ? "" : " (obrigatório)"}</div>
                 <label className="block rounded cursor-pointer overflow-hidden" style={{ border: `1px dashed ${C.line}`, height: 136, background: C.panel2 }}>
-                  {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar foto</div>}
+                  {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar o layout<br/><span style={{ fontSize: 10 }}>sem layout → tarefa para o arte finalista</span></div>}
                   <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                 </label>
-                {it.fotoBase64 && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1" style={{ color: "#C77" }}>remover foto</button>}
+                {it.fotoBase64 && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1" style={{ color: "#C77" }}>remover layout</button>}
                 {/* v650 — arquivos do item (além da foto): saem na OP abaixo dos detalhes do item */}
                 <div className="mt-2" style={{ width: 120 }}>
                   <label className="block text-[11px] text-center px-1 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>

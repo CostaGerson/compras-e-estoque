@@ -31,6 +31,7 @@ enum Setor {
   LOGISTICA
   SUBLIMACAO
   DTF
+  ARTE        // v654 — arte finalista (criação de layout)
 }
 
 enum TipoTecido {
@@ -1902,6 +1903,7 @@ model Tarefa {
   evento           Boolean   @default(false)     // v600 — evento com convidados (confirmam presença)
   efetivo          Int?                          // v600 — pessoas necessárias: amarelo até atingir as confirmações
   efetivoAvisoEm   String?                       // v600 — "AAAA-MM-DD" do último aviso diário ao criador
+  layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   arquivos         TarefaArquivo[]
