@@ -251,7 +251,7 @@ export async function catalogoItens(q, max = 15) {
   const out = new Map();
   const doKm = await prisma.kmProduto.findMany({ where: { AND: palavras.map((w) => ({ OR: [{ codigo: { contains: w, mode: "insensitive" } }, { nome: { contains: w, mode: "insensitive" } }] })) },
     orderBy: [{ usos: "desc" }, { nome: "asc" }], take: max }).catch(() => []);
-  for (const p of doKm) out.set(p.codigo, { codigo: p.codigo, descricao: p.nome, parametros: (Array.isArray(p.parametros) ? p.parametros : []).filter((x) => !paramFora(x.t)), preco: p.preco != null ? Number(p.preco) : null, origem: "KM" });
+  for (const p of doKm) out.set(p.codigo, { codigo: p.codigo, descricao: p.nome, ncm: p.ncm || null, gtin: p.gtin || null, parametros: (Array.isArray(p.parametros) ? p.parametros : []).filter((x) => !paramFora(x.t)), preco: p.preco != null ? Number(p.preco) : null, origem: "KM" });
   if (out.size < max) {
     const peds = await prisma.pedidoVenda.findMany({ where: { OR: [{ fonte: null }, { fonte: { not: "SISTEMA" } }] }, select: { itens: true, emissao: true }, orderBy: { emissao: "desc" }, take: 1500 });
     for (const p of peds) for (const it of Array.isArray(p.itens) ? p.itens : []) {
@@ -276,7 +276,8 @@ export async function sincronizarProdutosKm(lista) {
       const nome = String(p.nome || p.descricao || codigo).replace(/\s+/g, " ").trim().toUpperCase();
       const detalhe = p.detalhe ? rtfTexto(p.detalhe).slice(0, 8000) : null;
       const data = { kmId: Number.isFinite(Number(p.id)) ? Number(p.id) : null, nome, detalhe, parametros: p.detalhe ? parametrosDoDetalhe(p.detalhe) : [],
-        preco: Number.isFinite(Number(p.preco)) && p.preco != null ? Number(p.preco) : null, usos: Number(p.usos) || 0, kmSyncEm: agora };
+        preco: Number.isFinite(Number(p.preco)) && p.preco != null ? Number(p.preco) : null, usos: Number(p.usos) || 0, kmSyncEm: agora,
+        ncm: String(p.ncm || "").replace(/\D/g, "").slice(0, 8) || null, gtin: String(p.gtin || "").replace(/\D/g, "").slice(0, 14) || null, unidade: p.unidade ? String(p.unidade).trim().toUpperCase().slice(0, 10) : null };   // v670
       return prisma.kmProduto.upsert({ where: { codigo }, create: { codigo, ...data }, update: data });
     });
     try { await prisma.$transaction(ops); res.gravados += ops.length; } catch (e) { if (res.erros.length < 10) res.erros.push(String(e.message).slice(0, 200)); }

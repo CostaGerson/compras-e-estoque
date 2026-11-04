@@ -204,6 +204,7 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
     return { ...x, codigo: p.codigo, nomeNf: x.nomeNf || nome, nomeInterno: x.nomeInterno || nome,
       tipoPecaNome: x.tipoPecaNome || tipoPeca(p.descricao, TIPOS) || "",
       precoAtual: x.precoAtual || (p.preco != null ? String(Number(p.preco).toFixed(2)).replace(".", ",") : ""),
+      ncm: x.ncm || p.ncm || "", gtin: x.gtin || p.gtin || "",   // v670
       parametros: { ...params, ...Object.fromEntries(Object.entries(x.parametros || {}).filter(([k, v]) => v && (k === "TECIDO" || !params[k]))) } };
   }); };
   const digitarCodigo = (v) => {

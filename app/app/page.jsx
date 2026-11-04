@@ -32,6 +32,7 @@ import { gruposDuplicados, internoDe, semInterno } from "@/lib/artigoConsolidar"
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
 import Tributario from "./tributario";   // v628
 import ItensPadrao from "./itensPadrao";   // v647
+import ItensKm from "./itensKm";   // v670
 import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
 function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
@@ -137,6 +138,7 @@ const MENU = [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
+    { key: "itensKm", label: "Itens KM", icon: Database, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Todos os itens cadastrados no KM com os detalhes: parâmetros de produção, NCM, GTIN e último preço (só leitura)" },   // v670
     { key: "itensPadrao", label: "Itens padrão", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Itens de alto giro ou padronizados por cliente: nome interno, nome NF, FPP, preço, NCM, layout e tabela de medidas" },   // v647
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
@@ -180,6 +182,7 @@ const PODE = {
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
   artigos: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
+  itensKm: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "COMERCIAL"),   // v670
   itensPadrao: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "COMERCIAL"),   // v654 — faltava (o menu não mostrava Itens padrão)
   freelancers: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   terceirizados: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
@@ -434,6 +437,7 @@ export default function Home() {
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
+          {view === "itensKm" && pode("itensKm") && <ItensKm user={user} />}
           {view === "itensPadrao" && pode("itensPadrao") && <ItensPadrao user={user} componentes={COMPONENTES} />}
           {view === "tributario" && pode("tributario") && <Tributario user={user} tiposPeca={Object.keys(COMPONENTES)} />}
           {view === "uploads" && <Uploads user={user} />}

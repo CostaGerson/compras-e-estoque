@@ -416,6 +416,9 @@ model KmProduto {
   parametros Json?    // [{ t, v }]
   preco      Decimal? @db.Decimal(14, 4)
   usos       Int      @default(0)
+  ncm        String?  // v670 — dados fiscais do cadastro do KM (quando existem)
+  gtin       String?
+  unidade    String?
   kmSyncEm   DateTime @default(now())
 }
 
