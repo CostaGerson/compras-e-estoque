@@ -920,6 +920,31 @@ function VoltaOperacao({ volta, qtde, acabRotulo }) {
   );
 }
 
+/* v667 — campo e seção do "Parâmetros só desta ficha" fora do modal: antes eram recriados a cada tecla,
+   o input era remontado e a rolagem voltava para o topo */
+const OvCtx = React.createContext({ over: {}, setOver: () => {} });
+function Campo({ label, path, base }) {
+  const { over, setOver } = React.useContext(OvCtx);
+  const v = over[path] != null && over[path] !== "" ? over[path] : "";
+  return (
+    <div className="flex items-center gap-2 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+      <div className="text-sm flex-1" style={{ color: C.text }}>{label}</div>
+      <input value={v} placeholder={String(base)} inputMode="decimal"
+        onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))}
+        className="w-24 px-2 py-1 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
+      {v !== "" && <button onClick={() => setOver((s) => { const n = { ...s }; delete n[path]; return n; })} title="Limpar override"
+        className="p-1 rounded" style={{ color: C.sub }}><X size={13} /></button>}
+    </div>
+  );
+}
+function Secao({ titulo, children }) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs font-bold mb-1" style={{ color: C.sub }}>{sc(titulo)}</div>
+      <div className="rounded-lg px-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>{children}</div>
+    </div>
+  );
+}
 /* ---------- Parâmetros só desta ficha (override local de TODOS os parâmetros) ---------- */
 function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
   const rawPeca = (campo) => {
@@ -934,33 +959,12 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
     return campo === "valor" ? row.valor : (row.extra ? row.extra[campo] : 0);
   };
 
-  function Campo({ label, path, base }) {
-    const v = over[path] != null && over[path] !== "" ? over[path] : "";
-    return (
-      <div className="flex items-center gap-2 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
-        <div className="text-sm flex-1" style={{ color: C.text }}>{label}</div>
-        <input value={v} placeholder={String(base)} inputMode="decimal"
-          onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))}
-          className="w-24 px-2 py-1 rounded text-sm" style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
-        {v !== "" && <button onClick={() => setOver((s) => { const n = { ...s }; delete n[path]; return n; })} title="Limpar override"
-          className="p-1 rounded" style={{ color: C.sub }}><X size={13} /></button>}
-      </div>
-    );
-  }
-  function Secao({ titulo, children }) {
-    return (
-      <div className="mb-3">
-        <div className="text-xs font-bold mb-1" style={{ color: C.sub }}>{sc(titulo)}</div>
-        <div className="rounded-lg px-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>{children}</div>
-      </div>
-    );
-  }
-
   const isMalha = tipo === "MALHA";
   const constTipo = params[tipo]?.CONST || [];
   const constComum = params.COMUM?.CONST || [];
 
   return (
+    <OvCtx.Provider value={{ over, setOver }}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-lg w-full max-w-lg max-h-[85vh] overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center justify-between px-4 py-3 sticky top-0" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
@@ -1028,6 +1032,7 @@ function ParamsLocaisModal({ params, tipo, f, over, setOver, onClose }) {
         </div>
       </div>
     </div>
+    </OvCtx.Provider>
   );
 }
 
