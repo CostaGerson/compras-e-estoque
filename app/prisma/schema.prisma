@@ -718,6 +718,20 @@ model Cliente {
   updatedAt         DateTime @updatedAt
 
   notas ClienteNota[]
+  // v647 — grupo de clientes (o ranking da gestão soma o grupo e abre os clientes dele)
+  grupoId           Int?
+  grupo             ClienteGrupo? @relation(fields: [grupoId], references: [id], onDelete: SetNull)
+}
+
+// v647 — grupo de clientes: nome e, se tiver, CNPJ próprio (ex.: holding)
+model ClienteGrupo {
+  id            Int       @id @default(autoincrement())
+  nome          String
+  cnpj          String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  clientes      Cliente[]
 }
 
 model ClienteNota {
@@ -2404,4 +2418,42 @@ model PedidoExcluido {
   dados           Json     // { pedido, ppStatus, compraItens, dispensaAntes }
   excluidoPorNome String?
   createdAt       DateTime @default(now())
+}
+
+// v647 — itens padrão (alto giro / padronizados) para acelerar o lançamento do pedido
+model ItemPadrao {
+  id                Int      @id @default(autoincrement())
+  nomeInterno       String              // como nós chamamos o item
+  nomeNf            String              // descrição que sai na NF ao faturar
+  clienteIds        Json?               // [id do Cliente]
+  fppId             Int?                // FPP de origem
+  fppNumero         Int?
+  tipoPecaNome      String?
+  codigo            String?             // código do cadastro do KM
+  parametros        Json?               // { COMPONENTE: valor } — mesmos parâmetros do item no pedido (TECIDO pode ser objeto)
+  fotoBase64        String?
+  precoAtual        Decimal? @db.Decimal(14, 2)   // preço praticado hoje
+  ncm               String?
+  gtin              String?             // GTIN/EAN (opcional)
+  obs               String?
+  ativo             Boolean  @default(true)
+  criadoPorNome     String?
+  atualizadoPorNome String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  anexos            ItemPadraoAnexo[]
+}
+
+model ItemPadraoAnexo {
+  id            Int      @id @default(autoincrement())
+  itemId        Int
+  tipo          String              // LAYOUT | MEDIDAS
+  nome          String
+  mime          String?
+  tamanho       Int?
+  base64        String
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  item          ItemPadrao @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  @@index([itemId])
 }

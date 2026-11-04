@@ -331,6 +331,7 @@ function RankingClientes({ user, ano, mes, kpi, rotulo, onClose }) {
     return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
   }, []);
   const max = Math.max(1, ...(d?.top || []).map((x) => x.valor));
+  const [abertoG, setAbertoG] = useState(null);   // v647 — grupo aberto: posição de cada cliente
   const fmt = (v) => (d?.unidade === "R$" ? `R$ ${brl(v)}` : inteiro(v));
   return (
     <div ref={ref} className="absolute left-3 right-3 z-30 rounded-xl p-3 shadow-xl" style={{ top: 96, background: C.panel, border: `1px solid ${C.line}` }}>
@@ -346,14 +347,29 @@ function RankingClientes({ user, ano, mes, kpi, rotulo, onClose }) {
           <div className="flex flex-col gap-1.5">
             {d.top.map((c, i) => (
               <div key={c.cliente} className="text-xs">
-                <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-2 ${c.grupo ? "cursor-pointer" : ""}`} onClick={c.grupo ? () => setAbertoG(abertoG === c.grupoId ? null : c.grupoId) : undefined}>
                   <span className="font-bold tabular-nums" style={{ color: i < 3 ? C.accent : C.sub, width: 18 }}>{i + 1}º</span>
-                  <span className="flex-1 truncate" title={c.cliente} style={{ color: C.text }}>{c.cliente}</span>
+                  <span className="flex-1 truncate flex items-center gap-1" title={c.grupo ? `Grupo · ${c.membros.map((m) => m.cliente).join(", ")}` : c.cliente} style={{ color: C.text }}>
+                    {c.grupo && <ChevronDown size={12} style={{ color: C.accent, transform: abertoG === c.grupoId ? "none" : "rotate(-90deg)", flexShrink: 0 }} />}
+                    <span className="truncate">{c.cliente}</span>
+                    {c.grupo && <span className="px-1 rounded text-[9px] font-bold shrink-0" style={{ background: C.trilho, color: C.sub }}>GRUPO · {c.membros.length}</span>}
+                  </span>
                   <span className="font-semibold tabular-nums" style={{ color: C.text }}>{fmt(c.valor)}</span>
                 </div>
                 <div className="h-1 rounded-full mt-0.5" style={{ marginLeft: 26, background: C.trilho }}>
                   <div className="h-1 rounded-full" style={{ width: `${(c.valor / max) * 100}%`, background: i < 3 ? C.accent : C.marca }} />
                 </div>
+                {c.grupo && abertoG === c.grupoId && (
+                  <div className="mt-1 mb-1 flex flex-col gap-1" style={{ marginLeft: 26 }}>
+                    {c.membros.map((m, j) => (
+                      <div key={m.cliente} className="flex items-center gap-2 text-[11px]">
+                        <span className="tabular-nums" style={{ color: C.sub, width: 18 }}>{j + 1}º</span>
+                        <span className="flex-1 truncate" title={m.cliente} style={{ color: C.text }}>{m.cliente}</span>
+                        <span className="tabular-nums" style={{ color: C.sub }}>{fmt(m.valor)} · {c.valor ? Math.round((m.valor / c.valor) * 100) : 0}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

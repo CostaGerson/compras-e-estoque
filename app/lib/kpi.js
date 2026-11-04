@@ -86,25 +86,43 @@ export async function rankingClientes(ano, mes, kpi = "vendasPecas", limite = 10
   if (!cfg) return { error: "KPI inválido." };
   const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
   let mapa = new Map();
-  const somar = (nome, v) => { const k = String(nome || "NÃO IDENTIFICADO").trim().toUpperCase() || "NÃO IDENTIFICADO"; mapa.set(k, (mapa.get(k) || 0) + Number(v || 0)); };
+  const docs = new Map();   // v647 — CNPJ de cada nome (quando a fonte traz), para achar o grupo
+  const somar = (nome, v, cnpj) => { const k = String(nome || "NÃO IDENTIFICADO").trim().toUpperCase() || "NÃO IDENTIFICADO"; mapa.set(k, (mapa.get(k) || 0) + Number(v || 0)); if (cnpj) docs.set(k, String(cnpj).replace(/\D/g, "")); };
   if (kpi === "faturamentoValor") {
     const de = new Date(Date.UTC(ano, mes - 1, 1)), ate = new Date(Date.UTC(ano, mes, 1));
-    const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: de, lt: ate } }, select: { destNome: true, valor: true, natureza: true } });
-    for (const n of nfs) if (!NAO_VENDA.test(n.natureza || "")) somar(n.destNome, n.valor);
+    const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: de, lt: ate } }, select: { destNome: true, destCnpj: true, valor: true, natureza: true } });
+    for (const n of nfs) if (!NAO_VENDA.test(n.natureza || "")) somar(n.destNome, n.valor, n.destCnpj);
   } else if (kpi === "receitaValor") {
     const comp = `${ano}-${String(mes).padStart(2, "0")}`;
     const rec = await prisma.finRecebimento.findMany({ where: { competencia: comp, bloco: { in: ["CREDITO", "BOLETO"] } }, select: { nomePagador: true, valor: true } });
     for (const x of rec) somar(x.nomePagador, x.valor);
   } else if ((await import("@/lib/kpiAuto")).ehMesAuto(ano, mes)) {   // v618 — vendas por cliente dos pedidos lançados
-    for (const x of await (await import("@/lib/kpiAuto")).rankingVendasPedidos(ano, mes, kpi)) somar(x.cliente, x.v);
+    for (const x of await (await import("@/lib/kpiAuto")).rankingVendasPedidos(ano, mes, kpi)) somar(x.cliente, x.v, x.cnpj);
   } else {
     const l = await prisma.kpiVendaCliente.findMany({ where: { ano, mes, kpi } });
     for (const x of l) somar(x.cliente, cfg.unidade === "R$" ? x.valor : x.pecas);
   }
-  const lista = [...mapa.entries()].map(([cliente, v]) => ({ cliente, valor: cfg.unidade === "R$" ? r2(v) : Math.round(v) }))
-    .filter((x) => x.valor > 0).sort((a, b) => b.valor - a.valor || a.cliente.localeCompare(b.cliente));
+  const arred = (v) => (cfg.unidade === "R$" ? r2(v) : Math.round(v));
+  const porCliente = [...mapa.entries()].map(([cliente, v]) => ({ cliente, valor: arred(v) })).filter((x) => x.valor > 0);
+  // v647 — clientes de um grupo entram juntos na ordenação (o grupo abre a posição de cada cliente)
+  const grupos = await prisma.clienteGrupo.findMany({ include: { clientes: { select: { razaoSocial: true, nomeFantasia: true, cnpj: true } } } }).catch(() => []);
+  const nz = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  const porNome = new Map(), porDoc = new Map();
+  for (const g of grupos) {
+    if (g.cnpj) porDoc.set(g.cnpj, g);
+    for (const c of g.clientes) { if (c.cnpj) porDoc.set(String(c.cnpj).replace(/\D/g, ""), g); for (const n of [c.razaoSocial, c.nomeFantasia]) if (nz(n)) porNome.set(nz(n), g); }
+  }
+  const agr = new Map(); const soltos = [];
+  for (const x of porCliente) {
+    const g = porDoc.get(docs.get(x.cliente)) || porNome.get(nz(x.cliente));
+    if (!g) { soltos.push(x); continue; }
+    const e = agr.get(g.id) || { cliente: g.nome, grupo: true, grupoId: g.id, valor: 0, membros: [] };
+    e.valor += x.valor; e.membros.push(x); agr.set(g.id, e);
+  }
+  const lista = [...soltos, ...[...agr.values()].map((e) => ({ ...e, valor: arred(e.valor), membros: e.membros.sort((a, b) => b.valor - a.valor) }))]
+    .sort((a, b) => b.valor - a.valor || a.cliente.localeCompare(b.cliente));
   const total = r2(lista.reduce((s, x) => s + x.valor, 0));
-  return { ano, mes, kpi, unidade: cfg.unidade, fonte: cfg.fonte, vazio: cfg.vazio || null, total, clientes: lista.length, top: lista.slice(0, limite) };
+  return { ano, mes, kpi, unidade: cfg.unidade, fonte: cfg.fonte, vazio: cfg.vazio || null, total, clientes: porCliente.length, top: lista.slice(0, limite) };
 }
 
 export async function garantirKpis() {

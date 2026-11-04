@@ -270,6 +270,29 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     })));
     setFppModal(null);
   };
+  // v647 — itens padrão do cliente: campo em destaque com autocompletar; o item escolhido entra preenchido (nome NF, preço, parâmetros, foto, FPP)
+  const [padroes, setPadroes] = useState([]);
+  const [buscaPadrao, setBuscaPadrao] = useState("");
+  const clienteIdSel = (() => { const d = dig(f.clienteCnpj); return d ? clientes.find((c) => dig(c.cnpj) === d)?.id || null : null; })();
+  useEffect(() => {
+    if (!clienteIdSel) { setPadroes([]); return; }
+    fetch(`/api/itens-padrao?cliente=${clienteIdSel}`).then((r) => r.json()).then((d) => setPadroes(Array.isArray(d) ? d : [])).catch(() => setPadroes([]));
+  }, [clienteIdSel]);
+  const usarPadrao = async (p) => {
+    const d = await fetch(`/api/itens-padrao/${p.id}`).then((r) => r.json()).catch(() => null);
+    if (!d || d.error) return alerta("Não consegui ler o item padrão.");
+    const rf = d.fppId ? await api(`/api/pp/catalogo?fppId=${d.fppId}`).then((r) => r.json()).catch(() => null) : null;
+    const params = Object.fromEntries(Object.entries(d.parametros || {}).filter(([k, v]) => v && !paramFora(k) && k !== "TECIDO"));
+    if (rf) params.TECIDO = tecidoDaFpp(rf);
+    const tipo = TIPOS.includes(d.tipoPecaNome) ? d.tipoPecaNome : tipoPeca(d.nomeNf, TIPOS) || "";
+    const item = { ...novoItem(), tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
+      valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id };
+    // ocupa o primeiro item vazio; senão acrescenta
+    setItens((arr) => { const k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); return k >= 0 ? arr.map((it, j) => (j === k ? item : it)) : [...arr, item]; });
+    setBuscaPadrao("");
+    if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`);
+  };
+  const opPadrao = (() => { const t = norm(buscaPadrao); if (!t) return padroes.slice(0, 12); const pal = t.split(/\s+/).filter(Boolean); return padroes.filter((p) => pal.every((w) => norm([p.nomeInterno, p.nomeNf, p.codigo].join(" ")).includes(w))).slice(0, 12); })();
   const tirarFpp = (i) => setItens((arr) => arr.map((it, j) => { if (j !== i) return it; const { TECIDO, ...p } = it.parametros || {}; return { ...it, fppId: null, fppNumero: null, fpp: null, parametros: p }; }));
 
   // ---------- entregas ----------
@@ -487,6 +510,28 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         ))}
         {podeLancar && <button type="button" onClick={() => setItens((arr) => [...arr, novoServico()])} className="mt-1 px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Adicionar serviço</button>}
       </Card>}
+      {!f.servico && podeLancar && padroes.length > 0 && (
+        <div className="rounded-lg p-4 mb-4" style={{ background: C.accentSoft, border: `2px solid ${C.accent}` }}>
+          <div className="flex items-center gap-2 mb-2"><Search size={16} style={{ color: C.accent }} /><span className="font-bold text-sm" style={{ color: C.accent }}>Itens padrão de {f.clienteNome || "este cliente"} ({padroes.length})</span>
+            <span className="text-xs" style={{ color: C.sub }}>· digite o nome do item: os dados entram preenchidos (nome da NF, preço, parâmetros, foto e FPP)</span></div>
+          <div style={{ position: "relative" }}>
+            <input value={buscaPadrao} onChange={(e) => setBuscaPadrao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && opPadrao[0]) { e.preventDefault(); usarPadrao(opPadrao[0]); } }}
+              placeholder="nome interno, nome da NF ou código do item padrão…" className="w-full px-3 py-2.5 rounded outline-none text-base font-semibold" style={{ background: C.panel, border: `1px solid ${C.accent}`, textTransform: "uppercase" }} />
+            {buscaPadrao && (
+              <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 300, overflowY: "auto" }}>
+                {opPadrao.length ? opPadrao.map((p) => (
+                  <button key={p.id} onMouseDown={(e) => { e.preventDefault(); usarPadrao(p); }} className="w-full text-left px-3 py-2 text-sm flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <b>{p.nomeInterno}</b><span style={{ color: C.sub }}>· NF: {p.nomeNf}{p.codigo ? ` · ${p.codigo}` : ""}</span>
+                    <span className="ml-auto" style={{ color: C.text }}>{veVal && p.precoAtual != null ? money(p.precoAtual) : ""}</span>
+                    {p.critica && <span className="text-[10px] font-bold" style={{ color: C.red }}>≠ FPP</span>}
+                  </button>
+                )) : <div className="px-3 py-2 text-sm" style={{ color: C.sub }}>Nenhum item padrão com esse nome.</div>}
+              </div>
+            )}
+          </div>
+          {!buscaPadrao && <div className="flex flex-wrap gap-1.5 mt-2">{padroes.slice(0, 10).map((p) => <button key={p.id} onClick={() => usarPadrao(p)} className="text-xs px-2 py-1 rounded" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>+ {p.nomeInterno}</button>)}</div>}
+        </div>
+      )}
       {!f.servico && itens.map((it, i) => {
         const comps = componentes[it.tipoPecaNome] || [];
         const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k) && !paramFora(k));

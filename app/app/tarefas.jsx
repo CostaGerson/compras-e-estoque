@@ -658,6 +658,15 @@ function AvatarMini({ foto, nome, size = 22 }) {
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
 // v600 — evento abaixo das pessoas necessárias fica amarelo
 const corCard = (t, proj) => t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
+// v648 — ordem do dia: período (manhã antes de tarde), depois a ordem escolhida arrastando; sem ordem gravada, as com horário primeiro.
+//   As que têm horário ocupam as mesmas posições, mas reordenadas entre si de mais cedo para mais tarde.
+export function ordenarDia(l) {
+  const base = [...l].sort((a, b) => (periodoDe(a) === "TARDE") - (periodoDe(b) === "TARDE") || (a.ordem ?? 1e6) - (b.ordem ?? 1e6)
+    || (a.hora ? 0 : 1) - (b.hora ? 0 : 1) || (a.hora || "").localeCompare(b.hora || "") || a.id - b.id);
+  const comHora = base.filter((x) => x.hora).sort((a, b) => a.hora.localeCompare(b.hora) || (a.horaFim || "").localeCompare(b.horaFim || "") || a.id - b.id);
+  let k = 0;
+  return base.map((x) => (x.hora ? comHora[k++] : x));
+}
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
 function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir, onMenu, toque, grande, pres, arrastado }) {
@@ -1015,8 +1024,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl]);
   // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
   // v605 — sempre pela ordem de horário; sem horário vem depois (manhã antes de tarde), na ordem escolhida arrastando
-  Object.values(porDia).forEach((l) => l.sort((a, b) => (a.hora ? 0 : 1) - (b.hora ? 0 : 1) || (a.hora || "").localeCompare(b.hora || "") || (a.horaFim || "").localeCompare(b.horaFim || "")
-    || (a.hora ? 0 : (periodoDe(a) === "TARDE") - (periodoDe(b) === "TARDE")) || (a.ordem ?? 1e6) - (b.ordem ?? 1e6) || a.id - b.id));
+  // v648 — ordem livre arrastando (com ou sem horário); as que têm horário ficam de mais cedo para mais tarde entre si
+  Object.keys(porDia).forEach((k) => { porDia[k] = ordenarDia(porDia[k]); });
   const mover = (n) => { setDir(n); setRef(modo === "semana" ? somaDia(ref, 7 * n) : (() => { const x = new Date(Date.UTC(ano, mes - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
   const titulo = `${MESES[mes - 1]} de ${ano}`;
   const novaNoDia = (dia, per) => setForm({ prazo: dia, ...(per ? { periodo: per } : {}), responsavelId: user.id, setor: setorTarefaDe(user), projetoId, natureza: proj ? proj.natureza : visao === "FUNCIONAL" ? "FUNCIONAL" : "PESSOAL", publica: proj ? proj.natureza !== "PESSOAL" : visao === "FUNCIONAL" });   // v565 — nova tarefa começa pessoal
@@ -1052,8 +1061,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
     const c = conflitosHora((porDia[d0] || []).filter((x) => x.id !== t.id && x.responsavelId === t.responsavelId), mud.hora, mud.horaFim);
     if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((x) => `• ${x.hora}${x.horaFim ? `–${x.horaFim}` : ""} ${x.titulo}`).join("\n")}\n\nColocar mesmo assim?`))) return;
     const nova = { ...t, ...mud }, per = periodoDe(nova);
-    const ids = [...(porDia[d0] || []).filter((x) => x.id !== t.id && periodoDe(x) === per), nova]
-      .sort((a, b) => (a.hora || "00:00").localeCompare(b.hora || "00:00") || a.id - b.id).map((x) => x.id);
+    // v648 — as sem horário ficam onde estão; a nova entra na posição do horário dela entre as que têm horário
+    const resto = (porDia[d0] || []).filter((x) => x.id !== t.id && periodoDe(x) === per);
+    const k = nova.hora ? resto.findIndex((x) => x.hora && x.hora > nova.hora) : -1;
+    const ids = ordenarDia(k >= 0 ? [...resto.slice(0, k), nova, ...resto.slice(k)] : [...resto, nova].map((x, i) => ({ ...x, ordem: i }))).map((x) => x.id);
     try {
       await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: mud });
       await api("/api/tarefas", "POST", { usuarioId: user.id, acao: "ordenar", ids });

@@ -72,6 +72,6 @@ export function aplicarAutomatico(ano, meses, auto) {
 export async function rankingVendasPedidos(ano, mes, kpi) {
   const de = new Date(Date.UTC(ano, mes - 1, 1)), ate = new Date(Date.UTC(ano, mes, 1));
   const ps = (await prisma.pedidoVenda.findMany({ where: { emissao: { gte: de, lt: ate } },
-    select: { cliente: true, total: true, qtd: true, itens: true, interno: true, status: true, tipoPedido: true } })).filter(pedidoConta);
-  return ps.map((p) => ({ cliente: p.cliente, v: kpi === "vendasValor" ? Number(p.total || 0) : pecasDoPedido(p) }));
+    select: { cliente: true, cnpj: true, total: true, qtd: true, itens: true, interno: true, status: true, tipoPedido: true } })).filter(pedidoConta);
+  return ps.map((p) => ({ cliente: p.cliente, cnpj: p.cnpj || null, v: kpi === "vendasValor" ? Number(p.total || 0) : pecasDoPedido(p) }));
 }

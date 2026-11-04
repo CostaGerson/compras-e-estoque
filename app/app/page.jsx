@@ -31,6 +31,7 @@ import { imprimirPedido } from "./impressaoPedido";   // v615
 import { gruposDuplicados, internoDe, semInterno } from "@/lib/artigoConsolidar";   // v640
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
 import Tributario from "./tributario";   // v628
+import ItensPadrao from "./itensPadrao";   // v647
 import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
 function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
@@ -136,6 +137,7 @@ const MENU = [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
+    { key: "itensPadrao", label: "Itens padrão", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Itens de alto giro ou padronizados por cliente: nome interno, nome NF, FPP, preço, NCM, layout e tabela de medidas" },   // v647
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
     { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
@@ -431,6 +433,7 @@ export default function Home() {
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
+          {view === "itensPadrao" && pode("itensPadrao") && <ItensPadrao user={user} componentes={COMPONENTES} />}
           {view === "tributario" && pode("tributario") && <Tributario user={user} tiposPeca={Object.keys(COMPONENTES)} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
@@ -3397,6 +3400,15 @@ function ClientesPane({ master, money }) {
   const [enviando, setEnviando] = useState(false);
   const [prog, setProg] = useState("");
   const [msg, setMsg] = useState(null);
+  // v647 — grupos de clientes
+  const [grupos, setGrupos] = useState([]);
+  const [sel, setSel] = useState([]);
+  const [filtroGrupo, setFiltroGrupo] = useState("");
+  const [modalGrupo, setModalGrupo] = useState(null);   // { modo: "novo" | "editar", grupo? }
+  const lerGrupos = () => fetch("/api/clientes/grupos").then((r) => r.json()).then((g) => setGrupos(Array.isArray(g) ? g : [])).catch(() => {});
+  useEffect(() => { lerGrupos(); }, []);
+  const gNome = (id) => grupos.find((g) => g.id === id)?.nome;
+  const tirarDoGrupo = async (ids) => { await fetch("/api/clientes/grupos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "tirar", clienteIds: ids }) }); setSel([]); carregar(); lerGrupos(); };
 
   const norm = (s) => (s == null ? "" : String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -3430,11 +3442,12 @@ function ClientesPane({ master, money }) {
     const tokens = norm(busca).trim().split(/\s+/).filter(Boolean);
     let l = clientes.filter((c) => {
       if (filtroUf && c.uf !== filtroUf) return false;
+      if (filtroGrupo && (filtroGrupo === "SEM" ? c.grupoId : String(c.grupoId) !== filtroGrupo)) return false;
       if (!tokens.length) return true;
-      const hay = norm([c.razaoSocial, c.nomeFantasia, c.cnpj, c.municipio, c.uf, c.preposto, c.telefones, c.emailNf].filter(Boolean).join(" "));
+      const hay = norm([c.razaoSocial, c.nomeFantasia, gNome(c.grupoId), c.cnpj, c.municipio, c.uf, c.preposto, c.telefones, c.emailNf].filter(Boolean).join(" "));
       return tokens.every((t) => hay.includes(t));
     });
-    const getv = sort.key === "notas" ? (c) => c._count?.notas ?? 0 : (c) => c[sort.key];
+    const getv = sort.key === "notas" ? (c) => c._count?.notas ?? 0 : sort.key === "grupo" ? (c) => gNome(c.grupoId) || "" : (c) => c[sort.key];
     return ordenar(l, getv, sort.dir, sort.key === "notas" ? "num" : "texto");
   })();
 
@@ -3510,6 +3523,14 @@ function ClientesPane({ master, money }) {
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Grupo</div>
+          <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, maxWidth: 220 }}>
+            <option value="">Todos</option>
+            <option value="SEM">Sem grupo</option>
+            {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome} ({g.clientes.length})</option>)}
+          </select>
+        </div>
         <button onClick={buscarKm} disabled={!!km?.pedido} title="Busca todos os clientes cadastrados no KM (o agente do PC da fábrica atende em até 1 minuto)"
           className="px-4 py-2 rounded font-semibold" style={{ background: C.panel2, color: C.accent, border: `1px solid ${C.accent}`, opacity: km?.pedido ? 0.6 : 1 }}>
           {km?.pedido ? "Aguardando o KM…" : "Buscar do KM"}
@@ -3524,10 +3545,22 @@ function ClientesPane({ master, money }) {
         {km.pedido && <> · busca pedida às {fmtQuando(km.pedido.em)} — o agente do PC da fábrica atende em até 1 min (precisa estar ligado)</>}
       </div>}
 
-      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique no nome para editar, no número de notas para ver o histórico</div>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="text-xs flex-1" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique no nome para editar, no número de notas para ver o histórico · marque clientes para criar um grupo</div>
+        {sel.length > 0 && <>
+          <span className="text-xs font-semibold" style={{ color: C.text }}>{sel.length} selecionado(s)</span>
+          <button onClick={() => setModalGrupo({ modo: "novo" })} className="px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={13} /> Criar grupo / juntar a um grupo</button>
+          {clientes.some((c) => sel.includes(c.id) && c.grupoId) && <button onClick={() => tirarDoGrupo(sel)} className="px-3 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Tirar do grupo</button>}
+          <button onClick={() => setSel([])} className="text-xs" style={{ color: C.sub }}>limpar</button>
+        </>}
+        {filtroGrupo && filtroGrupo !== "SEM" && <button onClick={() => setModalGrupo({ modo: "editar", grupo: grupos.find((g) => String(g.id) === filtroGrupo) })} className="px-3 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Editar grupo</button>}
+      </div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
         <div className="flex px-4 py-2 text-xs font-semibold min-w-[900px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
+          <div className="w-7"><input type="checkbox" style={{ accentColor: C.accent }} checked={filtrados.length > 0 && filtrados.every((c) => sel.includes(c.id))}
+            onChange={(e) => setSel(e.target.checked ? [...new Set([...sel, ...filtrados.map((c) => c.id)])] : sel.filter((id) => !filtrados.some((c) => c.id === id)))} /></div>
           <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="flex-1" />
+          <ThSort label="Grupo" campoKey="grupo" sort={sort} onSort={onSort} className="w-36" />
           <ThSort label="Nome fantasia" campoKey="nomeFantasia" sort={sort} onSort={onSort} className="w-40" />
           <div className="w-40">CNPJ</div>
           <div className="w-24">IE</div>
@@ -3545,7 +3578,9 @@ function ClientesPane({ master, money }) {
           <div key={c.id} onClick={() => setEditando(c)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[900px]"
             style={{ borderBottom: `1px solid ${C.line}` }}
             onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            <div className="w-7" onClick={(e) => e.stopPropagation()}><input type="checkbox" style={{ accentColor: C.accent }} checked={sel.includes(c.id)} onChange={() => setSel((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]))} /></div>
             <div className="flex-1 font-medium">{c.razaoSocial || "—"}</div>
+            <div className="w-36 truncate" title={gNome(c.grupoId) || ""}>{c.grupoId ? <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{gNome(c.grupoId)}</span> : <span style={{ color: C.sub }}>—</span>}</div>
             <div className="w-40" style={{ color: c.nomeFantasia ? C.text : C.sub }}>{c.nomeFantasia || "—"}</div>
             <div className="w-40" style={{ color: C.sub }}>{fmtCnpj(c.cnpj)}</div>
             <div className="w-24" style={{ color: C.sub }}>{c.inscricaoEstadual || "—"}</div>
@@ -3560,7 +3595,63 @@ function ClientesPane({ master, money }) {
       </div>
 
       {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} onChanged={carregar} />}
+      {modalGrupo && <GrupoClientesModal modo={modalGrupo.modo} grupo={modalGrupo.grupo} grupos={grupos} selecionados={clientes.filter((c) => sel.includes(c.id))}
+        onClose={() => setModalGrupo(null)} onSaved={() => { setModalGrupo(null); setSel([]); carregar(); lerGrupos(); }} />}
       {editando && <ClienteEditModal cliente={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
+    </div>
+  );
+}
+
+// v647 — criar grupo com os clientes marcados (nome e, se tiver, CNPJ) ou juntá-los a um grupo existente; editar/excluir grupo
+function GrupoClientesModal({ modo, grupo, grupos, selecionados, onClose, onSaved }) {
+  const [destino, setDestino] = useState(modo === "editar" ? String(grupo?.id || "") : "NOVO");
+  const [nome, setNome] = useState(grupo?.nome || "");
+  const [cnpj, setCnpj] = useState(grupo?.cnpj || "");
+  const [salv, setSalv] = useState(false);
+  const [erro, setErro] = useState("");
+  const req = async (method, body, q = "") => { const r = await fetch(`/api/clientes/grupos${q}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Erro."); return j; };
+  const salvar = async () => {
+    setSalv(true); setErro("");
+    try {
+      const ids = selecionados.map((c) => c.id);
+      if (modo === "editar") await req("PUT", { id: grupo.id, nome, cnpj });
+      else if (destino === "NOVO") await req("POST", { nome, cnpj, clienteIds: ids, quem: [lerSessao()?.nome, lerSessao()?.sobrenome].filter(Boolean).join(" ") });
+      else await req("POST", { id: Number(destino), clienteIds: ids });
+      onSaved();
+    } catch (e) { setErro(e.message); }
+    setSalv(false);
+  };
+  const excluir = async () => { if (!(await confirmar(`Excluir o grupo ${grupo.nome}? Os clientes continuam cadastrados, só saem do grupo.`))) return; await req("DELETE", null, `?id=${grupo.id}`); onSaved(); };
+  const inpS = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-lg p-5" style={{ background: C.panel }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="font-semibold">{modo === "editar" ? "Editar grupo" : "Grupo de clientes"}</div><button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button></div>
+        {modo !== "editar" && grupos.length > 0 && (
+          <label className="block text-xs mb-3" style={{ color: C.sub }}>Destino
+            <select value={destino} onChange={(e) => setDestino(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded outline-none text-sm" style={inpS}>
+              <option value="NOVO">Criar grupo novo</option>
+              {grupos.map((g) => <option key={g.id} value={g.id}>Juntar a {g.nome} ({g.clientes.length})</option>)}
+            </select>
+          </label>
+        )}
+        {(modo === "editar" || destino === "NOVO") && <div className="grid grid-cols-3 gap-3 mb-3">
+          <label className="col-span-2 text-xs" style={{ color: C.sub }}>Nome do grupo<input value={nome} onChange={(e) => setNome(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded outline-none text-sm uppercase" style={inpS} autoFocus /></label>
+          <label className="text-xs" style={{ color: C.sub }}>CNPJ (opcional)<input value={cnpj} onChange={(e) => setCnpj(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded outline-none text-sm" style={inpS} /></label>
+        </div>}
+        <div className="text-xs mb-1" style={{ color: C.sub }}>{modo === "editar" ? "Clientes do grupo" : "Clientes marcados"}</div>
+        <div className="rounded-lg mb-3 max-h-48 overflow-y-auto text-sm" style={{ border: `1px solid ${C.line}` }}>
+          {(modo === "editar" ? grupo?.clientes || [] : selecionados).map((c) => <div key={c.id} className="px-3 py-1.5" style={{ borderBottom: `1px solid ${C.line}` }}>{c.razaoSocial || c.nomeFantasia} <span style={{ color: C.sub }}>· {fmtCnpj(c.cnpj)}</span></div>)}
+        </div>
+        {modo === "editar" && <div className="text-[11px] mb-3" style={{ color: C.sub }}>Para incluir mais clientes, marque-os na lista e use "Criar grupo / juntar a um grupo". Para tirar, marque e use "Tirar do grupo".</div>}
+        {erro && <div className="text-xs mb-2" style={{ color: "#D64545" }}>{erro}</div>}
+        <div className="flex items-center gap-2">
+          {modo === "editar" && <button onClick={excluir} className="text-xs" style={{ color: "#D64545" }}>Excluir grupo</button>}
+          <span className="flex-1" />
+          <button onClick={onClose} className="px-3 py-1.5 rounded text-sm" style={{ color: C.sub }}>Cancelar</button>
+          <button onClick={salvar} disabled={salv} className="px-4 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salv ? 0.6 : 1 }}>{salv ? "Salvando…" : "Salvar"}</button>
+        </div>
+      </div>
     </div>
   );
 }
