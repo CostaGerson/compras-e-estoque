@@ -731,8 +731,8 @@ function ReuniaoPainel({ t, user, acao }) {
     <div className="mb-3 rounded-xl p-3" style={{ border: `2px solid ${C.navy || "#001E41"}`, background: "#F2F5FA" }}>
       <div className="flex items-center gap-2 mb-2"><Landmark size={16} style={{ color: "#001E41" }} /><span className="text-sm font-bold" style={{ color: "#001E41" }}>Reunião de gestão · pautas</span><span className="text-xs" style={{ color: C.sub }}>{P.length}</span></div>
       <ol className="flex flex-col gap-1">
-        {P.map((p, k) => <li key={p.id} className="flex items-start gap-2 text-sm rounded-lg px-3 py-1.5" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-          <span className="text-xs font-bold" style={{ color: C.sub, minWidth: 16 }}>{k + 1}.</span>
+        {P.map((p, k) => <li key={p.id} className="flex items-center gap-2 text-sm leading-5 rounded-lg px-3 py-1.5" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <span className="text-sm font-bold tabular-nums leading-5" style={{ color: C.sub, minWidth: 18 }}>{k + 1}.</span>   {/* v684 — número alinhado com o texto */}
           <span className="flex-1">{p.texto}{p.autor && p.origem === "MANUAL" ? <span className="text-[11px]" style={{ color: C.sub }}> · {p.autor}</span> : null}</span>
           <span className="text-[10px] font-semibold px-1.5 rounded shrink-0" style={{ background: ORI[p.origem]?.[1], color: ORI[p.origem]?.[2] }}>{ORI[p.origem]?.[0] || ""}</span>
           {p.origem !== "FIXA" && pode && <button onClick={async () => (await confirmar("Tirar esta pauta?")) && acao("tirarPauta", { pautaId: p.id })} style={{ color: C.sub }}><X size={12} /></button>}

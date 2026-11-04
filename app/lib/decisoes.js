@@ -38,15 +38,21 @@ export async function reuniaoDoMes(ano, mes) {
   return prisma.tarefa.findFirst({ where: { titulo: tituloReuniao(ano, mes), modelo: false, status: { not: "CANCELADA" } } });
 }
 
+// v684 — reunião de gestão fica sempre no projeto MERIDIAN LTDA
+async function projetoMeridian() {
+  const l = await prisma.tarefaProjeto.findMany({ where: { ativo: true }, select: { id: true, nome: true } }).catch(() => []);
+  return (l.find((p) => sem(p.nome) === "MERIDIAN LTDA") || l.find((p) => sem(p.nome).startsWith("MERIDIAN")))?.id || null;
+}
 export async function garantirReuniao(ano, mes) {
   const ja = await reuniaoDoMes(ano, mes);
-  if (ja) return ja;
+  const projetoId = await projetoMeridian();
+  if (ja) { if (projetoId && ja.projetoId !== projetoId) return prisma.tarefa.update({ where: { id: ja.id }, data: { projetoId } }); return ja; }
   const { igor, pedro, maycon } = await participantes();
   if (!igor) return null;
   const t = await prisma.tarefa.create({ data: {
     titulo: tituloReuniao(ano, mes), descricao: "Reunião mensal de gestão. As pautas ficam aqui na tarefa; qualquer convidado pode acrescentar.",
     setor: "GESTAO", responsavelId: igor.id, responsavelNome: nomeU(igor), criadoPorId: igor.id, criadoPorNome: nomeU(igor),
-    prazo: dUTC(dataReuniao(ano, mes)), hora: HORA_REUNIAO, tipo: "PADRAO", publica: true, natureza: "FUNCIONAL", evento: true, lembreteMin: 60,
+    prazo: dUTC(dataReuniao(ano, mes)), hora: HORA_REUNIAO, tipo: "PADRAO", publica: true, natureza: "FUNCIONAL", evento: true, lembreteMin: 60, projetoId,
     reuniao: { tipo: "GESTAO", mes: chaveMes(ano, mes), pautas: PAUTAS_FIXAS.map((texto) => ({ id: uid(), texto, origem: "FIXA" })) },
   } });
   const conv = [pedro, maycon].filter(Boolean).map((u) => u.id);
@@ -57,7 +63,7 @@ export async function garantirReuniao(ano, mes) {
 let ultimo = 0;
 // início de cada mês: só a reunião do mês corrente
 export async function garantirReuniaoDoMes() {
-  if (Date.now() - ultimo < 10 * 60e3) return;
+  if (Date.now() - ultimo < 2 * 60e3) return;
   ultimo = Date.now();
   const h = hojeSP();
   await garantirReuniao(Number(h.slice(0, 4)), Number(h.slice(5, 7)));
