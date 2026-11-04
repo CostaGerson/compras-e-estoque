@@ -284,7 +284,6 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
     } catch (e) { alerta(e.message); }
     setImprimindo("");
   }
-  const abrirAnexo = (a) => window.open(`/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}`, "_blank");
   const editarFpp = (id) => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "fpp", fppId: id, voltar: { v: "pedido", numero } } })); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -311,7 +310,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
         </div>
         {erro && <div className="p-5 text-sm" style={{ color: C.red }}>{erro}</div>}
         {!p && !erro && <div className="p-5 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-        {p && guia === "op" && <GuiaOp p={p} componentes={componentes} verFpp={setVerFpp} />}
+        {p && guia === "op" && <GuiaOp p={p} componentes={componentes} verFpp={setVerFpp} anexos={<AnexosCard p={p} user={user} veVal={veVal} />} />}
         {p && guia === "financeiro" && (
           <div className="flex-1 overflow-auto p-4 space-y-4">
             <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -404,26 +403,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
                 {p.nfObs && <div className="mt-2"><div className="text-xs mb-0.5" style={{ color: C.sub }}>Observação da NF</div><div className="text-xs" style={{ color: C.text }}>{p.nfObs}</div></div>}
               </div>
 
-              {/* v638 — anexos do lançamento (OC, solicitação, layout…) */}
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="flex items-center gap-2 mb-2"><Paperclip size={15} style={{ color: C.accent }} /><div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Anexos</div>{p.anexos.length > 0 && <span className="text-xs" style={{ color: C.sub }}>{p.anexos.length}</span>}</div>
-                {p.anexos.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {p.anexos.map((a) => (
-                      <button key={a.id} onClick={() => abrirAnexo(a)} title={`${a.nome}${a.criadoPorNome ? ` · ${a.criadoPorNome}` : ""}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs max-w-[260px]" style={{ border: `1px solid ${C.line}`, background: C.panel2 }}>
-                        {a.categoria && <span className="px-1 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{ANEXO_CAT[a.categoria] || a.categoria}</span>}
-                        <span className="truncate" style={{ color: C.text }}>{a.nome}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : <div className="text-xs" style={{ color: C.sub }}>{p.pp ? "Nenhum anexo no lançamento." : "Pedido sem lançamento no sistema — sem anexos."}</div>}
-                {p.pp?.origem === "PEDIDOS" && (p.pp.temPv || p.pp.temOp) && (
-                  <div className="flex gap-2 mt-2">
-                    {p.pp.temOp && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoOpPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> OP do KM</button>}
-                    {veVal && p.pp.temPv && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoPedidoPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> PV do KM</button>}
-                  </div>
-                )}
-              </div>
+              <AnexosCard p={p} user={user} veVal={veVal} />
 
               <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
                 <div className="text-sm font-bold mb-2" style={{ color: C.navy }}>Itens</div>
@@ -478,9 +458,34 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
   );
 }
 
+// v642 — anexos do pedido (visão geral e guia OP)
+function AnexosCard({ p, user, veVal }) {
+  const abrirAnexo = (a) => window.open(`/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}`, "_blank");
+  return (
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-2 mb-2"><Paperclip size={15} style={{ color: C.accent }} /><div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Anexos</div>{p.anexos.length > 0 && <span className="text-xs" style={{ color: C.sub }}>{p.anexos.length}</span>}</div>
+                {p.anexos.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {p.anexos.map((a) => (
+                      <button key={a.id} onClick={() => abrirAnexo(a)} title={`${a.nome}${a.criadoPorNome ? ` · ${a.criadoPorNome}` : ""}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs max-w-[260px]" style={{ border: `1px solid ${C.line}`, background: C.panel2 }}>
+                        {a.categoria && <span className="px-1 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{ANEXO_CAT[a.categoria] || a.categoria}</span>}
+                        <span className="truncate" style={{ color: C.text }}>{a.nome}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : <div className="text-xs" style={{ color: C.sub }}>{p.pp ? "Nenhum anexo no lançamento." : "Pedido sem lançamento no sistema — sem anexos."}</div>}
+                {p.pp?.origem === "PEDIDOS" && (p.pp.temPv || p.pp.temOp) && (
+                  <div className="flex gap-2 mt-2">
+                    {p.pp.temOp && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoOpPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> OP do KM</button>}
+                    {veVal && p.pp.temPv && <button onClick={() => window.open(`/api/pp/${p.pp.id}?arquivo=arquivoPedidoPdf&_u=${user?.id}`, "_blank")} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}`, color: C.red }}><FileText size={12} /> PV do KM</button>}
+                  </div>
+                )}
+              </div>
+  );
+}
 // v638 — guia OP: todos os dados de cada item do pedido (grade, parâmetros de produção, tecido/FPP, foto) e a fase de cada um no PCP
 const ANEXO_CAT = { OC: "OC", SOLICITACAO: "Solicitação", LAYOUT: "Layout", OUTRO: "Outro" };
-function GuiaOp({ p, componentes, verFpp }) {
+function GuiaOp({ p, componentes, verFpp, anexos }) {
   const tot = p.itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
   const porFase = {};
   for (const i of p.itens) { const f = i.fase || "FORA"; porFase[f] = (porFase[f] || 0) + (Number(i.qtd) || 0); }
@@ -496,6 +501,7 @@ function GuiaOp({ p, componentes, verFpp }) {
         </div>
         {p.erroPcp && <div className="w-full text-xs" style={{ color: C.red }}>PCP indisponível: {p.erroPcp}</div>}
       </div>
+      {anexos}
       {p.itens.map((i, k) => {
         const comps = componentes[i.tipoPeca] || [];
         const pars = [...(i.parametros || [])].sort((a, b) => { const x = comps.indexOf(a.t), y = comps.indexOf(b.t); return (x < 0 ? 999 : x) - (y < 0 ? 999 : y); });
