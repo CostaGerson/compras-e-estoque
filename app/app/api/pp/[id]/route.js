@@ -43,8 +43,18 @@ export async function GET(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
-  if (!(await usuarioPP(req))) return negadoPP();
+  const u = await usuarioPP(req);
+  if (!u) return negadoPP();
   const id = Number(params.id);
+  // v671 — pedido com número (KM ou lançado) vai para a lixeira de pedidos: senão o KM / a lista o recriam
+  const pp = await prisma.pp.findUnique({ where: { id }, select: { numero: true } });
+  if (pp?.numero && (await prisma.pedidoVenda.findUnique({ where: { numero: pp.numero }, select: { id: true } }))) {
+    const motivo = new URL(req.url).searchParams.get("motivo") || "";
+    const { excluirPedido } = await import("@/lib/pedidoLixeira");
+    const r = await excluirPedido(pp.numero, { motivo, quem: nomeQuem(u) });
+    if (r.error) return Response.json(r, { status: 400 });
+    return Response.json({ ok: true, lixeira: true });
+  }
   await prisma.pp.delete({ where: { id } }); // itens em cascata
   return Response.json({ ok: true });
 }

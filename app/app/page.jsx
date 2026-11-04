@@ -42,7 +42,7 @@ import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
-import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import PedidoEditor from "./pedidoEditor";   // v595 — lançamento de pedido sem o KM
 
 /* ============================================================
@@ -1409,7 +1409,18 @@ function LancarPP({ user }) {
             </div>
             <div className="w-28 flex justify-end gap-2">
               <button onClick={() => { setPpId(p.id); setModo("editor"); }} className="text-xs px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>Abrir</button>
-              {podeLancar && <button onClick={async () => { if ((await confirmar("Excluir esta OP?"))) { await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" }); carregar(); } }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
+              {podeLancar && <button title="Excluir" onClick={async () => {
+                // v671 — pedido com número (KM ou lançado) vai para a lixeira de pedidos, com justificativa; rascunho sem número é apagado
+                if (p.numero) {
+                  const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.clienteNome || ""})?\n\nEle vai para a lixeira (Produção › Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
+                  if (motivo === null || motivo === undefined) return;
+                  if (String(motivo).trim().length < 5) return alerta("Escreva a justificativa da exclusão (mínimo 5 caracteres).");
+                  const r = await ppFetch(`/api/pp/${p.id}?motivo=${encodeURIComponent(motivo)}`, { method: "DELETE" });
+                  const j = await r.json().catch(() => ({})); if (!r.ok) return alerta(j.error || "Não foi possível excluir.");
+                } else if (await confirmar("Excluir este rascunho?")) await ppFetch(`/api/pp/${p.id}`, { method: "DELETE" });
+                else return;
+                carregar();
+              }} style={{ color: "#C77" }}><Trash2 size={15} /></button>}
             </div>
           </div>
         ))}
