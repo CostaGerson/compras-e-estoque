@@ -1615,10 +1615,10 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
       {!cards && <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl overflow-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ background: C.panel2, color: C.sub }} className="text-left text-xs uppercase tracking-wide">
+            <tr style={{ background: C.panel2, color: C.sub }} className="text-center text-xs uppercase tracking-wide"   /* v666 — títulos e conteúdo centralizados */>
               <th className="px-2 py-2 w-8"></th>
               {cols.map((c) => (
-                <th key={c.k} onClick={() => ordenar(c.k, c.tipo)} className={"px-3 py-2 font-medium cursor-pointer select-none " + (c.right ? "text-right" : "")}>
+                <th key={c.k} onClick={() => ordenar(c.k, c.tipo)} className="px-3 py-2 font-medium cursor-pointer select-none text-center">
                   {c.label}{sort.campo === c.k ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
                 </th>
               ))}
@@ -1632,14 +1632,14 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
                 {cols.map((c) => {
                   let v = f[c.k];
                   if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
-                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{fmtFpp(v)}{paramsAlterados(f) && <AlertaParams />}</td>;
-                  else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-right font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{brl(valorFpp(f))}</td>;
+                  else if (c.k === "numero") return <td key={c.k} className="px-3 py-2 font-bold tabular-nums whitespace-nowrap text-center" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{fmtFpp(v)}{paramsAlterados(f) && <AlertaParams />}</td>;
+                  else if (c.k === "totalItem") return <td key={c.k} className="px-3 py-2 text-center font-semibold whitespace-nowrap" style={{ color: C.navy, cursor: "pointer" }} onClick={() => editar(f)}>{brl(valorFpp(f))}</td>;
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
-                  if (c.cliente) return <td key={c.k} className="px-3 py-2"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
+                  if (c.cliente) return <td key={c.k} className="px-3 py-2 text-center"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
                   if (typeof v === "string" && /[A-ZÀ-Ý]{3}/.test(v) && !/^R\$/.test(v)) v = sc(v);   // v414
-                  return <td key={c.k} className={"px-3 py-2 " + (c.right ? "text-right" : "")} style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => editar(f)}>{v}</td>;
+                  return <td key={c.k} className="px-3 py-2 text-center" style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => editar(f)}>{v}</td>;
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>
