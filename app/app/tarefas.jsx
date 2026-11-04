@@ -504,7 +504,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           {recorrente && <div className="text-[11px] mt-1.5" style={{ color: C.blue }}>Repete {descreverRecorrencia({ ...f.rec, dow: f.rec.dow ?? dPrazo.getUTCDay(), dia: f.rec.dia ?? dPrazo.getUTCDate(), n: f.rec.n ?? Math.min(4, Math.ceil(dPrazo.getUTCDate() / 7)), mes: f.rec.mes ?? dPrazo.getUTCMonth() + 1 })} · vira rotina (azul) automaticamente.</div>}
         </div>
       )}
-      {ed && inicial.serieId && <label className="flex items-center gap-2 text-xs mb-3" style={{ color: C.text }}><input type="checkbox" checked={f.aplicarSerie} onChange={(e) => set("aplicarSerie", e.target.checked)} /> aplicar também às próximas ocorrências da rotina ({inicial.recorrenciaTexto})</label>}
+      {ed && inicial.serieId && <div className="flex items-center gap-2 text-xs mb-3 rounded-lg px-3 py-2" style={{ background: C.panel2, color: C.sub }}><Repeat size={13} /> Tarefa recorrente ({inicial.recorrenciaTexto || "rotina"}): o que mudar aqui (projeto, título, responsável, horário…) vale para todas as ocorrências em aberto.</div>}
 
       {/* subtarefas */}
       <div className="mb-3">

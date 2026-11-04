@@ -228,12 +228,16 @@ export async function editar(id, b, u) {
   let up = await prisma.tarefa.update({ where: { id: x.id }, data });
   if (b.convidados !== undefined || !t.evento) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
   if (b.recorrencia !== undefined) up = (await mudarRecorrencia(up, b.recorrencia)) || up;
-  // alterar também as próximas da série (e a própria série)
-  if (x.serieId && b.aplicarSerie) {
-    const comuns = { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
-      hora: data.hora, horaFim: data.horaFim, lembreteMin: data.lembreteMin, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) };
-    await prisma.tarefa.update({ where: { id: x.serieId }, data: { ...comuns, subtarefas: data.subtarefas.map((s) => ({ texto: s.texto, feita: false })) } });
-    await prisma.tarefa.updateMany({ where: { serieId: x.serieId, prazo: { gt: x.prazo }, status: "ABERTA" }, data: comuns });
+  // v653 — recorrente: mudar o projeto ou os dados de uma muda a série e todas as demais em aberto
+  //   (arrastar na agenda só muda dia/hora desta; o projeto vale também para as concluídas, que seguem no projeto)
+  const doForm = b.titulo !== undefined;
+  if (x.serieId && (doForm || b.projetoId !== undefined)) {
+    const comuns = doForm ? { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
+      hora: data.hora, horaFim: data.horaFim, periodo: data.periodo, lembreteMin: data.lembreteMin, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) }
+      : { projetoId: data.projetoId, natureza: data.natureza };
+    await prisma.tarefa.update({ where: { id: x.serieId }, data: { ...comuns, ...(doForm ? { subtarefas: data.subtarefas.map((s) => ({ texto: s.texto, feita: false })) } : {}) } });
+    await prisma.tarefa.updateMany({ where: { serieId: x.serieId, id: { not: x.id }, status: "ABERTA" }, data: comuns });
+    if (data.projetoId !== x.projetoId) await prisma.tarefa.updateMany({ where: { serieId: x.serieId, id: { not: x.id }, status: "CONCLUIDA" }, data: { projetoId: data.projetoId } });
   }
   if (resp) await avisar(u.id, t.responsavelId, `📌 DEMANDA PASSADA PARA VOCÊ por ${nome(u)}: ${t.titulo} — prazo ${t.prazo.split("-").reverse().join("/")}.`);
   return { ok: true, tarefa: up };
