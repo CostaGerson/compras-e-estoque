@@ -88,7 +88,10 @@ export async function rankingClientes(ano, mes, kpi = "vendasPecas", limite = 10
   let mapa = new Map();
   const docs = new Map();   // v647 — CNPJ de cada nome (quando a fonte traz), para achar o grupo
   const somar = (nome, v, cnpj) => { const k = String(nome || "NÃO IDENTIFICADO").trim().toUpperCase() || "NÃO IDENTIFICADO"; mapa.set(k, (mapa.get(k) || 0) + Number(v || 0)); if (cnpj) docs.set(k, String(cnpj).replace(/\D/g, "")); };
-  if (kpi === "faturamentoValor") {
+  if (kpi === "faturamentoValor" && (await import("@/lib/kpiAuto")).ehMesAuto(ano, mes)) {
+    // v674 — mês automático: NFs de saída de venda do Movimento fiscal (mesma base do card)
+    for (const x of await (await import("@/lib/kpiAuto")).rankingFaturamentoNfs(ano, mes)) somar(x.cliente, x.v, x.cnpj);
+  } else if (kpi === "faturamentoValor") {
     const de = new Date(Date.UTC(ano, mes - 1, 1)), ate = new Date(Date.UTC(ano, mes, 1));
     const nfs = await prisma.finNfSaida.findMany({ where: { emissao: { gte: de, lt: ate } }, select: { destNome: true, destCnpj: true, valor: true, natureza: true } });
     for (const n of nfs) if (!NAO_VENDA.test(n.natureza || "")) somar(n.destNome, n.valor, n.destCnpj);
@@ -330,39 +333,40 @@ export async function painel(ano, mes) {
 
   const kpis = [
     {
+      auto: l.auto,   // v674 — calculado pelo sistema (selo "automático" no card)
       chave: "vendasValor", rotulo: "Vendas", unidade: "R$",
       valor: l.vendas.atual, meta: metaMes(l.metaVendasValor, r.metas.vendas),
       serie: serie((x) => x.vendas.atual), metaSerie: serie((x) => metaMes(x.metaVendasValor, r.metas.vendas)),
       fonte: l.auto ? "Pedidos lançados no mês (sem internos e cancelados)" : "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
-      chave: "vendasPecas", rotulo: "Vendas", unidade: "peças",
+      auto: l.auto, chave: "vendasPecas", rotulo: "Vendas", unidade: "peças",
       // v213: meta própria de vendas em peças (METAS); sem ela, a de peças faturadas (regra antiga)
       valor: l.vendas.pecas, meta: metaMes(l.metaVendasPecas, r.metas.vendasPecas) ?? l.faturamento.metaPecas,
       serie: serie((x) => x.vendas.pecas), metaSerie: serie((x) => metaMes(x.metaVendasPecas, r.metas.vendasPecas) ?? x.faturamento.metaPecas),
       fonte: l.auto ? "Peças dos pedidos lançados no mês (sem internos, cancelados e serviços)" : "Lançamento manual — virá dos pedidos lançados no mês",
     },
     {
-      chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
+      auto: l.auto, chave: "faturamentoValor", rotulo: "Faturamento", unidade: "R$",
       valor: l.faturamento.atual, meta: metaMes(l.faturamento.metaValor, r.metas.faturamento),
       serie: serie((x) => x.faturamento.atual), metaSerie: serie((x) => metaMes(x.faturamento.metaValor, r.metas.faturamento)),
       fonte: l.auto ? "NFs de saída de venda emitidas no mês" : "Lançamento manual — virá das NFs de saída emitidas",
     },
     {
       // v214 — ticket médio do mês = faturamento ÷ peças faturadas; meta = a de METAS (ano), ou a implícita nas metas do mês
-      chave: "ticketMedio", rotulo: "Ticket médio", unidade: "R$",
+      auto: l.auto, chave: "ticketMedio", rotulo: "Ticket médio", unidade: "R$",
       valor: tkt(l), meta: metaTicket(l),
       serie: serie(tkt), metaSerie: serie(metaTicket),
       fonte: "Faturamento ÷ peças faturadas do mês",
     },
     {
-      chave: "pecasFaturadas", rotulo: "Peças faturadas", unidade: "peças",
+      auto: l.auto, chave: "pecasFaturadas", rotulo: "Peças faturadas", unidade: "peças",
       valor: l.faturamento.pecas, meta: metaMes(l.faturamento.metaPecas, r.metas.pecasFaturadas),
       serie: serie((x) => x.faturamento.pecas), metaSerie: serie((x) => metaMes(x.faturamento.metaPecas, r.metas.pecasFaturadas)),
       fonte: l.auto ? "Peças das NFs de saída de venda do mês (peças produzidas = faturadas)" : "Lançamento manual (peças produzidas = faturadas) — virá das NFs de saída",
     },
     {
-      chave: "receitaValor", rotulo: "Receita", unidade: "R$",
+      auto: l.receita.fonte === "DRE", chave: "receitaValor", rotulo: "Receita", unidade: "R$",
       valor: l.receita.total, meta: metaMes(l.metaReceitaValor, r.metas.receita),
       serie: serie((x) => x.receita.total), metaSerie: serie((x) => metaMes(x.metaReceitaValor, r.metas.receita)),
       fonte: l.receita.fonte === "MANUAL" ? "Lançamento manual (mês ainda sem DRE)" : "DRE da análise financeira (contas do grupo Receita)",

@@ -75,3 +75,10 @@ export async function rankingVendasPedidos(ano, mes, kpi) {
     select: { cliente: true, cnpj: true, total: true, qtd: true, itens: true, interno: true, status: true, tipoPedido: true } })).filter(pedidoConta);
   return ps.map((p) => ({ cliente: p.cliente, cnpj: p.cnpj || null, v: kpi === "vendasValor" ? Number(p.total || 0) : pecasDoPedido(p) }));
 }
+
+// v674 — ranking de faturamento por cliente nos meses automáticos (Movimento fiscal, NFs de saída de venda)
+export async function rankingFaturamentoNfs(ano, mes) {
+  const de = new Date(Date.UTC(ano, mes - 1, 1)), ate = new Date(Date.UTC(ano, mes, 1));
+  const nfs = (await prisma.fiscalNota.findMany({ where: { tipo: "SAIDA", emissao: { gte: de, lt: ate } }, select: { parceiro: true, documento: true, valor: true, natureza: true, motivo: true } })).filter(nfDeVenda);
+  return nfs.map((n) => ({ cliente: n.parceiro, cnpj: n.documento || null, v: Number(n.valor || 0) }));
+}

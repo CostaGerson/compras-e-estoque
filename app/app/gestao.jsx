@@ -267,8 +267,8 @@ function CardKpi({ k, mes, ano, user, master, money, acumulado = false }) {
           {k.rotulo} <span style={{ fontWeight: 400 }}>({k.unidade === "R$" ? "R$" : "peças"})</span>
         </div>
         <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0"
-          style={{ background: k.derivado ? C.blueSoft : C.panel2, color: k.derivado ? C.blue : C.sub }} title={k.fonte}>
-          {k.derivado ? "= faturadas" : "manual"}
+          style={{ background: k.auto ? C.greenSoft || "#E7F6EE" : k.derivado ? C.blueSoft : C.panel2, color: k.auto ? C.green || "#12A150" : k.derivado ? C.blue : C.sub }} title={k.fonte}>
+          {k.auto ? "automático" : k.derivado ? "= faturadas" : "manual"}   {/* v674 */}
         </span>
       </div>
 
