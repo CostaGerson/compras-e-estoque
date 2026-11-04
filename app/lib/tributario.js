@@ -16,11 +16,49 @@ export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", cnpj: "48.011.287/
   logradouro: "RUA DR. NATALINO TRIGINELLI", numero: "281", bairro: "JARDIM ATLÂNTICO", municipio: "BELO HORIZONTE", uf: "MG", cep: "31710-420", codigoMunicipio: "3106200",
   telefone: "", email: "", infoComplementar: "" };
 
+// v677 — classes de produto com NCM e tributação da planilha "NCM_Produtos - Planilha Atualizada" (Meridian Artigos Militares e Outdoor).
+//   Um NCM por classe (o tipo de peça do item); todas com ICMS tributado CST 00 (18% interno MG; interestadual pela tabela),
+//   PIS/COFINS lucro presumido CST 01 (0,65% / 3%) e IPI CST 51 (0%). Base para as naturezas de operação.
+const TRIB_PADRAO = { icmsTributacao: "TRIBUTADO", icmsCst: "00", icmsAliquotaInterna: 18, pisCofinsTributacao: "TRIBUTADO ALÍQUOTA BÁSICA", pisCofinsCst: "01",
+  pisAliquota: 0.65, cofinsAliquota: 3, ipiTributacao: "TRIBUTADO ALÍQUOTA BÁSICA", ipiCst: "51", ipiAliquota: 0 };
+export const CLASSES_NCM = [
+  ["CAMISETA", "61091000", "Camisetas e regatas de malha"],
+  ["POLO", "62052000", "Camisas polo (piquet, PV) e camisas de malha"],
+  ["CAMISA", "62069000", "Camisas sociais, operacionais e administrativas de tecido plano (brim, tricoline)"],
+  ["JAQUETA", "61019090", "Jaquetas e corta-ventos"],
+  ["CALÇA", "61046900", "Calças (táticas, brim, operacionais, fiscais)"],
+  ["BERMUDA", "61034900", "Bermudas"],
+  ["JALECO", "62029900", "Jalecos"],
+  ["GUARDA-PÓ", "63090010", "Guarda-pós"],
+  ["AGASALHO", "61013000", "Agasalhos desportivos e de uniforme"],
+  ["BLUSÃO DE FRIO", "61013000", "Blusões de frio"],
+  ["BLUSÃO INDUSTRIAL", "62069000", "Blusões industriais de brim (manga comprida)"],
+  ["CONJUNTO AGASALHO", "61012000", "Conjuntos de agasalho"],
+  ["CASACO", "61029000", "Casacos"],
+  ["SUÉTER", "61109000", "Suéteres"],
+  ["BLAZER", "61043900", "Blazers sociais"],
+  ["VESTIDO", "61044900", "Vestidos"],
+  ["BONÉ", "65051900", "Bonés"],
+  ["LENÇO", "62029900", "Lenços"],
+  ["MEIA", "61151022", "Meias e meiões"],
+  ["SAPATO", "64042000", "Sapatos"],
+];
+const K_NCM = "TRIB|NCM_PLANILHA_V1";
+async function aplicarPlanilhaNcm(db) {
+  if (await db.finConfig.findUnique({ where: { chave: K_NCM } }).catch(() => null)) return;
+  for (const [tipoPeca, ncm, descricao] of CLASSES_NCM) {
+    const d = { ncm, descricao, ...TRIB_PADRAO };
+    await db.tribProduto.upsert({ where: { tipoPeca }, create: { tipoPeca, unidade: "PC", gtin: "SEM GTIN", origem: 0, ...d }, update: d });
+  }
+  await db.finConfig.create({ data: { chave: K_NCM, valor: JSON.stringify({ em: new Date().toISOString(), classes: CLASSES_NCM.length }) } }).catch(() => null);
+}
+
 const num = (v) => { if (v === "" || v == null) return null; const s = String(v).trim(); const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s); return Number.isFinite(n) ? n : null; };
 const txt = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim().toUpperCase());
 
 export async function dadosTributarios(db = prisma) {
   if (!(await db.tribNatureza.count())) await db.tribNatureza.createMany({ data: NATUREZAS_INICIAIS });
+  await aplicarPlanilhaNcm(db).catch((e) => console.log("trib/ncm:", e.message));   // v677
   const [cfg, naturezas, produtos] = await Promise.all([
     db.finConfig.findUnique({ where: { chave: K_EMP } }).catch(() => null),
     db.tribNatureza.findMany({ where: { ativo: true }, orderBy: [{ tipo: "desc" }, { nome: "asc" }] }),
@@ -28,7 +66,9 @@ export async function dadosTributarios(db = prisma) {
   ]);
   let empresa = { ...EMPRESA_PADRAO }; try { empresa = { ...empresa, ...JSON.parse(cfg?.valor || "{}") }; } catch {}
   const n = (v) => (v == null ? null : Number(v));
-  return { empresa, usos: USOS, produtos,
+  const { ICMS_INTERESTADUAL } = await import("@/lib/icmsInterestadual");
+  return { empresa, usos: USOS, icmsInterestadual: ICMS_INTERESTADUAL,
+    produtos: produtos.map((p) => ({ ...p, icmsAliquotaInterna: n(p.icmsAliquotaInterna), pisAliquota: n(p.pisAliquota), cofinsAliquota: n(p.cofinsAliquota), ipiAliquota: n(p.ipiAliquota) })),
     naturezas: naturezas.map((x) => ({ ...x, icmsAliquota: n(x.icmsAliquota), icmsReducao: n(x.icmsReducao), icmsStAliquota: n(x.icmsStAliquota), ipiAliquota: n(x.ipiAliquota),
       pisAliquota: n(x.pisAliquota), cofinsAliquota: n(x.cofinsAliquota), issAliquota: n(x.issAliquota) })) };
 }
@@ -61,7 +101,11 @@ export async function salvarProduto(b, db = prisma) {
   const ncm = b.ncm ? String(b.ncm).replace(/\D/g, "") : null;
   if (ncm && ncm.length !== 8) return { error: `NCM de ${tipoPeca}: 8 dígitos.` };
   const data = { ncm, cest: b.cest ? String(b.cest).replace(/\D/g, "") || null : null, origem: Math.min(8, Math.max(0, Number(b.origem) || 0)),
-    unidade: txt(b.unidade) || "UN", gtin: txt(b.gtin), codigoServico: txt(b.codigoServico), obs: b.obs ? String(b.obs).trim() : null };
+    unidade: txt(b.unidade) || "UN", gtin: txt(b.gtin), codigoServico: txt(b.codigoServico), obs: b.obs ? String(b.obs).trim() : null,
+    // v677 — tributação da classe
+    descricao: b.descricao ? String(b.descricao).trim() : null, icmsTributacao: txt(b.icmsTributacao), icmsCst: txt(b.icmsCst), icmsAliquotaInterna: num(b.icmsAliquotaInterna),
+    pisCofinsTributacao: txt(b.pisCofinsTributacao), pisCofinsCst: txt(b.pisCofinsCst), pisAliquota: num(b.pisAliquota), cofinsAliquota: num(b.cofinsAliquota),
+    ipiTributacao: txt(b.ipiTributacao), ipiCst: txt(b.ipiCst), ipiAliquota: num(b.ipiAliquota) };
   await db.tribProduto.upsert({ where: { tipoPeca }, create: { tipoPeca, ...data }, update: data });
   return { ok: true };
 }

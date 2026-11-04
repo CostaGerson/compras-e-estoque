@@ -213,6 +213,18 @@ model TribProduto {
   gtin          String?                          // "SEM GTIN" quando não tem
   codigoServico String?                          // item da lista LC 116 (serviço)
   obs           String?
+  // v677 — tributação da classe (planilha NCM_Produtos): ICMS, PIS/COFINS (lucro presumido) e IPI
+  descricao     String?                          // o que entra na classe (ex.: camisa social, operacional de tecido plano)
+  icmsTributacao String?
+  icmsCst       String?
+  icmsAliquotaInterna Decimal? @db.Decimal(6, 2)   // % MG
+  pisCofinsTributacao String?
+  pisCofinsCst  String?
+  pisAliquota   Decimal? @db.Decimal(6, 4)       // %
+  cofinsAliquota Decimal? @db.Decimal(6, 4)      // %
+  ipiTributacao String?
+  ipiCst        String?
+  ipiAliquota   Decimal? @db.Decimal(6, 2)       // %
   updatedAt     DateTime @updatedAt
 }
 

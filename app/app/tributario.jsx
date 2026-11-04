@@ -30,11 +30,12 @@ export default function Tributario({ user, tiposPeca = [] }) {
     <div className="max-w-6xl">
       <p className="text-sm mb-4" style={{ color: C.sub }}>Dados fiscais que o sistema manda ao <b>Bling</b> para emitir a NF-e do pedido: o emitente, a <b>natureza de operação</b> (CFOP e tributação, escolhida pelo documento de entrega do pedido) e a <b>classificação fiscal</b> de cada tipo de peça (NCM, origem, unidade). Confira os impostos com a contabilidade.</p>
       <div className="flex gap-1 mb-4">
-        {[["naturezas", "Naturezas de operação"], ["produtos", "Produtos (NCM)"], ["empresa", "Emitente"]].map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
+        {[["naturezas", "Naturezas de operação"], ["produtos", "Produtos (NCM)"], ["icms", "ICMS interestadual"], ["empresa", "Emitente"]].map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
           style={{ background: aba === k ? C.accentSoft : C.panel, color: aba === k ? C.accent : C.sub, border: `1px solid ${aba === k ? C.accent : C.line}` }}>{t}</button>)}
       </div>
       {aba === "empresa" && <Empresa d={d} post={post} />}
       {aba === "produtos" && <Produtos d={d} post={post} tiposPeca={tiposPeca} />}
+      {aba === "icms" && <IcmsInter d={d} />}
       {aba === "naturezas" && <>
         <div className="flex justify-end mb-2"><button onClick={() => setNat({ tipo: "SAIDA", finalidade: 1, presenca: 9 })} className="px-3 py-1.5 rounded-md text-sm font-semibold text-white flex items-center gap-1" style={{ background: C.accent }}><Plus size={14} /> Nova natureza</button></div>
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -112,31 +113,76 @@ function NaturezaForm({ n, usos, crt, onClose, onSalvar }) {
   );
 }
 
+// v677 — classes de produto (NCM + tributação) da planilha NCM_Produtos; um NCM por classe (o tipo de peça do item)
 function Produtos({ d, post, tiposPeca }) {
-  const tipos = [...new Set([...tiposPeca, "SERVIÇO", ...d.produtos.map((p) => p.tipoPeca)])];
-  const [rows, setRows] = useState(() => Object.fromEntries(tipos.map((t) => [t, { tipoPeca: t, origem: 0, unidade: t === "SERVIÇO" ? "UN" : "PC", gtin: "SEM GTIN", ...(d.produtos.find((p) => p.tipoPeca === t) || {}) }])));
-  const set = (t, k, v) => setRows((r) => ({ ...r, [t]: { ...r[t], [k]: v } }));
+  const base = [...new Set([...d.produtos.map((p) => p.tipoPeca), ...tiposPeca, "SERVIÇO"])];
+  const [extras, setExtras] = useState([]);
+  const tipos = [...base, ...extras.filter((x) => !base.includes(x))];
+  const vazio = (t) => ({ tipoPeca: t, origem: 0, unidade: t === "SERVIÇO" ? "UN" : "PC", gtin: "SEM GTIN" });
+  const [rows, setRows] = useState(() => Object.fromEntries(base.map((t) => [t, { ...vazio(t), ...(d.produtos.find((p) => p.tipoPeca === t) || {}) }])));
+  const set = (t, k, v) => setRows((r) => ({ ...r, [t]: { ...(r[t] || vazio(t)), [k]: v } }));
+  const [nova, setNova] = useState("");
   const [st, setSt] = useState(false);
-  const salvarTudo = async () => { setSt(true); for (const t of tipos) if (rows[t].ncm || rows[t].codigoServico || d.produtos.some((p) => p.tipoPeca === t)) { if (!(await post("produto", rows[t]))) break; } setSt(false); };
+  const salvarTudo = async () => { setSt(true); for (const t of tipos) { const r = rows[t] || vazio(t); if (r.ncm || r.codigoServico || d.produtos.some((p) => p.tipoPeca === t)) { if (!(await post("produto", { ...r, tipoPeca: t }))) break; } } setSt(false); };
+  const fNcm = (n) => { const x = String(n || "").replace(/\D/g, ""); return x.length === 8 ? `${x.slice(0, 4)}.${x.slice(4, 6)}.${x.slice(6)}` : n || ""; };
+  const pequeno = { ...iS, padding: "4px 6px" };
   return (
     <div>
-      <div className="text-xs mb-2" style={{ color: C.sub }}>Classificação fiscal por <b>tipo de peça</b> (o tipo escolhido em cada item do pedido). Ex.: camiseta de malha de algodão 6109.10.00 · de outras fibras 6109.90.00 — confirme com a contabilidade.</div>
-      <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <table className="w-full text-sm">
-          <thead><tr className="text-xs text-left" style={{ background: C.panel2, color: C.sub }}><th className="px-3 py-2">Tipo de peça</th><th className="px-3 py-2">NCM</th><th className="px-3 py-2">CEST</th><th className="px-3 py-2">Origem</th><th className="px-3 py-2">Unidade</th><th className="px-3 py-2">GTIN/EAN</th><th className="px-3 py-2">Cód. serviço (LC 116)</th></tr></thead>
-          <tbody>{tipos.map((t) => { const r = rows[t]; return (
+      <div className="text-xs mb-2" style={{ color: C.sub }}>Um NCM por <b>classe</b> de produto (o tipo de peça escolhido no item do pedido), com a tributação de cada uma — base para as naturezas de operação. Referência: planilha <b>NCM Produtos</b> (ICMS tributado CST 00 · 18% MG, interestadual pela tabela · PIS/COFINS lucro presumido CST 01 · 0,65% / 3% · IPI CST 51 · 0%).</div>
+      <div className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <table className="w-full text-xs">
+          <thead><tr className="text-left" style={{ background: C.panel2, color: C.sub }}>
+            {["Classe", "O que entra", "NCM", "CEST", "Origem", "Unid.", "GTIN", "ICMS CST", "ICMS MG %", "PIS/COF CST", "PIS %", "COFINS %", "IPI CST", "IPI %", "Cód. serviço"].map((h) => <th key={h} className="px-2 py-2 whitespace-nowrap">{h}</th>)}
+          </tr></thead>
+          <tbody>{tipos.map((t) => { const r = rows[t] || vazio(t); const sv = t === "SERVIÇO"; const I = (k, w = 70, props = {}) => <input value={r[k] ?? ""} onChange={(e) => set(t, k, e.target.value)} className="rounded outline-none text-xs" style={{ ...pequeno, width: w }} {...props} />;
+            return (
             <tr key={t} style={{ borderTop: `1px solid ${C.line}` }}>
-              <td className="px-3 py-1.5 font-semibold" style={{ color: C.navy }}>{t}</td>
-              <td className="px-3 py-1.5"><input value={r.ncm || ""} onChange={(e) => set(t, "ncm", e.target.value)} placeholder={t === "SERVIÇO" ? "—" : "0000.00.00"} disabled={t === "SERVIÇO"} className={inp} style={iS} /></td>
-              <td className="px-3 py-1.5"><input value={r.cest || ""} onChange={(e) => set(t, "cest", e.target.value)} disabled={t === "SERVIÇO"} className={inp} style={iS} /></td>
-              <td className="px-3 py-1.5"><select value={r.origem} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={t === "SERVIÇO"} className={inp} style={iS}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
-              <td className="px-3 py-1.5"><input value={r.unidade || ""} onChange={(e) => set(t, "unidade", e.target.value)} className={inp} style={{ ...iS, width: 70 }} /></td>
-              <td className="px-3 py-1.5"><input value={r.gtin || ""} onChange={(e) => set(t, "gtin", e.target.value)} disabled={t === "SERVIÇO"} className={inp} style={iS} /></td>
-              <td className="px-3 py-1.5"><input value={r.codigoServico || ""} onChange={(e) => set(t, "codigoServico", e.target.value)} disabled={t !== "SERVIÇO"} placeholder={t === "SERVIÇO" ? "ex.: 14.09" : ""} className={inp} style={iS} /></td>
+              <td className="px-2 py-1 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{t}{tiposPeca.includes(t) && <span className="ml-1 text-[9px] px-1 rounded" style={{ background: C.accentSoft, color: C.accent }} title="Tipo de peça usado no lançamento de pedido">peça</span>}</td>
+              <td className="px-2 py-1">{I("descricao", 210)}</td>
+              <td className="px-2 py-1"><input value={fNcm(r.ncm)} onChange={(e) => set(t, "ncm", e.target.value)} disabled={sv} placeholder={sv ? "—" : "0000.00.00"} className="rounded outline-none text-xs tabular-nums" style={{ ...pequeno, width: 84 }} /></td>
+              <td className="px-2 py-1">{I("cest", 64, { disabled: sv })}</td>
+              <td className="px-2 py-1"><select value={r.origem ?? 0} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={sv} className="rounded outline-none text-xs" style={{ ...pequeno, width: 110 }}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
+              <td className="px-2 py-1">{I("unidade", 44)}</td>
+              <td className="px-2 py-1">{I("gtin", 80, { disabled: sv })}</td>
+              <td className="px-2 py-1">{I("icmsCst", 40)}</td>
+              <td className="px-2 py-1">{I("icmsAliquotaInterna", 44)}</td>
+              <td className="px-2 py-1">{I("pisCofinsCst", 40)}</td>
+              <td className="px-2 py-1">{I("pisAliquota", 48)}</td>
+              <td className="px-2 py-1">{I("cofinsAliquota", 44)}</td>
+              <td className="px-2 py-1">{I("ipiCst", 40)}</td>
+              <td className="px-2 py-1">{I("ipiAliquota", 40)}</td>
+              <td className="px-2 py-1">{I("codigoServico", 60, { disabled: !sv, placeholder: sv ? "ex.: 14.09" : "" })}</td>
             </tr>); })}</tbody>
         </table>
       </div>
-      <div className="flex justify-end mt-3"><button disabled={st} onClick={salvarTudo} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>{st && <Loader2 size={14} className="animate-spin" />} Salvar classificação</button></div>
+      <div className="flex items-center gap-2 mt-3">
+        <input value={nova} onChange={(e) => setNova(e.target.value.toUpperCase())} placeholder="nova classe (ex.: COLETE)" className="rounded-lg outline-none text-sm px-2 py-1.5" style={{ ...iS, width: 220 }} />
+        <button onClick={() => { const n = nova.trim(); if (n && !tipos.includes(n)) { setExtras((x) => [...x, n]); setRows((r) => ({ ...r, [n]: { ...vazio(n), icmsCst: "00", icmsAliquotaInterna: 18, pisCofinsCst: "01", pisAliquota: 0.65, cofinsAliquota: 3, ipiCst: "51", ipiAliquota: 0 } })); } setNova(""); }} className="px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Classe</button>
+        <span className="flex-1" />
+        <button disabled={st} onClick={salvarTudo} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>{st && <Loader2 size={14} className="animate-spin" />} Salvar classes</button>
+      </div>
+    </div>
+  );
+}
+
+// v677 — tabela de alíquotas de ICMS nas operações interestaduais (origem × destino); diagonal = alíquota interna
+function IcmsInter({ d }) {
+  const T = d.icmsInterestadual || {};
+  const ufs = Object.keys(T);
+  const [orig, setOrig] = useState("MG");
+  return (
+    <div>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>ICMS nas operações interestaduais (%) · linha = estado de <b>origem</b>, coluna = <b>destino</b>; a diagonal é a alíquota interna. <b>Verifique em cada estado a incidência do FCP</b> (Fundo de Combate à Pobreza). Destaque: saídas de <b>{orig}</b>.</div>
+      <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: C.sub }}>Origem em destaque <select value={orig} onChange={(e) => setOrig(e.target.value)} className="rounded outline-none text-xs px-1 py-0.5" style={iS}>{ufs.map((u) => <option key={u}>{u}</option>)}</select></div>
+      <div className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <table className="text-[11px] tabular-nums">
+          <thead><tr style={{ background: C.panel2, color: C.sub }}><th className="px-1.5 py-1 sticky left-0" style={{ background: C.panel2 }}>orig.\dest.</th>{ufs.map((u) => <th key={u} className="px-1.5 py-1">{u}</th>)}</tr></thead>
+          <tbody>{ufs.map((o) => <tr key={o} style={{ borderTop: `1px solid ${C.line}`, background: o === orig ? C.accentSoft : undefined }}>
+            <td className="px-1.5 py-1 font-bold sticky left-0" style={{ color: C.navy, background: o === orig ? C.accentSoft : C.panel }}>{o}</td>
+            {ufs.map((x) => <td key={x} className="px-1.5 py-1 text-center" style={{ fontWeight: o === x ? 700 : 400, color: o === x ? C.navy : C.text }}>{fmt(T[o][x])}</td>)}
+          </tr>)}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
