@@ -138,12 +138,12 @@ function Produtos({ d, post, tiposPeca }) {
             return (
             <tr key={t} style={{ borderTop: `1px solid ${C.line}` }}>
               <td className="px-2 py-1 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{t}{tiposPeca.includes(t) && <span className="ml-1 text-[9px] px-1 rounded" style={{ background: C.accentSoft, color: C.accent }} title="Tipo de peça usado no lançamento de pedido">peça</span>}</td>
-              <td className="px-2 py-1">{I("descricao", 190)}</td>
-              <td className="px-2 py-1"><input value={fNcm(r.ncm)} onChange={(e) => set(t, "ncm", e.target.value)} disabled={sv} placeholder={sv ? "—" : "0000.00.00"} className="rounded outline-none text-xs tabular-nums" style={{ ...pequeno, width: 92 }} /></td>
+              <td className="px-2 py-1" style={{ minWidth: 300 }}><input value={r.descricao ?? ""} onChange={(e) => set(t, "descricao", e.target.value)} title={r.descricao || ""} className="rounded outline-none text-xs w-full" style={pequeno} /></td>   {/* v680 — campo largo */}
+              <td className="px-2 py-1"><input value={fNcm(r.ncm)} onChange={(e) => set(t, "ncm", e.target.value)} disabled={sv} placeholder={sv ? "—" : "0000.00.00"} className="rounded outline-none text-xs tabular-nums" style={{ ...pequeno, width: 108 }} /></td>
               <td className="px-2 py-1">{I("cest", 64, { disabled: sv })}</td>
-              <td className="px-2 py-1"><select value={r.origem ?? 0} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={sv} className="rounded outline-none text-xs" style={{ ...pequeno, width: 110 }}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
+              <td className="px-2 py-1"><select value={r.origem ?? 0} onChange={(e) => set(t, "origem", Number(e.target.value))} disabled={sv} className="rounded outline-none text-xs" style={{ ...pequeno, width: 96 }}>{ORIGEM.map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></td>
               <td className="px-2 py-1">{I("unidade", 44)}</td>
-              <td className="px-2 py-1">{I("gtin", 80, { disabled: sv })}</td>
+              <td className="px-2 py-1">{I("gtin", 72, { disabled: sv })}</td>
               <td className="px-2 py-1">{I("icmsCst", 40)}</td>
               <td className="px-2 py-1">{I("icmsAliquotaInterna", 44)}</td>
               <td className="px-2 py-1">{I("pisCofinsCst", 40)}</td>
