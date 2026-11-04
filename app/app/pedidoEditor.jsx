@@ -596,12 +596,15 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             <div className="flex gap-4">
               <div className="w-36 shrink-0">
                 <div className="text-xs mb-1" style={{ color: it.fotoBase64 ? C.sub : C.accent }}>Layout da peça{it.fotoBase64 ? "" : " (obrigatório)"}</div>
-                <label className="block rounded cursor-pointer overflow-hidden" style={{ border: `1px dashed ${C.line}`, height: 136, background: C.panel2 }}>
+                <label className="block rounded cursor-pointer overflow-hidden relative" style={{ border: `1px dashed ${C.line}`, height: 136, background: C.panel2 }}>
+                  {/* v673 — remover o layout direto na imagem */}
+                  {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
+                    className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
                   {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                     : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar o layout<br/><span style={{ fontSize: 10 }}>sem layout → tarefa para o arte finalista</span></div>}
-                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                 </label>
-                {it.fotoBase64 && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1" style={{ color: "#C77" }}>remover layout</button>}
+                {it.fotoBase64 && podeLancar && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1 flex items-center gap-1 font-semibold" style={{ color: C.red }}><Trash2 size={12} /> remover layout</button>}
                 {/* v650 — arquivos do item (além da foto): saem na OP abaixo dos detalhes do item */}
                 <div className="mt-2" style={{ width: 120 }}>
                   <label className="block text-[11px] text-center px-1 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>
