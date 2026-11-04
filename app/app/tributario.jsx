@@ -128,11 +128,11 @@ function Produtos({ d, post, tiposPeca }) {
   const pequeno = { ...iS, padding: "4px 6px" };
   return (
     <div>
-      <div className="text-xs mb-2" style={{ color: C.sub }}>Um NCM por <b>classe</b> de produto (o tipo de peça escolhido no item do pedido), com a tributação de cada uma — base para as naturezas de operação. Referência: planilha <b>NCM Produtos</b> (ICMS tributado CST 00 · 18% MG, interestadual pela tabela · PIS/COFINS lucro presumido CST 01 · 0,65% / 3% · IPI CST 51 · 0%).</div>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>Um NCM por <b>classe</b> de produto (o tipo de peça escolhido no item do pedido), com a tributação de cada uma — base para as naturezas de operação. Referência: planilha <b>NCM Produtos</b> (ICMS: CST 00 = tributado integralmente, alíquota 18% em MG, interestadual pela tabela · PIS/COFINS lucro presumido: CST 01 = alíquota básica, 0,65% e 3% · IPI: CST 51 = saída tributada com alíquota zero, alíquota 0%). CST é o código da situação tributária, não percentual..</div>
       <div className="rounded-lg overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <table className="w-full text-xs">
           <thead><tr className="text-left" style={{ background: C.panel2, color: C.sub }}>
-            {["Classe", "O que entra", "NCM", "CEST", "Origem", "Unid.", "GTIN", "ICMS CST", "ICMS MG %", "PIS/COF CST", "PIS %", "COFINS %", "IPI CST", "IPI %", "Cód. serviço"].map((h) => <th key={h} className="px-2 py-2 whitespace-nowrap">{h}</th>)}
+            {["Classe", "O que entra", "NCM", "CEST", "Origem", "Unid.", "GTIN", "ICMS · CST (cód.)", "ICMS · alíq. MG %", "PIS/COFINS · CST (cód.)", "PIS · alíq. %", "COFINS · alíq. %", "IPI · CST (cód.)", "IPI · alíq. %", "Cód. serviço"].map((h) => <th key={h} className="px-2 py-2 whitespace-nowrap">{h}</th>)}
           </tr></thead>
           <tbody>{tipos.map((t) => { const r = rows[t] || vazio(t); const sv = t === "SERVIÇO"; const I = (k, w = 70, props = {}) => <input value={r[k] ?? ""} onChange={(e) => set(t, k, e.target.value)} className="rounded outline-none text-xs" style={{ ...pequeno, width: w }} {...props} />;
             return (

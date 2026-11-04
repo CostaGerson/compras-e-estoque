@@ -18,7 +18,7 @@ export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", cnpj: "48.011.287/
 
 // v677 — classes de produto com NCM e tributação da planilha "NCM_Produtos - Planilha Atualizada" (Meridian Artigos Militares e Outdoor).
 //   Um NCM por classe (o tipo de peça do item); todas com ICMS tributado CST 00 (18% interno MG; interestadual pela tabela),
-//   PIS/COFINS lucro presumido CST 01 (0,65% / 3%) e IPI CST 51 (0%). Base para as naturezas de operação.
+//   PIS/COFINS lucro presumido CST 01 (alíquotas 0,65% / 3%) e IPI CST 51 = código "saída tributada com alíquota zero" (alíquota 0%). CST é código, não %.
 const TRIB_PADRAO = { icmsTributacao: "TRIBUTADO", icmsCst: "00", icmsAliquotaInterna: 18, pisCofinsTributacao: "TRIBUTADO ALÍQUOTA BÁSICA", pisCofinsCst: "01",
   pisAliquota: 0.65, cofinsAliquota: 3, ipiTributacao: "TRIBUTADO ALÍQUOTA BÁSICA", ipiCst: "51", ipiAliquota: 0 };
 export const CLASSES_NCM = [
