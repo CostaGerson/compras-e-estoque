@@ -863,7 +863,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 <CampoFin t="Op. título">
                   <Toggle on={modoTitulo(f.opTitulo) !== "NAO"} onChange={(v) => set("opTitulo", v ? "BANCO" : "NAO")} />
                   {modoTitulo(f.opTitulo) !== "NAO" && (
-                    <div className="flex rounded-md overflow-hidden ml-2 h-full" style={{ border: `1px solid ${C.line}` }}>
+                    <div className="flex rounded-md overflow-hidden ml-2 h-full select-none" style={{ border: `1px solid ${C.line}`, userSelect: "none" }} onMouseDown={(e) => e.preventDefault()}>
                       {[["BANCO", "Banco"], ["FACTORING", "Factoring"]].map(([k, t]) => (
                         <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 text-xs font-semibold"
                           style={{ background: modoTitulo(f.opTitulo) === k ? C.accent : "#fff", color: modoTitulo(f.opTitulo) === k ? "#fff" : C.sub }}>{t}</button>
