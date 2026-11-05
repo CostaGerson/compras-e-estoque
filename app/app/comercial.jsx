@@ -753,6 +753,27 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
               <AvExtras lista={f.extrasAviamentos} onChange={(l) => set("extrasAviamentos", l)} />
             </Card>}
 
+            <Card title="Personalização">
+              {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
+              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} />
+              {num(f.arteTotal) > 0 && <div className="mt-2"><ArteInp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} qtde={num(f.qtde)} /></div>}
+              {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
+              {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
+                <div key={tec} className="mb-3">
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="text-xs font-semibold" style={{ color: C.text }}>{lbl}</div>
+                    <div className="flex items-center gap-1.5 text-[11px]" style={{ color: f[tec].interno ? C.accent : C.sub }}>
+                      <Toggle on={!!f[tec].interno} onChange={(v) => setP(tec, "interno", v)} /> Processo interno
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    <ArteInp label="Arte (total)" value={f[tec].arte} onChange={(v) => setP(tec, "arte", v)} qtde={num(f.qtde)} />
+                    {POS.map(([k, l]) => <Inp key={k} label={l} value={f[tec][k]} onChange={(v) => setP(tec, k, v)} />)}
+                  </div>
+                </div>
+              ))}
+            </Card>
+
             {!revenda && <Card title="Produção">
               {/* v294 — linha da costura: tipo de peça (só os condizentes) · valor da facção (fixo, salvo com "alterar parâmetros") · terceirizado ⇄ interno */}
               <div className="flex flex-wrap items-end gap-3 mb-3">
@@ -802,27 +823,6 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
             </Card>}
 
-            <Card title="Personalização">
-              {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
-              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} />
-              {num(f.arteTotal) > 0 && <div className="mt-2"><ArteInp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} qtde={num(f.qtde)} /></div>}
-              {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
-              {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
-                <div key={tec} className="mb-3">
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="text-xs font-semibold" style={{ color: C.text }}>{lbl}</div>
-                    <div className="flex items-center gap-1.5 text-[11px]" style={{ color: f[tec].interno ? C.accent : C.sub }}>
-                      <Toggle on={!!f[tec].interno} onChange={(v) => setP(tec, "interno", v)} /> Processo interno
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    <ArteInp label="Arte (total)" value={f[tec].arte} onChange={(v) => setP(tec, "arte", v)} qtde={num(f.qtde)} />
-                    {POS.map(([k, l]) => <Inp key={k} label={l} value={f[tec][k]} onChange={(v) => setP(tec, k, v)} />)}
-                  </div>
-                </div>
-              ))}
-            </Card>
-
             {/* v294 — lead time previsto logo depois da personalização */}
             <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
               <div className="text-sm font-bold" style={{ color: C.navy }}>Lead time previsto</div>
@@ -856,10 +856,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
               {/* v689 — card no padrão da personalização: prazo de pagamento › operações e comissão › valor proposto */}
               <PagamentoFpp pag={pagamentoFpp(f)} onChange={(p) => set("pagamento", p)} total={num(f.valorProposto) * Math.max(1, num(f.qtde))} fr={r?.pagFr} />
               <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-3" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
-                <CampoFin t="Op. investimento" info={r?.opInv > 0 ? <><b style={{ color: C.text }}>{brl(r.opInv)}</b>/pç · {Math.round(r.diasInv)} dias</> : null}>
+                <CampoFin t="Op. investimento">
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
                 </CampoFin>
-                <CampoFin t="Op. título" info={r?.opTit > 0 ? <><b style={{ color: C.text }}>{brl(r.opTit)}</b>/pç · {(r.taxaTit * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% a.m.</> : null}>
+                <CampoFin t="Op. título">
                   <Toggle on={modoTitulo(f.opTitulo) !== "NAO"} onChange={(v) => set("opTitulo", v ? "BANCO" : "NAO")} />
                   {modoTitulo(f.opTitulo) !== "NAO" && (
                     <div className="flex rounded-md overflow-hidden ml-2 h-full" style={{ border: `1px solid ${C.line}` }}>
@@ -870,7 +870,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                     </div>
                   )}
                 </CampoFin>
-                <CampoFin t="Comissão (%)" info={num(f.comissaoPct) > 0 && r ? <><b style={{ color: C.text }}>{brl(r.comissao)}</b>/pç</> : null}>
+                <CampoFin t="Comissão (%)">
                   <input value={f.comissaoPct} onChange={(e) => set("comissaoPct", e.target.value)} inputMode="decimal" placeholder="ex.: 3" className="w-full h-full px-2 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
                 </CampoFin>
               </div>
@@ -878,7 +878,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 <CampoFin t="Valor proposto (R$)">
                   <input value={f.valorProposto} onChange={(e) => set("valorProposto", e.target.value)} inputMode="decimal" placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} className="w-full h-full px-2 rounded text-sm font-semibold" style={{ background: "#fff", border: `1px solid ${C.accent}`, color: C.text }} />
                 </CampoFin>
-                <CampoFin t={`Sugestão (${Math.round(MARGEM_SUGERIDA * 100)}% de margem)`} info={f.repassarTaxas && r?.sugestaoBase != null ? <>sem repasse: {brl(r.sugestaoBase)}</> : null}>
+                <CampoFin t={`Sugestão (${Math.round(MARGEM_SUGERIDA * 100)}% de margem)`}>
                   {r?.sugestao != null ? <>
                     <b className="text-sm" style={{ color: C.navy }}>{brl(r.sugestao)}</b>
                     <button type="button" onClick={() => set("valorProposto", r.sugestao.toFixed(2).replace(".", ","))} className="ml-2 text-xs font-semibold underline" style={{ color: C.accent }}>usar</button>
