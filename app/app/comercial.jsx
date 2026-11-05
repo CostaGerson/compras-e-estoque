@@ -857,14 +857,18 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
                   <span className="text-xs" style={{ color: C.sub }}>Op. investimento</span>
                 </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: C.sub }}>Op. título</div>
-                  <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
-                    {[["NAO", "Não"], ["BANCO", "Banco"], ["FACTORING", "Factoring"]].map(([k, t]) => (
-                      <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 py-1.5 text-xs font-semibold"
-                        style={{ background: modoTitulo(f.opTitulo) === k ? C.accent : "#fff", color: modoTitulo(f.opTitulo) === k ? "#fff" : C.sub }}>{t}</button>
-                    ))}
-                  </div>
+                {/* v688 — op. título: chave liga/desliga; ligada, escolhe banco ou factoring */}
+                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
+                  <Toggle on={modoTitulo(f.opTitulo) !== "NAO"} onChange={(v) => set("opTitulo", v ? "BANCO" : "NAO")} />
+                  <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
+                  {modoTitulo(f.opTitulo) !== "NAO" && (
+                    <div className="flex rounded-md overflow-hidden ml-1" style={{ border: `1px solid ${C.line}` }}>
+                      {[["BANCO", "Banco"], ["FACTORING", "Factoring"]].map(([k, t]) => (
+                        <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 py-1.5 text-xs font-semibold"
+                          style={{ background: modoTitulo(f.opTitulo) === k ? C.accent : "#fff", color: modoTitulo(f.opTitulo) === k ? "#fff" : C.sub }}>{t}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <Inp label="Comissão do vendedor (%)" value={f.comissaoPct} onChange={(v) => set("comissaoPct", v)} placeholder="ex.: 3" />
               </div>
