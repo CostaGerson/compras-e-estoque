@@ -90,7 +90,8 @@ const CONST_PLANO = [
 const CONST_COMUM = [
   ["IMPOSTO", 0.0793, "Imposto sobre venda (fração)"],
   ["OP_INVEST_TAXA", 0.03,  "Operação financeira — investimento (a.m.)"],
-  ["OP_TITULO_TAXA", 0.058, "Operação financeira — título (a.m.)"],
+  ["OP_TITULO_BANCO_TAXA", 0.058, "Operação financeira — título banco (a.m.)"],         // v686 — título: banco ou factoring
+  ["OP_TITULO_FACTORING_TAXA", 0.058, "Operação financeira — título factoring (a.m.)"],
 ];
 
 async function up(tipo, grupo, chave, valor, extra, ordem, rotulo) {
@@ -119,7 +120,11 @@ async function main() {
   o = 0; for (const [n, v] of EMB_INT)        await up("COMUM", "EMB_INT", n, v, null, o++);
   o = 0; for (const [k, v, r] of CONST_MALHA) await up("MALHA", "CONST", k, v, null, o++, r);
   o = 0; for (const [k, v, r] of CONST_PLANO) await up("PLANO", "CONST", k, v, null, o++, r);
+  // v686 — op. título dividida em banco e factoring: as duas nascem com a taxa atual do título; a antiga sai da lista
+  const titAntigo = await prisma.fppParam.findUnique({ where: { tipo_grupo_chave: { tipo: "COMUM", grupo: "CONST", chave: "OP_TITULO_TAXA" } } }).catch(() => null);
+  if (titAntigo) for (const row of CONST_COMUM) if (/^OP_TITULO_(BANCO|FACTORING)_TAXA$/.test(row[0])) row[1] = titAntigo.valor;
   o = 0; for (const [k, v, r] of CONST_COMUM) await up("COMUM", "CONST", k, v, null, o++, r);
+  if (titAntigo?.ativo) await prisma.fppParam.update({ where: { id: titAntigo.id }, data: { ativo: false } }).catch(() => {});
   // v410 — elástico e faixa por metro: abre os campos (consumo e R$/m) nas especificações que ainda não têm; tipos de faixa e de botão
   for (const p of await prisma.fppParam.findMany({ where: { grupo: { in: ["ELASTICO", "FAIXA"] } } })) {
     const ex = { ...(p.extra || {}) };

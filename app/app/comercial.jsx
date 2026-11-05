@@ -208,6 +208,48 @@ const COND_PAGTO = {
   "BOLETO 30/60/90/120": [{ frac: .25, dias: 30, tipo: "boleto" }, { frac: .25, dias: 60, tipo: "boleto" }, { frac: .25, dias: 90, tipo: "boleto" }, { frac: .25, dias: 120, tipo: "boleto" }],
 };
 const COND_LISTA = Object.keys(COND_PAGTO);
+
+// v686 — FPP: prazo de pagamento igual ao do pedido (entrada + parcelas em dias corridos/úteis a contar da emissão do pedido, NF ou entrega).
+//   Valor em R$ ou em % do total ("50%"); parcela sem valor divide igualmente o que sobra. FPP antiga (condição da lista) é convertida.
+function pagDeCond(cond) {
+  const l = COND_PAGTO[cond] || COND_PAGTO["ANTECIPADO TOTAL"];
+  const pct = (x) => `${Math.round(x * 10000) / 100}%`.replace(".", ",");
+  const ant = l.filter((p) => p.tipo === "ant").reduce((s, p) => s + p.frac, 0);
+  return {
+    entrada: ant > 0 ? { valor: pct(ant) } : null,
+    parcelas: l.filter((p) => p.tipo !== "ant").map((p) => ({ dias: String(p.dias), tipo: "CORRIDOS", base: p.tipo === "entrega" ? "ENTREGA" : "NF", valor: pct(p.frac) })),
+  };
+}
+const pagamentoFpp = (f) => (f.pagamento && typeof f.pagamento === "object" ? f.pagamento : pagDeCond(f.condPagamento));
+const ehPct = (v) => /%\s*$/.test(String(v ?? ""));
+const valPag = (v, total) => (ehPct(v) ? total * num(String(v).replace("%", "")) / 100 : num(v));
+// frações do total por parcela: { entrada, parcelas: [{ frac, dias, tipo, base, valor }], soma }
+function fracoesPag(pag, total) {
+  const T = total > 0 ? total : 100;   // sem valor proposto: só % e divisão igual
+  const v = (x) => (total > 0 || ehPct(x) ? valPag(x, T) : 0);
+  const ent = pag?.entrada ? Math.max(0, v(pag.entrada.valor)) : 0;
+  const lst = Array.isArray(pag?.parcelas) ? pag.parcelas : [];
+  const fixas = lst.reduce((s, x) => s + Math.max(0, v(x.valor)), 0);
+  const livres = lst.filter((x) => !(v(x.valor) > 0)).length;
+  const cada = livres ? Math.max(0, T - ent - fixas) / livres : 0;
+  const parcelas = lst.map((x) => {
+    const valor = v(x.valor) > 0 ? v(x.valor) : cada;
+    return { frac: valor / T, valor: total > 0 ? valor : null, dias: Math.max(0, Math.round(num(x.dias))), tipo: x.tipo === "UTEIS" ? "UTEIS" : "CORRIDOS", base: ["EMISSAO", "NF", "ENTREGA"].includes(x.base) ? x.base : "NF" };
+  });
+  const soma = (ent + parcelas.reduce((s, x) => s + x.frac * T, 0)) / T;
+  return { entrada: ent / T, entradaValor: total > 0 ? ent : null, parcelas, soma, ok: Math.abs(soma - 1) < 0.0005 };
+}
+const SIG_BASE = { EMISSAO: "PEDIDO", NF: "NF", ENTREGA: "ENTREGA" };
+function textoPagFpp(pag, total) {
+  const fr = fracoesPag(pag, total);
+  const pc = (x) => `${Math.round(x * 1000) / 10}%`.replace(".", ",");
+  const partes = [];
+  if (fr.entrada > 0) partes.push(`ENTRADA ${pc(fr.entrada)}`);
+  if (fr.parcelas.length) partes.push(fr.parcelas.map((x) => `${x.dias} ${x.tipo === "UTEIS" ? "DU" : "DD"} ${SIG_BASE[x.base]}${fr.parcelas.length > 1 || fr.entrada > 0 ? ` (${pc(x.frac)})` : ""}`).join(" / "));
+  return partes.join(" + ") || "À VISTA";
+}
+// v686 — op. título: banco ou factoring (FPP antiga com "SIM" = banco)
+const modoTitulo = (v) => (v === "FACTORING" ? "FACTORING" : v === "BANCO" || v === "SIM" ? "BANCO" : "NAO");
 const MARGEM_SUGERIDA = 0.2;   // v294 — sugestão do valor proposto: 20% de margem de contribuição
 
 // v294 — costura: só os tipos condizentes com o nome da peça (camiseta não oferece calça etc.)
@@ -260,6 +302,13 @@ function prazoComComp(dias) {
   const comp = addDiasUteis(venc, 2);
   return Math.round((comp - hoje) / 86400000);
 }
+// v686 — prazo da parcela em dias corridos (dias úteis convertidos) + 2 dias úteis de compensação; parcela sem prazo = 0
+function prazoParcela(p) {
+  if (!(p.dias > 0)) return 0;
+  if (p.tipo !== "UTEIS") return prazoComComp(p.dias);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  return prazoComComp(Math.round((addDiasUteis(hoje, p.dias) - hoje) / 86400000));
+}
 
 function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "", interno: false }; }
 function fichaVazia(tipo) {
@@ -277,7 +326,8 @@ function fichaVazia(tipo) {
     silk: personalizacaoVazia(), bordado: personalizacaoVazia(), sublimacao: personalizacaoVazia(),
     personalizacoes: [], arteTotal: "", faccaoTipo: "",   // v272
     freteVolume: "", embExt: "", embInt: "SIMPLES", formaEntrega: "",   // v450 — PROPRIA | TRANSPORTADORA | FRETEBRAS | RETIRADA
-    opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", leadTime: "", repassarTaxas: false, paramsAlterados: false,
+    opInvest: "NAO", opTitulo: "NAO", condPagamento: "ANTECIPADO TOTAL", pagamento: null,   // v686 — pagamento { entrada, parcelas } igual ao pedido; null = converte condPagamento
+    leadTime: "", repassarTaxas: false, paramsAlterados: false,
     valorProposto: "", comissaoPct: "",   // v208: % de comissão do vendedor sobre o valor do pedido
     abRend: "", abCorte: "", abAcab: "",   // v512 — acessório malha/plano: rendimento ou consumo, corte e expedição/acabamento digitados
     custoRevenda: "", revendaFornecedor: "", revendaDescricao: "", revendaMarca: "",   // v512 — produto revenda: preço de custo por peça · v523 marca
@@ -437,14 +487,23 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
     const vp = num(f.valorProposto);
     const imposto = cget("IMPOSTO");
     const leadTime = num(f.leadTime);
-    // Investimento: juros sobre o custo de produção durante TODO o lead time
-    const opInv = f.opInvest === "SIM" ? cget("OP_INVEST_TAXA") * (leadTime / 30) * custoProducao : 0;
-    // Título: juros sobre cada parcela em boleto, pelo prazo da parcela + 2 dias úteis
-    const cond = COND_PAGTO[f.condPagamento] || COND_PAGTO["ANTECIPADO TOTAL"];
-    let opTit = 0;
-    if (f.opTitulo === "SIM") {
-      for (const p of cond) if (p.tipo === "boleto") opTit += vp * p.frac * cget("OP_TITULO_TAXA") * (prazoComComp(p.dias) / 30);
+    // v686 — operações só pelo período em que o recurso fica em uso, conforme o prazo de pagamento (entrada + parcelas):
+    //   Investimento: sobre o custo, por parcela = lead time + prazo da parcela (a entrada não usa recurso; parcela da emissão do pedido = só o prazo).
+    //     Com op. título ligada, o prazo da parcela já é coberto pelo título → o investimento fica só no lead time.
+    //   Título (banco ou factoring): sobre o valor, só nas parcelas com prazo, pelo prazo + 2 dias úteis de compensação.
+    const pag = pagamentoFpp(f);
+    const fr = fracoesPag(pag, vp * Math.max(1, num(f.qtde)));
+    const tit = modoTitulo(f.opTitulo);
+    const taxaTit = tit === "NAO" ? 0 : (cget(tit === "FACTORING" ? "OP_TITULO_FACTORING_TAXA" : "OP_TITULO_BANCO_TAXA") || cget("OP_TITULO_TAXA"));
+    let diasInv = 0, kTit = 0;   // diasInv = Σ fração × dias de uso; kTit = Σ fração × taxa × prazo/30
+    for (const p of fr.parcelas) {
+      const prazo = prazoParcela(p);
+      const titulo = tit !== "NAO" && prazo > 0;
+      if (titulo) kTit += p.frac * taxaTit * (prazo / 30);
+      diasInv += p.frac * (p.base === "EMISSAO" ? (titulo ? 0 : prazo) : leadTime + (titulo ? 0 : prazo));
     }
+    const opInv = f.opInvest === "SIM" ? cget("OP_INVEST_TAXA") * (diasInv / 30) * custoProducao : 0;
+    const opTit = vp * kTit;
     const opFin = opInv + opTit;
     const comissaoPct = num(f.comissaoPct) / 100;   // v208: comissão do vendedor (% do valor do pedido)
     const comissao = vp * comissaoPct;
@@ -454,22 +513,20 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
     const totalItem = vp * num(f.qtde);
     // v294 — sugestão do valor proposto (20% de margem). Sem repassar: a empresa absorve título, investimento e comissão.
     //   Repassando: o preço cobre essas taxas e a margem de 20% fica preservada.
-    let kTit = 0;
-    if (f.opTitulo === "SIM") for (const p of cond) if (p.tipo === "boleto") kTit += p.frac * cget("OP_TITULO_TAXA") * (prazoComComp(p.dias) / 30);
     const denBase = 1 - imposto - MARGEM_SUGERIDA;
     const denRep = 1 - imposto - comissaoPct - kTit - MARGEM_SUGERIDA;
     const sugestaoBase = denBase > 0 ? custoProducao / denBase : null;
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over, aberta, revenda]);
 
   function montarBody() {
     return {
       tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
       negociacao: f.negociacao || null,
-      condicaoPagamento: f.condPagamento, leadTime: num(f.leadTime),
+      condicaoPagamento: textoPagFpp(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde))), leadTime: num(f.leadTime),
       entradas: { ...f, paramsAlterados: !!(modoOverride || Object.keys(over).length) }, overrides: Object.keys(over).length ? over : null,
       resultados: r,
       custoProducao: r?.custoProducao, custoFinal: r?.custoFinal, valorProposto: num(f.valorProposto),
@@ -677,8 +734,13 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                   <AvMetro c={r?.fx} semTipo={!semAv(f.faixa) && !f.faixaTipo} />
                 </div>
                 <div>
-                  <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}><Inp label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></AvComDet>
-                  {num(f.botaoQtd) > 0 && <div className="mt-2"><SelAv label="Tipo de botão" value={f.botaoTipo} onChange={(v) => set("botaoTipo", v)} options={botaoTipos.map((g) => g.chave)} /></div>}
+                  {/* v686 — qtde e tipo de botão na mesma linha dos demais aviamentos */}
+                  <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}>
+                    <div className="flex gap-2 items-end">
+                      <div style={{ width: num(f.botaoQtd) > 0 ? 90 : "100%" }}><Inp full label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></div>
+                      {num(f.botaoQtd) > 0 && <SelAv label="Tipo de botão" value={f.botaoTipo} onChange={(v) => set("botaoTipo", v)} options={botaoTipos.map((g) => g.chave)} />}
+                    </div>
+                  </AvComDet>
                   {num(f.botaoQtd) > 0 && obsBotao(f.botaoTipo) && <div className="text-[11px] mt-1 font-semibold" style={{ color: /^NÃO/.test(obsBotao(f.botaoTipo)) ? C.green : C.red }}>Obs.: {obsBotao(f.botaoTipo).toLowerCase()}</div>}
                   {num(f.botaoQtd) > 0 && r && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{f.botaoQtd} un × R$ {fmtNum(r.botaoUn, 2)} = <b style={{ color: C.text }}>R$ {fmtNum(r.botaoUn * num(f.botaoQtd), 2)}/pç</b></div>}
                 </div>
@@ -787,19 +849,29 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
 
             <Card title="Operação financeira">
               {/* v294 — ordem: condição de pagamento › operações (investimento / título) e comissão › valor proposto (sugestão 20%) */}
-              <div className="flex flex-wrap items-end gap-4">
-                <div style={{ width: 260 }}><Combo label="Condição de pagamento" value={f.condPagamento} onChange={(v) => set("condPagamento", v)} options={COND_LISTA} placeholder="Digite…" /></div>
+              <PagamentoFpp pag={pagamentoFpp(f)} onChange={(p) => set("pagamento", p)} total={num(f.valorProposto) * Math.max(1, num(f.qtde))} fr={r?.pagFr} />
+              <div className="flex flex-wrap items-end gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
                   <span className="text-xs" style={{ color: C.sub }}>Op. investimento</span>
                 </div>
-                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
-                  <Toggle on={f.opTitulo === "SIM"} onChange={(v) => set("opTitulo", v ? "SIM" : "NAO")} />
-                  <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
+                <div>
+                  <div className="text-xs mb-1" style={{ color: C.sub }}>Op. título</div>
+                  <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+                    {[["NAO", "Não"], ["BANCO", "Banco"], ["FACTORING", "Factoring"]].map(([k, t]) => (
+                      <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 py-1.5 text-xs font-semibold"
+                        style={{ background: modoTitulo(f.opTitulo) === k ? C.accent : "#fff", color: modoTitulo(f.opTitulo) === k ? "#fff" : C.sub }}>{t}</button>
+                    ))}
+                  </div>
                 </div>
                 <Inp label="Comissão do vendedor (%)" value={f.comissaoPct} onChange={(v) => set("comissaoPct", v)} placeholder="ex.: 3" />
               </div>
               {num(f.comissaoPct) > 0 && r && <div className="text-xs mt-1" style={{ color: C.sub }}>Comissão: <b style={{ color: C.text }}>{brl(r.comissao)}</b>/peça · <b style={{ color: C.text }}>{brl(r.comissaoTotal)}</b> no pedido</div>}
+              {r && (r.opInv > 0 || r.opTit > 0) && <div className="text-xs mt-1" style={{ color: C.sub }}>
+                {r.opInv > 0 && <>Investimento: <b style={{ color: C.text }}>{brl(r.opInv)}</b>/peça ({Math.round(r.diasInv)} dias médios de uso)</>}
+                {r.opInv > 0 && r.opTit > 0 && " · "}
+                {r.opTit > 0 && <>Título {modoTitulo(f.opTitulo) === "FACTORING" ? "factoring" : "banco"} ({(r.taxaTit * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% a.m.): <b style={{ color: C.text }}>{brl(r.opTit)}</b>/peça</>}
+              </div>}
               <div className="flex flex-wrap items-end gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                 <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} />
                 <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
@@ -815,7 +887,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 )}
               </div>
               <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-                Investimento: juros sobre o custo durante todo o lead time. Título: juros por parcela em boleto (prazo + 2 dias úteis), conforme a condição de pagamento.
+                Investimento: juros sobre o custo só enquanto o recurso está em uso — lead time + prazo de cada parcela (a entrada não usa recurso; com op. título, o prazo fica no título).
+                Título (banco ou factoring, taxas nos parâmetros): juros só nas parcelas com prazo, pelo prazo + 2 dias úteis.
                 Sem repassar, a empresa absorve título, investimento e comissão (a margem real fica abaixo de {Math.round(MARGEM_SUGERIDA * 100)}%); repassando, o preço sugerido cobre essas taxas e preserva a margem.
               </div>
             </Card>
@@ -2354,6 +2427,56 @@ function ExtrasCustos({ lista, onChange, comDet }) {
   );
 }
 // v410 — select simples (tipo de faixa, cor, tipo de botão)
+// v686 — prazo de pagamento da FPP, igual ao do pedido: entrada + parcelas (dias corridos/úteis a contar da emissão do pedido, NF ou entrega)
+function PagamentoFpp({ pag, onChange, total, fr }) {
+  const p = pag || { entrada: null, parcelas: [] };
+  const setP = (fn) => onChange(fn({ entrada: p.entrada || null, parcelas: p.parcelas || [] }));
+  const inp = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  const pc = (x) => `${((x || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const BAS = { EMISSAO: "emissão do pedido", NF: "emissão da NF", ENTREGA: "data de entrega" };
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold" style={{ color: C.text }}>Prazo de pagamento</span>
+        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "" } }))} className="px-2 py-1 rounded text-xs flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={12} /> Entrada</button>}
+        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-2 py-1 rounded text-xs flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={12} /> Parcela</button>
+      </div>
+      {p.entrada && (
+        <div className="flex items-center gap-2 mb-1.5 text-sm">
+          <span className="w-20 text-xs font-semibold">Entrada</span>
+          <input value={p.entrada.valor ?? ""} onChange={(e) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: e.target.value } }))} placeholder="R$ ou %" className="w-28 px-2 py-1 rounded outline-none text-sm" style={inp} />
+          {fr && <span className="text-xs" style={{ color: C.sub }}>{pc(fr.entrada)}{fr.entradaValor != null ? ` · ${brl(fr.entradaValor)}` : ""} · no pedido, sem uso de recurso</span>}
+          <button type="button" onClick={() => setP((q) => ({ ...q, entrada: null }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
+        </div>
+      )}
+      {(p.parcelas || []).map((x, k) => {
+        const c = fr?.parcelas?.[k];
+        const up = (campo, v) => setP((q) => ({ ...q, parcelas: q.parcelas.map((y, j) => (j === k ? { ...y, [campo]: v } : y)) }));
+        return (
+          <div key={k} className="flex items-center gap-2 mb-1.5 text-sm flex-wrap">
+            <span className="w-20 text-xs font-semibold">Parcela {k + 1}</span>
+            <input type="number" min="0" value={x.dias} onChange={(e) => up("dias", e.target.value)} className="w-16 px-2 py-1 rounded outline-none text-sm" style={inp} />
+            <select value={x.tipo || "CORRIDOS"} onChange={(e) => up("tipo", e.target.value)} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
+              <option value="CORRIDOS">dias corridos</option><option value="UTEIS">dias úteis</option>
+            </select>
+            <span className="text-xs" style={{ color: C.sub }}>a contar da</span>
+            <select value={x.base || "NF"} onChange={(e) => up("base", e.target.value)} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
+              {Object.entries(BAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+            <input value={x.valor ?? ""} onChange={(e) => up("valor", e.target.value)} placeholder={c ? `auto ${pc(c.frac)}` : "R$ ou %"} className="w-28 px-2 py-1 rounded outline-none text-sm" style={inp} />
+            {c && <span className="text-xs" style={{ color: C.sub }}>{pc(c.frac)}{c.valor != null ? ` · ${brl(c.valor)}` : ""}</span>}
+            <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: q.parcelas.filter((_, j) => j !== k) }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
+          </div>
+        );
+      })}
+      <div className="text-xs mt-1">
+        <span style={{ color: C.sub }}>Condição: </span><b style={{ color: C.text }}>{textoPagFpp(p, total)}</b>
+        {fr && <span className="ml-3" style={{ color: fr.ok ? C.green : C.red }}>{fr.ok ? "✓ fecha 100%" : `✗ soma ${pc(fr.soma)}`}</span>}
+      </div>
+      <div className="text-[11px]" style={{ color: C.sub }}>Valor em R$ (total do item) ou em % (ex.: 50%). Parcela sem valor divide igualmente o que sobra. Sem entrada nem parcela = à vista.</div>
+    </div>
+  );
+}
 function SelAv({ label, value, onChange, options }) {
   return (
     <div className="flex-1 min-w-0">
