@@ -7,6 +7,7 @@ import {
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload,
 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";   // v692 — FPP em PDF no padrão do PV
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -935,6 +936,12 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
                 <Save size={15} /> {salvando ? "Salvando…" : editId ? "Atualizar ficha" : "Salvar ficha"}
               </button>
+              {/* v692 — PDF da ficha na tela (padrão do PV) */}
+              <button onClick={() => imprimirFicha({ ...montarBody(), id: editId, numero: editNum, createdAt: new Date().toISOString() }, master)}
+                className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
+                style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
+                <Printer size={15} /> Salvar PDF
+              </button>
               {editId && (
                 <button onClick={clonarAtual} disabled={salvando} title="Cria uma cópia desta FPP (com o que está na tela) e passa a editar a cópia"
                   className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
@@ -1244,120 +1251,98 @@ function HistModal({ paramId, onClose }) {
   );
 }
 
-/* Gera e BAIXA a FPP como PDF (usa entradas + resultados salvos). Mesmo layout para 1 ou várias. */
-async function imprimirFicha(f, master) {
-  const { jsPDF } = await import("jspdf");
+/* v692 — FPP em PDF no padrão do PV (janela de impressão → "Salvar como PDF"). Várias FPPs = um documento, uma por página. */
+function docFpp(f, master, anexos) {
   const e = f.entradas || {};
   const r = f.resultados || {};
   const isMalha = (f.tipo || e.tipo) === "MALHA";
-  const brlp = (n) => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pctp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const W = 210, M = 14; let y = 16;
-
-  // cabeçalho
-  doc.setFillColor(0, 30, 65); doc.rect(0, 0, W, 8, "F");
-  doc.setFontSize(18); doc.setTextColor(0, 30, 65); doc.setFont(undefined, "bold");
-  doc.text("MERIDIAN", M, y);
-  doc.setFontSize(11); doc.setTextColor(90, 90, 90); doc.setFont(undefined, "normal");
-  doc.text("Ficha de Precificação (FPP)", M + 46, y);
-  doc.setFontSize(9); doc.setTextColor(120, 120, 120);
-  doc.text(`${f.numero ? `FPP ${fmtFpp(f.numero)} · ` : ""}${new Date().toLocaleDateString("pt-BR")}`, W - M, y - 3, { align: "right" });
-  if (f.negociacao) { doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold"); doc.text(String(f.negociacao), W - M, y + 2, { align: "right" }); doc.setFont(undefined, "normal"); }
-  y += 6; doc.setDrawColor(255, 107, 26); doc.setLineWidth(0.6); doc.line(M, y, W - M, y); doc.setLineWidth(0.2); y += 7;
-
-  const sec = (t) => { doc.setFontSize(9); doc.setTextColor(102, 112, 133); doc.setFont(undefined, "bold"); doc.text(t.toUpperCase(), M, y); y += 1.5; doc.setDrawColor(228, 231, 236); doc.line(M, y, W - M, y); y += 4.5; doc.setFont(undefined, "normal"); };
-  const row = (k, v, opt = {}) => {
-    doc.setFontSize(9.5); doc.setTextColor(102, 112, 133); doc.setFont(undefined, "normal"); doc.text(String(k), M, y);
-    const c = opt.cor || [31, 39, 51]; doc.setTextColor(c[0], c[1], c[2]); doc.setFont(undefined, opt.forte ? "bold" : "normal");
-    doc.text(String(v == null ? "—" : v), W - M, y, { align: "right" }); doc.setFont(undefined, "normal"); y += 6;
-  };
-
-  sec("Identificação");
-  row("Item (peça)", f.item);
-  row("Nome comercial", f.nomeComercial || "—");
-  row("Cliente", f.clienteNome || "—");
-  row("Negociação", f.negociacao || "—");
-  row("Quantidade", f.qtde ?? "—");
-  row("Tipo", f.tipo || (isMalha ? "MALHA" : "PLANO"));
-  row("Cond. pagamento", f.condicaoPagamento || e.condPagamento || "—");
-  row("Lead time", f.leadTime != null ? f.leadTime + " dias" : "—");
-  y += 2;
-
-  const revendaP = ehRevenda(f.item, f.tipo), abertaP = ehPecaAberta(f.item);   // v512
+  const revendaP = ehRevenda(f.item, f.tipo), abertaP = ehPecaAberta(f.item);
+  const q = Number(f.qtde ?? e.qtde) || 0;
+  const vz = (v) => (v == null || String(v).trim() === "" ? "—" : String(v));
+  const temForro = !isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)));
+  const secoes = [];
   if (revendaP) {
-    sec("Produto revenda");
-    row("Descrição", e.revendaDescricao || "—");
-    row("Fornecedor", e.revendaFornecedor || "—");
-    row("Preço de custo (R$/peça)", e.custoRevenda || "—");
-    y += 2;
-    sec("Personalização");
+    secoes.push({ titulo: "Produto revenda", linhas: [["Descrição", e.revendaDescricao], ["Marca", e.revendaMarca], ["Fornecedor", e.revendaFornecedor], ["Preço de custo (R$/peça)", e.custoRevenda]] });
   } else {
-  sec("Matéria-prima");
-  if (abertaP) row(isMalha ? "Rendimento (pç/kg)" : "Consumo (m/peça)", e.abRend || "—");
-  if (isMalha) row("Artigo (malha)", e.nomeArtigo || "—");
-  else { row("Artigo (tecido externo)", e.nomeArtigo || "—"); if ((e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Artigo (forro)", e.nomeArtigoForro || "—"); }
-  row(isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor || "—");
-  for (const x of (Array.isArray(e.materiasExtras) ? e.materiasExtras : []).filter((x) => x.nome)) row(`MP adicional: ${String(x.nome).toUpperCase()}`, `R$ ${x.custo || "—"} · ${x.qtd || "—"} ${x.modo === "RENDIMENTO" ? "pç/kg" : "m/peça"}`);   // v411
-  if (!isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Custo do forro (R$/m)", e.forroValor || "—");
-  if (!isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)))) row("Consumo do forro (m/peça)", e.consumoForro || (r.consumoForroEst != null ? `${Number(r.consumoForroEst).toFixed(2).replace(".", ",")} (estimado)` : "—"));
-  y += 2;
-
-  sec("Aviamentos e produção");
-  if (isMalha || abertaP) { row("Gola", e.gola || "—"); row("Punho", e.punho || "—"); }
-  if (!isMalha || abertaP) row("Elástico", e.elastico || "—");
-  if (abertaP) { row("Corte (R$/peça)", e.abCorte || "—"); row(isMalha ? "Expedição (R$/peça)" : "Acabamento (R$/peça)", e.abAcab || "—"); }
-  row("Faixa refletiva", e.faixa || "—");
-  row("Qtde de botões", e.botaoQtd || "—");
-  row("Facção (R$/peça)", e.faccao || "—");
-  for (const x of (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).filter((x) => x.unidade && x.desc))   // v411
-    row(`Aviamento: ${String(x.desc).toUpperCase()}`, `${x.consumo || "—"} ${x.unidade === "M" ? "m" : "un"}/peça × R$ ${x.preco || "—"}`);
-  for (const [rot, l] of [["Extra aviamento", (e.extrasAviamentos || []).filter((x) => !x.unidade)], ["Extra produção", e.extrasProducao]])
-    for (const x of (Array.isArray(l) ? l : []).filter((x) => num(x.valor))) row(`${rot}: ${String(x.desc || "SEM DESCRIÇÃO").toUpperCase()} (R$/peça)`, String(x.valor));
+    const mp = [];
+    if (abertaP) mp.push([isMalha ? "Rendimento (pç/kg)" : "Consumo (m/peça)", e.abRend]);
+    mp.push([isMalha ? "Artigo (malha)" : "Artigo (tecido externo)", e.nomeArtigo], [isMalha ? "Custo do tecido (R$/kg)" : "Custo do tecido (R$/m)", e.mpValor]);
+    if (temForro) mp.push(["Artigo (forro)", e.nomeArtigoForro], ["Custo do forro (R$/m)", e.forroValor], ["Consumo do forro (m/peça)", e.consumoForro || (r.consumoForroEst != null ? `${Number(r.consumoForroEst).toFixed(2).replace(".", ",")} (estimado)` : "")]);
+    for (const x of (Array.isArray(e.materiasExtras) ? e.materiasExtras : []).filter((x) => x.nome)) mp.push([`MP adicional · ${x.nome}`, `R$ ${vz(x.custo)} · ${vz(x.qtd)} ${x.modo === "RENDIMENTO" ? "pç/kg" : "m/peça"}`]);
+    secoes.push({ titulo: "Matéria-prima", linhas: mp });
+    const av = [];
+    if (isMalha || abertaP) av.push(["Gola", e.gola], ["Punho", e.punho]);
+    if (!isMalha || abertaP) av.push(["Elástico", e.elastico]);
+    av.push(["Faixa refletiva", [e.faixa, !semAv(e.faixa) ? e.faixaTipo : "", !semAv(e.faixa) ? e.faixaCor : ""].filter(Boolean).join(" · ")]);
+    if (num(e.botaoQtd) > 0) av.push(["Botões", `${e.botaoQtd} un${e.botaoTipo ? ` · ${sc(e.botaoTipo)}` : ""}`]);
+    for (const x of (Array.isArray(e.extrasAviamentos) ? e.extrasAviamentos : []).filter((x) => x.desc || num(x.valor)))
+      av.push([`Aviamento · ${x.desc || "sem descrição"}`, x.unidade ? `${vz(x.consumo)} ${x.unidade === "M" ? "m" : "un"}/peça × R$ ${vz(x.preco)}` : `R$ ${vz(x.valor)}/peça`]);
+    secoes.push({ titulo: "Aviamentos", linhas: av });
   }
-  const POS2 = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"], ["mangaE", "Manga E"], ["costas", "Costas"]];
-  const pp = [];
-  for (const [tec, lbl] of [["silk", "Silk/DTF"], ["bordado", "Bordado"], ["sublimacao", "Sublimação"]]) {
-    const p = e[tec] || {}; const pos = POS2.filter(([k]) => Number(p[k]) > 0).map(([, l]) => l);
-    if (pos.length || Number(p.arte) > 0) pp.push(`${lbl}${pos.length ? " (" + pos.join(", ") + ")" : ""}`);
+  const pers = [];
+  for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : [])
+    pers.push([`${nomeMetodo(a.metodo)} · ${nomeLocal(a.local)}`, [a.metodo === "SILK" ? `${a.cores || 1} cor(es)` : num(a.valor) ? `R$ ${a.valor}` : "", num(a.arte) ? `${a.metodo === "BORDADO" ? "programa" : "arte/tela"} R$ ${a.arte}` : "", a.interno ? "interno" : "terceirizado"].filter(Boolean).join(" · ")]);
+  if (num(e.arteTotal)) pers.push(["Arte (R$ total)", e.arteTotal]);
+  secoes.push({ titulo: "Personalização", linhas: pers.length ? pers : [["Personalização", "Sem personalização"]] });
+  if (!revendaP) {
+    const pr = [];
+    if (abertaP) pr.push(["Corte (R$/peça)", e.abCorte], [isMalha ? "Expedição (R$/peça)" : "Acabamento (R$/peça)", e.abAcab]);
+    pr.push(["Costura", [e.faccaoTipo ? sc(String(e.faccaoTipo).replace(/_/g, " ")) : "", num(e.faccao) ? `R$ ${e.faccao}/peça` : "", e.faccaoInterna ? "interna" : "terceirizada"].filter(Boolean).join(" · ")]);
+    for (const x of (Array.isArray(e.extrasProducao) ? e.extrasProducao : []).filter((x) => num(x.valor))) pr.push([`Extra · ${x.desc || "sem descrição"}`, `R$ ${x.valor}/peça`]);
+    secoes.push({ titulo: "Produção", linhas: pr });
   }
-  for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : []) pp.push(`${nomeMetodo(a.metodo)}${a.metodo === "SILK" ? ` ${a.cores || 1} cor(es)` : ""} (${nomeLocal(a.local)})`);
-  row("Personalização", pp.join(" · ") || "—");
-  y += 2;
+  const FE = { PROPRIA: "Própria", TRANSPORTADORA: "Transportadora", FRETEBRAS: "Fretebras", RETIRADA: "Retirada" };
+  secoes.push({ titulo: "Logística e embalagem", linhas: [["Frete por volume (R$)", e.freteVolume], ["Embalagem externa", e.embExt], ["Embalagem interna", e.embInt], ["Forma de entrega", FE[e.formaEntrega] || e.formaEntrega]] });
+  const tit = modoTitulo(e.opTitulo);
+  const fin = [["Op. investimento", e.opInvest === "SIM" ? "Sim" : "Não"], ["Op. título", tit === "NAO" ? "Não" : tit === "FACTORING" ? "Factoring" : "Banco"]];
+  if (num(e.comissaoPct)) fin.push(["Comissão do vendedor", `${e.comissaoPct}%`]);
+  fin.push(["Repassar taxas financeiras", e.repassarTaxas ? "Sim" : "Não"]);
+  secoes.push({ titulo: "Operação financeira", linhas: fin });
 
-  if (master) {
-    sec("Composição de custo");
-    if (revendaP) row("Custo do produto (revenda)", brlp(r.custoRevenda));
-    else { row("Matéria-prima", brlp(r.materiaPrima)); row("Aviamentos", brlp(r.aviamentos)); row("Produção", brlp(r.producao)); }
-    row("Personalização", brlp(r.personalizacao));
-    row("Logística", brlp(r.logistica));
-    row("Embalagem", brlp(r.embalagem));
-    row("Custo de produção", brlp(r.custoProducao), { forte: true });
-    row("Operação financeira", brlp(r.opFin));
-    if (Number(r.comissao) > 0) row(`Comissão vendedor (${(Number(r.comissaoPct) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`, `${brlp(r.comissao)} · total ${brlp(r.comissaoTotal)}`);
-    row("Custo final", brlp(f.custoFinal ?? r.custoFinal), { forte: true });
-    row("ROIC", pctp(r.roic));
-    // margem de contribuição destacada
-    doc.setFillColor(255, 240, 230); doc.rect(M, y - 4, W - 2 * M, 7, "F");
-    doc.setDrawColor(255, 107, 26); doc.rect(M, y - 4, W - 2 * M, 7);
-    doc.setFontSize(10); doc.setTextColor(255, 107, 26); doc.setFont(undefined, "bold");
-    doc.text("MARGEM DE CONTRIBUIÇÃO", M + 2, y + 0.6);
-    doc.text(pctp(f.margem ?? r.margem), W - M - 2, y + 0.6, { align: "right" });
-    doc.setFont(undefined, "normal"); y += 8;
-    row("Valor proposto", brlp(f.valorProposto), { forte: true });
-    row("Total do item", brlp(f.totalItem), { forte: true, cor: [255, 107, 26] });
-  } else {
-    doc.setFontSize(9); doc.setTextColor(102, 112, 133); doc.text("Valores visíveis somente para o financeiro.", M, y); y += 6;
-  }
+  const vp = Number(f.valorProposto ?? num(e.valorProposto)) || 0;
+  const fr = fracoesPag(pagamentoFpp(e), vp * Math.max(1, q));
+  const BASE = { EMISSAO: "do pedido", NF: "da NF", ENTREGA: "da entrega" };
+  const pcx = (x) => `${((x || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const pagamento = [];
+  if (fr.entrada > 0) pagamento.push(["Entrada", "no pedido", pcx(fr.entrada), master && fr.entradaValor != null ? brl(fr.entradaValor) : ""]);
+  fr.parcelas.forEach((x, i) => pagamento.push([`Parcela ${i + 1}/${fr.parcelas.length}`, `${x.dias} dias ${x.tipo === "UTEIS" ? "úteis" : "corridos"} ${BASE[x.base]}`, pcx(x.frac), master && x.valor != null ? brl(x.valor) : ""]));
 
-  y += 4; doc.setDrawColor(228, 231, 236); doc.line(M, y, W - M, y); y += 4;
-  doc.setFontSize(8); doc.setTextColor(120, 120, 120);
-  const criada = f.createdAt ? new Date(f.createdAt).toLocaleString("pt-BR") : "—";
-  doc.text(`FPP criada por ${f.criadoPorNome || "—"} em ${criada}. Gerado pelo sistema Meridian.`, M, y);
-
-  const nome = `FPP - ${f.item || "item"} - ${f.clienteNome || "cliente"}`.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80);
-  doc.save(nome + ".pdf");
+  const par = (v) => [brl(v), brl((Number(v) || 0) * q)];
+  const custos = master ? [
+    ...(revendaP ? [["Custo do produto (revenda)", par(r.custoRevenda)]] : [["Matéria-prima", par(r.materiaPrima)], ["Aviamentos", par(r.aviamentos)], ["Produção", par(r.producao)]]),
+    ["Personalização", par(r.personalizacao)], ["Logística", par(r.logistica)], ["Embalagem", par(r.embalagem)],
+    ["Custo de produção", par(r.custoProducao), true],
+    ...(Number(r.opInv) > 0 ? [["Op. investimento", par(r.opInv)]] : []),
+    ...(Number(r.opTit) > 0 ? [[`Op. título ${tit === "FACTORING" ? "factoring" : "banco"}`, par(r.opTit)]] : []),
+    ...(!(Number(r.opInv) > 0 || Number(r.opTit) > 0) && Number(r.opFin) > 0 ? [["Operação financeira", par(r.opFin)]] : []),
+    ...(Number(r.comissao) > 0 ? [["Comissão do vendedor", par(r.comissao)]] : []),
+    ["Custo final (com imposto)", par(f.custoFinal ?? r.custoFinal), true],
+  ] : null;
+  const pctp = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const totais = master ? [["Valor proposto (R$/peça)", brl(vp)], ["Margem de contribuição", pctp(f.margem ?? r.margem)], ["ROIC", pctp(r.roic)], ["Total do item", brl(f.totalItem ?? vp * q), true]] : null;
+  return {
+    numero: fmtFpp(f.numero), emissao: f.createdAt ? new Date(f.createdAt).toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR"),
+    cliente: f.clienteNome ?? e.clienteNome, negociacao: f.negociacao ?? e.negociacao, item: f.item ?? e.item, nomeComercial: f.nomeComercial ?? e.nomeComercial,
+    tipo: f.tipo || (isMalha ? "MALHA" : "PLANO"), qtde: q, leadTime: f.leadTime ?? e.leadTime, criadoPor: f.criadoPorNome,
+    condicao: textoPagFpp(pagamentoFpp(e), vp * Math.max(1, q)), secoes, custos, totais, pagamento, anexos,
+  };
 }
+async function imprimirFichas(lista, master) {
+  const w = abrirJanelaFpp(alerta);
+  if (!w) return;
+  const docs = [];
+  for (const f of lista) {
+    let anexos = [];
+    if (f.id) {
+      const l = await fetch(`/api/fpp/${f.id}/anexos`, { cache: "no-store" }).then((x) => x.json()).catch(() => []);
+      anexos = (Array.isArray(l) ? l : []).filter((a) => /^image\//.test(a.mime || "") || /\.(png|jpe?g|gif|webp)$/i.test(a.nome || ""))
+        .map((a) => ({ nome: a.nome, src: `${window.location.origin}/api/fpp/${f.id}/anexos?arquivo=${a.id}` }));
+    }
+    docs.push(docFpp(f, master, anexos));
+  }
+  imprimirFpps(w, docs);
+}
+const imprimirFicha = (f, master) => imprimirFichas([f], master);
 
 /* ---------- Fichas salvas ---------- */
 const COLS = [
@@ -1546,10 +1531,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
   async function imprimirSelecionadas() {
     if (!selecionadas.length) return;
     setImprimindo(true);
-    for (const f of selecionadas) {
-      await imprimirFicha(f, master);
-      await new Promise((r) => setTimeout(r, 400)); // evita o navegador bloquear downloads em sequência
-    }
+    await imprimirFichas(selecionadas, master);   // v692 — um documento, uma FPP por página
     setImprimindo(false);
   }
 
@@ -1584,7 +1566,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
           </div>
           {selecionadas.length > 0 && (
             <>
-              <button onClick={imprimirSelecionadas} disabled={imprimindo} title="Baixa 1 PDF por FPP selecionada"
+              <button onClick={imprimirSelecionadas} disabled={imprimindo} title="Gera um PDF com as FPPs selecionadas (uma por página)"
                 className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, opacity: imprimindo ? 0.6 : 1 }}>
                 <Printer size={15} /> {imprimindo ? "Gerando…" : `Imprimir FPPs (${selecionadas.length})`}
               </button>
