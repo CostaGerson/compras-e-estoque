@@ -189,6 +189,18 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   useEffect(() => { fetch("/api/itens-padrao/codigos", { cache: "no-store" }).then((r) => r.json()).then(setPadrao).catch(() => {}); }, []);
   const tKm = React.useRef(null);
   useEffect(() => { if (f && !f.id) { const sg = padrao?.tipos?.[f.tipoPecaNome]?.sigla; sugerirPadrao(f, !!(sg && f.codigoPadrao && !String(f.codigoPadrao).startsWith(sg + "."))); } }, [f?.tipoPecaNome, f?.codigo, padrao]);
+  // v695 — NCM: lista dos NCMs cadastrados (Dados › Tributário) e sugestão pelo tipo de peça / nome do item
+  const [ncms, setNcms] = useState([]);
+  const [ncmAberto, setNcmAberto] = useState(false);
+  useEffect(() => { fetch(`/api/tributario?u=${user?.id || 0}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setNcms((d?.produtos || []).filter((p) => p.ncm))).catch(() => {}); }, []);
+  const ncmSugerido = (x) => {
+    if (!x || !ncms.length) return null;
+    const tp = norm(x.tipoPecaNome);
+    const nome = ` ${norm([x.nomeInterno, x.nomeNf, x.tipoPecaNome].join(" "))} `;
+    return (tp && ncms.find((p) => norm(p.tipoPeca) === tp))
+      || ncms.filter((p) => nome.includes(` ${norm(p.tipoPeca)} `) || nome.includes(` ${norm(p.tipoPeca).replace(/S$/, "")} `)).sort((a, b) => b.tipoPeca.length - a.tipoPeca.length)[0] || null;
+  };
+  useEffect(() => { if (f && !f.ncm) { const sg = ncmSugerido(f); if (sg) setF((x) => (x.ncm ? x : { ...x, ncm: sg.ncm })); } }, [f?.tipoPecaNome, f?.nomeInterno, f?.nomeNf, ncms]);
   if (!f) return <Moldura onClose={onClose}><div className="text-sm" style={{ color: C.sub }}>Carregando…</div></Moldura>;
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setParam = (k, v) => setF((x) => ({ ...x, parametros: { ...x.parametros, [k]: v } }));
@@ -354,7 +366,25 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
               <b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></button>)}
           </div>}
         </div></Campo>
-        <Campo l="NCM"><input value={f.ncm || ""} onChange={(e) => set("ncm", e.target.value)} placeholder="8 dígitos" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} /></Campo>
+        <Campo l="NCM">{(() => {
+          // v695 — autofill com os NCMs cadastrados; o sugerido (tipo de peça / nome) vem primeiro
+          const sg = ncmSugerido(f);
+          const q = norm(f.ncm).replace(/[.\s]/g, "");
+          const lista = [...ncms].sort((a, b) => (a === sg ? -1 : b === sg ? 1 : 0))
+            .filter((p) => !q || p.ncm.includes(q) || norm(`${p.tipoPeca} ${p.descricao || ""}`).includes(norm(f.ncm)) || p.ncm === q);
+          const fmt = (n) => String(n || "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1.$2.$3");
+          return <div className="relative">
+            <input value={f.ncm || ""} onChange={(e) => { set("ncm", e.target.value); setNcmAberto(true); }} onFocus={() => setNcmAberto(true)} onBlur={() => setTimeout(() => setNcmAberto(false), 150)}
+              placeholder="8 dígitos" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} />
+            {ncmAberto && lista.length > 0 && <div className="absolute z-30 left-0 mt-1 rounded shadow-lg max-h-64 overflow-y-auto" style={{ background: C.panel, border: `1px solid ${C.line}`, width: 360 }}>
+              {lista.slice(0, 30).map((p) => <button key={p.id} type="button" onMouseDown={(e) => { e.preventDefault(); set("ncm", p.ncm); setNcmAberto(false); }}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}`, color: C.text }}>
+                <b className="tabular-nums">{fmt(p.ncm)}</b> <span style={{ color: C.sub }}>· {p.tipoPeca}{p.descricao ? ` · ${p.descricao}` : ""}</span>
+                {p === sg && <span className="ml-1 font-semibold" style={{ color: C.green || "#12A150" }}>· sugerido</span>}
+              </button>)}
+            </div>}
+          </div>;
+        })()}</Campo>
         <Campo l="GTIN/EAN (opcional)"><input value={f.gtin || ""} onChange={(e) => set("gtin", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inpS} /></Campo>
       </div>
 
