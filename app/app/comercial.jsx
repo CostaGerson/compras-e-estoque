@@ -850,52 +850,40 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
             </Card>
 
             <Card title="Operação financeira">
-              {/* v294 — ordem: condição de pagamento › operações (investimento / título) e comissão › valor proposto (sugestão 20%) */}
+              {/* v689 — card no padrão da personalização: prazo de pagamento › operações e comissão › valor proposto */}
               <PagamentoFpp pag={pagamentoFpp(f)} onChange={(p) => set("pagamento", p)} total={num(f.valorProposto) * Math.max(1, num(f.qtde))} fr={r?.pagFr} />
-              <div className="flex flex-wrap items-end gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
-                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
+              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-3" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
+                <CampoFin t="Op. investimento" info={r?.opInv > 0 ? <><b style={{ color: C.text }}>{brl(r.opInv)}</b>/pç · {Math.round(r.diasInv)} dias</> : null}>
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
-                  <span className="text-xs" style={{ color: C.sub }}>Op. investimento</span>
-                </div>
-                {/* v688 — op. título: chave liga/desliga; ligada, escolhe banco ou factoring */}
-                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
+                </CampoFin>
+                <CampoFin t="Op. título" info={r?.opTit > 0 ? <><b style={{ color: C.text }}>{brl(r.opTit)}</b>/pç · {(r.taxaTit * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% a.m.</> : null}>
                   <Toggle on={modoTitulo(f.opTitulo) !== "NAO"} onChange={(v) => set("opTitulo", v ? "BANCO" : "NAO")} />
-                  <span className="text-xs" style={{ color: C.sub }}>Op. título</span>
                   {modoTitulo(f.opTitulo) !== "NAO" && (
-                    <div className="flex rounded-md overflow-hidden ml-1" style={{ border: `1px solid ${C.line}` }}>
+                    <div className="flex rounded-md overflow-hidden ml-2 h-full" style={{ border: `1px solid ${C.line}` }}>
                       {[["BANCO", "Banco"], ["FACTORING", "Factoring"]].map(([k, t]) => (
-                        <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 py-1.5 text-xs font-semibold"
+                        <button key={k} type="button" onClick={() => set("opTitulo", k)} className="px-3 text-xs font-semibold"
                           style={{ background: modoTitulo(f.opTitulo) === k ? C.accent : "#fff", color: modoTitulo(f.opTitulo) === k ? "#fff" : C.sub }}>{t}</button>
                       ))}
                     </div>
                   )}
-                </div>
-                <Inp label="Comissão do vendedor (%)" value={f.comissaoPct} onChange={(v) => set("comissaoPct", v)} placeholder="ex.: 3" />
+                </CampoFin>
+                <CampoFin t="Comissão (%)" info={num(f.comissaoPct) > 0 && r ? <><b style={{ color: C.text }}>{brl(r.comissao)}</b>/pç</> : null}>
+                  <input value={f.comissaoPct} onChange={(e) => set("comissaoPct", e.target.value)} inputMode="decimal" placeholder="ex.: 3" className="w-full h-full px-2 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+                </CampoFin>
               </div>
-              {num(f.comissaoPct) > 0 && r && <div className="text-xs mt-1" style={{ color: C.sub }}>Comissão: <b style={{ color: C.text }}>{brl(r.comissao)}</b>/peça · <b style={{ color: C.text }}>{brl(r.comissaoTotal)}</b> no pedido</div>}
-              {r && (r.opInv > 0 || r.opTit > 0) && <div className="text-xs mt-1" style={{ color: C.sub }}>
-                {r.opInv > 0 && <>Investimento: <b style={{ color: C.text }}>{brl(r.opInv)}</b>/peça ({Math.round(r.diasInv)} dias médios de uso)</>}
-                {r.opInv > 0 && r.opTit > 0 && " · "}
-                {r.opTit > 0 && <>Título {modoTitulo(f.opTitulo) === "FACTORING" ? "factoring" : "banco"} ({(r.taxaTit * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% a.m.): <b style={{ color: C.text }}>{brl(r.opTit)}</b>/peça</>}
-              </div>}
-              <div className="flex flex-wrap items-end gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
-                <Inp label="Valor proposto (R$)" value={f.valorProposto} onChange={(v) => set("valorProposto", v)} destaque placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} />
-                <div className="flex items-center gap-2" style={{ minHeight: 34 }}>
+              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-2" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
+                <CampoFin t="Valor proposto (R$)">
+                  <input value={f.valorProposto} onChange={(e) => set("valorProposto", e.target.value)} inputMode="decimal" placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} className="w-full h-full px-2 rounded text-sm font-semibold" style={{ background: "#fff", border: `1px solid ${C.accent}`, color: C.text }} />
+                </CampoFin>
+                <CampoFin t={`Sugestão (${Math.round(MARGEM_SUGERIDA * 100)}% de margem)`} info={f.repassarTaxas && r?.sugestaoBase != null ? <>sem repasse: {brl(r.sugestaoBase)}</> : null}>
+                  {r?.sugestao != null ? <>
+                    <b className="text-sm" style={{ color: C.navy }}>{brl(r.sugestao)}</b>
+                    <button type="button" onClick={() => set("valorProposto", r.sugestao.toFixed(2).replace(".", ","))} className="ml-2 text-xs font-semibold underline" style={{ color: C.accent }}>usar</button>
+                  </> : <span className="text-sm" style={{ color: C.sub }}>—</span>}
+                </CampoFin>
+                <CampoFin t="Repassar taxas">
                   <Toggle on={!!f.repassarTaxas} onChange={(v) => set("repassarTaxas", v)} />
-                  <span className="text-xs" style={{ color: f.repassarTaxas ? C.accent : C.sub }}>Repassar taxas financeiras</span>
-                </div>
-                {r?.sugestao != null && (
-                  <div className="text-xs pb-2" style={{ color: C.sub }}>
-                    Sugestão ({Math.round(MARGEM_SUGERIDA * 100)}% de margem{f.repassarTaxas ? ", com título, investimento e comissão repassados" : ""}): <b style={{ color: C.navy }}>{brl(r.sugestao)}</b>
-                    <button onClick={() => set("valorProposto", r.sugestao.toFixed(2).replace(".", ","))} className="ml-2 font-semibold underline" style={{ color: C.accent }}>usar</button>
-                    {f.repassarTaxas && r.sugestaoBase != null && <span className="ml-2">(sem repasse: {brl(r.sugestaoBase)})</span>}
-                  </div>
-                )}
-              </div>
-              <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-                Investimento: juros sobre o custo só enquanto o recurso está em uso — lead time + prazo de cada parcela (a entrada não usa recurso; com op. título, o prazo fica no título).
-                Título (banco ou factoring, taxas nos parâmetros): juros só nas parcelas com prazo, pelo prazo + 2 dias úteis.
-                Sem repassar, a empresa absorve título, investimento e comissão (a margem real fica abaixo de {Math.round(MARGEM_SUGERIDA * 100)}%); repassando, o preço sugerido cobre essas taxas e preserva a margem.
+                </CampoFin>
               </div>
             </Card>
           </div>
@@ -2268,13 +2256,7 @@ function AnexosFpp({ fppId, user }) {
   const img = (m, n) => /^image\//.test(m || "") || /\.(png|jpe?g|gif|webp)$/i.test(n || "");
   return (
     <Card title={`Anexos${l.length + pend.length ? ` (${l.length + pend.length})` : ""}`}>
-      <div onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
-        onDrop={(e) => { e.preventDefault(); setSobre(false); adicionar(e.dataTransfer.files); }}
-        className="rounded-lg px-4 py-3 text-xs text-center mb-2" style={{ border: `2px dashed ${sobre ? C.accent : C.line}`, background: sobre ? C.accentSoft : C.panel2, color: C.sub }}>
-        <Paperclip size={13} className="inline mr-1" />Arraste aqui layout, referência, ficha técnica do cliente… ou{" "}
-        <label className="cursor-pointer font-semibold" style={{ color: C.accent }}>selecione<input type="file" multiple className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} /></label>
-        {ocup && <span className="ml-2" style={{ color: C.accent }}>enviando…</span>}
-      </div>
+      {/* v689 — anexos primeiro, barra de anexar depois */}
       {(l.length > 0 || pend.length > 0) && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
         {l.map((a) => { const url = `/api/fpp/${fppId}/anexos?arquivo=${a.id}`;
           return <div key={a.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
@@ -2288,6 +2270,14 @@ function AnexosFpp({ fppId, user }) {
           <span className="flex-1 truncate">{a.nome}</span><span style={{ color: C.accent }}>sobe ao salvar</span>
           <button type="button" onClick={() => setPend((p) => p.filter((_, j) => j !== k))} style={{ color: C.sub }}><X size={11} /></button></div>)}
       </div>}
+      <div onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
+        onDrop={(e) => { e.preventDefault(); setSobre(false); adicionar(e.dataTransfer.files); }}
+        className="rounded-lg px-4 py-3 text-xs text-center mt-2" style={{ border: `2px dashed ${sobre ? C.accent : C.line}`, background: sobre ? C.accentSoft : C.panel2, color: C.sub }}>
+        <Paperclip size={13} className="inline mr-1" />Arraste aqui layout, referência, ficha técnica do cliente… ou{" "}
+        <label className="cursor-pointer font-semibold" style={{ color: C.accent }}>selecione<input type="file" multiple className="hidden" onChange={(e) => { adicionar(e.target.files); e.target.value = ""; }} /></label>
+        {ocup && <span className="ml-2" style={{ color: C.accent }}>enviando…</span>}
+      </div>
+
     </Card>
   );
 }
@@ -2434,52 +2424,66 @@ function ExtrasCustos({ lista, onChange, comDet }) {
 }
 // v410 — select simples (tipo de faixa, cor, tipo de botão)
 // v686 — prazo de pagamento da FPP, igual ao do pedido: entrada + parcelas (dias corridos/úteis a contar da emissão do pedido, NF ou entrega)
+// v689 — linhas no padrão da personalização (bloco cinza, colunas fixas, controles 34px)
+function CampoFin({ t, info, children }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] mb-1 truncate" style={{ color: C.sub }}>{t}</div>
+      <div className="flex items-center" style={{ height: 34 }}>{children}</div>
+      {info && <div className="text-[11px] mt-1 truncate" style={{ color: C.sub }}>{info}</div>}
+    </div>
+  );
+}
 function PagamentoFpp({ pag, onChange, total, fr }) {
   const p = pag || { entrada: null, parcelas: [] };
   const setP = (fn) => onChange(fn({ entrada: p.entrada || null, parcelas: p.parcelas || [] }));
-  const inp = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   const pc = (x) => `${((x || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
-  const BAS = { EMISSAO: "emissão do pedido", NF: "emissão da NF", ENTREGA: "data de entrega" };
+  const BAS = { EMISSAO: "Emissão do pedido", NF: "Emissão da NF", ENTREGA: "Entrega" };
+  const cols = "70px minmax(70px,0.7fr) minmax(120px,1fr) minmax(140px,1.2fr) minmax(110px,1fr) minmax(90px,0.8fr)";
+  const res = (frac, valor) => <span className="text-sm font-semibold" style={{ color: C.text }}>{pc(frac)}{valor != null && <span className="font-normal text-xs ml-1" style={{ color: C.sub }}>{brl(valor)}</span>}</span>;
+  // função (não componente) para os inputs não perderem o foco ao digitar
+  const linha = (key, nome, onDel, children) => (
+    <div key={key} className="flex items-center gap-2 mb-2">
+      <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: cols }}>
+        <div className="text-sm font-semibold pt-4" style={{ color: C.text }}>{nome}</div>
+        {children}
+      </div>
+      <button type="button" onClick={onDel} style={{ color: "#C77" }}><Trash2 size={15} /></button>
+    </div>
+  );
   return (
     <div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-semibold" style={{ color: C.text }}>Prazo de pagamento</span>
-        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "" } }))} className="px-2 py-1 rounded text-xs flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={12} /> Entrada</button>}
-        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-2 py-1 rounded text-xs flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={12} /> Parcela</button>
-      </div>
       {p.entrada && (
-        <div className="flex items-center gap-2 mb-1.5 text-sm">
-          <span className="w-20 text-xs font-semibold">Entrada</span>
-          <input value={p.entrada.valor ?? ""} onChange={(e) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: e.target.value } }))} placeholder="R$ ou %" className="w-28 px-2 py-1 rounded outline-none text-sm" style={inp} />
-          {fr && <span className="text-xs" style={{ color: C.sub }}>{pc(fr.entrada)}{fr.entradaValor != null ? ` · ${brl(fr.entradaValor)}` : ""} · no pedido, sem uso de recurso</span>}
-          <button type="button" onClick={() => setP((q) => ({ ...q, entrada: null }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
-        </div>
+        linha("ent", "Entrada", () => setP((q) => ({ ...q, entrada: null })), <>
+          <div /><div /><div />
+          <CampoFin t="Valor (R$ ou %)"><input value={p.entrada.valor ?? ""} onChange={(e) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: e.target.value } }))} placeholder="ex.: 50%" className="w-full h-full px-2 rounded text-sm" style={sel} /></CampoFin>
+          <CampoFin t="Do total">{fr ? res(fr.entrada, fr.entradaValor) : null}</CampoFin>
+        </>)
       )}
       {(p.parcelas || []).map((x, k) => {
         const c = fr?.parcelas?.[k];
         const up = (campo, v) => setP((q) => ({ ...q, parcelas: q.parcelas.map((y, j) => (j === k ? { ...y, [campo]: v } : y)) }));
         return (
-          <div key={k} className="flex items-center gap-2 mb-1.5 text-sm flex-wrap">
-            <span className="w-20 text-xs font-semibold">Parcela {k + 1}</span>
-            <input type="number" min="0" value={x.dias} onChange={(e) => up("dias", e.target.value)} className="w-16 px-2 py-1 rounded outline-none text-sm" style={inp} />
-            <select value={x.tipo || "CORRIDOS"} onChange={(e) => up("tipo", e.target.value)} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
-              <option value="CORRIDOS">dias corridos</option><option value="UTEIS">dias úteis</option>
-            </select>
-            <span className="text-xs" style={{ color: C.sub }}>a contar da</span>
-            <select value={x.base || "NF"} onChange={(e) => up("base", e.target.value)} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
+          linha(k, `Parcela ${k + 1}`, () => setP((q) => ({ ...q, parcelas: q.parcelas.filter((_, j) => j !== k) })), <>
+            <CampoFin t="Dias"><input type="number" min="0" value={x.dias} onChange={(e) => up("dias", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel} /></CampoFin>
+            <CampoFin t="Tipo"><select value={x.tipo || "CORRIDOS"} onChange={(e) => up("tipo", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
+              <option value="CORRIDOS">Corridos</option><option value="UTEIS">Úteis</option>
+            </select></CampoFin>
+            <CampoFin t="A contar da"><select value={x.base || "NF"} onChange={(e) => up("base", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
               {Object.entries(BAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>
-            <input value={x.valor ?? ""} onChange={(e) => up("valor", e.target.value)} placeholder={c ? `auto ${pc(c.frac)}` : "R$ ou %"} className="w-28 px-2 py-1 rounded outline-none text-sm" style={inp} />
-            {c && <span className="text-xs" style={{ color: C.sub }}>{pc(c.frac)}{c.valor != null ? ` · ${brl(c.valor)}` : ""}</span>}
-            <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: q.parcelas.filter((_, j) => j !== k) }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
-          </div>
+            </select></CampoFin>
+            <CampoFin t="Valor (R$ ou %)"><input value={x.valor ?? ""} onChange={(e) => up("valor", e.target.value)} placeholder="auto" className="w-full h-full px-2 rounded text-sm" style={sel} /></CampoFin>
+            <CampoFin t="Do total">{c ? res(c.frac, c.valor) : null}</CampoFin>
+          </>)
         );
       })}
-      <div className="text-xs mt-1">
-        <span style={{ color: C.sub }}>Condição: </span><b style={{ color: C.text }}>{textoPagFpp(p, total)}</b>
-        {fr && <span className="ml-3" style={{ color: fr.ok ? C.green : C.red }}>{fr.ok ? "✓ fecha 100%" : `✗ soma ${pc(fr.soma)}`}</span>}
+      <div className="flex items-center gap-2 flex-wrap">
+        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Entrada</button>}
+        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Parcela</button>
+        <span className="ml-auto text-sm"><span style={{ color: C.sub }}>Condição: </span><b style={{ color: C.text }}>{textoPagFpp(p, total)}</b>
+          {fr && !fr.ok && <span className="ml-2 text-xs font-semibold" style={{ color: C.red }}>soma {pc(fr.soma)}</span>}</span>
       </div>
-      <div className="text-[11px]" style={{ color: C.sub }}>Valor em R$ (total do item) ou em % (ex.: 50%). Parcela sem valor divide igualmente o que sobra. Sem entrada nem parcela = à vista.</div>
     </div>
   );
 }
