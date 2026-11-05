@@ -710,20 +710,22 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
             </Card>}
 
             {!revenda && <Card title="Aviamentos">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {/* v687 — mesma linha da personalização: bloco cinza, rótulos 11px na mesma altura, controles com 34px */}
+              <style>{`.av-row .text-xs.mb-1{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.av-row input,.av-row select{height:34px}.av-row .self-stretch{align-self:flex-end;height:34px}`}</style>
+              <div className="av-row flex flex-wrap gap-4 items-start px-4 py-3 rounded-lg mb-2" style={{ background: C.panel2 }}>
                 {(tipo === "MALHA" || aberta) && (
                   <>
-                    <AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
-                    <AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet></div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet></div>
                   </>
                 )}
                 {(tipo === "PLANO" || aberta) && (
-                  <div>
+                  <div style={{ flex: "1 1 160px", minWidth: 0 }}>
                     <AvComDet valor={f.elastico} det={f.aviamentosDet?.ELASTICO} onDet={(d) => setAvDet("ELASTICO", d)}><Combo label="Elástico" value={f.elastico} onChange={(v) => set("elastico", v)} options={elasticos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                     <AvMetro c={r?.elast} />
                   </div>
                 )}
-                <div>
+                <div style={{ flex: "1 1 160px", minWidth: 0 }}>
                   <AvComDet valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva (aplicação)" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                   {!semAv(f.faixa) && (
                     <div className="flex gap-2 mt-2">
@@ -733,11 +735,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                   )}
                   <AvMetro c={r?.fx} semTipo={!semAv(f.faixa) && !f.faixaTipo} />
                 </div>
-                <div>
+                <div style={{ flex: num(f.botaoQtd) > 0 ? "1.6 1 280px" : "1 1 160px", minWidth: 0 }}>
                   {/* v686 — qtde e tipo de botão na mesma linha dos demais aviamentos */}
                   <AvComDet valor={f.botaoQtd} botao det={f.aviamentosDet?.BOTAO} onDet={(d) => setAvDet("BOTAO", d)}>
                     <div className="flex gap-2 items-end">
-                      <div style={{ width: num(f.botaoQtd) > 0 ? 90 : "100%" }}><Inp full label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></div>
+                      <div style={{ width: num(f.botaoQtd) > 0 ? 110 : "100%", flexShrink: 0 }}><Inp full label="Qtde de botões" value={f.botaoQtd} onChange={(v) => set("botaoQtd", v)} /></div>
                       {num(f.botaoQtd) > 0 && <SelAv label="Tipo de botão" value={f.botaoTipo} onChange={(v) => set("botaoTipo", v)} options={botaoTipos.map((g) => g.chave)} />}
                     </div>
                   </AvComDet>
