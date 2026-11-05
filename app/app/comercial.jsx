@@ -634,20 +634,23 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
             <Card title="Identificação">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* v690 — linha 1: item · nome comercial · cliente · qtde; linha 2: negociação + alterar parâmetros */}
+              <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) 90px" }}>
                 <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
                   onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
-                <div className="col-span-2"><Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} text full /></div>   {/* v663 — campo largo */}
+                <Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} text full />
                 <ClienteCombo clientes={clientes} value={f.clienteNome}
                   onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null }))}
                   onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
-                <Inp label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
+                <Inp full label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
+              </div>
+              <div className="grid gap-3 items-end mt-3" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.4fr)" }}>
                 <Combo label="Negociação" value={f.negociacao} options={negs} livre
                   onChange={(v) => set("negociacao", String(v || "").toUpperCase())} onPick={(v) => set("negociacao", String(v || "").toUpperCase())}
                   placeholder="Escolha ou digite uma nova…" />
                 {/* v294 — "alterar parâmetros" na altura do campo de negociação; a ficha fica marcada com ! na lista */}
-                <div className="flex items-center gap-2 md:col-span-3 flex-wrap self-end" style={{ minHeight: 34 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ minHeight: 34 }}>
                   <Toggle on={modoOverride} onChange={(v) => { setModoOverride(v); if (!v) { setOver({}); setParamsLocaisOpen(false); } }} />
                   <span className="text-xs font-semibold" style={{ color: modoOverride ? C.accent : C.sub }}>Alterar parâmetros</span>
                   {modoOverride && <span title="Ficha com parâmetros alterados" className="inline-flex items-center justify-center rounded-full text-[11px] font-bold" style={{ width: 18, height: 18, background: C.red, color: "#fff" }}>!</span>}
