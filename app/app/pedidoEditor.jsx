@@ -3,9 +3,10 @@
 // itens do cadastro do KM + FPP indexada (artigo e rendimento), entregas única/fracionada/terceiros com grade por local,
 // prazo de pagamento (entrada + parcelas por emissão / NF / entrega), obs da NF e anexos por arraste.
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search } from "lucide-react";
+import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
+import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
   num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES,
   paramFora, tecidoDaFpp, numFpp,
@@ -26,7 +27,7 @@ const diaSem = (s) => (s ? DIAS_SEM[new Date(s + "T12:00:00Z").getUTCDay()] : ""
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 // v632 — grades: masculina (padrão, sempre) + especiais (infantil em anos, babylook "BL …") inseridas pelo botão
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
-const secaoTam = (t) => (/^\d+$/.test(String(t)) ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
+const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
 const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
 export function GradeEditor({ grade, tamanhos, onChange }) {
   const G = gradesDe(tamanhos);
@@ -81,7 +82,7 @@ export function GradeEditor({ grade, tamanhos, onChange }) {
 const CATS = { OC: "OC do cliente", SOLICITACAO: "Solicitação", LAYOUT: "Layout / arte", OUTRO: "Outro" };
 const catDoNome = (nome, tipo) => {
   const n = norm(nome);
-  if (/solic/.test(n)) return "SOLICITACAO";
+  if (/solic|lancamento/.test(n)) return "SOLICITACAO";
   if (/\boc\b|ordem|compra|\bpc\b|pedido/.test(n.replace(/[_\-.]/g, " "))) return "OC";
   if (/layout|arte|mock|logo/.test(n) || /^image\//.test(tipo || "")) return "LAYOUT";
   return "OUTRO";
@@ -336,6 +337,76 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       novos.push({ nome: file.name, tipo: file.type || null, tamanho: file.size, categoria: catDoNome(file.name, file.type), base64: await readB64(file) });
     }
     if (novos.length) setAnexos((a) => [...a, ...novos]);
+    // v696 — PDF da solicitação de lançamento (skill do vendedor): preenche o pedido sozinho
+    for (const a of novos) if (/pdf/i.test(a.tipo || a.nome) && !f.servico) { if (await preencherDaSolicitacao(a.base64, a.nome, true)) { setAnexos((l) => l.map((x) => (x === a ? { ...x, categoria: "SOLICITACAO" } : x))); break; } }
+  };
+  // ---------- v696 — solicitação de lançamento → pedido preenchido ----------
+  const [importando, setImportando] = useState(false);
+  const [importado, setImportado] = useState(null);   // resumo do que entrou + avisos
+  const pedidoTemDados = () => !!(String(f.clienteNome || "").trim() || itens.some((it) => String(it.descricao || "").trim() || qtdGrade(it.grade)));
+  const preencherDaSolicitacao = async (base64, nome, auto = false) => {
+    setImportando(true);
+    let d;
+    try { d = await api("/api/pp/lancamento", { method: "POST", body: JSON.stringify({ base64, nome }) }).then((r) => r.json()); }
+    catch (e) { setImportando(false); if (!auto) alerta("Não consegui ler o PDF: " + e.message); return false; }
+    setImportando(false);
+    if (d.error) { if (!auto) alerta(d.error); return false; }
+    if (!d.solicitacao) { if (!auto) alerta(d.erro || "Este PDF não é uma solicitação de lançamento."); return false; }
+    if (efetivado) { alerta("Pedido já efetivado: a solicitação ficou só como anexo (não substitui os dados)."); return true; }
+    if (pedidoTemDados() && !(await confirmar("Preencher o pedido com os dados da solicitação de lançamento? Cliente, itens, grade, prazo e pagamento serão substituídos."))) return true;
+    const doc = d.doc, cli = d.cliente;
+    if (d.clienteCriado && cli) setClientes((l) => [...l, cli]);
+    else if (cli) setClientes((l) => l.map((c) => (c.id === cli.id ? { ...c, ...cli } : c)));
+    // itens
+    const unico = doc.fpps.length === 1 ? doc.fpps[0] : null;
+    const novosItens = doc.pecas.map((pc, i) => {
+      const it = pecaParaItem(pc, { componentes, tamanhos });
+      const nFpp = pc.fpp || unico || (doc.fpps.length === doc.pecas.length ? doc.fpps[i] : null);
+      const rf = nFpp ? d.fpps?.[nFpp] : null;
+      if (rf) Object.assign(it, { fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf, corNaFpp(pc.cor, rf)) } });
+      if (rf && it._doc.cor && !corNaFpp(pc.cor, rf) && (rf.cores || []).length) it.parametros["COR DO TECIDO"] = String(it._doc.cor).toUpperCase();
+      if (!it.tipoPecaNome && TIPOS.length) it.tipoPecaNome = "";
+      if (pc.imagem) it.fotoBase64 = pc.imagem;
+      delete it._doc;
+      return it;
+    });
+    const total = novosItens.reduce((s, it) => s + qtdGrade(it.grade) * num(it.valorUnitario), 0);
+    const pz = prazoParaDias(doc.prazoTexto, f.emissao);
+    const contato = [cli ? [cli.preposto, cli.telefones].filter(Boolean).join(" · ") : "", doc.email].filter(Boolean).join(" · ");
+    const end = doc.faturamento.endereco || (cli ? [cli.logradouro, cli.numero, cli.complemento, cli.bairro, cli.municipio && `${cli.municipio}${cli.uf ? "/" + cli.uf : ""}`, cli.cep].filter(Boolean).join(", ") : "");
+    setF((s) => ({
+      ...s, servico: false, interno: false,
+      clienteNome: (cli?.razaoSocial || doc.faturamento.razaoSocial || doc.cliente || "").toUpperCase(),
+      clienteCnpj: fmtCnpj(doc.faturamento.cnpj || cli?.cnpj || ""), clienteIe: String(doc.faturamento.ie || cli?.inscricaoEstadual || "").toUpperCase(),
+      clienteEndereco: String(end || "").toUpperCase(), clienteContato: contato,
+      vendedor: String(doc.vendedor || s.vendedor || "").toUpperCase(), oc: String(doc.oc || "").toUpperCase(),
+      ...(pz ? { prazoDias: String(pz.prazoDias), prazoTipo: pz.prazoTipo } : {}),
+      pagamento: condicaoParaPagamento(doc.condicao, total, s.emissao),
+      obs: [s.obs, doc.observacoes].filter((x) => String(x || "").trim()).join("\n"),
+      entregaModo: "UNICA", entregas: [],
+    }));
+    setItens(novosItens.length ? novosItens : [novoItem()]);
+    if (d.imagensSoltas?.length) setAnexos((l) => [...l, ...d.imagensSoltas.map((u, k) => ({ nome: `Layout ${k + 1} (da solicitação).${/jpeg/.test(u) ? "jpg" : "png"}`, tipo: /jpeg/.test(u) ? "image/jpeg" : "image/png", tamanho: Math.round(u.length * 0.75), categoria: "LAYOUT", base64: u }))]);
+    // resumo para o vendedor conferir
+    const av = [...(d.avisos || [])];
+    if (pz?.passou) av.push(`Prazo de entrega do documento (${doc.prazoTexto}) já passou: confira o prazo.`);
+    if (doc.prazoTexto && !pz) av.push(`Prazo de entrega "${doc.prazoTexto}" não reconhecido: preencha os dias.`);
+    if (doc.condicao && !condicaoParaPagamento(doc.condicao, total).parcelas.length && !condicaoParaPagamento(doc.condicao, total).entrada) av.push(`Condição de pagamento "${doc.condicao}" não reconhecida: monte as parcelas.`);
+    novosItens.forEach((it, i) => {
+      if (!it.tipoPecaNome) av.push(`Item ${i + 1} (${doc.pecas[i].categoria}): tipo de peça não reconhecido — escolha o tipo.`);
+      const fora = it.grade.filter((g) => num(g.qtd) > 0 && !tamanhos.includes(g.tam) && !/^\d+$/.test(g.tam) && !/^BL /.test(g.tam)).map((g) => g.tam);
+      if (fora.length) av.push(`Item ${i + 1}: tamanhos fora da grade padrão (${fora.join(", ")}) — entraram no fim da grade.`);
+      if (!it.fotoBase64) av.push(`Item ${i + 1}: sem layout — ao efetivar, vira tarefa para o arte-finalista.`);
+      if (veVal && it.fpp?.valorProposto && Math.abs(num(it.valorUnitario) - Number(it.fpp.valorProposto)) > 0.009) av.push(`Item ${i + 1}: valor unitário ${money(num(it.valorUnitario))} diferente do valor da FPP ${numFpp(it.fppNumero)} (${money(it.fpp.valorProposto)}).`);
+    });
+    if (doc.valorTotal != null && Math.abs(doc.valorTotal - total) > 0.05) av.push(`Total calculado ${money(total)} diferente do total do documento ${money(doc.valorTotal)}.`);
+    setImportado({ nome, cliente: doc.cliente, clienteCriado: d.clienteCriado, clienteCompletado: d.clienteCompletado || [], pecas: novosItens.reduce((s2, it) => s2 + qtdGrade(it.grade), 0), total, fpps: doc.fpps, avisos: av });
+    return true;
+  };
+  const lerAnexoSalvo = async (a) => {
+    if (a.base64) return preencherDaSolicitacao(a.base64, a.nome);
+    try { const b = await fetch(`/api/pp/${ppId}?anexo=${a.id}&_u=${uid}`).then((r) => r.blob()); return preencherDaSolicitacao(await readB64(b), a.nome); }
+    catch { alerta("Não consegui abrir o anexo."); return false; }
   };
   const abrirAnexo = (a) => {
     if (a.base64) { const w = window.open(); if (w) w.document.write(`<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>`); return; }
@@ -431,7 +502,24 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           className="rounded-lg px-4 py-3 text-xs text-center mb-3" style={{ border: `2px dashed ${arrastando ? C.accent : C.line}`, background: arrastando ? C.accentSoft : C.panel2, color: C.sub }}>
           <Paperclip size={14} className="inline mr-1" />Arraste aqui a OC do cliente, a solicitação, o layout… (vários de uma vez) ou{" "}
           <label className="cursor-pointer font-semibold" style={{ color: C.accent }}>selecione<input type="file" multiple className="hidden" onChange={(e) => { adicionarArquivos(e.target.files); e.target.value = ""; }} /></label>
+          <div className="mt-1" style={{ fontSize: 11 }}><Wand2 size={11} className="inline mr-1" style={{ color: C.accent }} />O PDF da <b>solicitação de lançamento</b> (gerado pela skill do vendedor) preenche o pedido sozinho: cliente, faturamento, vendedor, OC, prazo, pagamento, itens, grade, valores, parâmetros, FPP e layout.</div>
         </div>
+        {importando && <div className="rounded-lg px-3 py-2 mb-3 text-sm" style={{ background: C.accentSoft, color: C.accent }}><Wand2 size={14} className="inline mr-1" />Lendo a solicitação de lançamento…</div>}
+        {importado && <div className="rounded-lg px-3 py-2 mb-3 text-sm" style={{ background: importado.avisos.length ? "#FFF8E6" : C.greenSoft, border: `1px solid ${importado.avisos.length ? C.yellow : C.green}55` }}>
+          <div className="flex items-start gap-2">
+            <Wand2 size={15} style={{ color: C.green, marginTop: 2 }} />
+            <div className="flex-1">
+              <div className="font-semibold" style={{ color: C.text }}>Pedido preenchido pela solicitação {importado.nome ? `(${importado.nome})` : ""}</div>
+              <div className="text-xs mt-0.5" style={{ color: C.sub }}>
+                {importado.cliente}{importado.clienteCriado ? " · cliente cadastrado agora em Clientes" : ""}{importado.clienteCompletado.length ? ` · cadastro completado (${importado.clienteCompletado.join(", ")})` : ""}
+                {" · "}{importado.pecas} pç{veVal ? ` · ${money(importado.total)}` : ""}{importado.fpps.length ? ` · FPP ${importado.fpps.map(numFpp).join(" / ")}` : ""}
+              </div>
+              {importado.avisos.length > 0 && <ul className="mt-1 text-xs list-disc pl-4" style={{ color: "#8A5A00" }}>{importado.avisos.map((a, k) => <li key={k}>{a}</li>)}</ul>}
+              <div className="text-xs mt-1" style={{ color: C.sub }}>Confira e ajuste o que precisar antes de efetivar.</div>
+            </div>
+            <button type="button" onClick={() => setImportado(null)} style={{ color: C.sub }}><X size={15} /></button>
+          </div>
+        </div>}
         {(anexos.length > 0 || legados.length > 0) && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
           {anexos.map((a, k) => {
             const img = /^image\//.test(a.tipo || "");
@@ -448,6 +536,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                     <select value={a.categoria || "OUTRO"} onChange={(e) => setAnexos((l) => l.map((x, j) => (j === k ? { ...x, categoria: e.target.value } : x)))} className="flex-1 text-xs px-1 py-0.5 rounded outline-none" style={inp}>
                       {Object.entries(CATS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                     </select>
+                    {/pdf/i.test(a.tipo || a.nome) && !f.servico && !efetivado && <button type="button" onClick={() => lerAnexoSalvo(a)} style={{ color: C.accent }} title="Preencher o pedido com esta solicitação de lançamento"><Wand2 size={14} /></button>}
                     <button type="button" onClick={() => setAnexos((l) => l.filter((_, j) => j !== k))} style={{ color: "#C77" }} title="Remover"><Trash2 size={14} /></button>
                   </div>
                   {!a.id && <div className="text-[10px] mt-0.5" style={{ color: C.accent }}>novo · grava ao salvar</div>}
