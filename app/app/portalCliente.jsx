@@ -20,6 +20,18 @@ const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
   yellow: "#C08401", yellowSoft: "#FFF6DD", steel: "#3D6799", steelSoft: "#EEF3FB" };
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+// v724: foto ou PDF anexado abre em nova guia (data: URL não abre direto, vira blob)
+const MIME_EXT = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp" };
+const mimeArte = (a) => { const m = String(a.base64 || "").match(/^data:([^;,]+)/); const t = (a.mime || (m && m[1]) || "").toLowerCase(); return t && t !== "application/octet-stream" ? t : MIME_EXT[String(a.nome || "").split(".").pop().toLowerCase()] || ""; };
+const abreEmGuia = (a) => /^image\/|\/pdf$/.test(mimeArte(a));
+const abrirArte = (a) => {
+  try {
+    const b64 = String(a.base64 || "").replace(/^data:[^,]*,/, "");
+    const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u8], { type: mimeArte(a) }));
+    window.open(url, "_blank", "noopener"); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {}
+};
 const dBR = (s) => (s ? new Date(s).toLocaleDateString("pt-BR") : "");
 const money = (n) => (n == null ? "—" : "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const pctTxt = (p) => (p == null ? "" : `${String(p).replace(".", ",")}%`);
@@ -273,8 +285,10 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                       <div className="flex flex-wrap gap-2 mt-2">
                         {it.artes.map((a, k) => (
                           <div key={k} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                            {/^image\//.test(a.mime || "") ? <img src={a.base64} alt="" style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 4 }} /> : <FileText size={14} style={{ color: C.sub }} />}
-                            <span className="truncate" style={{ maxWidth: 160 }}>{a.nome}</span>
+                            <span className={`flex items-center gap-1.5 ${abreEmGuia(a) ? "cursor-pointer hover:underline" : ""}`} title={abreEmGuia(a) ? "Abrir em nova guia" : a.nome} onClick={() => abreEmGuia(a) && abrirArte(a)}>
+                              {/^image\//.test(mimeArte(a)) ? <img src={a.base64} alt="" style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 4 }} /> : <FileText size={14} style={{ color: C.sub }} />}
+                              <span className="truncate" style={{ maxWidth: 160 }}>{a.nome}</span>
+                            </span>
                             <button onClick={() => up(it.key, { artes: it.artes.filter((_, j) => j !== k) })} style={{ color: C.sub }}><X size={12} /></button>
                           </div>
                         ))}
