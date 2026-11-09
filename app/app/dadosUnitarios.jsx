@@ -9,9 +9,13 @@ import { LOCAIS_DADO, novoCampo, vazioDU, temDU, lerLista, contarPorTam, gradeDa
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
-  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#C33", redSoft: "#FDECEA", roxo: "#7C3AED", roxoSoft: "#F3EEFF",
+  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#C33", redSoft: "#FDECEA", roxo: "#3D6799", roxoSoft: "#EEF3FB",
 };
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
+// v702 — "AAAA-MM-DDTHH:MM" (datetime-local) ↔ data
+const paraLocal = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); };
+const padraoLimite = () => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(18, 0, 0, 0); return paraLocal(d); };
+export const limiteTxt = (d) => (d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 const resumoTam = (l) => l.map((x) => `${x.tam} ${x.qtd}`).join(" · ");
 
 function Janela({ titulo, onFechar, children, largura = 760, rodape }) {
@@ -53,6 +57,11 @@ function PreviaLista({ campos, linhas, erros, ordem, onConfirmar, onFechar, titu
       <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: C.greenSoft, color: C.text }}>
         <b>{linhas.length} peça(s)</b> reconhecida(s){cont.length ? <> — {resumoTam(cont)}</> : null}. A grade do item passa a seguir esta contagem.
       </div>
+      {campos.length === 1 && linhas.filter((l) => /\s(AB|A|B|O)[+-]$/i.test(String(l.valores[campos[0].id] || ""))).length > linhas.length / 2 && (
+        <div className="mb-3 p-3 rounded-lg text-xs" style={{ background: C.yellowSoft, color: C.text }}>
+          <b style={{ color: C.yellow }}>A lista parece ter tipo sanguíneo junto do nome.</b> Volte, clique em "outro local", crie o dado <b>TIPO SANGUÍNEO</b> (no local em que ele sai na peça) e cole a lista de novo — o sistema separa os dois.
+        </div>
+      )}
       {erros.length > 0 && (
         <div className="mb-3 p-3 rounded-lg text-xs" style={{ background: C.redSoft, color: C.text }}>
           <b style={{ color: C.red }}>{erros.length} linha(s) não entraram</b> (sem tamanho reconhecido) — corrija o texto e leia de novo, ou lance à mão depois:
@@ -65,16 +74,16 @@ function PreviaLista({ campos, linhas, erros, ordem, onConfirmar, onFechar, titu
           <label className="flex items-center gap-1"><input type="radio" checked={modo === "ACRESCENTAR"} onChange={() => setModo("ACRESCENTAR")} /> acrescentar à lista atual</label>
         </div>
       )}
-      <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+      <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
         <thead><tr style={{ background: C.panel2, color: C.sub }}>
-          <th className="px-2 py-1.5 text-left">#</th><th className="px-2 py-1.5 text-left">Tam.</th>
-          {campos.map((c) => <th key={c.id} className="px-2 py-1.5 text-left">{c.rotulo}<div className="font-normal text-[10px]">{c.local.toLowerCase()}</div></th>)}
+          <th className="px-2 py-1.5 text-left text-xs" style={{ width: 36 }}>#</th><th className="px-2 py-1.5 text-left text-xs" style={{ width: 56 }}>Tam.</th>
+          {campos.map((c) => <th key={c.id} className="px-2 py-1.5 text-left text-xs">{c.rotulo}<div className="font-normal text-[10px]">{c.local.toLowerCase()}</div></th>)}
         </tr></thead>
         <tbody>{linhas.map((l, i) => (
           <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
-            <td className="px-2 py-1" style={{ color: C.sub }}>{i + 1}</td>
+            <td className="px-2 py-1 text-xs" style={{ color: C.sub }}>{i + 1}</td>
             <td className="px-2 py-1 font-bold">{l.tam}</td>
-            {campos.map((c) => <td key={c.id} className="px-2 py-1" style={{ color: l.valores[c.id] ? C.text : C.sub }}>{l.valores[c.id] || "—"}</td>)}
+            {campos.map((c) => <td key={c.id} className="px-2 py-1 font-semibold" style={{ color: l.valores[c.id] ? C.text : C.sub }}>{l.valores[c.id] || "—"}</td>)}
           </tr>
         ))}</tbody>
       </table>
@@ -132,15 +141,23 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   const conf = conferirComGrade(du, grade);
   // ---------- link ----------
   const urlLink = du?.linkToken ? `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${du.linkToken}` : "";
-  const gerarLink = async () => {
+  const [novoLink, setNovoLink] = useState(null);   // v702 — dia/hora limite antes de gerar
+  const gerarLink = () => {
     if (!campos.length) return alerta("Defina ao menos um dado (local) antes de gerar o link.");
-    if (!(await confirmar(`Gerar o link para o cliente preencher?\n\nCada pessoa escolhe o tamanho e preenche: ${campos.map((c) => c.rotulo).join(", ")}.\nPode pedir mais de uma peça.`))) return;
+    setNovoLink({ limite: padraoLimite() });
+  };
+  const confirmarLink = async () => {
+    if (!novoLink?.limite) return alerta("Escolha o dia e o horário limite.");
     setSt("Gerando…");
     try {
-      const j = await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "criar", titulo: titulo || "PEDIDO", clienteNome, campos, tamanhos: tamsSel }) });
-      set({ linkId: j.id, linkToken: j.token });
+      const j = await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "criar", titulo: titulo || "PEDIDO", clienteNome, campos, tamanhos: tamsSel, limite: new Date(novoLink.limite).toISOString() }) });
+      set({ linkId: j.id, linkToken: j.token }); setNovoLink(null);
     } catch (e) { alerta(e.message); }
     setSt("");
+  };
+  const mudarPrazo = async (v) => {
+    if (!v) return;
+    try { setLink(await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "prazo", id: du.linkId, limite: new Date(v).toISOString() }) })); } catch (e) { alerta(e.message); }
   };
   const copiar = async () => { try { await navigator.clipboard.writeText(urlLink); alerta("Link copiado. Mande para o cliente."); } catch { window.prompt("Copie o link:", urlLink); } };
   const abrirRespostas = async () => { setSt("Lendo…"); try { setLink(await api(`/api/dados-link?id=${du.linkId}`)); } catch (e) { alerta(e.message); } setSt(""); };
@@ -186,20 +203,20 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
             <div className="rounded-lg overflow-auto mb-2" style={{ maxHeight: 320, border: `1px solid ${C.line}`, background: C.panel }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
-                  <th className="px-2 py-1 text-left">#</th><th className="px-2 py-1 text-left">Tam.</th>
+                  <th className="px-2 py-1 text-left" style={{ width: 32 }}>#</th><th className="px-1 py-1 text-left" style={{ width: 70 }}>Tam.</th>
                   {campos.map((c) => (
                     <th key={c.id} className="px-2 py-1 text-left whitespace-nowrap">{c.rotulo}
                       {linhas.length > 1 && <button type="button" onClick={() => replicar(c)} className="ml-1 inline-flex items-center gap-0.5 font-normal" style={{ color: C.roxo }} title="Replicar o valor da primeira peça para todas"><ArrowDownToLine size={11} /> replicar</button>}
                     </th>
                   ))}
-                  <th />
+                  <th style={{ width: 28 }} />
                 </tr></thead>
                 <tbody>{linhas.map((l, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
                     <td className="px-2 py-0.5" style={{ color: C.sub }}>{i + 1}</td>
                     <td className="px-1 py-0.5"><select value={l.tam} onChange={(e) => upLinha(i, { tam: e.target.value })} className="rounded px-1 py-0.5 text-xs font-bold outline-none" style={inp}>
                       {tamsSel.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
-                    {campos.map((c) => <td key={c.id} className="px-1 py-0.5"><input value={l.valores?.[c.id] || ""} onChange={(e) => upValor(i, c.id, e.target.value)} className="w-full rounded px-1.5 py-0.5 text-xs outline-none" style={{ ...inp, minWidth: 110 }} /></td>)}
+                    {campos.map((c) => <td key={c.id} className="px-1 py-0.5"><input value={l.valores?.[c.id] || ""} onChange={(e) => upValor(i, c.id, e.target.value)} className="w-full rounded px-2 py-1 text-sm font-semibold outline-none" style={{ ...inp, minWidth: 110 }} /></td>)}
                     <td className="px-1"><button type="button" onClick={() => set({ linhas: linhas.filter((_, j) => j !== i) })} style={{ color: C.sub }}><X size={12} /></button></td>
                   </tr>
                 ))}</tbody>
@@ -236,6 +253,17 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
         </div>
       )}
 
+      {novoLink && (
+        <Janela titulo="Link para o cliente preencher" onFechar={() => setNovoLink(null)} largura={520}
+          rodape={<><button type="button" onClick={() => setNovoLink(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+            <button type="button" onClick={confirmarLink} disabled={!!st} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{st || "Gerar link"}</button></>}>
+          <div className="text-sm mb-3" style={{ color: C.text }}>Cada pessoa escolhe o tamanho e escreve o que vai na peça: <b>{campos.map((c) => c.rotulo.toLowerCase()).join(", ")}</b>. Pode pedir mais de uma peça.</div>
+          <label className="text-xs block" style={{ color: C.sub }}>Aceitar preenchimento até (dia e horário)
+            <input type="datetime-local" value={novoLink.limite} onChange={(e) => setNovoLink({ limite: e.target.value })} className="block mt-1 rounded-lg px-3 py-2 text-sm outline-none" style={inp} />
+          </label>
+          <div className="text-[11px] mt-2" style={{ color: C.sub }}>Depois desse horário o link para de aceitar respostas. Dá para mudar o prazo em "respostas / fechar preenchimento".</div>
+        </Janela>
+      )}
       {colar !== null && (
         <Janela titulo="Colar lista de dados unitários" onFechar={() => setColar(null)}
           rodape={<><button type="button" onClick={() => setColar(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
@@ -252,12 +280,16 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
       {link && (
         <Janela titulo={`Link de preenchimento · ${link.titulo}`} onFechar={() => setLink(null)} largura={820}
           rodape={<>
-            {link.aberto ? <button type="button" onClick={() => fecharLink(false)} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ background: C.red, color: "#fff" }}><Lock size={14} /> Fechar preenchimento</button>
+            {link.aberto || !link.fechado ? <button type="button" onClick={() => fecharLink(false)} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ background: C.red, color: "#fff" }}><Lock size={14} /> Fechar preenchimento</button>
               : <button type="button" onClick={() => fecharLink(true)} className="px-4 py-2 rounded-lg text-sm flex items-center gap-1" style={{ color: C.sub, border: `1px solid ${C.line}` }}><Unlock size={14} /> Reabrir</button>}
             <button type="button" disabled={!link.total} onClick={trazerDoLink} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: link.total ? C.green : C.line, color: "#fff" }}>Trazer para a lista do item</button>
           </>}>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.sub }}>
+            Aceita preenchimento até <b style={{ color: C.text }}>{limiteTxt(link.limite) || "sem limite"}</b> · mudar para
+            <input type="datetime-local" defaultValue={link.limite ? paraLocal(link.limite) : ""} onBlur={(e) => e.target.value && e.target.value !== (link.limite ? paraLocal(link.limite) : "") && mudarPrazo(e.target.value)} className="rounded px-2 py-1 text-xs outline-none" style={inp} />
+          </div>
           <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: link.aberto ? C.blueSoft : C.greenSoft }}>
-            {link.aberto ? "Preenchimento aberto" : `Preenchimento encerrado${link.fechadoPorNome ? ` por ${link.fechadoPorNome}` : ""}`} ·{" "}
+            {link.aberto ? "Preenchimento aberto" : link.fechado ? `Preenchimento encerrado${link.fechadoPorNome ? ` por ${link.fechadoPorNome}` : ""}` : "Prazo do link vencido"} ·{" "}
             <b>{link.total} peça(s) previstas</b>{link.porTam.length ? ` — ${resumoTam(link.porTam)}` : ""} · {link.pessoas} envio(s)
           </div>
           {link.linhas.length ? (

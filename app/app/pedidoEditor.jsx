@@ -272,7 +272,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     return { ...it, codigo: p.codigo, descricao: p.descricao, tipoPecaNome: tipo, parametros: params,
       valorUnitario: it.valorUnitario || (p.preco ? String(Number(p.preco).toFixed(2)).replace(".", ",") : "") };
   }));
+  // v702 — item com FPP: o lead time dela sugere o prazo de entrega do pedido (quando ainda está vazio)
+  const sugerirPrazo = (rf) => { if (rf?.leadTime > 0) setF((s) => (String(s.prazoDias ?? "").trim() ? s : { ...s, prazoDias: String(rf.leadTime), prazoTipo: "CORRIDOS" })); };
   const indexarFpp = (i, rf) => {
+    sugerirPrazo(rf);
     setItens((arr) => arr.map((it, j) => (j !== i ? it : {
       ...it, fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf) },
       tipoPecaNome: it.descricao ? it.tipoPecaNome : (tipoPeca(rf.item, TIPOS) || it.tipoPecaNome),
@@ -296,6 +299,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const params = Object.fromEntries(Object.entries(d.parametros || {}).filter(([k, v]) => v && !paramFora(k) && k !== "TECIDO"));
     if (rf) params.TECIDO = tecidoDaFpp(rf);
     const tipo = TIPOS.includes(d.tipoPecaNome) ? d.tipoPecaNome : tipoPeca(d.nomeNf, TIPOS) || "";
+    sugerirPrazo(rf);
     // v650 — layout e tabela de medidas do item padrão viram arquivos do item (saem na OP)
     const anexosPadrao = [];
     for (const a of d.anexos || []) {
@@ -711,7 +715,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}</div>
+                <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
+                  {it.fpp?.leadTime > 0 && <span className="ml-2 px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }} title="Lead time da FPP, contado da emissão do pedido">entrega prevista {dataBR(somaDias(f.emissao || hojeISO(), it.fpp.leadTime, "CORRIDOS"))} · lead time {it.fpp.leadTime} dias</span>}</div>
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} />
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 <DadosUnitarios du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}

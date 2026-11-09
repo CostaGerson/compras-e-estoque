@@ -20,7 +20,7 @@ const C = {
   text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
   yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
-  navy: "#001E41", roxo: "#7A5AF8", roxoSoft: "#F1EDFF",
+  navy: "#001E41", roxo: "#3D6799", roxoSoft: "#EEF3FB",
 };
 // salário: o sábado conta como dia útil
 const sabTxt = (r) => (r?.chaveOrigem === "MATRIZ|pessoal|SALARIO" || /^SAL[AÁ]RIO( |$)/.test(String(r?.titulo || "").toUpperCase()) ? " (com sábado)" : "");
@@ -1513,7 +1513,7 @@ export function VencidosModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
-const ACAO_RET = { DESCONTAR: ["Antecipado (desconto)", "#7A5AF8", "#F1EDFF"],
+const ACAO_RET = { DESCONTAR: ["Antecipado (desconto)", "#3D6799", "#EEF3FB"],
   REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],
   AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
 };

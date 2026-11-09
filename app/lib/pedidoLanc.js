@@ -137,7 +137,7 @@ export function resumoFpp(f) {
   const det = e.artigoDet || {};
   return {
     id: f.id, numero: f.numero, item: f.item, nomeComercial: f.nomeComercial, cliente: f.clienteNome, tipo: f.tipo,
-    valorProposto: f.valorProposto ?? null,
+    valorProposto: f.valorProposto ?? null, leadTime: Number(f.leadTime) > 0 ? Number(f.leadTime) : null,   // v702
     artigo: String(e.nomeArtigo || "").trim().toUpperCase() || null,
     artigoCor: det.cor || null, artigoCodigo: det.codigo || null,
     cores: [det.cor ? { cor: det.cor, codigo: det.codigo || null } : null, ...(Array.isArray(det.variantes) ? det.variantes.filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })) : [])].filter(Boolean),   // v664

@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivoFin } from "@/lib/fin";
-import { criarLink, verLink } from "@/lib/dadosLink";
+import { criarLink, verLink, mudarLimite } from "@/lib/dadosLink";
 
 async function quem(req) {
   const u = await usuarioAtivoFin(req.headers.get("x-usuario-id"));
@@ -36,6 +36,11 @@ export async function POST(req) {
   if (b.acao === "fechar" || b.acao === "reabrir") {
     const nome = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
     await prisma.dadoUnitarioLink.update({ where: { id: l.id }, data: b.acao === "fechar" ? { aberto: false, fechadoEm: new Date(), fechadoPorNome: nome } : { aberto: true, fechadoEm: null, fechadoPorNome: null } });
+    return Response.json(await verLink(l.id));
+  }
+  if (b.acao === "prazo") {   // v702
+    const r = await mudarLimite(l.id, b.limite);
+    if (r.error) return Response.json(r, { status: 400 });
     return Response.json(await verLink(l.id));
   }
   return Response.json({ error: "Ação desconhecida." }, { status: 400 });

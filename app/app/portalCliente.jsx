@@ -13,6 +13,7 @@ const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 const dBR = (s) => (s ? new Date(s).toLocaleDateString("pt-BR") : "");
+const entregaEm = (dias) => (dias > 0 ? new Date(Date.now() + dias * 86400000).toLocaleDateString("pt-BR") : "");   // v702 — lead time em dias corridos
 const ST_COR = { EM_LANCAMENTO: [C.blue, C.blueSoft], LANCADO: [C.green, C.greenSoft], FATURADO: [C.navy, C.panel2] };
 
 export default function PortalCliente({ user, onSair, tamanhos }) {
@@ -67,6 +68,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const n = busca.trim().toLowerCase();
   const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().includes(n));
   const totalPecas = itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
+  const leadPedido = Math.max(0, ...itens.map((it) => it.padrao.leadTime || 0));
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="text-sm">
@@ -101,6 +103,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                       </div>
                       <div className="text-xs font-semibold leading-tight" style={{ color: C.text }}>{p.nome}</div>
                       {p.codigo && <div className="text-[10px]" style={{ color: C.sub }}>{p.codigo}</div>}
+                      {p.leadTime > 0 && <div className="text-[10px]" style={{ color: C.sub }}>lead time {p.leadTime} dias</div>}
                       <div className="mt-1 text-[11px] font-semibold flex items-center gap-1" style={{ color: C.accent }}><Plus size={12} /> adicionar</div>
                     </button>
                   ))}
@@ -115,6 +118,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <div className="flex-1">
                     <div className="text-xs" style={{ color: C.sub }}>Item {i + 1}</div>
                     <div className="font-bold" style={{ color: C.navy }}>{it.padrao.nome}</div>
+                    <div className="text-xs mt-0.5" style={{ color: it.padrao.leadTime ? C.accent : C.sub }}>{it.padrao.leadTime ? <>Entrega prevista: <b>{entregaEm(it.padrao.leadTime)}</b> (lead time {it.padrao.leadTime} dias)</> : "Entrega prevista: a confirmar pela nossa equipe"}</div>
                   </div>
                   <div className="text-right"><div className="text-xl font-bold" style={{ color: C.navy }}>{qtdGrade(it.grade)}</div><div className="text-[10px]" style={{ color: C.sub }}>peças</div></div>
                   <button onClick={() => tirar(it)} style={{ color: C.sub }} title="Tirar do pedido"><X size={18} /></button>
@@ -152,7 +156,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <label className="text-xs sm:col-span-2" style={{ color: C.sub }}>Observações (opcional)<input value={obs} onChange={(e) => setObs(e.target.value)} className="w-full rounded-lg px-3 py-2 mt-1 text-sm outline-none" style={inp} /></label>
                 </div>
                 <div className="flex items-center gap-3 mt-4">
-                  <div style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b></div>
+                  <div style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b>
+                    {leadPedido > 0 && <> · entrega prevista <b style={{ color: C.accent }}>{entregaEm(leadPedido)}</b></>}</div>
                   <button onClick={enviar} disabled={!!st} className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold" style={{ background: C.accent, color: "#fff" }}><Send size={16} /> {st || "Enviar pedido"}</button>
                 </div>
               </div>
@@ -173,7 +178,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 {p.itens.map((it, k) => (
                   <div key={k} className="text-xs py-1" style={{ borderTop: `1px solid ${C.line}` }}>
                     <b>{it.descricao}</b> — {it.pecas} pç ({it.grade.map((g) => `${g.tam} ${g.qtd}`).join(" · ")})
-                    {it.dadosUnitarios && <span style={{ color: "#7C3AED" }}> · {resumoDU(it.dadosUnitarios, tamanhos)}</span>}
+                    {it.dadosUnitarios && <span style={{ color: "#3D6799" }}> · {resumoDU(it.dadosUnitarios, tamanhos)}</span>}
                   </div>
                 ))}
               </div>

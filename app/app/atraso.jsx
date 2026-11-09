@@ -54,7 +54,7 @@ function useOrdem(itens) {
 
 const MarcaR = ({ t }) => (t?.vencimentoOriginal ? (
   <span title={`Reprogramado — vencimento original ${dBR(t.vencimentoOriginal)}`} className="inline-flex items-center justify-center ml-1 rounded-full text-[9px] font-bold align-middle"
-    style={{ width: 15, height: 15, background: "#F1EDFF", color: "#7A5AF8", border: "1px solid #7A5AF866" }}>R</span>) : null);
+    style={{ width: 15, height: 15, background: "#EEF3FB", color: "#3D6799", border: "1px solid #3D679966" }}>R</span>) : null);
 
 // busca pelo valor: "1230,83", "1.230,83", "1230.83", "R$ 1.230" ou só o começo ("1.230") acham a conta;
 // procura no valor da conta e no valor pago

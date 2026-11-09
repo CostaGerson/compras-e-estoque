@@ -750,7 +750,7 @@ function MesFinanceiro({ user, tela, setTela }) {
   );
 }
 
-const CORES_PIZZA = ["#001E41", "#FF6B1A", "#2E7CD6", "#12A150", "#C08401", "#7A5AF8", "#D92D20", "#0E9384", "#DD2590", "#4E5BA6", "#B54708", "#667085"];
+const CORES_PIZZA = ["#001E41", "#FF6B1A", "#2E7CD6", "#12A150", "#C08401", "#3D6799", "#D92D20", "#0E9384", "#DD2590", "#4E5BA6", "#B54708", "#667085"];
 
 function Pizza({ fatias, sel, onSel, tamanho = 260 }) {
   const total = fatias.reduce((a, f) => a + f.valor, 0);
@@ -2392,7 +2392,7 @@ function Senhas({ user }) {
 /* ======================================================================
    IDENTIFICAÇÃO DE LANÇAMENTOS (conta-caixa)
    ====================================================================== */
-const ROXO = "#7A5AF8";
+const ROXO = "#3D6799";
 const brl = (n) => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dBR = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 const normC = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();

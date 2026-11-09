@@ -17,7 +17,7 @@ export const MEDALHAS_PADRAO = [
   { anos: 5, nome: "OURO", cor: "#D4A017", premio: "" },
   { anos: 10, nome: "PLATINA", cor: "#5B8DB8", premio: "" },
   { anos: 15, nome: "DIAMANTE", cor: "#3FB6C9", premio: "" },
-  { anos: 20, nome: "LENDA", cor: "#7A5AF8", premio: "" },
+  { anos: 20, nome: "LENDA", cor: "#3D6799", premio: "" },
 ];
 export async function lerMedalhas() {
   const c = await prisma.finConfig.findUnique({ where: { chave: CHAVE_MEDALHAS } });

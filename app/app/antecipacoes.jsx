@@ -10,7 +10,7 @@ const C = {
   text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
   yellow: "#C08401", yellowSoft: "#FFF6DD", amarelo: "#F5B800", red: "#D92D20", redSoft: "#FDECEA",
-  navy: "#001E41", roxo: "#7A5AF8", roxoSoft: "#F1EDFF",
+  navy: "#001E41", roxo: "#3D6799", roxoSoft: "#EEF3FB",
 };
 export const FORMAS_ANT = { BRADESCO: "Bradesco", AZUL_CAPITAL: "Factoring Azul Capital", PORTAL_PROPRIO: "Portal próprio" };
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

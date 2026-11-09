@@ -443,7 +443,7 @@ function BuscaPedido({ valor, cliente, onEscolher, sel, rotulo = "Pedido (nº ou
 }
 
 // v493 — etapa de cada item da avulsa (mesma régua do painel de compras)
-const ETAPA_AV = { LEVANTAMENTO: ["Pendente", "#7A5AF8", "#F1EDFF"], ESTOQUE: ["Atendido pelo estoque", C.green, C.greenSoft], REPROVADO: ["Vai para compra", C.red, C.redSoft],
+const ETAPA_AV = { LEVANTAMENTO: ["Pendente", "#3D6799", "#EEF3FB"], ESTOQUE: ["Atendido pelo estoque", C.green, C.greenSoft], REPROVADO: ["Vai para compra", C.red, C.redSoft],
   EM_COTACAO: ["Em cotação", C.accent, C.accentSoft], AGUARDANDO_NF: ["Aguardando NF", C.yellow, C.yellowSoft], EM_COLETA: ["Em coleta", C.blue, C.blueSoft],
   EM_TRANSPORTADORA: ["Em entrega transportadora", "#4F46E5", "#EEF2FF"], ENTREGA_FORNECEDOR: ["Entrega do fornecedor", "#0E9384", "#E6F6F4"], RECEBIDA: ["Recebida", C.green, C.greenSoft],
   PIC: ["Em cotação", C.accent, C.accentSoft], OC: ["Aguardando NF", C.yellow, C.yellowSoft], NF: ["NF emitida", C.yellow, C.yellowSoft], ENTREGUE: ["Recebida", C.green, C.greenSoft] };
@@ -1812,7 +1812,7 @@ function ArquivosNfOc({ o, onMudou }) {
 }
 
 // ---------- v486 — painel de compras: tudo que está em PIC e a etapa de cada item ----------
-const ETAPAS_PRE = [["LEVANTAMENTO", "Pendente", "#7A5AF8", "#F1EDFF"], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
+const ETAPAS_PRE = [["LEVANTAMENTO", "Pendente", "#3D6799", "#EEF3FB"], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
 const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
   ["EM_TRANSPORTADORA", "Em entrega transportadora", "#4F46E5", "#EEF2FF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
 export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsas: o mesmo painel só com as compras avulsas

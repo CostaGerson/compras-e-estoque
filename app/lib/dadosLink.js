@@ -6,14 +6,20 @@ import { limparDU, normTam } from "@/lib/dadosUnitarios";
 export const novoToken = () => crypto.randomBytes(12).toString("base64url");
 const LIM_TOTAL = 5000, LIM_ENVIO = 50;
 
-export async function criarLink({ titulo, clienteNome, campos, tamanhos }, { u, portalClienteId }) {
+const dataLimite = (v) => { if (!v) return null; const d = new Date(v); return Number.isFinite(d.getTime()) ? d : null; };
+export const linkAberto = (l) => !!l && l.aberto && !(l.limite && new Date(l.limite).getTime() < Date.now());
+
+export async function criarLink({ titulo, clienteNome, campos, tamanhos, limite }, { u, portalClienteId }) {
+  const lim = dataLimite(limite);
+  if (!lim) return { error: "Defina o dia e o horário limite para o preenchimento." };
+  if (lim.getTime() < Date.now()) return { error: "O limite já passou: escolha um dia e horário futuros." };
   const du = limparDU({ campos, linhas: [] });
   if (!du) return { error: "Defina ao menos um dado (local) antes de gerar o link." };
   const tams = (Array.isArray(tamanhos) ? tamanhos : []).map(normTam).filter(Boolean).slice(0, 40);
   if (!tams.length) return { error: "Informe os tamanhos que podem ser escolhidos." };
   const l = await prisma.dadoUnitarioLink.create({ data: {
     token: novoToken(), titulo: String(titulo || "PEDIDO").toUpperCase().slice(0, 120), clienteNome: clienteNome ? String(clienteNome).toUpperCase().slice(0, 120) : null,
-    campos: du.campos, tamanhos: tams, portalClienteId: portalClienteId || null, criadoPorId: u?.id || null,
+    campos: du.campos, tamanhos: tams, limite: lim, portalClienteId: portalClienteId || null, criadoPorId: u?.id || null,
     criadoPorNome: [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase() || null } });
   return { ok: true, id: l.id, token: l.token };
 }
@@ -27,7 +33,7 @@ export async function verLink(id) {
   const ordem = Array.isArray(l.tamanhos) ? l.tamanhos : [];
   const porTam = [...ordem.filter((t) => cont[t]), ...Object.keys(cont).filter((t) => !ordem.includes(t))].map((t) => ({ tam: t, qtd: cont[t] }));
   return {
-    id: l.id, token: l.token, titulo: l.titulo, clienteNome: l.clienteNome, campos: l.campos, tamanhos: l.tamanhos, aberto: l.aberto,
+    id: l.id, token: l.token, titulo: l.titulo, clienteNome: l.clienteNome, campos: l.campos, tamanhos: l.tamanhos, aberto: linkAberto(l), fechado: !l.aberto, limite: l.limite,
     fechadoEm: l.fechadoEm, fechadoPorNome: l.fechadoPorNome, portalClienteId: l.portalClienteId,
     pessoas: new Set(l.respostas.map((r) => r.envio)).size, total: l.respostas.length, porTam,
     linhas: l.respostas.map((r) => ({ tam: r.tam, valores: r.valores || {}, responsavel: r.responsavel, em: r.createdAt })),
@@ -36,16 +42,16 @@ export async function verLink(id) {
 
 // visão pública (sem as respostas dos outros)
 export async function linkPublico(token) {
-  const l = await prisma.dadoUnitarioLink.findUnique({ where: { token: String(token) }, select: { id: true, titulo: true, clienteNome: true, campos: true, tamanhos: true, aberto: true } });
+  const l = await prisma.dadoUnitarioLink.findUnique({ where: { token: String(token) }, select: { id: true, titulo: true, clienteNome: true, campos: true, tamanhos: true, aberto: true, limite: true } });
   if (!l) return null;
   const total = await prisma.dadoUnitarioResposta.count({ where: { linkId: l.id } });
-  return { titulo: l.titulo, clienteNome: l.clienteNome, campos: l.campos, tamanhos: l.tamanhos, aberto: l.aberto, total };
+  return { titulo: l.titulo, clienteNome: l.clienteNome, campos: l.campos, tamanhos: l.tamanhos, aberto: linkAberto(l), limite: l.limite, total };
 }
 
 export async function responder(token, { responsavel, pecas }) {
   const l = await prisma.dadoUnitarioLink.findUnique({ where: { token: String(token) } });
   if (!l) return { error: "Link não encontrado." };
-  if (!l.aberto) return { error: "O preenchimento deste link já foi encerrado. Fale com quem enviou o link." };
+  if (!linkAberto(l)) return { error: "O preenchimento deste link já foi encerrado. Fale com quem enviou o link." };
   const tams = new Set((l.tamanhos || []).map(normTam));
   const ids = new Set((l.campos || []).map((c) => c.id));
   const lista = (Array.isArray(pecas) ? pecas : []).slice(0, LIM_ENVIO);
@@ -58,4 +64,13 @@ export async function responder(token, { responsavel, pecas }) {
     valores: Object.fromEntries(Object.entries(p.valores || {}).filter(([k]) => ids.has(k)).map(([k, v]) => [k, String(v ?? "").trim().slice(0, 120)])),
   })) });
   return { ok: true, n: lista.length };
+}
+
+// v702 — muda o dia/horário limite (vale também para reabrir um link que venceu)
+export async function mudarLimite(id, limite) {
+  const lim = dataLimite(limite);
+  if (!lim) return { error: "Informe o dia e o horário limite." };
+  if (lim.getTime() < Date.now()) return { error: "O limite já passou: escolha um dia e horário futuros." };
+  await prisma.dadoUnitarioLink.update({ where: { id: Number(id) }, data: { limite: lim, aberto: true, fechadoEm: null, fechadoPorNome: null } });
+  return { ok: true };
 }

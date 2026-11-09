@@ -27,7 +27,11 @@ export async function itensDoCliente(clienteId) {
   const l = await listarItensPadrao({ cliente: clienteId });
   const fotos = l.length ? await prisma.itemPadrao.findMany({ where: { id: { in: l.map((i) => i.id) } }, select: { id: true, fotoBase64: true } }) : [];
   const foto = Object.fromEntries(fotos.map((f) => [f.id, f.fotoBase64]));
-  return l.map((i) => ({ id: i.id, codigo: i.codigoPadrao || i.codigo || null, nome: i.nomeInterno, nomeNf: i.nomeNf, tipoPeca: i.tipoPecaNome || null, foto: foto[i.id] || null }));
+  // v702 — lead time da FPP do item: entrega prevista ao inserir no pedido
+  const fppIds = [...new Set(l.map((i) => i.fppId).filter(Boolean))];
+  const lts = fppIds.length ? await prisma.fpp.findMany({ where: { id: { in: fppIds } }, select: { id: true, leadTime: true } }) : [];
+  const lt = Object.fromEntries(lts.map((f) => [f.id, Number(f.leadTime) > 0 ? Number(f.leadTime) : null]));
+  return l.map((i) => ({ id: i.id, codigo: i.codigoPadrao || i.codigo || null, nome: i.nomeInterno, nomeNf: i.nomeNf, tipoPeca: i.tipoPecaNome || null, foto: foto[i.id] || null, leadTime: i.fppId ? lt[i.fppId] || null : null }));
 }
 
 const dataUrl = (b64, mime) => (/^data:/.test(String(b64)) ? b64 : `data:${mime || "application/octet-stream"};base64,${b64}`);
@@ -37,7 +41,9 @@ const LIM_ARTE = 15 * 1024 * 1024;
 export async function enviarPedido({ u, cliente }, b) {
   const pedidos = Array.isArray(b?.itens) ? b.itens : [];
   if (!pedidos.length) return { error: "Escolha ao menos um item." };
-  const permitidos = new Set((await itensDoCliente(cliente.id)).map((i) => i.id));
+  const catalogo = await itensDoCliente(cliente.id);
+  const permitidos = new Set(catalogo.map((i) => i.id));
+  const leadMax = Math.max(0, ...pedidos.map((p) => catalogo.find((c) => c.id === Number(p.itemPadraoId))?.leadTime || 0));
   const itens = [];
   for (const [k, p] of pedidos.entries()) {
     const id = Number(p.itemPadraoId);
@@ -74,6 +80,7 @@ export async function enviarPedido({ u, cliente }, b) {
     oc: String(b.oc || "").trim().slice(0, 60), vendedor: "",
     obs: [`PEDIDO ENVIADO PELO PORTAL DO CLIENTE (${nomeCliente(cliente)}) POR ${quem}`, obsCli && `OBS DO CLIENTE: ${obsCli}`].filter(Boolean).join(" · "),
     entregaModo: "UNICA", entregas: [], pagamento: null, itens,
+    ...(leadMax > 0 ? { prazoDias: leadMax, prazoTipo: "CORRIDOS" } : {}),   // v702 — entrega pelo maior lead time dos itens
   };
   const id = await salvarPp(null, payload, quem);
   await prisma.pp.update({ where: { id }, data: { portalClienteId: cliente.id, portalEnviadoPor: quem } });

@@ -2519,6 +2519,7 @@ model DadoUnitarioLink {
   campos          Json                  // [{ id, local, rotulo }] — o que cada pessoa preenche
   tamanhos        Json                  // tamanhos que podem ser escolhidos
   aberto          Boolean   @default(true)
+  limite          DateTime?             // v702 — dia e hora até quando o link aceita preenchimento
   portalClienteId Int?                  // criado no portal do cliente
   criadoPorId     Int?
   criadoPorNome   String?
