@@ -4,7 +4,7 @@
 //        valor vendido por item, CMV (valor da FPP × peças), MC e despacho pelo lead time; envio pergunta
 //        "data limite para receber os dados" ou "direto para a produção"; lista "Pedidos" no estilo do painel de produção.
 import React, { useEffect, useMemo, useState } from "react";
-import { LogOut, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy } from "lucide-react";
+import { LogOut, ChevronsLeft, ChevronsRight, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { useMobile } from "./useMobile";
 import { GradeEditor } from "./pedidoEditor";
@@ -54,6 +54,10 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [envio, setEnvio] = useState(null);         // janela de envio
   const [detalhe, setDetalhe] = useState(null);     // id do pedido aberto na lista
   const mobile = useMobile();
+  // v719 — menu lateral recolhível (setinha); lembra a escolha neste navegador
+  const [recolhido, setRecolhido] = useState(false);
+  useEffect(() => { try { setRecolhido(localStorage.getItem("portalMenuRecolhido") === "1"); } catch {} }, []);
+  const alternarMenu = () => setRecolhido((x) => { try { localStorage.setItem("portalMenuRecolhido", x ? "0" : "1"); } catch {} return !x; });
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id) } })
     .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Erro."); return j; });
   const carregar = () => api("/api/portal").then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
@@ -131,29 +135,31 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   return (
     <div className="flex text-sm" style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }}>
       {!mobile && (
-        <aside className="h-full flex flex-col shrink-0" style={{ background: C.navy, width: 240 }}>
-          <div className="px-4 py-4 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
-            <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
+        <aside className="h-full flex flex-col shrink-0" style={{ background: C.navy, width: recolhido ? 60 : 240, transition: "width .2s cubic-bezier(.2,.8,.2,1)" }}>
+          <div className={`py-4 shrink-0 flex items-center ${recolhido ? "justify-center px-2" : "px-4"}`} style={{ borderBottom: `1px solid ${C.navyLine}` }}>
+            {recolhido ? <img src="/meridian-emblema.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} /> : <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />}
           </div>
-          <div className="px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
+          {!recolhido && <div className="px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
             <div className="text-[11px] uppercase tracking-wide" style={{ color: C.navySub }}>Portal do cliente</div>
             <div className="font-bold text-sm mt-0.5" style={{ color: "#fff" }}>{d?.cliente?.nome || "…"}</div>
-          </div>
+          </div>}
           <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
             {ABAS.map(([k, t, I]) => {
               const on = aba === k;
               return (
-                <button key={k} onClick={() => setAba(k)} className="w-full flex items-center gap-2.5 py-2.5 pr-3 text-left"
-                  style={{ paddingLeft: 13, background: on ? C.navyLine : "transparent", borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent", color: on ? C.accent : C.navySub, fontWeight: on ? 600 : 400, fontSize: 14 }}>
-                  <I size={17} /> {t}
+                <button key={k} onClick={() => setAba(k)} title={recolhido ? t : undefined} className={`w-full flex items-center gap-2.5 py-2.5 text-left ${recolhido ? "justify-center" : "pr-3"}`}
+                  style={{ paddingLeft: recolhido ? 0 : 13, background: on ? C.navyLine : "transparent", borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent", color: on ? C.accent : C.navySub, fontWeight: on ? 600 : 400, fontSize: 14 }}>
+                  <I size={17} /> {!recolhido && t}
                 </button>
               );
             })}
           </nav>
-          <div className="px-3 py-2.5 shrink-0 flex items-center gap-2" style={{ borderTop: `1px solid ${C.navyLine}` }}>
-            <span className="text-xs flex-1 truncate" style={{ color: C.navySub }}>{nomeUser}</span>
+          <button onClick={alternarMenu} title={recolhido ? "Mostrar o menu" : "Esconder o menu"} className={`shrink-0 flex items-center gap-2 py-2 text-xs ${recolhido ? "justify-center" : "px-4"}`}
+            style={{ color: C.navySub, borderTop: `1px solid ${C.navyLine}` }}>{recolhido ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> esconder menu</>}</button>
+          <div className={`py-2.5 shrink-0 flex items-center gap-2 ${recolhido ? "justify-center px-1" : "px-3"}`} style={{ borderTop: `1px solid ${C.navyLine}` }}>
+            {!recolhido && <span className="text-xs flex-1 truncate" style={{ color: C.navySub }}>{nomeUser}</span>}
             <button onClick={onSair} title="Sair" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
-              style={{ color: "#fff", border: `1px solid ${C.navyLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} /> Sair</button>
+              style={{ color: "#fff", border: `1px solid ${C.navyLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} />{!recolhido && " Sair"}</button>
           </div>
         </aside>
       )}
