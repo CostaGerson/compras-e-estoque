@@ -41,7 +41,7 @@ export async function DELETE(req) {
   const p = await usuarioPortal(req);
   if (!p) return negadoPortal();
   const b = await req.json().catch(() => ({}));
-  const r = await excluirRascunho(p.cliente, b.ppId);
+  const r = await excluirRascunho(p.cliente, b.ppId, p.u);
   if (r.error) return Response.json(r, { status: 400 });
   return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
 }

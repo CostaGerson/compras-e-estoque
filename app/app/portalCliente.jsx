@@ -117,6 +117,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     } catch (e) { alerta(e.message); }
   };
 
+  // v712 — excluir pedido (enquanto não está na produção)
+  const excluirPedido = async (p) => { if (!(await confirmar(`Excluir o pedido de ${p.cliente || "—"} (${p.pecas} peças)?${p.status === "RECEBENDO_DETALHES" ? "\n\nOs links de preenchimento param de funcionar e as respostas recebidas são apagadas." : ""}${p.status === "LIBERADO" ? "\n\nA nossa equipe será avisada." : ""}\n\nNão dá para desfazer.`))) return; try { const j = await api("/api/portal", { method: "DELETE", body: JSON.stringify({ ppId: p.id }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); setDetalhe(null); if (ppId === p.id) limpar(); } catch (e) { alerta(e.message); } };
   const n = busca.trim().toLowerCase();
   const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().includes(n));
   const val = calcValores(itens);
@@ -290,7 +292,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
           </>
         )}
 
-        {d && aba === "PEDIDOS" && <ListaPedidos pedidos={d.pedidos} mobile={mobile} onAbrir={setDetalhe} />}
+        {d && aba === "PEDIDOS" && <ListaPedidos pedidos={d.pedidos} mobile={mobile} onAbrir={setDetalhe} onExcluir={excluirPedido} />}
         </div>
         </div>
       </main>
@@ -299,7 +301,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
       {detalhe && d && (() => {
         const p = d.pedidos.find((x) => x.id === detalhe);
         return p ? <DetalhePedido p={p} user={user} tamanhos={tamanhos} nomeCliente={d.cliente.nome} mobile={mobile} onFechar={() => setDetalhe(null)} onEditar={() => editar(p.id)}
-          onExcluir={async () => { if (!(await confirmar("Excluir este pedido em aberto?"))) return; try { const j = await api("/api/portal", { method: "DELETE", body: JSON.stringify({ ppId: p.id }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); setDetalhe(null); } catch (e) { alerta(e.message); } }}
+          onExcluir={() => excluirPedido(p)}
           salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }} /> : null;
       })()}
     </div>
@@ -373,7 +375,7 @@ function EnvioModal({ envio, setEnvio, val, st, onEnviar, onFechar }) {
 }
 
 // v711 — lista no estilo do painel de produção
-function ListaPedidos({ pedidos, mobile, onAbrir }) {
+function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
   const [filtro, setFiltro] = useState("TODOS");
   const [busca, setBusca] = useState("");
   const cont = useMemo(() => pedidos.reduce((m, p) => ({ ...m, [p.status]: (m[p.status] || 0) + 1 }), {}), [pedidos]);
@@ -405,7 +407,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir }) {
         <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 960 }}>
             <thead><tr style={{ background: C.panel2, color: C.sub }}>
-              {["Lançado em", "Pedido", "Cliente", "Peças", "CMV", "Vendido", "MC", "Despacho", "Status"].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i >= 3 && i <= 6 ? "text-right" : "text-left"}`}>{h}</th>)}
+              {["Lançado em", "Pedido", "Cliente", "Peças", "CMV", "Vendido", "MC", "Despacho", "Status"].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i >= 3 && i <= 6 ? "text-right" : "text-left"}`}>{h}</th>)}<th />
             </tr></thead>
             <tbody>
               {lista.map((p) => (
@@ -419,13 +421,14 @@ function ListaPedidos({ pedidos, mobile, onAbrir }) {
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}<div className="text-[10px] font-normal" style={{ color: C.sub }}>{pctTxt(p.mcPct)}</div></td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || "—"}</td>
                   <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}</td>
+                  <td className="px-2">{p.editavel && <button onClick={(e) => { e.stopPropagation(); onExcluir(p); }} title="Excluir pedido" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot><tr style={{ borderTop: `2px solid ${C.line}`, background: C.panel2 }}>
               <td colSpan={3} className="px-3 py-2 font-semibold">{lista.length} pedido(s)</td>
               <td className="px-3 py-2 text-right font-bold">{tot.pecas}</td><td className="px-3 py-2 text-right font-bold">{money(tot.cmv)}</td>
-              <td className="px-3 py-2 text-right font-bold">{money(tot.venda)}</td><td className="px-3 py-2 text-right font-bold" style={{ color: tot.mc >= 0 ? C.green : C.red }}>{money(tot.mc)}</td><td colSpan={2} />
+              <td className="px-3 py-2 text-right font-bold">{money(tot.venda)}</td><td className="px-3 py-2 text-right font-bold" style={{ color: tot.mc >= 0 ? C.green : C.red }}>{money(tot.mc)}</td><td colSpan={3} />
             </tr></tfoot>
           </table>
         </div>
@@ -441,7 +444,7 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
   return (
     <Janela titulo={`${p.numero ? `Pedido ${p.numero}` : "Pedido"} · ${p.cliente || nomeCliente}`} onFechar={onFechar} largura={980}
       rodape={<>
-        {p.status === "EM_ABERTO" && <button onClick={onExcluir} className="mr-auto flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /> Excluir</button>}
+        {p.editavel && <button onClick={onExcluir} className="mr-auto flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /> Excluir</button>}
         <button onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
         {p.editavel && <button onClick={onEditar} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ background: C.accent, color: "#fff" }}><Pencil size={14} /> Editar pedido</button>}
       </>}>

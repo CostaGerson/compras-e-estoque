@@ -170,10 +170,10 @@ export async function enviarPedido(ctx, b) {
 
 async function avisar(u, cliente, ppId, txt) {
   const para = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { diretoria: true }, { setor: "COMERCIAL" }] }, select: { id: true } }).catch(() => []);
-  const pp = await prisma.pp.findUnique({ where: { id: ppId }, select: { itens: { select: { quantidade: true } } } });
+  const pp = ppId > 0 ? await prisma.pp.findUnique({ where: { id: ppId }, select: { itens: { select: { quantidade: true } } } }) : null;
   const pecas = (pp?.itens || []).reduce((s, x) => s + (Number(x.quantidade) || 0), 0);
   if (para.length) await prisma.mensagem.createMany({ data: para.filter((x) => x.id !== u?.id).map((x) => ({ deId: u?.id || x.id, paraId: x.id,
-    texto: `🛒 PEDIDO DO PORTAL — ${nomeCliente(cliente)}: ${pecas} peça(s) · ${txt}. Veja em Pedidos › Lançar pedido.` })) }).catch(() => null);
+    texto: `🛒 PEDIDO DO PORTAL — ${nomeCliente(cliente)}: ${pp ? `${pecas} peça(s) · ` : ""}${txt}.${pp ? " Veja em Pedidos › Lançar pedido." : ""}` })) }).catch(() => null);
 }
 
 export async function linksDoPedido(ppId) {
@@ -296,12 +296,14 @@ export async function salvarItemPortal({ cliente }, { ppId, idx, dadosUnitarios,
   return { ok: true };
 }
 
-export async function excluirRascunho(cliente, ppId) {
+// v712 — exclui o pedido enquanto não estiver na produção (em aberto, recebendo detalhes ou liberado); os links param de funcionar
+export async function excluirRascunho(cliente, ppId, u) {
   const x = await pedidoDoCliente(cliente, ppId);
-  if (x.error) return x;
-  if (x.pp.portalStatus && x.pp.portalStatus !== "EM_ABERTO") return { error: "Só pedido em aberto pode ser excluído pelo portal." };
+  if (x.error) return { error: x.error.replace("para alterar", "para cancelar") };
+  const st = x.pp.portalStatus;
   await prisma.dadoUnitarioLink.deleteMany({ where: { ppId: x.pp.id } }).catch(() => null);
   await prisma.pp.delete({ where: { id: x.pp.id } });
+  if (st && st !== "EM_ABERTO") await avisar(u, cliente, -1, `pedido ${st === "LIBERADO" ? "liberado para produção" : "em recebimento de detalhes"} foi EXCLUÍDO pelo cliente`).catch(() => null);
   return { ok: true };
 }
 
