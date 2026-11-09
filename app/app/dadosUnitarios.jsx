@@ -107,11 +107,12 @@ function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFec
 // nova linha, remover e ordenar clicando no título de qualquer coluna (crescente / A→Z; clique de novo inverte)
 function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, conf, onAjustarGrade, onReplicar }) {
   const [ordenado, setOrdenado] = useState(null);   // { k, dir }
-  const [larg, setLarg] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
-  React.useEffect(() => { const f = () => setLarg(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
-  const largCol = 120 + campos.length * 190;
-  const nCols = Math.max(1, Math.min(4, Math.floor((Math.min(larg, 1800) - 60) / largCol)));
-  const porCol = Math.max(1, Math.ceil(linhas.length / nCols));
+  // v716 — o máximo de nomes um abaixo do outro (até a altura da tela); só depois abre nova coluna; a janela cresce com a lista
+  const [alt, setAlt] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
+  React.useEffect(() => { const f = () => setAlt(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  const LIN = 33;                                        // altura de uma linha
+  const largCol = 130 + campos.length * 210;             // largura de uma coluna
+  const porCol = Math.max(5, Math.floor((alt - 32 - 150) / LIN) - 1);
   const blocos = Array.from({ length: Math.max(1, Math.ceil(linhas.length / porCol)) }, (_, b) => [b * porCol, Math.min(linhas.length, (b + 1) * porCol)]);
   const upV = (i, cid, v) => onChange(linhas.map((l, j) => (j === i ? { ...l, valores: { ...(l.valores || {}), [cid]: v } } : l)));
   const upT = (i, t) => onChange(linhas.map((l, j) => (j === i ? { ...l, tam: t } : l)));
@@ -128,7 +129,7 @@ function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, con
   const cont = contarPorTam(linhas, ordem);
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onFechar}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full h-full flex flex-col shadow-2xl" style={{ background: C.panel, maxWidth: 1800 }}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl flex flex-col shadow-2xl" style={{ background: C.panel, maxWidth: "98vw", maxHeight: "96vh", minWidth: Math.min(560, typeof window !== "undefined" ? window.innerWidth - 16 : 560) }}>
         <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <div className="font-bold" style={{ color: "#001E41" }}>Lista de personalização exclusiva</div>
           <div className="text-xs" style={{ color: C.sub }}><b style={{ color: C.text }}>{linhas.length} peça(s)</b>{cont.length ? ` — ${resumoTam(cont)}` : ""}</div>
@@ -138,9 +139,9 @@ function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, con
           <button type="button" onClick={onFechar} className="ml-auto" style={{ color: C.sub }}><X size={20} /></button>
         </div>
         <div className="flex-1 overflow-auto p-3">
-          <div className="grid gap-3 items-start" style={{ gridTemplateColumns: `repeat(${blocos.length}, minmax(0, 1fr))` }}>
+          <div className="flex gap-3 items-start">
             {blocos.map(([a, z], b) => (
-              <table key={b} className="w-full text-sm" style={{ borderCollapse: "collapse", border: `1px solid ${C.line}` }}>
+              <table key={b} className="text-sm shrink-0" style={{ borderCollapse: "collapse", border: `1px solid ${C.line}`, width: largCol }}>
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
                   <th className="px-1.5 py-1.5 text-left text-xs" style={{ width: 34 }}>#</th>
                   <th onClick={() => ordenar("TAM")} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline" style={{ width: 70 }}>Tam. {seta("TAM")}</th>
