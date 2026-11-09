@@ -36,6 +36,7 @@ export async function PATCH(req, { params }) {
   if ("senha" in b) data.senha = txt(b.senha);
   if ("fotoBase64" in b) data.fotoBase64 = b.fotoBase64 || null;
   if ("setor" in b) data.setor = b.setor || "PCP";
+  if ("portalClienteId" in b) data.portalClienteId = Number(b.portalClienteId) || null;   // v699 — portal do cliente
   if ("isMaster" in b) data.isMaster = bool(b.isMaster);
   if ("ativo" in b) data.ativo = bool(b.ativo);
   if ("pessoaId" in b && a.isMaster) data.pessoaId = txt(b.pessoaId) || null;   // v451 — funcionário da folha

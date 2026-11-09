@@ -41,6 +41,7 @@ export async function POST(req) {
     isMaster: bool(b.isMaster),
     ativo: b.ativo === undefined ? true : bool(b.ativo),
     pessoaId: txt(b.pessoaId) || null,   // v451
+    portalClienteId: b.setor === "CLIENTE" && Number(b.portalClienteId) ? Number(b.portalClienteId) : null,   // v699
   };
   for (const p of PERMS) data[p] = bool(b[p]);
   data.diretoria = bool(b.diretoria);

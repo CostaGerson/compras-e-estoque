@@ -36,7 +36,7 @@ export async function garantirTipos() {
 }
 
 // v170 — acesso ao financeiro: master/diretoria (tudo) ou quem tem permissão operacional de contas, documentos financeiros ou NF
-export const SEL_U = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true, permissoes: true };
+export const SEL_U = { id: true, nome: true, sobrenome: true, isMaster: true, setor: true, ativo: true, diretoria: true, permissoes: true, portalClienteId: true };   // v699: portal do cliente
 export const PERMS_FIN = ["contasPagar", "contasReceber", "docsFinanceiros", "nfEntrada", "faturamento"];
 export async function usuarioAtivoFin(id) {
   const uid = Number(id);

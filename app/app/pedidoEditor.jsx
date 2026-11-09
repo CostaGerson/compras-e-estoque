@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import DadosUnitarios from "./dadosUnitarios";   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
@@ -206,7 +207,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
-          anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };   // v650
+          anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
+          dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null };   // v699
       });
       setItens(its.length ? its : [novoItem()]);
       setAnexos((d.anexos || []).map((a) => ({ ...a })));
@@ -711,6 +713,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}</div>
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} />
+                {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
+                <DadosUnitarios du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
+                  tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
+                  onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />
+                <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {[...comps, ...extras].map((comp) => comp === "TECIDO" ? (

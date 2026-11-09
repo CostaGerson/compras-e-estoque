@@ -32,6 +32,7 @@ enum Setor {
   SUBLIMACAO
   DTF
   ARTE        // v654 — arte finalista (criação de layout)
+  CLIENTE     // v699 — portal do cliente (ex.: Loja Way): só lança e vê os pedidos do próprio cliente
 }
 
 enum TipoTecido {
@@ -112,6 +113,7 @@ model Usuario {
   pessoaId         String?                   // v169 — funcionário da Matriz (férias → status inativo)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)
   resetHash        String?                   // v167 — redefinição de senha por e-mail (sha-256 do token)
   resetExpira      DateTime?
+  portalClienteId  Int?                      // v699 — usuário do portal do cliente: Cliente.id que ele representa
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   mensagensEnviadas  Mensagem[] @relation("MsgDe")
@@ -395,6 +397,8 @@ model Pp {
   nfObs             String?   // observação que vai na NF (o nº do pedido e a OC entram sozinhos)
   efetivadoEm       DateTime?
   efetivadoPorNome  String?
+  portalClienteId   Int?      // v699 — lançado pelo portal do cliente (o cliente vê só os pedidos dele)
+  portalEnviadoPor  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -449,6 +453,7 @@ model PpItem {
   parametrosJson    String?
   fotoBase64        String?
   anexosJson        Json?     // v650 — arquivos do item além da foto: [{ nome, mime, base64 }] (saem na OP abaixo do item)
+  dadosUnitarios    Json?     // v699 — dados por peça: { campos: [{ id, local, rotulo }], linhas: [{ tam, valores }], linkId? }
   valorTerceirizado Decimal? @db.Decimal(14, 2)
   fppId             Int?      // v595 — FPP indexada no lançamento (artigo e rendimento vêm dela)
   fppNumero         Int?
@@ -2503,4 +2508,35 @@ model FppAnexo {
   criadoPorNome String?
   createdAt     DateTime @default(now())
   @@index([fppId])
+}
+
+// v699 — link público para o cliente final preencher os dados unitários (tamanho + nome, tipo sanguíneo…) sem login
+model DadoUnitarioLink {
+  id              Int       @id @default(autoincrement())
+  token           String    @unique
+  titulo          String                // ex.: "LOJA WAY · CAMISETA DRY FIT"
+  clienteNome     String?
+  campos          Json                  // [{ id, local, rotulo }] — o que cada pessoa preenche
+  tamanhos        Json                  // tamanhos que podem ser escolhidos
+  aberto          Boolean   @default(true)
+  portalClienteId Int?                  // criado no portal do cliente
+  criadoPorId     Int?
+  criadoPorNome   String?
+  fechadoEm       DateTime?
+  fechadoPorNome  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  respostas       DadoUnitarioResposta[]
+}
+
+model DadoUnitarioResposta {
+  id        Int      @id @default(autoincrement())
+  linkId    Int
+  link      DadoUnitarioLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  envio     String               // agrupa as peças enviadas juntas (uma pessoa pode pedir várias)
+  responsavel String?            // quem preencheu (opcional)
+  tam       String
+  valores   Json                 // { [campoId]: texto }
+  createdAt DateTime @default(now())
+  @@index([linkId])
 }

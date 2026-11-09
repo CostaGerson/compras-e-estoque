@@ -8,6 +8,8 @@ import {
   num, hojeISO, somaDias, proximoNumero, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, paramFora, resumoFpp,
 } from "@/lib/pedidoLanc";
 
+import { limparDU, temDU, conferirComGrade } from "@/lib/dadosUnitarios";
+
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const dUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
 const so = (s) => String(s || "").replace(/\D/g, "");
@@ -46,6 +48,7 @@ export async function salvarPp(id, b, quem) {
     fotoBase64: servico ? null : it.fotoBase64 || null,
     anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64 })) : undefined,   // v650
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
+    ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
   }));
@@ -87,6 +90,11 @@ export function criticas(pp) {
     if (!String(it.descricao || "").trim()) erros.push(serv ? `Serviço ${i + 1}: informe o tipo de serviço.` : `Item ${i + 1}: sem descrição.`);
     if (!pp.interno && !(num(it.valorUnitario) > 0)) erros.push(`${serv ? "Serviço" : "Item"} ${i + 1}: sem valor unitário.`);
     if (!serv && !it.fppId) avisos.push(`Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);
+    if (!serv && temDU(it.dadosUnitarios)) {   // v699 — a lista de dados unitários tem que bater com a grade
+      const cf = conferirComGrade(it.dadosUnitarios, it.grade);
+      if (!it.dadosUnitarios.linhas?.length) erros.push(`Item ${i + 1}: dado unitário ligado sem a lista de peças.`);
+      else if (!cf.ok) erros.push(`Item ${i + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}).`);
+    }
   });
   if (pp.prazoDias == null) erros.push("Informe o prazo de entrega (dias).");
   const ce = conferirEntregas(itens, pp.entregas, pp.entregaModo);

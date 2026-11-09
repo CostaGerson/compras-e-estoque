@@ -29,6 +29,19 @@ try {
     await prisma.usuario.create({ data: { nome: "AYRLLON", sobrenome: "(ARTE FINALISTA)", email: "", login: "ayrllon", senha: "ayrllon123", setor: "ARTE", ativo: true } });
     console.log("Seed: arte finalista 'ayrllon' criado.");
   }
+  // v699 — portal do cliente Loja Way: lojaway / lojaway123 (lança pedidos só com os itens padrão da Loja Way)
+  {
+    const way = await prisma.cliente.findFirst({ where: { ativo: true, OR: [{ nomeFantasia: { contains: "LOJA WAY", mode: "insensitive" } }, { razaoSocial: { contains: "LOJA WAY", mode: "insensitive" } }] } })
+      || await prisma.cliente.findFirst({ where: { ativo: true, OR: [{ nomeFantasia: { contains: "WAY", mode: "insensitive" } }, { razaoSocial: { contains: "WAY", mode: "insensitive" } }] } });
+    const lw = await prisma.usuario.findUnique({ where: { login: "lojaway" } });
+    if (!lw) {
+      await prisma.usuario.create({ data: { nome: "LOJA WAY", sobrenome: "", email: "", login: "lojaway", senha: "lojaway123", setor: "CLIENTE", ativo: true, portalClienteId: way?.id || null } });
+      console.log(`Seed: usuário 'lojaway' (portal do cliente) criado${way ? ` — cliente ${way.nomeFantasia || way.razaoSocial}` : " — cliente Loja Way não encontrado: vincule em Usuários"}.`);
+    } else if (!lw.portalClienteId && way) {
+      await prisma.usuario.update({ where: { id: lw.id }, data: { portalClienteId: way.id } });
+      console.log(`Seed: 'lojaway' vinculado ao cliente ${way.nomeFantasia || way.razaoSocial}.`);
+    }
+  }
   // RH: lorraine / rh123 (só cria se não existir)
   const rh = await prisma.usuario.findUnique({ where: { login: "lorraine" } });
   if (!rh) {

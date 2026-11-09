@@ -20,7 +20,7 @@ export async function GET(req) {
     where: { status: { not: "EXCLUIDO" } },   // v552 — pedido na lixeira
     orderBy: { createdAt: "desc" },
     select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } },
-      interno: true, efetivadoEm: true, entregaModo: true, anexos: { select: { id: true, nome: true, tipo: true, categoria: true }, orderBy: { id: "asc" } } },   // v595
+      interno: true, efetivadoEm: true, entregaModo: true, portalClienteId: true, anexos: { select: { id: true, nome: true, tipo: true, categoria: true }, orderBy: { id: "asc" } } },   // v595
   });
   const tem = async (campo) => new Set((await prisma.pp.findMany({ where: { [campo]: { not: null } }, select: { id: true } })).map((x) => x.id));
   const [pv, op, pc, lanc] = await Promise.all([tem("arquivoPedidoPdf"), tem("arquivoOpPdf"), tem("arquivoPcPdf"), tem("arquivoLancPdf")]);

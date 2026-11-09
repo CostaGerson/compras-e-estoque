@@ -37,6 +37,18 @@ function anexosHtml(lista, titulo) {
     : `<div class="mut">Anexo ${esc(a.nome || "")} (formato não imprimível)</div>`).join("")}</div>`;
 }
 
+// v699 — dados unitários na OP: uma linha por peça, agrupadas por tamanho, com o local de cada dado
+function duHtml(du) {
+  if (!du || !Array.isArray(du.campos) || !du.campos.length || !Array.isArray(du.linhas) || !du.linhas.length) return "";
+  const ordem = [];
+  for (const l of du.linhas) if (!ordem.includes(l.tam)) ordem.push(l.tam);
+  const linhas = ordem.flatMap((t) => du.linhas.filter((l) => l.tam === t));
+  const cont = ordem.map((t) => `${esc(t)} ${du.linhas.filter((l) => l.tam === t).length}`).join(" · ");
+  return `<div class="sec" style="margin-top:6px">Dados unitários — ${du.linhas.length} peça(s) · ${cont}</div>
+    <table class="pag du"><tr><th>#</th><th>TAM</th>${du.campos.map((c) => `<th>${esc(c.rotulo)}<div class="mut" style="font-weight:400">${esc(String(c.local || "").toLowerCase())}</div></th>`).join("")}</tr>
+    ${linhas.map((l, i) => `<tr><td>${i + 1}</td><td class="b">${esc(l.tam)}</td>${du.campos.map((c) => `<td>${esc((l.valores || {})[c.id] || "—")}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+
 export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [] } = {}) {
   const PV = tipo === "PV";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -84,6 +96,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
           <table class="params">${params || `<tr><td class="pk">Parâmetros</td><td>—</td></tr>`}</table>
         </div>
       </div>
+      ${duHtml(it.dadosUnitarios)}
       ${anexosHtml((it.anexos || []).map((a) => ({ ...a, src: a.src || a.base64 })), "Arquivos do item")}
     </div>`;
   }).join("");
@@ -140,6 +153,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   .sec { color: #2E5C9A; font-weight: 700; font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; margin: 14px 0 5px; }
   table.pag { width: 100%; border-collapse: collapse; }
   table.pag td { padding: 4px 6px; border-bottom: 1px solid #EEF0F3; vertical-align: top; }
+  table.pag.du th { text-align: left; font-size: 9.5px; padding: 3px 6px; background: #F1F3F5; } table.pag.du td { font-size: 10px; padding: 2px 6px; }   /* v699 */
   .notas { margin-top: 14px; border-top: 1px solid #E4E7EC; padding-top: 8px; font-size: 10px; line-height: 1.55; }
   .peca { border: 1px solid #E4E7EC; border-radius: 6px; margin-bottom: 9px; overflow: hidden; page-break-inside: avoid; }
   .peca-h { background: #F5F7FB; border-bottom: 1px solid #E4E7EC; padding: 6px 9px; font-weight: 700; color: #001E41; display: flex; align-items: center; gap: 6px; }
@@ -260,7 +274,7 @@ export function dadosImpressaoPp(d, veVal = true) {
     const grade = js(it.gradeJson, []);
     const base = { tipoPecaNome: it.tipoPecaNome || "", codigo: it.codigo || "", descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario) : "",
       parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "",
-      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };
+      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [], dadosUnitarios: it.dadosUnitarios || null };   // v699
     return servico ? { ...base, grade: [{ tam: "UN", qtd: grade.reduce((q, g) => q + (n(g.qtd) || 0), 0) }] } : { ...base, grade };
   });
   const total = itens.reduce((s, it) => s + (it.grade || []).reduce((q, g) => q + n(g.qtd), 0) * n(it.valorUnitario), 0);

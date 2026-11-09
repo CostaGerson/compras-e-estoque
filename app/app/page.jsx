@@ -43,7 +43,8 @@ import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, S
 import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react";
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
-import PedidoEditor from "./pedidoEditor";   // v595 — lançamento de pedido sem o KM
+import PedidoEditor from "./pedidoEditor";
+import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -276,6 +277,8 @@ export default function Home() {
   if (!user) return <Login onEntrar={entrar} />;
   // v452 — motorista (setor Logística, sem chave master/diretoria) vê só o app da rota dele
   if (user.setor === "LOGISTICA" && !user.isMaster && !user.diretoria) return <MotoristaApp user={user} onSair={sair} />;
+  // v699 — usuário do portal do cliente (ex.: Loja Way): só o lançamento reduzido e os pedidos do próprio cliente
+  if (user.setor === "CLIENTE") return <PortalCliente user={user} onSair={sair} tamanhos={TAMANHOS} />;
 
   const masterReal = ehMasterU(user);              // v170 — só a chave "Usuário master": gerencia usuários e permissões
   const diretor = ehDiretor(user);                 // chave Diretoria: todos os painéis e funções
@@ -1393,7 +1396,8 @@ function LancarPP({ user }) {
             <div className="w-28 font-medium">{p.numero || <span style={{ color: C.sub }}>rascunho</span>}
               {/* v595 — situação do lançamento */}
               <div className="text-[10px] font-semibold" style={{ color: p.status === "FATURADO" ? C.blue : p.efetivadoEm ? C.green : p.origem === "PEDIDOS" ? C.sub : C.yellow }}>
-                {p.status === "FATURADO" ? "FATURADO" : p.efetivadoEm ? "LANÇADO" : p.origem === "PEDIDOS" ? "" : "RASCUNHO"}{p.interno ? " · INTERNO" : ""}</div></div>
+                {p.status === "FATURADO" ? "FATURADO" : p.efetivadoEm ? "LANÇADO" : p.origem === "PEDIDOS" ? "" : "RASCUNHO"}{p.interno ? " · INTERNO" : ""}</div>
+              {p.portalClienteId && <div className="text-[10px] font-bold" style={{ color: "#7C3AED" }} title="Enviado pelo portal do cliente — conferir e efetivar">PORTAL DO CLIENTE</div>}</div>
             <div className="flex-1 min-w-0">{p.clienteNome || "—"}
               {(p.anexos || []).length > 0 && <div className="flex flex-wrap gap-1 mt-0.5">
                 {p.anexos.map((a) => <button key={a.id} onClick={() => window.open(`/api/pp/${p.id}?anexo=${a.id}&_u=${user?.id}`, "_blank")} className="text-[11px] px-1.5 rounded truncate" style={{ maxWidth: 180, color: C.accent, border: `1px solid ${C.line}` }} title={a.nome}>📎 {a.nome}</button>)}
@@ -4295,7 +4299,10 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     diretoria: usuario?.diretoria ?? false,
     permissoes: Array.isArray(usuario?.permissoes) ? usuario.permissoes : null,   // v170 — null = todas as do tipo
     pessoaId: usuario?.pessoaId || "",   // v451 — funcionário da folha
+    portalClienteId: usuario?.portalClienteId || "",   // v699 — portal do cliente
   });
+  const [clientesPortal, setClientesPortal] = useState([]);
+  useEffect(() => { if (!self && f.setor === "CLIENTE" && !clientesPortal.length) fetch("/api/clientes").then((r) => r.json()).then((l) => setClientesPortal(Array.isArray(l) ? l : [])).catch(() => {}); }, [f.setor]);
   const [pessoas, setPessoas] = useState([]);
   useEffect(() => { if (!self) fetch(`/api/usuarios?u=${sessaoId()}&pessoas=1`).then((r) => r.json()).then((l) => setPessoas(Array.isArray(l) ? l : [])).catch(() => {}); }, []);
   const [verSenha, setVerSenha] = useState(false);
@@ -4370,6 +4377,15 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
               </Sel>
             )}
           </div>
+          {!self && f.setor === "CLIENTE" && (
+            <div className="mb-3">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente do portal (vê e lança só os pedidos deste cliente, com os itens padrão dele)</div>
+              <select value={f.portalClienteId || ""} onChange={(e) => set("portalClienteId", e.target.value ? Number(e.target.value) : "")} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${f.portalClienteId ? C.line : "#C33"}` }}>
+                <option value="">— escolha o cliente —</option>
+                {clientesPortal.map((c) => <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial}{c.cnpj ? ` · ${c.cnpj}` : ""}</option>)}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <div className="text-xs mb-1" style={{ color: C.sub }}>Usuário (login)</div>
