@@ -442,6 +442,15 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     if (atual?.anexos) setAnexos(atual.anexos);
     return d.id;
   };
+  // v729 — sem rascunho: só pedido efetivado fica no sistema. Sair sem efetivar descarta o que foi gravado na tentativa.
+  const sair = async () => {
+    if (efetivado || !podeLancar) return onVoltar(f.numero || null);
+    if (ppId0) return onVoltar();   // pedido que já existia (ex.: do portal aguardando efetivação): fica como está
+    const preenchido = !!(ppId || f.clienteNome || itens.some((it) => it.descricao || qtdGrade(it.grade) > 0));
+    if (preenchido && !(await confirmar("Sair sem efetivar? O pedido não fica salvo (só pedido efetivado entra no sistema)."))) return;
+    if (ppId && !ppId0) await api(`/api/pp/${ppId}`, { method: "DELETE" }).catch(() => null);   // só o criado nesta tela (pedido do portal aberto aqui não é apagado)
+    onVoltar();
+  };
   const salvarRascunho = async () => {
     setSalvando(true);
     try { await salvar(); setResultado({ ok: true, rascunho: true }); } catch (e) { alerta(e.message); }
@@ -498,7 +507,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     <div className="pb-10">
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="flex items-center gap-3">
-          <button onClick={onVoltar} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
+          <button onClick={sair} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
           <span className="text-lg font-bold">Pedido {numeroExib || "—"}{!f.numero && numeroExib ? <span className="text-xs font-normal ml-1" style={{ color: C.sub }}>(prévia — número gravado ao efetivar)</span> : null}</span>
           <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ color: badge[1], border: `1px solid ${badge[1]}` }}>{badge[0]}</span>
           {f.interno && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>INTERNO</span>}
@@ -509,10 +518,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {veVal && <button onClick={() => imprimirAgora("PV")} title="Pedido de venda — com valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
           {/* v705 — resetar: limpa o pedido em lançamento (cliente, itens, anexos, prazos); o rascunho salvo só muda ao salvar de novo */}
           {podeLancar && !efetivado && <button onClick={async () => {
-            if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela." + (ppId ? "\n\nO rascunho salvo só muda quando você salvar de novo." : "")))) return;
+            if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela."))) return;
             setF((s) => ({ ...vazioF(), numero: s.numero, emissao: hojeISO() })); setItens([novoItem()]); setAnexos([]);
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
-          {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} className="px-3 py-2 rounded text-sm" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
             {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Efetivar lançamento"}</button>}
           {podeLancar && efetivado && !faturado && !f.interno && <button onClick={() => setFat({ nf: "", emissaoNf: hojeISO(), entrega: despacho || "", pedirEntrega: false })} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.blue, color: "#fff" }}>Faturar</button>}
@@ -742,8 +750,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 <DadosUnitarios du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
                   tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
-                  ppId={!efetivado ? ppId : null} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}
-                  semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : undefined}
+                  ppId={null} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}
+                  semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : "O link de preenchimento é do portal do cliente. Aqui, cole ou digite a lista."}
                   onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>

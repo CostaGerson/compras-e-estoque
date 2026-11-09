@@ -199,7 +199,7 @@ export async function enviarPedido(ctx, b) {
 // v714 — liberado para produção: o despacho passa a contar o maior lead time das FPPs a partir de agora
 // v727 — mensagem para a equipe: lançado na produção (nº do pedido) ou o motivo de ter ficado em Lançar pedido
 const textoLancamento = (r) => (r?.ok ? `LIBERADO E LANÇADO NA PRODUÇÃO: PEDIDO ${r.numero} (anexos e personalização em Excel no pedido)`
-  : `LIBERADO PARA PRODUÇÃO, MAS NÃO FOI LANÇADO SOZINHO — conferir e efetivar. Motivo: ${(r?.erros || ["?"]).join(" ")}`);
+  : `LIBERADO PARA PRODUÇÃO, MAS NÃO FOI LANÇADO SOZINHO — conferir e efetivar pelo aviso no topo da Produção. Motivo: ${(r?.erros || ["?"]).join(" ")}`);
 async function liberar(ppId, cliente) {
   const its = await prisma.ppItem.findMany({ where: { ppId }, select: { fppId: true } });
   const ids = [...new Set(its.map((i) => i.fppId).filter(Boolean))];
@@ -219,7 +219,7 @@ async function avisar(u, cliente, ppId, txt) {
   const pp = ppId > 0 ? await prisma.pp.findUnique({ where: { id: ppId }, select: { portalNumero: true, itens: { select: { quantidade: true } } } }) : null;
   const pecas = (pp?.itens || []).reduce((s, x) => s + (Number(x.quantidade) || 0), 0);
   if (para.length) await prisma.mensagem.createMany({ data: para.filter((x) => x.id !== u?.id).map((x) => ({ deId: u?.id || x.id, paraId: x.id,
-    texto: `🛒 PEDIDO DO PORTAL${pp?.portalNumero ? ` Nº ${fmtNumPortal(pp.portalNumero)}` : ""} — ${nomeCliente(cliente)}: ${pp ? `${pecas} peça(s) · ` : ""}${txt}.${pp ? " Veja em Pedidos › Lançar pedido." : ""}` })) }).catch(() => null);
+    texto: `🛒 PEDIDO DO PORTAL${pp?.portalNumero ? ` Nº ${fmtNumPortal(pp.portalNumero)}` : ""} — ${nomeCliente(cliente)}: ${pp ? `${pecas} peça(s) · ` : ""}${txt}.${pp ? " Veja em Produção." : ""}` })) }).catch(() => null);
 }
 
 export async function linksDoPedido(ppId) {

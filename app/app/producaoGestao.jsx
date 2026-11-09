@@ -60,6 +60,13 @@ const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStat
 
 export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, componentes = {}, veVal = false }) {
   const [d, setD] = useState(null);
+  // v729 — lançamento pela Produção (a guia Lançar pedido saiu) e pedidos do portal liberados que não entraram sozinhos
+  const podeLancar = lancaPP(user);
+  const [portalPend, setPortalPend] = useState([]);
+  const lerPortalPend = () => podeLancar && fetch("/api/pp", { cache: "no-store", headers: { "x-usuario-id": String(user?.id || "") } }).then((r) => r.json())
+    .then((l) => setPortalPend((Array.isArray(l) ? l : []).filter((p) => p.portalClienteId && p.portalStatus === "LIBERADO" && !p.efetivadoEm))).catch(() => {});
+  useEffect(() => { lerPortalPend(); const t = setInterval(lerPortalPend, 60000); return () => clearInterval(t); }, []);
+  const editarPp = (ppId) => window.dispatchEvent(new CustomEvent("ce:ir", { detail: ppId ? { v: "editarPedido", ppId } : { v: "editarPedido", novo: true } }));
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState(null);
   const [q, setQ] = useState("");
@@ -160,7 +167,14 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
           {d?.sync?.erro && <span className="flex items-center gap-1" style={{ color: C.red }}><AlertTriangle size={12} /> {d.sync.erro}</span>}
           <button onClick={carregar} title="Atualizar" className="p-1 rounded" style={{ color: C.sub }}><RefreshCw size={13} /></button>
         </div>
+        {podeLancar && <button onClick={() => editarPp(null)} className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><FileText size={15} /> Lançar pedido</button>}
       </div>
+      {podeLancar && portalPend.length > 0 && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}55` }}>
+        <div className="font-semibold mb-1 flex items-center gap-1" style={{ color: C.yellow }}><AlertTriangle size={14} /> Pedido(s) do portal liberado(s) que não entraram sozinhos — confira e efetive</div>
+        {portalPend.map((p) => <div key={p.id} className="flex items-center gap-3 py-1" style={{ color: C.text }}>
+          <span className="flex-1">Portal nº {String(p.portalNumero || "").padStart(4, "0")} · {p.clienteNome} · {p._count?.itens ?? 0} item(ns)</span>
+          <button onClick={() => editarPp(p.id)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir e efetivar</button></div>)}
+      </div>}
       {/* v618 — atalhos em cards grandes, acima dos indicadores */}
       {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {atalhos.map((a, i) => {

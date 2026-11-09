@@ -111,7 +111,6 @@ const MENU = [
   ] },
   { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
-    { key: "pp", label: "Lançar pedido", icon: FileText, desc: "Pedidos de venda, internos e de serviço: grade, foto, FPP e parâmetros de cada peça" },
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Sincronização de pedidos", icon: ClipboardList, desc: "Pedidos do KM em lista: situação no PCP, itens com FPP e ligação de cada item à FPP base" },
       { key: "comprasAvulsas", label: "Compras avulsas", icon: ShoppingCart, desc: "Demandas de compra avulsa (operação ou complemento de pedido): lançar, editar e marcar comprada" },   // v468
@@ -231,7 +230,7 @@ export default function Home() {
     const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
       if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, voltar: d.voltar || null, t: Date.now() }); setView("comercial"); }
       if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
-      if (d.v === "editarPedido" && d.ppId) setPpEdit({ ppId: d.ppId, numero: d.numero || null, t: Date.now() });
+      if (d.v === "editarPedido" && (d.ppId || d.novo)) setPpEdit({ ppId: d.ppId || null, numero: d.numero || null, t: Date.now() });   // v729 — novo: Lançar pedido da Produção
       if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);
@@ -251,6 +250,7 @@ export default function Home() {
     const sp = new URLSearchParams(window.location.search), q = sp.get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); }
     if (q === "rota") { setView("rota"); if (sp.get("demanda")) sessionStorage.setItem("ce_abrir_demanda", `${sp.get("demanda")}|${sp.get("data") || ""}`); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v725 — link da demanda (PCP) abre a rota   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
+  useEffect(() => { if (view === "pp") setView("producao"); }, [view]);   // v729 — a guia Lançar pedido saiu: o lançamento é pela Produção
   // v565 — no celular o sistema abre direto na agenda (uma vez por aba: depois volta para a tela em que estava)
   useEffect(() => {
     if (!user?.id) return;
@@ -417,10 +417,9 @@ export default function Home() {
           {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} componentes={COMPONENTES} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
-          {view === "pp" && pode("pp") && <LancarPP user={user} />}
           {ppEdit && <div className="fixed inset-0 z-[45] overflow-auto p-4 md:p-6" style={{ background: C.bg }}>
             <PedidoEditor key={ppEdit.t} ppId={ppEdit.ppId} podeLancar={lancaPP(user)} veVal={veValoresPP(user)} uid={user?.id} componentes={COMPONENTES} tamanhos={TAMANHOS} imprimir={imprimirPP}
-              onVoltar={() => { const n = ppEdit.numero; setPpEdit(null); if (n) setTimeout(() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pedido", numero: n } })), 0); }} />
+              onVoltar={(num) => { const n = num || ppEdit.numero; setPpEdit(null); if (n) setTimeout(() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pedido", numero: n } })), 0); }} />
           </div>}
           {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} componentes={COMPONENTES} veVal={veValoresPP(user)} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}

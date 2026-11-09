@@ -51,9 +51,7 @@ export default function PedidosAndamento({ user }) {
   useEffect(() => { carregar(); }, [comp, todos]);
   // v319 — colar (Ctrl+V) PDFs copiados do Explorer/e-mail em qualquer lugar da tela
   const enviarRef = useRef(null);
-  useEffect(() => {
-    return ouvirColar((fs) => enviarRef.current?.(fs), (m) => setErro(m));
-  }, []);
+  // v729 — subir PV e OP do KM saiu: os pedidos chegam pela sincronização do KM
 
   const enviar = async (files) => {
     const lista = [...files].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
@@ -171,16 +169,8 @@ export default function PedidosAndamento({ user }) {
         <button onClick={exportar} disabled={!lista.length} title="Baixa em Excel o que a lista está mostrando (filtro, busca e ordem)" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold"
           style={{ color: C.green, border: `1px solid ${C.green}`, background: C.panel, opacity: lista.length ? 1 : 0.4 }}><Download size={14} /> Excel{lista.length ? ` (${lista.length})` : ""}</button>
         <div className="flex-1" />
-        <input ref={inp} type="file" accept="application/pdf" multiple className="hidden" onChange={(e) => { enviar(e.target.files); e.target.value = ""; }} />
-        <button disabled={enviando} onClick={() => inp.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: enviando ? 0.5 : 1 }}>
-          {enviando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Subir PV e OP
-        </button>
       </div>
 
-      <div tabIndex={0} title="Clique aqui e aperte Ctrl+V" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); enviar(e.dataTransfer.files); }}
-        className="rounded-xl px-4 py-3 mb-4 text-xs flex items-center gap-2" style={{ background: C.blueSoft, color: C.blue, border: `1px dashed ${C.blue}` }}>
-        <FileText size={14} /> Arraste ou cole (Ctrl+V) aqui os PDFs do KM, vários de uma vez: o <b>PV</b> (valores e condição), o <b>PP</b> (produção) e o relatório <b>Posição Geral de Vendas</b> (condição e saldo a faturar de todos os pedidos de uma vez). Tudo se junta pelo nº do pedido.
-      </div>
 
       {/* v317 — conexão com o Cronograma (Maycon) */}
       {d && (
