@@ -44,15 +44,18 @@ export function SelectLocal({ value, onChange, style }) {
 }
 
 // prévia da lista lida: confirmação obrigatória antes de lançar
-function PreviaLista({ campos, linhas, erros, ordem, onConfirmar, onFechar, titulo = "Confira a lista antes de lançar", jaTem = 0 }) {
+function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFechar, titulo = "Confira a lista antes de lançar", jaTem = 0 }) {
   const [modo, setModo] = useState(jaTem ? "SUBSTITUIR" : "SUBSTITUIR");
+  // v704 — toda lista colada pergunta se os dados vão em letras maiúsculas
+  const [caixa, setCaixa] = useState(null);   // null = ainda não escolheu · "MAIUSCULAS" · "MANTER"
+  const linhas = caixa === "MAIUSCULAS" ? linhas0.map((l) => ({ ...l, valores: Object.fromEntries(Object.entries(l.valores || {}).map(([k, v]) => [k, String(v ?? "").toLocaleUpperCase("pt-BR")])) })) : linhas0;
   const cont = contarPorTam(linhas, ordem);
   return (
     <Janela titulo={titulo} onFechar={onFechar} largura={820}
       rodape={<>
         <button type="button" onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Voltar</button>
-        <button type="button" disabled={!linhas.length} onClick={() => onConfirmar(linhas, modo)} className="px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ background: linhas.length ? C.green : C.line, color: "#fff" }}>Confirmar e lançar {linhas.length} peça(s)</button>
+        <button type="button" disabled={!linhas.length || !caixa} onClick={() => onConfirmar(linhas, modo)} title={!caixa ? "Escolha antes se os dados vão em letras maiúsculas" : ""} className="px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: linhas.length && caixa ? C.green : C.line, color: "#fff" }}>Confirmar e lançar {linhas.length} peça(s)</button>
       </>}>
       <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: C.greenSoft, color: C.text }}>
         <b>{linhas.length} peça(s)</b> reconhecida(s){cont.length ? <> — {resumoTam(cont)}</> : null}. A grade do item passa a seguir esta contagem.
@@ -68,6 +71,15 @@ function PreviaLista({ campos, linhas, erros, ordem, onConfirmar, onFechar, titu
           {erros.map((e) => <div key={e.linha} className="font-mono mt-0.5">linha {e.linha}: {e.texto}</div>)}
         </div>
       )}
+      <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: caixa ? C.panel2 : C.accentSoft, border: `1px solid ${caixa ? C.line : C.accent}` }}>
+        <div className="font-semibold mb-1.5" style={{ color: caixa ? C.text : C.accent }}>Deseja os dados em letras maiúsculas?</div>
+        <div className="flex flex-wrap gap-2">
+          {[["MAIUSCULAS", "Sim, tudo em MAIÚSCULAS"], ["MANTER", "Não, manter como foi escrito"]].map(([k, t]) => (
+            <button key={k} type="button" onClick={() => setCaixa(k)} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={caixa === k ? { background: C.accent, color: "#fff" } : { background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{t}</button>
+          ))}
+        </div>
+      </div>
       {jaTem > 0 && (
         <div className="mb-3 flex gap-4 text-xs">
           <label className="flex items-center gap-1"><input type="radio" checked={modo === "SUBSTITUIR"} onChange={() => setModo("SUBSTITUIR")} /> substituir as {jaTem} peça(s) da lista atual</label>
