@@ -8,6 +8,7 @@ import { listarItensPadrao } from "@/lib/itensPadrao";
 import { salvarPp } from "@/lib/pedidoEfetivar";
 import { paramFora, qtdGrade, num, hojeISO } from "@/lib/pedidoLanc";
 import { limparDU, temDU, conferirComGrade } from "@/lib/dadosUnitarios";
+import { validarClienteFinal, enderecoTxt } from "@/lib/clienteFinal";
 
 export const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 export const negadoPortal = () => Response.json({ error: "Acesso restrito ao portal do cliente." }, { status: 403 });
@@ -42,6 +43,9 @@ const LIM_ARTE = 15 * 1024 * 1024;
 export async function enviarPedido({ u, cliente }, b) {
   const pedidos = Array.isArray(b?.itens) ? b.itens : [];
   if (!pedidos.length) return { error: "Escolha ao menos um item." };
+  const vcf = validarClienteFinal(b.clienteFinal);   // v709 — dados do cliente e envio
+  if (vcf.erros) return { error: `Dados do cliente e envio — preencha: ${vcf.erros.join(" ")}` };
+  const cf = vcf.dados;
   const catalogo = await itensDoCliente(cliente.id);
   const permitidos = new Set(catalogo.map((i) => i.id));
   const leadMax = Math.max(0, ...pedidos.map((p) => catalogo.find((c) => c.id === Number(p.itemPadraoId))?.leadTime || 0));
@@ -78,12 +82,14 @@ export async function enviarPedido({ u, cliente }, b) {
     emissao: hojeISO(), clienteNome: cliente.razaoSocial || cliente.nomeFantasia, clienteCnpj: cliente.cnpj || "", clienteIe: cliente.inscricaoEstadual || "",
     clienteEndereco: end, clienteContato: [cliente.preposto, cliente.telefones, cliente.emailNf].filter(Boolean).join(" · "),
     oc: String(b.oc || "").trim().slice(0, 60), vendedor: "",
-    obs: [`PEDIDO ENVIADO PELO PORTAL DO CLIENTE (${nomeCliente(cliente)}) POR ${quem}`, obsCli && `OBS DO CLIENTE: ${obsCli}`].filter(Boolean).join(" · "),
+    obs: [`PEDIDO ENVIADO PELO PORTAL DO CLIENTE (${nomeCliente(cliente)}) POR ${quem}`,
+      `CLIENTE FINAL: ${cf.tipo === "PJ" ? `${cf.razaoSocial} (${cf.cnpj})` : `${cf.nome} (${cf.cpf})`} · ENTREGA: ${enderecoTxt(cf)} · ${cf.whatsapp}`,
+      obsCli && `OBS DO CLIENTE: ${obsCli}`].filter(Boolean).join(" · "),
     entregaModo: "UNICA", entregas: [], pagamento: null, itens,
     ...(leadMax > 0 ? { prazoDias: leadMax, prazoTipo: "CORRIDOS" } : {}),   // v702 — entrega pelo maior lead time dos itens
   };
   const id = await salvarPp(null, payload, quem);
-  await prisma.pp.update({ where: { id }, data: { portalClienteId: cliente.id, portalEnviadoPor: quem } });
+  await prisma.pp.update({ where: { id }, data: { portalClienteId: cliente.id, portalEnviadoPor: quem, clienteFinal: cf } });
   // avisa o comercial e a gestão
   const para = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { diretoria: true }, { setor: "COMERCIAL" }] }, select: { id: true } }).catch(() => []);
   const pecas = itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
@@ -95,14 +101,14 @@ export async function enviarPedido({ u, cliente }, b) {
 const ST_PORTAL = { EM_LANCAMENTO: "Recebido — em conferência", LANCADO: "Confirmado — em produção", FATURADO: "Faturado", CANCELADO: "Cancelado" };
 export async function pedidosDoCliente(clienteId) {
   const pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 200,
-    select: { id: true, numero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true,
+    select: { id: true, numero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true,
       itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true }, orderBy: { id: "asc" } } } });
   const js = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
   const rec = await ppsRecebendoDetalhes(pps.filter((p) => !p.efetivadoEm).map((p) => p.id));
   return pps.map((p) => ({
     id: p.id, numero: p.efetivadoEm ? p.numero : null, situacao: !p.efetivadoEm && rec[p.id] ? "Recebendo detalhes" : ST_PORTAL[p.status] || p.status, status: p.status,
-    recebendoDetalhes: !p.efetivadoEm && !!rec[p.id], editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", enviadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, enviadoPor: p.portalEnviadoPor,
+    recebendoDetalhes: !p.efetivadoEm && !!rec[p.id], editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", clienteFinal: p.clienteFinal || null, enviadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, enviadoPor: p.portalEnviadoPor,
     itens: p.itens.map((it) => ({ descricao: it.descricao, pecas: Number(it.quantidade) || 0, grade: js(it.gradeJson).filter((g) => num(g.qtd) > 0), gradeToda: js(it.gradeJson),
       dadosUnitarios: it.dadosUnitarios && it.dadosUnitarios.linhas ? it.dadosUnitarios : null })),
   }));

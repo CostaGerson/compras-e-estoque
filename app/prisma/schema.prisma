@@ -399,6 +399,7 @@ model Pp {
   efetivadoPorNome  String?
   portalClienteId   Int?      // v699 — lançado pelo portal do cliente (o cliente vê só os pedidos dele)
   portalEnviadoPor  String?
+  clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

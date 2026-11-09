@@ -5,7 +5,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, RotateCcw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
-import DadosUnitarios from "./dadosUnitarios";   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
+import DadosUnitarios from "./dadosUnitarios";
+import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
@@ -172,7 +173,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const [itens, setItens] = useState([novoItem()]);
   const [anexos, setAnexos] = useState([]);
   const [carregado, setCarregado] = useState(!ppId0);
-  const [recDet, setRecDet] = useState(false);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
+  const [recDet, setRecDet] = useState(false);
+  const [clienteFinal, setClienteFinal] = useState(null);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
   const [salvando, setSalvando] = useState(false);
   const [clientes, setClientes] = useState([]);
   const [proximo, setProximo] = useState("");
@@ -199,6 +201,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
       setRecDet(!!d.recebendoDetalhes);
+      setClienteFinal(d.clienteFinal || null);
       const its = (d.itens || []).map((it) => {
         let par = {}; try { par = it.parametrosJson ? JSON.parse(it.parametrosJson) : {}; } catch {}
         let grade = []; try { grade = it.gradeJson ? JSON.parse(it.gradeJson) : []; } catch {}
@@ -471,7 +474,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const precisaEntrega = (f.pagamento?.parcelas || []).some((x) => x.base === "ENTREGA");
 
   const imprimirAgora = (tipo) => imprimirPedido(tipo, {
-    ...f, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
+    ...f, clienteFinal, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
     condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.servico ? "SERVIÇO" : f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
     entregasTexto: f.entregaModo === "UNICA" ? "" : f.entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS_ENTREGA[e.documento] || "—"}`).join("\n"),
   }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, { componentes, alerta,
@@ -769,6 +772,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       </button>}
 
       {/* ---------- Entrega ---------- */}
+      {clienteFinal && <div className="mb-4"><ClienteFinalResumo c={clienteFinal} titulo="Cliente final e envio (informado no portal do cliente)" /></div>}
       {!f.servico && <Card titulo="Entrega">
         <div className="flex gap-2 mb-3">
           {Object.entries(MODOS_ENTREGA).map(([v, t]) => (

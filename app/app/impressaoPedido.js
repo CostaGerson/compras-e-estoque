@@ -49,6 +49,17 @@ function duHtml(du) {
     ${linhas.map((l, i) => `<tr><td>${i + 1}</td><td class="b">${esc(l.tam)}</td>${du.campos.map((c) => `<td>${esc((l.valores || {})[c.id] || "—")}</td>`).join("")}</tr>`).join("")}</table>`;
 }
 
+// v709 — cliente final e envio (pedido do portal do cliente)
+function cfHtml(c) {
+  if (!c || !c.tipo) return "";
+  const end = [`${c.rua}, ${c.numero}${c.complemento ? ` · ${c.complemento}` : ""}`, c.bairro, `${c.cidade}/${c.uf}`, `CEP ${c.cep}`].join(" · ");
+  const l = c.tipo === "PJ"
+    ? [["Cliente (PJ)", `${c.razaoSocial} · CNPJ ${c.cnpj}${c.ie ? ` · IE ${c.ie}` : ""}`], ["Contato", `${c.contato}${c.cargo ? ` (${c.cargo})` : ""}`]]
+    : [["Cliente (PF)", `${c.nome} · CPF ${c.cpf}`]];
+  l.push(["Entrega", end], ["WhatsApp / e-mail", `${c.whatsapp} · ${c.email}`]);
+  return `<div class="sec">Cliente final e envio</div><table class="pag">${l.map(([k, v]) => `<tr><td class="b" style="width:130px">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`;
+}
+
 export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [] } = {}) {
   const PV = tipo === "PV";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -208,6 +219,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   </table></div>
 
   ${pagHtml}
+  ${cfHtml(f.clienteFinal)}
   ${entregas}
   ${producao ? `<div class="sec">Detalhamento de produção</div>${producao}` : ""}
 

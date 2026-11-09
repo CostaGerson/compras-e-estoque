@@ -7,6 +7,8 @@ import { alerta, confirmar } from "./dialogo";
 import { useMobile } from "./useMobile";
 import { GradeEditor } from "./pedidoEditor";
 import DadosUnitarios, { resumoDU } from "./dadosUnitarios";
+import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";   // v709
+import { vazioClienteFinal, validarClienteFinal } from "@/lib/clienteFinal";
 import { qtdGrade, num } from "@/lib/pedidoLanc";
 import { temDU, conferirComGrade } from "@/lib/dadosUnitarios";
 
@@ -26,6 +28,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [itens, setItens] = useState([]);   // [{ key, padrao, grade, artes, dadosUnitarios }]
   const [oc, setOc] = useState("");
   const [obs, setObs] = useState("");
+  const [cf, setCf] = useState(vazioClienteFinal());   // v709 — cliente final e envio
   const [st, setSt] = useState("");
   const [busca, setBusca] = useState("");
   const mobile = useMobile();
@@ -49,6 +52,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
 
   const enviar = async () => {
     if (!itens.length) return alerta("Escolha ao menos um item.");
+    const vcf = validarClienteFinal(cf);
+    if (vcf.erros) { document.getElementById("portal-cliente-final")?.scrollIntoView({ behavior: "smooth" }); return alerta(`Dados do cliente e envio — preencha:\n\n• ${vcf.erros.join("\n• ")}`); }
     for (const [i, it] of itens.entries()) {
       if (!(qtdGrade(it.grade) > 0)) return alerta(`Item ${i + 1} (${it.padrao.nome}): informe a grade.`);
       if (temDU(it.dadosUnitarios) && it.dadosUnitarios.linhas?.length) {   // v707 — sem lista: vai pelo link depois de enviar
@@ -61,8 +66,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     if (!(await confirmar(`Enviar o pedido?\n\n${resumo}\n\nTotal: ${itens.reduce((s, it) => s + qtdGrade(it.grade), 0)} peça(s)${semArte.length ? `\n\nSem arte anexada: ${semArte.join(", ")}` : ""}`))) return;
     setSt("Enviando…");
     try {
-      const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ oc, obs, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios })) }) });
-      setD((x) => ({ ...x, pedidos: j.pedidos })); setItens([]); setOc(""); setObs(""); setAba("PEDIDOS");
+      const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ oc, obs, clienteFinal: cf, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios })) }) });
+      setD((x) => ({ ...x, pedidos: j.pedidos })); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); setAba("PEDIDOS");
       const semLista = itens.some((it) => temDU(it.dadosUnitarios) && !it.dadosUnitarios.linhas?.length);
       alerta(`Pedido enviado: ${j.pecas} peça(s). Nossa equipe confere e confirma — acompanhe em "Meus pedidos".${semLista ? '\n\nPara as pessoas preencherem tamanho e dados, abra o pedido em "Meus pedidos" › "dados unitários / link" e gere o link.' : ""}`);
     } catch (e) { alerta(e.message); }
@@ -138,9 +143,13 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
 
         {d && aba === "NOVO" && (
           <>
+            <div id="portal-cliente-final" className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="font-bold mb-3" style={{ color: C.navy }}>1. Dados do cliente e envio</div>
+              <ClienteFinalForm valor={cf} onChange={setCf} mobile={mobile} />
+            </div>
             <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <div className="font-bold" style={{ color: C.navy }}>1. Escolha os itens</div>
+                <div className="font-bold" style={{ color: C.navy }}>2. Escolha os itens</div>
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="buscar item" className="ml-auto rounded-lg px-3 py-1.5 text-sm outline-none" style={{ ...inp, width: 220 }} />
               </div>
               {!d.itens.length ? <div className="text-sm py-4 text-center" style={{ color: C.sub }}>Nenhum item padrão cadastrado para o seu cadastro ainda. Fale com seu vendedor.</div> : (
@@ -174,11 +183,11 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 </div>
                 <div className={mobile ? "" : "grid gap-5"} style={mobile ? undefined : { gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)" }}>
                 <div>
-                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>2. Grade</div>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Grade</div>
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(g) => up(it.key, { grade: g })} />
                 </div>
                 <div>
-                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>3. Artes</div>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Artes</div>
                 <label className="flex items-center justify-center gap-2 rounded-lg p-3 cursor-pointer text-xs" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
                   onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); anexar(it, e.dataTransfer.files); }}>
                   <Paperclip size={14} /> Anexar artes (arraste aqui ou clique) — imagem ou PDF, até 15 MB
@@ -214,7 +223,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 <div className="flex items-center gap-3 mt-4">
                   <div style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b>
                     {leadPedido > 0 && <> · entrega prevista <b style={{ color: C.accent }}>{entregaEm(leadPedido)}</b></>}</div>
-                  <button onClick={async () => { if (await confirmar("Resetar o pedido? Todos os itens, grades, artes e dados unitários saem da tela.")) { setItens([]); setOc(""); setObs(""); } }}
+                  <button onClick={async () => { if (await confirmar("Resetar o pedido? Dados do cliente, itens, grades, artes e dados unitários saem da tela.")) { setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); } }}
                     className="ml-auto flex items-center gap-1 px-3 py-2.5 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={15} /> Resetar pedido</button>
                   <button onClick={enviar} disabled={!!st} className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold" style={{ background: C.accent, color: "#fff" }}><Send size={16} /> {st || "Enviar pedido"}</button>
                 </div>
@@ -233,6 +242,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: fundo, color: cor }}>{p.situacao}</span>
                   <div className="ml-auto text-xs" style={{ color: C.sub }}>enviado em {dBR(p.enviadoEm)}{p.despacho ? ` · despacho ${p.despacho}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</div>
                 </div>
+                {p.clienteFinal && <div className="mb-2"><ClienteFinalResumo c={p.clienteFinal} /></div>}
                 {p.recebendoDetalhes && <div className="text-xs mb-2 p-2 rounded-lg" style={{ background: C.accentSoft, color: C.text }}>Recebendo detalhes: o link de preenchimento está aberto. Quando fechar o preenchimento e trazer as respostas para a lista, o pedido segue para a nossa conferência e produção.</div>}
                 {p.itens.map((it, k) => (
                   <ItemPedidoPortal key={`${p.id}-${k}`} p={p} it={it} idx={k} user={user} tamanhos={tamanhos} nomeCliente={d.cliente.nome}
