@@ -245,14 +245,22 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   </div>
                   <div>
                     <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Valores</div>
-                    <div className="grid grid-cols-2 gap-3 mb-3 items-stretch">
-                      <label className="text-xs flex flex-col" style={{ color: C.sub }}>Valor vendido por peça <span style={{ color: C.red }}>*</span>
-                        <div className="relative mt-1 flex-1"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-semibold" style={{ color: C.sub }}>R$</span>
-                        <input value={it.valorVenda} onChange={(e) => up(it.key, { valorVenda: e.target.value.replace(/[^\d,.]/g, "") })} inputMode="decimal" placeholder="0,00" className="w-full h-full rounded-lg pl-11 pr-3 py-3 text-lg font-bold outline-none" style={{ background: "#fff", color: C.text, border: `1px solid ${num(it.valorVenda) > 0 ? C.line : C.accent}` }} /></div></label>
-                      <div className="text-xs rounded-lg p-3 flex flex-col justify-center" style={{ background: C.panel2 }}>
-                        <div style={{ color: C.sub }}>CMV {it.padrao.cmvUnit != null ? `(${money(it.padrao.cmvUnit)}/pç)` : ""}</div>
-                        <div className="font-semibold">{money(cmv)}</div>
-                        <div style={{ color: C.sub }} className="mt-0.5">Vendido {money(vend)} · MC <b style={{ color: mc >= 0 ? C.green : C.red }}>{money(mc)}</b></div>
+                    {/* v721 — valores alinhados: rótulo em uma linha, caixas da mesma altura */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <div className="text-xs mb-1 whitespace-nowrap" style={{ color: C.sub }}>Valor vendido por peça <span style={{ color: C.red }}>*</span></div>
+                        <div className="relative" style={{ height: 64 }}>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-semibold" style={{ color: C.sub }}>R$</span>
+                          <input value={it.valorVenda} onChange={(e) => up(it.key, { valorVenda: e.target.value.replace(/[^\d,.]/g, "") })} inputMode="decimal" placeholder="0,00"
+                            className="w-full h-full rounded-lg pl-11 pr-3 text-lg font-bold outline-none" style={{ background: "#fff", color: C.text, border: `1px solid ${num(it.valorVenda) > 0 ? C.line : C.accent}` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs mb-1 whitespace-nowrap" style={{ color: C.sub }}>CMV {it.padrao.cmvUnit != null ? `(${money(it.padrao.cmvUnit)}/pç)` : ""}</div>
+                        <div className="rounded-lg px-3 flex flex-col justify-center" style={{ height: 64, background: C.panel2, border: `1px solid ${C.line}` }}>
+                          <div className="text-lg font-bold leading-tight" style={{ color: C.text }}>{money(cmv)}</div>
+                          <div className="text-xs" style={{ color: C.sub }}>Vendido {money(vend)} · MC <b style={{ color: mc >= 0 ? C.green : C.red }}>{money(mc)}</b></div>
+                        </div>
                       </div>
                     </div>
                     <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Artes</div>
