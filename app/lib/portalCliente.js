@@ -189,15 +189,18 @@ export async function enviarPedido(ctx, b) {
   }
   const agora = new Date();
   await prisma.pp.update({ where: { id }, data: { portalStatus: modo === "LIMITE" ? "RECEBENDO_DETALHES" : "LIBERADO", portalEnviadoEm: agora, portalLiberadoEm: null } });
-  if (modo === "PRODUCAO") await liberar(id);
-  await avisar(u, cliente, id, modo === "LIMITE" ? `recebendo detalhes até ${limite.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "LIBERADO PARA PRODUÇÃO — conferir e efetivar");
+  const lanc = modo === "PRODUCAO" ? await liberar(id, cliente) : null;
+  await avisar(u, cliente, id, modo === "LIMITE" ? `recebendo detalhes até ${limite.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : textoLancamento(lanc));
   const pecas = g.itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
   const pn = await prisma.pp.findUnique({ where: { id }, select: { portalNumero: true } });
   return { ok: true, id, numero: fmtNumPortal(pn?.portalNumero), pecas, modo, links: modo === "LIMITE" ? await linksDoPedido(id) : [] };
 }
 
 // v714 — liberado para produção: o despacho passa a contar o maior lead time das FPPs a partir de agora
-async function liberar(ppId) {
+// v727 — mensagem para a equipe: lançado na produção (nº do pedido) ou o motivo de ter ficado em Lançar pedido
+const textoLancamento = (r) => (r?.ok ? `LIBERADO E LANÇADO NA PRODUÇÃO: PEDIDO ${r.numero} (anexos e personalização em Excel no pedido)`
+  : `LIBERADO PARA PRODUÇÃO, MAS NÃO FOI LANÇADO SOZINHO — conferir e efetivar. Motivo: ${(r?.erros || ["?"]).join(" ")}`);
+async function liberar(ppId, cliente) {
   const its = await prisma.ppItem.findMany({ where: { ppId }, select: { fppId: true } });
   const ids = [...new Set(its.map((i) => i.fppId).filter(Boolean))];
   const fs = ids.length ? await prisma.fpp.findMany({ where: { id: { in: ids } }, select: { leadTime: true } }) : [];
@@ -206,6 +209,9 @@ async function liberar(ppId) {
   const desp = lead > 0 ? somaDias(hoje, lead, "CORRIDOS") : null;
   await prisma.pp.update({ where: { id: ppId }, data: { portalStatus: "LIBERADO", portalLiberadoEm: new Date(), emissao: hoje,
     ...(lead > 0 ? { prazoDias: lead, prazoTipo: "CORRIDOS", prazoEntrega: `${lead} DIAS CORRIDOS`, dtDespacho: String(desp).slice(0, 10).split("-").reverse().join("/") } : {}) } });
+  // v727 — lança sozinho no sistema de produção (efetiva com anexos e a personalização em Excel)
+  try { const { lancarNaProducao } = await import("@/lib/portalProducao"); return await lancarNaProducao(ppId, cliente ? nomeCliente(cliente) : ""); }
+  catch (e) { console.log("portal/lançar:", e.message); return { ok: false, erros: [e.message] }; }
 }
 
 async function avisar(u, cliente, ppId, txt) {
@@ -240,8 +246,8 @@ async function concluirRecebimento(pp, cliente) {
   }
   const tot = await prisma.ppItem.findMany({ where: { ppId: pp.id }, select: { valorTotal: true } });
   await prisma.pp.update({ where: { id: pp.id }, data: { valorTotal: r2(tot.reduce((s, x) => s + (Number(x.valorTotal) || 0), 0)) } });
-  await liberar(pp.id);
-  await avisar(null, cliente, pp.id, "recebimento de dados encerrado: LIBERADO PARA PRODUÇÃO — conferir e efetivar");
+  const lanc = await liberar(pp.id, cliente);
+  await avisar(null, cliente, pp.id, `recebimento de dados encerrado: ${textoLancamento(lanc)}`);
 }
 
 export const ST_PORTAL = {
