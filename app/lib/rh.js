@@ -68,7 +68,7 @@ export async function lerPessoal() {
     matrizId: m?.id || null, atualizadaEm: m?.updatedAt || null, atualizadaPor: m?.atualizadoPor || null,
     pessoas: pessoas.map((p) => ({
       ...p, empresa: empresaDaPessoa(p), nomeCompleto: porId[p.id]?.nomeCompleto || null,
-      foto: porId[p.id]?.foto || null, nDocs: porId[p.id]?._count?.documentos || 0, horario: porId[p.id]?.dados?.horario || null,
+      foto: porId[p.id]?.foto || null, nDocs: porId[p.id]?._count?.documentos || 0, horario: porId[p.id]?.dados?.horario || null, pastaLink: porId[p.id]?.dados?.pastaLink || null,
     })),
   };
 }

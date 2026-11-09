@@ -15,7 +15,7 @@ import { PainelRH, Acionaveis, PontoTela, StatsFuncionario, MedalhasModal, Filtr
 import PlanoFerias from "./rhFerias";
 import Transmissao from "./transmissao";   // v204 — transmissão de arquivos também no RH (TRCT, cartões de ponto, folha, guias…)
 import { Palmtree } from "lucide-react";
-import { Fingerprint, Award } from "lucide-react";
+import { Fingerprint, Award, FolderOpen } from "lucide-react";
 import { confirmar } from "./dialogo";   // v424 — popups do sistema
 
 const api = async (url, method = "GET", body) => {
@@ -390,6 +390,14 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
             <div className="text-[10px] mt-0.5" style={{ color: p.horario?.entrada ? C.text : C.yellow }} title={p.horario?.pausas?.map((x) => `${x.nome || "pausa"} ${x.ini}–${x.fim}`).join(" · ") || ""}>
               {p.horario?.entrada ? `horário ${p.horario.entrada}–${p.horario.saida}${p.horario.pausas?.length ? ` · ${p.horario.pausas.length} pausa(s)` : ""}` : "horário não cadastrado"}
             </div>
+            {/* v700 — sugestão #36: link da pasta do funcionário direto no card */}
+            {/^https?:\/\//i.test(p.pastaLink || "") ? (
+              <span role="link" tabIndex={0} onClick={(e) => { e.stopPropagation(); window.open(p.pastaLink, "_blank", "noopener"); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); window.open(p.pastaLink, "_blank", "noopener"); } }}
+                className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold cursor-pointer hover:underline" style={{ background: C.accentSoft, color: C.accent }} title={p.pastaLink}>
+                <FolderOpen size={12} /> Pasta do funcionário
+              </span>
+            ) : <div className="text-[10px] mt-1" style={{ color: C.sub }}>sem link da pasta</div>}
             <StatsFuncionario s={stats?.[p.id]} tempo={painel?.porFuncionario?.[p.id]?.tempo} rotulo={rotuloPer} limiteHE={painel?.limiteHE || 1200} onAbrir={(foco) => setSintese({ pessoa: p, foco })} />
           </button>
         ))}
