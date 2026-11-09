@@ -413,9 +413,9 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
         ))
       ) : (
         <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 960 }}>
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1040 }}>
             <thead><tr style={{ background: C.panel2, color: C.sub }}>
-              {["Lançado em", "Pedido", "Cliente", "Peças", "CMV", "Vendido", "MC", "Despacho", "Status"].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i >= 3 && i <= 6 ? "text-right" : "text-left"}`}>{h}</th>)}<th />
+              {["Lançado em", "Pedido", "Cliente", "Peças", "CMV", "Vendido", "MC", "MC %", "Despacho", "Status"].map((h, i) => <th key={h} className={`px-3 py-2 font-semibold ${i >= 3 && i <= 7 ? "text-right" : "text-left"}`}>{h}</th>)}<th />
             </tr></thead>
             <tbody>
               {lista.map((p) => (
@@ -426,7 +426,8 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
                   <td className="px-3 py-2.5 text-right tabular-nums">{p.pecas}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.cmv)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.venda)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}<div className="text-[10px] font-normal" style={{ color: C.sub }}>{pctTxt(p.mcPct)}</div></td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{pctTxt(p.mcPct) || "—"}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || <span style={{ color: C.sub }}>{p.leadTime ? "após liberar" : "—"}</span>}</td>
                   <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}</td>
                   <td className="px-2">{p.editavel && <button onClick={(e) => { e.stopPropagation(); onExcluir(p); }} title="Excluir pedido" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
@@ -436,7 +437,8 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
             <tfoot><tr style={{ borderTop: `2px solid ${C.line}`, background: C.panel2 }}>
               <td colSpan={3} className="px-3 py-2 font-semibold">{lista.length} pedido(s)</td>
               <td className="px-3 py-2 text-right font-bold">{tot.pecas}</td><td className="px-3 py-2 text-right font-bold">{money(tot.cmv)}</td>
-              <td className="px-3 py-2 text-right font-bold">{money(tot.venda)}</td><td className="px-3 py-2 text-right font-bold" style={{ color: tot.mc >= 0 ? C.green : C.red }}>{money(tot.mc)}</td><td colSpan={3} />
+              <td className="px-3 py-2 text-right font-bold">{money(tot.venda)}</td><td className="px-3 py-2 text-right font-bold" style={{ color: tot.mc >= 0 ? C.green : C.red }}>{money(tot.mc)}</td>
+              <td className="px-3 py-2 text-right font-bold" style={{ color: tot.mc >= 0 ? C.green : C.red }}>{tot.venda > 0 ? pctTxt(Math.round((tot.mc / tot.venda) * 1000) / 10) : "—"}</td><td colSpan={3} />
             </tr></tfoot>
           </table>
         </div>
