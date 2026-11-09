@@ -49,7 +49,15 @@ export default function ClienteFinalForm({ valor, onChange, mobile }) {
         {PF ? (
           <>
             <Campo l="Nome completo" obrig span={mobile ? 2 : 4}>{I("nome", { autoComplete: "name" })}</Campo>
-            <Campo l="CPF" obrig span={2}>{I("cpf", { inputMode: "numeric", placeholder: "000.000.000-00" })}</Campo>
+            <Campo l="CPF" obrig={!v.cpfNA} span={2}>
+              {v.cpfNA
+                ? <input value="NÃO SE APLICA" disabled className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inp, color: C.sub }} />
+                : I("cpf", { inputMode: "numeric", placeholder: "000.000.000-00" })}
+              <span className="flex items-center gap-1.5 mt-1 cursor-pointer select-none" style={{ color: C.text }}>
+                <input type="checkbox" checked={!!v.cpfNA} onChange={(e) => onChange({ ...v, cpfNA: e.target.checked, cpf: e.target.checked ? "" : (v.cpf === "NÃO SE APLICA" ? "" : v.cpf) })} />
+                Não se aplica
+              </span>
+            </Campo>
           </>
         ) : (
           <>

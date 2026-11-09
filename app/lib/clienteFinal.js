@@ -31,7 +31,7 @@ export function validarClienteFinal(cf) {
   const erros = [];
   if (tipo === "PF") {
     if (tx(c.nome).split(/\s+/).filter(Boolean).length < 2) erros.push("Nome completo do cliente (nome e sobrenome).");
-    if (!cpfValido(c.cpf)) erros.push("CPF válido.");
+    if (!c.cpfNA && !cpfValido(c.cpf)) erros.push("CPF válido (ou marque \"Não se aplica\").");
   } else {
     if (!tx(c.contato)) erros.push("Contato (pessoa que está tratando).");
     if (!tx(c.cargo)) erros.push("Cargo do contato na empresa.");
@@ -51,7 +51,7 @@ export function validarClienteFinal(cf) {
   const base = { tipo, cep: fmtCep(c.cep), rua: tx(c.rua).toUpperCase(), numero: tx(c.numero, 20).toUpperCase(), complemento: tx(c.complemento, 80).toUpperCase(),
     bairro: tx(c.bairro, 80).toUpperCase(), cidade: tx(c.cidade, 80).toUpperCase(), uf: String(c.uf).trim().toUpperCase(), whatsapp: fmtFone(w), email: tx(c.email).toLowerCase() };
   return { dados: tipo === "PF"
-    ? { ...base, nome: tx(c.nome).toUpperCase(), cpf: fmtCpf(c.cpf) }
+    ? { ...base, nome: tx(c.nome).toUpperCase(), cpf: c.cpfNA ? "NÃO SE APLICA" : fmtCpf(c.cpf), ...(c.cpfNA ? { cpfNA: true } : {}) }
     : { ...base, contato: tx(c.contato).toUpperCase(), cargo: tx(c.cargo, 60).toUpperCase(), razaoSocial: tx(c.razaoSocial).toUpperCase(), cnpj: fmtCnpj(c.cnpj),
         ie: /^isent/i.test(tx(c.ie)) ? "ISENTO" : tx(c.ie, 30).toUpperCase() } };
 }
