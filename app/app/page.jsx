@@ -783,16 +783,17 @@ function TopoUsuario({ user, perfil, badgeTick, tela, onAbrirPerfil, onSair, onI
       {onIrAgenda && <button onClick={onIrAgenda} title="Agenda" className="flex items-center justify-center rounded-lg" style={{ width: 34, height: 34, background: agendaAtiva ? "#EAF0FB" : "transparent", color: agendaAtiva ? "#4573D2" : C.sub }}>
         <IcoAgenda size={20} />
       </button>}
-      <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2">
+      <button onClick={onAbrirPerfil} title="Meu perfil" className="flex items-center gap-2 shrink-0">
         <Avatar foto={user.fotoBase64} nome={nomeCompleto} size={mobile ? 40 : 34} />
         <div className="text-left leading-tight hidden md:block">
           <div className="text-sm font-medium" style={{ color: C.text }}>{user.nome}</div>
           <div className="text-xs" style={{ color: C.sub }}>{SETOR_NOME[user.setor] || user.setor}{user.isMaster ? " · master" : user.diretoria ? " · diretoria" : ""}</div>
         </div>
       </button>
-      <StatusPessoa user={user} compacto={mobile} />
+      {!mobile && <StatusPessoa user={user} />}   {/* v703 — no celular o status sai do topo (ficava apertado) */}
       {!mobile && <SugestaoBotao user={user} tela={tela} />}
-      <button onClick={onSair} title="Sair" style={{ color: C.sub }}><LogOut size={18} /></button>
+      <button onClick={onSair} title="Sair" className={mobile ? "flex items-center justify-center rounded-lg shrink-0" : ""}
+        style={{ color: C.sub, ...(mobile ? { width: 36, height: 40, border: `1px solid ${C.line}` } : {}) }}><LogOut size={mobile ? 20 : 18} /></button>
     </div>
   );
 }
@@ -4165,9 +4166,11 @@ function Switch({ on, onChange, label }) {
 
 function Avatar({ foto, nome, size = 40 }) {
   const ini = (nome || "?").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  if (foto) return <img src={foto} alt={nome} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.line}` }} />;
+  // v703 — tamanho travado: no topo apertado do celular a foto encolhia só na largura e ficava oval
+  const fixo = { width: size, height: size, minWidth: size, minHeight: size, flexShrink: 0, aspectRatio: "1 / 1", borderRadius: "50%" };
+  if (foto) return <img src={foto} alt={nome} style={{ ...fixo, objectFit: "cover", border: `1px solid ${C.line}` }} />;
   return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: C.accentSoft, color: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.36 }}>{ini}</div>
+    <div style={{ ...fixo, background: C.accentSoft, color: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.36 }}>{ini}</div>
   );
 }
 
