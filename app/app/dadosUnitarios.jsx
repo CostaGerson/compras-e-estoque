@@ -145,8 +145,7 @@ function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, con
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
                   <th className="px-1.5 py-1.5 text-left text-xs" style={{ width: 34 }}>#</th>
                   <th onClick={() => ordenar("TAM")} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline" style={{ width: 70 }}>Tam. {seta("TAM")}</th>
-                  {campos.map((c) => <th key={c.id} onClick={() => ordenar(c.id)} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline whitespace-nowrap">{c.rotulo} {seta(c.id)}
-                    {b === 0 && linhas.length > 1 && <button type="button" onClick={(e) => { e.stopPropagation(); onReplicar(c); }} className="ml-1 font-normal inline-flex items-center gap-0.5" style={{ color: C.roxo }} title="Replicar o valor da primeira peça para todas"><ArrowDownToLine size={11} /> replicar</button>}</th>)}
+                  {campos.map((c) => <th key={c.id} onClick={() => ordenar(c.id)} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline whitespace-nowrap">{c.rotulo} {seta(c.id)}</th>)}
                   <th style={{ width: 24 }} />
                 </tr></thead>
                 <tbody>{linhas.slice(a, z).map((l, k) => { const i = a + k; return (
