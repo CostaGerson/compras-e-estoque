@@ -16,6 +16,28 @@ import { validarClienteFinal, enderecoTxt } from "@/lib/clienteFinal";
 export const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 export const negadoPortal = () => Response.json({ error: "Acesso restrito ao portal do cliente." }, { status: 403 });
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+export const fmtNumPortal = (n) => (n ? String(n).padStart(4, "0") : "");
+
+// v713 — numeração própria do portal por cliente: 0001, 0002… (contador em FinConfig; nº de pedido excluído não volta)
+async function proximoNumeroPortal(clienteId) {
+  const chave = `PORTAL_NUM|${clienteId}`;
+  for (let t = 0; t < 5; t++) {
+    const cfg = await prisma.finConfig.findUnique({ where: { chave } });
+    const maxPp = await prisma.pp.aggregate({ where: { portalClienteId: clienteId }, _max: { portalNumero: true } });
+    const n = Math.max(Number(cfg?.valor) || 0, maxPp._max.portalNumero || 0) + 1;
+    try {
+      if (cfg) { const r = await prisma.finConfig.updateMany({ where: { chave, valor: cfg.valor }, data: { valor: String(n) } }); if (!r.count) continue; }
+      else await prisma.finConfig.create({ data: { chave, valor: String(n) } });
+      return n;
+    } catch { /* corrida: tenta de novo */ }
+  }
+  throw new Error("Não consegui numerar o pedido — tente de novo.");
+}
+// pedidos antigos sem número recebem na ordem de criação
+async function numerarAntigos(clienteId) {
+  const sem = await prisma.pp.findMany({ where: { portalClienteId: clienteId, portalNumero: null }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  for (const p of sem) await prisma.pp.update({ where: { id: p.id }, data: { portalNumero: await proximoNumeroPortal(clienteId) } }).catch(() => null);
+}
 
 export async function usuarioPortal(req) {
   let id = req.headers.get("x-usuario-id");
@@ -96,7 +118,9 @@ async function gravar({ u, cliente }, b, ppId) {
     ...(leadMax > 0 ? { prazoDias: leadMax, prazoTipo: "CORRIDOS" } : {}),   // despacho pelo maior lead time das FPPs
   };
   const id = await salvarPp(ppId || null, payload, quem);
-  await prisma.pp.update({ where: { id }, data: { portalClienteId: cliente.id, portalEnviadoPor: quem, portalObs: obsCli || null,
+  const ja = ppId ? await prisma.pp.findUnique({ where: { id }, select: { portalNumero: true } }) : null;
+  const portalNumero = ja?.portalNumero || await proximoNumeroPortal(cliente.id);
+  await prisma.pp.update({ where: { id }, data: { portalNumero, portalClienteId: cliente.id, portalEnviadoPor: quem, portalObs: obsCli || null,
     clienteFinal: b.clienteFinal && typeof b.clienteFinal === "object" ? (cfv.dados || b.clienteFinal) : Prisma.DbNull, portalStatus: "EM_ABERTO" } });
   return { id, itens, catalogo, cat, leadMax, cf: cfv };
 }
@@ -107,7 +131,8 @@ export async function salvarRascunho(ctx, b) {
   if (!(Array.isArray(b?.itens) && b.itens.length) && !b.clienteFinal) return { error: "Nada para salvar ainda." };
   const g = await gravar(ctx, b, b.ppId);
   if (g.error) return g;
-  return { ok: true, id: g.id };
+  const pn = await prisma.pp.findUnique({ where: { id: g.id }, select: { portalNumero: true } });
+  return { ok: true, id: g.id, numero: fmtNumPortal(pn?.portalNumero) };
 }
 
 // envio: modo "LIMITE" (abre o recebimento de dados até a data limite) ou "PRODUCAO" (liberado para produção)
@@ -165,15 +190,16 @@ export async function enviarPedido(ctx, b) {
   await prisma.pp.update({ where: { id }, data: { portalStatus: modo === "LIMITE" ? "RECEBENDO_DETALHES" : "LIBERADO", portalEnviadoEm: agora } });
   await avisar(u, cliente, id, modo === "LIMITE" ? `recebendo detalhes até ${limite.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "LIBERADO PARA PRODUÇÃO — conferir e efetivar");
   const pecas = g.itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
-  return { ok: true, id, pecas, modo, links: modo === "LIMITE" ? await linksDoPedido(id) : [] };
+  const pn = await prisma.pp.findUnique({ where: { id }, select: { portalNumero: true } });
+  return { ok: true, id, numero: fmtNumPortal(pn?.portalNumero), pecas, modo, links: modo === "LIMITE" ? await linksDoPedido(id) : [] };
 }
 
 async function avisar(u, cliente, ppId, txt) {
   const para = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { diretoria: true }, { setor: "COMERCIAL" }] }, select: { id: true } }).catch(() => []);
-  const pp = ppId > 0 ? await prisma.pp.findUnique({ where: { id: ppId }, select: { itens: { select: { quantidade: true } } } }) : null;
+  const pp = ppId > 0 ? await prisma.pp.findUnique({ where: { id: ppId }, select: { portalNumero: true, itens: { select: { quantidade: true } } } }) : null;
   const pecas = (pp?.itens || []).reduce((s, x) => s + (Number(x.quantidade) || 0), 0);
   if (para.length) await prisma.mensagem.createMany({ data: para.filter((x) => x.id !== u?.id).map((x) => ({ deId: u?.id || x.id, paraId: x.id,
-    texto: `🛒 PEDIDO DO PORTAL — ${nomeCliente(cliente)}: ${pp ? `${pecas} peça(s) · ` : ""}${txt}.${pp ? " Veja em Pedidos › Lançar pedido." : ""}` })) }).catch(() => null);
+    texto: `🛒 PEDIDO DO PORTAL${pp?.portalNumero ? ` Nº ${fmtNumPortal(pp.portalNumero)}` : ""} — ${nomeCliente(cliente)}: ${pp ? `${pecas} peça(s) · ` : ""}${txt}.${pp ? " Veja em Pedidos › Lançar pedido." : ""}` })) }).catch(() => null);
 }
 
 export async function linksDoPedido(ppId) {
@@ -223,7 +249,8 @@ export function valoresPedido(itens, fppValor) {
 }
 
 export async function pedidosDoCliente(clienteId, cliente) {
-  const sel = { id: true, numero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true,
+  await numerarAntigos(clienteId).catch(() => null);
+  const sel = { id: true, numero: true, portalNumero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true,
     itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true, valorUnitario: true, valorVenda: true, fppId: true, itemPadraoId: true }, orderBy: { id: "asc" } } };
   let pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 300, select: sel });
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
@@ -246,7 +273,7 @@ export async function pedidosDoCliente(clienteId, cliente) {
     const cf = p.clienteFinal || null;
     const lks = links.filter((l) => l.ppId === p.id);
     return {
-      id: p.id, numero: p.efetivadoEm ? p.numero : null, status: st, situacao: ST_PORTAL[st] || st,
+      id: p.id, numero: fmtNumPortal(p.portalNumero), numeroMeridian: p.efetivadoEm ? p.numero : null, status: st, situacao: ST_PORTAL[st] || st,
       lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,
       editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", recebendoDetalhes: st === "RECEBENDO_DETALHES",
@@ -275,7 +302,7 @@ export async function pedidoParaEditar(cliente, ppId) {
       .map((a) => ({ nome: String(a.nome).slice(PREF_ARTE.length), mime: a.mime || null, base64: a.base64 }));
     itens.push({ padrao, grade, artes, dadosUnitarios: it.dadosUnitarios && it.dadosUnitarios.campos ? it.dadosUnitarios : null, valorVenda: it.valorVenda != null ? String(Number(it.valorVenda).toFixed(2)).replace(".", ",") : "" });
   }
-  return { ok: true, ppId: pp.id, status: pp.portalStatus, clienteFinal: pp.clienteFinal || null, oc: pp.oc || "", obs: pp.portalObs || "", itens };
+  return { ok: true, ppId: pp.id, numero: fmtNumPortal(pp.portalNumero), status: pp.portalStatus, clienteFinal: pp.clienteFinal || null, oc: pp.oc || "", obs: pp.portalObs || "", itens };
 }
 
 // v707 — pedido já enviado (ainda não na produção): o cliente ajusta a personalização exclusiva do item e acompanha o link
@@ -301,9 +328,10 @@ export async function excluirRascunho(cliente, ppId, u) {
   const x = await pedidoDoCliente(cliente, ppId);
   if (x.error) return { error: x.error.replace("para alterar", "para cancelar") };
   const st = x.pp.portalStatus;
+  const nPortal = fmtNumPortal(x.pp.portalNumero);
   await prisma.dadoUnitarioLink.deleteMany({ where: { ppId: x.pp.id } }).catch(() => null);
   await prisma.pp.delete({ where: { id: x.pp.id } });
-  if (st && st !== "EM_ABERTO") await avisar(u, cliente, -1, `pedido ${st === "LIBERADO" ? "liberado para produção" : "em recebimento de detalhes"} foi EXCLUÍDO pelo cliente`).catch(() => null);
+  if (st && st !== "EM_ABERTO") await avisar(u, cliente, -1, `pedido${nPortal ? ` nº ${nPortal}` : ""} ${st === "LIBERADO" ? "liberado para produção" : "em recebimento de detalhes"} foi EXCLUÍDO pelo cliente`).catch(() => null);
   return { ok: true };
 }
 

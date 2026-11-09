@@ -44,6 +44,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [erro, setErro] = useState("");
   const [aba, setAba] = useState("NOVO");
   const [ppId, setPpId] = useState(null);          // pedido em edição (null = novo)
+  const [ppNum, setPpNum] = useState("");          // v713 — nº do pedido no portal (0001…)
   const [itens, setItens] = useState([]);           // [{ key, padrao, grade, artes, dadosUnitarios, valorVenda }]
   const [oc, setOc] = useState("");
   const [obs, setObs] = useState("");
@@ -71,12 +72,12 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     up(it.key, { artes: [...it.artes, ...add] });
   };
   const replicarLocais = (de) => setItens((l) => l.map((it) => (it.key === de.key ? it : { ...it, dadosUnitarios: { ...(it.dadosUnitarios || { linhas: [] }), campos: de.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: it.dadosUnitarios?.linhas || [] } })));
-  const limpar = () => { setPpId(null); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); };
+  const limpar = () => { setPpId(null); setPpNum(""); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); };
   const corpo = (extra = {}) => ({ ppId, oc, obs, clienteFinal: cf, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios, valorVenda: it.valorVenda })), ...extra });
 
   const salvarRascunho = async () => {
     setSt("Salvando…");
-    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify(corpo({ acao: "rascunho" })) }); setPpId(j.id); setD((x) => ({ ...x, pedidos: j.pedidos })); alerta("Pedido salvo como \"Em aberto\". Você continua de onde parou em Pedidos."); }
+    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify(corpo({ acao: "rascunho" })) }); setPpId(j.id); setPpNum(j.numero || ""); setD((x) => ({ ...x, pedidos: j.pedidos })); alerta(`Pedido ${j.numero || ""} salvo como "Em aberto". Você continua de onde parou em Pedidos.`); }
     catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -103,7 +104,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     try {
       const j = await api("/api/portal", { method: "POST", body: JSON.stringify(corpo({ acao: "enviar", modo: envio.modo, limite: envio.modo === "LIMITE" ? new Date(envio.limite).toISOString() : null })) });
       setD((x) => ({ ...x, pedidos: j.pedidos })); setEnvio(null); limpar(); setAba("PEDIDOS"); setDetalhe(j.id);
-      alerta(j.modo === "LIMITE" ? `Pedido em "Recebendo detalhes". Os links de preenchimento estão no pedido (copie e mande para as pessoas). No horário limite, o que foi preenchido entra na lista e o pedido é liberado para produção.` : `Pedido liberado para produção: ${j.pecas} peça(s). Nossa equipe confere e inicia a produção.`);
+      alerta(j.modo === "LIMITE" ? `Pedido ${j.numero} em "Recebendo detalhes". Os links de preenchimento estão no pedido (copie e mande para as pessoas). No horário limite, o que foi preenchido entra na lista e o pedido é liberado para produção.` : `Pedido ${j.numero} liberado para produção: ${j.pecas} peça(s). Nossa equipe confere e inicia a produção.`);
     } catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -111,7 +112,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     if (itens.length && !(await confirmar("Abrir este pedido para editar? O que está no Novo pedido agora sai da tela (salve antes se precisar)."))) return;
     try {
       const j = await api(`/api/portal?editar=${id}`);
-      setPpId(j.ppId); setCf(j.clienteFinal || vazioClienteFinal()); setOc(j.oc || ""); setObs(j.obs || "");
+      setPpId(j.ppId); setPpNum(j.numero || ""); setCf(j.clienteFinal || vazioClienteFinal()); setOc(j.oc || ""); setObs(j.obs || "");
       setItens(j.itens.map((it) => ({ key: Date.now() + Math.random(), padrao: it.padrao, grade: completarGrade(it.grade), artes: it.artes || [], dadosUnitarios: it.dadosUnitarios, valorVenda: it.valorVenda || "" })));
       setDetalhe(null); setAba("NOVO");
     } catch (e) { alerta(e.message); }
@@ -125,7 +126,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
 
   const ABAS = [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList]];
   const nomeUser = [user.nome, user.sobrenome].filter(Boolean).join(" ");
-  const tituloAba = aba === "NOVO" ? (ppId ? "Editar pedido" : "Novo pedido") : "Pedidos";
+  const tituloAba = aba === "NOVO" ? (ppId ? `Editar pedido ${ppNum}` : "Novo pedido") : "Pedidos";
   return (
     <div className="flex text-sm" style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }}>
       {!mobile && (
@@ -187,7 +188,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
         {d && aba === "NOVO" && (
           <>
             {ppId && <div className="mb-3 p-3 rounded-lg text-xs flex items-center gap-2" style={{ background: C.steelSoft, color: C.text }}>
-              <Pencil size={14} style={{ color: C.steel }} /> Editando um pedido já criado. Salve como "em aberto" ou envie de novo.
+              <Pencil size={14} style={{ color: C.steel }} /> Editando o pedido <b>{ppNum}</b>. Salve como "em aberto" ou envie de novo.
               <button onClick={async () => { if (await confirmar("Sair da edição sem salvar?")) limpar(); }} className="ml-auto underline" style={{ color: C.steel }}>sair da edição</button>
             </div>}
             <div id="portal-cliente-final" className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -450,7 +451,7 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
       </>}>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <Chip s={p.status} />
-        <span className="text-xs" style={{ color: C.sub }}>lançado em {dBR(p.lancadoEm)}{p.enviadoPor ? ` por ${p.enviadoPor}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</span>
+        <span className="text-xs" style={{ color: C.sub }}>{p.numeroMeridian ? `nº Meridian ${p.numeroMeridian} · ` : ""}lançado em {dBR(p.lancadoEm)}{p.enviadoPor ? ` por ${p.enviadoPor}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</span>
         {p.status === "RECEBENDO_DETALHES" && p.limite && <span className="text-xs font-semibold" style={{ color: C.accent }}>recebendo dados até {limiteTxt(p.limite)}</span>}
       </div>
       <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: 0 }} mobile={mobile} />
