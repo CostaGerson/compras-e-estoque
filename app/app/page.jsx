@@ -408,7 +408,7 @@ export default function Home() {
           {view === "rota" && <Rotas user={user} nova={rotaInicial} />}
           {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
-          {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} />}
+          {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} componentes={COMPONENTES} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}

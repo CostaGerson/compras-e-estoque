@@ -4,9 +4,10 @@ import Acompanhamento from "./acompanhamento";   // v381
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star,
 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { ItemPadraoModal } from "./itensPadrao";   // v701 — tornar a FPP um item padrão do cliente
 import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";   // v692 — FPP em PDF no padrão do PV
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -97,7 +98,7 @@ async function clonarFpp(fpp, user, origemId) {
 }
 
 /* ============================================================ */
-export default function Comercial({ user, master, fppInicial }) {
+export default function Comercial({ user, master, fppInicial, componentes = {} }) {
   const [view, setView] = useState(fppInicial?.id ? "fpp" : null); // null = landing (2 cards) | "fpp" | "acomp"
   const voltarFpp = useRef(null);   // v513 — o Voltar devolve para onde estava (negociação, lista, pedido…) antes de sair da FPP
 
@@ -124,7 +125,7 @@ export default function Comercial({ user, master, fppInicial }) {
           <ChevronRight size={13} style={{ color: C.sub }} />
           <span className="font-semibold" style={{ color: C.text }}>Orçamentação (FPP)</span>
         </div>
-        <Fpp user={user} master={master} abrirId={fppInicial?.id} abrirVoltar={fppInicial?.voltar} voltarRef={voltarFpp} />
+        <Fpp user={user} master={master} abrirId={fppInicial?.id} abrirVoltar={fppInicial?.voltar} voltarRef={voltarFpp} componentes={componentes} />
       </div>
     );
   }
@@ -340,7 +341,19 @@ function fichaVazia(tipo) {
   };
 }
 
-function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
+function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }) {
+  // v701 — tornar a FPP um item padrão do cliente (abre o cadastro de item padrão já preenchido pela FPP)
+  const [itemPadrao, setItemPadrao] = useState(null);   // { fppId } | { id }
+  const tornarPadrao = async (fppId, numero) => {
+    if (!fppId) return alerta("Salve a FPP antes de torná-la item padrão.");
+    const l = await fetch(`/api/itens-padrao`, { cache: "no-store" }).then((r) => r.json()).catch(() => []);
+    const ja = (Array.isArray(l) ? l : []).filter((i) => Number(i.fppId) === Number(fppId));
+    if (ja.length) {
+      const abrir = await confirmar(`A FPP ${fmtFpp(numero)} já é item padrão: ${ja.map((i) => `${i.codigoPadrao ? i.codigoPadrao + " · " : ""}${i.nomeInterno}`).join(", ")}.\n\nOK abre o item existente; Cancelar cria outro item padrão desta FPP.`);
+      if (abrir) return setItemPadrao({ id: ja[0].id });
+    }
+    setItemPadrao({ fppId });
+  };
   const [params, setParams] = useState(null);       // banco de dados (padrão)
   const [tipo, setTipo] = useState("MALHA");        // derivado da peça escolhida
   const [f, setF] = useState(() => fichaVazia("MALHA"));
@@ -633,7 +646,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
-      {aba === "salvas" && <FichasSalvas master={master} onEditar={(x) => carregarFicha(x, { aba: "salvas" })} onClonar={clonarSalva} voltarRef={voltarSalvas} />}
+      {aba === "salvas" && <FichasSalvas master={master} onEditar={(x) => carregarFicha(x, { aba: "salvas" })} onClonar={clonarSalva} voltarRef={voltarSalvas} onItemPadrao={(x) => tornarPadrao(x.id, x.numero)} />}
+      {itemPadrao && <ItemPadraoModal id={itemPadrao.id || null} fppInicialId={itemPadrao.fppId || null} user={user} componentes={componentes}
+        onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}
 
       {aba === "ficha" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -942,6 +957,13 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef }) {
                 style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
                 <Printer size={15} /> Salvar PDF
               </button>
+              {editId && (
+                <button onClick={() => tornarPadrao(editId, editNum)} title="Cadastra esta FPP como item padrão do cliente (nome, preço, tecido, cliente e anexos vêm da FPP)"
+                  className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
+                  style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>
+                  <Star size={15} /> Tornar item padrão do cliente
+                </button>
+              )}
               {editId && (
                 <button onClick={clonarAtual} disabled={salvando} title="Cria uma cópia desta FPP (com o que está na tela) e passa a editar a cópia"
                   className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
@@ -1419,7 +1441,7 @@ const paramsAlterados = (f) => !!(f?.entradas?.paramsAlterados || (f?.overrides 
 function AlertaParams() {
   return <span title="Parâmetros alterados nesta ficha" className="inline-flex items-center justify-center rounded-full text-[10px] font-bold ml-1.5 align-middle" style={{ width: 16, height: 16, background: C.red, color: "#fff" }}>!</span>;
 }
-function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
+function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
   const [lista, setLista] = useState(null);
   const [, setPv] = useState(0);
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then((p) => { PARAMS_VOLTA = p; setPv((x) => x + 1); }).catch(() => {}); }, []);
@@ -1703,6 +1725,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef }) {
                   <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>
                   <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
                   <button onClick={() => clonar(f)} disabled={clonando === f.id} title="Clonar FPP (abre a cópia para edição)" className="p-1 rounded mr-1" style={{ color: C.blue, opacity: clonando === f.id ? 0.5 : 1 }}><Copy size={15} /></button>
+                  {onItemPadrao && <button onClick={() => onItemPadrao(f)} title="Tornar item padrão do cliente" className="p-1 rounded mr-1" style={{ color: C.accent }}><Star size={15} /></button>}
                   <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
                 </td>
               </tr>

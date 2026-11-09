@@ -166,7 +166,11 @@ export default function ItensPadrao({ user, componentes = {} }) {
 
 const vazio = () => ({ nomeInterno: "", nomeNf: "", clienteIds: [], fppId: null, fpp: null, tipoPecaNome: "", codigo: "", parametros: {}, fotoBase64: "", precoAtual: "", ncm: "", gtin: "", obs: "", anexos: [] });
 
-function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) {
+export function ItemPadraoModal({ id, user, componentes, clientes: clientes0, onClose, onSaved, fppInicialId }) {
+  // v701 — aberto pela própria FPP: busca os clientes se não vieram e já entra preenchido com a FPP (e os anexos dela como layout)
+  const [clientesL, setClientesL] = useState(clientes0 || []);
+  useEffect(() => { if (!clientes0) fetch("/api/clientes").then((r) => r.json()).then((d) => setClientesL(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
+  const clientes = clientes0 || clientesL;
   const [f, setF] = useState(id ? null : vazio());
   const [salv, setSalv] = useState(false);
   const [pend, setPend] = useState([]);   // anexos escolhidos antes de salvar o item novo
@@ -179,6 +183,22 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
   const TIPOS = Object.keys(componentes);
   const ler = () => fetch(`/api/itens-padrao/${id}`).then((r) => r.json()).then((d) => setF({ ...vazio(), ...d, precoAtual: d.precoAtual != null ? String(d.precoAtual).replace(".", ",") : "", parametros: d.parametros || {}, clienteIds: (d.clienteIds || []).map(Number) }));
   useEffect(() => { if (id) ler(); }, [id]);
+  const fppAplicada = React.useRef(false);
+  useEffect(() => {
+    if (id || !fppInicialId || fppAplicada.current || (!clientes0 && !clientesL.length)) return;
+    fppAplicada.current = true;
+    (async () => {
+      const p = await fetch(`/api/pp/catalogo?fppId=${fppInicialId}`, { headers: H }).then((r) => r.json()).catch(() => null);
+      if (!p || p.error) return alerta("Não consegui ler a FPP.");
+      aplicarFpp(p);
+      const l = await fetch(`/api/fpp/${fppInicialId}/anexos`).then((r) => r.json()).catch(() => []);
+      const add = [];
+      for (const a of Array.isArray(l) ? l : []) {
+        try { const b = await fetch(`/api/fpp/${fppInicialId}/anexos?arquivo=${a.id}`).then((r) => r.blob()); add.push({ tipo: "LAYOUT", nome: a.nome, mime: a.mime || b.type || null, base64: await readB64(b) }); } catch {}
+      }
+      if (add.length) setPend((x) => [...x, ...add]);
+    })();
+  }, [clientesL.length, grupos.length]);
   useEffect(() => {
     if (buscaFpp.trim().length < 2) { setFpps([]); return; }
     const t = setTimeout(() => fetch(`/api/pp/catalogo?fpp=${encodeURIComponent(buscaFpp)}`, { headers: H }).then((r) => r.json()).then((d) => setFpps(Array.isArray(d) ? d : [])).catch(() => setFpps([])), 250);
@@ -251,7 +271,8 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
     }, 300);
   };
   // v655 — ao trazer a FPP, o que ela já tem entra sozinho (só preenche o que estiver vazio)
-  const usarFpp = (p) => setF((x) => {
+  const usarFpp = (p) => aplicarFpp(p);
+  function aplicarFpp(p) { setF((x) => {
     const nome = String(p.nomeComercial || p.item || "").toUpperCase();
     const cli = p.cliente ? clientes.find((c) => norm(c.razaoSocial) === norm(p.cliente) || norm(c.nomeFantasia) === norm(p.cliente)) : null;
     return { ...x, fpp: p, fppId: p.id,
@@ -260,7 +281,7 @@ function ItemPadraoModal({ id, user, componentes, clientes, onClose, onSaved }) 
       precoAtual: x.precoAtual || (p.valorProposto != null ? String(Number(p.valorProposto).toFixed(2)).replace(".", ",") : ""),
       clienteIds: cli ? [...new Set([...x.clienteIds, cli.id, ...(grupos.find((g) => g.clientes.some((c) => c.id === cli.id))?.clientes || []).map((c) => c.id)])] : x.clienteIds,
       parametros: { ...x.parametros, TECIDO: { tipo: p.tecidoTipo, artigo: [p.artigo, p.artigoCor].filter(Boolean).join(" · "), medida: p.medida, forro: p.forro || null, fpp: p.numero } } };
-  });
+  }); }
   const anexar = async (tipo, files) => {
     const arr = Array.from(files || []);
     if (!f.id) { const add = await Promise.all(arr.map(async (x) => ({ tipo, nome: x.name, mime: x.type, base64: await readB64(x) }))); setPend((p) => [...p, ...add]); return; }
