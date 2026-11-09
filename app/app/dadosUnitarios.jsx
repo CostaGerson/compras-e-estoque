@@ -3,7 +3,7 @@
 // Colar a lista (WhatsApp, planilha) → o sistema lê, mostra a prévia e só lança depois da confirmação.
 // Link público: cada pessoa preenche o tamanho e os dados; ao fechar, o sistema informa as peças previstas e traz para a lista.
 import React, { useState } from "react";
-import { Plus, X, Trash2, ClipboardPaste, Link2, Copy, Users, Lock, Unlock, ArrowDownToLine, CopyPlus, Tag } from "lucide-react";
+import { Plus, X, Trash2, Maximize2, ArrowUp, ArrowDown, ClipboardPaste, Link2, Copy, Users, Lock, Unlock, ArrowDownToLine, CopyPlus, Tag } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { LOCAIS_DADO, novoCampo, vazioDU, temDU, lerLista, contarPorTam, gradeDaLista, conferirComGrade, normTam } from "@/lib/dadosUnitarios";
 
@@ -103,6 +103,74 @@ function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFec
   );
 }
 
+// v715 — lista ampliada: tela quase cheia, peças em colunas lado a lado (listas longas), edição direta,
+// nova linha, remover e ordenar clicando no título de qualquer coluna (crescente / A→Z; clique de novo inverte)
+function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, conf, onAjustarGrade, onReplicar }) {
+  const [ordenado, setOrdenado] = useState(null);   // { k, dir }
+  const [larg, setLarg] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  React.useEffect(() => { const f = () => setLarg(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  const largCol = 120 + campos.length * 190;
+  const nCols = Math.max(1, Math.min(4, Math.floor((Math.min(larg, 1800) - 60) / largCol)));
+  const porCol = Math.max(1, Math.ceil(linhas.length / nCols));
+  const blocos = Array.from({ length: Math.max(1, Math.ceil(linhas.length / porCol)) }, (_, b) => [b * porCol, Math.min(linhas.length, (b + 1) * porCol)]);
+  const upV = (i, cid, v) => onChange(linhas.map((l, j) => (j === i ? { ...l, valores: { ...(l.valores || {}), [cid]: v } } : l)));
+  const upT = (i, t) => onChange(linhas.map((l, j) => (j === i ? { ...l, tam: t } : l)));
+  const ordenar = (k) => {
+    const dir = ordenado?.k === k && ordenado.dir === 1 ? -1 : 1;
+    const pos = (t) => { const x = ordem.indexOf(t); return x < 0 ? 999 : x; };
+    const cmp = k === "TAM" ? (a, b) => pos(a.tam) - pos(b.tam) || String(a.tam).localeCompare(String(b.tam))
+      : (a, b) => String(a.valores?.[k] || "").localeCompare(String(b.valores?.[k] || ""), "pt-BR", { sensitivity: "base", numeric: true });
+    onChange([...linhas].sort((a, b) => dir * cmp(a, b)));
+    setOrdenado({ k, dir });
+  };
+  const seta = (k) => (ordenado?.k === k ? (ordenado.dir === 1 ? <ArrowUp size={11} className="inline" /> : <ArrowDown size={11} className="inline" />) : null);
+  const novaLinha = () => { onChange([...linhas, { tam: linhas[linhas.length - 1]?.tam || ordem[0] || "M", valores: {} }]); setTimeout(() => document.getElementById("du-ampla-fim")?.scrollIntoView({ behavior: "smooth" }), 50); };
+  const cont = contarPorTam(linhas, ordem);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onFechar}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full h-full flex flex-col shadow-2xl" style={{ background: C.panel, maxWidth: 1800 }}>
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-bold" style={{ color: "#001E41" }}>Lista de personalização exclusiva</div>
+          <div className="text-xs" style={{ color: C.sub }}><b style={{ color: C.text }}>{linhas.length} peça(s)</b>{cont.length ? ` — ${resumoTam(cont)}` : ""}</div>
+          {!conf.ok && <div className="text-xs" style={{ color: C.red }}>Lista × grade: {Object.entries(conf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}
+            {onAjustarGrade && <button type="button" onClick={onAjustarGrade} className="ml-1 underline font-semibold">ajustar a grade</button>}</div>}
+          <div className="text-[11px]" style={{ color: C.sub }}>Clique no título de uma coluna para ordenar.</div>
+          <button type="button" onClick={onFechar} className="ml-auto" style={{ color: C.sub }}><X size={20} /></button>
+        </div>
+        <div className="flex-1 overflow-auto p-3">
+          <div className="grid gap-3 items-start" style={{ gridTemplateColumns: `repeat(${blocos.length}, minmax(0, 1fr))` }}>
+            {blocos.map(([a, z], b) => (
+              <table key={b} className="w-full text-sm" style={{ borderCollapse: "collapse", border: `1px solid ${C.line}` }}>
+                <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
+                  <th className="px-1.5 py-1.5 text-left text-xs" style={{ width: 34 }}>#</th>
+                  <th onClick={() => ordenar("TAM")} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline" style={{ width: 70 }}>Tam. {seta("TAM")}</th>
+                  {campos.map((c) => <th key={c.id} onClick={() => ordenar(c.id)} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline whitespace-nowrap">{c.rotulo} {seta(c.id)}
+                    {b === 0 && linhas.length > 1 && <button type="button" onClick={(e) => { e.stopPropagation(); onReplicar(c); }} className="ml-1 font-normal inline-flex items-center gap-0.5" style={{ color: C.roxo }} title="Replicar o valor da primeira peça para todas"><ArrowDownToLine size={11} /> replicar</button>}</th>)}
+                  <th style={{ width: 24 }} />
+                </tr></thead>
+                <tbody>{linhas.slice(a, z).map((l, k) => { const i = a + k; return (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-1.5 py-0.5 text-xs" style={{ color: C.sub }}>{i + 1}</td>
+                    <td className="px-1 py-0.5"><select value={l.tam} onChange={(e) => upT(i, e.target.value)} className="rounded px-1 py-1 text-xs font-bold outline-none" style={inp}>
+                      {[...new Set([...tamsSel, l.tam])].map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
+                    {campos.map((c) => <td key={c.id} className="px-1 py-0.5"><input value={l.valores?.[c.id] || ""} onChange={(e) => upV(i, c.id, e.target.value)} className="w-full rounded px-2 py-1 text-sm font-semibold outline-none" style={{ ...inp, minWidth: 90 }} /></td>)}
+                    <td className="px-1"><button type="button" onClick={() => onChange(linhas.filter((_, j) => j !== i))} title="Remover esta linha" style={{ color: C.sub }}><X size={13} /></button></td>
+                  </tr>
+                ); })}</tbody>
+              </table>
+            ))}
+          </div>
+          <div id="du-ampla-fim" />
+        </div>
+        <div className="px-4 py-3 flex flex-wrap items-center gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+          <button type="button" onClick={novaLinha} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.roxo, border: `1px dashed ${C.roxo}` }}><Plus size={14} /> nova linha</button>
+          <button type="button" onClick={onFechar} className="ml-auto px-5 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Concluir</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * du: { campos, linhas, linkId?, linkToken? } | null
  * grade: grade do item ([{tam, qtd}]) · onGrade(novaGrade) · tamanhos: grade padrão · uid: usuário (para o link)
@@ -114,6 +182,8 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   const [previa, setPrevia] = useState(null);     // { linhas, erros, titulo }
   const [link, setLink] = useState(null);         // dados do link aberto (respostas)
   const [st, setSt] = useState("");
+  const [ampla, setAmpla] = useState(false);     // v715 — lista ampliada
+  const [selResp, setSelResp] = useState(null);  // v715 — respostas do link selecionadas (índices)
   const on = temDU(du);
   const campos = on ? du.campos : [];
   const linhas = on ? du.linhas || [] : [];
@@ -182,15 +252,21 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
     try { setLink(await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "prazo", id: du.linkId, limite: new Date(v).toISOString() }) })); } catch (e) { alerta(e.message); }
   };
   const copiar = async () => { try { await navigator.clipboard.writeText(urlLink); alerta("Link copiado. Mande para o cliente."); } catch { window.prompt("Copie o link:", urlLink); } };
-  const abrirRespostas = async () => { setSt("Lendo…"); try { setLink(await api(`/api/dados-link?id=${du.linkId}`)); } catch (e) { alerta(e.message); } setSt(""); };
+  const abrirRespostas = async () => { setSt("Lendo…"); try { const l = await api(`/api/dados-link?id=${du.linkId}`); setLink(l); setSelResp(new Set(l.linhas.map((_, i) => i))); } catch (e) { alerta(e.message); } setSt(""); };
   const fecharLink = async (reabrir) => {
     if (!reabrir && !(await confirmar("Encerrar o preenchimento? Depois disso o link não aceita mais respostas (dá para reabrir)."))) return;
     try { setLink(await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: reabrir ? "reabrir" : "fechar", id: du.linkId }) })); } catch (e) { alerta(e.message); }
   };
-  const trazerDoLink = () => {
+  // v715 — as respostas selecionadas entram direto na lista do item e abre a lista ampliada (para conferir e editar)
+  const trazerDoLink = async () => {
     const cs = new Set(campos.map((c) => c.id));
-    const novas = link.linhas.map((l) => ({ tam: normTam(l.tam), valores: Object.fromEntries(Object.entries(l.valores || {}).filter(([k]) => cs.has(k))) }));
-    setPrevia({ linhas: novas, erros: [], titulo: `Respostas do link — ${link.total} peça(s) previstas` });
+    const idx = selResp ? [...selResp].sort((a, b) => a - b) : link.linhas.map((_, i) => i);
+    if (!idx.length) return alerta("Selecione as respostas que vão para a lista.");
+    const novas = idx.map((i) => link.linhas[i]).map((l) => ({ tam: normTam(l.tam), valores: Object.fromEntries(Object.entries(l.valores || {}).filter(([k]) => cs.has(k))) }));
+    let modo = "SUBSTITUIR";
+    if (linhas.length) modo = (await confirmar(`A lista do item já tem ${linhas.length} peça(s).\n\nOK acrescenta as ${novas.length} resposta(s) selecionada(s) · Cancelar substitui a lista por elas.`)) ? "ACRESCENTAR" : "SUBSTITUIR";
+    lancarLista(novas, modo);
+    setLink(null); setSelResp(null); setAmpla(true);
   };
 
   return (
@@ -223,32 +299,28 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
             <button type="button" onClick={() => setColar("")} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md font-semibold" style={{ background: C.roxo, color: "#fff" }}><ClipboardPaste size={12} /> Colar lista</button>
           </div>
           {linhas.length > 0 && (
-            <div className="rounded-lg overflow-auto mb-2" style={{ maxHeight: 320, border: `1px solid ${C.line}`, background: C.panel }}>
+            // v715 — clique em qualquer lugar da lista abre a visualização ampliada (edição, colunas lado a lado, ordenação)
+            <div onClick={() => setAmpla(true)} title="Clique para abrir a lista ampliada" className="rounded-lg overflow-auto mb-2 cursor-zoom-in" style={{ maxHeight: 320, border: `1px solid ${C.line}`, background: C.panel }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
-                  <th className="px-2 py-1 text-left" style={{ width: 32 }}>#</th><th className="px-1 py-1 text-left" style={{ width: 70 }}>Tam.</th>
-                  {campos.map((c) => (
-                    <th key={c.id} className="px-2 py-1 text-left whitespace-nowrap">{c.rotulo}
-                      {linhas.length > 1 && <button type="button" onClick={() => replicar(c)} className="ml-1 inline-flex items-center gap-0.5 font-normal" style={{ color: C.roxo }} title="Replicar o valor da primeira peça para todas"><ArrowDownToLine size={11} /> replicar</button>}
-                    </th>
-                  ))}
-                  <th style={{ width: 28 }} />
+                  <th className="px-2 py-1 text-left" style={{ width: 32 }}>#</th><th className="px-2 py-1 text-left" style={{ width: 56 }}>Tam.</th>
+                  {campos.map((c) => <th key={c.id} className="px-2 py-1 text-left whitespace-nowrap">{c.rotulo}</th>)}
+                  <th className="px-2 py-1 text-right font-normal" style={{ color: C.roxo }}><Maximize2 size={12} className="inline" /> ampliar</th>
                 </tr></thead>
                 <tbody>{linhas.map((l, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
-                    <td className="px-2 py-0.5" style={{ color: C.sub }}>{i + 1}</td>
-                    <td className="px-1 py-0.5"><select value={l.tam} onChange={(e) => upLinha(i, { tam: e.target.value })} className="rounded px-1 py-0.5 text-xs font-bold outline-none" style={inp}>
-                      {tamsSel.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
-                    {campos.map((c) => <td key={c.id} className="px-1 py-0.5"><input value={l.valores?.[c.id] || ""} onChange={(e) => upValor(i, c.id, e.target.value)} className="w-full rounded px-2 py-1 text-sm font-semibold outline-none" style={{ ...inp, minWidth: 110 }} /></td>)}
-                    <td className="px-1"><button type="button" onClick={() => set({ linhas: linhas.filter((_, j) => j !== i) })} style={{ color: C.sub }}><X size={12} /></button></td>
+                    <td className="px-2 py-1" style={{ color: C.sub }}>{i + 1}</td>
+                    <td className="px-2 py-1 font-bold">{l.tam}</td>
+                    {campos.map((c) => <td key={c.id} className="px-2 py-1 text-sm font-semibold" style={{ color: l.valores?.[c.id] ? C.text : C.sub }}>{l.valores?.[c.id] || "—"}</td>)}
+                    <td />
                   </tr>
                 ))}</tbody>
               </table>
             </div>
           )}
           <div className="flex flex-wrap gap-2 items-center">
-            <button type="button" onClick={() => novaLinha(false)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.roxo, border: `1px dashed ${C.roxo}` }}><Plus size={12} /> peça</button>
-            {linhas.length > 0 && <button type="button" onClick={() => novaLinha(true)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.roxo, border: `1px dashed ${C.roxo}` }}><CopyPlus size={12} /> clonar a última</button>}
+            <button type="button" onClick={() => { novaLinha(false); setAmpla(true); }} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.roxo, border: `1px dashed ${C.roxo}` }}><Plus size={12} /> nova linha</button>
+            {linhas.length > 0 && <button type="button" onClick={() => setAmpla(true)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.roxo, border: `1px solid ${C.roxo}44` }}><Maximize2 size={12} /> abrir lista ampliada</button>}
             {!conf.ok && (
               <span className="text-xs flex items-center gap-2" style={{ color: C.red }}>
                 Lista × grade: {Object.entries(conf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}
@@ -278,6 +350,8 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
         </div>
       )}
 
+      {ampla && on && <ListaAmpliada campos={campos} linhas={linhas} tamsSel={tamsSel} ordem={ordem} onChange={(l) => set({ linhas: l })}
+        onFechar={() => setAmpla(false)} conf={conf} onReplicar={replicar} onAjustarGrade={onGrade ? () => onGrade(gradeDaLista(grade, linhas)) : null} />}
       {novoLink && (
         <Janela titulo="Link para o cliente preencher" onFechar={() => setNovoLink(null)} largura={520}
           rodape={<><button type="button" onClick={() => setNovoLink(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
@@ -308,7 +382,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
           rodape={<>
             {link.aberto || !link.fechado ? <button type="button" onClick={() => fecharLink(false)} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ background: C.red, color: "#fff" }}><Lock size={14} /> Fechar preenchimento</button>
               : <button type="button" onClick={() => fecharLink(true)} className="px-4 py-2 rounded-lg text-sm flex items-center gap-1" style={{ color: C.sub, border: `1px solid ${C.line}` }}><Unlock size={14} /> Reabrir</button>}
-            <button type="button" disabled={!link.total} onClick={trazerDoLink} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: link.total ? C.green : C.line, color: "#fff" }}>Trazer para a lista do item</button>
+            <button type="button" disabled={!selResp?.size} onClick={trazerDoLink} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: selResp?.size ? C.green : C.line, color: "#fff" }}>Trazer {selResp?.size || 0} selecionada(s) para a lista</button>
           </>}>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.sub }}>
             Aceita preenchimento até <b style={{ color: C.text }}>{limiteTxt(link.limite) || "sem limite"}</b> · mudar para
@@ -320,10 +394,14 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
           </div>
           {link.linhas.length ? (
             <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-              <thead><tr style={{ background: C.panel2, color: C.sub }}><th className="px-2 py-1 text-left">#</th><th className="px-2 py-1 text-left">Tam.</th>
+              <thead><tr style={{ background: C.panel2, color: C.sub }}>
+                <th className="px-2 py-1 text-left" style={{ width: 28 }}><input type="checkbox" checked={!!selResp && selResp.size === link.linhas.length} onChange={(e) => setSelResp(new Set(e.target.checked ? link.linhas.map((_, i) => i) : []))} title="Selecionar todas" /></th>
+                <th className="px-2 py-1 text-left">#</th><th className="px-2 py-1 text-left">Tam.</th>
                 {(link.campos || []).map((c) => <th key={c.id} className="px-2 py-1 text-left">{c.rotulo}</th>)}<th className="px-2 py-1 text-left">Quem preencheu</th></tr></thead>
               <tbody>{link.linhas.map((l, i) => (
-                <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}><td className="px-2 py-1" style={{ color: C.sub }}>{i + 1}</td><td className="px-2 py-1 font-bold">{l.tam}</td>
+                <tr key={i} onClick={() => setSelResp((x) => { const n = new Set(x || []); n.has(i) ? n.delete(i) : n.add(i); return n; })} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: selResp?.has(i) ? C.greenSoft : "transparent" }}>
+                  <td className="px-2 py-1"><input type="checkbox" readOnly checked={!!selResp?.has(i)} /></td>
+                  <td className="px-2 py-1" style={{ color: C.sub }}>{i + 1}</td><td className="px-2 py-1 font-bold">{l.tam}</td>
                   {(link.campos || []).map((c) => <td key={c.id} className="px-2 py-1">{l.valores?.[c.id] || "—"}</td>)}<td className="px-2 py-1" style={{ color: C.sub }}>{l.responsavel || "—"}</td></tr>
               ))}</tbody>
             </table>
