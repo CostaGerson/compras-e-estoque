@@ -213,7 +213,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
-          dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null };   // v699
+          dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null,   // v699
+          itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "" };   // v711 — portal: mantém ao salvar aqui
       });
       setItens(its.length ? its : [novoItem()]);
       setAnexos((d.anexos || []).map((a) => ({ ...a })));

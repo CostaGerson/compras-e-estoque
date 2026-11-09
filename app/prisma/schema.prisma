@@ -399,6 +399,9 @@ model Pp {
   efetivadoPorNome  String?
   portalClienteId   Int?      // v699 — lançado pelo portal do cliente (o cliente vê só os pedidos dele)
   portalEnviadoPor  String?
+  portalStatus      String?   // v711 — EM_ABERTO | RECEBENDO_DETALHES | LIBERADO (em produção / finalizado vêm do pedido efetivado / faturado)
+  portalEnviadoEm   DateTime? // v711 — quando o cliente enviou (liberou ou abriu o recebimento de dados)
+  portalObs         String?   // v711 — observação digitada pelo cliente no portal
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 
   createdAt DateTime @default(now())
@@ -454,6 +457,8 @@ model PpItem {
   parametrosJson    String?
   fotoBase64        String?
   anexosJson        Json?     // v650 — arquivos do item além da foto: [{ nome, mime, base64 }] (saem na OP abaixo do item)
+  itemPadraoId      Int?      // v711 — item padrão de origem (portal: editar o pedido)
+  valorVenda        Decimal?  @db.Decimal(14, 2)   // v711 — portal: preço por peça que o cliente vendeu (para a MC do pedido)
   dadosUnitarios    Json?     // v699 — dados por peça: { campos: [{ id, local, rotulo }], linhas: [{ tam, valores }], linkId? }
   valorTerceirizado Decimal? @db.Decimal(14, 2)
   fppId             Int?      // v595 — FPP indexada no lançamento (artigo e rendimento vêm dela)

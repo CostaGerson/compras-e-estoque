@@ -14,13 +14,14 @@ export async function GET(req) {
     return Response.json({ numero: proximoNumero([...a, ...b].map((x) => x.numero)) });
   }
   // v328 — todo pedido do sistema aparece no Lançar PP: cria as cascas que faltam
+  try { const { concluirVencidosPortal } = await import("@/lib/portalCliente"); await concluirVencidosPortal(); } catch {}   // v711
   try { await garantirPpTodos([u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase()); } catch {}
   // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({
     where: { status: { not: "EXCLUIDO" } },   // v552 — pedido na lixeira
     orderBy: { createdAt: "desc" },
     select: { id: true, numero: true, status: true, clienteNome: true, oc: true, valorTotal: true, origem: true, dtDespacho: true, vendedor: true, createdAt: true, _count: { select: { itens: true } },
-      interno: true, efetivadoEm: true, entregaModo: true, portalClienteId: true, anexos: { select: { id: true, nome: true, tipo: true, categoria: true }, orderBy: { id: "asc" } } },   // v595
+      interno: true, efetivadoEm: true, entregaModo: true, portalClienteId: true, portalStatus: true, anexos: { select: { id: true, nome: true, tipo: true, categoria: true }, orderBy: { id: "asc" } } },   // v595
   });
   const tem = async (campo) => new Set((await prisma.pp.findMany({ where: { [campo]: { not: null } }, select: { id: true } })).map((x) => x.id));
   const [pv, op, pc, lanc] = await Promise.all([tem("arquivoPedidoPdf"), tem("arquivoOpPdf"), tem("arquivoPcPdf"), tem("arquivoLancPdf")]);

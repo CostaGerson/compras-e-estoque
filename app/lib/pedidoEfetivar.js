@@ -49,6 +49,7 @@ export async function salvarPp(id, b, quem) {
     anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64 })) : undefined,   // v650
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
+    itemPadraoId: Number(it.itemPadraoId) || null, valorVenda: num(it.valorVenda) > 0 ? r2(num(it.valorVenda)) : null,   // v711
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
   }));
@@ -149,6 +150,7 @@ export async function efetivarPedido(id, quem) {
   const pp = await prisma.pp.findUnique({ where: { id: Number(id) }, include: { itens: { orderBy: { id: "asc" } } } });
   if (!pp) throw new Error("Pedido não encontrado.");
   const { erros, avisos } = criticas(pp);
+  if (!pp.efetivadoEm && pp.portalStatus === "EM_ABERTO") erros.push("Pedido do portal ainda em aberto: o cliente não terminou de montar nem enviou o pedido.");   // v711
   if (!pp.efetivadoEm) {   // v707 — fase "recebendo detalhes": o link aberto segura o pedido fora da produção
     const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
     if ((await ppsRecebendoDetalhes([pp.id]))[pp.id]) erros.push("Pedido recebendo detalhes: há link de preenchimento aberto. Feche o preenchimento e traga as respostas para a lista antes de enviar para a produção.");
