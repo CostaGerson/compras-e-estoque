@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
-import { conferirFaccoes, lancarFaccoes, listaFaccoes, estornarFaccoes, descartarFaccoes, reativarFaccoes } from "@/lib/faccaoPcp";
+import { conferirFaccoes, lancarFaccoes, listaFaccoes, estornarFaccoes, descartarFaccoes, reativarFaccoes, regravarFaccoes } from "@/lib/faccaoPcp";
 
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
@@ -19,6 +19,7 @@ export async function POST(req) {
   const r = b.acao === "estornar" ? await estornarFaccoes(b.chaves, nomeU(u), b.motivo)
     : b.acao === "descartar" ? await descartarFaccoes(b.chaves, nomeU(u), b.motivo)
     : b.acao === "reativar" ? await reativarFaccoes(b.chaves, nomeU(u))
+    : b.acao === "regravar" ? await regravarFaccoes(b.chaves, nomeU(u))   // v726 — contas lançadas no formato antigo (1 × total)
     : await lancarFaccoes(b.escolhas, nomeU(u));
   return Response.json(r, { status: r.error ? 400 : 200 });
 }

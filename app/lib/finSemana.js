@@ -151,6 +151,7 @@ export function validarItem(item) {
   if (!linhas.length) return "Lance pelo menos um pedido.";
   for (const [i, l] of linhas.entries()) {
     const n = i + 1;
+    if (l.desconto) { if (!(Number(l.unitario) < 0)) return `Linha ${n}: o desconto precisa ser um valor negativo.`; continue; }   // v726 — desconto do PCP
     if (!String(l.pedido || "").trim()) return `Linha ${n}: informe o nº do pedido.`;
     if (!(Number(l.qtd) > 0)) return `Linha ${n}: informe a quantidade.`;
     if (!(Number(l.unitario) > 0)) return `Linha ${n}: informe o valor unitário.`;
@@ -177,6 +178,7 @@ const normLinhas = (linhas, grupo) => (linhas || []).map((l) => ({
   item: String(l.item || "").trim().toUpperCase() || null,
   ...(grupo === "FACCAO" && l.tipo ? { tipo: l.tipo } : {}),
   ...(l.os ? { os: String(l.os) } : {}), ...(l.osParcial ? { osParcial: true } : {}),   // v209: OS do KM
+  ...(l.itemCode ? { itemCode: String(l.itemCode) } : {}), ...(l.desconto ? { desconto: true } : {}),   // v726: item do PCP · desconto do PCP
   qtd: Number(l.qtd) || 0,
   unitario: r2(l.unitario),
   total: r2((Number(l.qtd) || 0) * (Number(l.unitario) || 0)),

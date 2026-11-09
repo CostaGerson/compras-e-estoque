@@ -17,7 +17,7 @@ export default function FaccoesPcp({ user }) {
   const [prest, setPrest] = useState([]);
   const [ver, setVer] = useState("abertas");
   const [oc, setOc] = useState(false);
-  const carregar = () => { setD(null); fetch(`/api/fin/faccoes?u=${user.id}`).then((r) => r.json()).then((x) => { setD(x); setMarc(new Set((x.contas || []).filter((c) => !c.lancada && !c.descartada && c.prestador).map((c) => c.lancamento))); }).catch((e) => setD({ erro: e.message, contas: [] })); };
+  const carregar = () => { setD(null); fetch(`/api/fin/faccoes?u=${user.id}`).then((r) => r.json()).then((x) => { setD(x); setMarc(new Set((x.contas || []).filter((c) => !c.lancada && !c.descartada && c.prestador && c.bate !== false && !c.semTipo).map((c) => c.lancamento))); }).catch((e) => setD({ erro: e.message, contas: [] })); };
   useEffect(() => { carregar(); fetch(`/api/fin/faccoes?u=${user.id}&lista=1`).then((r) => r.json()).then((x) => setPrest(Array.isArray(x) ? x : [])).catch(() => {}); }, []);
   // v669 — chave = lancamento ("12", "12-1"); A lançar sem as descartadas; Todas mostra descartadas com o motivo
   const contas = (d?.contas || []).filter((c) => (ver === "abertas" ? !c.lancada && !c.descartada : ver === "lancadas" ? c.lancada : true));
@@ -56,6 +56,10 @@ export default function FaccoesPcp({ user }) {
     const esc = pend.filter((c) => marc.has(c.lancamento)).map((c) => ({ lancamento: c.lancamento, os: c.os, ...(ajuste[c.lancamento] || {}) }));
     if (!esc.length) return;
     if (esc.some((e) => !e.prestadorId && !pend.find((c) => c.lancamento === e.lancamento).prestador)) return alerta("Escolha a facção do cadastro nas OS marcadas sem facção encontrada.");
+    const semT = esc.filter((e) => !e.setor && pend.find((c) => c.lancamento === e.lancamento).semTipo);
+    if (semT.length) return alerta(`Escolha o tipo de peça nas OS ${semT.map((e) => e.lancamento).join(", ")} (o nome do produto não identificou).`);
+    const naoBate = esc.filter((e) => pend.find((c) => c.lancamento === e.lancamento).bate === false);
+    if (naoBate.length) return alerta(`Os valores não batem nas OS ${naoBate.map((e) => e.lancamento).join(", ")}. Confira no PCP (o aviso está na linha).`);
     if (!(await confirmar(`Lançar ${esc.length} OS no contas a pagar (terceirizados da semana) · total ${brl(tot)}?`))) return;
     setOc(true);
     const r = await fetch("/api/fin/faccoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, escolhas: esc }) });
@@ -66,6 +70,11 @@ export default function FaccoesPcp({ user }) {
     await alerta(`${ok.length} OS lançada(s).${err.length ? `\n\nNão lançadas:\n${err.map((y) => `OS ${y.lancamento || y.os}: ${y.erro}`).join("\n")}` : ""}`);
     carregar();
   }
+  const antigas = lanc.filter((c) => c.formatoAntigo);   // v726 — lançadas como 1 × total: regravar linhas e datas
+  const regravar = async () => {
+    if (!(await confirmar(`Corrigir ${antigas.length} conta(s) lançada(s) no formato antigo (1 × total)?\n\n${antigas.map((c) => `OS ${c.lancamento} · ${c.prestador?.nome || c.faccao} · ${c.nItens} item(ns) · ${brl(c.valorLiquido)}${c.paga ? " · paga (só as linhas)" : ""}`).join("\n")}\n\nAs linhas passam a ser uma por item (qtd × unitário) e, nas não pagas, a data de recebimento, o prazo e a sexta do pagamento seguem o PCP.`))) return;
+    acao("regravar", antigas.map((c) => c.lancamento));
+  };
   const baixarLista = () => {
     const linhas = [["id", "nome", "documento", "nome_no_km", "ativo", "servicos"], ...prest.map((p) => [p.id, p.nome, p.documento, p.nomeKm || "", p.ativo ? "SIM" : "NAO", p.servicos.join(" ")])];
     const csv = linhas.map((l) => l.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -76,7 +85,7 @@ export default function FaccoesPcp({ user }) {
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex-1 min-w-[260px]">
           <div className="text-lg font-bold" style={{ color: C.navy }}>Facções a pagar · Cronograma PCP</div>
-          <div className="text-xs" style={{ color: C.sub }}>OS <b>fechadas</b> no PCP (valor travado). Confira e lance: cada OS vira um item dos <b>terceirizados da semana</b> (sexta do vencimento), na conta de facção do tipo de peça. Valor = líquido. Uma OS nunca é lançada duas vezes.</div>
+          <div className="text-xs" style={{ color: C.sub }}>OS <b>fechadas</b> no PCP (valor travado). Confira e lance: cada OS vira um item dos <b>terceirizados da semana</b> (sexta do vencimento), com <b>uma linha por item</b> (qtd aprovada × unitário) na conta do tipo de peça. Valor = líquido (desconto do PCP vira linha negativa). Uma OS nunca é lançada duas vezes.</div>
         </div>
         <button onClick={baixarLista} className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1" style={{ border: `1px solid ${C.line}`, background: C.panel }} title="Exportação única para o Cronograma: nome, documento e id interno"><Download size={13} /> Lista de facções para o PCP</button>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
@@ -84,6 +93,9 @@ export default function FaccoesPcp({ user }) {
       <div className="flex gap-2 mb-3">
         {[["abertas", `A lançar (${pend.length})`], ["lancadas", `Lançadas (${lanc.length})`], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setVer(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: ver === k ? C.accent : C.panel, color: ver === k ? "#fff" : C.sub, border: `1px solid ${ver === k ? C.accent : C.line}` }}>{t}</button>)}
       </div>
+      {antigas.length > 0 && <div className="mb-3 p-3 rounded-lg text-sm flex flex-wrap items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={15} />
+        <span className="flex-1">{antigas.length} conta(s) lançada(s) como <b>1 × total</b> (OS {antigas.map((c) => c.lancamento).join(", ")}). Dá para regravar com uma linha por item e as datas do PCP.</span>
+        <button disabled={oc} onClick={regravar} className="px-3 py-1.5 rounded-md text-xs font-semibold" style={{ background: C.yellow, color: "#fff" }}>Corrigir lançadas</button></div>}
       {!d && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Lendo o Cronograma…</div>}
       {d?.erro && <div className="p-3 rounded-lg text-sm flex items-center gap-2" style={{ background: C.yellowSoft, color: C.yellow }}><AlertTriangle size={15} /> {d.erro}</div>}
       {d && !d.erro && !contas.length && <div className="text-sm py-8 text-center rounded-lg" style={{ color: C.sub, background: C.panel, border: `1px solid ${C.line}` }}>Nenhuma OS {ver === "abertas" ? "fechada a lançar" : "aqui"}.</div>}
@@ -110,16 +122,22 @@ export default function FaccoesPcp({ user }) {
                         : <select value={aj.prestadorId || c.prestador?.id || ""} onChange={(e) => setA("prestadorId", e.target.value ? Number(e.target.value) : null)} className="mt-0.5 px-1 py-0.5 rounded text-xs max-w-[200px]" style={{ border: `1px solid ${semF ? C.red : C.line}` }}>
                             <option value="">— escolher no cadastro —</option>{prest.filter((p) => p.ativo).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>}
                       {c.prestador && !c.prestador.pix && <div style={{ color: C.yellow }}>sem PIX no cadastro</div>}
+                      {!c.lancada && (c.avisos || []).map((x, k) => <div key={k} className="mt-0.5 flex gap-1 max-w-[260px]" style={{ color: c.bate === false ? C.red : C.yellow }}><AlertTriangle size={11} className="shrink-0 mt-0.5" /> {x}</div>)}
                     </td>
-                    <td className="px-2 py-2"><div className="font-semibold">{c.pedido || "—"}{c.itemCode ? ` · ${c.itemCode}` : ""}</div><div className="truncate max-w-[220px]" style={{ color: C.sub }} title={c.produto}>{c.produto}{c.refProduto ? ` · ${c.refProduto}` : ""}</div></td>
+                    <td className="px-2 py-2" title={(c.linhas || []).map((l) => `${l.pedido} · ${l.item || ""}${l.tipo ? ` (${l.tipo})` : ""} · ${l.qtd} × ${brl(l.unitario)} = ${brl(l.total)}`).join("\n")}>
+                      {(c.nItens || 0) > 1 ? <><div className="font-semibold">{c.nItens} itens · {(c.pedidos || []).join(", ")}</div>
+                        {(c.linhas || []).filter((l) => !l.desconto).slice(0, 4).map((l, k) => <div key={k} className="truncate max-w-[240px]" style={{ color: C.sub }}>{l.qtd} × {brl(l.unitario)} · {l.item}</div>)}
+                        {(c.linhas || []).filter((l) => !l.desconto).length > 4 && <div style={{ color: C.sub }}>+{c.linhas.filter((l) => !l.desconto).length - 4}…</div>}</>
+                        : <><div className="font-semibold">{c.pedido || c.linhas?.[0]?.pedido || "—"}{c.itemCode ? ` · ${c.itemCode}` : ""}</div><div className="truncate max-w-[220px]" style={{ color: C.sub }} title={c.produto}>{c.produto}{c.refProduto ? ` · ${c.refProduto}` : ""}</div></>}</td>
                     <td className="px-2 py-2">{c.servico || "—"}<div>{c.grupo === "FACCAO" && !c.lancada
-                      ? <select value={aj.setor || c.setor} onChange={(e) => setA("setor", e.target.value)} className="mt-0.5 px-1 py-0.5 rounded text-xs" style={{ border: `1px solid ${C.line}` }}>{TIPOS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+                      ? <select value={aj.setor || (c.semTipo ? "" : c.setor) || ""} onChange={(e) => setA("setor", e.target.value)} className="mt-0.5 px-1 py-0.5 rounded text-xs" style={{ border: `1px solid ${c.semTipo && !aj.setor ? C.red : C.line}` }} title={c.semTipo ? "Tipo de peça das linhas que o nome do produto não identificou" : "Tipo de peça principal (cada linha leva o tipo pelo nome do produto)"}>
+                          {c.semTipo && <option value="">— escolher —</option>}{TIPOS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
                       : <span style={{ color: C.sub }}>{c.setor}</span>}</div></td>
-                    <td className="px-2 py-2">{c.quantidadeEnviada ?? "—"} / {c.quantidadeAprovada ?? "—"}{c.quantidadePerdida ? <div style={{ color: C.red }}>perda {c.quantidadePerdida}</div> : null}{c.quantidadeSegunda ? <div style={{ color: C.yellow }}>2ª {c.quantidadeSegunda}</div> : null}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{brl(c.valorBruto)}<div style={{ color: C.sub }}>{brl(c.valorUnitario)}/pç</div></td>
+                    <td className="px-2 py-2">{c.qtdEnviadaTotal ?? c.quantidadeEnviada ?? "—"} / {c.qtdAprovadaTotal ?? c.quantidadeAprovada ?? "—"}{c.quantidadePerdida ? <div style={{ color: C.red }}>perda {c.quantidadePerdida}</div> : null}{c.quantidadeSegunda ? <div style={{ color: C.yellow }}>2ª {c.quantidadeSegunda}</div> : null}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{brl(c.valorBruto)}{(c.nItens || 0) <= 1 && <div style={{ color: C.sub }}>{brl(c.linhas?.[0]?.unitario ?? c.valorUnitario)}/pç</div>}</td>
                     <td className="px-2 py-2" style={{ color: C.red }}>{(c.descontos || []).map((x, k) => <div key={k} className="whitespace-nowrap">{x.motivo} {brl(x.valor)}</div>)}</td>
                     <td className="px-2 py-2 font-bold whitespace-nowrap" style={{ color: C.navy }}>{brl(c.valorLiquido)}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{dBR(c.vencimento)}{c.sexta ? <div style={{ color: C.sub }}>sexta {dBR(c.sexta).slice(0, 5)}</div> : null}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{dBR(c.vencimento)}{c.recebimento ? <div style={{ color: C.sub }}>receb. {dBR(c.recebimento).slice(0, 5)} · prazo {c.prazoDias}</div> : null}{c.sexta ? <div style={{ color: C.sub }}>paga sexta {dBR(c.sexta).slice(0, 5)}</div> : null}</td>
                     <td className="px-2 py-2">
                       {c.lancada ? <div>
                           <span className="flex items-center gap-1 font-semibold" style={{ color: C.green }}><CheckCircle2 size={13} /> lançada{c.paga ? " · paga" : ""}</span>
