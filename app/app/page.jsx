@@ -3976,7 +3976,7 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
     inscricaoEstadual: v(fornecedor.inscricaoEstadual),
     logradouro: v(fornecedor.logradouro), numero: v(fornecedor.numero), complemento: v(fornecedor.complemento),
     bairro: v(fornecedor.bairro), municipio: v(fornecedor.municipio), uf: v(fornecedor.uf), cep: v(fornecedor.cep),
-    preposto: v(fornecedor.preposto), telefones: v(fornecedor.telefones), emailNf: v(fornecedor.emailNf), obs: v(fornecedor.obs),
+    preposto: v(fornecedor.preposto), telefones: v(fornecedor.telefones), emailNf: v(fornecedor.emailNf), obs: v(fornecedor.obs), chavePix: v(fornecedor.chavePix),
   });
   const [cnpjs, setCnpjs] = useState(fornecedor.cnpjs?.length ? fornecedor.cnpjs.map((c) => ({ cnpj: c.cnpj, razaoSocial: c.razaoSocial || "" })) : [{ cnpj: "", razaoSocial: "" }]);
   const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
@@ -4037,6 +4037,7 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
             <In label="Preposto (contato)" value={f.preposto} onChange={(e) => set("preposto", e.target.value)} />
             <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
             <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
+            <div className="col-span-2"><In label="Chave PIX" value={f.chavePix} onChange={(e) => set("chavePix", e.target.value)} placeholder="CNPJ, e-mail, telefone ou aleatória" /></div>
           </div>
 
           <div>

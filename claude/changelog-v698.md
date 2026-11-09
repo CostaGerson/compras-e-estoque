@@ -1,0 +1,5 @@
+# v698 — Sugestões #47, #49 e #50
+
+- **#47 (Brenda) — folha da NORT não entrava:** sem conta da folha no mês (NORT sem funcionário na Matriz), o item vinha em "não aplicar" e o Aplicar ficava apagado. Agora vem como **criar nova conta** já preenchida (NORT - FOLHA 5º DIA ÚTIL, 5º dia útil, conta-caixa 2154000). Depois de "Corrigir a Matriz agora", o documento é conferido de novo e já aponta para a conta criada pela Matriz.
+- **#49 (Maycon) — janela fechava ao soltar o mouse no fundo:** a proteção da v508 falhava no Windows (a barra de rolagem fazia o fundo não ser reconhecido). Corrigido para todas as janelas do sistema.
+- **#50 (Maycon) — PIX da conta comum no cadastro do fornecedor:** a chave digitada na conta a pagar vai para o cadastro (`Fornecedor.chavePix`, pelo CNPJ ou nome; quem não está no Compras fica lembrado no financeiro) e volta sozinha ao escolher o fornecedor numa conta nova. PIX copia e cola continua valendo só para a conta. Campo "Chave PIX" no cadastro de fornecedores.

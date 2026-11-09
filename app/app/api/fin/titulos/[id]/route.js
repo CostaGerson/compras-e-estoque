@@ -86,6 +86,7 @@ export async function PATCH(req, { params }) {
     if (b.numeroDoc !== undefined) data.numeroDoc = b.numeroDoc || null;
     if (b.observacao !== undefined) data.observacao = b.observacao || null;
     if (b.chavePix !== undefined) data.chavePix = String(b.chavePix || "").trim() || null;   // v521
+    if (data.chavePix && t.tipo === "PAGAR") { const { lembrarPix } = await import("@/lib/finPix"); await lembrarPix(data.parceiro || t.parceiro, b.documento ?? t.documento, data.chavePix); }   // v698
     if (b.formaPagamento !== undefined) data.formaPagamento = b.formaPagamento ? String(b.formaPagamento).toUpperCase() : null;
     if (b.previsao !== undefined) data.previsao = !!b.previsao;
     if (b.critica !== undefined) data.critica = b.critica ? String(b.critica).slice(0, 500) : null;

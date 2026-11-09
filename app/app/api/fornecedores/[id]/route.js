@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const soDigitos = (s) => (s || "").replace(/\D/g, "");
 const up = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim().toUpperCase());
-const RICOS = ["razaoSocial", "nomeFantasia", "inscricaoEstadual", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "cep", "preposto", "telefones", "emailNf", "obs"];
+const RICOS = ["razaoSocial", "nomeFantasia", "inscricaoEstadual", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "cep", "preposto", "telefones", "emailNf", "obs", "chavePix"];
 
 function camposRicos(b) {
   const d = {};
@@ -11,7 +11,7 @@ function camposRicos(b) {
     if (b[k] === undefined) continue;
     if (k === "cep") d[k] = soDigitos(b[k]) || null;
     else if (k === "emailNf") d[k] = b[k] ? String(b[k]).trim().toLowerCase() : null;
-    else if (k === "preposto" || k === "telefones" || k === "obs" || k === "inscricaoEstadual") d[k] = b[k] ? String(b[k]).trim() : null;
+    else if (k === "preposto" || k === "telefones" || k === "obs" || k === "inscricaoEstadual" || k === "chavePix") d[k] = b[k] ? String(b[k]).trim() : null;
     else d[k] = up(b[k]);
   }
   return d;

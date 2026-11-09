@@ -9,7 +9,10 @@ const ehFundo = (el) => {
   const st = getComputedStyle(el);
   if (st.position !== "fixed") return false;
   const r = el.getBoundingClientRect();
-  return r.width >= window.innerWidth - 2 && r.height >= window.innerHeight - 2;
+  // v698 — no Windows a barra de rolagem come ~15px: a janela visível é o clientWidth, não o innerWidth
+  const de = document.documentElement;
+  const w = Math.min(window.innerWidth, de.clientWidth || window.innerWidth), h = Math.min(window.innerHeight, de.clientHeight || window.innerHeight);
+  return r.width >= w - 2 && r.height >= h - 2;
 };
 
 export default function CliqueFora() {

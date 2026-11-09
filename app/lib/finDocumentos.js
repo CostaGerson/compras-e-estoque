@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { linhasPdf } from "@/lib/finParse";
 import { normRegra } from "@/lib/fin";
-import { dataUTC, mesDe, r2 } from "@/lib/finTitulos";
+import { dataUTC, mesDe, r2, vencNoMes } from "@/lib/finTitulos";
 import { conferirFolhaMatriz, deptoDaFuncao } from "@/lib/finFolhaMatriz";
 import { CONTA_DEPTO } from "@/lib/finMatrizRec";
 
@@ -268,6 +268,12 @@ export async function analisarDocumentos(docs) {
       nota: "Sócios (IGOR, PEDRO, MAYCON) não entram na folha — o pró-labore fixo de R$ 6.000 fica nas contas próprias.",
       matriz, ref: compRef, rateio,
       alvo: saida(alvo), opcoes: opcoes.map(saida),
+      // v698 — sem conta da folha no mês (ex.: NORT sem funcionário na Matriz): já vem pronta para criar
+      novo: alvo ? null : {
+        titulo: empresa === "NORT" ? "NORT - FOLHA 5º DIA ÚTIL" : "SALÁRIO", parceiro: empresa === "NORT" ? "FOLHA DE PAGAMENTO NORT" : "FOLHA DE PAGAMENTO",
+        vencimento: comp ? (() => { try { return vencNoMes(comp, 5, true, true).toISOString().slice(0, 10); } catch { return ""; } })() : "",
+        contaId: rateio?.[0]?.contaId || null,
+      },
     });
   }
   // recibos

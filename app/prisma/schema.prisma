@@ -154,6 +154,7 @@ model Fornecedor {
   telefones         String?
   emailNf           String?
   obs               String?
+  chavePix          String?   // v698 — lembrada das contas comuns do financeiro
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

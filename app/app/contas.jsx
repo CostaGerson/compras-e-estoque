@@ -789,7 +789,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       setAn(Object.fromEntries((j.analise || []).map((x) => [x.nome, { ok: !x.jaEnviado, competencia: x.competencia }])));
       const ja = (j.analise || []).map((x) => x.arquivoId).filter(Boolean);
       if (ja.length) setBaixaIds((v) => [...new Set([...v, ...ja])]);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) || (it.tipo === "FOLHA" && it.novo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
         valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
       return j;
     }
@@ -807,6 +807,8 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "corrigirMatriz", pessoas, ref: it.refTexto });
       setR((x) => ({ ...x, itens: x.itens.map((y) => (y.chave === it.chave ? { ...y, matriz: { ...y.matriz, ok: [...y.matriz.ok, ...y.matriz.faltam.map((f) => ({ folha: f.nome, matriz: f.nome.split(" ")[0] }))], faltam: [] } } : y)) }));
       setMtz((x) => ({ ...x, [it.chave]: { st: "", msg: `Matriz corrigida: ${j.incluidas} incluída(s), ${j.nomeadas} vaga(s) nomeada(s)${j.contas ? ` · contas de pessoal atualizadas (${j.contas.atualizadas} recorrência(s))` : ""}.` } }));
+      // v698 — a Matriz corrigida pode ter criado a conta da folha do mês (ex.: NORT): confere de novo para já apontar para ela
+      if (!it.alvo) await analisar(arqs).catch(() => null);
     } catch (e) { setMtz((x) => ({ ...x, [it.chave]: { ...m, st: "", msg: "", erro: e.message } })); }
   };
   const mudaCriar = (k, patch) => setEsc((x) => ({ ...x, [k]: { ...x[k], criar: { ...x[k].criar, ...patch } } }));
@@ -1865,6 +1867,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
     s("parceiro", v.toUpperCase());
     const p = (d?.parceiros || []).find((x) => x.parceiro === v.toUpperCase());
     if (p?.documento && !f.documento) s("documento", p.documento);
+    if (p?.chavePix && !String(f.chavePix || "").trim()) s("chavePix", p.chavePix);   // v698 — PIX do cadastro do fornecedor
   };
   const salvar = async () => {
     setSalvando(true); setErro("");
@@ -1983,7 +1986,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
             {Object.entries(FORMAS_PGTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Campo>
-        {P && <Campo t="Chave PIX" dica="chave (CNPJ, e-mail, telefone, aleatória) ou PIX copia e cola">
+        {P && <Campo t="Chave PIX" dica="chave (CNPJ, e-mail, telefone, aleatória) fica no cadastro do fornecedor · copia e cola vale só nesta conta">
           <input value={f.chavePix || ""} onChange={(e) => s("chavePix", e.target.value)} className={inp + " font-mono"} style={inpS} placeholder="chave PIX do fornecedor" />
         </Campo>}
         <Campo t="Observação"><textarea rows={3} value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>

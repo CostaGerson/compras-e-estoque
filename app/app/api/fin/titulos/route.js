@@ -97,7 +97,7 @@ export async function GET(req) {
     semConta: semConta.map(tituloOutM), comCritica: comCritica.map(tituloOutM),
     vencidoTotal: Number(vencTot._sum.valor || 0) - vencPago, vencidoTotalQtd: vencTot._count || 0,
     titulos: titulos.map(saida), atrasados: atrasados.map(saida), criticas: criticas.map(tituloOutM),
-    contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
+    contas, parceiros: tipo === "PAGAR" ? await (await import("@/lib/finPix")).pixDosParceiros(parceiros).catch(() => parceiros) : parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
   });
 }
 
@@ -115,6 +115,7 @@ export async function POST(req) {
   if (!b.vencimento) return Response.json({ error: "Informe o vencimento." }, { status: 400 });
   const rt = validarRateio(b.rateio);
   if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 });
+  if (tipo === "PAGAR" && b.chavePix) { const { lembrarPix } = await import("@/lib/finPix"); await lembrarPix(parceiro, b.documento, b.chavePix); }   // v698
   const base = { tipo, titulo, parceiro, documento: so(b.documento) || null, rateio: rt.rateio, observacao: b.observacao || null, formaPagamento: b.formaPagamento ? String(b.formaPagamento).toUpperCase() : null, chavePix: String(b.chavePix || "").trim() || null };
 
   if (b.recorrente) {
