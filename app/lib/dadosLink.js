@@ -9,7 +9,12 @@ const LIM_TOTAL = 5000, LIM_ENVIO = 50;
 const dataLimite = (v) => { if (!v) return null; const d = new Date(v); return Number.isFinite(d.getTime()) ? d : null; };
 export const linkAberto = (l) => !!l && l.aberto && !(l.limite && new Date(l.limite).getTime() < Date.now());
 
-export async function criarLink({ titulo, clienteNome, campos, tamanhos, limite }, { u, portalClienteId }) {
+export async function criarLink({ titulo, clienteNome, campos, tamanhos, limite, ppId, itemIdx }, { u, portalClienteId }) {
+  // v707 — o link só existe para pedido já criado e ainda não enviado para a produção
+  const pp = Number(ppId) ? await prisma.pp.findUnique({ where: { id: Number(ppId) }, select: { id: true, efetivadoEm: true, portalClienteId: true } }) : null;
+  if (!pp) return { error: "Crie o pedido (salve o rascunho / envie o pedido) antes de gerar o link." };
+  if (pp.efetivadoEm) return { error: "Este pedido já foi enviado para a produção: não recebe mais detalhes pelo link." };
+  if (portalClienteId && pp.portalClienteId !== portalClienteId) return { error: "Pedido não encontrado." };
   const lim = dataLimite(limite);
   if (!lim) return { error: "Defina o dia e o horário limite para o preenchimento." };
   if (lim.getTime() < Date.now()) return { error: "O limite já passou: escolha um dia e horário futuros." };
@@ -19,7 +24,7 @@ export async function criarLink({ titulo, clienteNome, campos, tamanhos, limite 
   if (!tams.length) return { error: "Informe os tamanhos que podem ser escolhidos." };
   const l = await prisma.dadoUnitarioLink.create({ data: {
     token: novoToken(), titulo: String(titulo || "PEDIDO").toUpperCase().slice(0, 120), clienteNome: clienteNome ? String(clienteNome).toUpperCase().slice(0, 120) : null,
-    campos: du.campos, tamanhos: tams, limite: lim, portalClienteId: portalClienteId || null, criadoPorId: u?.id || null,
+    campos: du.campos, tamanhos: tams, limite: lim, ppId: pp.id, itemIdx: Number.isInteger(Number(itemIdx)) ? Number(itemIdx) : null, portalClienteId: portalClienteId || null, criadoPorId: u?.id || null,
     criadoPorNome: [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase() || null } });
   return { ok: true, id: l.id, token: l.token };
 }
@@ -73,4 +78,13 @@ export async function mudarLimite(id, limite) {
   if (lim.getTime() < Date.now()) return { error: "O limite já passou: escolha um dia e horário futuros." };
   await prisma.dadoUnitarioLink.update({ where: { id: Number(id) }, data: { limite: lim, aberto: true, fechadoEm: null, fechadoPorNome: null } });
   return { ok: true };
+}
+
+// v707 — pedidos com link de detalhes aberto ("recebendo detalhes": ainda não vão para a produção)
+export async function ppsRecebendoDetalhes(ids) {
+  const where = { ppId: ids ? { in: ids.map(Number) } : { not: null }, aberto: true, OR: [{ limite: null }, { limite: { gt: new Date() } }] };
+  const l = await prisma.dadoUnitarioLink.findMany({ where, select: { ppId: true, limite: true } }).catch(() => []);
+  const m = {};
+  for (const x of l) if (!m[x.ppId] || (x.limite && new Date(x.limite) > new Date(m[x.ppId]))) m[x.ppId] = x.limite || true;
+  return m;   // { ppId: limite mais distante }
 }

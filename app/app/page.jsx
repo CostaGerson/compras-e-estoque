@@ -1400,7 +1400,7 @@ function LancarPP({ user }) {
             <div className="w-28 font-medium">{p.numero || <span style={{ color: C.sub }}>rascunho</span>}
               {/* v595 — situação do lançamento */}
               <div className="text-[10px] font-semibold" style={{ color: p.status === "FATURADO" ? C.blue : p.efetivadoEm ? C.green : p.origem === "PEDIDOS" ? C.sub : C.yellow }}>
-                {p.status === "FATURADO" ? "FATURADO" : p.efetivadoEm ? "LANÇADO" : p.origem === "PEDIDOS" ? "" : "RASCUNHO"}{p.interno ? " · INTERNO" : ""}</div>
+                {p.status === "FATURADO" ? "FATURADO" : p.efetivadoEm ? "LANÇADO" : p.origem === "PEDIDOS" ? "" : p.recebendoDetalhes ? "RECEBENDO DETALHES" : "RASCUNHO"}{p.interno ? " · INTERNO" : ""}</div>
               {p.portalClienteId && <div className="text-[10px] font-bold" style={{ color: "#3D6799" }} title="Enviado pelo portal do cliente — conferir e efetivar">PORTAL DO CLIENTE</div>}</div>
             <div className="flex-1 min-w-0">{p.clienteNome || "—"}
               {(p.anexos || []).length > 0 && <div className="flex flex-wrap gap-1 mt-0.5">

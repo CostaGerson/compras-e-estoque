@@ -108,7 +108,8 @@ function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFec
  * grade: grade do item ([{tam, qtd}]) · onGrade(novaGrade) · tamanhos: grade padrão · uid: usuário (para o link)
  * onReplicarItens: copia os locais para os outros itens do pedido (opcional)
  */
-export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos = [], uid, titulo, clienteNome, onReplicarItens, travado = false }) {
+export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos = [], uid, titulo, clienteNome, onReplicarItens, travado = false,
+  ppId = null, itemIdx = null, semLinkTxt = "Salve o pedido (rascunho) para gerar o link: ele fica na fase \"recebendo detalhes\" até você fechar o preenchimento.", onLinkCriado }) {
   const [colar, setColar] = useState(null);       // texto
   const [previa, setPrevia] = useState(null);     // { linhas, erros, titulo }
   const [link, setLink] = useState(null);         // dados do link aberto (respostas)
@@ -169,8 +170,10 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
     if (!novoLink?.limite) return alerta("Escolha o dia e o horário limite.");
     setSt("Gerando…");
     try {
-      const j = await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "criar", titulo: titulo || "PEDIDO", clienteNome, campos, tamanhos: tamsSel, limite: new Date(novoLink.limite).toISOString() }) });
-      set({ linkId: j.id, linkToken: j.token }); setNovoLink(null);
+      const j = await api("/api/dados-link", { method: "POST", body: JSON.stringify({ acao: "criar", titulo: titulo || "PEDIDO", clienteNome, campos, tamanhos: tamsSel, limite: new Date(novoLink.limite).toISOString(), ppId, itemIdx }) });
+      const novo = { ...du, linkId: j.id, linkToken: j.token };
+      onChange(novo); setNovoLink(null);
+      if (onLinkCriado) onLinkCriado(novo);   // v707 — grava o link no pedido
     } catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -257,7 +260,9 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
           {/* link público */}
           <div className="mt-3 pt-3 flex flex-wrap items-center gap-2 text-xs" style={{ borderTop: `1px dashed ${C.roxo}44` }}>
             <Link2 size={14} style={{ color: C.roxo }} />
-            {!du.linkId ? (
+            {!du.linkId && !ppId ? (
+              <span style={{ color: C.sub }}>{semLinkTxt}</span>
+            ) : !du.linkId ? (
               <>
                 <span style={{ color: C.sub }}>Cada pessoa preenche o próprio tamanho e dado:</span>
                 <button type="button" onClick={gerarLink} disabled={!!st} className="px-2 py-1 rounded-md font-semibold" style={{ background: C.panel, color: C.roxo, border: `1px solid ${C.roxo}` }}>{st || "Gerar link para o cliente"}</button>
@@ -277,6 +282,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
         <Janela titulo="Link para o cliente preencher" onFechar={() => setNovoLink(null)} largura={520}
           rodape={<><button type="button" onClick={() => setNovoLink(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
             <button type="button" onClick={confirmarLink} disabled={!!st} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{st || "Gerar link"}</button></>}>
+          <div className="text-sm mb-3 p-2.5 rounded-lg" style={{ background: C.yellowSoft, color: C.text }}>Enquanto o link estiver aberto, o pedido fica na fase <b>recebendo detalhes</b> e não vai para a produção. Feche o preenchimento e traga as respostas para a lista para liberar.</div>
           <div className="text-sm mb-3" style={{ color: C.text }}>Cada pessoa escolhe o tamanho e escreve o que vai na peça: <b>{campos.map((c) => c.rotulo.toLowerCase()).join(", ")}</b>. Pode pedir mais de uma peça.</div>
           <label className="text-xs block" style={{ color: C.sub }}>Aceitar preenchimento até (dia e horário)
             <input type="datetime-local" value={novoLink.limite} onChange={(e) => setNovoLink({ limite: e.target.value })} className="block mt-1 rounded-lg px-3 py-2 text-sm outline-none" style={inp} />

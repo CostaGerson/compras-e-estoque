@@ -149,6 +149,10 @@ export async function efetivarPedido(id, quem) {
   const pp = await prisma.pp.findUnique({ where: { id: Number(id) }, include: { itens: { orderBy: { id: "asc" } } } });
   if (!pp) throw new Error("Pedido não encontrado.");
   const { erros, avisos } = criticas(pp);
+  if (!pp.efetivadoEm) {   // v707 — fase "recebendo detalhes": o link aberto segura o pedido fora da produção
+    const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
+    if ((await ppsRecebendoDetalhes([pp.id]))[pp.id]) erros.push("Pedido recebendo detalhes: há link de preenchimento aberto. Feche o preenchimento e traga as respostas para a lista antes de enviar para a produção.");
+  }
   if (erros.length) return { ok: false, erros, avisos };
   let numero = pp.numero;
   if (!numero) {

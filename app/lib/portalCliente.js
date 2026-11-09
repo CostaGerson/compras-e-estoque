@@ -2,6 +2,7 @@
 // (escolhe o item, informa a grade, anexa as artes e, se quiser, os dados unitários) e vê só os pedidos dele.
 // O pedido entra como rascunho no Lançar pedido (status EM_LANCAMENTO) para o comercial conferir e efetivar.
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { usuarioAtivoFin } from "@/lib/fin";
 import { listarItensPadrao } from "@/lib/itensPadrao";
 import { salvarPp } from "@/lib/pedidoEfetivar";
@@ -52,8 +53,7 @@ export async function enviarPedido({ u, cliente }, b) {
     const grade = (Array.isArray(p.grade) ? p.grade : []).map((g) => ({ tam: String(g.tam || "").slice(0, 12), qtd: String(Math.max(0, Math.round(num(g.qtd))) || "") })).filter((g) => g.tam);
     if (!(qtdGrade(grade) > 0)) return { error: `Item ${k + 1} (${d.nomeInterno}): informe a grade.` };
     const du = limparDU(p.dadosUnitarios);
-    if (temDU(du)) {
-      if (!du.linhas.length) return { error: `Item ${k + 1}: dado unitário ligado sem a lista de peças (preencha, cole a lista ou desligue a chave).` };
+    if (temDU(du) && du.linhas.length) {   // v707 — sem lista: será preenchida pelo link (pedido em "recebendo detalhes")
       const cf = conferirComGrade(du, grade);
       if (!cf.ok) return { error: `Item ${k + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}).` };
     }
@@ -98,9 +98,30 @@ export async function pedidosDoCliente(clienteId) {
     select: { id: true, numero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true,
       itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true }, orderBy: { id: "asc" } } } });
   const js = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
+  const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
+  const rec = await ppsRecebendoDetalhes(pps.filter((p) => !p.efetivadoEm).map((p) => p.id));
   return pps.map((p) => ({
-    id: p.id, numero: p.efetivadoEm ? p.numero : null, situacao: ST_PORTAL[p.status] || p.status, status: p.status, enviadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, enviadoPor: p.portalEnviadoPor,
-    itens: p.itens.map((it) => ({ descricao: it.descricao, pecas: Number(it.quantidade) || 0, grade: js(it.gradeJson).filter((g) => num(g.qtd) > 0),
+    id: p.id, numero: p.efetivadoEm ? p.numero : null, situacao: !p.efetivadoEm && rec[p.id] ? "Recebendo detalhes" : ST_PORTAL[p.status] || p.status, status: p.status,
+    recebendoDetalhes: !p.efetivadoEm && !!rec[p.id], editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", enviadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, enviadoPor: p.portalEnviadoPor,
+    itens: p.itens.map((it) => ({ descricao: it.descricao, pecas: Number(it.quantidade) || 0, grade: js(it.gradeJson).filter((g) => num(g.qtd) > 0), gradeToda: js(it.gradeJson),
       dadosUnitarios: it.dadosUnitarios && it.dadosUnitarios.linhas ? it.dadosUnitarios : null })),
   }));
+}
+
+// v707 — pedido já enviado (ainda não na produção): o cliente ajusta os dados unitários do item e gera/acompanha o link
+export async function salvarItemPortal({ cliente }, { ppId, idx, dadosUnitarios, grade }) {
+  const pp = await prisma.pp.findUnique({ where: { id: Number(ppId) }, include: { itens: { orderBy: { id: "asc" } } } });
+  if (!pp || pp.portalClienteId !== cliente.id) return { error: "Pedido não encontrado." };
+  if (pp.efetivadoEm || pp.status !== "EM_LANCAMENTO") return { error: "Este pedido já foi confirmado pela nossa equipe: fale com seu vendedor para alterar." };
+  const it = pp.itens[Number(idx)];
+  if (!it) return { error: "Item não encontrado." };
+  const g = (Array.isArray(grade) ? grade : []).map((x) => ({ tam: String(x.tam || "").slice(0, 12), qtd: String(Math.max(0, Math.round(num(x.qtd))) || "") })).filter((x) => x.tam);
+  const q = qtdGrade(g);
+  if (!(q > 0)) return { error: "A grade do item não pode ficar vazia." };
+  const du = limparDU(dadosUnitarios);
+  const vu = Number(it.valorUnitario) || 0;
+  await prisma.ppItem.update({ where: { id: it.id }, data: { dadosUnitarios: du || Prisma.DbNull, gradeJson: JSON.stringify(g), quantidade: q, valorTotal: vu ? Math.round(q * vu * 100) / 100 : null } });
+  const itens = await prisma.ppItem.findMany({ where: { ppId: pp.id }, select: { valorTotal: true } });
+  await prisma.pp.update({ where: { id: pp.id }, data: { valorTotal: Math.round(itens.reduce((s, x) => s + (Number(x.valorTotal) || 0), 0) * 100) / 100 } });
+  return { ok: true };
 }

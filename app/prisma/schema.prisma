@@ -2520,6 +2520,8 @@ model DadoUnitarioLink {
   tamanhos        Json                  // tamanhos que podem ser escolhidos
   aberto          Boolean   @default(true)
   limite          DateTime?             // v702 — dia e hora até quando o link aceita preenchimento
+  ppId            Int?                  // v707 — pedido (já criado) a que o link pertence: enquanto aberto, o pedido fica "recebendo detalhes"
+  itemIdx         Int?                  // v707 — posição do item no pedido (0, 1, …)
   portalClienteId Int?                  // criado no portal do cliente
   criadoPorId     Int?
   criadoPorNome   String?

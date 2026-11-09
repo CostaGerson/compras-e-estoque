@@ -24,7 +24,9 @@ export async function GET(req) {
   });
   const tem = async (campo) => new Set((await prisma.pp.findMany({ where: { [campo]: { not: null } }, select: { id: true } })).map((x) => x.id));
   const [pv, op, pc, lanc] = await Promise.all([tem("arquivoPedidoPdf"), tem("arquivoOpPdf"), tem("arquivoPcPdf"), tem("arquivoLancPdf")]);
-  return Response.json(pps.map((p) => ppParaUsuario({ ...p, temPv: pv.has(p.id), temOp: op.has(p.id), temPc: pc.has(p.id), temLanc: lanc.has(p.id) }, u)));
+  const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
+  const rec = await ppsRecebendoDetalhes(pps.filter((p) => !p.efetivadoEm).map((p) => p.id));
+  return Response.json(pps.map((p) => ppParaUsuario({ ...p, temPv: pv.has(p.id), temOp: op.has(p.id), temPc: pc.has(p.id), temLanc: lanc.has(p.id), recebendoDetalhes: !!rec[p.id] }, u)));
 }
 
 const dec = (v) => {

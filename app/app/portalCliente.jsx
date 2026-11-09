@@ -47,8 +47,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     if (!itens.length) return alerta("Escolha ao menos um item.");
     for (const [i, it] of itens.entries()) {
       if (!(qtdGrade(it.grade) > 0)) return alerta(`Item ${i + 1} (${it.padrao.nome}): informe a grade.`);
-      if (temDU(it.dadosUnitarios)) {
-        if (!it.dadosUnitarios.linhas?.length) return alerta(`Item ${i + 1}: o dado unitário está ligado sem a lista de peças. Preencha, cole a lista ou desligue a chave.`);
+      if (temDU(it.dadosUnitarios) && it.dadosUnitarios.linhas?.length) {   // v707 — sem lista: vai pelo link depois de enviar
         const cf = conferirComGrade(it.dadosUnitarios, it.grade);
         if (!cf.ok) return alerta(`Item ${i + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}). Use "ajustar a grade pela lista".`);
       }
@@ -60,7 +59,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     try {
       const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ oc, obs, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios })) }) });
       setD((x) => ({ ...x, pedidos: j.pedidos })); setItens([]); setOc(""); setObs(""); setAba("PEDIDOS");
-      alerta(`Pedido enviado: ${j.pecas} peça(s). Nossa equipe confere e confirma — acompanhe em "Meus pedidos".`);
+      const semLista = itens.some((it) => temDU(it.dadosUnitarios) && !it.dadosUnitarios.linhas?.length);
+      alerta(`Pedido enviado: ${j.pecas} peça(s). Nossa equipe confere e confirma — acompanhe em "Meus pedidos".${semLista ? '\n\nPara as pessoas preencherem tamanho e dados, abra o pedido em "Meus pedidos" › "dados unitários / link" e gere o link.' : ""}`);
     } catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -144,7 +144,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 )}
                 <DadosUnitarios du={it.dadosUnitarios} onChange={(v) => up(it.key, { dadosUnitarios: v })} grade={it.grade} onGrade={(g) => up(it.key, { grade: g })}
                   tamanhos={tamanhos} uid={user.id} titulo={`${d.cliente.nome} · ${it.padrao.nome}`} clienteNome={d.cliente.nome}
-                  onReplicarItens={itens.length > 1 ? () => replicarLocais(it) : null} />
+                  onReplicarItens={itens.length > 1 ? () => replicarLocais(it) : null}
+                  semLinkTxt={'Quer que cada pessoa preencha o próprio tamanho e dado? Envie o pedido e gere o link em "Meus pedidos" (o pedido fica em "recebendo detalhes").'} />
               </div>
             ))}
             <div id="portal-itens-fim" />
@@ -177,17 +178,50 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: fundo, color: cor }}>{p.situacao}</span>
                   <div className="ml-auto text-xs" style={{ color: C.sub }}>enviado em {dBR(p.enviadoEm)}{p.despacho ? ` · despacho ${p.despacho}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</div>
                 </div>
+                {p.recebendoDetalhes && <div className="text-xs mb-2 p-2 rounded-lg" style={{ background: C.accentSoft, color: C.text }}>Recebendo detalhes: o link de preenchimento está aberto. Quando fechar o preenchimento e trazer as respostas para a lista, o pedido segue para a nossa conferência e produção.</div>}
                 {p.itens.map((it, k) => (
-                  <div key={k} className="text-xs py-1" style={{ borderTop: `1px solid ${C.line}` }}>
-                    <b>{it.descricao}</b> — {it.pecas} pç ({it.grade.map((g) => `${g.tam} ${g.qtd}`).join(" · ")})
-                    {it.dadosUnitarios && <span style={{ color: "#3D6799" }}> · {resumoDU(it.dadosUnitarios, tamanhos)}</span>}
-                  </div>
+                  <ItemPedidoPortal key={`${p.id}-${k}`} p={p} it={it} idx={k} user={user} tamanhos={tamanhos} nomeCliente={d.cliente.nome}
+                    salvar={async (body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }} />
                 ))}
               </div>
             );
           })
         )}
       </div>
+    </div>
+  );
+}
+
+// v707 — item de um pedido já enviado: resumo; enquanto em conferência, abre os dados unitários e o link de preenchimento
+function ItemPedidoPortal({ p, it, idx, user, tamanhos, nomeCliente, salvar }) {
+  const [aberto, setAberto] = useState(false);
+  const gradeIni = () => { const g = it.gradeToda || it.grade || []; const tem = new Set(g.map((x) => x.tam)); return [...g, ...tamanhos.filter((t) => !tem.has(t)).map((t) => ({ tam: t, qtd: "" }))]; };
+  const [du, setDu] = useState(it.dadosUnitarios || null);
+  const [grade, setGrade] = useState(gradeIni);
+  const [st, setSt] = useState("");
+  const gravar = async (duNovo = du, gradeNova = grade) => {
+    setSt("Salvando…");
+    try { await salvar({ dadosUnitarios: duNovo, grade: gradeNova }); setSt("Salvo ✓"); setTimeout(() => setSt(""), 2500); } catch (e) { alerta(e.message); setSt(""); }
+  };
+  return (
+    <div className="text-xs py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span><b>{it.descricao}</b> — {it.pecas} pç ({it.grade.map((g) => `${g.tam} ${g.qtd}`).join(" · ")})</span>
+        {it.dadosUnitarios && <span style={{ color: "#3D6799" }}>· {resumoDU(it.dadosUnitarios, tamanhos)}</span>}
+        {p.editavel && <button onClick={() => setAberto((x) => !x)} className="ml-auto px-2 py-1 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>{aberto ? "fechar" : "dados unitários / link"}</button>}
+      </div>
+      {aberto && (
+        <div className="mt-2">
+          <GradeEditor grade={grade} tamanhos={tamanhos} onChange={setGrade} />
+          <DadosUnitarios du={du} onChange={setDu} grade={grade} onGrade={setGrade} tamanhos={tamanhos} uid={user.id}
+            titulo={`${nomeCliente} · ${it.descricao}`} clienteNome={nomeCliente} ppId={p.id} itemIdx={idx}
+            onLinkCriado={(novo) => gravar(novo, grade)} />
+          <div className="flex items-center gap-2 mt-2">
+            <span style={{ color: C.sub }}>{st}</span>
+            <button onClick={() => gravar()} disabled={st === "Salvando…"} className="ml-auto px-4 py-2 rounded-lg font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar detalhes do item</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -39,7 +39,9 @@ export async function GET(req, { params }) {
     include: { itens: { orderBy: { id: "asc" } }, anexos: { select: { id: true, nome: true, tipo: true, categoria: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } },
   });
   if (!pp) return Response.json({ error: "PP não encontrado" }, { status: 404 });
-  return Response.json(ppParaUsuario(pp, u), { headers: { "Cache-Control": "no-store" } });   // v660 — nunca devolve o lançamento antigo do cache
+  const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
+  const rec = pp.efetivadoEm ? {} : await ppsRecebendoDetalhes([pp.id]);
+  return Response.json({ ...ppParaUsuario(pp, u), recebendoDetalhes: !!rec[pp.id] }, { headers: { "Cache-Control": "no-store" } });   // v660 — nunca devolve o lançamento antigo do cache
 }
 
 export async function DELETE(req, { params }) {

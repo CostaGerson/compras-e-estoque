@@ -172,6 +172,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const [itens, setItens] = useState([novoItem()]);
   const [anexos, setAnexos] = useState([]);
   const [carregado, setCarregado] = useState(!ppId0);
+  const [recDet, setRecDet] = useState(false);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
   const [salvando, setSalvando] = useState(false);
   const [clientes, setClientes] = useState([]);
   const [proximo, setProximo] = useState("");
@@ -197,6 +198,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         entregas: Array.isArray(d.entregas) ? d.entregas : [], pagamento: d.pagamento || { entrada: null, parcelas: [] },
         clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
+      setRecDet(!!d.recebendoDetalhes);
       const its = (d.itens || []).map((it) => {
         let par = {}; try { par = it.parametrosJson ? JSON.parse(it.parametrosJson) : {}; } catch {}
         let grade = []; try { grade = it.gradeJson ? JSON.parse(it.gradeJson) : []; } catch {}
@@ -477,7 +479,17 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
   if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
 
-  const badge = faturado ? ["FATURADO", C.blue] : efetivado ? ["LANÇADO", C.green] : ["RASCUNHO", C.yellow];
+  const badge = faturado ? ["FATURADO", C.blue] : efetivado ? ["LANÇADO", C.green] : recDet ? ["RECEBENDO DETALHES", C.accent] : ["RASCUNHO", C.yellow];
+  // v707 — link criado: grava o pedido na hora (o link fica ligado ao item) e marca a fase
+  const gravarLink = async (i, du) => {
+    try {
+      const its = itens.map((it, j) => (j === i ? { ...it, dadosUnitarios: du } : it));
+      const r = await api(`/api/pp/${ppId}`, { method: "PUT", body: JSON.stringify({ ...payload(), itens: its.map((it) => ({ ...it, fpp: undefined })) }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Erro ao salvar.");
+      setRecDet(true);
+      alerta("Link criado e pedido salvo. Ele fica em \"recebendo detalhes\" até você fechar o preenchimento e trazer as respostas.");
+    } catch (e) { alerta("O link foi criado, mas o pedido não foi salvo: " + e.message + " — salve o rascunho."); }
+  };
   return (
     <div className="pb-10">
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
@@ -726,6 +738,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 <DadosUnitarios du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
                   tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
+                  ppId={!efetivado ? ppId : null} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}
+                  semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : undefined}
                   onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
