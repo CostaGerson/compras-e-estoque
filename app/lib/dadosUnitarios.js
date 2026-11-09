@@ -9,7 +9,8 @@ export const LOCAIS_DADO = [
 ];
 export const LOCAIS_LISTA = LOCAIS_DADO.flatMap(([lado, l]) => l.map((x) => `${lado} ${x}`));
 
-export const novoCampo = (n = 0) => ({ id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, local: n ? "FRENTE PEITO DIREITO" : "COSTAS SUPERIOR CENTRAL", rotulo: n ? "TIPO SANGUÍNEO" : "NOME" });
+// v718 — o local começa vazio (obrigatório escolher antes da lista); o dado de cada local é a "inscrição"
+export const novoCampo = () => ({ id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, local: "", rotulo: "INSCRIÇÃO" });
 export const vazioDU = () => ({ campos: [novoCampo(0)], linhas: [] });
 export const temDU = (du) => !!(du && Array.isArray(du.campos) && du.campos.length);
 
@@ -69,7 +70,8 @@ export function lerLinha(txt, campos, tamanhosExtras = []) {
   if (cs.length <= 1) { if (cs[0]) valores[cs[0].id] = VAZIO.test(s) ? "" : s; return { tam, valores }; }
   // vários dados: o tipo sanguíneo é reconhecido no fim; o resto vai pelos separadores " - ", "|", ";", "/"
   let resto = s;
-  const iSangue = cs.findIndex((c) => ehRotuloSangue(c.rotulo));
+  let iSangue = cs.findIndex((c) => ehRotuloSangue(c.rotulo));
+  if (iSangue < 0 && RE_SANGUE.test(resto)) iSangue = cs.length - 1;   // v718 — sem rótulo: tipo sanguíneo no fim da linha vai para o último local
   if (iSangue >= 0) {
     const m = resto.match(RE_SANGUE);
     if (m) { valores[cs[iSangue].id] = normSangue(m[1], m[2]); resto = resto.slice(0, m.index).replace(/[\s\-–:;,/|]+$/, "").trim(); }

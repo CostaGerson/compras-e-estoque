@@ -88,6 +88,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
     for (const [i, it] of itens.entries()) {
       if (!(qtdGrade(it.grade) > 0)) return alerta(`Item ${i + 1} (${it.padrao.nome}): informe a grade.`);
       if (!(num(it.valorVenda) > 0)) return alerta(`Item ${i + 1} (${it.padrao.nome}): informe o valor vendido por peça.`);
+      if (temDU(it.dadosUnitarios) && it.dadosUnitarios.campos.some((c) => !c.local)) return alerta(`Item ${i + 1} (${it.padrao.nome}): escolha o local da personalização.`);
       if (temDU(it.dadosUnitarios) && it.dadosUnitarios.linhas?.length) {
         const c = conferirComGrade(it.dadosUnitarios, it.grade);
         if (!c.ok) return alerta(`Item ${i + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(c.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}). Use "ajustar a grade pela lista".`);
@@ -238,10 +239,11 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   </div>
                   <div>
                     <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Valores</div>
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <label className="text-xs" style={{ color: C.sub }}>Valor vendido por peça <span style={{ color: C.red }}>*</span>
-                        <input value={it.valorVenda} onChange={(e) => up(it.key, { valorVenda: e.target.value.replace(/[^\d,.]/g, "") })} inputMode="decimal" placeholder="0,00" className="w-full rounded-lg px-3 py-2 mt-1 text-sm font-semibold outline-none" style={{ ...inp, borderColor: num(it.valorVenda) > 0 ? C.line : C.accent }} /></label>
-                      <div className="text-xs rounded-lg p-2" style={{ background: C.panel2 }}>
+                    <div className="grid grid-cols-2 gap-3 mb-3 items-stretch">
+                      <label className="text-xs flex flex-col" style={{ color: C.sub }}>Valor vendido por peça <span style={{ color: C.red }}>*</span>
+                        <div className="relative mt-1 flex-1"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-semibold" style={{ color: C.sub }}>R$</span>
+                        <input value={it.valorVenda} onChange={(e) => up(it.key, { valorVenda: e.target.value.replace(/[^\d,.]/g, "") })} inputMode="decimal" placeholder="0,00" className="w-full h-full rounded-lg pl-11 pr-3 py-3 text-lg font-bold outline-none" style={{ background: "#fff", color: C.text, border: `1px solid ${num(it.valorVenda) > 0 ? C.line : C.accent}` }} /></div></label>
+                      <div className="text-xs rounded-lg p-3 flex flex-col justify-center" style={{ background: C.panel2 }}>
                         <div style={{ color: C.sub }}>CMV {it.padrao.cmvUnit != null ? `(${money(it.padrao.cmvUnit)}/pç)` : ""}</div>
                         <div className="font-semibold">{money(cmv)}</div>
                         <div style={{ color: C.sub }} className="mt-0.5">Vendido {money(vend)} · MC <b style={{ color: mc >= 0 ? C.green : C.red }}>{money(mc)}</b></div>
@@ -277,10 +279,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
 
             {itens.length > 0 && (
               <div className="rounded-xl p-4 mb-6" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="text-xs" style={{ color: C.sub }}>Sua OC / referência (opcional)<input value={oc} onChange={(e) => setOc(e.target.value)} className="w-full rounded-lg px-3 py-2 mt-1 text-sm outline-none" style={inp} /></label>
-                  <label className="text-xs sm:col-span-2" style={{ color: C.sub }}>Observações (opcional)<input value={obs} onChange={(e) => setObs(e.target.value)} className="w-full rounded-lg px-3 py-2 mt-1 text-sm outline-none" style={inp} /></label>
-                </div>
+                <label className="block text-xs" style={{ color: C.sub }}>Observações (opcional)
+                  <input value={obs} onChange={(e) => setObs(e.target.value)} className="w-full rounded-lg px-3 py-2.5 mt-1 text-sm outline-none" style={{ ...inp, background: "#fff" }} /></label>
                 <ResumoValores v={val} mobile={mobile} />
                 <div className="flex flex-wrap items-center gap-2 mt-4">
                   <button onClick={async () => { if (await confirmar("Resetar o pedido? Dados do cliente, itens, grades, valores, artes e personalização exclusiva saem da tela.")) limpar(); }}

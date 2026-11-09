@@ -36,7 +36,7 @@ export default function PreencherDados({ params }) {
   const enviar = async () => {
     const i = pecas.findIndex((p) => !p.tam);
     if (i >= 0) { setErro(`Peça ${i + 1}: escolha o tamanho.`); return; }
-    const resumo = pecas.map((p, k) => `${k + 1}. Tamanho ${p.tam} — na peça: ${campos.map((c) => `${c.rotulo.toLowerCase()} "${p.valores[c.id] || ""}"`).join(", ")}`).join("\n");
+    const resumo = pecas.map((p, k) => `${k + 1}. Tamanho ${p.tam} — na peça: ${campos.map((c) => `"${p.valores[c.id] || ""}"${campos.length > 1 ? ` (${localTxt(c.local)})` : ""}`).join(", ")}`).join("\n");
     if (!window.confirm(`Confira o que vai sair na(s) peça(s):\n\n${resumo}`)) return;
     setSt("Enviando…"); setErro("");
     try {
@@ -54,7 +54,7 @@ export default function PreencherDados({ params }) {
         <div className="text-xs font-semibold" style={{ color: C.sub }}>{d.clienteNome || "Pedido"}</div>
         <div className="text-lg font-bold" style={{ color: C.navy }}>{d.titulo}</div>
         <div className="text-base font-semibold mt-2" style={{ color: C.text }}>Escolha os detalhes da sua camisa</div>
-        <div className="text-sm mt-1" style={{ color: C.sub }}>Escolha o tamanho e escreva o que vai na sua peça ({campos.map((c) => c.rotulo.toLowerCase()).join(" e ")}). Quer mais de uma? Adicione outra peça antes de enviar.</div>
+        <div className="text-sm mt-1" style={{ color: C.sub }}>Escolha o tamanho e escreva a inscrição que vai na sua peça. Quer mais de uma? Adicione outra peça antes de enviar.</div>
         {d.limite && <div className="text-xs mt-2 font-semibold" style={{ color: d.aberto ? C.accent : C.red }}>{d.aberto ? "Preencha até" : "Encerrado em"} {new Date(d.limite).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>}
       </div>
       {!d.aberto ? (
@@ -88,7 +88,7 @@ export default function PreencherDados({ params }) {
                 <div className="text-xs font-bold mb-1.5" style={{ color: C.accent }}>O QUE VAI ESCRITO NA PEÇA</div>
                 {campos.map((c) => (
                   <div key={c.id} className="mb-2 last:mb-0">
-                    <div className="text-xs" style={{ color: C.text }}><b>{c.rotulo}</b> <span style={{ color: C.sub }}>— {localTxt(c.local)}</span></div>
+                    <div className="text-xs" style={{ color: C.text }}><b>Inscrição</b> <span style={{ color: C.sub }}>— {localTxt(c.local)}</span></div>
                     <input value={p.valores[c.id] || ""} onChange={(e) => upV(i, c.id, e.target.value)} placeholder={`como deve sair na camisa`} className="w-full rounded-lg px-3 py-2 mt-0.5 text-base font-semibold outline-none" style={{ ...inp, background: "#fff" }} />
                   </div>
                 ))}

@@ -35,7 +35,8 @@ function Janela({ titulo, onFechar, children, largura = 760, rodape }) {
 
 export function SelectLocal({ value, onChange, style }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded px-2 py-1 text-xs outline-none" style={{ ...inp, ...style }}>
+    <select value={value || ""} onChange={(e) => onChange(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inp, background: "#fff", minWidth: 260, borderColor: value ? C.line : C.accent, ...style }}>
+      <option value="">— escolha o local —</option>
       {LOCAIS_DADO.map(([lado, l]) => (
         <optgroup key={lado} label={lado}>{l.map((x) => <option key={x} value={`${lado} ${x}`}>{`${lado === "FRENTE" ? "Frente" : "Costas"} · ${x.toLowerCase()}`}</option>)}</optgroup>
       ))}
@@ -62,7 +63,7 @@ function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFec
       </div>
       {campos.length === 1 && linhas.filter((l) => /\s(AB|A|B|O)[+-]$/i.test(String(l.valores[campos[0].id] || ""))).length > linhas.length / 2 && (
         <div className="mb-3 p-3 rounded-lg text-xs" style={{ background: C.yellowSoft, color: C.text }}>
-          <b style={{ color: C.yellow }}>A lista parece ter tipo sanguíneo junto do nome.</b> Volte, clique em "outro local", crie o dado <b>TIPO SANGUÍNEO</b> (no local em que ele sai na peça) e cole a lista de novo — o sistema separa os dois.
+          <b style={{ color: C.yellow }}>A lista parece ter tipo sanguíneo junto da inscrição.</b> Se o tipo sanguíneo sai em outro lugar da peça, volte, clique em "outro local", escolha onde ele sai e cole a lista de novo — o sistema separa os dois (o tipo sanguíneo vai para o último local).
         </div>
       )}
       {erros.length > 0 && (
@@ -89,7 +90,7 @@ function PreviaLista({ campos, linhas: linhas0, erros, ordem, onConfirmar, onFec
       <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
         <thead><tr style={{ background: C.panel2, color: C.sub }}>
           <th className="px-2 py-1.5 text-left text-xs" style={{ width: 36 }}>#</th><th className="px-2 py-1.5 text-left text-xs" style={{ width: 56 }}>Tam.</th>
-          {campos.map((c) => <th key={c.id} className="px-2 py-1.5 text-left text-xs">{c.rotulo}<div className="font-normal text-[10px]">{c.local.toLowerCase()}</div></th>)}
+          {campos.map((c) => <th key={c.id} className="px-2 py-1.5 text-left text-xs">INSCRIÇÃO<div className="font-normal text-[10px]">{String(c.local || "").toLowerCase()}</div></th>)}
         </tr></thead>
         <tbody>{linhas.map((l, i) => (
           <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
@@ -145,7 +146,7 @@ function ListaAmpliada({ campos, linhas, tamsSel, ordem, onChange, onFechar, con
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
                   <th className="px-1.5 py-1.5 text-left text-xs" style={{ width: 34 }}>#</th>
                   <th onClick={() => ordenar("TAM")} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline" style={{ width: 70 }}>Tam. {seta("TAM")}</th>
-                  {campos.map((c) => <th key={c.id} onClick={() => ordenar(c.id)} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline whitespace-nowrap">{c.rotulo} {seta(c.id)}</th>)}
+                  {campos.map((c) => <th key={c.id} onClick={() => ordenar(c.id)} className="px-1.5 py-1.5 text-left text-xs cursor-pointer select-none hover:underline whitespace-nowrap">INSCRIÇÃO {seta(c.id)}{campos.length > 1 && <div className="font-normal text-[10px]">{String(c.local || "").toLowerCase()}</div>}</th>)}
                   <th style={{ width: 24 }} />
                 </tr></thead>
                 <tbody>{linhas.slice(a, z).map((l, k) => { const i = a + k; return (
@@ -186,6 +187,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   const [selResp, setSelResp] = useState(null);  // v715 — respostas do link selecionadas (índices)
   const on = temDU(du);
   const campos = on ? du.campos : [];
+  const localOk = campos.length > 0 && campos.every((c) => !!c.local);   // v718 — local obrigatório antes da lista / link
   const linhas = on ? du.linhas || [] : [];
   const ordem = (grade || []).map((g) => g.tam).concat(tamanhos.filter((t) => !(grade || []).some((g) => g.tam === t)));
   const tamsSel = [...new Set([...ordem, ...linhas.map((l) => l.tam)])];
@@ -193,7 +195,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   const set = (patch) => onChange({ ...du, ...patch });
   const upCampo = (k, patch) => set({ campos: campos.map((c, j) => (j === k ? { ...c, ...patch } : c)) });
   const tirarCampo = async (k) => {
-    if (linhas.some((l) => l.valores?.[campos[k].id]) && !(await confirmar(`Tirar o dado "${campos[k].rotulo}"? O que foi preenchido nele sai da lista.`))) return;
+    if (linhas.some((l) => l.valores?.[campos[k].id]) && !(await confirmar(`Tirar o local "${String(campos[k].local || "").toLowerCase()}"? O que foi preenchido nele sai da lista.`))) return;
     set({ campos: campos.filter((_, j) => j !== k) });
   };
   const upLinha = (i, patch) => set({ linhas: linhas.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
@@ -201,8 +203,8 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   const novaLinha = (clonar) => set({ linhas: [...linhas, clonar && linhas.length ? { tam: linhas[linhas.length - 1].tam, valores: { ...linhas[linhas.length - 1].valores } } : { tam: linhas[linhas.length - 1]?.tam || ordem[0] || "M", valores: {} }] });
   const replicar = async (c) => {
     const v = (linhas.find((l) => String(l.valores?.[c.id] || "").trim()) || {}).valores?.[c.id];
-    if (!v) return alerta(`Preencha "${c.rotulo}" na primeira peça para replicar para as outras.`);
-    if (!(await confirmar(`Replicar "${v}" em ${c.rotulo} para todas as ${linhas.length} peças?`))) return;
+    if (!v) return alerta(`Preencha a inscrição na primeira peça para replicar para as outras.`);
+    if (!(await confirmar(`Replicar "${v}" para todas as ${linhas.length} peças?`))) return;
     set({ linhas: linhas.map((l) => ({ ...l, valores: { ...(l.valores || {}), [c.id]: v } })) });
   };
   const ligar = async (v) => {
@@ -278,12 +280,11 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
       {on && (
         <div className="mt-2">
           {/* locais */}
-          <div className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.sub }}>Locais do dado</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.sub }}>Local da personalização</div>
           {campos.map((c, k) => (
             <div key={c.id} className="flex flex-wrap items-center gap-2 mb-1.5">
               <SelectLocal value={c.local} onChange={(v) => upCampo(k, { local: v })} />
-              <input value={c.rotulo} onChange={(e) => upCampo(k, { rotulo: e.target.value.toUpperCase() })} placeholder="o que vai (ex.: NOME)" className="rounded px-2 py-1 text-xs outline-none uppercase" style={{ ...inp, width: 170 }} />
-              {campos.length > 1 && <button type="button" onClick={() => tirarCampo(k)} style={{ color: C.red }} title="Tirar este dado"><X size={14} /></button>}
+              {campos.length > 1 && <button type="button" onClick={() => tirarCampo(k)} style={{ color: C.red }} title="Tirar este local"><X size={16} /></button>}
             </div>
           ))}
           <div className="flex flex-wrap gap-2 mb-3">
@@ -291,6 +292,8 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
             {onReplicarItens && <button type="button" onClick={onReplicarItens} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.roxo, border: `1px solid ${C.roxo}44` }} title="Os outros itens do pedido passam a ter os mesmos locais"><CopyPlus size={12} /> replicar locais para os outros itens</button>}
           </div>
 
+          {!localOk && <div className="mb-1 p-3 rounded-lg text-sm" style={{ background: C.accentSoft, color: C.text }}>Escolha o <b>local da personalização</b> para inserir a lista ou gerar o link.</div>}
+          {localOk && (<>
           {/* lista */}
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.sub }}>Lista por peça · {linhas.length} peça(s){linhas.length ? ` — ${resumoTam(contarPorTam(linhas, ordem))}` : ""}</div>
@@ -304,7 +307,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                 <thead className="sticky top-0" style={{ background: C.panel2 }}><tr style={{ color: C.sub }}>
                   <th className="px-2 py-1 text-left" style={{ width: 32 }}>#</th><th className="px-2 py-1 text-left" style={{ width: 56 }}>Tam.</th>
-                  {campos.map((c) => <th key={c.id} className="px-2 py-1 text-left whitespace-nowrap">{c.rotulo}</th>)}
+                  {campos.map((c) => <th key={c.id} className="px-2 py-1 text-left whitespace-nowrap">INSCRIÇÃO{campos.length > 1 && <span className="font-normal text-[10px]"> · {String(c.local || "").toLowerCase()}</span>}</th>)}
                   <th className="px-2 py-1 text-right font-normal" style={{ color: C.roxo }}><Maximize2 size={12} className="inline" /> ampliar</th>
                 </tr></thead>
                 <tbody>{linhas.map((l, i) => (
@@ -347,17 +350,18 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
               </>
             )}
           </div>
+          </>)}
         </div>
       )}
 
-      {ampla && on && <ListaAmpliada campos={campos} linhas={linhas} tamsSel={tamsSel} ordem={ordem} onChange={(l) => set({ linhas: l })}
+      {ampla && on && localOk && <ListaAmpliada campos={campos} linhas={linhas} tamsSel={tamsSel} ordem={ordem} onChange={(l) => set({ linhas: l })}
         onFechar={() => setAmpla(false)} conf={conf} onReplicar={replicar} onAjustarGrade={onGrade ? () => onGrade(gradeDaLista(grade, linhas)) : null} />}
       {novoLink && (
         <Janela titulo="Link para o cliente preencher" onFechar={() => setNovoLink(null)} largura={520}
           rodape={<><button type="button" onClick={() => setNovoLink(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
             <button type="button" onClick={confirmarLink} disabled={!!st} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{st || "Gerar link"}</button></>}>
           <div className="text-sm mb-3 p-2.5 rounded-lg" style={{ background: C.yellowSoft, color: C.text }}>Enquanto o link estiver aberto, o pedido fica na fase <b>recebendo detalhes</b> e não vai para a produção. Feche o preenchimento e traga as respostas para a lista para liberar.</div>
-          <div className="text-sm mb-3" style={{ color: C.text }}>Cada pessoa escolhe o tamanho e escreve o que vai na peça: <b>{campos.map((c) => c.rotulo.toLowerCase()).join(", ")}</b>. Pode pedir mais de uma peça.</div>
+          <div className="text-sm mb-3" style={{ color: C.text }}>Cada pessoa escolhe o tamanho e escreve a inscrição de cada local: <b>{campos.map((c) => String(c.local || "").toLowerCase()).join(", ")}</b>. Pode pedir mais de uma peça.</div>
           <label className="text-xs block" style={{ color: C.sub }}>Aceitar preenchimento até (dia e horário)
             <input type="datetime-local" value={novoLink.limite} onChange={(e) => setNovoLink({ limite: e.target.value })} className="block mt-1 rounded-lg px-3 py-2 text-sm outline-none" style={inp} />
           </label>
@@ -369,7 +373,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
           rodape={<><button type="button" onClick={() => setColar(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
             <button type="button" onClick={ler} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.roxo, color: "#fff" }}>Ler a lista</button></>}>
           <div className="text-xs mb-2" style={{ color: C.sub }}>
-            Uma peça por linha, com o tamanho (entre parênteses ou solto) e {campos.map((c) => c.rotulo.toLowerCase()).join(" e ")}. Ex.: <span className="font-mono">5- (M) Eduardo Gomes A+</span>.
+            Uma peça por linha, com o tamanho (entre parênteses ou solto) e a inscrição. Ex.: <span className="font-mono">5- (M) Eduardo Gomes A+</span>.
             {campos.length > 1 && " O tipo sanguíneo é reconhecido no fim da linha; outros dados, separados por \" - \", \"/\" ou \";\"."} Antes de lançar o sistema mostra a prévia para você confirmar.
           </div>
           <textarea autoFocus value={colar} onChange={(e) => setColar(e.target.value)} rows={14} className="w-full rounded-lg p-2 text-xs font-mono outline-none" style={inp} placeholder={"1- (P) Mirela O+\n2- (M) Eduardo Gomes A+\n3- (G) - Moreira O+"} />
@@ -397,7 +401,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
               <thead><tr style={{ background: C.panel2, color: C.sub }}>
                 <th className="px-2 py-1 text-left" style={{ width: 28 }}><input type="checkbox" checked={!!selResp && selResp.size === link.linhas.length} onChange={(e) => setSelResp(new Set(e.target.checked ? link.linhas.map((_, i) => i) : []))} title="Selecionar todas" /></th>
                 <th className="px-2 py-1 text-left">#</th><th className="px-2 py-1 text-left">Tam.</th>
-                {(link.campos || []).map((c) => <th key={c.id} className="px-2 py-1 text-left">{c.rotulo}</th>)}<th className="px-2 py-1 text-left">Quem preencheu</th></tr></thead>
+                {(link.campos || []).map((c) => <th key={c.id} className="px-2 py-1 text-left">INSCRIÇÃO{(link.campos || []).length > 1 && <span className="font-normal text-[10px]"> · {String(c.local || "").toLowerCase()}</span>}</th>)}<th className="px-2 py-1 text-left">Quem preencheu</th></tr></thead>
               <tbody>{link.linhas.map((l, i) => (
                 <tr key={i} onClick={() => setSelResp((x) => { const n = new Set(x || []); n.has(i) ? n.delete(i) : n.add(i); return n; })} className="cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: selResp?.has(i) ? C.greenSoft : "transparent" }}>
                   <td className="px-2 py-1"><input type="checkbox" readOnly checked={!!selResp?.has(i)} /></td>

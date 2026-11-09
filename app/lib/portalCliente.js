@@ -149,6 +149,7 @@ export async function enviarPedido(ctx, b) {
     if (!(qtdGrade(grade) > 0)) return { error: `Item ${k + 1}: informe a grade.` };
     if (!(num(p.valorVenda) > 0)) return { error: `Item ${k + 1}: informe o valor vendido por peça.` };
     const du = limparDU(p.dadosUnitarios);
+    if (temDU(du) && du.campos.some((c) => !c.local)) return { error: `Item ${k + 1}: escolha o local da personalização.` };   // v718
     if (temDU(du) && du.linhas.length) {
       const cf = conferirComGrade(du, grade);
       if (!cf.ok) return { error: `Item ${k + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}).` };
