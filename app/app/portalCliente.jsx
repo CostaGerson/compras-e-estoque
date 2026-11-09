@@ -4,12 +4,15 @@
 import React, { useEffect, useState } from "react";
 import { LogOut, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import { useMobile } from "./useMobile";
 import { GradeEditor } from "./pedidoEditor";
 import DadosUnitarios, { resumoDU } from "./dadosUnitarios";
 import { qtdGrade, num } from "@/lib/pedidoLanc";
 import { temDU, conferirComGrade } from "@/lib/dadosUnitarios";
 
-const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", red: "#C33", blue: "#2E7CD6", blueSoft: "#EAF2FC" };
+// v708 — paleta padrão do sistema Meridian (identidade visual)
+const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", navyLine: "#0C2C52", navySub: "#9FB0C7",
+  accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", red: "#D92D20", redSoft: "#FDECEA", blue: "#2E7CD6", blueSoft: "#EAF2FC", steel: "#3D6799", steelSoft: "#EEF3FB" };
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 const dBR = (s) => (s ? new Date(s).toLocaleDateString("pt-BR") : "");
@@ -25,6 +28,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [obs, setObs] = useState("");
   const [st, setSt] = useState("");
   const [busca, setBusca] = useState("");
+  const mobile = useMobile();
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id) } })
     .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Erro."); return j; });
   const carregar = () => api("/api/portal").then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
@@ -70,20 +74,65 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const totalPecas = itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
   const leadPedido = Math.max(0, ...itens.map((it) => it.padrao.leadTime || 0));
 
+  // v708 — mesma moldura do sistema Meridian: menu lateral marinho com o logo (desktop) e barra marinha com abas (celular); conteúdo em tela inteira
+  const ABAS = [["NOVO", "Novo pedido", Package], ["PEDIDOS", `Meus pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList]];
+  const nomeUser = [user.nome, user.sobrenome].filter(Boolean).join(" ");
+  const tituloAba = aba === "NOVO" ? "Novo pedido" : "Meus pedidos";
   return (
-    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif" }} className="text-sm">
-      <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.navy, color: "#fff" }}>
-        <div className="font-bold tracking-wide">MERIDIAN</div>
-        <div className="text-xs opacity-80">Portal do cliente{d?.cliente ? ` · ${d.cliente.nome}` : ""}</div>
-        <div className="ml-auto text-xs opacity-80 hidden sm:block">{[user.nome, user.sobrenome].filter(Boolean).join(" ")}</div>
-        <button onClick={onSair} className="flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ border: "1px solid #ffffff55" }}><LogOut size={13} /> Sair</button>
-      </div>
-      <div className="max-w-5xl mx-auto p-3 sm:p-5">
-        <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
-          {[["NOVO", "Novo pedido", Package], ["PEDIDOS", `Meus pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList]].map(([k, t, I]) => (
-            <button key={k} onClick={() => setAba(k)} className="flex items-center gap-1.5 px-4 py-2 font-medium" style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}><I size={15} /> {t}</button>
-          ))}
-        </div>
+    <div className="flex text-sm" style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }}>
+      {!mobile && (
+        <aside className="h-full flex flex-col shrink-0" style={{ background: C.navy, width: 240 }}>
+          <div className="px-4 py-4 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
+            <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
+          </div>
+          <div className="px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: C.navySub }}>Portal do cliente</div>
+            <div className="font-bold text-sm mt-0.5" style={{ color: "#fff" }}>{d?.cliente?.nome || "…"}</div>
+          </div>
+          <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
+            {ABAS.map(([k, t, I]) => {
+              const on = aba === k;
+              return (
+                <button key={k} onClick={() => setAba(k)} className="w-full flex items-center gap-2.5 py-2.5 pr-3 text-left"
+                  style={{ paddingLeft: 13, background: on ? C.navyLine : "transparent", borderLeft: on ? `3px solid ${C.accent}` : "3px solid transparent", color: on ? C.accent : C.navySub, fontWeight: on ? 600 : 400, fontSize: 14 }}>
+                  <I size={17} /> {t}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="px-3 py-2.5 shrink-0 flex items-center gap-2" style={{ borderTop: `1px solid ${C.navyLine}` }}>
+            <span className="text-xs flex-1 truncate" style={{ color: C.navySub }}>{nomeUser}</span>
+            <button onClick={onSair} title="Sair" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
+              style={{ color: "#fff", border: `1px solid ${C.navyLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} /> Sair</button>
+          </div>
+        </aside>
+      )}
+      <main className="flex-1 flex flex-col min-w-0">
+        {mobile ? (
+          <header className="shrink-0" style={{ background: C.navy }}>
+            <div className="flex items-center gap-3 px-3 py-3">
+              <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 20, width: "auto" }} />
+              <div className="flex-1 min-w-0 text-right">
+                <div className="text-[10px] uppercase tracking-wide" style={{ color: C.navySub }}>Portal do cliente</div>
+                <div className="text-xs font-bold truncate" style={{ color: "#fff" }}>{d?.cliente?.nome || "…"}</div>
+              </div>
+              <button onClick={onSair} title="Sair" className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 38, height: 38, color: "#fff", border: `1px solid ${C.navyLine}` }}><LogOut size={18} /></button>
+            </div>
+            <div className="flex" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
+              {ABAS.map(([k, t, I]) => (
+                <button key={k} onClick={() => setAba(k)} className="flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold"
+                  style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `3px solid ${C.accent}` : "3px solid transparent" }}><I size={16} /> {t}</button>
+              ))}
+            </div>
+          </header>
+        ) : (
+          <header className="shrink-0 flex items-center px-6 py-3" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
+            <div className="font-semibold" style={{ color: C.text }}><span style={{ color: C.sub, fontWeight: 400 }}>{d?.cliente?.nome || "Portal"} › </span>{tituloAba}</div>
+            {aba === "NOVO" && itens.length > 0 && <div className="ml-auto text-xs" style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b> no pedido</div>}
+          </header>
+        )}
+        <div className="flex-1 overflow-auto">
+        <div key={aba} className={`anim-entrar ${mobile ? "p-3" : "px-6 py-5"}`}>
         {erro && <div className="p-3 rounded mb-3" style={{ background: "#FDECEA", color: C.red }}>{erro}</div>}
         {!d && !erro && <div style={{ color: C.sub }}>Carregando…</div>}
 
@@ -95,11 +144,11 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="buscar item" className="ml-auto rounded-lg px-3 py-1.5 text-sm outline-none" style={{ ...inp, width: 220 }} />
               </div>
               {!d.itens.length ? <div className="text-sm py-4 text-center" style={{ color: C.sub }}>Nenhum item padrão cadastrado para o seu cadastro ainda. Fale com seu vendedor.</div> : (
-                <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${mobile ? 150 : 200}px, 1fr))` }}>
                   {catalogo.map((p) => (
-                    <button key={p.id} onClick={() => adicionar(p)} className="rounded-lg p-2 text-left hover:shadow" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                      <div className="rounded mb-1.5 flex items-center justify-center overflow-hidden" style={{ height: 110, background: "#fff" }}>
-                        {p.foto ? <img src={p.foto} alt="" style={{ maxHeight: 110, maxWidth: "100%", objectFit: "contain" }} /> : <Img size={28} style={{ color: C.line }} />}
+                    <button key={p.id} onClick={() => adicionar(p)} className="card-asana rounded-xl p-2.5 text-left" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                      <div className="rounded-lg mb-2 flex items-center justify-center overflow-hidden" style={{ height: mobile ? 120 : 150, background: C.panel2 }}>
+                        {p.foto ? <img src={p.foto} alt="" style={{ maxHeight: mobile ? 120 : 150, maxWidth: "100%", objectFit: "contain" }} /> : <Img size={28} style={{ color: C.line }} />}
                       </div>
                       <div className="text-xs font-semibold leading-tight" style={{ color: C.text }}>{p.nome}</div>
                       {p.codigo && <div className="text-[10px]" style={{ color: C.sub }}>{p.codigo}</div>}
@@ -123,8 +172,12 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <div className="text-right"><div className="text-xl font-bold" style={{ color: C.navy }}>{qtdGrade(it.grade)}</div><div className="text-[10px]" style={{ color: C.sub }}>peças</div></div>
                   <button onClick={() => tirar(it)} style={{ color: C.sub }} title="Tirar do pedido"><X size={18} /></button>
                 </div>
+                <div className={mobile ? "" : "grid gap-5"} style={mobile ? undefined : { gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)" }}>
+                <div>
                 <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>2. Grade</div>
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(g) => up(it.key, { grade: g })} />
+                </div>
+                <div>
                 <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>3. Artes</div>
                 <label className="flex items-center justify-center gap-2 rounded-lg p-3 cursor-pointer text-xs" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
                   onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); anexar(it, e.dataTransfer.files); }}>
@@ -142,6 +195,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                     ))}
                   </div>
                 )}
+                </div>
+                </div>
                 <DadosUnitarios du={it.dadosUnitarios} onChange={(v) => up(it.key, { dadosUnitarios: v })} grade={it.grade} onGrade={(g) => up(it.key, { grade: g })}
                   tamanhos={tamanhos} uid={user.id} titulo={`${d.cliente.nome} · ${it.padrao.nome}`} clienteNome={d.cliente.nome}
                   onReplicarItens={itens.length > 1 ? () => replicarLocais(it) : null}
@@ -187,7 +242,9 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
             );
           })
         )}
-      </div>
+        </div>
+        </div>
+      </main>
     </div>
   );
 }

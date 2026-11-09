@@ -10,7 +10,7 @@ const localTxt = (l) => String(l || "").toLowerCase().replace(/^frente /, "frent
 function Tela({ children }) {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Montserrat, system-ui, sans-serif", color: C.text }}>
-      <div style={{ background: C.navy }} className="px-4 py-3 text-white font-bold tracking-wide text-sm">MERIDIAN</div>
+      <div style={{ background: C.navy }} className="px-4 py-3.5 flex items-center"><img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 22, width: "auto" }} /></div>
       <div className="max-w-xl mx-auto p-3">{children}</div>
     </div>
   );

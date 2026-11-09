@@ -9,7 +9,7 @@ import { LOCAIS_DADO, novoCampo, vazioDU, temDU, lerLista, contarPorTam, gradeDa
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
-  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#C33", redSoft: "#FDECEA", roxo: "#3D6799", roxoSoft: "#EEF3FB",
+  green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", roxo: "#3D6799", roxoSoft: "#EEF3FB",
 };
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
 // v702 — "AAAA-MM-DDTHH:MM" (datetime-local) ↔ data
