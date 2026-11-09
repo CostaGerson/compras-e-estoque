@@ -3,7 +3,7 @@
 // Colar a lista (WhatsApp, planilha) → o sistema lê, mostra a prévia e só lança depois da confirmação.
 // Link público: cada pessoa preenche o tamanho e os dados; ao fechar, o sistema informa as peças previstas e traz para a lista.
 import React, { useState } from "react";
-import { Plus, X, ClipboardPaste, Link2, Copy, Users, Lock, Unlock, ArrowDownToLine, CopyPlus, Tag } from "lucide-react";
+import { Plus, X, Trash2, ClipboardPaste, Link2, Copy, Users, Lock, Unlock, ArrowDownToLine, CopyPlus, Tag } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { LOCAIS_DADO, novoCampo, vazioDU, temDU, lerLista, contarPorTam, gradeDaLista, conferirComGrade, normTam } from "@/lib/dadosUnitarios";
 
@@ -150,6 +150,13 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
     if (!r.linhas.length && !r.erros.length) return alerta("Cole a lista no campo.");
     setPrevia({ ...r, titulo: "Confira a lista antes de lançar" });
   };
+  // v705 — remover a lista inteira (os locais ficam); a grade pode ser zerada junto
+  const removerLista = async () => {
+    if (!(await confirmar(`Remover a lista com ${linhas.length} peça(s)? Os locais do dado continuam.`))) return;
+    const zerar = onGrade && (await confirmar("Zerar também a grade do item?\n\nOK zera a grade · Cancelar mantém a grade como está."));
+    set({ linhas: [] });
+    if (zerar) onGrade((grade || []).map((g) => ({ ...g, qtd: "" })));
+  };
   const conf = conferirComGrade(du, grade);
   // ---------- link ----------
   const urlLink = du?.linkToken ? `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${du.linkToken}` : "";
@@ -209,6 +216,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.sub }}>Lista por peça · {linhas.length} peça(s){linhas.length ? ` — ${resumoTam(contarPorTam(linhas, ordem))}` : ""}</div>
             <div className="flex-1" />
+            {linhas.length > 0 && <button type="button" onClick={removerLista} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Trash2 size={12} /> Remover lista</button>}
             <button type="button" onClick={() => setColar("")} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md font-semibold" style={{ background: C.roxo, color: "#fff" }}><ClipboardPaste size={12} /> Colar lista</button>
           </div>
           {linhas.length > 0 && (

@@ -3,7 +3,7 @@
 // itens do cadastro do KM + FPP indexada (artigo e rendimento), entregas única/fracionada/terceiros com grade por local,
 // prazo de pagamento (entrada + parcelas por emissão / NF / entrega), obs da NF e anexos por arraste.
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2 } from "lucide-react";
+import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, RotateCcw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
@@ -491,6 +491,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         <div className="flex gap-2">
           {!f.servico && <button onClick={() => imprimirAgora("PP")} title="Ordem de produção — sem valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir OP</button>}
           {veVal && <button onClick={() => imprimirAgora("PV")} title="Pedido de venda — com valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
+          {/* v705 — resetar: limpa o pedido em lançamento (cliente, itens, anexos, prazos); o rascunho salvo só muda ao salvar de novo */}
+          {podeLancar && !efetivado && <button onClick={async () => {
+            if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e dados unitários), anexos, prazo e pagamento são apagados da tela." + (ppId ? "\n\nO rascunho salvo só muda quando você salvar de novo." : "")))) return;
+            setF((s) => ({ ...vazioF(), numero: s.numero, emissao: hojeISO() })); setItens([novoItem()]); setAnexos([]);
+          }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} className="px-3 py-2 rounded text-sm" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
             {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Efetivar lançamento"}</button>}

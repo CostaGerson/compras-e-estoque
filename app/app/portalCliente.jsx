@@ -2,7 +2,7 @@
 // v699 — Portal do cliente (ex.: Loja Way): lançamento reduzido — escolhe o item padrão, informa a grade, anexa as artes
 // e, se precisar, os dados unitários (lista colada, digitada ou preenchida pelo link). Vê só os pedidos do próprio cliente.
 import React, { useEffect, useState } from "react";
-import { LogOut, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText } from "lucide-react";
+import { LogOut, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { GradeEditor } from "./pedidoEditor";
 import DadosUnitarios, { resumoDU } from "./dadosUnitarios";
@@ -158,7 +158,9 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 <div className="flex items-center gap-3 mt-4">
                   <div style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b>
                     {leadPedido > 0 && <> · entrega prevista <b style={{ color: C.accent }}>{entregaEm(leadPedido)}</b></>}</div>
-                  <button onClick={enviar} disabled={!!st} className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold" style={{ background: C.accent, color: "#fff" }}><Send size={16} /> {st || "Enviar pedido"}</button>
+                  <button onClick={async () => { if (await confirmar("Resetar o pedido? Todos os itens, grades, artes e dados unitários saem da tela.")) { setItens([]); setOc(""); setObs(""); } }}
+                    className="ml-auto flex items-center gap-1 px-3 py-2.5 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={15} /> Resetar pedido</button>
+                  <button onClick={enviar} disabled={!!st} className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold" style={{ background: C.accent, color: "#fff" }}><Send size={16} /> {st || "Enviar pedido"}</button>
                 </div>
               </div>
             )}
