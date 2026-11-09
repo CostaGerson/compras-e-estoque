@@ -47,6 +47,15 @@ const segundaDaSemana = (iso) => { const [a, m, d] = iso.split("-").map(Number);
 const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
+// v697 — símbolo da recorrência; "M" discreto quando a recorrente vem da Matriz de custos
+function MarcaRec({ m, size = 12 }) {
+  return (
+    <span className="inline-flex items-center shrink-0" title={m ? "Recorrente · vem da Matriz de custos" : "Recorrente"} style={{ color: C.roxo }}>
+      <Repeat size={size} />
+      {m && <sup className="font-bold" style={{ fontSize: 8, marginLeft: 1, opacity: 0.75 }}>M</sup>}
+    </span>
+  );
+}
 const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
 const FORMA = { RH: ["Lançada pelo RH", Hand], MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 // toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
@@ -386,7 +395,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         })}
       </div>
 
-      {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} />}
+      {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} dCtx={d} />}
       {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
       {tipo === "LIXEIRA" && <Lixeira user={user} />}
       {tipo === "ANTECIPACOES" && <Antecipacoes user={user} />}
@@ -662,7 +671,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>
                     <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
-                        <MarcaA t={t} user={user} />{t.recorrenciaId && <Repeat size={12} className="shrink-0" style={{ color: C.roxo }} title="Recorrente" />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
+                        <MarcaA t={t} user={user} />{t.recorrenciaId && <MarcaRec m={!!t.recMatriz} />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                         <MarcaRemessa t={t} />
                       </div>
@@ -1811,10 +1820,10 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
 }
 
 /* ---------------- novo / editar ---------------- */
-function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
+function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial = false }) {
   const P = tipo === "PAGAR";
   const novo = !item;
-  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", chavePix: "", recorrente: false, fim: "" });
+  const [f, setF] = useState(() => item ? { ...item } : { titulo: "", parceiro: "", documento: "", numeroDoc: "", valor: 0, vencimento: hojeISO(), previsao: false, rateio: [{ contaId: null, pct: 100 }], observacao: "", formaPagamento: "", chavePix: "", recorrente: !!recorrenteInicial, previsao: !!recorrenteInicial, fim: "", periodicidade: 1 });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [pendentes, setPendentes] = useState([]);   // anexos escolhidos antes de a conta existir
@@ -1979,17 +1988,16 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
         </Campo>}
         <Campo t="Observação"><textarea rows={3} value={f.observacao || ""} onChange={(e) => s("observacao", e.target.value)} className={inp} style={inpS} /></Campo></div>
       </div>
-      {novo && P ? (
-        <div className="mt-4 p-2.5 rounded-lg text-[11px]" style={{ background: C.panel2, color: C.sub }}>
-          Conta que se repete todo mês? Cadastre na <b>Matriz de custos</b> — o contas a pagar recebe as previsões automaticamente.
-        </div>
-      ) : novo ? (
+      {novo ? (
         <div className="mt-4 p-3 rounded-lg" style={{ background: f.recorrente ? C.roxoSoft : C.panel2 }}>
-          <Chave on={!!f.recorrente} set={(v) => setF((x) => ({ ...x, recorrente: v, previsao: v ? true : x.previsao }))} t="Conta recorrente (todo mês)" cor={C.roxo} />
+          <Chave on={!!f.recorrente} set={(v) => setF((x) => ({ ...x, recorrente: v, previsao: v ? true : x.previsao }))} t="Conta recorrente" cor={C.roxo} />
           {f.recorrente && (
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+            <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
+              <Campo t="Repete a cada"><select value={f.periodicidade || 1} onChange={(e) => s("periodicidade", Number(e.target.value))} className={inp} style={inpS}>
+                {Object.entries(PERIODOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select></Campo>
               <Campo t="Até (opcional)" dica="vazio = sem fim"><input type="month" value={f.fim} onChange={(e) => s("fim", e.target.value)} className={inp} style={inpS} /></Campo>
-              <div style={{ color: C.sub }} className="self-end pb-1">Vence todo dia <b>{Number(f.vencimento.slice(8, 10))}</b>. Lança previsões nos próximos 12 meses; no início de cada mês o sistema pede para conferir o valor.</div>
+              <div style={{ color: C.sub }} className="self-end pb-1">Vence dia <b>{Number(f.vencimento.slice(8, 10))}</b> · previsões até 12 meses à frente. Fica na guia <b>Recorrentes</b>{P ? " (não entra na Matriz de custos)" : ""}.</div>
             </div>
           )}
         </div>
@@ -2005,7 +2013,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo }) {
               ))}
             </div>
           )}
-          {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, altere na <b>Matriz de custos</b> (ou na guia Recorrentes).</div>}
+          {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, altere na guia <b>Recorrentes</b>{item.recMatriz ? <> (ou na <b>Matriz de custos</b>, que vale sobre a recorrente)</> : null}.</div>}
         </div>
       )}
       {ofereceRegra && (
@@ -3024,7 +3032,8 @@ function RecorrenciasModal({ user, d, contasPorId, onClose }) {
    ============================================================ */
 const FORMAS_PGTO = { PIX: "PIX", BOLETO: "Boleto", DEBITO_AUTOMATICO: "Débito automático", TED: "TED/DOC", CARTAO: "Cartão", DINHEIRO: "Dinheiro", CHEQUE: "Cheque" };
 
-function Recorrentes({ user, contasPorId }) {
+function Recorrentes({ user, contasPorId, dCtx }) {
+  const [nova, setNova] = useState(null);   // v697 — "PAGAR" | "RECEBER"
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState(null);
@@ -3038,9 +3047,7 @@ function Recorrentes({ user, contasPorId }) {
   useEffect(() => { carregar(); }, []);
 
   const resolver = async (r, acao) => {
-    const txt = acao === "usarMatriz"
-      ? `Trazer o valor da Matriz (${moeda(r.valorMatriz)}) para a conta "${r.titulo}"?`
-      : `Levar ${moeda(r.valor)} da conta "${r.titulo}" para a Matriz de custos?`;
+    const txt = `Trazer o valor da Matriz (${moeda(r.valorMatriz)}) para a conta "${r.titulo}"?`;
     if (!(await confirmar(txt))) return;
     try {
       const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, id: r.id, acao });
@@ -3057,8 +3064,8 @@ function Recorrentes({ user, contasPorId }) {
       "",
       "As previsões em aberto deste mês em diante também são apagadas.",
       "Contas já pagas ou com valor conferido à mão ficam no histórico.",
-      r.daMatriz ? "\nEsta conta vem da Matriz de custos: o item será desativado na Matriz e o contas a pagar acompanha." : "",
     ].join("\n");
+    if (r.daMatriz) { setAviso({ tipo: "erro", texto: `"${r.titulo}" vem da Matriz de custos — para excluir, tire o item da Matriz (a recorrente sai junto).` }); return; }
     if (!(await confirmar(aviso))) return;
     try {
       const j = await api("/api/fin/recorrentes", "DELETE", { usuarioId: user.id, id: r.id });
@@ -3098,17 +3105,6 @@ function Recorrentes({ user, contasPorId }) {
         </div>
       )}
 
-      {fora.length > 0 && (
-        <div className="px-4 py-3 mb-4 rounded-xl text-sm" style={{ background: C.redSoft, border: `1px solid ${C.red}55`, color: C.text }}>
-          <div className="flex flex-wrap items-center gap-2">
-            <AlertTriangle size={18} style={{ color: C.red }} />
-            <span className="flex-1"><b>{fora.length} conta(s) recorrente(s) a pagar fora da Matriz de custos</b> ({moeda(fora.reduce((s, r) => s + r.valor, 0))}/mês) — lançadas à mão, por isso podem duplicar o que já está na Matriz. Toda recorrente deve vir da Matriz.</span>
-            <button onClick={() => setSoFora((x) => !x)} className="font-semibold" style={{ color: C.red }}>{soFora ? "ver todas" : "ver essas →"}</button>
-            <button onClick={excluirFora} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}>Excluir todas</button>
-          </div>
-        </div>
-      )}
-
       {vistando && <VistarModal r={vistando} onClose={() => setVistando(null)} onOk={async (valor) => {
         try {
           const j = await api("/api/fin/recorrentes", "POST", { usuarioId: user.id, id: vistando.id, acao: "vistar", valor });
@@ -3121,7 +3117,7 @@ function Recorrentes({ user, contasPorId }) {
         <div className="px-4 py-3 mb-4 rounded-xl text-sm" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}55`, color: C.text }}>
           <div className="flex items-center gap-2">
             <AlertTriangle size={18} style={{ color: C.yellow }} />
-            <span className="flex-1"><b>{divergentes.length} conta(s) recorrente(s) em desacordo com a Matriz de custos.</b> Em cada uma você escolhe qual valor vale.</span>
+            <span className="flex-1"><b>{divergentes.length} conta(s) da Matriz com valor diferente nas recorrentes.</b> Ajuste feito aqui vale até a Matriz mudar o item — use "usar a Matriz" para voltar ou "vistar" para manter.</span>
             <button onClick={() => setSoDivergentes((x) => !x)} className="font-semibold" style={{ color: C.yellow }}>
               {soDivergentes ? "ver todas" : "ver só essas →"}
             </button>
@@ -3135,7 +3131,13 @@ function Recorrentes({ user, contasPorId }) {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta ou fornecedor"
             className="px-1 py-1.5 text-sm" style={{ background: "transparent", color: C.text, width: 230, outline: "none" }} />
         </div>
-        <div className="text-xs" style={{ color: C.sub }}>
+        <div className="flex-1" />
+        {["PAGAR", "RECEBER"].map((tp) => (
+          <button key={tp} onClick={() => setNova(tp)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.roxoSoft, color: C.roxo }}>
+            <Plus size={13} /> Nova recorrente a {tp === "PAGAR" ? "pagar" : "receber"}
+          </button>
+        ))}
+        <div className="text-xs w-full" style={{ color: C.sub }}>
           {lista.length} de {d.recorrencias.length} · <b style={{ color: C.text }}>{moeda(totalMes)}</b>/mês em contas a pagar ativas
         </div>
       </div>
@@ -3156,7 +3158,10 @@ function Recorrentes({ user, contasPorId }) {
             {lista.map((r) => (
               <tr key={r.id} style={{ borderTop: `1px solid ${C.line}`, opacity: r.ativo ? 1 : 0.5 }}>
                 <td className="px-2 py-1.5">
-                  <button onClick={() => setEditar(r)} className="text-left hover:underline font-semibold" style={{ color: C.text }}>{r.titulo}</button>
+                  <span className="inline-flex items-center gap-1"><MarcaRec m={r.daMatriz} />
+                  <button onClick={() => setEditar(r)} className="text-left hover:underline font-semibold" style={{ color: C.text }}>{r.titulo}</button></span>
+                  {r.tipo === "RECEBER" && <span className="ml-1 px-1.5 rounded text-[10px] font-semibold" style={{ background: C.greenSoft, color: C.green }}>A RECEBER</span>}
+                  {r.fim && <span className="ml-1 text-[10px]" style={{ color: C.sub }}>até {r.fim.split("-").reverse().join("/")}</span>}
                   {!r.ativo && <span className="ml-1 px-1.5 rounded text-[10px] font-semibold" style={{ background: C.panel2, color: C.sub }}>INATIVA</span>}
                   {r.observacao && <div className="text-[11px]" style={{ color: C.sub }}>{r.observacao}</div>}
                 </td>
@@ -3167,9 +3172,8 @@ function Recorrentes({ user, contasPorId }) {
                   {(r.periodicidade || 1) > 1 && <div style={{ color: C.accent }}>{rotPeriodo(r.periodicidade)}</div>}
                 </td>
                 <td className="px-2 py-1.5" style={{ color: r.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[r.formaPagamento] || "—"}</td>
-                <td className="px-2 py-1.5" style={{ color: r.foraMatriz ? C.red : C.sub, fontWeight: r.foraMatriz ? 700 : 400 }}>
-                  {r.daMatriz ? "Matriz de custos" : r.extraMatriz ? "FORA DA MATRIZ" : "Manual"}
-                  {r.foraMatriz && <button onClick={() => setVistando(r)} className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.green, color: "#fff" }}>vistar conta</button>}
+                <td className="px-2 py-1.5" style={{ color: C.sub }}>
+                  {r.daMatriz ? "Matriz de custos" : "Avulsa"}
                   {r.vistada && <div className="text-[10px] font-normal flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={10} /> vistada{r.vistoPor ? ` · ${r.vistoPor.split(" ")[0]}` : ""}{r.vistoEm ? ` ${new Date(r.vistoEm).toLocaleDateString("pt-BR")}` : ""}</div>}
                 </td>
                 <td className="px-2 py-1.5">
@@ -3183,11 +3187,6 @@ function Recorrentes({ user, contasPorId }) {
                         <button onClick={() => setVistando(r)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.green, color: "#fff" }}>
                           vistar conta
                         </button>
-                        {r.podeAtualizarMatriz && (
-                          <button onClick={() => resolver(r, "levarParaMatriz")} className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accentSoft, color: C.accent }}>
-                            atualizar a Matriz
-                          </button>
-                        )}
                       </div>
                     ) : <span className="flex items-center gap-1" style={{ color: C.green }}><CheckCircle2 size={12} /> de acordo</span>}
                 </td>
@@ -3203,6 +3202,8 @@ function Recorrentes({ user, contasPorId }) {
 
       {!lista.length && <div className="text-sm text-center py-8" style={{ color: C.sub }}>Nenhuma conta recorrente com esse filtro.</div>}
 
+      {nova && <TituloModal user={user} tipo={nova} d={dCtx} recorrenteInicial onClose={() => setNova(null)}
+        onSalvo={(m) => { setNova(null); setAviso({ tipo: "ok", texto: m }); carregar(); }} />}
       {editar && <RecorrenteModal user={user} r={editar} onClose={() => setEditar(null)} onExcluir={excluir}
         onSalvo={(j, txt) => { setEditar(null); setD(j); setAviso({ tipo: "ok", texto: txt }); }} />}
     </div>
@@ -3221,14 +3222,14 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
   const [erro, setErro] = useState("");
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
   // v192 — espelho da Matriz: custo único grava na Matriz; calculado (folha, provisão, NORT, cartão) só forma/observação
-  const travado = r.daMatriz && !origemSimples(r.chaveOrigem);
+  const travado = false;   // v697 — toda recorrente se ajusta aqui; a Matriz não muda
   const novoValor = lerNum(f.valor);
   const vaiDivergir = r.valorMatriz != null && Math.abs(novoValor - r.valorMatriz) > 0.009;
 
   const salvar = async () => {
     setSalvando(true); setErro("");
     try {
-      const j = await api("/api/fin/recorrentes", "PUT", { usuarioId: user.id, id: r.id, campos: f, atualizarMatriz });
+      const j = await api("/api/fin/recorrentes", "PUT", { usuarioId: user.id, id: r.id, campos: f });
       const extras = [];
       if (j.titulos) extras.push(`${j.titulos} previsão(ões) atualizadas`);
       if (j.matriz?.ok) extras.push(`Matriz: ${j.matriz.item} para ${moeda(j.matriz.depois)}`);
@@ -3258,15 +3259,14 @@ function RecorrenteModal({ user, r, onClose, onSalvo, onExcluir }) {
         <Campo t="Encerrar em (AAAA-MM)"><input disabled={r.daMatriz} value={f.fim} onChange={(e) => set("fim")(e.target.value)} placeholder="sem fim" className="w-full rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
       </div>
       <div className="flex flex-wrap gap-4 mt-3">
-        <Chave on={f.diaUtil} set={travado || r.daMatriz ? () => {} : set("diaUtil")} t={`vence no ${f.diaVencimento}º dia útil`} />
-        <Chave on={f.ativo} set={set("ativo")} t="conta ativa" cor={C.green} />
+        <Chave on={f.diaUtil} set={set("diaUtil")} t={`vence no ${f.diaVencimento}º dia útil`} />
+        <Chave on={f.ativo} set={r.daMatriz ? () => {} : set("ativo")} t="conta ativa" cor={C.green} />
       </div>
       <Campo t="Observação"><input value={f.observacao} onChange={(e) => set("observacao")(e.target.value.toUpperCase())} className="w-full rounded-lg px-2 py-1.5 text-sm uppercase" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} /></Campo>
 
       {r.daMatriz && (
         <div className="mt-4 p-3 rounded-lg text-xs font-semibold" style={{ background: C.blueSoft, color: C.blue }}>
-          {travado ? "Conta calculada pela Matriz de custos: nome, fornecedor, valor e vencimento se alteram na própria Matriz. Aqui: forma de pagamento e observação."
-            : "Conta da Matriz de custos: o que você mudar aqui (nome, fornecedor, valor, dia, periodicidade) é gravado na Matriz e as contas em aberto acompanham. Para mudar só um mês, edite a conta no contas a pagar."}
+          Conta da Matriz de custos (M): o ajuste feito aqui vale para as contas em aberto e <u>não altera a Matriz</u>. Se o item mudar na Matriz, a Matriz prevalece. Para encerrar ou excluir, tire o item da Matriz.
         </div>
       )}
       {false && r.daMatriz && (
@@ -3318,12 +3318,11 @@ function VistarModal({ r, onClose, onOk }) {
       <div className="text-xs mb-3" style={{ color: C.sub }}>
         {r.parceiro} · {r.diaUtil ? `${r.diaVencimento}º dia útil` : `dia ${r.diaVencimento}`}
         {r.valorMatriz != null && <> · Matriz: <b>{moeda(r.valorMatriz)}</b></>}
-        {r.extraMatriz && <> · <b style={{ color: C.red }}>fora da Matriz</b></>}
       </div>
       <Campo t="Valor da conta" dica="mantenha para aceitar como está"><Valor value={v} onChange={setV} width="100%" autoFocus /></Campo>
       <div className="text-[11px] mt-3" style={{ color: C.sub }}>
         A conta passa a ser considerada conferida e sai da crítica. Se mudar o valor, as contas em aberto deste mês em diante acompanham
-        {r.podeAtualizarMatriz || origemSimples(r.chaveOrigem) ? " (o valor vai também para a Matriz de custos)" : ""}. Se a Matriz ou o valor mudarem depois, a crítica volta.
+        {r.daMatriz ? " (só na recorrente — a Matriz de custos não muda)" : ""}. Se a Matriz ou o valor mudarem depois, a crítica volta.
       </div>
     </Modal>
   );

@@ -1266,6 +1266,7 @@ model FinRecorrencia {
   vistoPor      String?
   vistoValor    Decimal? @db.Decimal(14, 2)
   vistoMatriz   Decimal? @db.Decimal(14, 2)   // ex.: MATRIZ|vidaVegetativa|<item> — evita gerar duas vezes
+  matrizSnap    Json?    // v697 — como a Matriz estava na última vez que mexeu nesta recorrência (só a Matriz mudando sobrescreve a recorrência)
   criadoPorNome String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

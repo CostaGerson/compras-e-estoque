@@ -79,8 +79,11 @@ export async function GET(req) {
   const semAb = [...titulos, ...atrasados, ...(periodo || [])].filter((t) => t.status === "ABERTO" && String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id);
   const pagosSem = semAb.length ? await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: [...new Set(semAb)] }, pago: true }, _sum: { valor: true } }).catch(() => []) : [];
   const pagoDe = Object.fromEntries(pagosSem.map((g) => [g.tituloId, Number(g._sum.valor || 0)]));
+  // v697 — conta recorrente que vem da Matriz de custos ganha o "M" na lista
+  const recM = new Set(recs.filter((r) => /^(MATRIZ|NORT)\|/.test(String(r.chaveOrigem || ""))).map((r) => r.id));
+  const tituloOutM = (t) => { const o = tituloOut(t); return o.recorrenciaId && recM.has(o.recorrenciaId) ? { ...o, recMatriz: true } : o; };
   const saida = (t) => {
-    const o = tituloOut(t), p = pagoDe[t.id];
+    const o = tituloOutM(t), p = pagoDe[t.id];
     return p > 0 && t.status === "ABERTO" ? { ...o, valorTotal: o.valor, pagoParcial: Math.round(p * 100) / 100, valor: Math.round((o.valor - p) * 100) / 100 } : o;
   };
   // v338 — vencido total desconta o pago parcial de TODAS as contas da semana vencidas (não só as anteriores ao período)
@@ -91,9 +94,9 @@ export async function GET(req) {
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map(saida) : null,
-    semConta: semConta.map(tituloOut), comCritica: comCritica.map(tituloOut),
+    semConta: semConta.map(tituloOutM), comCritica: comCritica.map(tituloOutM),
     vencidoTotal: Number(vencTot._sum.valor || 0) - vencPago, vencidoTotalQtd: vencTot._count || 0,
-    titulos: titulos.map(saida), atrasados: atrasados.map(saida), criticas: criticas.map(tituloOut),
+    titulos: titulos.map(saida), atrasados: atrasados.map(saida), criticas: criticas.map(tituloOutM),
     contas, parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
   });
 }
@@ -119,7 +122,8 @@ export async function POST(req) {
     const fim = b.fim ? String(b.fim).slice(0, 7) : null;
     if (fim && fim < inicio) return Response.json({ error: "O fim da recorrência é antes do início." }, { status: 400 });
     const dia = Number(String(b.vencimento).slice(8, 10));
-    const r = await prisma.finRecorrencia.create({ data: { ...base, valor, diaVencimento: dia, inicio, fim, criadoPorNome: nomeU(u) } });
+    const periodicidade = Math.max(1, Math.min(12, Number(b.periodicidade) || 1));   // v697
+    const r = await prisma.finRecorrencia.create({ data: { ...base, valor, diaVencimento: dia, periodicidade, inicio, fim, criadoPorNome: nomeU(u) } });
     const n = await gerarRecorrencias(tipo);
     // o 1º mês é o que foi lançado agora: já nasce conferido e respeita a chave de previsão
     await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, competencia: inicio }, data: { valorConfirmado: true, previsao: !!b.previsao, numeroDoc: b.numeroDoc || null, criadoPorId: u.id } });

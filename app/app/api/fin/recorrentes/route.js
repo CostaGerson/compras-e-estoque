@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { usuarioMaster, negado } from "@/lib/fin";
-import { listar, atualizar, levarParaMatriz, excluir, vistar } from "@/lib/finRecorrentes";
+import { listar, atualizar, excluir, vistar } from "@/lib/finRecorrentes";
 
 const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 
@@ -11,13 +11,13 @@ export async function GET(req) {
   return Response.json(await listar());
 }
 
-// PUT { usuarioId, id, campos, atualizarMatriz? }
+// PUT { usuarioId, id, campos } — v697: só a recorrência (e as contas em aberto); a Matriz não muda
 export async function PUT(req) {
   let b;
   try { b = await req.json(); } catch { return Response.json({ error: "Requisição inválida." }, { status: 400 }); }
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
-  const r = await atualizar(b.id, b.campos || {}, { atualizarMatriz: !!b.atualizarMatriz, quem: quemE(u) });
+  const r = await atualizar(b.id, b.campos || {}, { quem: quemE(u) });
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
   return Response.json({ ...r, ...(await listar()) });
 }
@@ -51,9 +51,7 @@ export async function POST(req) {
     return Response.json({ ok: true, aplicado: "MATRIZ→CONTA", ...out, ...(await listar()) });
   }
   if (b.acao === "levarParaMatriz") {
-    const m = await levarParaMatriz(r.chaveOrigem, r.valor, quemE(u));
-    if (!m.ok) return Response.json({ error: m.erro }, { status: 400 });
-    return Response.json({ ok: true, aplicado: "CONTA→MATRIZ", matriz: m, ...(await listar()) });
+    return Response.json({ error: "A recorrente não altera a Matriz de custos — mude o item na própria Matriz." }, { status: 400 });   // v697
   }
   return Response.json({ error: "Ação desconhecida." }, { status: 400 });
 }

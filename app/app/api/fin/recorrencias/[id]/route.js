@@ -32,6 +32,11 @@ export async function PATCH(req, { params }) {
   if (b.rateio !== undefined) { const rt = validarRateio(b.rateio); if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 }); d.rateio = rt.rateio; }
   if (b.fim !== undefined) d.fim = b.fim ? String(b.fim).slice(0, 7) : null;
   if (b.ativo !== undefined) d.ativo = !!b.ativo;
+  if (/^(MATRIZ|NORT)\|/.test(String(r.chaveOrigem || ""))) {   // v697 — da Matriz: ajusta aqui sem mexer na Matriz, mas não encerra
+    if (d.ativo === false || d.fim) return Response.json({ error: "Esta conta vem da Matriz de custos: para encerrar, tire o item da Matriz." }, { status: 400 });
+    delete d.ativo; delete d.fim;
+    const { garantirSnap } = await import("@/lib/finMatrizRecDb"); await garantirSnap(r).catch(() => null);
+  }
   await prisma.finRecorrencia.update({ where: { id }, data: d });
 
   const desde = mesAtual();
@@ -56,6 +61,8 @@ export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
   if (!(await usuarioMaster(b.usuarioId))) return negado();
   const id = Number(params.id);
+  const r0 = await prisma.finRecorrencia.findUnique({ where: { id }, select: { chaveOrigem: true } });
+  if (/^MATRIZ\|/.test(String(r0?.chaveOrigem || "")) && !/^MATRIZ\|pessoal\|(INSS|FGTS)$/.test(r0.chaveOrigem)) return Response.json({ error: "Esta conta vem da Matriz de custos: para excluir, tire o item da Matriz." }, { status: 400 });   // v697
   await prisma.finTitulo.deleteMany({ where: { recorrenciaId: id, status: "ABERTO", valorConfirmado: false, competencia: { gte: mesAtual() } } });
   await prisma.finRecorrencia.delete({ where: { id } }).catch(() => {});
   return Response.json({ ok: true });

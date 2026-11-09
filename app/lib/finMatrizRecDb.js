@@ -8,6 +8,17 @@ const ESPELHO = /^(MATRIZ|NORT)\|/;   // v192: recorrências que espelham a Matr
 const SEM_PARCEIRO = (p) => !p || /^A DEFINIR$/i.test(String(p).trim());
 import { ehGuia, guiasComValor } from "@/lib/finGuias";
 
+// v697 — "assinatura" do item da Matriz: o que ela manda na recorrência. Guardada em matrizSnap a cada aplicação;
+// a recorrência só é sobrescrita quando a Matriz muda (alteração feita direto na recorrência não volta para a Matriz e fica).
+export const assinaturaMatriz = (p, rateio, valorGuia) => ({
+  titulo: String(p.titulo || "").toUpperCase(), parceiro: SEM_PARCEIRO(p.parceiro) ? null : String(p.parceiro).toUpperCase(),
+  valor: valorGuia ? null : r2(p.valor), dia: Number(p.dia) || 1, util: !!p.util, periodicidade: Math.max(1, Number(p.periodicidade) || 1),
+  rateio: String(p.chave || "").startsWith("MATRIZ|pessoal|") ? (rateio || []).map((r) => [Number(r.contaId) || null, r2(r.pct)]).sort() : null,
+});
+// jsonb do Postgres reordena as chaves: compara em ordem fixa
+const canon = (o) => Array.isArray(o) ? o.map(canon) : o && typeof o === "object" ? Object.fromEntries(Object.keys(o).sort().map((k) => [k, canon(o[k])])) : o;
+const mesmaAss = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+
 const mesmoRateio = (a, b) => JSON.stringify((a || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort()) === JSON.stringify((b || []).map((r) => [Number(r.contaId), r2(r.pct)]).sort());
 
 async function matrizOficial() {
@@ -40,7 +51,10 @@ export async function montarMatrizRec() {
     const difRateio = e && p.chave.startsWith("MATRIZ|pessoal|") && !mesmoRateio(e.rateio, rateio);
     // v192 — nome e fornecedor também espelham (fornecedor "A DEFINIR" na Matriz não apaga o que foi informado na conta)
     const difNome = e && (String(e.titulo) !== String(p.titulo).toUpperCase() || (!SEM_PARCEIRO(p.parceiro) && String(e.parceiro) !== String(p.parceiro).toUpperCase()));
-    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou: !!(difValor || difRateio || difNome), valorGuia };
+    const sig = assinaturaMatriz(p, rateio, valorGuia);
+    // v697 — com assinatura gravada: só muda se a MATRIZ mudou desde a última aplicação
+    const mudou = e && e.matrizSnap ? !mesmaAss(e.matrizSnap, sig) : !!(difValor || difRateio || difNome);
+    return { ...p, rateio, jaExiste: !!e, recorrenciaId: e?.id || null, valorAtual: e ? Number(e.valor) : null, mudou, valorGuia, sig, semSnap: !!e && !e.matrizSnap };
   });
   const obsoletas = existentes.filter((e) => ESPELHO.test(e.chaveOrigem) && !ehGuia(e.chaveOrigem) && !chavesProp.has(e.chaveOrigem))
     .map((e) => ({ id: e.id, chave: e.chaveOrigem, titulo: e.titulo, valor: Number(e.valor) }));
@@ -65,14 +79,14 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
             tipo: "PAGAR", titulo: p.titulo.toUpperCase(), parceiro: p.parceiro.toUpperCase(), valor: r2(p.valor), diaVencimento: p.dia, diaUtil: !!p.util,
             periodicidade: Math.max(1, Number(p.periodicidade) || 1),
             rateio: rt.rateio || [], inicio: /^\d{4}-\d{2}$/.test(p.inicio || "") ? p.inicio : ini,
-            observacao: p.obs || "GERADA DA MATRIZ DE CUSTOS", chaveOrigem: p.chave, criadoPorNome: quem,
+            observacao: p.obs || "GERADA DA MATRIZ DE CUSTOS", chaveOrigem: p.chave, criadoPorNome: quem, matrizSnap: p.sig,
           },
         });
         criadas++;
       } else if (p.jaExiste && p.mudou && atual.has(p.chave)) {
         const up = { ...(p.valorGuia ? {} : { valor: r2(p.valor) }), diaVencimento: p.dia, diaUtil: !!p.util,
                      periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}),
-                     titulo: String(p.titulo).toUpperCase(), ...(SEM_PARCEIRO(p.parceiro) ? {} : { parceiro: String(p.parceiro).toUpperCase() }) };
+                     titulo: String(p.titulo).toUpperCase(), ...(SEM_PARCEIRO(p.parceiro) ? {} : { parceiro: String(p.parceiro).toUpperCase() }), matrizSnap: p.sig };
         if (p.chave.startsWith("MATRIZ|pessoal|") && rt.rateio) up.rateio = rt.rateio;
         const rec = await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: up });
         // v192 — as contas em aberto deste mês em diante espelham a Matriz (nome, fornecedor, valor, rateio e vencimento),
@@ -111,12 +125,23 @@ export async function sincronizarMatriz(quem) {
     const m = await montarMatrizRec();
     if (m.error) return m;
     const realinhadas = await realinharTitulos().catch(() => 0);   // v211
+    // v697 — recorrências da Matriz que ainda não têm assinatura e estão iguais a ela: grava a assinatura atual
+    for (const p of m.propostas.filter((x) => x.semSnap && !x.mudou)) await prisma.finRecorrencia.update({ where: { id: p.recorrenciaId }, data: { matrizSnap: p.sig } }).catch(() => null);
     const novas = m.propostas.filter((p) => !p.jaExiste), mud = m.propostas.filter((p) => p.mudou);
     if (!novas.length && !mud.length && !m.obsoletas.length) return { ok: true, criadas: 0, atualizadas: 0, encerradas: 0, realinhadas };
     return aplicarMatrizRec({ quem: quem || "MATRIZ DE CUSTOS", chaves: "TODAS", atualizar: mud.map((p) => p.chave), encerrar: m.obsoletas.map((o) => o.id) });
   })();
   try { return await sincronizando; } finally { sincronizando = null; }
 }
+// v697 — antes de alterar à mão uma recorrência da Matriz: garante a assinatura do estado atual da Matriz,
+// senão o próximo espelho acharia diferença e desfaria a alteração.
+export async function garantirSnap(rec) {
+  if (!rec || rec.matrizSnap || !ESPELHO.test(String(rec.chaveOrigem || ""))) return;
+  const m = await montarMatrizRec();
+  const p = (m.propostas || []).find((x) => x.chave === rec.chaveOrigem);
+  if (p) await prisma.finRecorrencia.update({ where: { id: rec.id }, data: { matrizSnap: p.sig } });
+}
+
 // v211 — regra: Matriz ⇄ Recorrentes se falam; o contas a pagar só recebe. Conta em aberto deste mês em diante,
 // não alterada à mão (pontual) e não reprogramada, que ficou com nome/fornecedor/valor diferente da recorrência espelho é realinhada.
 export async function realinharTitulos() {
