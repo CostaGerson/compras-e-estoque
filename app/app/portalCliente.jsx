@@ -226,7 +226,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                   <div className="flex-1">
                     <div className="text-xs" style={{ color: C.sub }}>Item {i + 1}</div>
                     <div className="font-bold" style={{ color: C.navy }}>{it.padrao.nome}</div>
-                    <div className="text-xs mt-0.5" style={{ color: it.padrao.leadTime ? C.accent : C.sub }}>{it.padrao.leadTime ? <>Despacho previsto: <b>{entregaEm(it.padrao.leadTime)}</b> (lead time {it.padrao.leadTime} dias)</> : "Despacho previsto: a confirmar pela nossa equipe"}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.sub }}>{it.padrao.leadTime ? <>Lead time <b style={{ color: C.text }}>{it.padrao.leadTime} dias</b> — o despacho conta a partir do envio para a produção</> : "Lead time a confirmar pela nossa equipe"}</div>
                   </div>
                   <div className="text-right"><div className="text-xl font-bold" style={{ color: C.navy }}>{q}</div><div className="text-[10px]" style={{ color: C.sub }}>peças</div></div>
                   <button onClick={() => tirar(it)} style={{ color: C.sub }} title="Tirar do pedido"><X size={18} /></button>
@@ -318,14 +318,15 @@ function Caixa({ t, v, cor, sub }) {
     </div>
   );
 }
-function ResumoValores({ v, mobile }) {
+function ResumoValores({ v, mobile, despacho }) {
+  // v714 — despacho: só com o pedido indo para a produção (lead time contado a partir daí)
   return (
     <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: `repeat(${mobile ? 2 : 5}, minmax(0, 1fr))` }}>
       <Caixa t="Peças" v={v.pecas} />
       <Caixa t="CMV (valor da FPP × peças)" v={money(v.cmv)} />
       <Caixa t="Valor vendido" v={money(v.venda)} />
       <Caixa t="MC do pedido" v={money(v.mc)} cor={v.mc >= 0 ? C.green : C.red} sub={v.mcPct != null ? pctTxt(v.mcPct) + " do vendido" : ""} />
-      <Caixa t="Despacho previsto" v={v.lead > 0 ? entregaEm(v.lead) : "a confirmar"} sub={v.lead > 0 ? `lead time ${v.lead} dias` : ""} />
+      <Caixa t="Despacho" v={despacho || (v.lead > 0 ? "após liberar" : "a confirmar")} sub={v.lead > 0 ? `lead time ${v.lead} dias${despacho ? "" : " a partir da liberação"}` : ""} />
     </div>
   );
 }
@@ -369,8 +370,8 @@ function EnvioModal({ envio, setEnvio, val, st, onEnviar, onFechar }) {
           <span className="block mt-1">No horário limite o link para de aceitar respostas; o que foi preenchido entra na lista e o pedido passa a "liberado para produção".</span>
         </label>
       )}
-      <ResumoValores v={val} />
-      {envio.modo === "LIMITE" && <div className="text-[11px] mt-2" style={{ color: C.sub }}>As peças, o CMV e o vendido são da grade atual: mudam conforme as respostas do link.</div>}
+      <ResumoValores v={val} despacho={envio.modo === "PRODUCAO" && val.lead > 0 ? entregaEm(val.lead) : null} />
+      {envio.modo === "LIMITE" && <div className="text-[11px] mt-2" style={{ color: C.sub }}>As peças, o CMV e o vendido são da grade atual: mudam conforme as respostas do link. O despacho é calculado quando o pedido for liberado para a produção.</div>}
     </Janela>
   );
 }
@@ -420,7 +421,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.cmv)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.venda)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}<div className="text-[10px] font-normal" style={{ color: C.sub }}>{pctTxt(p.mcPct)}</div></td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || "—"}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || <span style={{ color: C.sub }}>{p.leadTime ? "após liberar" : "—"}</span>}</td>
                   <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}</td>
                   <td className="px-2">{p.editavel && <button onClick={(e) => { e.stopPropagation(); onExcluir(p); }} title="Excluir pedido" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                 </tr>
@@ -454,8 +455,8 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
         <span className="text-xs" style={{ color: C.sub }}>{p.numeroMeridian ? `nº Meridian ${p.numeroMeridian} · ` : ""}lançado em {dBR(p.lancadoEm)}{p.enviadoPor ? ` por ${p.enviadoPor}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</span>
         {p.status === "RECEBENDO_DETALHES" && p.limite && <span className="text-xs font-semibold" style={{ color: C.accent }}>recebendo dados até {limiteTxt(p.limite)}</span>}
       </div>
-      <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: 0 }} mobile={mobile} />
-      <div className="text-xs mt-2" style={{ color: C.sub }}>Despacho previsto: <b style={{ color: C.text }}>{p.despacho || "a confirmar"}</b></div>
+      <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime }} mobile={mobile} despacho={p.despacho} />
+      {p.liberadoEm && <div className="text-xs mt-2" style={{ color: C.sub }}>Liberado para a produção em <b style={{ color: C.text }}>{dBR(p.liberadoEm)}</b></div>}
       {p.clienteFinal && <div className="mt-3"><ClienteFinalResumo c={p.clienteFinal} /></div>}
       {p.obs && <div className="text-xs mt-2"><span style={{ color: C.sub }}>Observações:</span> {p.obs}</div>}
       <div className="mt-4 text-xs font-bold uppercase tracking-wide" style={{ color: C.sub }}>Itens</div>

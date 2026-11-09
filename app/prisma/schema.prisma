@@ -401,6 +401,7 @@ model Pp {
   portalEnviadoPor  String?
   portalNumero      Int?      // v713 — nº do pedido no portal do cliente (0001, 0002… por cliente), dado na criação
   portalStatus      String?   // v711 — EM_ABERTO | RECEBENDO_DETALHES | LIBERADO (em produção / finalizado vêm do pedido efetivado / faturado)
+  portalLiberadoEm  DateTime? // v714 — quando foi para a produção (liberado): o despacho conta o lead time a partir daqui
   portalEnviadoEm   DateTime? // v711 — quando o cliente enviou (liberou ou abriu o recebimento de dados)
   portalObs         String?   // v711 — observação digitada pelo cliente no portal
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }

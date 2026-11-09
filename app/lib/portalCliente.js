@@ -187,11 +187,24 @@ export async function enviarPedido(ctx, b) {
     }
   }
   const agora = new Date();
-  await prisma.pp.update({ where: { id }, data: { portalStatus: modo === "LIMITE" ? "RECEBENDO_DETALHES" : "LIBERADO", portalEnviadoEm: agora } });
+  await prisma.pp.update({ where: { id }, data: { portalStatus: modo === "LIMITE" ? "RECEBENDO_DETALHES" : "LIBERADO", portalEnviadoEm: agora, portalLiberadoEm: null } });
+  if (modo === "PRODUCAO") await liberar(id);
   await avisar(u, cliente, id, modo === "LIMITE" ? `recebendo detalhes até ${limite.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "LIBERADO PARA PRODUÇÃO — conferir e efetivar");
   const pecas = g.itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
   const pn = await prisma.pp.findUnique({ where: { id }, select: { portalNumero: true } });
   return { ok: true, id, numero: fmtNumPortal(pn?.portalNumero), pecas, modo, links: modo === "LIMITE" ? await linksDoPedido(id) : [] };
+}
+
+// v714 — liberado para produção: o despacho passa a contar o maior lead time das FPPs a partir de agora
+async function liberar(ppId) {
+  const its = await prisma.ppItem.findMany({ where: { ppId }, select: { fppId: true } });
+  const ids = [...new Set(its.map((i) => i.fppId).filter(Boolean))];
+  const fs = ids.length ? await prisma.fpp.findMany({ where: { id: { in: ids } }, select: { leadTime: true } }) : [];
+  const lead = Math.max(0, ...fs.map((f) => Number(f.leadTime) || 0));
+  const hoje = hojeISO();
+  const desp = lead > 0 ? somaDias(hoje, lead, "CORRIDOS") : null;
+  await prisma.pp.update({ where: { id: ppId }, data: { portalStatus: "LIBERADO", portalLiberadoEm: new Date(), emissao: hoje,
+    ...(lead > 0 ? { prazoDias: lead, prazoTipo: "CORRIDOS", prazoEntrega: `${lead} DIAS CORRIDOS`, dtDespacho: String(desp).slice(0, 10).split("-").reverse().join("/") } : {}) } });
 }
 
 async function avisar(u, cliente, ppId, txt) {
@@ -225,7 +238,8 @@ async function concluirRecebimento(pp, cliente) {
       valorTotal: Number(it.valorUnitario) ? r2(q * Number(it.valorUnitario)) : null } });
   }
   const tot = await prisma.ppItem.findMany({ where: { ppId: pp.id }, select: { valorTotal: true } });
-  await prisma.pp.update({ where: { id: pp.id }, data: { portalStatus: "LIBERADO", valorTotal: r2(tot.reduce((s, x) => s + (Number(x.valorTotal) || 0), 0)) } });
+  await prisma.pp.update({ where: { id: pp.id }, data: { valorTotal: r2(tot.reduce((s, x) => s + (Number(x.valorTotal) || 0), 0)) } });
+  await liberar(pp.id);
   await avisar(null, cliente, pp.id, "recebimento de dados encerrado: LIBERADO PARA PRODUÇÃO — conferir e efetivar");
 }
 
@@ -250,7 +264,7 @@ export function valoresPedido(itens, fppValor) {
 
 export async function pedidosDoCliente(clienteId, cliente) {
   await numerarAntigos(clienteId).catch(() => null);
-  const sel = { id: true, numero: true, portalNumero: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true,
+  const sel = { id: true, numero: true, portalNumero: true, portalLiberadoEm: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true,
     itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true, valorUnitario: true, valorVenda: true, fppId: true, itemPadraoId: true }, orderBy: { id: "asc" } } };
   let pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 300, select: sel });
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
@@ -263,7 +277,8 @@ export async function pedidosDoCliente(clienteId, cliente) {
     pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 300, select: sel });
   }
   const fppIds = [...new Set(pps.flatMap((p) => p.itens.map((i) => i.fppId)).filter(Boolean))];
-  const fpps = fppIds.length ? await prisma.fpp.findMany({ where: { id: { in: fppIds } }, select: { id: true, valorProposto: true } }) : [];
+  const fpps = fppIds.length ? await prisma.fpp.findMany({ where: { id: { in: fppIds } }, select: { id: true, valorProposto: true, leadTime: true } }) : [];
+  const leadDe = Object.fromEntries(fpps.map((f) => [f.id, Number(f.leadTime) || 0]));
   const fppValor = Object.fromEntries(fpps.filter((f) => f.valorProposto != null).map((f) => [f.id, f.valorProposto]));
   const links = await prisma.dadoUnitarioLink.findMany({ where: { ppId: { in: pps.map((p) => p.id) } }, select: { ppId: true, itemIdx: true, limite: true, token: true, aberto: true, id: true } });
   const js = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
@@ -274,7 +289,9 @@ export async function pedidosDoCliente(clienteId, cliente) {
     const lks = links.filter((l) => l.ppId === p.id);
     return {
       id: p.id, numero: fmtNumPortal(p.portalNumero), numeroMeridian: p.efetivadoEm ? p.numero : null, status: st, situacao: ST_PORTAL[st] || st,
-      lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt, despacho: p.dtDespacho, oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
+      lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt,
+      despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO"].includes(st) ? p.dtDespacho : null,   // v714 — só depois de ir para a produção
+      liberadoEm: p.portalLiberadoEm || null, leadTime: Math.max(0, ...p.itens.map((i) => (i.fppId && leadDe[i.fppId]) || 0)), oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,
       editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", recebendoDetalhes: st === "RECEBENDO_DETALHES",
       limite: lks.reduce((m, l) => (l.limite && (!m || new Date(l.limite) > new Date(m)) ? l.limite : m), null),
