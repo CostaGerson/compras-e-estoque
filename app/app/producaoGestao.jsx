@@ -7,6 +7,7 @@ import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups d
 import { ImportarNfs } from "./adm";
 import { imprimirPedido, dadosImpressaoPp, dadosImpressaoPedido } from "./impressaoPedido";   // v638 — Imprimir PV / OP no card
 import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
+import { lancaPP } from "@/lib/acesso";   // v728 — botão Editar no card do pedido
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -319,6 +320,9 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
+          {/* v728 — Editar: abre o pedido na tela de lançamento (itens, grade, prazo, pagamento, anexos…) */}
+          {p && p.pp && p.pp.origem !== "PEDIDOS" && lancaPP(user) && <button onClick={() => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", ppId: p.pp.id, numero } })); onClose(); }}
+            title="Editar o pedido como no lançamento" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", border: `1px solid ${C.accent}` }}><Pencil size={14} /> Editar</button>}
           {p && p.tipoPedido !== "SERVIÇO" && <button onClick={() => imprimir("OP")} disabled={!!imprimindo} title="Ordem de produção — sem valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "OP" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir OP</button>}
           {p && veVal && <button onClick={() => imprimir("PV")} disabled={!!imprimindo} title="Pedido de venda — com valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "PV" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir PV</button>}
           {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}

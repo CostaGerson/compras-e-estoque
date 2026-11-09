@@ -223,6 +223,7 @@ export default function Home() {
   const [gestaoInicial, setGestaoInicial] = useState(null);
   const [fppInicial, setFppInicial] = useState(null);
   const [pedidoInicial, setPedidoInicial] = useState(null);   // v450 — tarefa FATURAR → abre o pedido na Gestão da produção
+  const [ppEdit, setPpEdit] = useState(null);   // v728 — editar o pedido (tela de lançamento) a partir do card do pedido em produção
   const [rotaInicial, setRotaInicial] = useState(null);       // v450 — tarefa PROGRAMAR ENTREGA → demanda de rota preenchida   // v420   // v220: Matriz → Metas da Gestão direto
   useEffect(() => { if (view !== "financeiro") setFinInicial(null); if (view !== "gestao") setGestaoInicial(null); if (view !== "comercial") setFppInicial(null); }, [view]);   // v513 — FPP aberta de fora não reabre sozinha
   // v365 — outras telas pedem para abrir o contas a pagar/receber já filtrado (ex.: NF lançada pela crítica do movimento fiscal)
@@ -230,6 +231,7 @@ export default function Home() {
     const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
       if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, voltar: d.voltar || null, t: Date.now() }); setView("comercial"); }
       if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
+      if (d.v === "editarPedido" && d.ppId) setPpEdit({ ppId: d.ppId, numero: d.numero || null, t: Date.now() });
       if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);
@@ -416,6 +418,10 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {view === "pp" && pode("pp") && <LancarPP user={user} />}
+          {ppEdit && <div className="fixed inset-0 z-[45] overflow-auto p-4 md:p-6" style={{ background: C.bg }}>
+            <PedidoEditor key={ppEdit.t} ppId={ppEdit.ppId} podeLancar={lancaPP(user)} veVal={veValoresPP(user)} uid={user?.id} componentes={COMPONENTES} tamanhos={TAMANHOS} imprimir={imprimirPP}
+              onVoltar={() => { const n = ppEdit.numero; setPpEdit(null); if (n) setTimeout(() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pedido", numero: n } })), 0); }} />
+          </div>}
           {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} componentes={COMPONENTES} veVal={veValoresPP(user)} />}
           {view === "comprasPedidos" && pode("comprasPedidos") && <ComprasPedidos user={user} veValores={veValoresPP(user)} />}
           {view === "levantamento" && pode("levantamento") && <Levantamento key="lev" user={user} veValores={veValoresPP(user)} irCruzar={() => ir("comprasCruzamento")} />}
