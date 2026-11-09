@@ -1017,7 +1017,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
           <Undo2 size={15} /> Devolver para Pedidos ({marc.size})
         </button>
         <button onClick={carregar} className="p-2 rounded-md" title="Refazer o cruzamento" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
-        {veValores && <button onClick={() => fetch("/api/compras/integracao").then((r) => r.json()).then(setInteg)} className="ml-auto text-xs flex items-center gap-1" style={{ color: C.sub }}><KeyRound size={13} /> Integração PCP</button>}
+        {veValores && <button onClick={() => fetch("/api/compras/integracao", { headers: { "x-usuario-id": String(user?.id || "") } }).then((r) => r.json()).then((j) => (j.token ? setInteg(j) : alerta(j.error || "Sem acesso.")))} className="ml-auto text-xs flex items-center gap-1" style={{ color: C.sub }}><KeyRound size={13} /> Integração PCP</button>}
       </div>
       {integ && (
         <Modal titulo="Integração com o PCP (Maycon)" onClose={() => setInteg(null)}>

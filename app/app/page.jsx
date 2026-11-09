@@ -44,6 +44,7 @@ import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP } from "@/lib/acesso";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import PedidoEditor from "./pedidoEditor";
+import Integracoes from "./integracoes";   // v732
 import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
 
 /* ============================================================
@@ -147,6 +148,7 @@ const MENU = [
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
     { key: "tributario", label: "Tributário", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Naturezas de operação, NCM dos produtos e emitente — dados para emitir a NF-e pelo Bling" },   // v628
     { key: "uploads", label: "Uploads", icon: FolderUp, perfis: [...GESTAO_TODOS, "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
+    { key: "integracoes", label: "Integração", icon: KeyRound, desc: "Token da API para o PCP (Maycon) e os endereços que ele usa" },   // v732
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
@@ -155,6 +157,7 @@ const T = (u, ...tipos) => tipos.includes(tipoDe(u));
 const PODE = {
   desenvolvimento: (u) => ehMasterU(u),
   usuarios: (u) => ehMasterU(u),
+  integracoes: (u) => lancaPP(u),   // v732
   gestao: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "LIDER"),
   agenda: () => true,
   tarefas: () => true,
@@ -454,6 +457,7 @@ export default function Home() {
           {view === "tributario" && pode("tributario") && <Tributario user={user} tiposPeca={Object.keys(COMPONENTES)} />}
           {view === "uploads" && <Uploads user={user} />}
           {view === "usuarios" && masterReal && <Usuarios master={masterReal} />}
+          {view === "integracoes" && pode("integracoes") && <Integracoes user={user} />}
           {view === "desenvolvimento" && masterReal && <Desenvolvimento user={user} />}
           {view === "agenda" && <Agenda user={user} pedidoModo={pedidoAgenda} onModo={setModoAgenda} />}
           {view === "tarefas" && <Tarefas user={user} />}
