@@ -113,7 +113,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
     if (fFase.length) l = l.filter((p) => fFase.includes(p.fase));
     if (fStatus.length) l = l.filter((p) => statusDe(p).some((x) => fStatus.includes(x)));
     if (termos.length) l = l.filter((p) => { const hay = sem(`${p.numero} ${p.cliente} ${p.oc || ""} ${p.itensTxt} ${p.total.toFixed(2)} ${p.total.toFixed(2).replace(".", ",")}`); return termos.every((t) => hay.includes(t)); });
-    const val = { fase: (p) => (p.faseIdx < 0 ? 99 : p.faseIdx), numero: (p) => p.numero, cliente: (p) => p.cliente || "", pecas: (p) => p.pecas, total: (p) => p.total,
+    const val = { fase: (p) => (p.faseIdx < 0 ? 99 : p.faseIdx), numero: (p) => p.numero, lancamento: (p) => p.lancamento || "", cliente: (p) => p.cliente || "", pecas: (p) => p.pecas, total: (p) => p.total,
       prazo: (p) => p.prazo || "9", previsto: (p) => p.previsto || "9", status: (p) => (p.status === "ATRASADO" ? 0 : 1) };
     const f = val[ord.k] || val.fase;
     return [...l].sort((a, b) => { const x = f(a), y = f(b); const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y)); return (c || String(a.prazo || "9").localeCompare(String(b.prazo || "9"))) * ord.dir; });
@@ -213,7 +213,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
             <table className="w-full text-sm">
               <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
                 <tr><th className="pl-3 pr-1 py-2 w-6"><input type="checkbox" title="Selecionar todos da lista" style={{ accentColor: C.accent }}
-                  checked={lista.length > 0 && lista.every((p) => marcados.includes(p.numero))} onChange={(e) => setMarcados(e.target.checked ? [...new Set([...marcados, ...lista.map((p) => p.numero)])] : marcados.filter((n) => !lista.some((p) => p.numero === n)))} /></th><Th k="numero">Pedido</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
+                  checked={lista.length > 0 && lista.every((p) => marcados.includes(p.numero))} onChange={(e) => setMarcados(e.target.checked ? [...new Set([...marcados, ...lista.map((p) => p.numero)])] : marcados.filter((n) => !lista.some((p) => p.numero === n)))} /></th><Th k="numero">Pedido</Th><Th k="lancamento">Lançamento</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
               </thead>
               <tbody>
                 {lista.map((p) => (
@@ -221,6 +221,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="pl-3 pr-1 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={marcados.includes(p.numero)} style={{ accentColor: C.accent }}
                       onChange={() => setMarcados((m) => (m.includes(p.numero) ? m.filter((x) => x !== p.numero) : [...m, p.numero]))} /></td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{p.numero}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }}>{dBR(p.lancamento)}</td>
                     <td className="px-3 py-2" style={{ color: C.text }}>{p.cliente}<div className="text-[11px] truncate" style={{ color: C.sub, maxWidth: 380 }} title={p.itensTxt}>{p.nItens} item(ns){p.oc ? ` · OC ${p.oc}` : ""}</div></td>
                     <td className="px-3 py-2 tabular-nums">{p.pecas}</td>
                     <td className="px-3 py-2 tabular-nums whitespace-nowrap">{brl(p.total)}</td>
@@ -232,7 +233,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
-                {!lista.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
+                {!lista.length && <tr><td colSpan={11} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
               </tbody>
             </table>
           </div>

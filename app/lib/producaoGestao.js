@@ -56,7 +56,8 @@ function resumoPedido(p, hoje) {
     : semNf ? `${semNf} peça(s) concluída(s) na expedição sem NF casada` : null;
   return {
     faturar, critica, parcial, pecasConcluidas: concl, pecasFaturadas: fatPecas, pecasSemNf: semNf,
-    numero: p.numero, cliente: p.cliente, oc: p.oc || null, vendedor: p.vendedor || null, total: r2(p.total),
+    numero: p.numero, lancamento: p.emissao ? iso(p.emissao) : p.createdAt ? iso(p.createdAt) : null,   // v731 — data de lançamento (emissão do pedido)
+    cliente: p.cliente, oc: p.oc || null, vendedor: p.vendedor || null, total: r2(p.total),
     aFaturar: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total),
     pecas: itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0), nItens: itens.length,
     itensTxt: itens.map((i) => `${i.codigo || ""} ${i.descricao || ""}`).join(" | "),
