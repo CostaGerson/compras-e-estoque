@@ -81,7 +81,8 @@ export async function POST(req, { params }) {
     if (b.acao === "efetivar") {
       const r = await efetivarPedido(Number(params.id), nomeQuem(u));
       // v654 — item sem layout: tarefa de criação de layout para o arte finalista (o pedido segue normal)
-      if (r?.ok) { try { const { gerarCriacaoLayout } = await import("@/lib/layoutFluxo"); r.tarefaLayout = await gerarCriacaoLayout(Number(params.id), u); } catch (e) { console.log("layout:", e.message); } }
+      const kmAss = r?.ok ? (await prisma.pp.findUnique({ where: { id: Number(params.id) }, select: { kmAssumidoEm: true } }))?.kmAssumidoEm : null;   // v730 — pedido do KM assumido: não pede layout
+      if (r?.ok && !kmAss) { try { const { gerarCriacaoLayout } = await import("@/lib/layoutFluxo"); r.tarefaLayout = await gerarCriacaoLayout(Number(params.id), u); } catch (e) { console.log("layout:", e.message); } }
       return Response.json(r);
     }
     if (b.acao === "faturar") return Response.json(await faturarPedido(Number(params.id), b, nomeQuem(u)));

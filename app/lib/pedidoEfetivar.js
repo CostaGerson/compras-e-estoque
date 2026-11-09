@@ -105,7 +105,8 @@ export function criticas(pp) {
     if (!String(e.endereco || "").trim() || !String(e.local || "").trim()) erros.push(`Entrega ${i + 1}: informe endereço e nome do local.`);
     if (!e.documento) erros.push(`Entrega ${i + 1}: escolha o documento de entrega.`);
   });
-  if (!pp.interno) {
+  const kmSemPag = pp.kmAssumidoEm && !(pp.pagamento?.parcelas?.length || pp.pagamento?.entrada);   // v730
+  if (!pp.interno && !kmSemPag) {
     const c = parcelasCalc(pp.pagamento, Number(pp.valorTotal) || 0, { emissao: pp.emissao });
     if (!c.entrada && !c.parcelas.length) erros.push("Monte o prazo de pagamento (entrada e/ou parcelas).");
     else if (!c.ok) erros.push(`Prazo de pagamento não fecha com o total do pedido (diferença R$ ${c.dif.toFixed(2).replace(".", ",")}).`);
@@ -169,17 +170,23 @@ export async function efetivarPedido(id, quem) {
   const total = r2(itens.reduce((s, i) => s + i.total, 0));
   const qtd = itens.reduce((s, i) => s + i.qtd, 0);
   const despacho = pp.prazoDias != null ? somaDias(pp.emissao || hojeISO(), pp.prazoDias, pp.prazoTipo) : null;
-  const pag = pp.interno ? null : pp.pagamento;
+  const kmSemPag = pp.kmAssumidoEm && !(pp.pagamento?.parcelas?.length || pp.pagamento?.entrada);   // v730 — assumido do KM: contas do KM ficam
+  const pag = pp.interno || kmSemPag ? null : pp.pagamento;
   const calc = pag ? parcelasCalc(pag, total, { emissao: pp.emissao }) : null;
   const nfObs = textoObsNf({ numero, oc: pp.oc, nfObs: pp.nfObs });
-  const atual = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, status: true, fonte: true } });
-  if (atual && atual.fonte !== "SISTEMA") return { ok: false, erros: [`O pedido ${numero} veio do KM: as contas e o faturamento seguem pelo KM. Lance pedidos novos pelo botão "Novo pedido".`], avisos };
+  const atual = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, status: true, fonte: true, itens: true, condicao: true, entradaValor: true } });
+  if (atual && atual.fonte !== "SISTEMA" && !pp.kmAssumidoEm) return { ok: false, erros: [`O pedido ${numero} veio do KM: as contas e o faturamento seguem pelo KM. Lance pedidos novos pelo botão "Novo pedido".`], avisos };
   const dados = {
     cliente: up(pp.clienteNome) || "SEM CLIENTE", cnpj: so(pp.clienteCnpj) || null, emissao: pp.emissao ? dUTC(pp.emissao) : dUTC(hojeISO()),
     despacho: despacho ? dUTC(despacho) : null, condicao: pp.condicaoPagamento || null, entradaValor: calc ? (calc.entrada?.valor || 0) : null,
     vendedor: up(pp.vendedor), tipoPedido: pp.tipoPedido === "SERVIÇO" ? "SERVIÇO" : pp.interno ? "INTERNO" : "VENDA NORMAL", oc: up(pp.oc), total, qtd, itens, interno: !!pp.interno,
     obs: pp.obs || null, pagamento: pag || null, entregaModo: pp.entregaModo || "UNICA", entregas: pp.entregas || [], nfObs, fonte: "SISTEMA", atualizadoPorNome: quem,
   };
+  if (kmSemPag && atual) { dados.condicao = pp.condicaoPagamento || atual.condicao || null; dados.entradaValor = atual.entradaValor ?? null; }
+  if (pp.kmAssumidoEm && atual && Array.isArray(atual.itens)) {   // v730 — itens do KM: mantém OP/setores/entregue
+    const velhos = atual.itens.slice();
+    dados.itens = dados.itens.map((it, i) => { const k = velhos.findIndex((v) => v && (v.codigo || null) === (it.codigo || null)); const v = k >= 0 ? velhos.splice(k, 1)[0] : velhos[i] || {}; return { ...v, ...it }; });
+  }
   const ped = atual
     ? await prisma.pedidoVenda.update({ where: { id: atual.id }, data: dados, select: { id: true } })
     : await prisma.pedidoVenda.create({ data: { numero, ...dados, status: "ANDAMENTO", criadoPorNome: quem }, select: { id: true } });
@@ -188,12 +195,13 @@ export async function efetivarPedido(id, quem) {
   // contas a receber: entrada (na data informada) e parcelas contadas da emissão do pedido. NF/entrega: no faturamento
   const lancadas = [];
   const base = { numero, cliente: dados.cliente, cnpj: dados.cnpj, emissao: pp.emissao, quem };
-  if (calc?.entrada) {
+  if (kmSemPag) { /* v730 — assumido do KM sem condição montada: as contas a receber do KM ficam como estão */ }
+  else if (calc?.entrada) {
     await titulo({ ...base, chave: chaveEntrada(numero), valor: calc.entrada.valor, venc: calc.entrada.data, nome: `PEDIDO ${numero} - ENTRADA`,
       obs: `ENTRADA DO PEDIDO ${numero} · CONDIÇÃO ${dados.condicao || "—"}` });
     lancadas.push({ tipo: "ENTRADA", valor: calc.entrada.valor, data: calc.entrada.data });
   } else await cancelarTitulo(chaveEntrada(numero), quem);
-  for (let i = 1; i <= 24; i++) {
+  for (let i = 1; i <= (kmSemPag ? 0 : 24); i++) {
     const x = calc?.parcelas?.[i - 1];
     if (x && x.base === "EMISSAO") {
       await titulo({ ...base, chave: chaveParcela(numero, i), valor: x.valor, venc: x.data, nome: `PEDIDO ${numero} - PARC ${i}/${x.de}`,

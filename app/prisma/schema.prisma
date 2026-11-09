@@ -398,6 +398,7 @@ model Pp {
   efetivadoEm       DateTime?
   efetivadoPorNome  String?
   portalClienteId   Int?      // v699 — lançado pelo portal do cliente (o cliente vê só os pedidos dele)
+  kmAssumidoEm      DateTime? // v730 — pedido do KM assumido no sistema (Editar no card): o KM para de atualizar; contas a receber do KM ficam
   portalEnviadoPor  String?
   portalNumero      Int?      // v713 — nº do pedido no portal do cliente (0001, 0002… por cliente), dado na criação
   portalStatus      String?   // v711 — EM_ABERTO | RECEBENDO_DETALHES | LIBERADO (em produção / finalizado vêm do pedido efetivado / faturado)

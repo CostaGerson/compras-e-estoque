@@ -335,7 +335,17 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
           {/* v728 — Editar: abre o pedido na tela de lançamento (itens, grade, prazo, pagamento, anexos…) */}
-          {p && p.pp && p.pp.origem !== "PEDIDOS" && lancaPP(user) && <button onClick={() => { window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", ppId: p.pp.id, numero } })); onClose(); }}
+          {p && lancaPP(user) && <button onClick={async () => {
+              let ppId = p.pp && p.pp.origem !== "PEDIDOS" ? p.pp.id : null;
+              if (!ppId || p.fonte !== "SISTEMA") {   // v730 — pedido do KM: assumir no sistema (o KM deixa de atualizar este pedido)
+                if (p.fonte !== "SISTEMA" && !(await confirmar(`O pedido ${numero} veio do KM. Ao editar e salvar, ele passa a ser do sistema e o KM deixa de atualizá-lo (alterações feitas no KM não chegam mais aqui). As contas a receber já lançadas continuam.\n\nEditar mesmo assim?`))) return;
+                const r = await fetch("/api/pp/assumir", { method: "POST", headers: { "Content-Type": "application/json", "x-usuario-id": String(user?.id || "") }, body: JSON.stringify({ numero }) });
+                const x = await r.json().catch(() => ({}));
+                if (!r.ok || !x.ppId) return alerta(x.error || "Não foi possível abrir o pedido para edição.");
+                ppId = x.ppId;
+              }
+              window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", ppId, numero } })); onClose();
+            }}
             title="Editar o pedido como no lançamento" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", border: `1px solid ${C.accent}` }}><Pencil size={14} /> Editar</button>}
           {p && p.tipoPedido !== "SERVIÇO" && <button onClick={() => imprimir("OP")} disabled={!!imprimindo} title="Ordem de produção — sem valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "OP" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir OP</button>}
           {p && veVal && <button onClick={() => imprimir("PV")} disabled={!!imprimindo} title="Pedido de venda — com valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "PV" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir PV</button>}
