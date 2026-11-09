@@ -69,7 +69,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const up = (k, patch) => setItens((l) => l.map((it) => (it.key === k ? { ...it, ...patch } : it)));
   const tirar = async (it) => { if ((qtdGrade(it.grade) || it.artes.length) && !(await confirmar(`Tirar "${it.padrao.nome}" do pedido?`))) return; setItens((l) => l.filter((x) => x.key !== it.key)); };
   const anexar = async (it, files) => {
-    const fs = Array.from(files || []).filter((f) => /^image\/|pdf$/i.test(f.type) || /\.(pdf|png|jpe?g|svg|ai|cdr|eps)$/i.test(f.name));
+    const fs = Array.from(files || []).filter((f) => f && f.size > 0); // v723: qualquer formato (zip, rar, psd, ai, cdr…)
     const grandes = fs.filter((f) => f.size > 15 * 1024 * 1024);
     if (grandes.length) alerta(`Maior que 15 MB (não entrou): ${grandes.map((f) => f.name).join(", ")}`);
     const add = await Promise.all(fs.filter((f) => f.size <= 15 * 1024 * 1024).map(async (f) => ({ nome: f.name, mime: f.type || null, base64: await readB64(f) })));
@@ -266,8 +266,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                     <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Artes</div>
                     <label className="flex items-center justify-center gap-2 rounded-lg p-3 cursor-pointer text-xs" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
                       onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); anexar(it, e.dataTransfer.files); }}>
-                      <Paperclip size={14} /> Anexar artes (arraste aqui ou clique) — imagem ou PDF, até 15 MB
-                      <input type="file" multiple accept="image/*,application/pdf,.ai,.cdr,.eps" className="hidden" onChange={(e) => { anexar(it, e.target.files); e.target.value = ""; }} />
+                      <Paperclip size={14} /> Anexar artes (arraste aqui ou clique) — imagem, PDF, ZIP, RAR, AI, CDR etc., até 15 MB
+                      <input type="file" multiple className="hidden" onChange={(e) => { anexar(it, e.target.files); e.target.value = ""; }} />
                     </label>
                     {it.artes.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-2">
