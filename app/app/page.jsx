@@ -346,8 +346,11 @@ export default function Home() {
         <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
           <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
         </nav>
-        <div className="px-4 py-3 text-xs shrink-0" style={{ borderTop: `1px solid ${C.sidebarLine}`, color: C.sidebarSub }}>
-          Sistema de Gestão · v1
+        {/* v706 — Sair no rodapé do menu lateral (computador e celular) */}
+        <div className="px-3 py-2.5 shrink-0 flex items-center gap-2" style={{ borderTop: `1px solid ${C.sidebarLine}` }}>
+          <span className="text-xs flex-1 truncate" style={{ color: C.sidebarSub }}>{user.nome} · Sistema de Gestão</span>
+          <button onClick={sair} title="Sair do sistema" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
+            style={{ color: "#fff", border: `1px solid ${C.sidebarLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} /> Sair</button>
         </div>
       </aside>
       </div>
