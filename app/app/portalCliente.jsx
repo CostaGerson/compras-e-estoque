@@ -58,18 +58,18 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
       if (!(qtdGrade(it.grade) > 0)) return alerta(`Item ${i + 1} (${it.padrao.nome}): informe a grade.`);
       if (temDU(it.dadosUnitarios) && it.dadosUnitarios.linhas?.length) {   // v707 — sem lista: vai pelo link depois de enviar
         const cf = conferirComGrade(it.dadosUnitarios, it.grade);
-        if (!cf.ok) return alerta(`Item ${i + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}). Use "ajustar a grade pela lista".`);
+        if (!cf.ok) return alerta(`Item ${i + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}). Use "ajustar a grade pela lista".`);
       }
     }
     const semArte = itens.filter((it) => !it.artes.length).map((it) => it.padrao.nome);
-    const resumo = itens.map((it, i) => `${i + 1}. ${it.padrao.nome} — ${qtdGrade(it.grade)} pç (${it.grade.filter((g) => num(g.qtd) > 0).map((g) => `${g.tam} ${g.qtd}`).join(" · ")})${it.artes.length ? ` · ${it.artes.length} arte(s)` : ""}${resumoDU(it.dadosUnitarios) ? " · dados unitários" : ""}`).join("\n");
+    const resumo = itens.map((it, i) => `${i + 1}. ${it.padrao.nome} — ${qtdGrade(it.grade)} pç (${it.grade.filter((g) => num(g.qtd) > 0).map((g) => `${g.tam} ${g.qtd}`).join(" · ")})${it.artes.length ? ` · ${it.artes.length} arte(s)` : ""}${resumoDU(it.dadosUnitarios) ? " · personalização exclusiva" : ""}`).join("\n");
     if (!(await confirmar(`Enviar o pedido?\n\n${resumo}\n\nTotal: ${itens.reduce((s, it) => s + qtdGrade(it.grade), 0)} peça(s)${semArte.length ? `\n\nSem arte anexada: ${semArte.join(", ")}` : ""}`))) return;
     setSt("Enviando…");
     try {
       const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ oc, obs, clienteFinal: cf, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios })) }) });
       setD((x) => ({ ...x, pedidos: j.pedidos })); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); setAba("PEDIDOS");
       const semLista = itens.some((it) => temDU(it.dadosUnitarios) && !it.dadosUnitarios.linhas?.length);
-      alerta(`Pedido enviado: ${j.pecas} peça(s). Nossa equipe confere e confirma — acompanhe em "Meus pedidos".${semLista ? '\n\nPara as pessoas preencherem tamanho e dados, abra o pedido em "Meus pedidos" › "dados unitários / link" e gere o link.' : ""}`);
+      alerta(`Pedido enviado: ${j.pecas} peça(s). Nossa equipe confere e confirma — acompanhe em "Meus pedidos".${semLista ? '\n\nPara as pessoas preencherem tamanho e dados, abra o pedido em "Meus pedidos" › "personalização exclusiva / link" e gere o link.' : ""}`);
     } catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -223,7 +223,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                 <div className="flex items-center gap-3 mt-4">
                   <div style={{ color: C.sub }}>{itens.length} item(ns) · <b style={{ color: C.text }}>{totalPecas} peça(s)</b>
                     {leadPedido > 0 && <> · entrega prevista <b style={{ color: C.accent }}>{entregaEm(leadPedido)}</b></>}</div>
-                  <button onClick={async () => { if (await confirmar("Resetar o pedido? Dados do cliente, itens, grades, artes e dados unitários saem da tela.")) { setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); } }}
+                  <button onClick={async () => { if (await confirmar("Resetar o pedido? Dados do cliente, itens, grades, artes e personalização exclusiva saem da tela.")) { setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); } }}
                     className="ml-auto flex items-center gap-1 px-3 py-2.5 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={15} /> Resetar pedido</button>
                   <button onClick={enviar} disabled={!!st} className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold" style={{ background: C.accent, color: "#fff" }}><Send size={16} /> {st || "Enviar pedido"}</button>
                 </div>
@@ -275,7 +275,7 @@ function ItemPedidoPortal({ p, it, idx, user, tamanhos, nomeCliente, salvar }) {
       <div className="flex flex-wrap items-center gap-2">
         <span><b>{it.descricao}</b> — {it.pecas} pç ({it.grade.map((g) => `${g.tam} ${g.qtd}`).join(" · ")})</span>
         {it.dadosUnitarios && <span style={{ color: "#3D6799" }}>· {resumoDU(it.dadosUnitarios, tamanhos)}</span>}
-        {p.editavel && <button onClick={() => setAberto((x) => !x)} className="ml-auto px-2 py-1 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>{aberto ? "fechar" : "dados unitários / link"}</button>}
+        {p.editavel && <button onClick={() => setAberto((x) => !x)} className="ml-auto px-2 py-1 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>{aberto ? "fechar" : "personalização exclusiva / link"}</button>}
       </div>
       {aberto && (
         <div className="mt-2">

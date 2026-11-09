@@ -137,7 +137,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   };
   const ligar = async (v) => {
     if (v) return onChange(vazioDU());
-    if (linhas.length && !(await confirmar(`Desligar o dado unitário? A lista com ${linhas.length} peça(s) sai do item.`))) return;
+    if (linhas.length && !(await confirmar(`Desligar a personalização exclusiva? A lista com ${linhas.length} peça(s) sai do item.`))) return;
     onChange(null);
   };
   const lancarLista = (novas, modo) => {
@@ -197,7 +197,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
     <div className="mt-3 rounded-lg p-3" style={{ background: on ? C.roxoSoft : C.panel2, border: `1px solid ${on ? C.roxo + "44" : C.line}` }}>
       <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold" style={{ color: on ? C.roxo : C.sub }}>
         <input type="checkbox" checked={on} disabled={travado} onChange={(e) => ligar(e.target.checked)} />
-        <Tag size={14} /> Dado unitário <span className="font-normal text-xs" style={{ color: C.sub }}>(nome, número, tipo sanguíneo… diferente em cada peça)</span>
+        <Tag size={14} /> Personalização exclusiva <span className="font-normal text-xs" style={{ color: C.sub }}>(nome, número, tipo sanguíneo… diferente em cada peça)</span>
       </label>
       {on && (
         <div className="mt-2">
@@ -291,7 +291,7 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
         </Janela>
       )}
       {colar !== null && (
-        <Janela titulo="Colar lista de dados unitários" onFechar={() => setColar(null)}
+        <Janela titulo="Colar lista de personalização exclusiva" onFechar={() => setColar(null)}
           rodape={<><button type="button" onClick={() => setColar(null)} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
             <button type="button" onClick={ler} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.roxo, color: "#fff" }}>Ler a lista</button></>}>
           <div className="text-xs mb-2" style={{ color: C.sub }}>
@@ -335,4 +335,4 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
 }
 
 // resumo curto (lista de pedidos, impressão)
-export const resumoDU = (du, ordem = []) => (temDU(du) && du.linhas?.length ? `${du.linhas.length} peça(s) com dado unitário — ${resumoTam(contarPorTam(du.linhas, ordem))}` : "");
+export const resumoDU = (du, ordem = []) => (temDU(du) && du.linhas?.length ? `${du.linhas.length} peça(s) com personalização exclusiva — ${resumoTam(contarPorTam(du.linhas, ordem))}` : "");

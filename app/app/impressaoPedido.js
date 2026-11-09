@@ -44,7 +44,7 @@ function duHtml(du) {
   for (const l of du.linhas) if (!ordem.includes(l.tam)) ordem.push(l.tam);
   const linhas = ordem.flatMap((t) => du.linhas.filter((l) => l.tam === t));
   const cont = ordem.map((t) => `${esc(t)} ${du.linhas.filter((l) => l.tam === t).length}`).join(" · ");
-  return `<div class="sec" style="margin-top:6px">Dados unitários — ${du.linhas.length} peça(s) · ${cont}</div>
+  return `<div class="sec" style="margin-top:6px">Personalização exclusiva — ${du.linhas.length} peça(s) · ${cont}</div>
     <table class="pag du"><tr><th>#</th><th>TAM</th>${du.campos.map((c) => `<th>${esc(c.rotulo)}<div class="mut" style="font-weight:400">${esc(String(c.local || "").toLowerCase())}</div></th>`).join("")}</tr>
     ${linhas.map((l, i) => `<tr><td>${i + 1}</td><td class="b">${esc(l.tam)}</td>${du.campos.map((c) => `<td>${esc((l.valores || {})[c.id] || "—")}</td>`).join("")}</tr>`).join("")}</table>`;
 }

@@ -508,7 +508,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {veVal && <button onClick={() => imprimirAgora("PV")} title="Pedido de venda — com valores" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}><Printer size={16} /> Imprimir PV</button>}
           {/* v705 — resetar: limpa o pedido em lançamento (cliente, itens, anexos, prazos); o rascunho salvo só muda ao salvar de novo */}
           {podeLancar && !efetivado && <button onClick={async () => {
-            if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e dados unitários), anexos, prazo e pagamento são apagados da tela." + (ppId ? "\n\nO rascunho salvo só muda quando você salvar de novo." : "")))) return;
+            if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela." + (ppId ? "\n\nO rascunho salvo só muda quando você salvar de novo." : "")))) return;
             setF((s) => ({ ...vazioF(), numero: s.numero, emissao: hojeISO() })); setItens([novoItem()]); setAnexos([]);
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} className="px-3 py-2 rounded text-sm" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}>Salvar rascunho</button>}

@@ -92,8 +92,8 @@ export function criticas(pp) {
     if (!serv && !it.fppId) avisos.push(`Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);
     if (!serv && temDU(it.dadosUnitarios)) {   // v699 — a lista de dados unitários tem que bater com a grade
       const cf = conferirComGrade(it.dadosUnitarios, it.grade);
-      if (!it.dadosUnitarios.linhas?.length) erros.push(`Item ${i + 1}: dado unitário ligado sem a lista de peças.`);
-      else if (!cf.ok) erros.push(`Item ${i + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}).`);
+      if (!it.dadosUnitarios.linhas?.length) erros.push(`Item ${i + 1}: personalização exclusiva ligada sem a lista de peças.`);
+      else if (!cf.ok) erros.push(`Item ${i + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(cf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}).`);
     }
   });
   if (pp.prazoDias == null) erros.push("Informe o prazo de entrega (dias).");

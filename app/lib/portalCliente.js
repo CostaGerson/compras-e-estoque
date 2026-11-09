@@ -59,7 +59,7 @@ export async function enviarPedido({ u, cliente }, b) {
     const du = limparDU(p.dadosUnitarios);
     if (temDU(du) && du.linhas.length) {   // v707 — sem lista: será preenchida pelo link (pedido em "recebendo detalhes")
       const cf = conferirComGrade(du, grade);
-      if (!cf.ok) return { error: `Item ${k + 1}: a lista de dados unitários não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}).` };
+      if (!cf.ok) return { error: `Item ${k + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(cf.dif).map(([t, x]) => `${t} ${x > 0 ? "+" : ""}${x}`).join(", ")}).` };
     }
     const artes = (Array.isArray(p.artes) ? p.artes : []).filter((a) => a && a.base64).slice(0, 20);
     for (const a of artes) if (String(a.base64).length * 0.75 > LIM_ARTE) return { error: `${a.nome}: arquivo maior que 15 MB.` };
@@ -94,7 +94,7 @@ export async function enviarPedido({ u, cliente }, b) {
   const para = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ isMaster: true }, { diretoria: true }, { setor: "COMERCIAL" }] }, select: { id: true } }).catch(() => []);
   const pecas = itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
   if (para.length) await prisma.mensagem.createMany({ data: para.filter((x) => x.id !== u.id).map((x) => ({ deId: u.id, paraId: x.id,
-    texto: `🛒 NOVO PEDIDO DO PORTAL — ${nomeCliente(cliente)}: ${itens.length} item(ns), ${pecas} peça(s)${itens.some((i) => i.dadosUnitarios) ? " · com dados unitários" : ""}. Confira e efetive em Pedidos › Lançar pedido.` })) }).catch(() => null);
+    texto: `🛒 NOVO PEDIDO DO PORTAL — ${nomeCliente(cliente)}: ${itens.length} item(ns), ${pecas} peça(s)${itens.some((i) => i.dadosUnitarios) ? " · com personalização exclusiva" : ""}. Confira e efetive em Pedidos › Lançar pedido.` })) }).catch(() => null);
   return { ok: true, id, pecas };
 }
 
