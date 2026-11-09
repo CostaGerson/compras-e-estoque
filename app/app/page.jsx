@@ -246,7 +246,8 @@ export default function Home() {
   const [tokenReset, setTokenReset] = useState(null);   // v167 — link "redefinir senha" do e-mail
   // v490 — ao atualizar a página, volta para a tela em que estava (guardada nesta aba do navegador)
   useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t);
-    const q = new URLSearchParams(window.location.search).get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v551 — notificação abre a agenda
+    const sp = new URLSearchParams(window.location.search), q = sp.get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); }
+    if (q === "rota") { setView("rota"); if (sp.get("demanda")) sessionStorage.setItem("ce_abrir_demanda", `${sp.get("demanda")}|${sp.get("data") || ""}`); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v725 — link da demanda (PCP) abre a rota   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
   // v565 — no celular o sistema abre direto na agenda (uma vez por aba: depois volta para a tela em que estava)
   useEffect(() => {

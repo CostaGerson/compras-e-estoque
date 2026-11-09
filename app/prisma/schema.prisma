@@ -2279,6 +2279,9 @@ model RotaDemanda {
   freteVolumes   Int?
   admDemandaId   Int?
   ocId           Int?                         // v486 — rota de coleta de uma OC
+  origem         String?                      // v725 — "PCP" quando aberta pela OS do Cronograma PCP
+  origemRef      String?                      // v725 — nº da OS do PCP (não duplica)
+  origemDados    Json?                        // v725 — { osPcp, romaneio, servico, itens, usuario }
   obs            String?
   status         String    @default("ABERTA") // ABERTA | NO_BLOCO | EM_EXECUCAO | CONCLUIDA | CANCELADA
   blocoId        Int?
@@ -2294,6 +2297,7 @@ model RotaDemanda {
 
   @@index([data])
   @@index([status])
+  @@index([origem, origemRef])
 }
 
 model RotaBloco {

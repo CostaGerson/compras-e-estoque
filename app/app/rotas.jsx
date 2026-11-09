@@ -129,6 +129,11 @@ export default function Rotas({ user, nova }) {
   const de = modo === "semana" && ref === FOCO && somaDia(FOCO, -14) < de0 ? somaDia(FOCO, -14) : de0;   // v521 — lê 14 dias para trás (pendências)
   const carregar = () => api(`/api/rotas?u=${user.id}&de=${de}&ate=${ate}`).then(setD).catch((e) => setD((x) => x || { erro: e.message, demandas: [], blocos: [], motoristas: [] }));
   useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t); }, [de, ate]);
+  // v725 — link da demanda (ex.: aberta pelo PCP): vai para o dia dela e abre o formulário quando carregar
+  const [abrirId, setAbrirId] = useState(null);
+  useEffect(() => { try { const v = sessionStorage.getItem("ce_abrir_demanda"); if (!v) return; sessionStorage.removeItem("ce_abrir_demanda");
+    const [id, dt] = v.split("|"); if (/^\d{4}-\d{2}-\d{2}$/.test(dt || "")) { setRef(dt); setDia(dt); } setAbrirId(Number(id) || null); } catch {} }, []);
+  useEffect(() => { if (!abrirId || !d?.demandas) return; const y = d.demandas.find((x) => x.id === abrirId); if (y) { setAbrirId(null); setDia(y.data); setForm(y); } }, [abrirId, d]);
   const porDia = useMemo(() => (d?.demandas || []).reduce((a, x) => { (a[x.data] ||= []).push(x); return a; }, {}), [d]);
   const doDia = ordenar(porDia[dia] || []);
   const blocosDia = (d?.blocos || []).filter((b) => b.data === dia || (b.status === "EM_EXECUCAO" && b.data < dia && (dia === H || dia === FOCO)));
