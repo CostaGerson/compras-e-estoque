@@ -2605,6 +2605,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
       </div>
 
       {!anual && dados && <Conferencia user={user} comp={comp} dados={dados} onMudou={carregar} setAviso={setAviso} />}
+      {!anual && dados && <OrigensLanc user={user} comp={comp} dados={dados} onMudou={carregar} />}
 
       {dados?.ajusteCartaoBB && (
         <div className="rounded-lg px-4 py-3 mb-3 text-sm" style={{ background: C.blueSoft, color: C.blue }}>
@@ -2793,6 +2794,39 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
         <DesmembrarModal user={user} lanc={modal.lanc} contas={dados.contas.filter((c) => c.ativo)}
           onClose={() => setModal(null)} onSalvo={() => { setModal(null); carregar(); }} />
       )}
+    </div>
+  );
+}
+
+/* ---------- v753 — de onde vêm os lançamentos do mês (documento de outro mês, parcial, sem documento) ---------- */
+function OrigensLanc({ user, comp, dados, onMudou }) {
+  const [aberto, setAberto] = useState(false);
+  const os = dados.origens || [];
+  const fora = os.filter((o) => o.arquivoId && (o.parcial || o.competencia !== comp));
+  if (!os.length) return null;
+  const excluir = async (o) => {
+    if (!(await confirmar(`Excluir o documento ${o.nome}${o.competencia !== comp ? ` (de ${o.competencia})` : ""}?\nTodos os lançamentos lidos dele saem, de todos os meses (e da DRE).`))) return;
+    const r = await fetch(`/api/fin/arquivos/${o.arquivoId}?u=${user.id}`, { method: "DELETE" });
+    if (!r.ok) alerta((await r.json().catch(() => ({}))).error || "Não foi possível excluir.");
+    onMudou?.();
+  };
+  return (
+    <div className="rounded-lg mb-3 text-sm" style={{ background: C.panel, border: `1px solid ${fora.length ? C.accent : C.line}` }}>
+      <button onClick={() => setAberto((v) => !v)} className="w-full text-left px-3 py-2 flex items-center gap-2">
+        <FileText size={14} style={{ color: C.accent }} />
+        <b>Origem dos lançamentos do mês</b>
+        <span style={{ color: C.sub }}>· {os.length} origem(ns){fora.length ? ` · ${fora.length} documento(s) parcial(is) ou de outro mês` : ""}</span>
+        <span className="ml-auto text-xs" style={{ color: C.sub }}>{aberto ? "fechar" : "ver"}</span>
+      </button>
+      {aberto && <div className="px-3 pb-2">
+        {os.map((o) => <div key={o.arquivoId || 0} className="flex items-center gap-2 py-1" style={{ borderTop: `1px solid ${C.line}` }}>
+          <span className="flex-1 truncate">{o.nome}{o.banco ? <span style={{ color: C.sub }}> · {o.banco}{o.documento ? ` ${o.documento}` : ""}</span> : null}</span>
+          {o.arquivoId && o.competencia !== comp && <span className="text-xs px-1.5 rounded" style={{ background: C.accentSoft, color: C.accent }}>documento de {o.competencia}</span>}
+          {o.parcial && <span className="text-xs px-1.5 rounded" style={{ background: C.panel2, color: C.sub }}>parcial</span>}
+          <span className="text-xs" style={{ color: C.sub }}>{o.n} lanç.</span>
+          {o.arquivoId && podeImportar(user, "docsFinanceiros") && <button onClick={() => excluir(o)} title="Excluir o documento e os lançamentos dele" style={{ color: C.red }}><Trash2 size={14} /></button>}
+        </div>)}
+      </div>}
     </div>
   );
 }

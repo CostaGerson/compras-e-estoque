@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, garantirTipos } from "@/lib/fin";
+import { usuarioMaster, negado, garantirTipos, limparLancamentosOrfaos } from "@/lib/fin";
 
 // GET ?u=&ano=AAAA → números por mês (competência) + dia/mês/ano corrente (pela data do lançamento)
 export async function GET(req) {
@@ -8,6 +8,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   const ano = String(sp.get("ano") || new Date().getFullYear());
   await garantirTipos();
+  await limparLancamentosOrfaos().catch(() => null);   // v753
   const conc = await prisma.finConta.findUnique({ where: { codigo: "3000000" }, select: { id: true } });
   const [ls, tipos, arqs, justs] = await Promise.all([
     prisma.finLancamento.findMany({

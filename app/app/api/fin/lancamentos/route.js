@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, descartarPagamentosFatura } from "@/lib/fin";
+import { usuarioMaster, negado, competenciaValida, garantirContas, lancOut, descartarPagamentosFatura, limparLancamentosOrfaos } from "@/lib/fin";
 import { LEITORES, LEITORES_DETALHE } from "@/lib/finParse";
 import { CONSOLIDADOS } from "@/lib/finConcilia";
 import { limparCartaoBBdeDividas, renomearContas } from "@/lib/finAjustes";
@@ -18,6 +18,7 @@ export async function GET(req) {
   const anual = /^\d{4}$/.test(ano || "") || !!faixa;
   if (!anual && !competenciaValida(competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
   await garantirContas();
+  await limparLancamentosOrfaos().catch(() => null);   // v753 — lançamentos de documento já excluído saem
   await renomearContas().catch(() => null);                             // nomes de conta combinados com o Igor
   const cartaoBB = await limparCartaoBBdeDividas().catch(() => null);   // cartão BB fora de dívidas (uma vez)
 
@@ -50,13 +51,20 @@ export async function GET(req) {
     .map(({ l, c }) => ({ id: l.id, doc: c.doc }));
   const saldos = {};
   arqs.forEach((a) => { const b = a.lancamentos[0]?.banco; if (b && a.saldoAnterior != null) saldos[b] = (saldos[b] || 0) + Number(a.saldoAnterior); });
+  // v753 — de onde vêm os lançamentos do mês: documento (mesmo de outro mês ou parcial) e quantos são manuais/sem documento
+  const porArq = {};
+  for (const l of ls) { const k = l.arquivoId || 0; porArq[k] = (porArq[k] || 0) + 1; }
+  const idsArq = Object.keys(porArq).map(Number).filter(Boolean);
+  const docsArq = idsArq.length ? await prisma.finArquivo.findMany({ where: { id: { in: idsArq } }, select: { id: true, nome: true, competencia: true, parcial: true, tipo: { select: { banco: true, documento: true } } } }) : [];
+  const origens = [...docsArq.map((a) => ({ arquivoId: a.id, nome: a.nome, competencia: a.competencia, parcial: !!a.parcial, banco: a.tipo?.banco || null, documento: a.tipo?.documento || null, n: porArq[a.id] })),
+    ...(porArq[0] ? [{ arquivoId: null, nome: "Sem documento (manual, histórico, antecipação…)", n: porArq[0] }] : [])];
   const { mapaDeContas } = await import("@/lib/finDre");
   const comGrupo = await mapaDeContas().catch(() => null);
   const grupoDe = comGrupo ? Object.fromEntries(comGrupo.map((c) => [c.id, c.grupo])) : {};
   return Response.json({
     lancamentos: ls.map(lancOut),
     contas: contas.map((c) => ({ ...c, grupoDre: grupoDe[c.id] || null })),
-    saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura,
+    saldos, arquivosPendentes: pendentes, conferencia: Object.values(conf), consolidados, leitura, origens,
     ...(anual ? { anual: true, ano: Number(ano) || null, faixa } : {}),
     ...(cartaoBB && !cartaoBB.jaFeito && cartaoBB.ok ? { ajusteCartaoBB: cartaoBB } : {}),
   });
