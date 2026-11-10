@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, RotateCcw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
+import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
@@ -746,13 +747,22 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
                   {it.fpp?.leadTime > 0 && <span className="ml-2 px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }} title="Lead time da FPP, contado da emissão do pedido">entrega prevista {dataBR(somaDias(f.emissao || hojeISO(), it.fpp.leadTime, "CORRIDOS"))} · lead time {it.fpp.leadTime} dias</span>}</div>
+                {/* v743 — Grade normal × Grade personalizada (lista por peça, como no portal da Loja Way: locais, colar lista, tamanho por peça) */}
+                {(() => { const pers = !!(it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos)); const nL = it.dadosUnitarios?.linhas?.length || 0;
+                  const opc = (k, t) => <button type="button" disabled={!podeLancar} onClick={async () => {
+                    if (k === pers) return;
+                    if (k) return upItem(i, { dadosUnitarios: vazioDU() });
+                    if (nL && !(await confirmar(`Voltar para a grade normal? A lista personalizada com ${nL} peça(s) sai do item (a grade fica como está).`))) return;
+                    upItem(i, { dadosUnitarios: null });
+                  }} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: k === pers ? "#fff" : "transparent", color: k === pers ? (k ? "#3D6799" : C.text) : C.sub, boxShadow: k === pers ? "0 1px 2px rgba(0,0,0,.12)" : "none" }}>{t}</button>;
+                  return <div className="inline-flex rounded-md p-0.5 mb-2" style={{ background: "#F1F3F5", border: `1px solid ${C.line}` }}>{opc(false, "Grade normal")}{opc(true, "Grade personalizada")}</div>; })()}
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} />
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
-                <DadosUnitarios du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
+                {it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) && <DadosUnitarios semChave travado={!podeLancar} du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
                   tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
                   ppId={null} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}
                   semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : "O link de preenchimento é do portal do cliente. Aqui, cole ou digite a lista."}
-                  onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />
+                  onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />}
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
                 <div className="grid grid-cols-2 gap-2">
