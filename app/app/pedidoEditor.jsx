@@ -32,6 +32,46 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
 const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
 const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
+// v747 — venda comissionada: vendedor (Dados › Vendedores) + comissão em % (sobre os itens, sem frete) ou em R$
+function ComissaoCard({ f, set, uid, totalItens, podeLancar }) {
+  const [vs, setVs] = useState(null);
+  const [novo, setNovo] = useState(false);
+  const carregar = () => fetch(`/api/vendedores?u=${uid}`).then((r) => r.json()).then((j) => setVs(j.vendedores || [])).catch(() => setVs([]));
+  const c = f.comissao || { vendedorId: null, tipo: "PCT", valor: "" };
+  const on = !!c.vendedorId || c.ligada;
+  useEffect(() => { if (on && !vs) carregar(); }, [on]);
+  const up = (patch) => set("comissao", { ...c, ...patch });
+  const v = (vs || []).find((x) => x.id === Number(c.vendedorId));
+  const total = c.tipo === "PCT" ? totalItens * num(c.valor) / 100 : num(c.valor);
+  return (
+    <Card titulo="Venda comissionada">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        {[[false, "Não"], [true, "Sim"]].map(([k, t]) => <label key={t} className="flex items-center gap-1 cursor-pointer"><input type="radio" disabled={!podeLancar} checked={on === k} onChange={() => set("comissao", k ? { ...c, ligada: true } : { vendedorId: null, tipo: "PCT", valor: "" })} /> {t}</label>)}
+        {on && <>
+          <select value={c.vendedorId || ""} disabled={!podeLancar} onChange={(e) => (e.target.value === "__novo" ? setNovo(true) : up({ vendedorId: e.target.value ? Number(e.target.value) : null }))} className="px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, background: C.panel, minWidth: 220, borderColor: c.vendedorId ? C.line : C.accent }}>
+            <option value="">{vs ? "Selecione o vendedor…" : "Carregando…"}</option>
+            {(vs || []).map((x) => <option key={x.id} value={x.id}>{x.nome}{x.fechamento === "MENSAL" ? " · mensal" : " · spot"}</option>)}
+            <option value="__novo">+ Cadastrar vendedor</option>
+          </select>
+          <div className="inline-flex rounded-md p-0.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+            {[["PCT", "%"], ["VALOR", "R$"]].map(([k, t]) => <button key={k} type="button" disabled={!podeLancar} onClick={() => up({ tipo: k })} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: c.tipo === k ? "#fff" : "transparent", color: c.tipo === k ? C.text : C.sub, boxShadow: c.tipo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none" }}>{t}</button>)}
+          </div>
+          <input value={c.valor ?? ""} disabled={!podeLancar} onChange={(e) => up({ valor: e.target.value.replace(/[^\d,.]/g, "") })} placeholder={c.tipo === "PCT" ? "0 %" : "0,00"} inputMode="decimal" className="w-24 px-2 py-1.5 rounded outline-none text-sm text-right" style={{ ...inp, background: C.panel }} />
+          {total > 0 && <span className="text-sm">Comissão <b style={{ color: C.accent }}>{money(total)}</b>{c.tipo === "PCT" && <span className="text-xs ml-1" style={{ color: C.sub }}>(sobre os itens, sem frete)</span>}</span>}
+        </>}
+      </div>
+      {on && v && <div className="text-xs mt-2" style={{ color: C.sub }}>{v.fechamento === "MENSAL"
+        ? "Fechamento mensal: a comissão de cada conta a receber que vence no mês entra numa só conta a pagar no dia 10 do mês seguinte."
+        : "Fechamento spot: em cada vencimento de conta a receber do pedido entra a comissão proporcional àquela conta (parcelado/faturado: em cada fatura)."}</div>}
+      {novo && <NovoVendedor uid={uid} onClose={() => setNovo(false)} onSalvo={(x) => { carregar(); up({ vendedorId: x.id }); }} />}
+    </Card>
+  );
+}
+function NovoVendedor({ uid, onClose, onSalvo }) {
+  const [M, setM] = useState(null);
+  useEffect(() => { import("./vendedores").then((m) => setM(() => m.VendedorModal)); }, []);
+  return M ? <M user={{ id: uid }} pixTipos={["CPF", "CNPJ", "EMAIL", "TELEFONE", "ALEATORIA"]} onClose={onClose} onSalvo={onSalvo} /> : null;
+}
 // v746 — frete contratado de uma entrega (valor soma no total do pedido; não é distribuído entre os itens)
 function FreteCampo({ v, onChange, veVal = true }) {
   const x = v || { contratado: false, valor: "" };
@@ -173,6 +213,7 @@ const vazioF = () => ({
   numero: "", emissao: hojeISO(), interno: false, servico: false, clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
   oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaModo: "UNICA", entregas: [],
   frete: { contratado: false, valor: "" },   // v746 — frete da entrega única
+  comissao: { vendedorId: null, tipo: "PCT", valor: "" },   // v747 — venda comissionada
   pagamento: { entrada: null, parcelas: [] }, status: "EM_LANCAMENTO", efetivadoEm: null,
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
@@ -449,6 +490,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const payload = () => ({
     ...f, prazoDias: f.prazoDias === "" ? null : num(f.prazoDias), clienteCnpj: dig(f.clienteCnpj) ? fmtCnpj(f.clienteCnpj) : "",
     itens: itens.map((it) => ({ ...it, fpp: undefined })),
+    comissao: veVal ? f.comissao : undefined,   // v747 — quem não vê valores não mexe na comissão
     anexos: anexos.map((a) => (a.id ? { id: a.id, categoria: a.categoria } : a)),
   });
   const salvar = async () => {
@@ -863,6 +905,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           </div>
         </>}
       </Card>}
+
+      {/* ---------- v747 — Venda comissionada ---------- */}
+      {!f.interno && veVal && <ComissaoCard f={f} set={set} uid={uid} totalItens={totalItens} podeLancar={podeLancar} />}
 
       {/* ---------- Pagamento ---------- */}
       

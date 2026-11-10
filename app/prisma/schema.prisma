@@ -393,6 +393,7 @@ model Pp {
   prazoTipo         String?   // UTEIS | CORRIDOS
   entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
   entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
+  comissao          Json?     // v747 — venda comissionada: { vendedorId, tipo: PCT|VALOR, valor }
   frete             Json?     // v746 — entrega única: { contratado, valor } (nas fracionadas fica em cada entrega: entregas[].frete)
   pagamento         Json?     // { entrada: { data, valor } | null, parcelas: [{ dias, tipo, base, valor }] }
   nfObs             String?   // observação que vai na NF (o nº do pedido e a OC entram sozinhos)
@@ -2556,4 +2557,44 @@ model DadoUnitarioResposta {
   valores   Json                 // { [campoId]: texto }
   createdAt DateTime @default(now())
   @@index([linkId])
+}
+
+// v747 — vendedores comissionados (Dados › Vendedores): dados, PIX e condição de fechamento da comissão
+model Vendedor {
+  id         Int      @id @default(autoincrement())
+  nome       String
+  documento  String?            // CPF/CNPJ (só dígitos)
+  telefone   String?
+  email      String?
+  endereco   String?
+  pixTipo    String?            // CPF | CNPJ | EMAIL | TELEFONE | ALEATORIA
+  pixChave   String?
+  banco      String?
+  agencia    String?
+  conta      String?
+  fechamento String   @default("SPOT")   // MENSAL (uma conta no dia 10 do mês seguinte) | SPOT (no vencimento de cada conta a receber)
+  obs        String?
+  ativo      Boolean  @default(true)
+  criadoPorNome String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  comissoes  VendaComissao[]
+}
+
+// v747 — parte da comissão ligada a cada conta a receber do pedido (proporcional ao valor da conta)
+model VendaComissao {
+  id            Int      @id @default(autoincrement())
+  vendedorId    Int
+  vendedor      Vendedor @relation(fields: [vendedorId], references: [id], onDelete: Cascade)
+  pedidoNumero  String
+  chaveReceber  String   @unique            // chaveImport da conta a receber (PED|nº|ENTRADA, PED|nº|PARC|i)
+  vencReceber   DateTime @db.Date
+  valorReceber  Decimal  @db.Decimal(14, 2)
+  valor         Decimal  @db.Decimal(14, 2)   // comissão desta conta
+  chavePagar    String                       // conta a pagar onde entrou (COM|… spot ou COM|V{id}|AAAA-MM mensal)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([vendedorId])
+  @@index([pedidoNumero])
 }

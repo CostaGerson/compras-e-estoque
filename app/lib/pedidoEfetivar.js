@@ -40,6 +40,8 @@ export async function salvarPp(id, b, quem) {
     prazoEntrega: prazoDias != null ? `${prazoDias} DIAS ${prazoTipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"}` : null,
     dtDespacho: brData(despacho),
     entregaModo, entregas: entregasB, frete: freteU,
+    // v747 — venda comissionada (sem vendedor = sem comissão)
+    ...(b.comissao === undefined ? {} : { comissao: !interno && b.comissao && Number(b.comissao.vendedorId) ? { vendedorId: Number(b.comissao.vendedorId), tipo: b.comissao.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(Math.max(0, num(b.comissao.valor))) } : { vendedorId: null } }),   // quem não vê valores não manda: fica como está
     pagamento: interno ? null : (b.pagamento || null),
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,
@@ -238,6 +240,8 @@ export async function efetivarPedido(id, quem) {
       compras.push(ch);
     } catch (e) { avisos.push(`Item ${i + 1}: não foi para Compras (${e.message}).`); }
   }
+  // v747 — comissão do vendedor no contas a pagar (proporcional a cada conta a receber lançada)
+  try { const { sincronizarComissoes } = await import("@/lib/comissoes"); await sincronizarComissoes(numero, quem); } catch (e) { avisos.push(`Comissão não lançada (${e.message}).`); }
   return { ok: true, numero, pedidoId: ped.id, lancadas, compras, avisos, nfObs };
 }
 
@@ -266,6 +270,7 @@ export async function faturarPedido(id, { nf, emissaoNf, entrega } = {}, quem) {
   await prisma.pedidoVenda.update({ where: { id: ped.id }, data: { status: "FATURADO", nfNumero: nfs, faturadoEm: dUTC(dNf),
     ...(entrega ? { entregaPrevista: dUTC(entrega) } : {}), atualizadoPorNome: quem } });
   await prisma.pp.update({ where: { id: pp.id }, data: { status: "FATURADO" } });
+  try { const { sincronizarComissoes } = await import("@/lib/comissoes"); await sincronizarComissoes(ped.numero, quem); } catch (e) { console.log("comissao/faturar:", e.message); }   // v747 — parcelas da NF levam a parte delas
   return { ok: true, lancadas };
 }
 

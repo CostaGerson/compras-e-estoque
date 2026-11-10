@@ -45,6 +45,7 @@ import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import PedidoEditor from "./pedidoEditor";
 import Integracoes from "./integracoes";   // v732
+import Vendedores from "./vendedores";   // v747
 import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
 
 /* ============================================================
@@ -143,6 +144,7 @@ const MENU = [
     { key: "itensPadrao", label: "Itens padrão", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Itens de alto giro ou padronizados por cliente: nome interno, nome NF, FPP, preço, NCM, layout e tabela de medidas" },   // v647
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
+    { key: "vendedores", label: "Vendedores", icon: Users2, desc: "Vendedores comissionados: dados, PIX e fechamento da comissão (mensal ou spot)" },   // v747
     { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
@@ -182,6 +184,7 @@ const PODE = {
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
   rota: () => true,
   destinatarios: () => true,   // v430
+  vendedores: (u) => gerencial(u) || lancaPP(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO", "COMERCIAL"),   // v747
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
   artigos: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
@@ -455,6 +458,7 @@ export default function Home() {
           {view === "anLogistica" && pode("anLogistica") && <AnaliseLogistica user={user} />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
+          {view === "vendedores" && pode("vendedores") && <Vendedores user={user} />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
