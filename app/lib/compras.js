@@ -703,16 +703,45 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
 }
 
 // ---------- v685 — excluir demanda de compra em qualquer etapa e gerar de novo as demandas de um pedido ----------
-export async function excluirDemandas(ids, quem, db = prisma) {
+// v734 — excluir demanda: só o master ou quem lançou a compra avulsa; justificativa obrigatória, que vai para as mensagens de quem incluiu
+const semAcN = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+const nomeDe = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
+export async function excluirDemandas(ids, quem, db = prisma, { usuario = null, justificativa = "" } = {}) {
+  const just = String(justificativa || "").trim();
+  if (just.length < 3) return { error: "Escreva a justificativa da exclusão." };
+  if (!usuario) return { error: "Usuário inválido." };
   const l = await db.compraItem.findMany({ where: { id: { in: (ids || []).map(Number).filter(Boolean) } } });
+  if (!l.length) return { ok: true, excluidos: 0, etapas: [] };
+  const avIds = [...new Set(l.filter((v) => /^AV\d+$/.test(v.pedidoNumero)).map((v) => Number(v.pedidoNumero.slice(2))))];
+  const AV = Object.fromEntries((avIds.length ? await db.compraAvulsa.findMany({ where: { id: { in: avIds } } }) : []).map((c) => [c.id, c]));
+  const eu = semAcN(nomeDe(usuario));
+  const autorDe = (v) => (/^AV\d+$/.test(v.pedidoNumero) ? AV[Number(v.pedidoNumero.slice(2))]?.criadoPorNome : v.vinculadoPorNome) || null;
+  if (!usuario.isMaster) {
+    const sem = l.filter((v) => !(/^AV\d+$/.test(v.pedidoNumero) && eu && semAcN(autorDe(v)) === eu));
+    if (sem.length) return { error: `Só o master ou quem lançou a compra avulsa exclui a demanda. Sem permissão: ${sem.map((v) => `${v.pedidoNumero} ${v.chave}`).join(", ")}.` };
+  }
+  const quemNome = quem || nomeDe(usuario);
   for (const v of l) {
     if (/^AV\d+$/.test(v.pedidoNumero)) {   // compra avulsa: a linha fica marcada para não voltar
       const c = await db.compraAvulsa.findUnique({ where: { id: Number(v.pedidoNumero.slice(2)) } }).catch(() => null);
       const k = Number(String(v.chave).replace(/\D/g, "")) - 1;
-      if (c && Array.isArray(c.itens) && c.itens[k]) await db.compraAvulsa.update({ where: { id: c.id }, data: { itens: c.itens.map((x, j) => (j === k ? { ...x, removidaCompras: true, removidaPor: quem || null } : x)) } }).catch(() => null);
+      if (c && Array.isArray(c.itens) && c.itens[k]) await db.compraAvulsa.update({ where: { id: c.id }, data: { itens: c.itens.map((x, j) => (j === k ? { ...x, removidaCompras: true, removidaPor: quemNome, removidaMotivo: just } : x)) } }).catch(() => null);
     }
     await db.compraItem.delete({ where: { id: v.id } });
   }
+  // mensagem para quem incluiu cada demanda (uma por pessoa, com as linhas excluídas)
+  const us = await db.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, sobrenome: true } }).catch(() => []);
+  const porAutor = {};
+  for (const v of l) {
+    const a = semAcN(autorDe(v)); if (!a) continue;
+    const dest = us.find((x) => semAcN(nomeDe(x)) === a) || us.find((x) => semAcN(x.nome) === a);
+    if (!dest || dest.id === usuario.id) continue;
+    const c = AV[Number(v.pedidoNumero.slice(2))];
+    const rot = /^AV\d+$/.test(v.pedidoNumero) ? `AVULSA ${c?.numero || v.pedidoNumero} · ${v.descricao || v.chave}` : `PEDIDO ${v.pedidoNumero} · ${v.chave.replace(/^ITEM(\d)/i, "ITEM $1")}${v.descricao ? ` ${v.descricao}` : ""}`;
+    (porAutor[dest.id] ||= []).push(rot);
+  }
+  for (const [paraId, rots] of Object.entries(porAutor))
+    await db.mensagem.create({ data: { deId: usuario.id, paraId: Number(paraId), texto: `🗑 DEMANDA DE COMPRA EXCLUÍDA por ${quemNome}: ${rots.join("; ")}. Justificativa: ${just}`.slice(0, 2000) } }).catch(() => null);
   return { ok: true, excluidos: l.length, etapas: l.map((v) => ({ pedido: v.pedidoNumero, chave: v.chave, status: v.status })) };
 }
 // apaga as demandas do pedido (em qualquer etapa) e gera de novo, no levantamento, pelos itens com FPP

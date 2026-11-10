@@ -6,7 +6,11 @@ import { montarLevantamento, itensAbertos } from "@/lib/compras";
 export async function GET() {
   const itens = await itensAbertos();
   const lev = montarLevantamento(itens);
-  return Response.json({ ...lev, itens: itens.length, pedidos: new Set(itens.map((i) => i.pedidoNumero)).size });
+  // v734 — quem lançou cada compra avulsa (para liberar a exclusão da demanda a essa pessoa)
+  const avIds = [...new Set(itens.filter((i) => /^AV\d+$/.test(i.pedidoNumero)).map((i) => Number(i.pedidoNumero.slice(2))))];
+  const av = avIds.length ? await prisma.compraAvulsa.findMany({ where: { id: { in: avIds } }, select: { id: true, criadoPorNome: true } }) : [];
+  const autores = Object.fromEntries(av.map((c) => [`AV${c.id}`, c.criadoPorNome || null]));
+  return Response.json({ ...lev, autores, itens: itens.length, pedidos: new Set(itens.map((i) => i.pedidoNumero)).size });
 }
 
 // { de, para } junta as demandas do artigo "de" (menos detalhado) no "para"; { de, para: null } desfaz

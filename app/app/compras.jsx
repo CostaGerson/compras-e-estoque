@@ -20,6 +20,7 @@ const dBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const rotPed = (n, cli) => (/^AV\d+$/.test(String(n || "")) ? `Compra avulsa · ${cli || ""}` : `Pedido ${n} · ${cli || ""}`);   // v419
 const nomeUser = (u) => `${u?.nome || ""} ${u?.sobrenome || ""}`.trim();
+const semAcento = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();   // v734
 // v524 — pedido e cliente de cada demanda (cabe no iPad: quebra em linhas)
 function Origens({ l, unidade }) {
   if (!l?.length) return null;
@@ -187,8 +188,16 @@ const ch = (c) => String(c || "").replace(/^ITEM(\d)/i, "ITEM $1");
 const ETAPA = { LEVANTAMENTO: "levantamento", ESTOQUE: "atendida pelo estoque", PIC: "no PIC", OC: "em ordem de compra", NF: "com NF", ENTREGUE: "entregue" };
 export async function excluirDemandas(ids, user, rotulo) {
   if (!ids.length) return false;
-  if (!(await confirmar(`Excluir ${rotulo || `${ids.length} demanda(s) de compra`}? Sai de onde estiver (levantamento, estoque, PIC ou OC) e não volta sozinha. Para recriar, use "Gerar demandas de novo" no pedido.`))) return false;
-  const r = await fetch("/api/compras/itens", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, excluir: true, quem: nomeUser(user) }) });
+  // v734 — justificativa obrigatória: vai para as mensagens de quem incluiu a demanda
+  let just = "";
+  for (;;) {
+    const r0 = await perguntar(`Excluir ${rotulo || `${ids.length} demanda(s) de compra`}? Sai de onde estiver (levantamento, estoque, PIC ou OC) e não volta sozinha.\n\nJustificativa (vai para as mensagens de quem incluiu a demanda):`, just);
+    if (r0 == null) return false;
+    just = String(r0).trim();
+    if (just.length >= 3) break;
+    await alerta("Escreva a justificativa da exclusão.");
+  }
+  const r = await fetch("/api/compras/itens", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, excluir: true, quem: nomeUser(user), usuarioId: user?.id, justificativa: just }) });
   const x = await r.json().catch(() => ({}));
   if (!r.ok) { await alerta(x.error || "Erro ao excluir."); return false; }
   return true;
@@ -358,7 +367,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                               onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
                               onBuscar={() => setBusca({ item: it, pedido: p })}
                               onDesvincular={() => desvincular(p, it)}
-                              onExcluir={async () => { if (await excluirDemandas([it.vinculo.id], user, `a demanda do item ${it.codigo || ch(it.chave)} (${ETAPA[it.vinculo.status] || it.vinculo.status})`)) carregar(); }} />)}
+                              onExcluir={!user?.isMaster ? undefined : async () => { if (await excluirDemandas([it.vinculo.id], user, `a demanda do item ${it.codigo || ch(it.chave)} (${ETAPA[it.vinculo.status] || it.vinculo.status})`)) carregar(); }} />)}
                           </div>
                         </td></tr>
                       )}
@@ -748,6 +757,14 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
     return Object.values(m).sort((a, b) => String(a.entrega || "9").localeCompare(String(b.entrega || "9")));
   }, [d]);
   const nomeArt = useMemo(() => Object.fromEntries((d?.consolidado || []).map((c) => [c.artigoId, c])), [d]);
+  // v734 — excluir demanda: master, ou quem lançou a compra avulsa (todas as marcadas têm de ser avulsas dele)
+  const podeExcluirSel = useMemo(() => {
+    if (user?.isMaster) return true;
+    if (!d || !marc.size) return false;
+    const eu = semAcento(nomeUser(user));
+    const ped = Object.fromEntries(d.linhas.map((l) => [l.itemId, l.pedidoNumero]));
+    return !!eu && [...marc].every((id) => /^AV\d+$/.test(ped[id] || "") && semAcento(d.autores?.[ped[id]]) === eu);
+  }, [d, marc, user]);
 
   const barra = <FasesCompras atual={fase === "cruzamento" ? "comprasCruzamento" : "levantamento"} fases={fases} ir={ir} />;
   if (fase === "cruzamento") return <div className="w-full">{barra}<Cruzamento user={user} veValores={veValores} onMudou={carregar} irPic={irPic} /></div>;
@@ -822,7 +839,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
         </div>
       )}
 
-      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada) ou excluir a demanda.</div>}
+      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada) ou excluir a demanda (master ou quem lançou a compra avulsa, com justificativa).</div>}
       {aba === "itens" && porPedido.map((p) => (
         <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>
@@ -841,7 +858,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
         </div>
       ))}
       {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
-        onExcluir={async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />}
+        onExcluir={!podeExcluirSel ? undefined : async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />}
     </div>
   );
 }
@@ -890,7 +907,7 @@ export function Atendidos({ fases, ir, user }) {
         </div>
       ))}
       <BarraDevolver n={marc.size} rotulo="Devolver para o levantamento" ocupado={ocupado} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
-        onExcluir={async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />
+        onExcluir={!user?.isMaster ? undefined : async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />
     </div>
   );
 }

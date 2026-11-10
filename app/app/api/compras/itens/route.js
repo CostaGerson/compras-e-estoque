@@ -27,7 +27,9 @@ export async function DELETE(req) {
   // v685 — excluir demanda de compra em qualquer etapa: { ids, excluir: true, quem }
   if (Array.isArray(b.ids) && b.excluir) {
     const { excluirDemandas } = await import("@/lib/compras");
-    return Response.json(await excluirDemandas(b.ids, b.quem));
+    const usuario = await prisma.usuario.findUnique({ where: { id: Number(b.usuarioId) || 0 }, select: { id: true, nome: true, sobrenome: true, isMaster: true, ativo: true } });   // v734
+    const r = await excluirDemandas(b.ids, b.quem, prisma, { usuario: usuario?.ativo ? usuario : null, justificativa: b.justificativa });
+    return Response.json(r, { status: r.error ? 403 : 200 });
   }
   // v415 — devolução em lote para Pedidos: { ids: [compraItem.id] } (só os que estão no levantamento)
   if (Array.isArray(b.ids)) {
