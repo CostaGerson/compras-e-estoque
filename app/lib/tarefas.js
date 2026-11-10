@@ -25,11 +25,10 @@ async function projRestritos() {
   return Object.fromEntries(l.map((p) => [p.id, p]));
 }
 const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.id);
-const podeVer = (t, u, R) => {
-  const p = R && t.projetoId ? R[t.projetoId] : null;
-  if (p) return t.responsavelId === u.id || acessoProj(p, u);
-  return t.publica || t.responsavelId === u.id;
-};
+// v733 — regra única: cada um vê só as tarefas em que é o colaborador (responsável) ou que ele mesmo criou
+//   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
+const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id   // criação de layout: só o arte finalista
+  : t.responsavelId === u.id || t.criadoPorId === u.id);
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null)
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
@@ -89,12 +88,12 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   if (escopo === "minhas") where.OR = [{ responsavelId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
   // v600 — "Minha agenda": as minhas + as que eu criei para outras pessoas (antes sumiam e pareciam não salvas) + convites
   else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
-  else if (escopo === "criadas") where.AND = [{ criadoPorId: u.id }, { OR: [{ publica: true }, { responsavelId: u.id }] }];
+  else if (escopo === "criadas") where.criadoPorId = u.id;
   const R = await projRestritos();
   const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
-  if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ publica: true }, { responsavelId: u.id }, ...(meusProj.length ? [{ projetoId: { in: meusProj } }] : []), ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
+  if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v733
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || (escopo === "agenda" && t.criadoPorId === u.id && t.publica));
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R));
   return enriquecer(l, u);
 }
 
@@ -133,7 +132,7 @@ export async function detalhe(id, u) {
   const users = await prisma.usuario.findMany({ where: { id: { in: [...new Set(t.sessoes.map((s) => s.usuarioId))] } }, select: { id: true, nome: true } });
   const U = Object.fromEntries(users.map((x) => [x.id, x.nome]));
   return { ...r, arquivos: t.arquivos, sessoes: t.sessoes.map((s) => ({ ...s, usuarioNome: U[s.usuarioId] || "?" })),
-    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true, projetoId: true } }))
+    dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true, criadoPorId: true, projetoId: true } }))
       .filter((x) => (x.dependencias || []).includes(t.id) && podeVer(x, u, R)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
 }
 
@@ -428,7 +427,7 @@ export async function statusEquipe(u) {
   const a = agoraSP();
   const [users, sessoes, m, ferias] = await Promise.all([
     prisma.usuario.findMany({ where: { ativo: true }, select: SEL_U, orderBy: { nome: "asc" } }),
-    prisma.tarefaSessao.findMany({ where: { fim: null }, include: { tarefa: { select: { id: true, titulo: true, publica: true, responsavelId: true, setor: true } } } }),
+    prisma.tarefaSessao.findMany({ where: { fim: null }, include: { tarefa: { select: { id: true, titulo: true, publica: true, responsavelId: true, criadoPorId: true, setor: true } } } }),
     prisma.finMatriz.findFirst({ where: { oficial: true }, select: { dados: true } }),
     prisma.rhFerias.findMany({ where: { status: { not: "CANCELADA" }, inicio: { lte: dUTC(a.data) }, fim: { gte: dUTC(a.data) } } }).catch(() => []),
   ]);
@@ -444,7 +443,7 @@ export async function statusEquipe(u) {
     if (p && deFerias.has(p.id)) { status = "INATIVO"; detalhe = "de férias"; }
     else if (s) {
       status = "OCUPADO";
-      const vis = s.tarefa.publica || s.tarefa.responsavelId === u.id;
+      const vis = podeVer(s.tarefa, u);   // v733
       detalhe = { tarefaId: vis ? s.tarefa.id : null, titulo: vis ? s.tarefa.titulo : "demanda privada", setor: s.tarefa.setor, desde: s.inicio };
     } else if (x.statusManual === "REUNIAO") { status = "REUNIAO"; detalhe = { desde: x.statusDesde }; }
     else if (!exp) { status = "INATIVO"; detalhe = "fora do expediente"; }

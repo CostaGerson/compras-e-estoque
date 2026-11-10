@@ -787,7 +787,7 @@ function LayoutTarefa({ t, user, onMudou }) {
         <span className="text-xs" style={{ color: C.sub }}>pedido {L.numero} · {L.cliente}{L.vendedor ? ` · vendedor ${L.vendedor}` : ""}</span>
         <button onClick={abrirOp} disabled={!d} className="ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> Abrir OP</button>
       </div>
-      {L.motivo && criacao && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.redSoft, color: C.red }}>Reprovado: {L.motivo}</div>}
+      {L.motivo && criacao && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.redSoft, color: C.red }}>Reprovado — instruções do vendedor: {L.motivo}</div>}
       {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
       {!d && !erro && <Loader2 size={15} className="animate-spin" style={{ color: C.sub }} />}
       {d && d.itens.map((i) => (
@@ -814,7 +814,7 @@ function LayoutTarefa({ t, user, onMudou }) {
       ))}
       {d && criacao && meu && aberta && <div className="flex justify-end"><Btn cor="#7E3AF2" disabled={!!ocup || d.itens.some((i) => !i.arquivo)} onClick={() => acao("enviar")}>{ocup === "enviar" ? "Enviando…" : "Enviar para aprovação do vendedor"}</Btn></div>}
       {d && !criacao && meu && aberta && <div className="mt-1">
-        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Motivo (obrigatório para reprovar)" className={inp} style={inpS} />
+        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Instruções para o arte finalista (obrigatório para reprovar)" className={inp} style={inpS} />
         <div className="flex justify-end gap-2 mt-2">
           <Btn fundo={C.redSoft} cor={C.red} disabled={!!ocup} onClick={() => acao("reprovar")}>Reprovar</Btn>
           <Btn cor={C.green} disabled={!!ocup} onClick={() => acao("aprovar")}><CheckCircle2 size={13} /> Aprovar layout</Btn>

@@ -43,9 +43,10 @@ export async function gerarCriacaoLayout(ppId, quem) {
   const t = await prisma.tarefa.create({ data: {
     titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${pp.numero} · ${String(pp.clienteNome || "").toUpperCase()}`.slice(0, 200),
     descricao: `Itens sem layout: ${falta.map(({ idx, it }) => `${idx + 1}. ${it.descricao || it.codigo || "item"}`).join(" · ")}\nAnexe o layout de cada item aqui na tarefa e envie para aprovação do vendedor.`,
-    setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: criador.id, criadoPorNome: nomeU(criador),
-    prazo: dUTC(hoje), tipo: "PADRAO", publica: true, natureza: "FUNCIONAL", lembreteMin: null,
-    layout: { etapa: "CRIACAO", ppId: pp.id, numero: pp.numero, cliente: pp.clienteNome || "", vendedor: pp.vendedor || "", itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
+    // v733 — a criação é só do arte finalista (criada no nome dele): o vendedor só recebe tarefa quando o layout vai para aprovação
+    setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
+    prazo: dUTC(hoje), tipo: "PADRAO", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
+    layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: pp.clienteNome || "", vendedor: pp.vendedor || "", itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
   } });
   await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${pp.clienteNome || ""}): ${falta.length} item(ns) sem layout. Veja na agenda.` } }).catch(() => {});
   return t.id;
@@ -85,7 +86,7 @@ export async function enviarAprovacao(t, u) {
   const falta = (L.itens || []).filter((x) => !x.arquivoId);
   if (falta.length) return { error: `Falta o layout de: ${falta.map((x) => `${x.idx + 1}. ${x.descricao}`).join(", ")}.` };
   const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, select: { vendedor: true, efetivadoPorNome: true } });
-  const vend = await vendedorDe(pp?.vendedor || L.vendedor, t.criadoPorId);
+  const vend = await vendedorDe(pp?.vendedor || L.vendedor, L.criadorId || t.criadoPorId);
   if (!vend) return { error: "Não achei o vendedor do pedido entre os usuários." };
   const hoje = hojeSP();
   const ap = await prisma.tarefa.create({ data: {
@@ -113,16 +114,29 @@ export async function decidirLayout(t, u, aprovar, motivo) {
   if (L.etapa !== "APROVACAO") return { error: "Esta tarefa não é de aprovação de layout." };
   if (t.status === "CONCLUIDA") return { error: "Aprovação já decidida." };
   if (!aprovar) {
-    if (String(motivo || "").trim().length < 3) return { error: "Escreva o motivo da reprovação." };
+    if (String(motivo || "").trim().length < 3) return { error: "Escreva as instruções para o arte finalista." };
     const arte = await arteFinalista();
     if (!arte) return { error: "Sem arte finalista cadastrado." };
-    const nova = await prisma.tarefa.create({ data: {
-      titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${L.numero} · ${String(L.cliente || "").toUpperCase()} (REVISÃO)`.slice(0, 200),
-      descricao: `Layout reprovado por ${nomeU(u)}: ${String(motivo).trim()}\nRefaça e envie de novo para aprovação.`,
-      setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: u.id, criadoPorNome: nomeU(u),
-      prazo: dUTC(hojeSP()), tipo: "URGENTE", publica: true, natureza: "FUNCIONAL", lembreteMin: null,
-      layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: String(motivo).trim(), itens: (L.itens || []).map(({ arquivoId, ...x }) => x) },
-    } });
+    // v733 — reprovado: a própria tarefa de criação volta a ficar em aberto para o arte finalista (com as instruções)
+    const inst = String(motivo).trim();
+    const orig = L.origemId ? await prisma.tarefa.findUnique({ where: { id: Number(L.origemId) } }) : null;
+    let nova;
+    if (orig && orig.status !== "CANCELADA") {
+      const Lo = orig.layout || {};
+      nova = await prisma.tarefa.update({ where: { id: orig.id }, data: {
+        status: "ABERTA", concluidaEm: null, concluidaPorNome: null, retorno: null, prazo: dUTC(hojeSP()), tipo: "URGENTE",
+        descricao: `${String(orig.descricao || "").split("\n⚠ REPROVADO")[0]}\n⚠ REPROVADO por ${nomeU(u)}: ${inst}`.slice(0, 5000),
+        layout: { ...Lo, etapa: "CRIACAO", motivo: inst, reprovacoes: (Number(Lo.reprovacoes) || 0) + 1 },
+      } });
+    } else {
+      nova = await prisma.tarefa.create({ data: {
+        titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${L.numero} · ${String(L.cliente || "").toUpperCase()} (REVISÃO)`.slice(0, 200),
+        descricao: `Layout reprovado por ${nomeU(u)}: ${inst}\nRefaça e envie de novo para aprovação.`,
+        setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
+        prazo: dUTC(hojeSP()), tipo: "URGENTE", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
+        layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, itens: (L.itens || []).map(({ arquivoId, ...x }) => x) },
+      } });
+    }
     await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}` } });
     await prisma.mensagem.create({ data: { deId: u.id, paraId: arte.id, texto: `🎨 LAYOUT REPROVADO — pedido ${L.numero}: ${String(motivo).trim()}` } }).catch(() => {});
     return { ok: true, novaId: nova.id };

@@ -63,6 +63,8 @@ export const VISAO_DO_TIPO = {
   BASICO: "Agenda, tarefas e rota",
 };
 
+// v733 — arte finalista (Ayrllon): só agenda e as próprias tarefas (sem ADM, rota, dados…); entra direto nas tarefas
+export const soTarefas = (u) => !!u && !u.isMaster && !u.diretoria && u.setor === "ARTE";
 export const ehMaster = (u) => !!u && !!u.isMaster;                 // v170 — setor FINANCEIRO não é mais master
 export const ehDiretor = (u) => !!u && !!u.diretoria && !u.isMaster;
 export const gerencial = (u) => ehMaster(u) || ehDiretor(u);         // todos os painéis gerenciais e todas as funções
