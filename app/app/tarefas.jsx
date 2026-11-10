@@ -1176,6 +1176,42 @@ function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, on
 const PERIODOS = [["Manhã", "MANHA"], ["Tarde", "TARDE"]];
 // v600 — sem horário vale o período escolhido (soltar no período não inventa hora)
 const periodoDe = (t) => (t.hora ? (t.hora >= "12:00" ? "TARDE" : "MANHA") : t.periodo === "TARDE" ? "TARDE" : "MANHA");
+/* v741 — aviso do PCP: itens sem categoria (sugestão do Igor). Fica no topo da agenda até tudo ser classificado no PCP. */
+function AvisoSemCategoria({ user }) {
+  const [d, setD] = useState(null);
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    const ler = () => api(`/api/producao/sem-categoria?u=${user.id}`).then((j) => { if (vivo) setD(j); }).catch(() => {});
+    ler(); const t = setInterval(ler, 10 * 60 * 1000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [user?.id]);
+  if (!d || !d.mostrar || !(d.total > 0)) return null;
+  return (
+    <div className="mb-2 rounded-lg px-3 py-2 text-sm" style={{ background: "#FFF6DD", border: "1px solid #D97706", color: "#92400E" }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <AlertTriangle size={15} className="shrink-0" />
+        <span className="font-semibold">PCP: {d.total} item(ns) sem categoria{d.pecas ? ` · ${d.pecas.toLocaleString("pt-BR")} peças` : ""}</span>
+        <span className="text-xs">— classifique antes de puxar o relatório do mês.</span>
+        <span className="flex-1" />
+        <button onClick={() => setAberto((v) => !v)} className="text-xs font-semibold underline">{aberto ? "esconder" : "ver itens"}</button>
+        <a href={d.link} target="_blank" rel="noreferrer" className="text-xs font-semibold rounded-md px-2 py-1" style={{ background: "#D97706", color: "#fff" }}>Classificar no PCP</a>
+      </div>
+      {aberto && (
+        <div className="mt-2 flex flex-col gap-1">
+          {d.itens.map((i, k) => (
+            <div key={k} className="flex items-center gap-2 text-xs rounded px-2 py-1" style={{ background: "#fff" }}>
+              <span className="font-semibold shrink-0">{i.pedido || "—"}</span>
+              <span className="truncate flex-1">{i.produto}{i.cliente ? ` · ${i.cliente}` : ""}</span>
+              <span className="shrink-0 font-semibold">{(Number(i.pecas) || 0).toLocaleString("pt-BR")} pç</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Agenda({ user, pedidoModo, onModo }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
   const [modo, setModo] = useState(pedidoModo?.modo === "mes" ? "mes" : "semana");        // abre na semana atual
@@ -1482,6 +1518,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
             {mobile && <button onClick={() => setProjForm({})} title="Novo projeto" className="p-2 rounded-lg shrink-0" style={{ border: `1px solid ${A.linha}`, color: A.sub }}><Plus size={18} /></button>}
           </div>
           <div className="pb-2"><AvisosPush user={user} C={C} rotulo="lembretes no celular (antes de cada tarefa com horário; padrão 30 min)" compacto /></div>
+          {visao !== "PESSOAL" && <AvisoSemCategoria user={user} />}
           <div className={`flex items-center gap-1 pb-2 ${mobile ? "flex-wrap" : ""}`}>
             {mobile ? <>
               {/* v590 — celular: semanal e mensal no lugar de Calendário / Tarefas */}
