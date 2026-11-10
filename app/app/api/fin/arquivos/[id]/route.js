@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { usuarioMaster, usuarioSoMaster, soMaster, negado, conciliarCompetencia } from "@/lib/fin";
+import { usuarioMaster, usuarioSoMaster, soMaster, negado, excluirArquivoFin } from "@/lib/fin";
 
 // GET ?u= → abre o PDF
 export async function GET(req, { params }) {
@@ -20,8 +20,5 @@ export async function GET(req, { params }) {
 export async function DELETE(req, { params }) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioSoMaster(sp.get("u"), "docsFinanceiros"))) return soMaster();
-  const a = await prisma.finArquivo.findUnique({ where: { id: Number(params.id) }, select: { competencia: true } });
-  await prisma.finArquivo.delete({ where: { id: Number(params.id) } }).catch(() => null);
-  if (a) await conciliarCompetencia(a.competencia).catch(() => null); // desfaz trocas que dependiam deste arquivo
-  return Response.json({ ok: true });
+  return Response.json(await excluirArquivoFin(params.id));   // v751 — lançamentos saem junto (DRE)
 }

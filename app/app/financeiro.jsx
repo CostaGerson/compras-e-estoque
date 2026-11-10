@@ -3761,7 +3761,7 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
   };
 
   const excluir = async (doc) => {
-    if (!(await confirmar(`Excluir ${doc.nome} do pacote da contabilidade?`))) return;
+    if (!(await confirmar(doc.arquivoId ? `Excluir ${doc.nome}? Ele também sai da Importação e os lançamentos dele saem da DRE.` : `Excluir ${doc.nome} do pacote da contabilidade?`))) return;   // v751
     await fetch(`/api/fin/contab/${doc.id}?u=${user.id}`, { method: "DELETE" });
     carregar();
   };
@@ -3941,7 +3941,7 @@ function SlotArquivo({ doc, formato, user, onExcluir, onPedir, dica }) {
             </div>
           </a>
           {podeImportar(user, "docsFinanceiros") && <button onClick={() => onExcluir(doc)} style={{ color: C.sub }}
-            title={doc.arquivoId ? "Este PDF vem da guia Importação — se excluir aqui, ele volta quando a guia recarregar. Para tirar de vez, exclua na Importação." : "Excluir"}>
+            title={doc.arquivoId ? "Exclui também o documento da Importação e os lançamentos dele (saem da DRE)" : "Excluir"}>
             <Trash2 size={14} />
           </button>}
         </>

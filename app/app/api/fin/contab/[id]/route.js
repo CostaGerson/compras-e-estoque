@@ -32,6 +32,9 @@ export async function DELETE(req, { params }) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuarioSoMaster(sp.get("u"), "docsFinanceiros"))) return soMaster();
   const id = Number(params.id);
+  // v751 — cópia de um documento da Importação: exclui o documento de origem e os lançamentos dele (somem da DRE)
+  const doc = await prisma.finContabDoc.findUnique({ where: { id }, select: { arquivoId: true } }).catch(() => null);
+  if (doc?.arquivoId) { const { excluirArquivoFin } = await import("@/lib/fin"); return Response.json(await excluirArquivoFin(doc.arquivoId)); }
   await prisma.finNfSaida.deleteMany({ where: { docId: id } }).catch(() => null);
   await prisma.finContabDoc.delete({ where: { id } }).catch(() => null);
   return Response.json({ ok: true });

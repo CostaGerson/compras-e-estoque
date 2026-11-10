@@ -484,3 +484,34 @@ export const dadosRegra = (b) => {
   return d;
 };
 
+
+// v751 — excluir um documento financeiro (extrato, fatura, detalhamento…) tira junto TODOS os lançamentos dele
+//   (e as partes desmembradas), as cópias na Contabilidade e as NFs lidas delas; a conta a pagar/receber que tinha baixa
+//   por esses lançamentos continua com o status, só perde o vínculo. Refaz a conciliação dos meses afetados (DRE).
+export async function excluirArquivoFin(id) {
+  const n = Number(id) || 0;
+  const a = await prisma.finArquivo.findUnique({ where: { id: n }, select: { id: true, competencia: true } });
+  const lanc = await prisma.finLancamento.findMany({ where: { arquivoId: n }, select: { id: true, competencia: true } });
+  const partes = lanc.length ? await prisma.finLancamento.findMany({ where: { paiId: { in: lanc.map((l) => l.id) } }, select: { id: true, competencia: true } }) : [];
+  const ids = [...lanc, ...partes].map((l) => l.id);
+  const comps = new Set([...lanc, ...partes].map((l) => l.competencia).concat(a ? [a.competencia] : []));
+  if (ids.length) {
+    await prisma.finTitulo.updateMany({ where: { lancamentoId: { in: ids } }, data: { lancamentoId: null } }).catch(() => null);
+    await prisma.finLancamento.deleteMany({ where: { id: { in: ids } } });
+  }
+  const copias = await prisma.finContabDoc.findMany({ where: { arquivoId: n }, select: { id: true } }).catch(() => []);
+  if (copias.length) {
+    await prisma.finNfSaida.deleteMany({ where: { docId: { in: copias.map((c) => c.id) } } }).catch(() => null);
+    await prisma.finContabDoc.deleteMany({ where: { arquivoId: n } }).catch(() => null);
+  }
+  if (a) await prisma.finArquivo.delete({ where: { id: n } }).catch(() => null);
+  await limparLancamentosOrfaos().catch(() => null);
+  for (const c of comps) await conciliarCompetencia(c).catch(() => null);
+  return { ok: true, lancamentos: ids.length };
+}
+// lançamentos de documento que não existe mais (arquivo apagado sem levar os lançamentos) saem
+export async function limparLancamentosOrfaos() {
+  const r = await prisma.$executeRawUnsafe(`DELETE FROM "FinLancamento" l WHERE l."arquivoId" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "FinArquivo" a WHERE a."id" = l."arquivoId")`);
+  await prisma.$executeRawUnsafe(`DELETE FROM "FinLancamento" l WHERE l."paiId" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "FinLancamento" p WHERE p."id" = l."paiId")`);
+  return r;
+}

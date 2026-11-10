@@ -156,15 +156,11 @@ export async function excluirUpload(id) {
   const { origem, n, campo } = partes(id);
   if (!n) throw new Error("Documento inválido.");
   if (origem === "ARQ") {
-    const a = await prisma.finArquivo.findUnique({ where: { id: n }, select: { competencia: true } });
-    const copias = await prisma.finContabDoc.findMany({ where: { arquivoId: n }, select: { id: true } });
-    if (copias.length) {
-      await prisma.finNfSaida.deleteMany({ where: { docId: { in: copias.map((c) => c.id) } } }).catch(() => null);
-      await prisma.finContabDoc.deleteMany({ where: { arquivoId: n } });
-    }
-    await prisma.finArquivo.delete({ where: { id: n } });     // os lançamentos lidos dele vão junto
-    if (a) await conciliarCompetencia(a.competencia).catch(() => null);
+    const { excluirArquivoFin } = await import("@/lib/fin");   // v751 — lançamentos, partes e cópias saem junto
+    await excluirArquivoFin(n);
   } else if (origem === "CONTAB") {
+    const doc = await prisma.finContabDoc.findUnique({ where: { id: n }, select: { arquivoId: true } }).catch(() => null);
+    if (doc?.arquivoId) { const { excluirArquivoFin } = await import("@/lib/fin"); await excluirArquivoFin(doc.arquivoId); return; }   // v751 — cópia da Importação
     await prisma.finNfSaida.deleteMany({ where: { docId: n } }).catch(() => null);
     await prisma.finContabDoc.delete({ where: { id: n } });
   } else if (origem === "ANEXO") {
