@@ -151,7 +151,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
         layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, itens: (L.itens || []).map(({ arquivoId, arquivoIds, ...x }) => x) },
       } });
     }
-    await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}` } });
+    await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}`, layout: { ...L, decisao: "REPROVADO" } } });
     await prisma.mensagem.create({ data: { deId: u.id, paraId: arte.id, texto: `🎨 LAYOUT REPROVADO — pedido ${L.numero}: ${String(motivo).trim()}` } }).catch(() => {});
     return { ok: true, novaId: nova.id };
   }
@@ -168,7 +168,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
     const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
     await prisma.ppItem.update({ where: { id: it.id }, data: { ...(foto ? { fotoBase64: `data:${foto.mime || "image/png"};base64,${foto.conteudo}` } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
   }
-  await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido." } });
+  await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, decisao: "APROVADO", aprovadoEm: new Date().toISOString() } } });   // v755
   if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).` } }).catch(() => {}); }
   return { ok: true };
 }

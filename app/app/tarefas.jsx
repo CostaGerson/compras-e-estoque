@@ -756,6 +756,7 @@ function LayoutTarefa({ t, user, onMudou }) {
   const criacao = L.etapa === "CRIACAO";
   const meu = t.responsavelId === user.id;
   const aberta = t.status !== "CONCLUIDA" && t.status !== "CANCELADA";
+  const aprovado = L.decisao === "APROVADO" || (!criacao && !aberta && /aprovado —/i.test(t.retorno || ""));   // v755 — só depois de aprovado é a OP de verdade
   const ler = () => fetch(`/api/tarefas/${t.id}/layout?u=${user.id}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); }).catch((e) => setErro(e.message));
   useEffect(() => { ler(); }, [t.id, t.arquivos?.length]);
   const post = async (corpo) => { const r = await fetch(`/api/tarefas/${t.id}/layout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); const x = await r.json().catch(() => ({})); if (!r.ok) throw new Error(x.error || "Erro."); return x; };
@@ -783,7 +784,8 @@ function LayoutTarefa({ t, user, onMudou }) {
       prazoEntrega: d.pedido.prazoDias != null ? `${d.pedido.prazoDias} dias ${d.pedido.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "" },
       d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
         fotoBase64: "", anexos: [...(i.arquivos || (i.arquivo ? [i.arquivo] : [])).map((a) => ({ nome: `Layout · ${a.nome}`, mime: a.mime, src: urlArq(a) })), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
-      { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta });
+      { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta,
+        previa: aprovado ? null : "PRÉVIA — layout aguardando aprovação. Os arquivos só entram na OP do pedido depois que o vendedor aprovar." });   // v755
   };
   const img = (a) => /^image\//.test(a?.mime || "") || /\.(png|jpe?g|gif|webp)$/i.test(a?.nome || "");
   return (
@@ -791,7 +793,7 @@ function LayoutTarefa({ t, user, onMudou }) {
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-sm font-bold" style={{ color: criacao ? "#7E3AF2" : C.accent }}>🎨 {criacao ? "Criação de layout" : "Aprovação de layout"}</span>
         <span className="text-xs" style={{ color: C.sub }}>pedido {L.numero} · {L.cliente}{L.vendedor ? ` · vendedor ${L.vendedor}` : ""}</span>
-        <button onClick={abrirOp} disabled={!d} className="ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> Abrir OP</button>
+        <button onClick={abrirOp} disabled={!d} className="ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}><FileText size={12} /> {aprovado ? "Abrir OP" : "Prévia da OP"}</button>
       </div>
       {L.motivo && criacao && <div className="text-xs mb-2 p-2 rounded" style={{ background: C.redSoft, color: C.red }}>Reprovado — instruções do vendedor: {L.motivo}</div>}
       {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}

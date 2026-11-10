@@ -60,7 +60,7 @@ function cfHtml(c) {
   return `<div class="sec">Cliente final e envio</div><table class="pag">${l.map(([k, v]) => `<tr><td class="b" style="width:130px">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`;
 }
 
-export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [] } = {}) {
+export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [], previa = null } = {}) {   // v755 — previa: faixa de aviso (não é a OP oficial)
   const PV = tipo === "PV";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const servico = !!f.servico || f.tipoPedido === "SERVIÇO";
@@ -186,7 +186,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   table.params td { border: 1px solid #EEF0F3; padding: 3px 6px; }
   table.params td.pk { color: #667085; width: 34%; text-transform: uppercase; font-size: 9px; }
   .rod { margin-top: 16px; display: flex; justify-content: space-between; color: #98A2B3; font-size: 8.5px; border-top: 1px solid #E4E7EC; padding-top: 5px; }
-</style></head><body>
+</style></head><body>${previa ? `<div style="background:#FFF4E5;border:2px dashed #FF6B1A;color:#B54708;font-weight:700;text-align:center;padding:8px;margin-bottom:10px;font-size:13px">${previa}</div>` : ""}
   <div class="top">
     <div class="marca">
       <img src="${origin}/meridian-wordmark.svg" onerror="this.outerHTML='<div class=&quot;t&quot;>MERIDIAN</div>'"/>
