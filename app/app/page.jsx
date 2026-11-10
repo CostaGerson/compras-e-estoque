@@ -140,7 +140,7 @@ const MENU = [
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
-    { key: "itensKm", label: "Itens KM", icon: Database, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Todos os itens cadastrados no KM com os detalhes: parâmetros de produção, NCM, GTIN e último preço (só leitura)" },   // v670
+    { key: "itensKm", label: "Itens", icon: Database, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Todos os itens cadastrados no KM com os detalhes: parâmetros de produção, NCM, GTIN e último preço (só leitura)" },   // v670
     { key: "itensPadrao", label: "Itens padrão", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL"], desc: "Itens de alto giro ou padronizados por cliente: nome interno, nome NF, FPP, preço, NCM, layout e tabela de medidas" },   // v647
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },

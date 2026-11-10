@@ -138,3 +138,49 @@ export async function sugerirCodigo({ tipoPeca, codigoKm, nome } = {}) {
   if (!v) v = (t.variacoes || [])[0]?.n || 1;
   return { sigla: t.sigla, variacao: v, variacaoNome: (t.variacoes || []).find((x) => x.n === v)?.nome || null, codigo: await proximoCodigo(t.sigla, v) };
 }
+
+// v754 — ao efetivar o pedido, cada produto vira (ou atualiza) um item do cadastro: pelo item de origem, pelo código
+//   ou pela descrição. Novo: entra com descrição, tipo, código, parâmetros, FPP, layout (foto) e preço praticado, ligado
+//   ao cliente; já existente: ganha o cliente, o preço praticado mais recente e o que faltava (foto, FPP, parâmetros).
+export async function registrarItensDoPedido(ppId, quem = null) {
+  const pp = await prisma.pp.findUnique({ where: { id: Number(ppId) }, include: { itens: true } });
+  if (!pp || pp.tipoPedido === "SERVIÇO") return { novos: 0, atualizados: 0 };
+  const doc = so(pp.clienteCnpj);
+  const cli = doc ? await prisma.cliente.findFirst({ where: { OR: [{ cnpj: doc }, { cnpj: pp.clienteCnpj }] }, select: { id: true } }).catch(() => null) : null;
+  const safe = (s, d) => { try { return JSON.parse(s || ""); } catch { return d; } };
+  let novos = 0, atualizados = 0;
+  for (const it of pp.itens) {
+    const desc = up(it.descricao);
+    if (!desc || up(it.tipoPecaNome) === "SERVIÇO") continue;
+    const codigo = up(it.codigo);
+    const preco = it.desconto && it.desconto.base ? num(it.desconto.base) : num(it.valorUnitario);
+    const params = Object.fromEntries(Object.entries(safe(it.parametrosJson, {})).filter(([, v]) => v != null && v !== ""));
+    let ex = it.itemPadraoId ? await prisma.itemPadrao.findUnique({ where: { id: it.itemPadraoId } }) : null;
+    if (!ex && codigo) ex = await prisma.itemPadrao.findFirst({ where: { ativo: true, OR: [{ codigo }, { codigoPadrao: codigo }] }, orderBy: { id: "asc" } });
+    // sem código: só junta com item de mesma descrição do mesmo cliente (descrição genérica de outro cliente pode ser outro produto)
+    if (!ex && !codigo && cli) ex = await prisma.itemPadrao.findFirst({ where: { ativo: true, OR: [{ nomeNf: desc }, { nomeInterno: desc }], clienteIds: { array_contains: [cli.id] } }, orderBy: { id: "asc" } }).catch(() => null);
+    if (ex) {
+      const ids = [...new Set([...(Array.isArray(ex.clienteIds) ? ex.clienteIds : []).map(Number), ...(cli ? [cli.id] : [])])];
+      await prisma.itemPadrao.update({ where: { id: ex.id }, data: {
+        clienteIds: ids, ...(preco != null ? { precoAtual: preco } : {}),
+        ...(!ex.fotoBase64 && it.fotoBase64 ? { fotoBase64: it.fotoBase64 } : {}),
+        ...(!ex.fppId && it.fppId ? { fppId: it.fppId, fppNumero: it.fppNumero } : {}),
+        ...(!ex.codigo && codigo ? { codigo } : {}),
+        ...((!ex.parametros || !Object.keys(ex.parametros).length) && Object.keys(params).length ? { parametros: params } : {}),
+        atualizadoPorNome: quem,
+      } }).catch(() => null);
+      if (!it.itemPadraoId) await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: ex.id } }).catch(() => null);
+      atualizados++;
+      continue;
+    }
+    let codigoPadrao = null;
+    if (it.tipoPecaNome) { const sg = await sugerirCodigo({ tipoPeca: it.tipoPecaNome, codigoKm: codigo, nome: desc }).catch(() => null); if (sg?.codigo) codigoPadrao = sg.codigo; }
+    const n = await prisma.itemPadrao.create({ data: {
+      nomeInterno: desc, nomeNf: desc, clienteIds: cli ? [cli.id] : [], fppId: it.fppId || null, fppNumero: it.fppNumero || null,
+      tipoPecaNome: up(it.tipoPecaNome), codigo, codigoPadrao, parametros: Object.keys(params).length ? params : null,
+      fotoBase64: it.fotoBase64 || null, precoAtual: preco, obs: `Cadastrado pelo pedido ${pp.numero || pp.id}`, criadoPorNome: quem, atualizadoPorNome: quem,
+    } }).catch(() => null);
+    if (n) { novos++; await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: n.id } }).catch(() => null); }
+  }
+  return { novos, atualizados };
+}

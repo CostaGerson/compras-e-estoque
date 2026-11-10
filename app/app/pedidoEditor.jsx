@@ -397,7 +397,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     if (!clienteIdSel) { setPadroes([]); return; }
     fetch(`/api/itens-padrao?cliente=${clienteIdSel}`).then((r) => r.json()).then((d) => setPadroes(Array.isArray(d) ? d : [])).catch(() => setPadroes([]));
   }, [clienteIdSel]);
-  const usarPadrao = async (p) => {
+  const usarPadrao = async (p, alvo = null) => {
     const d = await fetch(`/api/itens-padrao/${p.id}`).then((r) => r.json()).catch(() => null);
     if (!d || d.error) return alerta("Não consegui ler o item padrão.");
     const rf = d.fppId ? await api(`/api/pp/catalogo?fppId=${d.fppId}`).then((r) => r.json()).catch(() => null) : null;
@@ -413,11 +413,34 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const item = { ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
       valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id };
     // ocupa o primeiro item vazio; senão acrescenta
+    // v754 — escolhido no próprio item (código/descrição): entra nele, mantendo a grade já digitada
+    if (alvo != null) { setItens((arr) => arr.map((it, j) => (j === alvo ? { ...item, grade: qtdGrade(it.grade) ? it.grade : item.grade, dadosUnitarios: it.dadosUnitarios || null } : it))); setBuscaPadrao(""); if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`); return; }
     setItens((arr) => { const k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); return k >= 0 ? arr.map((it, j) => (j === k ? item : it)) : [...arr, item]; });
     setBuscaPadrao("");
     if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`);
   };
-  const opPadrao = (() => { const t = norm(buscaPadrao); if (!t) return padroes.slice(0, 12); const pal = t.split(/\s+/).filter(Boolean); return padroes.filter((p) => pal.every((w) => norm([p.nomeInterno, p.nomeNf, p.codigo].join(" ")).includes(w))).slice(0, 12); })();
+  // v754 — busca em todo o cadastro de itens (código, código padrão, descrição, nome interno, cliente); os do cliente vêm primeiro
+  const [globais, setGlobais] = useState([]);
+  useEffect(() => {
+    const t = buscaPadrao.trim(); if (t.length < 2) { setGlobais([]); return; }
+    const h = setTimeout(() => fetch(`/api/itens-padrao?q=${encodeURIComponent(t)}`).then((r) => r.json()).then((d) => setGlobais(Array.isArray(d) ? d : [])).catch(() => setGlobais([])), 250);
+    return () => clearTimeout(h);
+  }, [buscaPadrao]);
+  const opPadrao = (() => { const t = norm(buscaPadrao); if (!t) return padroes.slice(0, 12); const pal = t.split(/\s+/).filter(Boolean);
+    const doCli = padroes.filter((p) => pal.every((w) => norm([p.nomeInterno, p.nomeNf, p.codigo, p.codigoPadrao].join(" ")).includes(w)));
+    const ids = new Set(doCli.map((p) => p.id));
+    return [...doCli, ...globais.filter((p) => !ids.has(p.id))].slice(0, 15); })();
+  // v754 — campos Código/Descrição do item: cadastro de itens primeiro (puxa tudo), depois o cadastro do KM
+  const buscarItem = async (q) => {
+    const [ps, km] = await Promise.all([fetch(`/api/itens-padrao?q=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => []), buscarItemKm(q)]);
+    return [...(Array.isArray(ps) ? ps : []).slice(0, 6).map((p) => ({ _padrao: p, codigo: p.codigo || p.codigoPadrao || "", descricao: p.nomeNf })), ...(Array.isArray(km) ? km : [])];
+  };
+  const pickItem = (i, o) => (o._padrao ? usarPadrao(o._padrao, i) : pickItemKm(i, o));
+  const renderItem = (p, codigoPrimeiro) => p._padrao
+    ? <span><span className="text-[10px] font-bold px-1 rounded mr-1" style={{ background: C.accentSoft, color: C.accent }}>CADASTRO</span>{codigoPrimeiro ? <><b>{p.codigo || "sem código"}</b> · {p._padrao.nomeNf}</> : <><b>{p._padrao.nomeNf}</b>{p.codigo ? ` · ${p.codigo}` : ""}</>}
+        <span style={{ color: C.sub }}>{p._padrao.clientes?.length ? ` · ${p._padrao.clientes.map((c) => c.nome).slice(0, 2).join(", ")}` : ""}{veVal && p._padrao.precoAtual != null ? ` · ${money(p._padrao.precoAtual)}` : ""}</span></span>
+    : codigoPrimeiro ? <span><b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""} · KM</span></span>
+      : <span><b>{p.descricao}</b> <span style={{ color: C.sub }}>· {p.codigo}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""} · KM</span></span>;
   const tirarFpp = (i) => setItens((arr) => arr.map((it, j) => { if (j !== i) return it; const { TECIDO, ...p } = it.parametros || {}; return { ...it, fppId: null, fppNumero: null, fpp: null, parametros: p }; }));
 
   // ---------- entregas ----------
@@ -750,22 +773,22 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         ))}
         {podeLancar && <button type="button" onClick={() => setItens((arr) => [...arr, novoServico()])} className="mt-1 px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Adicionar serviço</button>}
       </Card>}
-      {!f.servico && podeLancar && padroes.length > 0 && (
+      {!f.servico && podeLancar && (
         <div className="rounded-lg p-4 mb-4" style={{ background: C.accentSoft, border: `2px solid ${C.accent}` }}>
-          <div className="flex items-center gap-2 mb-2"><Search size={16} style={{ color: C.accent }} /><span className="font-bold text-sm" style={{ color: C.accent }}>Itens padrão de {f.clienteNome || "este cliente"} ({padroes.length})</span>
-            <span className="text-xs" style={{ color: C.sub }}>· digite o nome do item: os dados entram preenchidos (nome da NF, preço, parâmetros, layout e FPP)</span></div>
+          <div className="flex items-center gap-2 mb-2"><Search size={16} style={{ color: C.accent }} /><span className="font-bold text-sm" style={{ color: C.accent }}>Buscar item cadastrado{padroes.length ? ` · ${padroes.length} de ${f.clienteNome || "este cliente"}` : ""}</span>
+            <span className="text-xs" style={{ color: C.sub }}>· código, descrição, nome interno ou cliente: os dados entram preenchidos (nome da NF, preço, parâmetros, layout e FPP)</span></div>
           <div style={{ position: "relative" }}>
             <input value={buscaPadrao} onChange={(e) => setBuscaPadrao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && opPadrao[0]) { e.preventDefault(); usarPadrao(opPadrao[0]); } }}
-              placeholder="nome interno, nome da NF ou código do item padrão…" className="w-full px-3 py-2.5 rounded outline-none text-base font-semibold" style={{ background: C.panel, border: `1px solid ${C.accent}`, textTransform: "uppercase" }} />
+ placeholder="código, descrição, nome interno ou cliente…" className="w-full px-3 py-2.5 rounded outline-none text-base font-semibold" style={{ background: C.panel, border: `1px solid ${C.accent}`, textTransform: "uppercase" }} />
             {buscaPadrao && (
               <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 300, overflowY: "auto" }}>
                 {opPadrao.length ? opPadrao.map((p) => (
                   <button key={p.id} onMouseDown={(e) => { e.preventDefault(); usarPadrao(p); }} className="w-full text-left px-3 py-2 text-sm flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
-                    <b>{p.nomeInterno}</b><span style={{ color: C.sub }}>· NF: {p.nomeNf}{p.codigo ? ` · ${p.codigo}` : ""}</span>
+                    <b>{p.nomeInterno}</b><span style={{ color: C.sub }}>· NF: {p.nomeNf}{p.codigo || p.codigoPadrao ? ` · ${p.codigo || p.codigoPadrao}` : ""}{p.clientes?.length ? ` · ${p.clientes.map((c) => c.nome).slice(0, 2).join(", ")}` : ""}</span>
                     <span className="ml-auto" style={{ color: C.text }}>{veVal && p.precoAtual != null ? money(p.precoAtual) : ""}</span>
                     {p.critica && <span className="text-[10px] font-bold" style={{ color: C.red }}>≠ FPP</span>}
                   </button>
-                )) : <div className="px-3 py-2 text-sm" style={{ color: C.sub }}>Nenhum item padrão com esse nome.</div>}
+                )) : <div className="px-3 py-2 text-sm" style={{ color: C.sub }}>Nenhum item cadastrado com isso.</div>}
               </div>
             )}
           </div>
@@ -786,13 +809,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 </select>
               </Campo>
               {/* v668 — código do KM de volta: ao digitar, busca o item e puxa as informações técnicas */}
-              <Campo label="Código (cadastro do KM)">
-                <Auto value={it.codigo} onChange={(v) => upItem(i, { codigo: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="código…" exato="codigo"
-                  render={(p) => <span><b>{p.codigo}</b> <span style={{ color: C.sub }}>· {p.descricao}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
+              <Campo label="Código">
+                <Auto value={it.codigo} onChange={(v) => upItem(i, { codigo: v })} buscar={buscarItem} onPick={(p) => pickItem(i, p)} placeholder="código…" exato="codigo"
+                  render={(p) => renderItem(p, true)} />
               </Campo>
-              <Campo label="Descrição do produto · busca no cadastro do KM" cls="col-span-3">
-                <Auto value={it.descricao} onChange={(v) => upItem(i, { descricao: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="digite para buscar o item…"
-                  render={(p) => <span><b>{p.descricao}</b> <span style={{ color: C.sub }}>· {p.codigo}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
+              <Campo label="Descrição do produto · busca no cadastro de itens e no KM" cls="col-span-3">
+                <Auto value={it.descricao} onChange={(v) => upItem(i, { descricao: v })} buscar={buscarItem} onPick={(p) => pickItem(i, p)} placeholder="código, descrição ou cliente…"
+                  render={(p) => renderItem(p, false)} />
               </Campo>
               {veVal ? <div>
                 <In label={it.desconto ? "Valor unitário cheio (R$)" : "Valor unitário (R$)"} upper={false} value={it.desconto ? it.desconto.base : it.valorUnitario}

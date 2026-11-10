@@ -247,6 +247,8 @@ export async function efetivarPedido(id, quem) {
       compras.push(ch);
     } catch (e) { avisos.push(`Item ${i + 1}: não foi para Compras (${e.message}).`); }
   }
+  // v754 — os produtos do pedido entram no cadastro de itens (ou atualizam o item que já existe)
+  try { const { registrarItensDoPedido } = await import("@/lib/itensPadrao"); const ri = await registrarItensDoPedido(pp.id, quem); if (ri.novos) avisos.push(`${ri.novos} produto(s) novo(s) entraram no cadastro de itens.`); } catch (e) { console.log("itens/cadastro:", e.message); }
   // v747 — comissão do vendedor no contas a pagar (proporcional a cada conta a receber lançada)
   try { const { sincronizarComissoes } = await import("@/lib/comissoes"); await sincronizarComissoes(numero, quem); } catch (e) { avisos.push(`Comissão não lançada (${e.message}).`); }
   return { ok: true, numero, pedidoId: ped.id, lancadas, compras, avisos, nfObs };
