@@ -1940,6 +1940,7 @@ model Tarefa {
   efetivoAvisoEm   String?                       // v600 — "AAAA-MM-DD" do último aviso diário ao criador
   decisao          Json?                         // v655 — { opcoes: [texto], envolvidos: [ids], votos: { id: { opcao, nome, em } }, resultado?: { tipo: UNANIME|PAUTA, opcao?, reuniaoId? } }
   reuniao          Json?                         // v655 — reunião de gestão: { tipo: "GESTAO", mes: "AAAA-MM", pautas: [{ id, texto, origem: FIXA|DECISAO|MANUAL, decisaoId?, autor }] }
+  pcpChave         String?   @unique             // v752 — solicitação de arte do PCP (grupoId): a mesma não abre duas demandas
   layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
