@@ -11,7 +11,7 @@ import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
-  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES,
+  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal,
   paramFora, tecidoDaFpp, numFpp,
 } from "@/lib/pedidoLanc";
 
@@ -32,6 +32,19 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
 const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
 const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
+// v746 — frete contratado de uma entrega (valor soma no total do pedido; não é distribuído entre os itens)
+function FreteCampo({ v, onChange, veVal = true }) {
+  const x = v || { contratado: false, valor: "" };
+  return (
+    <div className="flex flex-wrap items-center gap-3 my-2 text-sm">
+      <span className="text-xs font-semibold" style={{ color: C.sub }}>Frete contratado?</span>
+      {[[false, "Não"], [true, "Sim"]].map(([k, t]) => <label key={t} className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={!!x.contratado === k} onChange={() => onChange({ ...x, contratado: k, valor: k ? x.valor : "" })} /> {t}</label>)}
+      {x.contratado && veVal && <label className="flex items-center gap-1"><span className="text-xs" style={{ color: C.sub }}>Valor do frete R$</span>
+        <input value={x.valor ?? ""} onChange={(e) => onChange({ ...x, valor: e.target.value.replace(/[^\d,.]/g, "") })} placeholder="0,00" inputMode="decimal" className="w-28 px-2 py-1 rounded outline-none text-sm text-right" style={{ ...inp, background: C.panel, borderColor: num(x.valor) > 0 ? C.line : C.accent }} /></label>}
+      {x.contratado && veVal && <span className="text-xs" style={{ color: C.sub }}>soma no total do pedido (não entra no valor dos itens)</span>}
+    </div>
+  );
+}
 export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, onPersonalizada = null }) {   // v744 — personalizada: opção do menu de grade especial
   const G = gradesDe(tamanhos);
   const ativas = ["MASC", ...["INF", "BL"].filter((k) => grade.some((g) => secaoTam(g.tam) === k))];
@@ -159,6 +172,7 @@ function Modal({ titulo, onFechar, children, largura = 640 }) {
 const vazioF = () => ({
   numero: "", emissao: hojeISO(), interno: false, servico: false, clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
   oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaModo: "UNICA", entregas: [],
+  frete: { contratado: false, valor: "" },   // v746 — frete da entrega única
   pagamento: { entrada: null, parcelas: [] }, status: "EM_LANCAMENTO", efetivadoEm: null,
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
@@ -200,6 +214,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         emissao: d.emissao || (d.createdAt ? String(d.createdAt).slice(0, 10) : hojeISO()),
         prazoDias: d.prazoDias != null ? String(d.prazoDias) : "", prazoTipo: d.prazoTipo || "UTEIS", entregaModo: d.entregaModo || "UNICA",
         entregas: Array.isArray(d.entregas) ? d.entregas : [], pagamento: d.pagamento || { entrada: null, parcelas: [] },
+        frete: d.frete && typeof d.frete === "object" ? { contratado: !!d.frete.contratado, valor: d.frete.contratado ? String(d.frete.valor ?? "").replace(".", ",") : "" } : { contratado: false, valor: "" },
         clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
       setRecDet(!!d.recebendoDetalhes);
@@ -232,7 +247,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   // ---------- cálculos ----------
   const somaItem = (it) => (f.servico ? num(it.quantidade) : qtdGrade(it.grade));
   const totalItem = (it) => somaItem(it) * num(it.valorUnitario);
-  const totalGeral = itens.reduce((s, it) => s + totalItem(it), 0);
+  const totalItens = itens.reduce((s, it) => s + totalItem(it), 0);
+  const freteV = f.servico ? 0 : freteTotal(f);   // v746 — frete contratado: soma no total do pedido, não entra nos itens
+  const totalGeral = totalItens + freteV;
   const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
   const despacho = f.prazoDias !== "" ? somaDias(f.emissao, num(f.prazoDias), f.prazoTipo) : null;
   const calc = parcelasCalc(f.pagamento, totalGeral, { emissao: f.emissao });
@@ -792,7 +809,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               className="px-3 py-1.5 rounded text-sm" style={{ background: f.entregaModo === v ? C.accent : C.panel2, color: f.entregaModo === v ? "#fff" : C.sub, fontWeight: f.entregaModo === v ? 600 : 400 }}>{t}</button>
           ))}
         </div>
-        {f.entregaModo === "UNICA" ? <div className="text-sm" style={{ color: C.sub }}>Entrega no endereço do cliente, com a grade inteira do pedido.</div> : <>
+        {f.entregaModo === "UNICA" ? <div>
+          <div className="text-sm" style={{ color: C.sub }}>Entrega no endereço do cliente, com a grade inteira do pedido.</div>
+          <FreteCampo v={f.frete} onChange={(x) => set("frete", x)} veVal={veVal} />
+        </div> : <>
           {f.entregas.map((e, k) => (
             <div key={k} className="rounded-lg p-3 mb-3" style={{ border: `1px solid ${C.line}`, background: C.panel2 }}>
               <div className="flex items-center justify-between mb-2">
@@ -815,6 +835,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   </select>
                 </Campo>
               </div>
+              <FreteCampo v={e.frete} onChange={(x) => upEnt(k, { frete: x })} veVal={veVal} />
               <div className="text-xs mb-1" style={{ color: C.sub }}>Grade deste local</div>
               {itens.map((it, idx) => {
                 const tams = it.grade.filter((g) => num(g.qtd) > 0);
@@ -846,7 +867,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {/* ---------- Pagamento ---------- */}
       
       {!f.interno ? veVal && (
-        <Card titulo="Prazo de pagamento" extra={<span className="text-sm">Total do pedido <b style={{ color: C.accent }}>{money(totalGeral)}</b></span>}>
+        <Card titulo="Prazo de pagamento" extra={<span className="text-sm">Total do pedido <b style={{ color: C.accent }}>{money(totalGeral)}</b>{freteV > 0 && <span className="text-xs ml-1" style={{ color: C.sub }}>(com frete {money(freteV)})</span>}</span>}>
           <div className="flex gap-2 mb-3">
             {!f.pagamento?.entrada && <button type="button" onClick={() => setPag((p) => ({ ...p, entrada: { data: f.emissao, valor: "" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir entrada</button>}
             <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: [...(p.parcelas || []), { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir parcela</button>
@@ -902,6 +923,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
       <div className="mt-2 flex justify-end text-sm" style={{ color: C.sub }}>
         Total do pedido: <b className="ml-2" style={{ color: C.accent }}>{totalPecas} peças{veVal ? ` · ${money(totalGeral)}` : ""}</b>
+        {veVal && freteV > 0 && <span className="ml-2 text-xs" style={{ color: C.sub }}>(itens {money(totalItens)} + frete {money(freteV)})</span>}
       </div>
 
       {/* ---------- modais ---------- */}

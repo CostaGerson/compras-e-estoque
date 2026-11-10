@@ -1,7 +1,7 @@
 // v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
 //   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
 //   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
-import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora } from "@/lib/pedidoLanc";
+import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal } from "@/lib/pedidoLanc";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n = (v) => { const s = String(v ?? "").trim(); return (s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s)) || 0; };
@@ -67,7 +67,9 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   const qtdDe = (it) => (it.grade || []).reduce((s, g) => s + n(g.qtd), 0);
   const lista = (itens || []).filter((it) => String(it.descricao || "").trim() || qtdDe(it) > 0);
   const totalPecas = lista.reduce((s, it) => s + qtdDe(it), 0);
-  const totalGeral = lista.reduce((s, it) => s + qtdDe(it) * n(it.valorUnitario), 0);
+  const totalItensImp = lista.reduce((s, it) => s + qtdDe(it) * n(it.valorUnitario), 0);
+  const freteImp = servico ? 0 : freteTotal(f);   // v746 — frete contratado soma no total (fora dos itens)
+  const totalGeral = totalItensImp + freteImp;
   const agora = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   const numero = f.numero || "—";
   const titulo = PV ? (servico ? "Pedido de serviço" : "Pedido de venda") : "Ordem de produção";
@@ -215,6 +217,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
 
   <div class="tot"><table>
     <tr><td class="mut">${servico ? "Quantidade total" : "Total de peças"}</td><td class="r b">${totalPecas.toLocaleString("pt-BR")}</td></tr>
+    ${PV && freteImp > 0 ? `<tr><td class="mut">Itens</td><td class="r">${money(totalItensImp)}</td></tr><tr><td class="mut">Frete</td><td class="r">${money(freteImp)}</td></tr>` : ""}
     ${PV ? `<tr class="g"><td class="b">Total</td><td class="r v">${money(totalGeral)}</td></tr>` : ""}
   </table></div>
 

@@ -5,7 +5,7 @@ import { chaveEntrada } from "@/lib/pedidos";
 import { itensDoPedido, demandaDoItem } from "@/lib/compras";
 import { parametrosDoDetalhe, rtfTexto } from "@/lib/kmSync";
 import {
-  num, hojeISO, somaDias, proximoNumero, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, paramFora, resumoFpp,
+  num, hojeISO, somaDias, proximoNumero, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, paramFora, resumoFpp, freteTotal,
 } from "@/lib/pedidoLanc";
 
 import { limparDU, temDU, conferirComGrade } from "@/lib/dadosUnitarios";
@@ -28,14 +28,18 @@ export async function salvarPp(id, b, quem) {
   const prazoTipo = b.prazoTipo === "UTEIS" ? "UTEIS" : "CORRIDOS";
   const despacho = prazoDias != null ? somaDias(emissao, prazoDias, prazoTipo) : null;
   const qtdIt = (it) => (servico ? num(it.quantidade ?? qtdGrade(it.grade)) : qtdGrade(it.grade));
-  const total = r2(itens.reduce((s, it) => s + qtdIt(it) * num(it.valorUnitario), 0));
+  const entregaModo = !servico && ["UNICA", "FRACIONADA", "TERCEIROS"].includes(b.entregaModo) ? b.entregaModo : "UNICA";
+  const limpaFrete = (x) => (x && x.contratado ? { contratado: true, valor: r2(Math.max(0, num(x.valor))) } : { contratado: false, valor: 0 });
+  const entregasB = !servico && entregaModo !== "UNICA" && Array.isArray(b.entregas) ? b.entregas.map((e) => ({ ...e, frete: limpaFrete(e?.frete) })) : [];
+  const freteU = !servico && entregaModo === "UNICA" ? limpaFrete(b.frete) : { contratado: false, valor: 0 };
+  const frete = freteTotal({ entregaModo, entregas: entregasB, frete: freteU });   // v746 — soma no total, não nos itens
+  const total = r2(itens.reduce((s, it) => s + qtdIt(it) * num(it.valorUnitario), 0) + frete);
   const data = {
     ...Object.fromEntries(CAMPOS_PP.map((k) => [k, b[k] ? String(b[k]).trim() || null : null])),
     interno, tipoPedido: servico ? "SERVIÇO" : interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo,
     prazoEntrega: prazoDias != null ? `${prazoDias} DIAS ${prazoTipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"}` : null,
     dtDespacho: brData(despacho),
-    entregaModo: !servico && ["UNICA", "FRACIONADA", "TERCEIROS"].includes(b.entregaModo) ? b.entregaModo : "UNICA",
-    entregas: !servico && b.entregaModo && b.entregaModo !== "UNICA" && Array.isArray(b.entregas) ? b.entregas : [],
+    entregaModo, entregas: entregasB, frete: freteU,
     pagamento: interno ? null : (b.pagamento || null),
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,
@@ -167,7 +171,8 @@ export async function efetivarPedido(id, quem) {
     if (!numero) throw new Error("Não consegui gerar o número do pedido — tente de novo.");
   }
   const itens = itensPv(pp);
-  const total = r2(itens.reduce((s, i) => s + i.total, 0));
+  const frete = freteTotal(pp);   // v746
+  const total = r2(itens.reduce((s, i) => s + i.total, 0) + frete);
   const qtd = itens.reduce((s, i) => s + i.qtd, 0);
   const despacho = pp.prazoDias != null ? somaDias(pp.emissao || hojeISO(), pp.prazoDias, pp.prazoTipo) : null;
   const kmSemPag = pp.kmAssumidoEm && !(pp.pagamento?.parcelas?.length || pp.pagamento?.entrada);   // v730 — assumido do KM: contas do KM ficam
@@ -180,6 +185,7 @@ export async function efetivarPedido(id, quem) {
     cliente: up(pp.clienteNome) || "SEM CLIENTE", cnpj: so(pp.clienteCnpj) || null, emissao: pp.emissao ? dUTC(pp.emissao) : dUTC(hojeISO()),
     despacho: despacho ? dUTC(despacho) : null, condicao: pp.condicaoPagamento || null, entradaValor: calc ? (calc.entrada?.valor || 0) : null,
     vendedor: up(pp.vendedor), tipoPedido: pp.tipoPedido === "SERVIÇO" ? "SERVIÇO" : pp.interno ? "INTERNO" : "VENDA NORMAL", oc: up(pp.oc), total, qtd, itens, interno: !!pp.interno,
+    frete: frete > 0 ? frete : null, freteTipo: frete > 0 ? "CONTRATADO" : null,   // v746
     obs: pp.obs || null, pagamento: pag || null, entregaModo: pp.entregaModo || "UNICA", entregas: pp.entregas || [], nfObs, fonte: "SISTEMA", atualizadoPorNome: quem,
   };
   if (kmSemPag && atual) { dados.condicao = pp.condicaoPagamento || atual.condicao || null; dados.entradaValor = atual.entradaValor ?? null; }

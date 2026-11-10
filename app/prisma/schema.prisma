@@ -393,6 +393,7 @@ model Pp {
   prazoTipo         String?   // UTEIS | CORRIDOS
   entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
   entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
+  frete             Json?     // v746 — entrega única: { contratado, valor } (nas fracionadas fica em cada entrega: entregas[].frete)
   pagamento         Json?     // { entrada: { data, valor } | null, parcelas: [{ dias, tipo, base, valor }] }
   nfObs             String?   // observação que vai na NF (o nº do pedido e a OC entram sozinhos)
   efetivadoEm       DateTime?
