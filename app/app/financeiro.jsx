@@ -2822,6 +2822,7 @@ function OrigensLanc({ user, comp, dados, onMudou }) {
         {os.map((o) => <div key={o.arquivoId || 0} className="flex items-center gap-2 py-1" style={{ borderTop: `1px solid ${C.line}` }}>
           <span className="flex-1 truncate">{o.nome}{o.banco ? <span style={{ color: C.sub }}> · {o.banco}{o.documento ? ` ${o.documento}` : ""}</span> : null}</span>
           {o.arquivoId && o.competencia !== comp && <span className="text-xs px-1.5 rounded" style={{ background: C.accentSoft, color: C.accent }}>documento de {o.competencia}</span>}
+          {o.enviadoEm && <span className="text-xs whitespace-nowrap" style={{ color: C.sub }} title={o.enviadoPor ? `enviado por ${o.enviadoPor}` : ""}>enviado em {dataHora(o.enviadoEm)}{o.enviadoPor ? ` · ${o.enviadoPor.split(" ")[0]}` : ""}</span>}
           {o.parcial && <span className="text-xs px-1.5 rounded" style={{ background: C.panel2, color: C.sub }}>parcial</span>}
           <span className="text-xs" style={{ color: C.sub }}>{o.n} lanç.</span>
           {o.arquivoId && podeImportar(user, "docsFinanceiros") && <button onClick={() => excluir(o)} title="Excluir o documento e os lançamentos dele" style={{ color: C.red }}><Trash2 size={14} /></button>}

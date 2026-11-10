@@ -55,8 +55,8 @@ export async function GET(req) {
   const porArq = {};
   for (const l of ls) { const k = l.arquivoId || 0; porArq[k] = (porArq[k] || 0) + 1; }
   const idsArq = Object.keys(porArq).map(Number).filter(Boolean);
-  const docsArq = idsArq.length ? await prisma.finArquivo.findMany({ where: { id: { in: idsArq } }, select: { id: true, nome: true, competencia: true, parcial: true, tipo: { select: { banco: true, documento: true } } } }) : [];
-  const origens = [...docsArq.map((a) => ({ arquivoId: a.id, nome: a.nome, competencia: a.competencia, parcial: !!a.parcial, banco: a.tipo?.banco || null, documento: a.tipo?.documento || null, n: porArq[a.id] })),
+  const docsArq = idsArq.length ? await prisma.finArquivo.findMany({ where: { id: { in: idsArq } }, select: { id: true, nome: true, competencia: true, parcial: true, createdAt: true, enviadoPorNome: true, tipo: { select: { banco: true, documento: true } } } }) : [];
+  const origens = [...docsArq.map((a) => ({ arquivoId: a.id, nome: a.nome, competencia: a.competencia, parcial: !!a.parcial, banco: a.tipo?.banco || null, documento: a.tipo?.documento || null, n: porArq[a.id], enviadoEm: a.createdAt, enviadoPor: a.enviadoPorNome || null })),
     ...(porArq[0] ? [{ arquivoId: null, nome: "Sem documento (manual, histórico, antecipação…)", n: porArq[0] }] : [])];
   const { mapaDeContas } = await import("@/lib/finDre");
   const comGrupo = await mapaDeContas().catch(() => null);
