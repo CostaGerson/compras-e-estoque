@@ -22,7 +22,7 @@ export const STATUS_P = { DISPONIVEL: ["Disponível", C.green], OCUPADO: ["Ocupa
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || (r.status >= 502 ? "Sistema reiniciando (atualização em andamento). Tente de novo em 1 minuto." : `Erro na operação (${r.status}).`));
+  if (!r.ok) throw new Error(j.error || (r.status === 413 ? "Arquivo grande demais para o servidor (o limite de envio da hospedagem barrou)." : r.status >= 502 ? "Sistema reiniciando (atualização em andamento). Tente de novo em 1 minuto." : `Erro na operação (${r.status}).`));
   return j;
 };
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(file); });
@@ -605,7 +605,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   useEffect(() => { carregar(); }, [id]);
   const acao = async (a, extra = {}) => { try { await api(`/api/tarefas/${id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); await carregar(); onMudou?.(); } catch (e) { alerta(e.message); } };
   const excluir = async () => { if (!(await confirmar("Excluir esta demanda?"))) return; try { await api(`/api/tarefas/${id}`, "DELETE", { usuarioId: user.id }); onMudou?.(); onClose(); } catch (e) { alerta(e.message); } };
-  const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alerta(e.message); } } carregar(); onMudou?.(); };
+  const anexar = async (fs) => { for (const f of fs) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: f.name, mime: f.type, conteudo: await readB64(f) }); } catch (e) { alerta(`Não foi possível anexar ${f.name}: ${e.message}`); } } carregar(); onMudou?.(); };
   // v566 — Ctrl+V com imagem anexa direto na demanda aberta
   useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length && !editar && !(editarDireto && t?.podeEditar)) { e.preventDefault(); anexar(fs); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); });
   const [sobreDet, setSobreDet] = useState(false);   // v652
@@ -669,11 +669,11 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
           <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><ListChecks size={13} /> Subtarefas {t.subtarefas.filter((s) => s.feita).length}/{t.subtarefas.length}</div>
           {t.subtarefas.map((s, i) => <label key={i} className="flex items-center gap-2 text-sm py-0.5"><input type="checkbox" checked={!!s.feita} disabled={!(meu || t.podeEditar)} onChange={(e) => acao("subtarefa", { indice: i, feita: e.target.checked })} /><span style={{ textDecoration: s.feita ? "line-through" : "none" }}>{s.texto}</span></label>)}
         </div>}
-        <div className="mb-3 rounded-lg" onDragOver={(e) => { if ((meu || t.podeEditar) && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobreDet(true); } }} onDragLeave={() => setSobreDet(false)}
-          onDrop={(e) => { e.preventDefault(); setSobreDet(false); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length && (meu || t.podeEditar)) anexar(fs); }}
+        <div className="mb-3 rounded-lg" onDragOver={(e) => { if ((meu || t.podeEditar || t.podeAnexar) && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobreDet(true); } }} onDragLeave={() => setSobreDet(false)}
+          onDrop={(e) => { e.preventDefault(); setSobreDet(false); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length && (meu || t.podeEditar || t.podeAnexar)) anexar(fs); }}
           style={{ outline: sobreDet ? `2px dashed ${C.accent}` : "none", background: sobreDet ? C.accentSoft : "transparent", padding: sobreDet ? 6 : 0 }}>
-          <div className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos ({t.arquivos.length}){(meu || t.podeEditar) && <span className="font-normal">· arraste arquivos aqui</span>}
-            {(meu || t.podeEditar) && <label className="text-[11px] font-semibold cursor-pointer" style={{ color: C.accent }}>+ anexar<input type="file" multiple className="hidden" onChange={(e) => { anexar([...e.target.files]); e.target.value = ""; }} /></label>}
+          <div className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos ({t.arquivos.length}){(meu || t.podeEditar || t.podeAnexar) && <span className="font-normal">· arraste arquivos aqui</span>}
+            {(meu || t.podeEditar || t.podeAnexar) && <label className="text-[11px] font-semibold cursor-pointer" style={{ color: C.accent }}>+ anexar<input type="file" multiple className="hidden" onChange={(e) => { anexar([...e.target.files]); e.target.value = ""; }} /></label>}
           </div>
           {t.arquivos.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} style={{ color: C.accent }} /><a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" draggable onDragStart={(e) => arrastarArquivo(e, a, `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`)} title="Clique para abrir ou arraste para a área de trabalho" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a><span style={{ color: C.sub }}>{a.criadoPorNome}</span><button onClick={() => tirarArq(a)} style={{ color: C.sub }}><Trash2 size={12} /></button></div>)}
         </div>
