@@ -24,11 +24,8 @@ export function ChaveDemo({ mobile }) {
   return (
     <button onClick={trocar} title={on ? "Modo demonstração ligado — números ocultos (clique para mostrar)" : "Modo demonstração: ocultar os números de gestão e finanças"}
       className="flex items-center gap-1.5 select-none" style={{ color: on ? "#FF6B1A" : "#667085" }}>
-      {!mobile && (on ? <EyeOff size={16} /> : <Eye size={16} />)}
-      {!mobile && <span className="text-xs font-semibold">Demo</span>}
-      <span className="relative inline-block rounded-full transition-colors" style={{ width: 30, height: 17, background: on ? "#FF6B1A" : "#D0D5DD" }}>
-        <span className="absolute rounded-full bg-white transition-all" style={{ width: 13, height: 13, top: 2, left: on ? 15 : 2, boxShadow: "0 1px 2px rgba(0,0,0,.25)" }} />
-      </span>
+      {/* v752 — só o olho (sem a palavra e sem a chave) */}
+      {on ? <EyeOff size={mobile ? 18 : 16} /> : <Eye size={mobile ? 18 : 16} />}
     </button>
   );
 }
