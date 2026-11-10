@@ -140,7 +140,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
       nova = await prisma.tarefa.update({ where: { id: orig.id }, data: {
         status: "ABERTA", concluidaEm: null, concluidaPorNome: null, retorno: null, prazo: dUTC(hojeSP()), tipo: "URGENTE",
         descricao: `${String(orig.descricao || "").split("\n⚠ REPROVADO")[0]}\n⚠ REPROVADO por ${nomeU(u)}: ${inst}`.slice(0, 5000),
-        layout: { ...Lo, etapa: "CRIACAO", motivo: inst, reprovacoes: (Number(Lo.reprovacoes) || 0) + 1 },
+        layout: { ...Lo, etapa: "CRIACAO", motivo: inst, reprovacoes: (Number(Lo.reprovacoes) || 0) + 1, acompanhaId: u.id },   // v756 — quem reprovou acompanha nas Designadas
       } });
     } else {
       nova = await prisma.tarefa.create({ data: {
@@ -148,7 +148,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
         descricao: `Layout reprovado por ${nomeU(u)}: ${inst}\nRefaça e envie de novo para aprovação.`,
         setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
         prazo: dUTC(hojeSP()), tipo: "URGENTE", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
-        layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, itens: (L.itens || []).map(({ arquivoId, arquivoIds, ...x }) => x) },
+        layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, acompanhaId: u.id, itens: (L.itens || []).map(({ arquivoId, arquivoIds, ...x }) => x) },
       } });
     }
     await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}`, layout: { ...L, decisao: "REPROVADO" } } });

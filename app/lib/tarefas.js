@@ -27,7 +27,7 @@ async function projRestritos() {
 const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.id);
 // v733 — regra única: cada um vê só as tarefas em que é o colaborador (responsável) ou que ele mesmo criou
 //   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
-const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id   // criação de layout: só o arte finalista
+const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null)
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
@@ -83,8 +83,17 @@ async function ajustarCriacoesLayout() {
       "criadoPorId" = "responsavelId", "criadoPorNome" = "responsavelNome", "publica" = false
     WHERE "titulo" LIKE 'CRIAÇÃO DE LAYOUT%' AND "responsavelId" IS NOT NULL AND "criadoPorId" IS DISTINCT FROM "responsavelId"`).catch((e) => console.log("ajuste layout:", e.message));
 }
+// v756 — reprovações feitas antes desta versão: a criação reaberta passa a ser acompanhada por quem reprovou
+let acompAjustado = false;
+async function ajustarAcompanhamentoLayout() {
+  if (acompAjustado) return; acompAjustado = true;
+  await prisma.$executeRawUnsafe(`UPDATE "Tarefa" c SET "layout" = jsonb_set(c."layout"::jsonb, '{acompanhaId}', to_jsonb(a."responsavelId"))
+    FROM "Tarefa" a WHERE a."titulo" LIKE 'APROVAÇÃO DE LAYOUT%' AND a."retorno" LIKE 'REPROVADO:%' AND a."responsavelId" IS NOT NULL
+      AND c."id" = (a."layout"->>'origemId')::int AND NOT (c."layout"::jsonb ? 'acompanhaId')`).catch((e) => console.log("ajuste acompanha:", e.message));
+}
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await ajustarCriacoesLayout();
+  await ajustarAcompanhamentoLayout();
   await gerarOcorrencias(ate);
   await limparLixeira().catch(() => null);   // v566
   const where = { modelo: false, status: { not: "CANCELADA" } };
@@ -96,7 +105,7 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const convIds = new Set(conv.map((c) => c.tarefaId));
   if (escopo === "minhas") where.OR = [{ responsavelId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
   // v600 — "Minha agenda": as minhas + as que eu criei para outras pessoas (antes sumiam e pareciam não salvas) + convites
-  else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
+  else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, { layout: { path: ["acompanhaId"], equals: u.id } }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v756 — layout reprovado por mim
   else if (escopo === "criadas") where.criadoPorId = u.id;
   const R = await projRestritos();
   const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
