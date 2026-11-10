@@ -30,7 +30,7 @@ export async function POST(req, { params }) {
   const t = await prisma.tarefa.findUnique({ where: { id: Number(params.id) || 0 } });
   if (!t?.layout || !pode(t, u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
   let r;
-  if (b.acao === "marcar") r = await marcarLayout(t, b.idx, b.arquivoId);
+  if (b.acao === "marcar") r = await marcarLayout(t, b.idx, b.arquivoId, !!b.remover);   // v736 — remover: tira o arquivo do item
   else if (b.acao === "enviar") r = await enviarAprovacao(t, u);
   else if (b.acao === "aprovar") r = await decidirLayout(t, u, true);
   else if (b.acao === "reprovar") r = await decidirLayout(t, u, false, b.motivo);

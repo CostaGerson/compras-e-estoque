@@ -10,6 +10,8 @@ const dUTC = (s) => new Date(`${s}T00:00:00Z`);
 const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
 const safe = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
+// v736 — vários arquivos por item (qualquer formato): arquivoIds; arquivoId = o principal (1ª imagem, senão o 1º)
+export const idsDe = (x) => (Array.isArray(x?.arquivoIds) && x.arquivoIds.length ? x.arquivoIds.map(Number) : x?.arquivoId ? [Number(x.arquivoId)] : []);
 const ehImg = (m, n) => /^image\//i.test(m || "") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(n || "");
 
 export async function arteFinalista() {
@@ -66,15 +68,23 @@ export async function opDaTarefa(t) {
       const it = pp.itens[x.idx] || {};
       return { ...x, tipoPecaNome: it.tipoPecaNome || null, codigo: it.codigo || x.codigo, descricao: it.descricao || x.descricao,
         grade: safe(it.gradeJson, []).filter((g) => Number(g.qtd) > 0), parametros: safe(it.parametrosJson, {}), fppNumero: it.fppNumero ?? null,
-        temLayout: !!it.fotoBase64, arquivo: x.arquivoId ? A[x.arquivoId] || null : null, anexosItem: (Array.isArray(it.anexosJson) ? it.anexosJson : []).map((a, k) => ({ k, nome: a.nome, mime: a.mime })) };
+        temLayout: !!it.fotoBase64, arquivos: idsDe(x).map((id) => A[id]).filter(Boolean),
+        arquivo: (() => { const l = idsDe(x).map((id) => A[id]).filter(Boolean); return l.find((a) => ehImg(a.mime, a.nome)) || l[0] || null; })(), anexosItem: (Array.isArray(it.anexosJson) ? it.anexosJson : []).map((a, k) => ({ k, nome: a.nome, mime: a.mime })) };
     }),
   };
 }
 
 // o arte finalista liga um arquivo da tarefa a um item ({ idx, arquivoId })
-export async function marcarLayout(t, idx, arquivoId) {
+// v736 — marcar acrescenta o arquivo ao item; remover tira (o arquivo continua na tarefa)
+export async function marcarLayout(t, idx, arquivoId, remover = false) {
   const L = { ...(t.layout || {}) };
-  L.itens = (L.itens || []).map((x) => (x.idx === Number(idx) ? { ...x, arquivoId: arquivoId ? Number(arquivoId) : null } : x));
+  const id = Number(arquivoId) || null;
+  L.itens = (L.itens || []).map((x) => {
+    if (x.idx !== Number(idx)) return x;
+    let ids = idsDe(x);
+    ids = remover ? ids.filter((k) => k !== id) : id && !ids.includes(id) ? [...ids, id] : ids;
+    return { ...x, arquivoIds: ids, arquivoId: ids[0] || null };
+  });
   await prisma.tarefa.update({ where: { id: t.id }, data: { layout: L } });
   return { ok: true };
 }
@@ -83,7 +93,7 @@ export async function marcarLayout(t, idx, arquivoId) {
 export async function enviarAprovacao(t, u) {
   const L = t.layout || {};
   if (L.etapa !== "CRIACAO") return { error: "Esta tarefa não é de criação de layout." };
-  const falta = (L.itens || []).filter((x) => !x.arquivoId);
+  const falta = (L.itens || []).filter((x) => !idsDe(x).length);
   if (falta.length) return { error: `Falta o layout de: ${falta.map((x) => `${x.idx + 1}. ${x.descricao}`).join(", ")}.` };
   const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, select: { vendedor: true, efetivadoPorNome: true } });
   const vend = await vendedorDe(pp?.vendedor || L.vendedor, L.criadorId || t.criadoPorId);
@@ -98,9 +108,13 @@ export async function enviarAprovacao(t, u) {
   // copia os arquivos dos layouts para a aprovação
   const itens = [];
   for (const x of L.itens) {
-    const a = await prisma.tarefaArquivo.findFirst({ where: { id: x.arquivoId, tarefaId: t.id } });
-    const n = a ? await prisma.tarefaArquivo.create({ data: { tarefaId: ap.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, conteudo: a.conteudo, criadoPorNome: a.criadoPorNome } }) : null;
-    itens.push({ ...x, arquivoId: n?.id || null });
+    const novos = [];
+    for (const id of idsDe(x)) {
+      const a = await prisma.tarefaArquivo.findFirst({ where: { id, tarefaId: t.id } });
+      const n = a ? await prisma.tarefaArquivo.create({ data: { tarefaId: ap.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, conteudo: a.conteudo, criadoPorNome: a.criadoPorNome } }) : null;
+      if (n) novos.push(n.id);
+    }
+    itens.push({ ...x, arquivoIds: novos, arquivoId: novos[0] || null });
   }
   await prisma.tarefa.update({ where: { id: ap.id }, data: { layout: { ...L, etapa: "APROVACAO", origemId: t.id, itens } } });
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `Enviado para aprovação de ${nomeU(vend)}.` } });
@@ -134,7 +148,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
         descricao: `Layout reprovado por ${nomeU(u)}: ${inst}\nRefaça e envie de novo para aprovação.`,
         setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
         prazo: dUTC(hojeSP()), tipo: "URGENTE", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
-        layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, itens: (L.itens || []).map(({ arquivoId, ...x }) => x) },
+        layout: { ...L, etapa: "CRIACAO", origemId: t.id, motivo: inst, itens: (L.itens || []).map(({ arquivoId, arquivoIds, ...x }) => x) },
       } });
     }
     await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}` } });
@@ -143,16 +157,16 @@ export async function decidirLayout(t, u, aprovar, motivo) {
   }
   const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, anexosJson: true } } } });
   if (!pp) return { error: "Pedido não encontrado." };
+  // v736 — a 1ª imagem vira a foto do item; os demais arquivos (qualquer formato) entram nos anexos do item
   for (const x of L.itens || []) {
-    const a = x.arquivoId ? await prisma.tarefaArquivo.findFirst({ where: { id: x.arquivoId, tarefaId: t.id } }) : null;
     const it = pp.itens[x.idx];
-    if (!a || !it) continue;
-    const dataUrl = `data:${a.mime || "application/octet-stream"};base64,${a.conteudo}`;
-    if (ehImg(a.mime, a.nome)) await prisma.ppItem.update({ where: { id: it.id }, data: { fotoBase64: dataUrl } });
-    else {   // PDF/outros: entra nos arquivos do item (sai na OP abaixo do item)
-      const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
-      await prisma.ppItem.update({ where: { id: it.id }, data: { anexosJson: [...l, { nome: `Layout aprovado · ${a.nome}`, mime: a.mime, base64: dataUrl }] } });
-    }
+    if (!it) continue;
+    const arqs = (await prisma.tarefaArquivo.findMany({ where: { id: { in: idsDe(x) }, tarefaId: t.id } })).sort((a, b) => idsDe(x).indexOf(a.id) - idsDe(x).indexOf(b.id));
+    if (!arqs.length) continue;
+    const foto = arqs.find((a) => ehImg(a.mime, a.nome));
+    const novos = arqs.filter((a) => a !== foto).map((a) => ({ nome: `Layout aprovado · ${a.nome}`, mime: a.mime, base64: `data:${a.mime || "application/octet-stream"};base64,${a.conteudo}` }));
+    const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
+    await prisma.ppItem.update({ where: { id: it.id }, data: { ...(foto ? { fotoBase64: `data:${foto.mime || "image/png"};base64,${foto.conteudo}` } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
   }
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido." } });
   if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).` } }).catch(() => {}); }

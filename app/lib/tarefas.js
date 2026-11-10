@@ -395,10 +395,11 @@ export async function marcarSubtarefa(id, i, feita, u) {
 // ---------- arquivos ----------
 export async function anexar(id, a, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
-  if (!x || !(await podeVerA(x, u)) || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
+  // v736 — quem criou (designou), o responsável e o master anexam, mesmo sem outra regra de visibilidade
+  if (!x || !(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão para anexar nesta tarefa." };
   const tam = Buffer.byteLength(String(a.conteudo || ""), "base64");
   if (!tam) return { error: "Arquivo vazio." };
-  if (tam > 15 * 1048576) return { error: "Arquivo acima de 15 MB." };
+  if (tam > 40 * 1048576) return { error: "Arquivo acima de 40 MB." };
   const f = await prisma.tarefaArquivo.create({ data: { tarefaId: x.id, nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, tamanho: tam, conteudo: String(a.conteudo), criadoPorNome: nome(u) } });
   return { ok: true, arquivo: { id: f.id, nome: f.nome, tamanho: f.tamanho } };
 }

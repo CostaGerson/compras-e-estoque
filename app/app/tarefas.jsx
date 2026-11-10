@@ -760,14 +760,20 @@ function LayoutTarefa({ t, user, onMudou }) {
   useEffect(() => { ler(); }, [t.id, t.arquivos?.length]);
   const post = async (corpo) => { const r = await fetch(`/api/tarefas/${t.id}/layout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); const x = await r.json().catch(() => ({})); if (!r.ok) throw new Error(x.error || "Erro."); return x; };
   const urlArq = (a) => `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`;
-  const subir = async (idx, file) => {
-    if (!file) return; setOcup(`up${idx}`);
-    try {
-      const r = await api(`/api/tarefas/${t.id}/arquivos`, "POST", { usuarioId: user.id, nome: `LAYOUT item ${idx + 1} · ${file.name}`, mime: file.type, conteudo: await readB64(file) });
-      await post({ acao: "marcar", idx, arquivoId: r.arquivo.id }); await ler(); onMudou?.();
-    } catch (e) { alerta(e.message); }
-    setOcup("");
+  // v736 — vários arquivos por item, qualquer formato (imagem, PDF, AI, CDR, PSD, ZIP…)
+  const subir = async (idx, files) => {
+    const l = [...(files || [])]; if (!l.length) return; setOcup(`up${idx}`);
+    const falhas = [];
+    for (const file of l) {
+      try {
+        const r = await api(`/api/tarefas/${t.id}/arquivos`, "POST", { usuarioId: user.id, nome: `LAYOUT item ${idx + 1} · ${file.name}`, mime: file.type, conteudo: await readB64(file) });
+        await post({ acao: "marcar", idx, arquivoId: r.arquivo.id });
+      } catch (e) { falhas.push(`${file.name} (${e.message})`); }
+    }
+    if (falhas.length) alerta(`Não subiu: ${falhas.join(", ")}.`);
+    await ler(); onMudou?.(); setOcup("");
   };
+  const tirar = async (idx, a) => { setOcup(`up${idx}`); try { await post({ acao: "marcar", idx, arquivoId: a.id, remover: true }); await ler(); onMudou?.(); } catch (e) { alerta(e.message); } setOcup(""); };
   const acao = async (a) => { setOcup(a); try { await post({ acao: a, motivo }); onMudou?.(); await ler(); } catch (e) { alerta(e.message); } setOcup(""); };
   const abrirOp = async () => {
     if (!d) return;
@@ -776,7 +782,7 @@ function LayoutTarefa({ t, user, onMudou }) {
     imprimirPedido("OP", { numero: d.pedido.numero, emissao: d.pedido.emissao, clienteNome: d.pedido.cliente, vendedor: d.pedido.vendedor, oc: d.pedido.oc, obs: d.pedido.obs,
       prazoEntrega: d.pedido.prazoDias != null ? `${d.pedido.prazoDias} dias ${d.pedido.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "" },
       d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
-        fotoBase64: "", anexos: [...(i.arquivo ? [{ nome: `Layout · ${i.arquivo.nome}`, mime: i.arquivo.mime, src: urlArq(i.arquivo) }] : []), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
+        fotoBase64: "", anexos: [...(i.arquivos || (i.arquivo ? [i.arquivo] : [])).map((a) => ({ nome: `Layout · ${a.nome}`, mime: a.mime, src: urlArq(a) })), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
       { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta });
   };
   const img = (a) => /^image\//.test(a?.mime || "") || /\.(png|jpe?g|gif|webp)$/i.test(a?.nome || "");
@@ -804,15 +810,22 @@ function LayoutTarefa({ t, user, onMudou }) {
               {i.grade.length > 0 && <div className="mt-0.5" style={{ color: C.text }}>{i.grade.map((g) => `${g.tam}:${g.qtd}`).join("  ")} · <b>{i.grade.reduce((s0, g) => s0 + Number(g.qtd || 0), 0)} pç</b></div>}
               {Object.entries(i.parametros || {}).filter(([k, v]) => v && typeof v !== "object").length > 0 && <div className="mt-1 flex flex-wrap gap-x-3" style={{ color: C.sub }}>
                 {Object.entries(i.parametros).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => <span key={k}><b>{k}</b> {String(v)}</span>)}</div>}
+              {(i.arquivos || []).length > 0 && <div className="mt-1.5 flex flex-col gap-0.5">
+                {i.arquivos.map((a) => <div key={a.id} className="flex items-center gap-1.5">
+                  <FileText size={11} style={{ color: C.accent }} />
+                  <a href={urlArq(a)} target="_blank" rel="noreferrer" draggable onDragStart={(e) => arrastarArquivo(e, a, urlArq(a))} className="truncate" style={{ color: C.blue, maxWidth: 320 }} title={a.nome}>{a.nome.replace(/^LAYOUT item \d+ · /, "")}</a>
+                  {criacao && meu && aberta && <button onClick={() => tirar(i.idx, a)} title="Tirar do item" style={{ color: C.sub }}><X size={12} /></button>}
+                </div>)}
+              </div>}
               {criacao && meu && aberta && <label className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded cursor-pointer font-semibold" style={{ border: "1px dashed #7E3AF2", color: "#7E3AF2" }}
-                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(i.idx, e.dataTransfer.files?.[0]); }}>
-                {ocup === `up${i.idx}` ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {i.arquivo ? "Trocar layout" : "Anexar layout"} <span className="font-normal" style={{ color: C.sub }}>(ou arraste)</span>
-                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { subir(i.idx, e.target.files?.[0]); e.target.value = ""; }} /></label>}
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); subir(i.idx, e.dataTransfer.files); }}>
+                {ocup === `up${i.idx}` ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} {(i.arquivos || []).length ? "Adicionar arquivos" : "Anexar layout"} <span className="font-normal" style={{ color: C.sub }}>(vários, qualquer formato · ou arraste)</span>
+                <input type="file" multiple className="hidden" onChange={(e) => { subir(i.idx, e.target.files); e.target.value = ""; }} /></label>}
             </div>
           </div>
         </div>
       ))}
-      {d && criacao && meu && aberta && <div className="flex justify-end"><Btn cor="#7E3AF2" disabled={!!ocup || d.itens.some((i) => !i.arquivo)} onClick={() => acao("enviar")}>{ocup === "enviar" ? "Enviando…" : "Enviar para aprovação do vendedor"}</Btn></div>}
+      {d && criacao && meu && aberta && <div className="flex justify-end"><Btn cor="#7E3AF2" disabled={!!ocup || d.itens.some((i) => !(i.arquivos || []).length)} onClick={() => acao("enviar")}>{ocup === "enviar" ? "Enviando…" : "Enviar para aprovação do vendedor"}</Btn></div>}
       {d && !criacao && meu && aberta && <div className="mt-1">
         <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Instruções para o arte finalista (obrigatório para reprovar)" className={inp} style={inpS} />
         <div className="flex justify-end gap-2 mt-2">
