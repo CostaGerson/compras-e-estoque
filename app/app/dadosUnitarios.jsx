@@ -274,7 +274,8 @@ export default function DadosUnitarios({ du, onChange, grade, onGrade, tamanhos 
   return (
     <div className="mt-3 rounded-lg p-3" style={{ background: on ? C.roxoSoft : C.panel2, border: `1px solid ${on ? C.roxo + "44" : C.line}` }}>
       {/* v743 — semChave: quem chama já tem a chave (ex.: "Grade personalizada" no lançamento de pedido) */}
-      {semChave ? <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.roxo }}><Tag size={14} /> Grade personalizada <span className="font-normal text-xs" style={{ color: C.sub }}>(personalização por peça: nome, número, tipo sanguíneo… · a grade sai da lista)</span></div>
+      {semChave ? <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.roxo }}><Tag size={14} /> Grade personalizada <span className="font-normal text-xs" style={{ color: C.sub }}>(personalização por peça: nome, número, tipo sanguíneo… · a grade sai da lista)</span>
+        {!travado && <button type="button" onClick={() => ligar(false)} className="ml-auto text-xs font-normal flex items-center gap-1" style={{ color: C.red }}><X size={12} /> remover</button>}</div>
       : <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold" style={{ color: on ? C.roxo : C.sub }}>
         <input type="checkbox" checked={on} disabled={travado} onChange={(e) => ligar(e.target.checked)} />
         <Tag size={14} /> Personalização exclusiva <span className="font-normal text-xs" style={{ color: C.sub }}>(nome, número, tipo sanguíneo… diferente em cada peça)</span>

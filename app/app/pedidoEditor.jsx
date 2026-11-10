@@ -32,7 +32,7 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
 const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
 const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
-export function GradeEditor({ grade, tamanhos, onChange }) {
+export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, onPersonalizada = null }) {   // v744 — personalizada: opção do menu de grade especial
   const G = gradesDe(tamanhos);
   const ativas = ["MASC", ...["INF", "BL"].filter((k) => grade.some((g) => secaoTam(g.tam) === k))];
   const [menu, setMenu] = useState(false);
@@ -72,10 +72,11 @@ export function GradeEditor({ grade, tamanhos, onChange }) {
           </div>
         );
       })}
-      {faltam.length > 0 && <div className="relative inline-block">
+      {(faltam.length > 0 || (onPersonalizada && !personalizada)) && <div className="relative inline-block">
         <button type="button" onClick={() => setMenu(!menu)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.accent, border: `1px dashed ${C.accent}` }}><Plus size={12} /> Inserir grade especial</button>
         {menu && <div className="absolute z-20 mt-1 rounded-md shadow-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           {faltam.map((k) => <button key={k} type="button" onClick={() => inserir(k)} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: C.text }}>{G[k].rot}</button>)}
+          {onPersonalizada && !personalizada && <button type="button" onClick={() => { setMenu(false); onPersonalizada(); }} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: "#3D6799", borderTop: faltam.length ? `1px solid ${C.line}` : "none" }}>Personalizada <span className="text-xs" style={{ color: C.sub }}>(lista por peça: nome, número…)</span></button>}
         </div>}
       </div>}
     </div>
@@ -747,16 +748,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
                   {it.fpp?.leadTime > 0 && <span className="ml-2 px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }} title="Lead time da FPP, contado da emissão do pedido">entrega prevista {dataBR(somaDias(f.emissao || hojeISO(), it.fpp.leadTime, "CORRIDOS"))} · lead time {it.fpp.leadTime} dias</span>}</div>
-                {/* v743 — Grade normal × Grade personalizada (lista por peça, como no portal da Loja Way: locais, colar lista, tamanho por peça) */}
-                {(() => { const pers = !!(it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos)); const nL = it.dadosUnitarios?.linhas?.length || 0;
-                  const opc = (k, t) => <button type="button" disabled={!podeLancar} onClick={async () => {
-                    if (k === pers) return;
-                    if (k) return upItem(i, { dadosUnitarios: vazioDU() });
-                    if (nL && !(await confirmar(`Voltar para a grade normal? A lista personalizada com ${nL} peça(s) sai do item (a grade fica como está).`))) return;
-                    upItem(i, { dadosUnitarios: null });
-                  }} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: k === pers ? "#fff" : "transparent", color: k === pers ? (k ? "#3D6799" : C.text) : C.sub, boxShadow: k === pers ? "0 1px 2px rgba(0,0,0,.12)" : "none" }}>{t}</button>;
-                  return <div className="inline-flex rounded-md p-0.5 mb-2" style={{ background: "#F1F3F5", border: `1px solid ${C.line}` }}>{opc(false, "Grade normal")}{opc(true, "Grade personalizada")}</div>; })()}
-                <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} />
+                <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })}
+                  personalizada={!!(it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos))} onPersonalizada={podeLancar && !efetivado ? () => upItem(i, { dadosUnitarios: vazioDU() }) : null} />
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 {it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) && <DadosUnitarios semChave travado={!podeLancar} du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
                   tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
