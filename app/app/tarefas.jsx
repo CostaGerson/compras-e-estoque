@@ -1227,7 +1227,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [designadas, setDesignadas] = useState(false);
   const [colab, setColab] = useState(null);
   const [menuColab, setMenuColab] = useState(false);
-  const ehDesignada = (t) => t.criadoPorId === user.id && t.responsavelId !== user.id;
+  const ehDesignada = (t) => t.criadoPorId === user.id && t.responsavelId !== user.id && !(t.layout?.etapa === "CRIACAO" || /^CRIAÇÃO DE LAYOUT/.test(t.titulo || ""));   // v737 — criação de layout é do arte finalista
   const colabs = useMemo(() => {
     const m = new Map();
     (d?.tarefas || []).filter((t) => ehDesignada(t) && t.status !== "CANCELADA").forEach((t) => { const x = m.get(t.responsavelId) || { id: t.responsavelId, nome: t.responsavelNome, n: 0 }; if (t.status !== "CONCLUIDA") x.n++; m.set(t.responsavelId, x); });

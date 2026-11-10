@@ -75,7 +75,16 @@ const resumo = (t, abertas = {}) => ({
   periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
 });
 
+// v737 — uma vez por processo: criações de layout antigas (criadas no nome do vendedor) passam para o nome do arte finalista
+let layoutAjustado = false;
+async function ajustarCriacoesLayout() {
+  if (layoutAjustado) return; layoutAjustado = true;
+  await prisma.$executeRawUnsafe(`UPDATE "Tarefa" SET "layout" = CASE WHEN "layout" IS NOT NULL AND NOT ("layout"::jsonb ? 'criadorId') THEN jsonb_set("layout"::jsonb, '{criadorId}', to_jsonb("criadoPorId")) ELSE "layout" END,
+      "criadoPorId" = "responsavelId", "criadoPorNome" = "responsavelNome", "publica" = false
+    WHERE "titulo" LIKE 'CRIAÇÃO DE LAYOUT%' AND "responsavelId" IS NOT NULL AND "criadoPorId" IS DISTINCT FROM "responsavelId"`).catch((e) => console.log("ajuste layout:", e.message));
+}
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
+  await ajustarCriacoesLayout();
   await gerarOcorrencias(ate);
   await limparLixeira().catch(() => null);   // v566
   const where = { modelo: false, status: { not: "CANCELADA" } };
