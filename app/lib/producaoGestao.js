@@ -78,7 +78,7 @@ const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, to
 // v738 — pedidos com tarefa de layout em aberto (criação ou aprovação) → { numero: { etapa, com, desde, texto } }
 export async function layoutsPendentes() {
   const l = await prisma.tarefa.findMany({ where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] }, modelo: false, OR: [{ titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, { titulo: { startsWith: "APROVAÇÃO DE LAYOUT" } }] },
-    select: { id: true, layout: true, responsavelNome: true, createdAt: true, titulo: true }, orderBy: { id: "desc" } }).catch(() => []);
+    select: { id: true, layout: true, responsavelNome: true, createdAt: true, titulo: true }, orderBy: { id: "desc" } }).catch((e) => { console.log("producao/layoutTarefas:", e.message); return []; });
   const m = {};
   for (const t of l) {
     const n = t.layout?.numero; if (!n || m[n]) continue;
@@ -86,6 +86,11 @@ export async function layoutsPendentes() {
     m[n] = { etapa, com: t.responsavelNome || null, desde: t.createdAt, tarefaId: t.id,
       texto: etapa === "APROVACAO" ? `Layout aguardando aprovação${t.responsavelNome ? ` de ${t.responsavelNome}` : ""}` : `Aguardando layout${t.responsavelNome ? ` (${t.responsavelNome})` : ""}` };
   }
+  // v745 — também o pedido lançado no sistema com item sem layout, mesmo sem tarefa (ex.: lançado antes do fluxo de layout)
+  const sem = await prisma.$queryRawUnsafe(`SELECT p."numero" AS numero, COUNT(*)::int AS n FROM "PpItem" i JOIN "Pp" p ON p."id" = i."ppId"
+    WHERE p."numero" IS NOT NULL AND p."efetivadoEm" IS NOT NULL AND p."kmAssumidoEm" IS NULL AND COALESCE(p."tipoPedido", '') <> 'SERVIÇO'
+      AND COALESCE(i."tipoPecaNome", '') <> 'SERVIÇO' AND COALESCE(i."fotoBase64", '') = '' GROUP BY p."numero"`).catch((e) => { console.log("producao/semLayout:", e.message); return []; });
+  for (const r of sem) if (!m[r.numero]) m[r.numero] = { etapa: "SEM_LAYOUT", com: null, desde: null, tarefaId: null, texto: `${r.n} item(ns) sem layout` };
   return m;
 }
 
