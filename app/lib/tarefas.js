@@ -72,7 +72,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
-  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
+  periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, aprovacao: t.aprovacao || null,   // v757 decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
 });
 
 // v737 — uma vez por processo: criações de layout antigas (criadas no nome do vendedor) passam para o nome do arte finalista
@@ -94,6 +94,7 @@ async function ajustarAcompanhamentoLayout() {
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await ajustarCriacoesLayout();
   await ajustarAcompanhamentoLayout();
+  try { const { ajustarAprovacoesAntigas } = await import("@/lib/tarefaAprovacao"); await ajustarAprovacoesAntigas(); } catch {}   // v757
   await gerarOcorrencias(ate);
   await limparLixeira().catch(() => null);   // v566
   const where = { modelo: false, status: { not: "CANCELADA" } };
@@ -216,8 +217,10 @@ export async function criar(b, u) {
   if (!t.setor) return { error: "Escolha o setor." };
   if (!t.responsavelId) return { error: "Escolha o colaborador." };
   if (!t.prazo) return { error: "Informe a data limite." };
-  const resp = await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { id: true, nome: true, sobrenome: true, ativo: true } });
+  const resp = await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { id: true, nome: true, sobrenome: true, ativo: true, setor: true } });
   if (!resp?.ativo) return { error: "Colaborador inválido." };
+  // v757 — demanda criada por outra pessoa para o arte finalista: passa pela aprovação de quem criou
+  const comAprov = resp.setor === "ARTE" && resp.id !== u.id && !b.layout && !b.evento;
   const e = await validarDeps(t.dependencias, null, t); if (e) return { error: e };
   const regra = normalizarRegra(b.recorrencia, t.prazo);
   const base = { ...t, prazo: dUTC(t.prazo), responsavelNome: nome(resp), criadoPorId: u.id, criadoPorNome: nome(u) };
@@ -228,7 +231,7 @@ export async function criar(b, u) {
     await gerarOcorrencias();
     criada = await prisma.tarefa.findFirst({ where: { serieId: serie.id }, orderBy: { prazo: "asc" } });
     if (criada && t.dependencias.length) await prisma.tarefa.update({ where: { id: criada.id }, data: { dependencias: t.dependencias } });
-  } else criada = await prisma.tarefa.create({ data: base });
+  } else criada = await prisma.tarefa.create({ data: { ...base, ...(comAprov ? { aprovacao: { etapa: "EXECUCAO", solicitanteId: u.id, solicitanteNome: nome(u), rodada: 1, desdeArquivoId: 0 } } : {}) } });
   if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
   if (criada && b.decisao) await (await import("@/lib/decisoes")).salvarDecisao(criada, b.decisao, u);   // v655
   await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`);
@@ -347,7 +350,7 @@ export async function restaurar(id, u) {
 }
 
 // ---------- play / stop / concluir ----------
-async function fecharSessoes(where) {
+export async function fecharSessoes(where) {
   const abertas = await prisma.tarefaSessao.findMany({ where: { ...where, fim: null } });
   const agora = new Date();
   for (const s of abertas) {
@@ -383,6 +386,8 @@ export async function concluir(id, retorno, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
   if (!x || !(await podeVerA(x, u))) return { error: "Demanda não encontrada." };
   if (!(x.responsavelId === u.id || podeEditar(x, u))) return { error: "Sem permissão." };
+  if (x.aprovacao?.etapa === "EXECUCAO" && x.responsavelId === u.id && x.criadoPorId !== u.id) return { error: "Esta demanda passa por aprovação: anexe os arquivos de resposta e clique em Enviar para aprovação." };   // v757
+  if (x.aprovacao?.etapa === "APROVACAO") return { error: "Decida pelos botões Aprovar ou Reprovar." };
   await fecharSessoes({ tarefaId: x.id });
   await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nome(u), retorno: String(retorno || "").trim().slice(0, 4000) || null, emAndamentoDesde: null } });
   await avisar(u.id, x.criadoPorId, `✅ DEMANDA CONCLUÍDA por ${nome(u)}: ${x.titulo}${retorno ? ` — ${String(retorno).slice(0, 300)}` : ""}`);

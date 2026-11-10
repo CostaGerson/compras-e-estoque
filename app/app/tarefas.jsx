@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown, Send,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -593,6 +593,54 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   );
 }
 
+/* ======================= v757 — demanda com aprovação (arte finalista) ======================= */
+function AprovacaoPainel({ t, user, onMudou }) {
+  const A = t.aprovacao || {};
+  const [d, setD] = useState(null);
+  const [motivo, setMotivo] = useState("");
+  const [ocup, setOcup] = useState(false);
+  const meu = t.responsavelId === user.id;
+  const aberta = t.status !== "CONCLUIDA" && t.status !== "CANCELADA";
+  useEffect(() => { api(`/api/tarefas/${t.id}/aprovacao?u=${user.id}`).then(setD).catch(() => setD({ arquivos: [] })); }, [t.id, t.arquivos?.length, t.status]);
+  const urlArq = (a) => `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`;
+  const acao = async (a) => {
+    if (a === "reprovar" && motivo.trim().length < 3) return alerta("Escreva as instruções para o arte finalista.");
+    setOcup(true);
+    try { await api(`/api/tarefas/${t.id}/aprovacao`, "POST", { usuarioId: user.id, acao: a, motivo }); setMotivo(""); onMudou?.(); } catch (e) { alerta(e.message); }
+    setOcup(false);
+  };
+  const arqs = d?.arquivos || [];
+  const Lista = () => arqs.length ? <div className="flex flex-col gap-0.5 mt-1">{arqs.map((a) => <a key={a.id} href={urlArq(a)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs" style={{ color: C.blue }}><FileText size={12} style={{ color: C.accent }} /> {a.nome}</a>)}</div> : null;
+  const cor = A.etapa === "APROVADO" ? C.green : A.etapa === "APROVACAO" ? C.accent : "#9E47FF";
+  return (
+    <div className="mb-3 rounded-xl p-3 text-sm" style={{ border: `2px solid ${cor}`, background: A.etapa === "APROVADO" ? C.greenSoft : A.etapa === "APROVACAO" ? C.accentSoft : "#F5EEFF" }}>
+      <div className="font-bold flex items-center gap-1.5" style={{ color: cor }}><CheckCircle2 size={14} />
+        {A.etapa === "APROVACAO" ? "Aprovação" : "Demanda com aprovação"}{Number(A.rodada) > 1 ? <span className="font-normal text-xs" style={{ color: C.sub }}>· rodada {A.rodada}</span> : null}</div>
+      {A.etapa === "EXECUCAO" && <>
+        <div className="text-xs mt-1" style={{ color: C.sub }}>Quem aprova: <b>{A.solicitanteNome || "quem criou"}</b>. {meu ? "Anexe os arquivos de resposta (abaixo, em Arquivos) e envie." : `Aguardando ${t.responsavelNome} anexar e enviar.`}</div>
+        {A.motivo && <div className="mt-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>Reprovado — instruções: {A.motivo}</div>}
+        <div className="mt-2 text-xs" style={{ color: C.text }}>Arquivos de resposta desta rodada: <b>{arqs.length}</b></div>
+        <Lista />
+        {meu && aberta && <div className="flex justify-end mt-2"><Btn cor={C.accent} disabled={ocup || !arqs.length} onClick={() => acao("enviar")}>{ocup ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar para aprovação</Btn></div>}
+      </>}
+      {A.etapa === "AGUARDANDO" && <div className="text-xs mt-1" style={{ color: C.sub }}>Enviado para aprovação de <b>{A.solicitanteNome}</b> — aguardando a decisão.</div>}
+      {A.etapa === "APROVADO" && <div className="text-xs mt-1" style={{ color: C.green }}>Aprovado{t.retorno ? ` · ${t.retorno}` : ""}</div>}
+      {A.etapa === "APROVACAO" && <>
+        <div className="text-xs mt-1" style={{ color: C.sub }}>{A.executorNome || t.criadoPorNome} enviou os arquivos abaixo. Aprove ou reprove com as instruções.</div>
+        <Lista />
+        {A.decisao && <div className="mt-2 text-xs font-semibold" style={{ color: A.decisao === "APROVADO" ? C.green : C.red }}>{A.decisao === "APROVADO" ? "Aprovado" : `Reprovado: ${A.motivo || ""}`}</div>}
+        {meu && aberta && <>
+          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Instruções para o arte finalista (obrigatório para reprovar)" className="w-full mt-2 px-2 py-1.5 rounded outline-none text-sm" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
+          <div className="flex justify-end gap-2 mt-2">
+            <Btn fundo={C.redSoft} cor={C.red} disabled={ocup} onClick={() => acao("reprovar")}>Reprovar</Btn>
+            <Btn cor={C.green} disabled={ocup} onClick={() => acao("aprovar")}><CheckCircle2 size={13} /> Aprovar</Btn>
+          </div>
+        </>}
+      </>}
+    </div>
+  );
+}
+
 /* ======================= detalhe ======================= */
 export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMudou, editarDireto }) {
   const [t, setT] = useState(null);
@@ -611,7 +659,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const [sobreDet, setSobreDet] = useState(false);   // v652
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
-  const direto = editarDireto && t?.podeEditar && !t?.layout && !t?.decisao && !t?.reuniao;   // v655 — decisão e reunião abrem no detalhe   // v654 — tarefa de layout abre no detalhe
+  const direto = editarDireto && t?.podeEditar && !t?.layout && !t?.decisao && !t?.reuniao && !t?.aprovacao;   // v757 — com aprovação abre no detalhe   // v655 — decisão e reunião abrem no detalhe   // v654 — tarefa de layout abre no detalhe
   if ((editar || direto) && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => (direto ? onClose() : setEditar(false))} onOk={() => { setEditar(false); carregar(); onMudou?.(); if (direto) onClose(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
@@ -624,7 +672,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         {t.serieId && t.podeEditar && <Btn fundo={C.blueSoft} cor={C.blue} onClick={async () => (await confirmar("Encerrar a rotina? As próximas ocorrências em aberto são canceladas.")) && acao("encerrarSerie")}><Repeat size={12} /> Encerrar rotina</Btn>}
         {t.podeEditar && <Btn fundo={C.panel} cor={C.text} onClick={() => setEditar(true)} style={{ border: `1px solid ${C.line}` }}><Pencil size={12} /> Editar</Btn>}
         {meu && t.status !== "CONCLUIDA" && <Btn cor={rodando ? C.yellow : C.green} disabled={!rodando && t.bloqueada} onClick={() => acao(rodando ? "stop" : "play")}>{rodando ? <><Square size={11} fill="#fff" /> Encerrar</> : <><Play size={12} fill="#fff" /> Iniciar</>}</Btn>}
-        {t.status !== "CONCLUIDA" ? (meu || t.podeEditar) && <Btn onClick={() => setConcluir(true)}><CheckCircle2 size={13} /> Concluir</Btn>
+        {t.status !== "CONCLUIDA" ? (meu || t.podeEditar) && !(t.aprovacao?.etapa === "APROVACAO" || (t.aprovacao?.etapa === "EXECUCAO" && meu && t.criadoPorId !== user.id)) && <Btn onClick={() => setConcluir(true)}><CheckCircle2 size={13} /> Concluir</Btn>
           : t.podeEditar && <Btn fundo={C.panel2} cor={C.text} onClick={() => acao("reabrir")}><RotateCcw size={12} /> Reabrir</Btn>}
       </>}>
       {erro && <div className="p-3 rounded-lg text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -652,6 +700,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         </div>
         {t.descricao && <div className="text-sm whitespace-pre-wrap mb-3 p-3 rounded-lg" style={{ background: C.panel2 }}>{t.descricao}</div>}
         {t.layout && <LayoutTarefa t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
+        {t.aprovacao && !t.layout && <AprovacaoPainel t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.decisao && <DecisaoPainel t={t} user={user} acao={acao} />}
         {t.reuniao && <ReuniaoPainel t={t} user={user} acao={acao} />}
         <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ border: `1px solid ${rodando ? C.yellow : C.line}`, background: rodando ? C.yellowSoft : C.panel }}>
