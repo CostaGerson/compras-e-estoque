@@ -14,8 +14,8 @@ const C = {
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
   navy: "#001E41", trilho: "#E9EDF3",
 };
-const FASE_TXT = { COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
-const FASE_COR = { COMPRAS: C.yellow, PROGRAMAR: "#B54708", CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
+const FASE_TXT = { DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+const FASE_COR = { DESIGN: "#9E47FF", COMPRAS: C.yellow, PROGRAMAR: "#B54708", CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dBR = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : "—");
 const dh = (s) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -53,7 +53,7 @@ const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.ac
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
 // v641 — opções do filtro de status (um pedido pode ter mais de uma)
-const FASES_UI = ["COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
+const FASES_UI = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
 const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["CRITICA", "Com crítica"]];
 const statusDe = (p) => [p.status, p.faturar, p.critica || p.criticaPrazo ? "CRITICA" : null].filter(Boolean);
 const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
@@ -228,7 +228,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.criticaPrazo ? C.red : C.text, fontWeight: p.criticaPrazo ? 700 : 400 }} title={p.criticaPrazo || ""}>
                       <span className="inline-flex items-center gap-1">{dBR(p.previsto)}{p.criticaPrazo && <AlertTriangle size={13} />}</span></td>
-                    <td className="px-3 py-2"><ChipFase f={p.fase} /></td>
+                    <td className="px-3 py-2"><ChipFase f={p.fase} />{p.layout && <div className="text-[10px] mt-0.5" style={{ color: "#7E3AF2" }}>{p.layout.texto}</div>}</td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
                     <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
@@ -331,7 +331,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-lg font-bold" style={{ color: C.navy }}>Pedido {numero}</span>
-              {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}{p && <ChipFaturar f={p.faturar} />}
+              {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}{p?.layout && <span className="text-xs font-semibold" style={{ color: "#7E3AF2" }}>{p.layout.texto}</span>}{p && <ChipFaturar f={p.faturar} />}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
@@ -576,7 +576,7 @@ function GuiaOp({ p, user, componentes, verFpp, anexos }) {
                 {/* fase no PCP */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs rounded-lg px-3 py-2" style={{ background: i.fase ? `${FASE_COR[i.fase] || C.sub}12` : C.panel2 }}>
                   <span className="font-semibold" style={{ color: C.sub }}>PCP</span>
-                  {i.fase ? <ChipFase f={i.fase} /> : <span style={{ color: C.sub }}>{p.fase === "COMPRAS" || p.fase === "PROGRAMAR" ? `${FASE_TXT[p.fase]} (ainda não está no PCP)` : "item não encontrado no PCP"}</span>}
+                  {i.fase ? <ChipFase f={i.fase} /> : <span style={{ color: C.sub }}>{p.fase === "DESIGN" || p.fase === "COMPRAS" || p.fase === "PROGRAMAR" ? `${FASE_TXT[p.fase]} (ainda não está no PCP)` : "item não encontrado no PCP"}</span>}
                   {i.etapa && <span><span style={{ color: C.sub }}>etapa </span><b>{i.etapa}</b></span>}
                   {i.situacao && <span><span style={{ color: C.sub }}>situação </span><b>{i.situacao}</b></span>}
                   {i.previsto && <span><span style={{ color: C.sub }}>prev. término </span><b style={{ color: p.prazo && String(i.previsto).slice(0, 10) > p.prazo ? C.red : undefined }}>{dOnly(i.previsto)}</b></span>}

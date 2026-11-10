@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { sincronizar, pcpDoPedido } from "@/lib/cronograma";
 import { itensDoPedido } from "@/lib/compras";
 
-export const FASES = ["COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];   // v621 — A programar
-export const FASE_TXT = { COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+export const FASES = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];   // v621 — A programar
+export const FASE_TXT = { DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -34,6 +34,8 @@ function resumoPedido(p, hoje) {
   let idx = fases.length ? Math.min(...fases.map((f) => FASES.indexOf(f))) : -1;
   // v621 — serviço e item liberado (aguardando o PCP receber) = A programar
   if (idx < 0 && p.fonte === "SISTEMA") idx = FASES.indexOf(p.tipoPedido === "SERVIÇO" || (p.sitCompras || p.cronoSituacao || "") === "A PROGRAMAR" || /^LIBERADO/.test(p.cronoSituacao || "") ? "PROGRAMAR" : "COMPRAS");
+  // v738 — aguardando layout (criação com o arte finalista ou aprovação com o vendedor): fase Design, enquanto não começou a produção
+  if (p.layoutPendente && (idx < 0 || idx <= FASES.indexOf("PROGRAMAR"))) idx = FASES.indexOf("DESIGN");
   const fase = idx >= 0 ? FASES[idx] : "FORA";
   const prazo = iso(p.despacho) || iso(p.cronoPrazo);
   const previsto = iso(p.cronoFimProgramado) || iso(p.entregaPrevista);
@@ -65,12 +67,27 @@ function resumoPedido(p, hoje) {
     criticaPrazo: fase !== "CONCLUIDO" && prazo && previsto && previsto > prazo ? `Previsão de término (${previsto.split("-").reverse().join("/")}) depois da entrega (${prazo.split("-").reverse().join("/")}) · ${Math.round((new Date(previsto) - new Date(prazo)) / 864e5)} dia(s) de atraso previsto` : null,
     prazo, previsto, fase, faseIdx: idx >= 0 ? idx : -1, status: atrasado ? "ATRASADO" : "EM DIA", semana,
     situacaoPcp: p.cronoSituacao || null,
+    layout: p.layoutPendente || null,   // v738 — { etapa: CRIACAO|APROVACAO, com, desde }
   };
 }
 
 const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
   cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
   cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true };   // v450 · v618 fonte
+
+// v738 — pedidos com tarefa de layout em aberto (criação ou aprovação) → { numero: { etapa, com, desde, texto } }
+export async function layoutsPendentes() {
+  const l = await prisma.tarefa.findMany({ where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] }, modelo: false, OR: [{ titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, { titulo: { startsWith: "APROVAÇÃO DE LAYOUT" } }] },
+    select: { id: true, layout: true, responsavelNome: true, createdAt: true, titulo: true }, orderBy: { id: "desc" } }).catch(() => []);
+  const m = {};
+  for (const t of l) {
+    const n = t.layout?.numero; if (!n || m[n]) continue;
+    const etapa = t.layout?.etapa === "APROVACAO" || /^APROVA/.test(t.titulo) ? "APROVACAO" : "CRIACAO";
+    m[n] = { etapa, com: t.responsavelNome || null, desde: t.createdAt, tarefaId: t.id,
+      texto: etapa === "APROVACAO" ? `Layout aguardando aprovação${t.responsavelNome ? ` de ${t.responsavelNome}` : ""}` : `Aguardando layout${t.responsavelNome ? ` (${t.responsavelNome})` : ""}` };
+  }
+  return m;
+}
 
 export async function gestaoProducao() {
   let sync = null; try { sync = await sincronizar({ intervaloMs: 60 * 1000 }); } catch (e) { sync = { ok: false, erro: e.message }; }
@@ -83,6 +100,7 @@ export async function gestaoProducao() {
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
   try { const { situacaoComprasSistema } = await import("@/lib/compras"); const sc = await situacaoComprasSistema(ps); for (const p of ps) if (sc[p.numero]) p.sitCompras = sc[p.numero]; } catch (e) { console.log("producao/sitCompras:", e.message); }
+  try { const lp = await layoutsPendentes(); for (const p of ps) if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch (e) { console.log("producao/layout:", e.message); }   // v738
   const lista = ps.filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
     .map((p) => resumoPedido(p, hoje));
   const total = lista.length;
@@ -100,6 +118,7 @@ export async function detalhePedido(numero) {
   const p = await prisma.pedidoVenda.findFirst({ where: { numero: String(numero) } });
   if (!p) return null;
   const hoje = hojeBR();
+  try { const lp = await layoutsPendentes(); if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch {}   // v738
   const r = resumoPedido(p, hoje);
   const itens = itensDoPedido(p);
   const vinc = await prisma.compraItem.findMany({ where: { pedidoNumero: p.numero } });
@@ -135,6 +154,7 @@ export async function detalhePedido(numero) {
     oc.push({ tipo: "COMPRAS", titulo: "Compras", inicio: ini, fim, quem: vinc.find((v) => v.vinculadoPorNome)?.vinculadoPorNome || null,
       obs: `${vinc.length} item(ns) com FPP base · ${vinc.filter((v) => v.status === "ESTOQUE").length} atendido(s) pelo estoque` });
   }
+  if (p.layoutPendente) oc.push({ tipo: "DESIGN", titulo: "Design · layout", inicio: p.layoutPendente.desde, fim: null, emCurso: true, quem: p.layoutPendente.com, obs: p.layoutPendente.texto });   // v738
   let pcp = null, erroPcp = null;
   try { pcp = await pcpDoPedido(p.numero); } catch (e) { erroPcp = e.message; }
   if (pcp) {
