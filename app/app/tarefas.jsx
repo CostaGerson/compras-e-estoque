@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -1210,9 +1210,21 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const alternarPassados = () => setVerPassados((v) => { try { localStorage.setItem("ce_agenda_passados", v ? "0" : "1"); } catch {} return !v; });
   useEffect(() => { try { setVerConcl(localStorage.getItem("ce_agenda_concl") === "1"); } catch {} }, []);
   const alternarConcl = () => setVerConcl((v) => { try { localStorage.setItem("ce_agenda_concl", v ? "0" : "1"); } catch {} return !v; });
-  const nConcl = (d?.tarefas || []).filter((t) => t.status === "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao)).length;
-  const filtradas = (d?.tarefas || []).filter((t) => t.status !== "CANCELADA" && (verConcl || t.status !== "CONCLUIDA") && (visao === "GERAL" || t.natureza === visao));
-  const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl]);
+  // v735 — "Designadas": troca as minhas tarefas pelas que eu criei para outras pessoas (seta escolhe o colaborador)
+  const [designadas, setDesignadas] = useState(false);
+  const [colab, setColab] = useState(null);
+  const [menuColab, setMenuColab] = useState(false);
+  const ehDesignada = (t) => t.criadoPorId === user.id && t.responsavelId !== user.id;
+  const colabs = useMemo(() => {
+    const m = new Map();
+    (d?.tarefas || []).filter((t) => ehDesignada(t) && t.status !== "CANCELADA").forEach((t) => { const x = m.get(t.responsavelId) || { id: t.responsavelId, nome: t.responsavelNome, n: 0 }; if (t.status !== "CONCLUIDA") x.n++; m.set(t.responsavelId, x); });
+    return [...m.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+  }, [d]);
+  useEffect(() => { if (colab && !colabs.some((c) => c.id === colab)) setColab(null); }, [colabs]);
+  const daVez = (t) => (designadas ? ehDesignada(t) && (!colab || t.responsavelId === colab) : !ehDesignada(t));
+  const nConcl = (d?.tarefas || []).filter((t) => daVez(t) && t.status === "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao)).length;
+  const filtradas = (d?.tarefas || []).filter((t) => daVez(t) && t.status !== "CANCELADA" && (verConcl || t.status !== "CONCLUIDA") && (visao === "GERAL" || t.natureza === visao));
+  const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl, designadas, colab]);
   // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
   // v605 — sempre pela ordem de horário; sem horário vem depois (manhã antes de tarde), na ordem escolhida arrastando
   // v648 — ordem livre arrastando (com ou sem horário); as que têm horário ficam de mais cedo para mais tarde entre si
@@ -1486,6 +1498,25 @@ export function Agenda({ user, pedidoModo, onModo }) {
               <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
               {!(mobile && modo === "mes") && <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>}
               <span className="flex-1" />
+              {/* v735 — botão Designadas: clicar alterna; a seta escolhe o colaborador (só quem tem tarefa designada) */}
+              <div className="relative flex items-stretch rounded-md text-xs font-semibold" style={{ border: `1px solid ${designadas ? A.azul : A.linha}`, background: designadas ? A.azulSoft : "transparent", color: designadas ? A.azul : A.texto, transition: "all .18s" }}>
+                <button onClick={() => { setDesignadas((v) => !v); if (designadas) setColab(null); setMenuColab(false); }} title={designadas ? "Voltar para as minhas tarefas" : "Ver as tarefas que você designou"}
+                  className={`flex items-center gap-1.5 ${mobile ? "px-2 py-2" : "px-2.5 py-1.5"}`}>
+                  {(() => { const c = colabs.find((x) => x.id === colab); return c ? <AvatarMini foto={fotos[c.id]} nome={c.nome} size={mobile ? 20 : 16} /> : <Users size={mobile ? 18 : 14} />; })()}
+                  <span className="truncate" style={{ maxWidth: mobile ? 90 : 150 }}>{designadas && colab ? (colabs.find((x) => x.id === colab)?.nome || "Designadas").split(" ")[0] : "Designadas"}</span>
+                </button>
+                <button onClick={() => setMenuColab((v) => !v)} title="Escolher colaborador" className="px-1.5 flex items-center" style={{ borderLeft: `1px solid ${designadas ? A.azul : A.linha}` }}><ChevronDown size={14} /></button>
+                {menuColab && <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuColab(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 rounded-lg py-1 shadow-lg" style={{ background: "#fff", border: `1px solid ${A.linha}`, minWidth: 210, maxHeight: 320, overflowY: "auto" }}>
+                    {!colabs.length ? <div className="px-3 py-2 text-xs font-normal" style={{ color: A.sub }}>Nenhuma tarefa designada neste período.</div> : <>
+                      <button onClick={() => { setDesignadas(true); setColab(null); setMenuColab(false); }} className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2" style={{ color: A.texto, background: designadas && !colab ? A.azulSoft : "transparent" }}><Users size={14} /> Todos os colaboradores</button>
+                      {colabs.map((c) => <button key={c.id} onClick={() => { setDesignadas(true); setColab(c.id); setMenuColab(false); }} className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2" style={{ color: A.texto, background: designadas && colab === c.id ? A.azulSoft : "transparent" }}>
+                        <AvatarMini foto={fotos[c.id]} nome={c.nome} size={18} /><span className="flex-1 truncate">{c.nome}</span>{c.n > 0 && <span style={{ color: A.sub }}>{c.n}</span>}</button>)}
+                    </>}
+                  </div>
+                </>}
+              </div>
               <button onClick={alternarConcl} title={verConcl ? "Esconder concluídas" : "Mostrar concluídas"} className={`rounded-md flex items-center gap-1 text-xs font-semibold ${mobile ? "p-2" : "px-2 py-1.5"}`}
                 style={{ color: verConcl ? A.azul : A.sub, background: verConcl ? A.azulSoft : "transparent", transition: "all .18s" }}>
                 {verConcl ? <Eye size={mobile ? 20 : 16} /> : <EyeOff size={mobile ? 20 : 16} />}{nConcl > 0 && <span>{nConcl}</span>}
