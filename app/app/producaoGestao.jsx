@@ -14,8 +14,8 @@ const C = {
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA",
   navy: "#001E41", trilho: "#E9EDF3",
 };
-const FASE_TXT = { DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
-const FASE_COR = { DESIGN: "#9E47FF", COMPRAS: C.yellow, PROGRAMAR: "#B54708", CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
+const FASE_TXT = { PORTAL: "Portal · aguardando", DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+const FASE_COR = { PORTAL: "#3D6799", DESIGN: "#9E47FF", COMPRAS: C.yellow, PROGRAMAR: "#B54708", CORTE: C.blue, PERSONALIZACAO: "#7C5CD6", COSTURA: "#0E8F8F", EXPEDICAO: C.accent, CONCLUIDO: C.green, FORA: C.sub };
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dBR = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : "—");
 const dh = (s) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -53,7 +53,7 @@ const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.ac
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
 // v641 — opções do filtro de status (um pedido pode ter mais de uma)
-const FASES_UI = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
+const FASES_UI = ["PORTAL", "DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
 const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["CRITICA", "Com crítica"]];
 const statusDe = (p) => [p.status, p.faturar, p.critica || p.criticaPrazo ? "CRITICA" : null].filter(Boolean);
 const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
@@ -213,12 +213,12 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
             <table className="w-full text-sm">
               <thead style={{ background: C.panel2, color: C.sub }} className="text-xs">
                 <tr><th className="pl-3 pr-1 py-2 w-6"><input type="checkbox" title="Selecionar todos da lista" style={{ accentColor: C.accent }}
-                  checked={lista.length > 0 && lista.every((p) => marcados.includes(p.numero))} onChange={(e) => setMarcados(e.target.checked ? [...new Set([...marcados, ...lista.map((p) => p.numero)])] : marcados.filter((n) => !lista.some((p) => p.numero === n)))} /></th><Th k="numero">Pedido</Th><Th k="lancamento">Lançamento</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
+                  checked={lista.length > 0 && lista.filter((p) => !p.portalPpId).every((p) => marcados.includes(p.numero))} onChange={(e) => setMarcados(e.target.checked ? [...new Set([...marcados, ...lista.filter((p) => !p.portalPpId).map((p) => p.numero)])] : marcados.filter((n) => !lista.some((p) => p.numero === n)))} /></th><Th k="numero">Pedido</Th><Th k="lancamento">Lançamento</Th><Th k="cliente">Cliente</Th><Th k="pecas">Peças</Th><Th k="total">Valor</Th><Th k="prazo">Entrega</Th><Th k="previsto">Prev. término</Th>{ThFiltro({ k: "fase", children: "Fase", opcoes: opFase, sel: fFase, setSel: setFFase })}{ThFiltro({ k: "status", children: "Status", opcoes: opStatus, sel: fStatus, setSel: setFStatus })}<th /></tr>
               </thead>
               <tbody>
                 {lista.map((p) => (
-                  <tr key={p.numero} onClick={() => setAberto(p.numero)} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
-                    <td className="pl-3 pr-1 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={marcados.includes(p.numero)} style={{ accentColor: C.accent }}
+                  <tr key={p.numero} onClick={() => (p.portalPpId ? (podeLancar ? editarPp(p.portalPpId) : alerta("Pedido do portal ainda não entrou na produção.")) : setAberto(p.numero))} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="pl-3 pr-1 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" disabled={!!p.portalPpId} checked={marcados.includes(p.numero)} style={{ accentColor: C.accent }}
                       onChange={() => setMarcados((m) => (m.includes(p.numero) ? m.filter((x) => x !== p.numero) : [...m, p.numero]))} /></td>
                     <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: C.navy }}>{p.numero}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }}>{dBR(p.lancamento)}</td>
@@ -228,9 +228,9 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-3 py-2 whitespace-nowrap">{dBR(p.prazo)}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.criticaPrazo ? C.red : C.text, fontWeight: p.criticaPrazo ? 700 : 400 }} title={p.criticaPrazo || ""}>
                       <span className="inline-flex items-center gap-1">{dBR(p.previsto)}{p.criticaPrazo && <AlertTriangle size={13} />}</span></td>
-                    <td className="px-3 py-2"><ChipFase f={p.fase} />{p.layout && <div className="text-[10px] mt-0.5" style={{ color: "#7E3AF2" }}>{p.layout.texto}</div>}</td>
+                    <td className="px-3 py-2"><ChipFase f={p.fase} />{p.layout && <div className="text-[10px] mt-0.5" style={{ color: p.fase === "PORTAL" ? "#3D6799" : "#7E3AF2" }}>{p.layout.texto}</div>}</td>
                     <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap">{!p.portalPpId && <><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></>}</td>
                   </tr>
                 ))}
                 {!lista.length && <tr><td colSpan={11} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>Nenhum pedido.</td></tr>}
