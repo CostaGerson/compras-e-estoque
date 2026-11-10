@@ -49,6 +49,14 @@ export function proximoNumero(existentes, hoje = hojeISO(), inicio = SEQ_INICIO)
 // ---------- itens e grade ----------
 export const qtdGrade = (grade) => (Array.isArray(grade) ? grade.reduce((s, g) => s + num(g.qtd), 0) : 0);
 // grade de cada item somada nas entregas × grade do item: { ok, itens: [{ idx, falta: { tam: dif } }] } (dif > 0 = falta entregar, < 0 = sobra)
+// v750 — desconto: na peça (sobre o preço cheio) e no total do pedido (sobre o valor dos itens)
+export function valorDesconto(d, base) {
+  if (!d || d.ativo === false) return 0;
+  const v = Math.max(0, num(d.valor)), b = Math.max(0, num(base));
+  if (!v || !b) return 0;
+  return Math.round(Math.min(b, d.tipo === "PCT" ? b * Math.min(v, 100) / 100 : v) * 100) / 100;
+}
+export const precoComDesconto = (d) => Math.round(Math.max(0, num(d?.base) - valorDesconto(d, d?.base)) * 100) / 100;
 // v746 — frete contratado por entrega: soma no total do pedido (não é distribuído entre os itens)
 export function freteTotal({ entregaModo, entregas, frete } = {}) {
   if (frete != null && typeof frete !== "object") return Math.round(Math.max(0, num(frete)) * 100) / 100;   // pedido de venda: frete já somado (número)

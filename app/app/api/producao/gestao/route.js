@@ -4,7 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { gestaoProducao, detalhePedido } from "@/lib/producaoGestao";
 
 export async function GET(req) {
-  const n = new URL(req.url).searchParams.get("numero");
+  const sp = new URL(req.url).searchParams;
+  // v749 — diagnóstico: pedidos do portal e onde estão (pedido de venda, status, interno)
+  if (sp.get("diagPortal")) {
+    const pps = await prisma.pp.findMany({ where: { portalClienteId: { not: null } }, orderBy: { id: "desc" }, take: 30,
+      select: { id: true, portalNumero: true, numero: true, status: true, portalStatus: true, efetivadoEm: true, interno: true, clienteNome: true } });
+    const pv = await prisma.pedidoVenda.findMany({ where: { numero: { in: pps.map((p) => p.numero).filter(Boolean) } }, select: { numero: true, status: true, interno: true, fonte: true, cliente: true } });
+    const V = Object.fromEntries(pv.map((v) => [v.numero, v]));
+    return Response.json(pps.map((p) => ({ ...p, pedidoVenda: p.numero ? V[p.numero] || "NÃO EXISTE" : null })));
+  }
+  const n = sp.get("numero");
   if (n) {
     const d = await detalhePedido(n);
     return d ? Response.json(d) : Response.json({ error: "Pedido não encontrado." }, { status: 404 });

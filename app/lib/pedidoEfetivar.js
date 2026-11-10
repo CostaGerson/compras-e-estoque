@@ -5,7 +5,7 @@ import { chaveEntrada } from "@/lib/pedidos";
 import { itensDoPedido, demandaDoItem } from "@/lib/compras";
 import { parametrosDoDetalhe, rtfTexto } from "@/lib/kmSync";
 import {
-  num, hojeISO, somaDias, proximoNumero, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, paramFora, resumoFpp, freteTotal,
+  num, hojeISO, somaDias, proximoNumero, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, paramFora, resumoFpp, freteTotal, valorDesconto,
 } from "@/lib/pedidoLanc";
 
 import { limparDU, temDU, conferirComGrade } from "@/lib/dadosUnitarios";
@@ -33,13 +33,17 @@ export async function salvarPp(id, b, quem) {
   const entregasB = !servico && entregaModo !== "UNICA" && Array.isArray(b.entregas) ? b.entregas.map((e) => ({ ...e, frete: limpaFrete(e?.frete) })) : [];
   const freteU = !servico && entregaModo === "UNICA" ? limpaFrete(b.frete) : { contratado: false, valor: 0 };
   const frete = freteTotal({ entregaModo, entregas: entregasB, frete: freteU });   // v746 — soma no total, não nos itens
-  const total = r2(itens.reduce((s, it) => s + qtdIt(it) * num(it.valorUnitario), 0) + frete);
+  const valorItens = r2(itens.reduce((s, it) => s + qtdIt(it) * num(it.valorUnitario), 0));
+  const descPed = b.desconto && num(b.desconto.valor) > 0 ? { tipo: b.desconto.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(num(b.desconto.valor)) } : null;   // v750
+  const desconto = valorDesconto(descPed, valorItens);
+  const total = r2(valorItens - desconto + frete);
   const data = {
     ...Object.fromEntries(CAMPOS_PP.map((k) => [k, b[k] ? String(b[k]).trim() || null : null])),
     interno, tipoPedido: servico ? "SERVIÇO" : interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo,
     prazoEntrega: prazoDias != null ? `${prazoDias} DIAS ${prazoTipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"}` : null,
     dtDespacho: brData(despacho),
     entregaModo, entregas: entregasB, frete: freteU,
+    ...(b.desconto === undefined ? {} : { desconto: descPed || { tipo: "PCT", valor: 0 } }),   // v750 — quem não vê valores não manda: fica como está
     // v747 — venda comissionada (sem vendedor = sem comissão)
     ...(b.comissao === undefined ? {} : { comissao: !interno && b.comissao && Number(b.comissao.vendedorId) ? { vendedorId: Number(b.comissao.vendedorId), tipo: b.comissao.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(Math.max(0, num(b.comissao.valor))) } : { vendedorId: null } }),   // quem não vê valores não manda: fica como está
     pagamento: interno ? null : (b.pagamento || null),
@@ -55,6 +59,7 @@ export async function salvarPp(id, b, quem) {
     anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64 })) : undefined,   // v650
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
+    ...(it.desconto && num(it.desconto.valor) > 0 && num(it.desconto.base) > 0 ? { desconto: { tipo: it.desconto.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(num(it.desconto.valor)), base: r2(num(it.desconto.base)) } } : {}),   // v750 — valorUnitario já vem com o desconto
     itemPadraoId: Number(it.itemPadraoId) || null, valorVenda: num(it.valorVenda) > 0 ? r2(num(it.valorVenda)) : null,   // v711
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
@@ -174,7 +179,9 @@ export async function efetivarPedido(id, quem) {
   }
   const itens = itensPv(pp);
   const frete = freteTotal(pp);   // v746
-  const total = r2(itens.reduce((s, i) => s + i.total, 0) + frete);
+  const valorItensE = r2(itens.reduce((s, i) => s + i.total, 0));
+  const desconto = valorDesconto(pp.desconto, valorItensE);   // v750 — desconto no total do pedido
+  const total = r2(valorItensE - desconto + frete);
   const qtd = itens.reduce((s, i) => s + i.qtd, 0);
   const despacho = pp.prazoDias != null ? somaDias(pp.emissao || hojeISO(), pp.prazoDias, pp.prazoTipo) : null;
   const kmSemPag = pp.kmAssumidoEm && !(pp.pagamento?.parcelas?.length || pp.pagamento?.entrada);   // v730 — assumido do KM: contas do KM ficam

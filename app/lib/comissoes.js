@@ -5,6 +5,7 @@
 //   SPOT: uma conta a pagar no vencimento de cada conta a receber.
 //   MENSAL: todas as partes com vencimento no mês M viram uma só conta a pagar no dia 10 do mês M+1.
 import { prisma } from "@/lib/prisma";
+import { valorDesconto } from "@/lib/pedidoLanc";
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const so = (s) => String(s || "").replace(/\D/g, "");
@@ -92,7 +93,8 @@ export async function sincronizarComissoes(numero, quem = null) {
   const vend = com ? await prisma.vendedor.findUnique({ where: { id: Number(com.vendedorId) } }) : null;
   let novas = [];
   if (com && vend && pp && !pp.interno) {
-    const valorItens = r2(pp.itens.reduce((s, it) => s + num(it.quantidade) * num(it.valorUnitario), 0));
+    const brutoItens = r2(pp.itens.reduce((s, it) => s + num(it.quantidade) * num(it.valorUnitario), 0));
+    const valorItens = r2(brutoItens - valorDesconto(pp.desconto, brutoItens));   // v750 — comissão sobre o valor com desconto
     const totalPedido = Number(pp.valorTotal) || valorItens;
     const receber = (await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", chaveImport: { startsWith: `PED|${numero}|` }, status: { not: "CANCELADO" } }, orderBy: { vencimento: "asc" },
       select: { chaveImport: true, valor: true, vencimento: true, titulo: true } }));

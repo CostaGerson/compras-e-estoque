@@ -393,6 +393,7 @@ model Pp {
   prazoTipo         String?   // UTEIS | CORRIDOS
   entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
   entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
+  desconto          Json?     // v750 — desconto no total do pedido: { tipo: PCT|VALOR, valor }
   comissao          Json?     // v747 — venda comissionada: { vendedorId, tipo: PCT|VALOR, valor }
   frete             Json?     // v746 — entrega única: { contratado, valor } (nas fracionadas fica em cada entrega: entregas[].frete)
   pagamento         Json?     // { entrada: { data, valor } | null, parcelas: [{ dias, tipo, base, valor }] }
@@ -465,6 +466,7 @@ model PpItem {
   itemPadraoId      Int?      // v711 — item padrão de origem (portal: editar o pedido)
   valorVenda        Decimal?  @db.Decimal(14, 2)   // v711 — portal: preço por peça que o cliente vendeu (para a MC do pedido)
   dadosUnitarios    Json?     // v699 — dados por peça: { campos: [{ id, local, rotulo }], linhas: [{ tam, valores }], linkId? }
+  desconto          Json?     // v750 — desconto na peça: { tipo: PCT|VALOR, valor, base } (valorUnitario já é o preço com desconto)
   valorTerceirizado Decimal? @db.Decimal(14, 2)
   fppId             Int?      // v595 — FPP indexada no lançamento (artigo e rendimento vêm dela)
   fppNumero         Int?

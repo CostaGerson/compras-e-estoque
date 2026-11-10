@@ -11,7 +11,7 @@ import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
-  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal,
+  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal, valorDesconto, precoComDesconto,
   paramFora, tecidoDaFpp, numFpp,
 } from "@/lib/pedidoLanc";
 
@@ -32,6 +32,42 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
 const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
 const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
+// v750 — desconto na peça: R$ ou % sobre o preço cheio; o valor unitário do item passa a ser o preço com desconto
+const fmtV = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+const descItem = (d) => ({ desconto: d, valorUnitario: fmtV(precoComDesconto(d)) });
+function DescontoPeca({ it, onChange }) {
+  const d = it.desconto;
+  const TipoBtn = ({ k, t }) => <button type="button" onClick={() => onChange({ ...d, tipo: k })} className="px-2 py-0.5 text-[11px] font-semibold rounded" style={{ background: d?.tipo === k ? "#fff" : "transparent", color: d?.tipo === k ? C.text : C.sub, boxShadow: d?.tipo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none" }}>{t}</button>;
+  if (!d) return <button type="button" onClick={() => onChange({ tipo: "PCT", valor: "", base: it.valorUnitario })} className="text-[11px] mt-1" style={{ color: C.accent }}>+ desconto na peça</button>;
+  return (
+    <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
+      <span style={{ color: C.sub }}>Desconto</span>
+      <span className="inline-flex rounded p-0.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}><TipoBtn k="PCT" t="%" /><TipoBtn k="VALOR" t="R$" /></span>
+      <input value={d.valor} onChange={(e) => onChange({ ...d, valor: e.target.value.replace(/[^\d,.]/g, "") })} placeholder="0" inputMode="decimal" className="w-14 px-1 py-0.5 rounded outline-none text-right" style={inp} />
+      <span style={{ color: C.green }}>= {money(precoComDesconto(d))}/pç</span>
+      <button type="button" onClick={() => onChange(null)} title="Tirar o desconto" style={{ color: C.sub }}><X size={11} /></button>
+    </div>
+  );
+}
+// v750 — desconto no total do pedido: R$ ou % sobre o valor dos itens (o frete não entra)
+function DescontoCard({ f, set, totalItens, descV, podeLancar }) {
+  const d = f.desconto || { tipo: "PCT", valor: "" };
+  const on = num(d.valor) > 0 || d.ligado;
+  return (
+    <Card titulo="Desconto no total do pedido">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        {[[false, "Não"], [true, "Sim"]].map(([k, t]) => <label key={t} className="flex items-center gap-1 cursor-pointer"><input type="radio" disabled={!podeLancar} checked={!!on === k} onChange={() => set("desconto", k ? { ...d, ligado: true } : { tipo: "PCT", valor: "" })} /> {t}</label>)}
+        {on && <>
+          <div className="inline-flex rounded-md p-0.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+            {[["PCT", "%"], ["VALOR", "R$"]].map(([k, t]) => <button key={k} type="button" disabled={!podeLancar} onClick={() => set("desconto", { ...d, tipo: k })} className="px-3 py-1 text-xs font-semibold rounded" style={{ background: d.tipo === k ? "#fff" : "transparent", color: d.tipo === k ? C.text : C.sub, boxShadow: d.tipo === k ? "0 1px 2px rgba(0,0,0,.12)" : "none" }}>{t}</button>)}
+          </div>
+          <input value={d.valor ?? ""} disabled={!podeLancar} onChange={(e) => set("desconto", { ...d, valor: e.target.value.replace(/[^\d,.]/g, "") })} placeholder={d.tipo === "PCT" ? "0 %" : "0,00"} inputMode="decimal" className="w-24 px-2 py-1.5 rounded outline-none text-sm text-right" style={{ ...inp, background: C.panel }} />
+          {descV > 0 && <span>Desconto <b style={{ color: C.red }}>− {money(descV)}</b> <span className="text-xs" style={{ color: C.sub }}>sobre itens de {money(totalItens)}</span></span>}
+        </>}
+      </div>
+    </Card>
+  );
+}
 // v747 — venda comissionada: vendedor (Dados › Vendedores) + comissão em % (sobre os itens, sem frete) ou em R$
 function ComissaoCard({ f, set, uid, totalItens, podeLancar }) {
   const [vs, setVs] = useState(null);
@@ -214,6 +250,7 @@ const vazioF = () => ({
   oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaModo: "UNICA", entregas: [],
   frete: { contratado: false, valor: "" },   // v746 — frete da entrega única
   comissao: { vendedorId: null, tipo: "PCT", valor: "" },   // v747 — venda comissionada
+  desconto: { tipo: "PCT", valor: "" },   // v750 — desconto no total do pedido
   pagamento: { entrada: null, parcelas: [] }, status: "EM_LANCAMENTO", efetivadoEm: null,
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
@@ -272,7 +309,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
           dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null,   // v699
-          itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "" };   // v711 — portal: mantém ao salvar aqui
+          itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "",   // v711 — portal: mantém ao salvar aqui
+          desconto: it.desconto && it.desconto.base ? { tipo: it.desconto.tipo, valor: String(it.desconto.valor).replace(".", ","), base: String(it.desconto.base).replace(".", ",") } : null };   // v750
       });
       setItens(its.length ? its : [novoItem()]);
       setAnexos((d.anexos || []).map((a) => ({ ...a })));
@@ -289,8 +327,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const somaItem = (it) => (f.servico ? num(it.quantidade) : qtdGrade(it.grade));
   const totalItem = (it) => somaItem(it) * num(it.valorUnitario);
   const totalItens = itens.reduce((s, it) => s + totalItem(it), 0);
+  const descV = valorDesconto(f.desconto, totalItens);   // v750 — desconto no total do pedido
   const freteV = f.servico ? 0 : freteTotal(f);   // v746 — frete contratado: soma no total do pedido, não entra nos itens
-  const totalGeral = totalItens + freteV;
+  const totalGeral = totalItens - descV + freteV;
   const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
   const despacho = f.prazoDias !== "" ? somaDias(f.emissao, num(f.prazoDias), f.prazoTipo) : null;
   const calc = parcelasCalc(f.pagamento, totalGeral, { emissao: f.emissao });
@@ -469,7 +508,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       const fora = it.grade.filter((g) => num(g.qtd) > 0 && !tamanhos.includes(g.tam) && !/^\d+$/.test(g.tam) && !/^BL /.test(g.tam)).map((g) => g.tam);
       if (fora.length) av.push(`Item ${i + 1}: tamanhos fora da grade padrão (${fora.join(", ")}) — entraram no fim da grade.`);
       if (!it.fotoBase64) av.push(`Item ${i + 1}: sem layout — ao efetivar, vira tarefa para o arte-finalista.`);
-      if (veVal && it.fpp?.valorProposto && Math.abs(num(it.valorUnitario) - Number(it.fpp.valorProposto)) > 0.009) av.push(`Item ${i + 1}: valor unitário ${money(num(it.valorUnitario))} diferente do valor da FPP ${numFpp(it.fppNumero)} (${money(it.fpp.valorProposto)}).`);
+      if (veVal && it.fpp?.valorProposto && Math.abs(num(it.desconto ? it.desconto.base : it.valorUnitario) - Number(it.fpp.valorProposto)) > 0.009) av.push(`Item ${i + 1}: valor unitário ${money(num(it.valorUnitario))} diferente do valor da FPP ${numFpp(it.fppNumero)} (${money(it.fpp.valorProposto)}).`);
     });
     if (doc.valorTotal != null && Math.abs(doc.valorTotal - total) > 0.05) av.push(`Total calculado ${money(total)} diferente do total do documento ${money(doc.valorTotal)}.`);
     setImportado({ nome, cliente: doc.cliente, clienteCriado: d.clienteCriado, clienteCompletado: d.clienteCompletado || [], pecas: novosItens.reduce((s2, it) => s2 + qtdGrade(it.grade), 0), total, fpps: doc.fpps, avisos: av });
@@ -491,6 +530,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     ...f, prazoDias: f.prazoDias === "" ? null : num(f.prazoDias), clienteCnpj: dig(f.clienteCnpj) ? fmtCnpj(f.clienteCnpj) : "",
     itens: itens.map((it) => ({ ...it, fpp: undefined })),
     comissao: veVal ? f.comissao : undefined,   // v747 — quem não vê valores não mexe na comissão
+    desconto: veVal ? f.desconto : undefined,   // v750
     anexos: anexos.map((a) => (a.id ? { id: a.id, categoria: a.categoria } : a)),
   });
   const salvar = async () => {
@@ -754,7 +794,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 <Auto value={it.descricao} onChange={(v) => upItem(i, { descricao: v })} buscar={buscarItemKm} onPick={(p) => pickItemKm(i, p)} placeholder="digite para buscar o item…"
                   render={(p) => <span><b>{p.descricao}</b> <span style={{ color: C.sub }}>· {p.codigo}{p.parametros?.length ? ` · ${p.parametros.length} parâmetros` : ""}</span></span>} />
               </Campo>
-              {veVal ? <In label="Valor unitário (R$)" upper={false} value={it.valorUnitario} onChange={(e) => upItem(i, { valorUnitario: e.target.value })} placeholder="0,00" /> : <div />}
+              {veVal ? <div>
+                <In label={it.desconto ? "Valor unitário cheio (R$)" : "Valor unitário (R$)"} upper={false} value={it.desconto ? it.desconto.base : it.valorUnitario}
+                  onChange={(e) => upItem(i, it.desconto ? descItem({ ...it.desconto, base: e.target.value }) : { valorUnitario: e.target.value })} placeholder="0,00" />
+                <DescontoPeca it={it} onChange={(d) => upItem(i, d ? descItem(d) : { desconto: null, valorUnitario: it.desconto ? it.desconto.base : it.valorUnitario })} />
+              </div> : <div />}
             </div>
 
             {/* FPP */}
@@ -907,7 +951,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       </Card>}
 
       {/* ---------- v747 — Venda comissionada ---------- */}
-      {!f.interno && veVal && <ComissaoCard f={f} set={set} uid={uid} totalItens={totalItens} podeLancar={podeLancar} />}
+      {!f.interno && veVal && <DescontoCard f={f} set={set} totalItens={totalItens} descV={descV} podeLancar={podeLancar} />}
+      {!f.interno && veVal && <ComissaoCard f={f} set={set} uid={uid} totalItens={totalItens - descV} podeLancar={podeLancar} />}
 
       {/* ---------- Pagamento ---------- */}
       
@@ -968,7 +1013,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
       <div className="mt-2 flex justify-end text-sm" style={{ color: C.sub }}>
         Total do pedido: <b className="ml-2" style={{ color: C.accent }}>{totalPecas} peças{veVal ? ` · ${money(totalGeral)}` : ""}</b>
-        {veVal && freteV > 0 && <span className="ml-2 text-xs" style={{ color: C.sub }}>(itens {money(totalItens)} + frete {money(freteV)})</span>}
+        {veVal && (freteV > 0 || descV > 0) && <span className="ml-2 text-xs" style={{ color: C.sub }}>(itens {money(totalItens)}{descV > 0 ? ` − desconto ${money(descV)}` : ""}{freteV > 0 ? ` + frete ${money(freteV)}` : ""})</span>}
       </div>
 
       {/* ---------- modais ---------- */}
