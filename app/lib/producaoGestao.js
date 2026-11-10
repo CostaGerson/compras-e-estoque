@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { sincronizar, pcpDoPedido } from "@/lib/cronograma";
 import { itensDoPedido } from "@/lib/compras";
 
-export const FASES = ["PORTAL", "DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];   // v621 — A programar
-export const FASE_TXT = { PORTAL: "Portal · aguardando", DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
+export const FASES = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];   // v621 — A programar
+export const FASE_TXT = { DESIGN: "Design · layout", COMPRAS: "Compras", PROGRAMAR: "A programar", CORTE: "Corte", PERSONALIZACAO: "Personalização", COSTURA: "Costura", EXPEDICAO: "Expedição", CONCLUIDO: "Concluído", FORA: "Fora do PCP" };
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -108,23 +108,8 @@ export async function gestaoProducao() {
   try { const lp = await layoutsPendentes(); for (const p of ps) if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch (e) { console.log("producao/layout:", e.message); }   // v738
   const lista = ps.filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
     .map((p) => resumoPedido(p, hoje));
-  // v748 — pedidos do portal do cliente (ex.: Loja Way) que ainda não entraram na produção: recebendo detalhes ou liberados sem efetivar
-  try {
-    const pend = await prisma.pp.findMany({ where: { portalClienteId: { not: null }, efetivadoEm: null, portalStatus: { in: ["RECEBENDO_DETALHES", "LIBERADO"] }, status: { notIn: ["EXCLUIDO", "CANCELADO"] } },
-      select: { id: true, portalNumero: true, portalStatus: true, clienteNome: true, oc: true, valorTotal: true, createdAt: true, portalEnviadoEm: true, dtDespacho: true, itens: { select: { quantidade: true, descricao: true, codigo: true } } }, orderBy: { id: "asc" } });
-    for (const x of pend) {
-      const n = `PORTAL ${String(x.portalNumero || x.id).padStart(4, "0")}`;
-      const det = x.portalStatus === "RECEBENDO_DETALHES";
-      lista.push({ numero: n, portalPpId: x.id, lancamento: iso(x.portalEnviadoEm || x.createdAt), cliente: x.clienteNome || "—", oc: x.oc || null, vendedor: null,
-        total: r2(x.valorTotal), aFaturar: r2(x.valorTotal), pecas: x.itens.reduce((s, i) => s + (Number(i.quantidade) || 0), 0), nItens: x.itens.length,
-        itensTxt: x.itens.map((i) => `${i.codigo || ""} ${i.descricao || ""}`).join(" | "), prazo: null, previsto: null, fase: "PORTAL", faseIdx: 0, status: "EM DIA", semana: false,
-        situacaoPcp: null, faturar: null, critica: null, criticaPrazo: null,
-        layout: { etapa: "PORTAL", texto: det ? "Recebendo detalhes (link do cliente aberto)" : "Liberado pelo cliente — a efetivar" } });
-    }
-  } catch (e) { console.log("producao/portal:", e.message); }
-  const naProd = lista.filter((p) => !p.portalPpId);   // v748 — indicadores só dos pedidos que já estão na produção
-  const total = naProd.length;
-  const cont = (f) => naProd.filter(f).length;
+  const total = lista.length;
+  const cont = (f) => lista.filter(f).length;
   return {
     hoje, sync: sync ? { ok: sync.ok !== false, erro: sync.erro || null, em: sync.em || null } : null,
     kpis: { andamento: total, emDia: cont((p) => p.status === "EM DIA"), atrasados: cont((p) => p.status === "ATRASADO"), semana: cont((p) => p.semana),
