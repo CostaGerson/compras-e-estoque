@@ -1,7 +1,7 @@
-// v752 — Cronograma PCP: cada solicitação de desenvolvimento de arte (um item ou vários
-// pedidos com a mesma arte) abre uma demanda na agenda do Maycon, no modelo que ele definiu:
+// v752 — Cronograma PCP: item novo em "Aguardando solicitação" de arte abre uma demanda na
+// agenda do Maycon (para ele ir lá e solicitar), no modelo que ele definiu:
 // Funcional · projeto Meridian LTDA · setor Gestão · colaborador Maycon · data limite hoje ·
-// manhã · padrão · privada. Mesma solicitação (chave = grupoId do PCP) não duplica.
+// manhã · padrão · privada. Mesma chave do PCP não duplica.
 import { prisma } from "@/lib/prisma";
 
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -32,7 +32,7 @@ export function montarDemandaArte(b) {
   const dets = [...new Set(itens.flatMap((i) => i.detalhes))];
   const partes = [];
   if (dets.length) partes.push(dets.join("\n"));
-  if (itens.length > 1) partes.push(`Mesma arte para ${itens.length} itens:\n` + itens.map((i) => `• ${[i.pedido, i.produto].filter(Boolean).join(" · ")}${i.qtd ? ` · ${i.qtd} pç` : ""}`).join("\n"));
+  if (itens.length > 1) partes.push(`Itens (${itens.length}):\n` + itens.map((i) => `• ${[i.pedido, i.produto].filter(Boolean).join(" · ")}${i.qtd ? ` · ${i.qtd} pç` : ""}`).join("\n"));
   if (txt(b?.responsavel)) partes.push(`Responsável pela arte: ${txt(b.responsavel)}`);
   return { itens, titulo, descricao: partes.join("\n\n").slice(0, 8000) || null };
 }
