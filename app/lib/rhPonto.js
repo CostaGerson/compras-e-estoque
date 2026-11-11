@@ -172,12 +172,13 @@ export function avaliarDia(d, just, emFerias = false) {
   const oc = d.ocorrencias || [], mc = d.marcacoes || [];
   // v169 — dia dentro das férias do plano: não conta para assiduidade, pontualidade nem crítica
   if (emFerias || oc.includes("FERIAS")) return { previsto: false, pendente: false, tipoPend: null, justificado: false, motivo: null, ferias: true,
-    falta: false, atestado: false, atraso: false, minAtraso: 0, baseAtraso: false, he: (d.extra || 0) + (d.exced || 0), exced: d.exced || 0, minFalta: 0 };
+    falta: false, atestado: false, atraso: false, minAtraso: 0, baseAtraso: false, he: (d.extra || 0) + (d.exced || 0), exced: d.exced || 0, minFalta: 0, presente: false };
   const previsto = !!d.entradaPrevista && !oc.some((o) => NAO_PREVISTO.has(o));
   const pendente = d.semRegistro || (previsto && !mc.length && !oc.length) || (mc.length % 2 === 1 && !oc.length);
   const tipoPend = !pendente ? null : (mc.length % 2 === 1 ? "MARCAÇÃO INCOMPLETA" : "SEM REGISTRO");
   const r = { previsto, pendente: pendente && !just, tipoPend, justificado: pendente && !!just, motivo: just?.motivo || null,
-    falta: false, atestado: false, atraso: false, minAtraso: 0, baseAtraso: false, he: (d.extra || 0) + (d.exced || 0), exced: d.exced || 0, minFalta: d.falta || 0 };
+    falta: false, atestado: false, atraso: false, minAtraso: 0, baseAtraso: false, he: (d.extra || 0) + (d.exced || 0), exced: d.exced || 0, minFalta: d.falta || 0,
+    presente: just ? PRESENCA.has(just.motivo) : mc.length > 0 };   // v766 — dia trabalhado (base do VT e do VA por dia)
   if (just) {
     if (just.motivo === "FALTA") r.falta = previsto || !!d.entradaPrevista;
     else if (just.motivo === "ATESTADO") r.atestado = true;
@@ -195,9 +196,10 @@ export function avaliarDia(d, just, emFerias = false) {
   return r;
 }
 
-const vazio = () => ({ previstos: 0, faltas: 0, atestados: 0, pendentes: 0, justificados: 0, atrasos: 0, baseAtraso: 0, minAtraso: 0, he: 0, exced: 0, diasAcima2h: 0, minFalta: 0, dias: 0, diasFerias: 0 });
+const vazio = () => ({ presencas: 0, previstos: 0, faltas: 0, atestados: 0, pendentes: 0, justificados: 0, atrasos: 0, baseAtraso: 0, minAtraso: 0, he: 0, exced: 0, diasAcima2h: 0, minFalta: 0, dias: 0, diasFerias: 0 });
 function soma(a, r) {
   a.dias++;
+  if (r.presente) a.presencas = (a.presencas || 0) + 1;
   if (r.ferias) a.diasFerias = (a.diasFerias || 0) + 1;
   if (r.previsto) a.previstos++;
   if (r.falta) a.faltas++;
@@ -302,6 +304,30 @@ export async function apurar(comps, pessoaIds = null) {
       justificativa: just ? { motivo: just.motivo, texto: just.texto, por: just.porNome } : null });
   }
   return { porPessoa, pendencias, justs: J, ferias: fer };
+}
+
+// v766 — VT e VA do mês pelo ponto: dias trabalhados × valor por dia; cesta básica fixa no mês
+export async function apurarBeneficios(comp) {
+  const { DIAS_UTEIS_PADRAO } = await import("@/lib/rh");
+  const pessoas = await pessoasParaPonto();
+  const { porPessoa } = await apurar([comp]);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const ini = `${comp}-01`, fim = fimDoMes(comp);
+  const linhas = pessoas.filter((p) => p.regime !== "DIRETOR" && (porPessoa[p.id]?.[comp] || (p.ativo !== false && (!p.admissao || p.admissao <= fim)) || (p.demissao && p.demissao >= ini)))
+    .map((p) => {
+      const a = porPessoa[p.id]?.[comp];
+      const vtDia = p.vtDia != null ? Number(p.vtDia) : r2((Number(p.vt) || 0) / DIAS_UTEIS_PADRAO);
+      const vaDia = Number(p.vaDia) || 0, cesta = p.cesta != null ? Number(p.cesta) : (p.vaDia ? 0 : Number(p.vr) || 0);
+      const dias = a ? a.presencas || 0 : null;
+      const vt = dias == null ? null : r2(dias * vtDia);
+      const descVt = vt == null || !p.descontaVt ? 0 : r2(Math.min(vt, (Number(p.salario) || 0) * 0.06));
+      return { pessoaId: p.id, nome: p.nome, depto: p.depto, cargo: p.cargo, semCartao: !a, dias, faltas: a?.faltas || 0, atestados: a?.atestados || 0, ferias: a?.diasFerias || 0,
+        vtDia, vt, descVt, vtLiquido: vt == null ? null : r2(vt - descVt), vaDia, va: dias == null ? null : r2(dias * vaDia), cesta,
+        previstoVt: r2(vtDia * DIAS_UTEIS_PADRAO), previstoVa: r2(cesta + vaDia * DIAS_UTEIS_PADRAO) };
+    }).sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR"));
+  const s = (k) => r2(linhas.reduce((t, l) => t + (l[k] || 0), 0));
+  return { competencia: comp, diasUteisPadrao: DIAS_UTEIS_PADRAO, linhas,
+    total: { vt: s("vt"), descVt: s("descVt"), vtLiquido: s("vtLiquido"), va: s("va"), cesta: s("cesta"), previstoVt: s("previstoVt"), previstoVa: s("previstoVa") } };
 }
 
 // mês inteiro sem cartão para quem estava ativo (diretores com pró-labore não batem ponto)

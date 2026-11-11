@@ -5,7 +5,7 @@ import { usuarioRH, negadoRH } from "@/lib/rh";
 import { veRHCompleto } from "@/lib/acesso";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";
 import { lerJornadas, salvarJornadas } from "@/lib/rhJornada";
-import { analisarArquivos, gravarCartoes, justificar, desfazerJustificativa, listarImportacoes, MOTIVOS, apurarPeriodo } from "@/lib/rhPonto";
+import { analisarArquivos, gravarCartoes, justificar, desfazerJustificativa, listarImportacoes, MOTIVOS, apurarPeriodo, apurarBeneficios } from "@/lib/rhPonto";
 
 // GET ?u=            → cartões importados + motivos de justificativa
 // GET ?u=&arquivo=id → o PDF do cartão
@@ -23,6 +23,11 @@ export async function GET(req) {
     return Response.json({ jornadas: await lerJornadas(), pessoas: pessoas.filter((p) => p.ativo !== false).map((p) => ({ id: p.id, nome: p.nome })) });
   }
   if (["carometro", "sintese"].includes(sp.get("acao")) && !veRHCompleto(u)) return negadoRH();   // v170 — indicadores de pessoal: RH, master e diretoria
+  if (sp.get("acao") === "beneficios") {   // v766 — VT e VA do mês pelo ponto
+    if (!veRHCompleto(u)) return negadoRH();
+    if (!/^\d{4}-\d{2}$/.test(sp.get("comp") || "")) return Response.json({ error: "Mês inválido." }, { status: 400 });
+    return Response.json(await apurarBeneficios(sp.get("comp")));
+  }
   if (sp.get("acao") === "carometro") return Response.json(await apurarPeriodo(de, ate));
   if (sp.get("acao") === "sintese") return Response.json(await apurarPeriodo(de, ate, String(sp.get("pessoaId") || "")));
   if (sp.get("arquivo")) {

@@ -423,6 +423,61 @@ export function MedalhasModal({ user, lista, onClose, onSalvo }) {
 }
 
 /* ======================= tela Ponto: importar, criticar, justificar ======================= */
+// v766 — VT e VA do mês apurados pelo ponto (dias trabalhados × valor por dia) + cesta básica
+function BeneficiosMes({ user, comp }) {
+  const [aberto, setAberto] = useState(false);
+  const [b, setB] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => { if (!aberto) return; setB(null); setErro(""); api(`/api/rh/ponto?u=${user.id}&acao=beneficios&comp=${comp}`).then(setB).catch((e) => setErro(e.message)); }, [aberto, comp]);
+  const m = (v) => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+  return (
+    <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <button onClick={() => setAberto((x) => !x)} className="w-full px-4 py-2.5 flex items-center gap-2 text-left" style={{ background: C.panel2 }}>
+        <div className="text-sm font-bold" style={{ color: C.navy }}>VT e alimentação pelo ponto · {nomeComp(comp, true)}</div>
+        {b && <span className="text-xs" style={{ color: C.sub }}>VT {m(b.total.vt)} (líquido {m(b.total.vtLiquido)}) · VA {m(b.total.va)} · cesta {m(b.total.cesta)}</span>}
+        <span className="ml-auto text-xs" style={{ color: C.accent }}>{aberto ? "fechar" : "ver apuração"}</span>
+      </button>
+      {aberto && (erro ? <div className="p-3 text-sm" style={{ color: C.red }}>{erro}</div> : !b ? <div className="p-3 text-sm" style={{ color: C.sub }}>Apurando…</div> : (
+        <div className="overflow-auto">
+          <table className="w-full text-xs">
+            <thead><tr style={{ color: C.sub }}>
+              {["Funcionário", "Dias trab.", "Faltas", "Atest.", "Férias", "VT/dia", "VT do mês", "Desc. 6%", "VT líquido", "VA/dia", "VA do mês", "Cesta", "Previsto (22 dias)"].map((h, i) => <th key={i} className={`px-2 py-2 font-semibold ${i ? "text-right" : "text-left"}`}>{h}</th>)}
+            </tr></thead>
+            <tbody>{b.linhas.map((l) => (
+              <tr key={l.pessoaId} style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="px-2 py-1.5"><span className="font-semibold" style={{ color: C.navy }}>{l.nome}</span>{l.semCartao && <span className="ml-1 text-[10px]" style={{ color: C.red }}>sem cartão no mês</span>}</td>
+                <td className="px-2 py-1.5 text-right font-semibold">{l.dias ?? "—"}</td>
+                <td className="px-2 py-1.5 text-right">{l.faltas || "—"}</td>
+                <td className="px-2 py-1.5 text-right">{l.atestados || "—"}</td>
+                <td className="px-2 py-1.5 text-right">{l.ferias || "—"}</td>
+                <td className="px-2 py-1.5 text-right">{m(l.vtDia)}</td>
+                <td className="px-2 py-1.5 text-right">{m(l.vt)}</td>
+                <td className="px-2 py-1.5 text-right">{l.descVt ? m(-l.descVt) : "—"}</td>
+                <td className="px-2 py-1.5 text-right font-semibold">{m(l.vtLiquido)}</td>
+                <td className="px-2 py-1.5 text-right">{l.vaDia ? m(l.vaDia) : "—"}</td>
+                <td className="px-2 py-1.5 text-right">{l.vaDia ? m(l.va) : "—"}</td>
+                <td className="px-2 py-1.5 text-right">{l.cesta ? m(l.cesta) : "—"}</td>
+                <td className="px-2 py-1.5 text-right" style={{ color: C.sub }}>{m(l.previstoVt + l.previstoVa)}</td>
+              </tr>
+            ))}</tbody>
+            <tfoot><tr style={{ borderTop: `2px solid ${C.line}`, fontWeight: 700 }}>
+              <td className="px-2 py-2" colSpan={6}>Total</td>
+              <td className="px-2 py-2 text-right">{m(b.total.vt)}</td>
+              <td className="px-2 py-2 text-right">{m(-b.total.descVt)}</td>
+              <td className="px-2 py-2 text-right">{m(b.total.vtLiquido)}</td>
+              <td />
+              <td className="px-2 py-2 text-right">{m(b.total.va)}</td>
+              <td className="px-2 py-2 text-right">{m(b.total.cesta)}</td>
+              <td className="px-2 py-2 text-right" style={{ color: C.sub }}>{m(b.total.previstoVt + b.total.previstoVa)}</td>
+            </tr></tfoot>
+          </table>
+          <div className="px-3 py-2 text-[11px]" style={{ color: C.sub }}>Dias trabalhados = dias com marcação no cartão ou justificados como ponto manual / troca de sistema. Faltas, atestados e férias não geram VT nem VA. O desconto de 6% vale para quem tem "desconta 6% de VT", limitado ao VT do mês.</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PontoTela({ user, p, comp, setComp, recarregar }) {
   const [imp, setImp] = useState(null);      // null | [] | FileList
   const [lista, setLista] = useState(null);
@@ -461,6 +516,7 @@ export function PontoTela({ user, p, comp, setComp, recarregar }) {
       {aviso && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="p-3 rounded-lg mb-3 text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
 
+      {comp && <BeneficiosMes user={user} comp={comp} />}
       {/* crítica */}
       <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${abertas.length ? C.red + "66" : C.line}` }}>
         <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: abertas.length ? C.redSoft : C.panel2 }}>

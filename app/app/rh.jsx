@@ -197,7 +197,7 @@ function MatrizPessoal({ user, d, onSalvo }) {
             ))}
           </tr></thead>
           <tbody>{DEPTOS.map(([dk, dt]) => {
-            const ps = lista.filter((p) => p.depto === dk);
+            const ps = lista.filter((p) => p.depto === dk).sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR"));   // v766 — ordem alfabética
             if (!ps.length) return null;
             return (
               <React.Fragment key={dk}>
@@ -231,7 +231,9 @@ function MatrizPessoal({ user, d, onSalvo }) {
 }
 
 function PessoaModal({ user, pessoa, novo, onClose, onSalvo }) {
-  const [p, setP] = useState({ ...pessoa });
+  // v766 — VT e VA por dia; cadastro antigo (valor do mês) vira dia = mês ÷ 22 e a alimentação vira cesta
+  const [p, setP] = useState(() => ({ ...pessoa, vtDia: pessoa.vtDia ?? Math.round(((Number(pessoa.vt) || 0) / 22) * 100) / 100,
+    cesta: pessoa.cesta ?? (pessoa.vaDia ? 0 : Number(pessoa.vr) || 0), vaDia: pessoa.vaDia ?? 0 }));
   const [nomeCompleto, setNomeCompleto] = useState(pessoa.nomeCompleto || "");
   const [st, setSt] = useState("");
   const [erro, setErro] = useState("");
@@ -269,8 +271,10 @@ function PessoaModal({ user, pessoa, novo, onClose, onSalvo }) {
         </label>
         {num("salario", p.regime === "DIRETOR" ? "Pró-labore" : p.regime === "ESTAGIO" ? "Bolsa" : "Salário")}
         {num("bonus", "Bônus")}
-        {num("vt", "Vale-transporte")}
-        {num("vr", "VA / VR")}
+        {num("vtDia", "VT por dia")}
+        {num("cesta", "Cesta básica (mês)")}
+        {num("vaDia", "VA por dia (motoristas)")}
+        <div className="text-[11px] self-end pb-2" style={{ color: C.sub }}>Previsão na Matriz (22 dias): VT {brl((p.vtDia || 0) * 22)} · alimentação {brl((p.cesta || 0) + (p.vaDia || 0) * 22)}. O custo real sai do ponto a cada mês.</div>
         {num("ps", "Plano de saúde")}
         {num("saldoLivre", "Saldo livre (iFood)")}
         <label className="text-xs" style={{ color: C.sub }}>Assiduidade (%)

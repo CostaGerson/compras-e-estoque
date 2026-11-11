@@ -54,9 +54,11 @@ export async function notificarFinanceiro(texto, deId) {
 
 // ---------- pessoal (Matriz oficial) ----------
 export const CAMPOS_PESSOA = ["nome", "cargo", "depto", "regime", "salario", "bonus", "vt", "descontaVt", "vr", "ps", "assPct",
-  "saldoLivre", "rFerias", "adiantamento", "ativo", "obs", "admissao", "demissao"];
+  "saldoLivre", "rFerias", "adiantamento", "ativo", "obs", "admissao", "demissao", "vtDia", "cesta", "vaDia"];
+// v766 — VT e VA por dia: o custo real sai do ponto a cada mês; na Matriz (previsão) vale o dia × 22 dias úteis
+export const DIAS_UTEIS_PADRAO = 22;
 const ROTULO = { nome: "nome", cargo: "cargo", depto: "setor", regime: "regime", salario: "salário", bonus: "bônus", vt: "VT", descontaVt: "desconta VT",
-  vr: "VA/VR", ps: "plano de saúde", assPct: "assiduidade", saldoLivre: "saldo livre", rFerias: "reflexo férias", adiantamento: "adiantamento",
+  vr: "VA/VR", vtDia: "VT por dia", cesta: "cesta básica", vaDia: "VA por dia", ps: "plano de saúde", assPct: "assiduidade", saldoLivre: "saldo livre", rFerias: "reflexo férias", adiantamento: "adiantamento",
   ativo: "ativo", obs: "observação", admissao: "admissão", demissao: "desligamento" };
 
 export async function lerPessoal() {
@@ -76,7 +78,11 @@ export async function lerPessoal() {
 const limpa = (p) => {
   const o = {};
   for (const k of CAMPOS_PESSOA) if (p[k] !== undefined) o[k] = p[k];
-  for (const k of ["salario", "bonus", "vt", "vr", "ps", "assPct", "saldoLivre", "rFerias"]) if (o[k] !== undefined) o[k] = Number(o[k]) || 0;
+  for (const k of ["salario", "bonus", "vt", "vr", "ps", "assPct", "saldoLivre", "rFerias", "vtDia", "cesta", "vaDia"]) if (o[k] !== undefined) o[k] = Number(o[k]) || 0;
+  // v766 — previsão mensal da Matriz a partir dos valores por dia
+  const r2 = (v) => Math.round(v * 100) / 100;
+  if (o.vtDia !== undefined) o.vt = r2(o.vtDia * DIAS_UTEIS_PADRAO);
+  if (o.cesta !== undefined || o.vaDia !== undefined) o.vr = r2((o.cesta || 0) + (o.vaDia || 0) * DIAS_UTEIS_PADRAO);
   for (const k of ["nome", "cargo", "obs"]) if (o[k] !== undefined) o[k] = String(o[k] || "").toUpperCase().trim();
   return o;
 };
