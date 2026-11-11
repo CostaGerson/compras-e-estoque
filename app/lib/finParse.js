@@ -213,13 +213,14 @@ function lerC6(paginas) {
 // ======================== BANCO DO BRASIL ==========================
 function lerBB(paginas) {
   let saldoAnterior = null;
+  const saldosDia = [];
   const declarado = {};
   const grupos = [];
   for (const linhas of paginas) {
     const uteis = linhas.filter((l) => l.y < 690 || !/Extrato de Conta|Cliente|Nome|MERIDIAN LTDA|Movimentação em|Histórico/.test(txt(l)));
     const ehLinhaData = (l) => dataBR(col(l, 0, 100));
     for (const l of uteis) if (ehLinhaData(l) && /Saldo Anterior/i.test(col(l, 145, 380))) saldoAnterior = valorBR(col(l, 495, 9999));
-    for (const l of uteis) if (ehLinhaData(l) && /^Saldo do dia/i.test(col(l, 145, 380)) && declarado.saldoFinal === undefined) declarado.saldoFinal = valorBR(col(l, 495, 9999)); // 1º = mais recente
+    for (const l of uteis) if (ehLinhaData(l) && /^Saldo do dia/i.test(col(l, 145, 380))) saldosDia.push(valorBR(col(l, 495, 9999)));   // v783 — ordem decide qual é o final
     const ehAncora = (l) => ehLinhaData(l) && valorBR(col(l, 495, 9999)) !== null && !/^Saldo/i.test(col(l, 145, 380));
     const ancoras = uteis.filter(ehAncora).map((a) => ({ ancora: a, extras: [] }));
     for (const l of uteis) {
@@ -245,7 +246,11 @@ function lerBB(paginas) {
     const j = ls.findIndex((x, k) => !usados.has(k) && k !== i && x.data === e.data && x.documento === e.documento && Math.abs(x.valor + e.valor) < 0.005 && x.valor < 0);
     if (j >= 0) { usados.add(i); usados.add(j); }
   });
-  ls = ls.filter((_, i) => !usados.has(i)).reverse(); // BB vem do mais recente para o mais antigo
+  // v783 — o BB mudou: o extrato antigo vinha do mais recente para o mais antigo; o novo vem em ordem de data
+  ls = ls.filter((_, i) => !usados.has(i));
+  const crescente = ls.length < 2 || String(ls[0].data) <= String(ls[ls.length - 1].data);
+  if (!crescente) ls.reverse();
+  if (saldosDia.length) declarado.saldoFinal = crescente ? saldosDia[saldosDia.length - 1] : saldosDia[0];
   return { saldoAnterior, lancamentos: ls, declarado };
 }
 
