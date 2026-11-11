@@ -131,6 +131,7 @@ export async function POST(req, { params }) {
       if (r?.ok && !kmAss) { try { const { gerarCriacaoLayout } = await import("@/lib/layoutFluxo"); r.tarefaLayout = await gerarCriacaoLayout(Number(params.id), u); } catch (e) { console.log("layout:", e.message); } }
       return Response.json(r);
     }
+    if (b.acao === "rascunho") { const { salvarRascunho } = await import("@/lib/pedidoEfetivar"); return Response.json(await salvarRascunho(Number(params.id))); }   // v777 — #62
     if (b.acao === "faturar") return Response.json(await faturarPedido(Number(params.id), b, nomeQuem(u)));
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (e) { console.log("pp acao:", e); return Response.json({ error: e.message }, { status: 500 }); }

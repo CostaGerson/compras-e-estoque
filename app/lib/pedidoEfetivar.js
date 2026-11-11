@@ -157,6 +157,24 @@ function itensPv(pp) {
   });
 }
 
+// ---------- v777 — #62: rascunho ----------
+// pedido em elaboração: fica salvo com o número já reservado (nenhum outro pedido pega), mas fora do fluxo de produção,
+// das compras e de qualquer indicador (não existe pedido de venda até "Gerar pedido")
+export async function salvarRascunho(id) {
+  const pp = await prisma.pp.findUnique({ where: { id: Number(id) }, select: { id: true, numero: true, efetivadoEm: true } });
+  if (!pp) throw new Error("Pedido não encontrado.");
+  if (pp.efetivadoEm) return { ok: true, numero: pp.numero, jaEfetivado: true };
+  let numero = pp.numero;
+  for (let t = 0; t < 5 && !numero; t++) {
+    const [a, b] = await Promise.all([prisma.pp.findMany({ where: { numero: { not: null } }, select: { numero: true } }), prisma.pedidoVenda.findMany({ select: { numero: true } })]);
+    const n = proximoNumero([...a, ...b].map((x) => x.numero));
+    try { await prisma.pp.update({ where: { id: pp.id }, data: { numero: n } }); numero = n; } catch { /* nº tomado ao mesmo tempo */ }
+  }
+  if (!numero) throw new Error("Não consegui reservar o número do pedido — tente de novo.");
+  await prisma.pp.update({ where: { id: pp.id }, data: { status: "RASCUNHO" } });
+  return { ok: true, numero };
+}
+
 // ---------- efetivar ----------
 export async function efetivarPedido(id, quem) {
   const pp = await prisma.pp.findUnique({ where: { id: Number(id) }, include: { itens: { orderBy: { id: "asc" } } } });

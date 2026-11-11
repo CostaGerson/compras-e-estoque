@@ -63,8 +63,9 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
   // v729 — lançamento pela Produção (a guia Lançar pedido saiu) e pedidos do portal liberados que não entraram sozinhos
   const podeLancar = lancaPP(user);
   const [portalPend, setPortalPend] = useState([]);
+  const [rascunhos, setRascunhos] = useState([]);   // v777 — #62: pedidos em elaboração (fora da produção e dos indicadores)
   const lerPortalPend = () => podeLancar && fetch("/api/pp", { cache: "no-store", headers: { "x-usuario-id": String(user?.id || "") } }).then((r) => r.json())
-    .then((l) => setPortalPend((Array.isArray(l) ? l : []).filter((p) => p.portalClienteId && p.portalStatus === "LIBERADO" && !p.efetivadoEm))).catch(() => {});
+    .then((l) => { const a = Array.isArray(l) ? l : []; setPortalPend(a.filter((p) => p.portalClienteId && p.portalStatus === "LIBERADO" && !p.efetivadoEm)); setRascunhos(a.filter((p) => p.status === "RASCUNHO" && !p.efetivadoEm)); }).catch(() => {});
   useEffect(() => { lerPortalPend(); const t = setInterval(lerPortalPend, 60000); return () => clearInterval(t); }, []);
   const editarPp = (ppId) => window.dispatchEvent(new CustomEvent("ce:ir", { detail: ppId ? { v: "editarPedido", ppId } : { v: "editarPedido", novo: true } }));
   const [erro, setErro] = useState("");
@@ -174,6 +175,15 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
         {portalPend.map((p) => <div key={p.id} className="flex items-center gap-3 py-1" style={{ color: C.text }}>
           <span className="flex-1">Portal nº {String(p.portalNumero || "").padStart(4, "0")} · {p.clienteNome} · {p._count?.itens ?? 0} item(ns)</span>
           <button onClick={() => editarPp(p.id)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir e efetivar</button></div>)}
+      </div>}
+      {/* v777 — #62: rascunhos — número reservado, fora do fluxo e dos indicadores até gerar o pedido */}
+      {rascunhos.length > 0 && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="font-semibold mb-1" style={{ color: C.text }}>Rascunhos ({rascunhos.length}) <span className="text-xs font-normal" style={{ color: C.sub }}>· não contam em nenhum indicador até gerar o pedido</span></div>
+        {rascunhos.map((p) => <div key={p.id} className="flex items-center gap-3 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+          <span className="text-[10px] px-2 py-0.5 rounded font-bold" style={{ background: C.yellowSoft, color: C.yellow }}>RASCUNHO</span>
+          <span className="font-semibold">{p.numero || "—"}</span>
+          <span className="flex-1 truncate">{p.clienteNome || "(sem cliente)"} · {p._count?.itens ?? 0} item(ns){p.vendedor ? ` · ${p.vendedor}` : ""}{p.dtDespacho ? ` · despacho ${p.dtDespacho}` : ""}</span>
+          {podeLancar && <button onClick={() => editarPp(p.id)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Continuar</button>}</div>)}
       </div>}
       {/* v618 — atalhos em cards grandes, acima dos indicadores */}
       {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">

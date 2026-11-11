@@ -652,15 +652,23 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   // v729 — sem rascunho: só pedido efetivado fica no sistema. Sair sem efetivar descarta o que foi gravado na tentativa.
   const sair = async () => {
     if (efetivado || !podeLancar) return onVoltar(f.numero || null);
+    if (f.status === "RASCUNHO") return onVoltar();   // v777 — rascunho fica salvo
     if (ppId0) return onVoltar();   // pedido que já existia (ex.: do portal aguardando efetivação): fica como está
     const preenchido = !!(ppId || f.clienteNome || itens.some((it) => it.descricao || qtdGrade(it.grade) > 0));
-    if (preenchido && !(await confirmar("Sair sem efetivar? O pedido não fica salvo (só pedido efetivado entra no sistema)."))) return;
+    if (preenchido && !(await confirmar("Sair sem gerar o pedido? O que foi lançado não fica salvo. Para continuar depois, use \"Salvar rascunho\"."))) return;
     if (ppId && !ppId0) await api(`/api/pp/${ppId}`, { method: "DELETE" }).catch(() => null);   // só o criado nesta tela (pedido do portal aberto aqui não é apagado)
     onVoltar();
   };
+  // v777 — #62: rascunho — salva tudo com o número reservado; fica fora da produção e dos indicadores até "Gerar pedido"
   const salvarRascunho = async () => {
     setSalvando(true);
-    try { await salvar(); setResultado({ ok: true, rascunho: true }); } catch (e) { alerta(e.message); }
+    try {
+      const id = await salvar();
+      const d = await api(`/api/pp/${id}`, { method: "POST", body: JSON.stringify({ acao: "rascunho" }) }).then((r) => r.json());
+      if (d.error) throw new Error(d.error);
+      setF((s) => ({ ...s, numero: d.numero || s.numero, status: "RASCUNHO" }));
+      alerta(`Rascunho salvo — pedido nº ${d.numero} reservado. Ele aparece em Produção como RASCUNHO e só entra na produção ao clicar em "Gerar pedido".`);
+    } catch (e) { alerta(e.message); }
     setSalvando(false);
   };
   const efetivar = async () => {
@@ -715,7 +723,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="flex items-center gap-3">
           <button onClick={sair} className="text-sm" style={{ color: C.sub }}>← Voltar</button>
-          <span className="text-lg font-bold">Pedido {numeroExib || "—"}{!f.numero && numeroExib ? <span className="text-xs font-normal ml-1" style={{ color: C.sub }}>(prévia — número gravado ao efetivar)</span> : null}</span>
+          <span className="text-lg font-bold">Pedido {numeroExib || "—"}{!f.numero && numeroExib ? <span className="text-xs font-normal ml-1" style={{ color: C.sub }}>(prévia — número gravado no rascunho ou ao gerar o pedido)</span> : null}</span>
           <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ color: badge[1], border: `1px solid ${badge[1]}` }}>{badge[0]}</span>
           {f.interno && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>INTERNO</span>}
           {f.servico && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>SERVIÇO</span>}
@@ -728,8 +736,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela."))) return;
             setF((s) => ({ ...vazioF(), numero: s.numero, emissao: hojeISO() })); setItens([novoItem()]); setAnexos([]);
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
+          {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
+            Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
-            {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Efetivar lançamento"}</button>}
+            {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Gerar pedido"}</button>}
           {podeLancar && efetivado && !faturado && !f.interno && <button onClick={() => setFat({ nf: "", emissaoNf: hojeISO(), entrega: despacho || "", pedirEntrega: false })} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.blue, color: "#fff" }}>Faturar</button>}
         </div>
       </div>
