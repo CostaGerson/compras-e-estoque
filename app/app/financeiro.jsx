@@ -2026,7 +2026,7 @@ function Importacao({ user, comp, setComp }) {
             <div className="text-xs font-bold tracking-wider" style={{ color: C.navy }}>{g.banco}</div>
             <div className="flex-1 h-px" style={{ background: C.line }} />
           </div>
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", alignItems: "start" }}>   {/* v765 — card do tamanho do conteúdo, sem espaço vazio */}
             {g.cards.map((c) => (
               <CardDoc key={c.tipo.id} c={c} user={user} comp={comp}
                 onArquivos={(fs) => onArquivos(c.tipo, fs)} onExcluir={excluir} onMudou={carregar}
@@ -2139,7 +2139,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
         </div>
       )}
 
-      <div className="px-4 pb-4 mt-auto">
+      <div className="px-4 pb-4">
         {/* v172 — parciais (Transmissão): lançamentos já no mês, aguardando o mensal */}
         {parciais?.length > 0 && (
           <div className="mb-2 rounded-lg px-2 py-1.5 text-[11px]" style={{ background: arqs.length ? C.yellowSoft : C.blueSoft, color: C.text }}>
