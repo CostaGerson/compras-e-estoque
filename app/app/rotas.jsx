@@ -518,7 +518,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
     if (q.length < 4) { setSug([]); return; }
     t.current = setTimeout(() => {
       if (!sessao.current) sessao.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(urlRotas(user, `auto=${encodeURIComponent(q)}&sessao=${sessao.current}`)).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrG(""); setSug(l); setAberto(true); } else setErrG(l?.error || "Google não respondeu."); }).catch((e) => setErrG(`Google: ${e.message}`));
+      fetch(urlRotas(user, `auto=${encodeURIComponent(q)}&sessao=${sessao.current}`)).then((r) => r.json()).then((l) => { if (!digitou.current) return; if (Array.isArray(l)) { setErrG(""); setSug(l); setAberto(true); } else setErrG(l?.error || "Google não respondeu."); }).catch((e) => setErrG(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(t.current);
   }, [value]);
@@ -539,7 +539,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
     })();
   }, [buscar?.t]);
   const escolher = async (x) => {
-    setAberto(false); setSug([]); setDoCad(false); digitou.current = false;
+    setAberto(false); setSug([]); setDoCad(false); digitou.current = false; clearTimeout(t.current);
     try {
       const g = await api(urlRotas(user, `lugar=${encodeURIComponent(x.placeId)}&sessao=${sessao.current || ""}&digitado=${encodeURIComponent(value || "")}`));
       sessao.current = null;
@@ -548,7 +548,7 @@ function EnderecoGoogle({ user, value, onChange, onGeo, autoFocus, buscar, place
   };
   return (
     <div className="relative">
-      <input autoFocus={autoFocus} value={value || ""} onChange={(e) => { digitou.current = true; setDoCad(false); onChange(e.target.value); onGeo?.(null); }} onFocus={() => sug.length && setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
+      <input autoFocus={autoFocus} value={value || ""} onChange={(e) => { digitou.current = true; setDoCad(false); onChange(e.target.value); onGeo?.(null); }} onBlur={() => setTimeout(() => { setAberto(false); setSug([]); setDoCad(false); }, 150)}
         placeholder={placeholder} className={inp} style={inpS} />
       {aberto && sug.length > 0 && (
         <div className="absolute z-30 left-0 right-0 mt-1 rounded-md shadow-lg max-h-64 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -604,7 +604,7 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     const l = lista.filter((x) => sem(`${x.nome} ${x.busca || ""} ${x.endereco}`).includes(t) || (td.length >= 5 && String(x.busca || "").replace(/\D/g, "").includes(td)));
     return l.sort((a, b) => (sem(b.nome).startsWith(t) - sem(a.nome).startsWith(t))).slice(0, 10); }, [q, lista]);
   const [buscaEnd, setBuscaEnd] = useState(null);   // v438 — pede ao Google o endereço do cadastro escolhido
-  const escolher = (x) => { setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco,
+  const escolher = (x) => { digitouQ.current = false; clearTimeout(tG.current); setSugG([]); setQ(x.nome); setAberto(false); setF((s0) => ({ ...s0, destinoTipo: x.tipo, destinoId: x.id, destinoNome: x.nome, endereco: x.endereco || s0.endereco,
     geo: x.lat != null ? { endereco: x.endereco, lat: x.lat, lng: x.lng, municipio: x.municipio, uf: x.uf } : null, contato: x.contato || "", telefone: x.telefone || "" }));
     if (x.lat == null) setBuscaEnd({ t: Date.now(), texto: x.endereco || "", nome: x.nome }); };
   // v430 — estabelecimentos do Google pelo nome (vira destinatário novo ao salvar)
@@ -618,12 +618,12 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     if (t.length < 3) { setSugG([]); return; }
     tG.current = setTimeout(() => {
       if (!sessaoG.current) sessaoG.current = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      fetch(urlRotas(user, `auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`)).then((r) => r.json()).then((l) => { if (Array.isArray(l)) { setErrQ(""); setSugG(l.slice(0, 6)); setAberto(true); } else { setSugG([]); setErrQ(l?.error || "Google não respondeu."); } }).catch((e) => setErrQ(`Google: ${e.message}`));
+      fetch(urlRotas(user, `auto=${encodeURIComponent(t)}&sessao=${sessaoG.current}`)).then((r) => r.json()).then((l) => { if (!digitouQ.current) return; if (Array.isArray(l)) { setErrQ(""); setSugG(l.slice(0, 6)); setAberto(true); } else { setSugG([]); setErrQ(l?.error || "Google não respondeu."); } }).catch((e) => setErrQ(`Google: ${e.message}`));
     }, 350);
     return () => clearTimeout(tG.current);
   }, [q]);
   const escolherGoogle = async (x) => {
-    setAberto(false); digitouQ.current = false;
+    setAberto(false); digitouQ.current = false; clearTimeout(tG.current); setSugG([]);
     try {
       const g = await api(urlRotas(user, `lugar=${encodeURIComponent(x.placeId)}&sessao=${sessaoG.current || ""}`));
       sessaoG.current = null;
@@ -674,7 +674,7 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           <L t="Objetivo" span><Seg v={f.objetivo} opts={[["COLETA", "Coleta"], ["ENTREGA", "Entrega"], ["COLETA_ENTREGA", "Coleta e entrega"], ["COMPRA", "Compra"]]} on={(v) => set("objetivo", v)} /></L>
           <div className="col-span-2 relative">
             <div className="text-xs mb-1" style={{ color: C.sub }}>Destinatário <span style={{ color: "#9AA3B2" }}>· cadastrados ou locais do Google Maps; um nome novo fica salvo em Dados › Destinatários</span></div>
-            <input value={q} onChange={(e) => { digitouQ.current = true; setQ(e.target.value); set("destinoNome", e.target.value.toUpperCase()); set("destinoId", null); set("destinoTipo", "OUTRO"); setAberto(true); }} onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
+            <input value={q} onChange={(e) => { digitouQ.current = true; setQ(e.target.value); set("destinoNome", e.target.value.toUpperCase()); set("destinoId", null); set("destinoTipo", "OUTRO"); setAberto(true); }} onFocus={() => digitouQ.current && setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)}
               placeholder="Digite o nome…" className={inp} style={inpS} />
             {aberto && (sug.length > 0 || sugG.length > 0) && (
               <div className="absolute z-20 left-0 right-0 mt-1 rounded-md shadow-lg max-h-80 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
