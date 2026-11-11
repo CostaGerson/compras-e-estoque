@@ -628,15 +628,24 @@ export async function tokenExterno(db = prisma, renovar = false) {
 export async function situacaoComprasSistema(peds, db = prisma) {
   const sis = (peds || []).filter((p) => p.fonte === "SISTEMA");
   if (!sis.length) return {};
-  const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: sis.map((p) => p.numero) }, liberadoEm: { not: null } }, select: { pedidoNumero: true, chave: true } });
+  const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: sis.map((p) => p.numero) }, OR: [{ liberadoEm: { not: null } }, { status: { in: ["ESTOQUE", "ENTREGUE"] } }] }, select: { pedidoNumero: true, chave: true } });
+  const disp = new Set((await dispensasParaPcp(db)).map((d) => d.pedidoNumero));   // v759
   const out = {};
   for (const p of sis) {
-    if (p.tipoPedido === "SERVIÇO") { out[p.numero] = "A PROGRAMAR"; continue; }
+    if (p.tipoPedido === "SERVIÇO" || disp.has(p.numero)) { out[p.numero] = "A PROGRAMAR"; continue; }
     const chaves = itensDoPedido(p).map((i) => i.chave);
     const lib = new Set(cis.filter((c) => c.pedidoNumero === p.numero).map((c) => c.chave));
     out[p.numero] = chaves.length && chaves.every((c) => lib.has(c)) ? "A PROGRAMAR" : lib.size ? "EM COMPRAS · PARTE A PROGRAMAR" : "EM COMPRAS";
   }
   return out;
+}
+
+// v759 — item com a compra resolvida (liberado, atendido pelo estoque ou tudo recebido) e pedidos com compras dispensadas
+// vão para o PCP independentemente do layout
+const RESOLVIDO = ["ESTOQUE", "ENTREGUE"];
+export const compraResolvida = (c) => !!c && (!!c.liberadoEm || RESOLVIDO.includes(c.status));
+async function dispensasParaPcp(db = prisma) {
+  return (await db.compraDispensa.findMany().catch(() => [])).filter((d) => d.motivo !== "PEDIDO EXCLUÍDO (LIXEIRA)");
 }
 
 // v622 — só para conhecimento do PCP: pedidos lançados no sistema com itens ainda em compras (não liberados)
@@ -645,11 +654,13 @@ export async function emComprasParaPcp({ pedido } = {}, db = prisma) {
   const ps = await db.pedidoVenda.findMany({ where: { fonte: "SISTEMA", status: "ANDAMENTO", NOT: { tipoPedido: "SERVIÇO" }, ...(pedido ? { numero: String(pedido) } : {}) } });
   if (!ps.length) return [];
   const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: ps.map((p) => p.numero) } } });
+  const disp = new Set((await dispensasParaPcp(db)).map((d) => d.pedidoNumero));   // v759 — dispensado já vai nos liberados
   const out = [];
   for (const p of ps) {
+    if (disp.has(p.numero)) continue;
     const itens = itensDoPedido(p).map((i) => {
       const c = cis.find((x) => x.pedidoNumero === p.numero && x.chave === i.chave);
-      if (c?.liberadoEm) return null;   // já está nos liberados (A PROGRAMAR)
+      if (compraResolvida(c)) return null;   // já está nos liberados (A PROGRAMAR)
       return { chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: (Array.isArray(p.itens) ? p.itens : []).find((x) => String(x.codigo || "") === String(i.codigo || ""))?.grade || [],
         etapaCompras: c ? ETAPA_COMPRA[c.status] || c.status : "SINCRONIZACAO", fppNumero: c?.fppNumero || null,
         materialPrincipal: (Array.isArray(c?.demanda) ? c.demanda : []).filter((d) => ["PRINCIPAL", "REVENDA"].includes(d.papel)).map((d) => ({ nome: d.nome, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade })) };
@@ -664,10 +675,14 @@ export async function emComprasParaPcp({ pedido } = {}, db = prisma) {
 // itens liberados para programar, com o pedido completo (cabeçalho, grade, parâmetros da OP, FPP e materiais)
 export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
   // v613 — liberado = matéria-prima principal garantida (aviamentos podem estar pendentes)
-  const where = { liberadoEm: { not: null }, status: { notIn: ["LEVANTAMENTO", "REPROVADO"] } };
-  if (desde) where.liberadoEm = { gte: new Date(desde) };
+  // v759 — também o item com a compra resolvida sem data de liberação (atendido pelo estoque / tudo recebido)
+  const dt = desde ? new Date(desde) : null;
+  const where = { status: { notIn: ["LEVANTAMENTO", "REPROVADO"] }, OR: [
+    { liberadoEm: dt ? { gte: dt } : { not: null } },
+    { liberadoEm: null, status: { in: ["ESTOQUE", "ENTREGUE"] }, ...(dt ? { updatedAt: { gte: dt } } : {}) },
+  ] };
   if (pedido) where.pedidoNumero = String(pedido);
-  const itens = await db.compraItem.findMany({ where, orderBy: { liberadoEm: "asc" } });
+  const itens = (await db.compraItem.findMany({ where, orderBy: { liberadoEm: "asc" } })).filter((i) => !ehAvulsa(i.pedidoNumero));
   const peds = Object.fromEntries((await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] } } })).map((p) => [p.numero, p]));
   const out = {};
   for (const i of itens) {
@@ -684,9 +699,29 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     o.itens.push({
       chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(i.quantidade),
       grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [],
-      origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm, fppNumero: i.fppNumero,
+      origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm || i.updatedAt, fppNumero: i.fppNumero,
       aviamentosPendentes: !["ESTOQUE", "ENTREGUE"].includes(i.status),   // v613 — principal ok; aviamento ainda chegando
       materiais: (i.demanda || []).map((d) => ({ nome: d.nome, categoria: d.categoria, fornecedor: d.fornecedor, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade, obs: d.obs || null })),
+    });
+  }
+  // v759 — compras dispensadas: o pedido vai inteiro para o PCP (itens que ainda não vieram), com a data da dispensa
+  const disps = (await dispensasParaPcp(db)).filter((d) => (!pedido || d.pedidoNumero === String(pedido)) && (!dt || new Date(d.createdAt) >= dt));
+  const pDisp = disps.length ? await db.pedidoVenda.findMany({ where: { numero: { in: disps.map((d) => d.pedidoNumero) }, fonte: "SISTEMA", status: "ANDAMENTO", NOT: { tipoPedido: "SERVIÇO" } } }) : [];
+  for (const p of pDisp) {
+    const d = disps.find((x) => x.pedidoNumero === p.numero);
+    const doPedido = itensDoPedido(p);
+    const cis = await db.compraItem.findMany({ where: { pedidoNumero: p.numero } });
+    const o = (out[p.numero] ||= { pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
+      condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: doPedido.length, itens: [], fonte: "SISTEMA", destino: "A_PROGRAMAR" });
+    o.comprasDispensadas = true;
+    doPedido.forEach((it, idx) => {
+      if (o.itens.some((x) => x.chave === it.chave)) return;
+      const bruto = (p.itens || [])[idx] || {};
+      const c = cis.find((x) => x.chave === it.chave);
+      o.itens.push({ chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
+        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt,
+        fppNumero: c?.fppNumero || null, aviamentosPendentes: false,
+        materiais: (c?.demanda || []).map((m) => ({ nome: m.nome, categoria: m.categoria, fornecedor: m.fornecedor, cor: m.cor, codigo: m.codigo, quantidade: m.quantidade, unidade: m.unidade, obs: m.obs || null })) });
     });
   }
   // v621 — pedido de serviço lançado no sistema: vai direto para o PCP em A PROGRAMAR (não passa por compras)

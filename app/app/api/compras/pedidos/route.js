@@ -63,7 +63,7 @@ export async function GET() {
     const lst = [];
     for (const it of itens) {
       let v = porChave[`${p.numero}|${it.chave}`];
-      const fi = proprio ? { fase: v?.liberadoEm ? "PRODUCAO" : "COMPRAS", coluna: null } : faseItemPcp(p, it.chave);
+      const fi = proprio ? { fase: v?.liberadoEm || ["ESTOQUE", "ENTREGUE"].includes(v?.status) ? "PRODUCAO" : "COMPRAS", coluna: null } : faseItemPcp(p, it.chave);
       if (fi.fase === "PRODUCAO") { itensFora++; continue; }
       // quantidade mudou no KM: refaz a demanda enquanto está no levantamento
       // v523 — FPP de produto revenda com demanda vazia (antes da v523): refaz uma vez
