@@ -21,7 +21,10 @@ export async function GET(req) {
   let m = sp.get("mes");
   if (!/^\d{4}-\d{2}$/.test(m || "")) { const h = hojeSP(); m = h.slice(0, 7); if (dataReuniao(Number(h.slice(0, 4)), Number(h.slice(5, 7))) < h) { const d = new Date(`${m}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); m = d.toISOString().slice(0, 7); } }
   const ano = Number(m.slice(0, 4)), mes = Number(m.slice(5, 7));
-  const t = await garantirReuniao(ano, mes);
+  // mês passado: só abre a reunião que existe (não cria tarefa nem convite retroativo)
+  const { reuniaoDoMes } = await import("@/lib/decisoes");
+  const t = m < hojeSP().slice(0, 7) ? await reuniaoDoMes(ano, mes) : await garantirReuniao(ano, mes);
+  if (!t && m < hojeSP().slice(0, 7)) return Response.json({ error: `Não há reunião de gestão registrada em ${m.slice(5)}/${m.slice(0, 4)}.` }, { status: 404 });
   if (!t) return Response.json({ error: "Não consegui criar a reunião do mês (usuário Igor não encontrado)." }, { status: 400 });
   const todas = await prisma.tarefa.findMany({ where: { titulo: { startsWith: "REUNIÃO DE GESTÃO · " }, modelo: false, status: { not: "CANCELADA" } }, select: { id: true, reuniao: true, prazo: true, status: true }, orderBy: { prazo: "desc" }, take: 36 });
   const R = t.reuniao || {};
