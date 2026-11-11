@@ -247,7 +247,11 @@ export async function baixar({ tituloId, lancamentoId, quem }) {
     },
     select: { id: true, titulo: true, valor: true, valorPago: true, dataPagamento: true, status: true },
   });
-  return { ok: true, titulo: up, diferenca: r2(valorPago - Number(t.valor)) };
+  // v761 — boleto de cobrança que o cliente pagou por PIX: o boleto continua registrado no banco e precisa ser baixado
+  const ehBoleto = t.formaPagamento === "BOLETO" || !!t.nossoNumero || !!t.remessa;
+  const pixBoleto = t.tipo === "RECEBER" && ehBoleto && /\bPIX\b/i.test(`${l.historico || ""} ${l.identificacao || ""}`);
+  return { ok: true, titulo: up, diferenca: r2(valorPago - Number(t.valor)),
+    pixBoleto: pixBoleto ? { id: t.id, titulo: t.titulo, numeroDoc: t.numeroDoc, parceiro: t.parceiro, vencimento: t.vencimento, nossoNumero: t.nossoNumero, valorPago, data: l.data } : null };
 }
 
 // v332 — recompra identificada no extrato: cria/usa a conta a pagar da recompra, baixa-a com o débito e liquida o título original

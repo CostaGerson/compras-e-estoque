@@ -285,9 +285,12 @@ function ContaSelect({ conta, contas, onPick }) {
 }
 
 /* ============================================================ */
+let _destaqueId = null;
 export default function ContasPagarReceber({ user, inicial = null }) {
   const [tipo, setTipo] = useState(inicial?.tipo || "PAGAR");   // v365 — pode abrir já filtrado
-  const [mes, setMes] = useState(mesAtual());
+  const [mes, setMes] = useState(inicial?.mes || mesAtual());
+  _destaqueId = inicial?.tituloId || null;   // v761 — conta aberta pela mensagem fica destacada
+  useEffect(() => { if (!inicial?.tituloId) return; const t = setTimeout(() => document.getElementById(`tit-${inicial.tituloId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 900); return () => clearTimeout(t); }, [d]);
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState(inicial?.busca || "");
@@ -665,7 +668,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
               const [fT, FI] = FORMA[t.forma] || [t.forma, Hand];
               const conferir = t.recorrenciaId && !t.valorConfirmado && t.status === "ABERTO" && t.competencia <= mesAtual();
               return (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
+                <tr key={t.id} id={`tit-${t.id}`} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: t.id === _destaqueId ? "#FFE8D6" : sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.id === _destaqueId ? `inset 4px 0 0 ${C.accent}` : t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
                   <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<AltInfo t={t} campo="vencimento" /><MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}</td>
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>

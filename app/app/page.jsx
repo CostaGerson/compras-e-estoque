@@ -980,6 +980,21 @@ function Mensagens({ user, onMudou }) {
         </div>
       </div>
     </div>
+  ) : m.prioritaria && !arquivada ? (
+    // v761 — mensagem prioritária: fixa no topo até arquivar; clicar leva à conta no contas a receber
+    <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: "#FFF4EC", borderLeft: `5px solid ${C.accent}` }}>
+      <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: C.accent, color: "#fff", fontSize: 18 }}>!</div>
+      <div style={{ flex: 1 }}>
+        <div className="text-[11px] font-bold tracking-wide" style={{ color: C.accent }}>PRIORITÁRIA · {quandoData(m.createdAt)}</div>
+        <div className="text-sm mt-1 whitespace-pre-wrap" style={{ color: C.text, fontWeight: 600 }}>{m.texto}</div>
+        <div className="flex gap-3 mt-2 flex-wrap">
+          {m.conta && <button onClick={() => { const v = String(m.conta.vencimento || "").slice(0, 10);
+            window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pagrec", rec: { tipo: m.conta.tipo, busca: m.conta.numeroDoc || m.conta.titulo, de: v, ate: v, mes: v.slice(0, 7), tituloId: m.conta.id } } })); }}
+            className="text-xs font-bold px-3 py-1 rounded" style={{ background: C.accent, color: "#fff" }}>Ver a conta no contas a {m.conta.tipo === "PAGAR" ? "pagar" : "receber"}</button>}
+          <button onClick={() => patch(m.id, { arquivada: true, lida: true })} className="text-xs font-semibold px-3 py-1 rounded" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>Boleto baixado · arquivar</button>
+        </div>
+      </div>
+    </div>
   ) : (
     <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: !m.lida && !arquivada ? C.accentSoft : "transparent" }}>
       <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={38} />

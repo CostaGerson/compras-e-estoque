@@ -130,6 +130,8 @@ model Mensagem {
   lida      Boolean  @default(false)
   arquivada Boolean  @default(false)
   conviteTarefaId Int?               // v607 — convite de evento: confirmar/recusar direto pela mensagem
+  prioritaria Boolean @default(false)   // v761 — fixa no topo das recebidas até arquivar (ex.: boleto pago por PIX)
+  tituloId  Int?                       // v761 — conta (FinTitulo) ligada à mensagem: clicar abre no contas a pagar/receber
   aviso     Boolean  @default(false)   // v568 — aviso do desenvolvedor: vai para todos, fixo e em destaque até a pessoa dar "ciente"
   createdAt DateTime @default(now())
 }

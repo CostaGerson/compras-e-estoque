@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, competenciaValida } from "@/lib/fin";
 import { sugestoes, baixar, desfazer, marcarVistas, baixarItem, desfazerItem, baixarRecompra } from "@/lib/finBaixas";
 
@@ -33,6 +34,15 @@ export async function POST(req) {
   }
   const r = await baixar({ tituloId: b.tituloId, lancamentoId: b.lancamentoId, quem: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() });
   if (!r.ok) return Response.json({ error: r.erro }, { status: 400 });
+  // v761 — boleto pago por PIX: mensagem prioritária para quem autorizou a baixa, pedindo a baixa do boleto no banco
+  if (r.pixBoleto) {
+    const x = r.pixBoleto, br = (d) => (d ? new Date(d).toISOString().slice(0, 10).split("-").reverse().join("/") : "—");
+    const moeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const texto = `💠 BOLETO PAGO VIA PIX — ${x.parceiro || "cliente"} · ${x.titulo}${x.numeroDoc && !String(x.titulo).includes(x.numeroDoc) ? ` (${x.numeroDoc})` : ""} · vence ${br(x.vencimento)}${x.nossoNumero ? ` · nosso nº ${x.nossoNumero}` : ""}. `
+      + `A conta foi baixada pelo extrato com o PIX de ${moeda(x.valorPago)} em ${br(x.data)}. Baixe o boleto no banco para ele não ficar em aberto na cobrança.`;
+    await prisma.mensagem.create({ data: { deId: u.id, paraId: u.id, texto, prioritaria: true, tituloId: x.id } }).catch((e) => console.log("msg pix-boleto:", e.message));
+    try { const { notificar } = await import("@/lib/push"); await notificar(u.id, { titulo: "💠 Boleto pago via PIX", texto: `${x.parceiro || ""} · ${x.titulo} — baixe o boleto no banco`, url: "/", tag: `pixbol-${x.id}` }); } catch {}
+  }
   return Response.json(r);
 }
 

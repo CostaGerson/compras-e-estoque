@@ -13,7 +13,13 @@ export async function GET(req) {
     prisma.mensagem.findMany({ where: { deId: usuarioId }, orderBy: { createdAt: "desc" }, take: 2000, include: { para: { select: selUser } } }),
   ]);
   // v568 — aviso do desenvolvedor ainda sem "ciente" fica fixo no topo das recebidas
-  const recebidas = recebidasTodas.filter((m) => !m.arquivada).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)));
+  // v761 — mensagem prioritária (ex.: boleto pago via PIX) fica sempre no topo até ser arquivada
+  const recebidas = recebidasTodas.filter((m) => !m.arquivada).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)) || (Number(!!b.prioritaria) - Number(!!a.prioritaria)));
+  const tids = [...new Set(recebidasTodas.map((m) => m.tituloId).filter(Boolean))];
+  if (tids.length) {
+    const ts = await prisma.finTitulo.findMany({ where: { id: { in: tids } }, select: { id: true, tipo: true, titulo: true, numeroDoc: true, parceiro: true, vencimento: true, status: true } }).catch(() => []);
+    for (const m of recebidasTodas) if (m.tituloId) m.conta = ts.find((t) => t.id === m.tituloId) || null;
+  }
   const arquivadas = recebidasTodas.filter((m) => m.arquivada);
   const naoLidas = recebidas.filter((m) => !m.lida).length;
   // v607 — convite de evento: situação atual da resposta de quem recebeu
