@@ -517,8 +517,10 @@ function lerCobranca(paginas) {
 function lerFolha(paginas) {
   const itens = [];
   for (const linhas of paginas) {
-    const t = linhas.map(txt).join("\n");
-    const nome = (t.match(/Funcionário:\s*(.+?)\s+CPF:/) || [])[1];
+    // v764 — o PDF novo do Multipag vem com acentos quebrados ("FuncionÃ¡rio"): conserta e aceita os dois
+    const t0 = linhas.map(txt).join("\n");
+    let t = t0; if (/Ã[\u0080-\u00BF¡-ÿ]/.test(t0)) { try { const f = Buffer.from(t0, "latin1").toString("utf8"); if (!f.includes("\uFFFD")) t = f; } catch {} }
+    const nome = (t.match(/Funcion\S{1,3}rio:\s*(.+?)\s+CPF:/) || t0.match(/Funcion\S{1,3}rio:\s*(.+?)\s+CPF:/) || [])[1];
     const cpf = (t.match(/CPF:\s*([\d.\-]+)/) || [])[1];
     const data = dataBR((t.match(/Pagamento:\s*(\d{2}\/\d{2}\/\d{4})/) || [])[1]);
     const v = valorBR((t.match(/Valor \(R\$\):\s*([\d.]+,\d{2})/) || [])[1]);
