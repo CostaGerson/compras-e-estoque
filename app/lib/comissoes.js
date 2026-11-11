@@ -24,7 +24,15 @@ async function contaComissao() {
 }
 
 // ---------- cadastro ----------
+// v773 — sugestão #63: os sócios que vendem já vêm cadastrados como vendedores
+const SOCIOS_VENDEDORES = ["IGOR", "PEDRO", "GERSON", "MAYCON"];
+async function garantirSocios() {
+  const vs = await prisma.vendedor.findMany({ select: { nome: true } }).catch(() => []);
+  const tem = (n) => vs.some((v) => String(v.nome || "").split(/\s+/)[0] === n);
+  for (const n of SOCIOS_VENDEDORES) if (!tem(n)) await prisma.vendedor.create({ data: { nome: n } }).catch(() => null);
+}
 export async function listarVendedores({ todos = false } = {}) {
+  await garantirSocios();
   return prisma.vendedor.findMany({ where: todos ? {} : { ativo: true }, orderBy: { nome: "asc" } });
 }
 export async function salvarVendedor(b, quem) {

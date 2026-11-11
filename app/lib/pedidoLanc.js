@@ -84,24 +84,57 @@ export function conferirEntregas(itens, entregas, modo) {
 // ---------- pagamento ----------
 export const BASES = { EMISSAO: "emissão do pedido", NF: "emissão da NF", ENTREGA: "data de entrega" };
 // parcelas com o valor de cada uma: parcela sem valor divide igualmente o que sobra do total − entrada − parcelas com valor
+// v773 — #65: valor da entrada/parcela em R$ ou em % do total (campo pct) ·
+// #66: restrição de pagamento do cliente (dias do mês, dias da semana ou "1ª quinta do mês"): o vencimento vai para a
+// primeira data que atende; data digitada à mão (dataFixa) sempre prevalece
+export const DOWS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+export const DOWS_LONGO = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+export function textoRestricao(r) {
+  if (!r || !r.tipo) return "";
+  if (r.tipo === "DIA_MES") return `só dia${(r.dias || []).length > 1 ? "s" : ""} ${(r.dias || []).join(", ")} do mês`;
+  if (r.tipo === "DIA_SEMANA") return `só ${(r.dows || []).map((d) => DOWS_LONGO[d]).join(", ")}`;
+  if (r.tipo === "NESIMO") return `${r.n === 5 ? "última" : `${r.n}ª`} ${DOWS_LONGO[r.dow ?? 1]} do mês`;
+  return "";
+}
+function atende(iso, r) {
+  const d = new Date(`${iso}T00:00:00Z`), dia = d.getUTCDate(), dow = d.getUTCDay();
+  if (r.tipo === "DIA_MES") { const ult = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); return (r.dias || []).some((x) => Number(x) === dia || (Number(x) > ult && dia === ult)); }
+  if (r.tipo === "DIA_SEMANA") return (r.dows || []).map(Number).includes(dow);
+  if (r.tipo === "NESIMO") {
+    if (dow !== Number(r.dow ?? 1)) return false;
+    if (Number(r.n) === 5) return dia + 7 > new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();   // última do mês
+    return Math.ceil(dia / 7) === Number(r.n || 1);
+  }
+  return true;
+}
+export function aplicarRestricao(iso, r) {
+  if (!iso || !r || !r.tipo) return iso;
+  if ((r.tipo === "DIA_MES" && !(r.dias || []).length) || (r.tipo === "DIA_SEMANA" && !(r.dows || []).length)) return iso;
+  let d = String(iso).slice(0, 10);
+  for (let k = 0; k < 400; k++) { if (atende(d, r)) return d; d = new Date(new Date(`${d}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10); }
+  return iso;
+}
+const valorDe = (x, total) => (x?.pct ? r2(r2(total) * num(x.valor) / 100) : r2(num(x?.valor)));
 export function parcelasCalc(pag, total, { emissao, nf, entrega } = {}) {
   const p = pag || {};
-  const ent = p.entrada && (num(p.entrada.valor) > 0) ? { data: p.entrada.data || emissao || null, valor: r2(num(p.entrada.valor)) } : null;
+  const ent = p.entrada && (num(p.entrada.valor) > 0)
+    ? { data: p.entrada.dataFixa || aplicarRestricao(p.entrada.data || emissao || null, p.entrada.restricao), valor: valorDe(p.entrada, total), pct: !!p.entrada.pct } : null;
   const lst = Array.isArray(p.parcelas) ? p.parcelas : [];
   const fixas = lst.filter((x) => num(x.valor) > 0);
   const livres = lst.filter((x) => !(num(x.valor) > 0));
-  const resto = r2(r2(total) - (ent?.valor || 0) - fixas.reduce((s, x) => s + r2(num(x.valor)), 0));
+  const resto = r2(r2(total) - (ent?.valor || 0) - fixas.reduce((s, x) => s + valorDe(x, total), 0));
   const cada = livres.length ? r2(resto / livres.length) : 0;
   let usadas = 0;
   const bases = { EMISSAO: emissao || null, NF: nf || null, ENTREGA: entrega || null };
   const parcelas = lst.map((x, i) => {
     let valor;
-    if (num(x.valor) > 0) valor = r2(num(x.valor));
+    if (num(x.valor) > 0) valor = valorDe(x, total);
     else { usadas++; valor = usadas === livres.length ? r2(resto - cada * (livres.length - 1)) : cada; }
     const base = BASES[x.base] ? x.base : "NF";
     const tipo = x.tipo === "UTEIS" ? "UTEIS" : "CORRIDOS";
     const dias = Math.max(0, Math.round(num(x.dias)));
-    return { n: i + 1, de: lst.length, dias, tipo, base, valor, data: bases[base] ? somaDias(bases[base], dias, tipo) : null };
+    const calc = bases[base] ? aplicarRestricao(somaDias(bases[base], dias, tipo), x.restricao) : null;
+    return { n: i + 1, de: lst.length, dias, tipo, base, valor, pct: !!x.pct, data: x.dataFixa || calc, dataCalc: calc, fixa: !!x.dataFixa, restricao: x.restricao || null };
   });
   const soma = r2((ent?.valor || 0) + parcelas.reduce((s, x) => s + x.valor, 0));
   const dif = r2(r2(total) - soma);

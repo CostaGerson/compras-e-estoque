@@ -11,7 +11,7 @@ import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
-  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal, valorDesconto, precoComDesconto,
+  num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoRestricao, DOWS, DOWS_LONGO, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal, valorDesconto, precoComDesconto,
   paramFora, tecidoDaFpp, numFpp,
 } from "@/lib/pedidoLanc";
 
@@ -76,6 +76,9 @@ function ComissaoCard({ f, set, uid, totalItens, podeLancar }) {
   const c = f.comissao || { vendedorId: null, tipo: "PCT", valor: "" };
   const on = !!c.vendedorId || c.ligada;
   useEffect(() => { if (on && !vs) carregar(); }, [on]);
+  // v773 — #63: ao ligar a venda comissionada, já vem o vendedor do pedido
+  const doPedido = (l) => (l || []).find((x) => x.nome === String(f.vendedor || "").toUpperCase().trim()) || (l || []).find((x) => x.nome.split(/\s+/)[0] === String(f.vendedor || "").toUpperCase().trim().split(/\s+/)[0]);
+  useEffect(() => { if (on && vs && !c.vendedorId) { const x = doPedido(vs); if (x) up({ vendedorId: x.id }); } }, [on, vs, f.vendedor]);
   const up = (patch) => set("comissao", { ...c, ...patch });
   const v = (vs || []).find((x) => x.id === Number(c.vendedorId));
   const total = c.tipo === "PCT" ? totalItens * num(c.valor) / 100 : num(c.valor);
@@ -103,6 +106,86 @@ function ComissaoCard({ f, set, uid, totalItens, podeLancar }) {
     </Card>
   );
 }
+// v773 — #65: valor em R$ ou em % do total
+function ReaisPct({ x, total, auto, onChange, placeholder }) {
+  const pct = !!x?.pct;
+  const eq = num(x?.valor) > 0 ? (pct ? money(total * num(x.valor) / 100) : total > 0 ? `${Math.round(num(x.valor) / total * 1000) / 10}%` : "") : "";
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-flex rounded-md p-0.5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+        {[[false, "R$"], [true, "%"]].map(([k, t]) => <button key={t} type="button" onClick={() => onChange({ pct: k, valor: "" })} className="px-2 py-0.5 text-[11px] font-semibold rounded"
+          style={{ background: pct === k ? "#fff" : "transparent", color: pct === k ? C.text : C.sub }}>{t}</button>)}
+      </span>
+      <input value={x?.valor ?? ""} onChange={(e) => onChange({ valor: e.target.value.replace(/[^\d,.]/g, "") })} inputMode="decimal"
+        placeholder={auto ? `auto ${money(auto.valor)}` : placeholder || (pct ? "%" : "valor")} className="w-28 px-2 py-1 rounded outline-none text-sm" style={inp} />
+      {eq && <span className="text-xs" style={{ color: C.sub }}>{eq}</span>}
+    </span>
+  );
+}
+
+// v773 — #66: restrição de pagamento do cliente — só em certos dias do mês, dias da semana ou "1ª quinta do mês"
+function Restricao({ r, onChange }) {
+  const [aberto, setAberto] = useState(false);
+  const on = !!r?.tipo;
+  const t = r || { tipo: "DIA_MES", dias: [], dows: [], n: 1, dow: 4 };
+  const up = (patch) => onChange({ ...t, ...patch });
+  return (
+    <span className="relative inline-flex items-center">
+      <label className="inline-flex items-center gap-1 text-[11px] cursor-pointer px-1.5 py-0.5 rounded" style={{ background: on ? C.accentSoft : "transparent", color: on ? C.accent : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}
+        title={on ? textoRestricao(r) : "Cliente só paga em certos dias"}>
+        <input type="checkbox" checked={on} onChange={(e) => { if (e.target.checked) { onChange(t); setAberto(true); } else { onChange(null); setAberto(false); } }} />
+        restrição{on ? `: ${textoRestricao(r)}` : " de pagamento"}
+      </label>
+      {on && <button type="button" onClick={() => setAberto((x) => !x)} className="ml-1 text-[11px] underline" style={{ color: C.sub }}>{aberto ? "ok" : "editar"}</button>}
+      {on && aberto && (
+        <div className="absolute z-30 top-full left-0 mt-1 p-3 rounded-lg shadow-lg text-xs" style={{ background: C.panel, border: `1px solid ${C.line}`, width: 300 }}>
+          <div className="flex gap-1 mb-2">
+            {[["DIA_MES", "Dia do mês"], ["DIA_SEMANA", "Dia da semana"], ["NESIMO", "Sequencial"]].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => up({ tipo: k })} className="flex-1 px-2 py-1 rounded font-semibold" style={{ background: t.tipo === k ? C.accent : C.panel2, color: t.tipo === k ? "#fff" : C.sub }}>{l}</button>))}
+          </div>
+          {t.tipo === "DIA_MES" && <>
+            <div className="mb-1" style={{ color: C.sub }}>Dias do mês em que o cliente paga:</div>
+            <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(7, 1fr)" }}>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => { const sel = (t.dias || []).includes(d); return (
+                <button key={d} type="button" onClick={() => up({ dias: sel ? t.dias.filter((x) => x !== d) : [...(t.dias || []), d].sort((a, b) => a - b) })}
+                  className="py-1 rounded" style={{ background: sel ? C.accent : C.panel2, color: sel ? "#fff" : C.text }}>{d}</button>); })}
+            </div>
+          </>}
+          {t.tipo === "DIA_SEMANA" && <>
+            <div className="mb-1" style={{ color: C.sub }}>Dias da semana em que o cliente paga:</div>
+            <div className="flex gap-1">{DOWS.map((n, d) => { const sel = (t.dows || []).includes(d); return (
+              <button key={d} type="button" onClick={() => up({ dows: sel ? t.dows.filter((x) => x !== d) : [...(t.dows || []), d].sort() })}
+                className="flex-1 py-1 rounded" style={{ background: sel ? C.accent : C.panel2, color: sel ? "#fff" : C.text }}>{n}</button>); })}</div>
+          </>}
+          {t.tipo === "NESIMO" && <div className="flex items-center gap-1">
+            <select value={t.n} onChange={(e) => up({ n: Number(e.target.value) })} className="px-1 py-1 rounded" style={inp}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n === 5 ? "última" : `${n}ª`}</option>)}</select>
+            <select value={t.dow} onChange={(e) => up({ dow: Number(e.target.value) })} className="px-1 py-1 rounded" style={inp}>{DOWS_LONGO.map((n, d) => <option key={d} value={d}>{n}</option>)}</select>
+            <span style={{ color: C.sub }}>do mês</span>
+          </div>}
+          <div className="mt-2" style={{ color: C.sub }}>O vencimento vai para a primeira data que atende. A data pode ser alterada à mão.</div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// v773 — #63: vendedor do pedido escolhido entre os cadastrados (Dados › Vendedores); sem acesso ao cadastro, campo livre
+function CampoVendedor({ uid, value, onChange }) {
+  const [vs, setVs] = useState(null);
+  useEffect(() => { fetch(`/api/vendedores?u=${uid}`).then((r) => (r.ok ? r.json() : null)).then((j) => setVs(j?.vendedores || [])).catch(() => setVs([])); }, []);
+  const atual = String(value || "").toUpperCase();
+  if (vs && !vs.length) return <In label="Vendedor" value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <Campo label="Vendedor">
+      <select value={atual} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, background: C.panel, borderColor: atual ? C.line : C.accent }}>
+        <option value="">{vs ? "Selecione…" : "Carregando…"}</option>
+        {atual && vs && !vs.some((x) => x.nome === atual) && <option value={atual}>{atual}</option>}
+        {(vs || []).map((x) => <option key={x.id} value={x.nome}>{x.nome}</option>)}
+      </select>
+    </Campo>
+  );
+}
+
 function NovoVendedor({ uid, onClose, onSalvo }) {
   const [M, setM] = useState(null);
   useEffect(() => { import("./vendedores").then((m) => setM(() => m.VendedorModal)); }, []);
@@ -727,7 +810,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           </Campo>
           <Campo label="Nº do pedido"><div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ ...inp, color: f.numero ? C.text : C.sub }}>{f.numero || (proximo ? `${proximo} (automático)` : "automático")}</div></Campo>
           <In label="Data de emissão" type="date" upper={false} value={f.emissao} onChange={(e) => set("emissao", e.target.value || hojeISO())} />
-          <In label="Vendedor" value={f.vendedor} onChange={(e) => set("vendedor", e.target.value)} />
+          <CampoVendedor uid={uid} value={f.vendedor} onChange={(v) => set("vendedor", v)} />
           <Campo label="Cliente · nome ou CNPJ" cls="col-span-2">
             <Auto value={f.clienteNome} onChange={(v) => set("clienteNome", v)} buscar={buscarCliente} onPick={pickCliente} placeholder="Digite o nome ou o CNPJ…"
               render={(c) => <span><b>{c.razaoSocial || c.nomeFantasia}</b> <span style={{ color: C.sub }}>· {fmtCnpj(c.cnpj)}{c.municipio ? " · " + c.municipio : ""}</span></span>} />
@@ -746,7 +829,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <select value={f.prazoTipo} onChange={(e) => set("prazoTipo", e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={inp}>
                 <option value="UTEIS">dias úteis</option><option value="CORRIDOS">dias corridos</option>
               </select>
-              <span className="text-sm" style={{ color: despacho ? C.text : C.sub }}>→ despacho <b style={{ color: C.accent }}>{despacho ? `${dataBR(despacho)} (${diaSem(despacho)})` : "—"}</b></span>
+              {/* v773 — #64: a data de despacho também pode ser escolhida no calendário (vira dias corridos a partir da emissão) */}
+              <span className="text-sm" style={{ color: C.sub }}>→ despacho</span>
+              <input type="date" value={despacho || ""} min={f.emissao || undefined} onChange={(e) => { const d = e.target.value; if (!d) return set("prazoDias", "");
+                const dias = Math.round((new Date(`${d}T00:00:00Z`) - new Date(`${f.emissao || hojeISO()}T00:00:00Z`)) / 86400000);
+                setF((x) => ({ ...x, prazoDias: String(Math.max(0, dias)), prazoTipo: "CORRIDOS" })); }}
+                className="px-2 py-1 rounded outline-none text-sm font-semibold" style={{ ...inp, color: C.accent }} title="Escolha a data no calendário" />
+              {despacho && <span className="text-xs" style={{ color: C.sub }}>{diaSem(despacho)}</span>}
             </div>
           </Campo>
           <Campo label="Observações internas" cls="col-span-4">
@@ -989,8 +1078,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             <div className="flex items-center gap-2 mb-2 text-sm">
               <span className="w-24 font-semibold">Entrada</span>
               <input type="date" value={f.pagamento.entrada.data || ""} onChange={(e) => setPag((p) => ({ ...p, entrada: { ...p.entrada, data: e.target.value } }))} className="px-2 py-1 rounded outline-none text-sm" style={inp} />
-              <input value={f.pagamento.entrada.valor} onChange={(e) => setPag((p) => ({ ...p, entrada: { ...p.entrada, valor: e.target.value } }))} placeholder="valor R$" className="w-32 px-2 py-1 rounded outline-none text-sm" style={inp} />
-              {totalGeral > 0 && num(f.pagamento.entrada.valor) > 0 && <span className="text-xs" style={{ color: C.sub }}>{Math.round(num(f.pagamento.entrada.valor) / totalGeral * 1000) / 10}%</span>}
+              <ReaisPct x={f.pagamento.entrada} total={totalGeral} onChange={(patch) => setPag((p) => ({ ...p, entrada: { ...p.entrada, ...patch } }))} placeholder="valor" />
+              <Restricao r={f.pagamento.entrada.restricao} onChange={(r) => setPag((p) => ({ ...p, entrada: { ...p.entrada, restricao: r } }))} />
+              {calc.entrada && calc.entrada.data !== f.pagamento.entrada.data && <span className="text-xs" style={{ color: C.accent }}>vence {dataBR(calc.entrada.data)}</span>}
               <span className="text-xs" style={{ color: C.sub }}>vai para o contas a receber ao efetivar</span>
               <button type="button" onClick={() => setPag((p) => ({ ...p, entrada: null }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
             </div>
@@ -1008,8 +1098,14 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 <select value={x.base} onChange={(e) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, base: e.target.value } : y)) }))} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
                   {Object.entries(BASES).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                 </select>
-                <input value={x.valor} onChange={(e) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, valor: e.target.value } : y)) }))} placeholder={c ? `auto ${money(c.valor)}` : "valor"} className="w-36 px-2 py-1 rounded outline-none text-sm" style={inp} />
-                <span className="text-xs" style={{ color: C.sub }}>{c?.data ? `vence ${dataBR(c.data)} · lança ao efetivar` : x.base === "ENTREGA" ? "lança no faturamento (pede a previsão de entrega)" : "lança no faturamento (data da NF)"}</span>
+                <ReaisPct x={x} total={totalGeral} auto={c} onChange={(patch) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, ...patch } : y)) }))} />
+                <Restricao r={x.restricao} onChange={(r) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, restricao: r } : y)) }))} />
+                {/* v773 — #66: o vencimento pode sempre ser editado à mão */}
+                <span className="text-xs" style={{ color: C.sub }}>vence</span>
+                <input type="date" value={c?.data || ""} onChange={(e) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, dataFixa: e.target.value || null } : y)) }))}
+                  className="px-2 py-1 rounded outline-none text-xs" style={{ ...inp, color: x.dataFixa ? C.accent : C.text }} title={x.dataFixa ? "Data definida à mão" : "Data calculada — altere para fixar outra"} />
+                {x.dataFixa && <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, dataFixa: null } : y)) }))} className="text-[11px] underline" style={{ color: C.sub }}>voltar ao cálculo</button>}
+                <span className="text-xs" style={{ color: C.sub }}>{c?.data ? "· lança ao efetivar" : x.base === "ENTREGA" ? "lança no faturamento (pede a previsão de entrega)" : "lança no faturamento (data da NF)"}</span>
                 <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: p.parcelas.filter((_, j) => j !== k) }))} style={{ color: "#C77" }}><Trash2 size={14} /></button>
               </div>
             );
