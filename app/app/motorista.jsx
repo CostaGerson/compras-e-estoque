@@ -49,11 +49,82 @@ function Trilha({ paradas, atual, volta, fim }) {
   );
 }
 
+// v778 — #67: pede o km do odômetro (lembra o último registrado)
+function KmModal({ user, titulo, veiculo, onOk, onCancelar }) {
+  const [km, setKm] = useState("");
+  const [ult, setUlt] = useState(null);
+  useEffect(() => { api(`/api/rotas?u=${user.id}&ultimoKm=${veiculo || "CARRO"}`).then((x) => setUlt(x.km)).catch(() => {}); }, []);
+  const n = Number(String(km).replace(/\./g, "").replace(",", "."));
+  const baixo = ult != null && n > 0 && n < ult;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3" style={{ background: "rgba(0,30,65,.5)" }}>
+      <div className="w-full max-w-md rounded-3xl p-5 space-y-3" style={{ background: C.panel }}>
+        <div className="text-xl font-extrabold" style={{ color: C.navy }}>🚗 {titulo}</div>
+        <input value={km} onChange={(e) => setKm(e.target.value.replace(/[^\d,.]/g, ""))} inputMode="decimal" autoFocus placeholder="km do painel"
+          className="w-full rounded-2xl px-4 py-4 text-3xl font-extrabold text-center" style={{ border: `3px solid ${C.accent}`, color: C.navy }} />
+        {ult != null && <div className="text-sm text-center" style={{ color: baixo ? C.red : C.sub }}>Último registrado: {ult.toLocaleString("pt-BR")} km{baixo ? " — o km digitado é menor, confira" : ""}</div>}
+        <div className="grid grid-cols-2 gap-3">
+          <Botao fundo="#fff" cor={C.text} onClick={onCancelar}>Cancelar</Botao>
+          <Botao fundo={C.green} cor="#fff" disabled={!(n > 0)} onClick={() => onOk(km)}>Confirmar</Botao>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// v778 — #68: abastecimento — km, combustível, litros, valor e itens extras (aditivo, óleo…)
+function AbastecimentoModal({ user, veiculo, onClose, onOk }) {
+  const [f, setF] = useState({ km: "", combustivel: "GASOLINA", litros: "", valor: "", extras: [] });
+  const [st, setSt] = useState(false);
+  const [erro, setErro] = useState("");
+  const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const so = (v) => String(v).replace(/[^\d,.]/g, "");
+  const num = (v) => Number(String(v || "").replace(/\./g, "").replace(",", ".")) || 0;
+  const total = num(f.valor) + f.extras.reduce((t, x) => t + num(x.valor), 0);
+  const enviar = async () => {
+    setSt(true); setErro("");
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "abastecer", veiculo, ...f }); onOk(); } catch (e) { setErro(e.message); }
+    setSt(false);
+  };
+  const inpG = "w-full rounded-xl px-3 py-3 text-lg font-semibold";
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3" style={{ background: "rgba(0,30,65,.5)" }}>
+      <div className="w-full max-w-md rounded-3xl p-5 space-y-3 overflow-y-auto" style={{ background: C.panel, maxHeight: "92vh" }}>
+        <div className="text-xl font-extrabold" style={{ color: C.navy }}>⛽ Abastecimento</div>
+        <label className="block text-sm font-bold" style={{ color: C.sub }}>Km atual<input value={f.km} onChange={(e) => s("km", so(e.target.value))} inputMode="decimal" className={inpG} style={{ border: `2px solid ${C.line}` }} /></label>
+        <div className="grid grid-cols-4 gap-1">{["GASOLINA", "ETANOL", "DIESEL", "GNV"].map((c) => (
+          <button key={c} onClick={() => s("combustivel", c)} className="py-2 rounded-xl text-xs font-bold" style={{ background: f.combustivel === c ? C.accent : C.bg, color: f.combustivel === c ? "#fff" : C.text }}>{c}</button>))}</div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm font-bold" style={{ color: C.sub }}>Litros<input value={f.litros} onChange={(e) => s("litros", so(e.target.value))} inputMode="decimal" className={inpG} style={{ border: `2px solid ${C.line}` }} /></label>
+          <label className="block text-sm font-bold" style={{ color: C.sub }}>Valor R$<input value={f.valor} onChange={(e) => s("valor", so(e.target.value))} inputMode="decimal" className={inpG} style={{ border: `2px solid ${C.line}` }} /></label>
+        </div>
+        <div className="text-sm font-bold" style={{ color: C.sub }}>Itens extras (aditivo, óleo…)</div>
+        {f.extras.map((x, k) => (
+          <div key={k} className="flex gap-2">
+            <input value={x.descricao} onChange={(e) => s("extras", f.extras.map((y, j) => (j === k ? { ...y, descricao: e.target.value } : y)))} placeholder="descrição" className="flex-1 rounded-xl px-3 py-2 text-base" style={{ border: `2px solid ${C.line}` }} />
+            <input value={x.valor} onChange={(e) => s("extras", f.extras.map((y, j) => (j === k ? { ...y, valor: so(e.target.value) } : y)))} inputMode="decimal" placeholder="R$" className="w-24 rounded-xl px-3 py-2 text-base" style={{ border: `2px solid ${C.line}` }} />
+            <button onClick={() => s("extras", f.extras.filter((_, j) => j !== k))} className="px-2 text-lg" style={{ color: C.red }}>✕</button>
+          </div>))}
+        <button onClick={() => s("extras", [...f.extras, { descricao: "", valor: "" }])} className="text-base font-bold" style={{ color: C.accent }}>+ adicionar item extra</button>
+        <div className="text-lg font-extrabold text-right" style={{ color: C.navy }}>Total {total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
+        {erro && <div className="text-sm font-semibold" style={{ color: C.red }}>{erro}</div>}
+        <div className="grid grid-cols-2 gap-3">
+          <Botao fundo="#fff" cor={C.text} onClick={onClose}>Cancelar</Botao>
+          <Botao fundo={C.green} cor="#fff" disabled={st || !num(f.km)} onClick={enviar}>Salvar</Botao>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MotoristaApp({ user, onSair }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [oc, setOc] = useState(false);
   const [ret, setRet] = useState(null);   // v521 — justificativa do retorno à fábrica no meio da rota (null = fechado)
+  const [pedeKm, setPedeKm] = useState(null);   // v778 — #67: { titulo, body } — km atual antes de partir / ao chegar
+  const [abast, setAbast] = useState(false);    // v778 — #68: abastecimento
+  const comKm = (titulo, body) => setPedeKm({ titulo, body });
   const carregar = () => api(`/api/rotas?u=${user.id}&minhas=1`).then((x) => { setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t); }, []);
   const acao = async (body) => {
@@ -143,7 +214,7 @@ export default function MotoristaApp({ user, onSair }) {
                   </div>
                   <div className="px-4 pb-4 space-y-3">
                     {!indo ? (
-                      <Botao grande fundo={C.accent} cor="#fff" disabled={oc} onClick={() => acao({ acao: "perna", id: atual.id })}>▶ INICIAR PERCURSO</Botao>
+                      <Botao grande fundo={C.accent} cor="#fff" disabled={oc} onClick={() => comKm("Km atual do veículo antes de sair", { acao: "perna", id: atual.id })}>▶ INICIAR PERCURSO</Botao>
                     ) : (
                       <>
                         <div className="grid grid-cols-2 gap-3">
@@ -181,14 +252,14 @@ export default function MotoristaApp({ user, onSair }) {
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   {!rota.voltaIniciadaEm ? (
-                    <Botao grande fundo={C.accent} cor="#fff" disabled={oc} onClick={() => acao({ acao: "perna", volta: true, blocoId: rota.id })}>▶ INICIAR VOLTA</Botao>
+                    <Botao grande fundo={C.accent} cor="#fff" disabled={oc} onClick={() => comKm("Km atual do veículo antes de voltar", { acao: "perna", volta: true, blocoId: rota.id })}>▶ INICIAR VOLTA</Botao>
                   ) : (
                     <>
                       {fab && <div className="grid grid-cols-2 gap-3">
                         <Botao fundo={C.waze} cor="#0B2540" href={waze(fab)}>Waze</Botao>
                         <Botao fundo="#fff" cor={C.text} href={gmaps(fab)}><span style={{ color: "#4285F4" }}>G</span> Maps</Botao>
                       </div>}
-                      <Botao grande fundo={C.navy} cor="#fff" disabled={oc} onClick={() => acao({ acao: "retorno", id: rota.id })}>🏁 CHEGUEI NA FÁBRICA</Botao>
+                      <Botao grande fundo={C.navy} cor="#fff" disabled={oc} onClick={() => comKm("Km do veículo na chegada à fábrica", { acao: "retorno", id: rota.id })}>🏁 CHEGUEI NA FÁBRICA</Botao>
                     </>
                   )}
                 </div>
@@ -215,6 +286,9 @@ export default function MotoristaApp({ user, onSair }) {
           </>
         )}
 
+        {/* v778 — #68: abastecimento a qualquer momento */}
+        {d && d.pessoaId && <button onClick={() => setAbast(true)} className="w-full py-3 rounded-2xl text-base font-bold" style={{ background: C.panel, color: C.navy, border: `2px solid ${C.line}` }}>⛽ Registrar abastecimento</button>}
+
         {proximas.length > 0 && (
           <div className="rounded-3xl p-4 shadow-sm" style={{ background: C.panel }}>
             <div className="text-sm font-bold mb-2" style={{ color: C.sub }}>PRÓXIMAS ROTAS (AINDA NÃO LIBERADAS)</div>
@@ -227,6 +301,8 @@ export default function MotoristaApp({ user, onSair }) {
           </div>
         )}
       </div>
+      {pedeKm && <KmModal user={user} titulo={pedeKm.titulo} veiculo={rota?.veiculo} onCancelar={() => setPedeKm(null)} onOk={async (km) => { const b = pedeKm.body; setPedeKm(null); await acao({ ...b, km }); }} />}
+      {abast && <AbastecimentoModal user={user} veiculo={rota?.veiculo || "CARRO"} onClose={() => setAbast(false)} onOk={() => { setAbast(false); alert("Abastecimento registrado."); }} />}
     </div>
   );
 }

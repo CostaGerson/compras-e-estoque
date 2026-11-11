@@ -2296,6 +2296,7 @@ model RotaDemanda {
   blocoId        Int?
   ordem          Int?
   tempoLocal     Int?                         // v439 — minutos previstos no local (padrão 15)
+  kmPartida      Float?                       // v778 — #67: odômetro ao iniciar o percurso até esta parada
   iniciadaEm     DateTime?                    // v452 — motorista iniciou a perna até esta parada
   concluidaEm    DateTime?
   concluidaPorNome String?
@@ -2322,6 +2323,8 @@ model RotaBloco {
   links         Json      @default("[]")      // links do Google Maps (até 9 paradas por link)
   despachadoEm  DateTime?
   voltaIniciadaEm DateTime?                   // v452 — motorista iniciou a perna de volta à fábrica
+  kmVolta       Float?                        // v778 — #67: odômetro ao iniciar a volta à fábrica
+  kmChegada     Float?                        // v778 — #67: odômetro ao chegar na fábrica
   alteradaEm    DateTime?                     // v454 — rota alterada depois de despachada (parada cancelada)
   posLat        Float?                        // v463 — última posição do celular do motorista (app aberto)
   posLng        Float?
@@ -2353,6 +2356,42 @@ model GeoCache {
 }
 
 // v427 — distância e tempo por ruas entre dois pontos (Google Routes), para não consultar de novo
+// v778 — #68: abastecimento do veículo (app do motorista): km, combustível, litros, valor e itens extras (aditivo, óleo…)
+model RotaAbastecimento {
+  id            Int      @id @default(autoincrement())
+  data          DateTime @default(now())
+  blocoId       Int?
+  motoristaId   String?
+  motoristaNome String?
+  veiculo       String   @default("CARRO")
+  km            Float?
+  combustivel   String?                       // GASOLINA | ETANOL | DIESEL | GNV
+  litros        Float?
+  valorTotal    Decimal? @db.Decimal(14, 2)   // total do combustível + extras
+  extras        Json     @default("[]")       // [{ descricao, valor }]
+  obs           String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([veiculo])
+}
+
+// v778 — #67: checklist de manutenção do veículo (a cada X km ou X dias), preenchido depois
+model VeiculoManutencao {
+  id            Int       @id @default(autoincrement())
+  veiculo       String    @default("CARRO")
+  item          String                        // TROCA DE ÓLEO, PNEUS, REVISÃO…
+  intervaloKm   Int?
+  intervaloDias Int?
+  ultimaKm      Float?
+  ultimaData    DateTime? @db.Date
+  obs           String?
+  ativo         Boolean   @default(true)
+  atualizadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 model RotaTrecho {
   id        Int      @id @default(autoincrement())
   chave     String   @unique                  // "lat,lng|lat,lng" (5 casas)

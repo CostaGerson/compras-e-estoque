@@ -89,6 +89,7 @@ export default function Rotas({ user, nova }) {
   const [marc, setMarc] = useState(new Set());
   const [montar, setMontar] = useState(null);   // { ids, bloco? }
   const [cfgFab, setCfgFab] = useState(false);
+  const [veic, setVeic] = useState(false);   // v778 — #67/#68: km, manutenção e abastecimentos
   const [escolher, setEscolher] = useState(false);   // v426 — escolher as demandas do dia para a rota
   // v507 — concluir (ou reabrir) a demanda direto no calendário, mesmo sem rota
   async function concluirDem(y) {
@@ -183,6 +184,7 @@ export default function Rotas({ user, nova }) {
         <div className="text-sm font-semibold" style={{ color: C.text }}>{titulo}</div>
         <div className="ml-auto flex items-center gap-2">
           {pode && <button onClick={async () => { try { setLinkDia(await api("/api/rotas", "POST", { usuarioId: user.id, acao: "linkAcomp", dia })); } catch (e) { alerta(e.message); } }} title="Link de acompanhamento do dia para o grupo do WhatsApp" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Link2 size={13} /> Link do dia</button>}
+          <button onClick={() => setVeic(true)} title="Km, checklist de manutenção e abastecimentos do veículo" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Car size={13} /> Veículo</button>
           {pode && <button onClick={() => setCfgFab(true)} title="Endereço da fábrica (saída e retorno das rotas)" className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.sub }}><Settings size={13} /> Fábrica</button>}
           {pode && <button onClick={() => setEscolher(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}><IcoRota size={15} /> Montar rota</button>}
           <button onClick={() => novaNoDia(dia)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Demanda de rota</button>
@@ -328,6 +330,7 @@ export default function Rotas({ user, nova }) {
         <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-lg p-4 shadow-2xl" style={{ background: C.panel }}><LinkAcomp a={linkDia} />
           <div className="flex justify-end mt-2"><button onClick={() => setLinkDia(null)} className="px-4 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button></div></div>
       </div>}
+      {veic && <VeiculoModal user={user} pode={pode} onClose={() => setVeic(false)} />}
       {cfgFab && <FabricaModal user={user} atual={d?.fabrica} onClose={() => setCfgFab(false)} onOk={() => { setCfgFab(false); carregar(); }} />}
     </div>
   );
@@ -1041,7 +1044,8 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
     <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `4px solid ${cor}` }}>
       <div className="flex items-center gap-2 px-4 py-2.5">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-bold flex items-center gap-1" style={{ color: C.navy }}>Rota R{b.numDia ?? b.id} · {sc(b.motoristaNome)} {b.veiculo === "MOTO" ? <Bike size={13} /> : <Car size={13} />}</div>
+          <div className="text-sm font-bold flex items-center gap-1" style={{ color: C.navy }}>Rota R{b.numDia ?? b.id} · {sc(b.motoristaNome)} {b.veiculo === "MOTO" ? <Bike size={13} /> : <Car size={13} />}
+            {b.kmRodados != null && <span className="ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.text }} title="Km do odômetro: da primeira partida até a chegada na fábrica">{String(b.kmRodados).replace(".", ",")} km rodados</span>}</div>
           <div className="text-[11px]" style={{ color: C.sub }}>{l.length} parada(s){b.distanciaKm ? ` · ~${String(b.distanciaKm).replace(".", ",")} km` : ""}{b.saida ? ` · saída ${b.saida}` : ""}{b.status === "EM_EXECUCAO" ? ` · ${feitas}/${l.length} concluídas` : ""}{b.retornoEm ? ` · retorno ${new Date(b.retornoEm).toLocaleTimeString("pt-BR", { timeStyle: "short" })}` : ""}</div>
         </div>
         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: cor, background: C.panel2 }}>{txt}</span>
@@ -1333,6 +1337,75 @@ function DestinatarioForm({ user, inicial, onClose, onOk }) {
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
           <button onClick={salvar} disabled={ocup || !f.nome.trim() || !String(f.endereco || "").trim()} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{ocup && <Loader2 size={14} className="animate-spin" />} Salvar</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- v778 — #67/#68: veículo — km atual, checklist de manutenção e abastecimentos ----------
+function VeiculoModal({ user, pode, onClose }) {
+  const [v, setV] = useState("CARRO");
+  const [d, setD] = useState(null);
+  const [ed, setEd] = useState(null);
+  const ler = () => { setD(null); api(`/api/rotas?u=${user.id}&manutencao=${v}`).then(setD).catch((e) => setD({ erro: e.message })); };
+  useEffect(() => { ler(); }, [v]);
+  const salvar = async (x) => { try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "manutencao", veiculo: v, ...x }); setEd(null); ler(); } catch (e) { alerta(e.message); } };
+  const ST = { VENCIDA: ["vencida", C.red], PROXIMA: ["próxima", C.yellow], OK: ["em dia", C.green], SEM_DADOS: ["preencher", C.sub] };
+  const brl = (n) => (n == null ? "—" : Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+  const nk = (n) => (n == null ? "—" : `${Number(n).toLocaleString("pt-BR")} km`);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onMouseDown={onClose}>
+      <div className="rounded-xl w-full max-w-3xl p-5 overflow-y-auto" style={{ background: "#F5F6F8", maxHeight: "90vh" }} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="text-lg font-bold flex-1" style={{ color: C.navy }}>Veículo</div>
+          {[["CARRO", "Carro"], ["MOTO", "Moto"]].map(([k, t]) => <button key={k} onClick={() => setV(k)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: v === k ? C.navy : C.panel, color: v === k ? "#fff" : C.sub, border: `1px solid ${C.line}` }}>{t}</button>)}
+          <button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button>
+        </div>
+        {!d && <Loader2 size={16} className="animate-spin" style={{ color: C.sub }} />}
+        {d?.erro && <div className="text-sm" style={{ color: C.red }}>{d.erro}</div>}
+        {d && !d.erro && <>
+          <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: C.panel, border: `1px solid ${C.line}` }}>Km atual (último registrado pelo motorista): <b>{nk(d.kmAtual)}</b></div>
+          <div className="rounded-lg mb-3 overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="px-3 py-2 text-sm font-bold flex items-center" style={{ color: C.navy, background: C.panel2 }}>Checklist de manutenção
+              {pode && <button onClick={() => setEd({ item: "", intervaloKm: "", intervaloDias: "", ultimaKm: "", ultimaData: "" })} className="ml-auto text-xs font-semibold" style={{ color: C.accent }}>+ item</button>}</div>
+            <table className="w-full text-xs">
+              <thead><tr style={{ color: C.sub }}>{["Item", "A cada", "Última", "Próxima", "Situação", ""].map((h) => <th key={h} className="text-left px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+              <tbody>{d.itens.map((m) => { const [t, c] = ST[m.status]; return (
+                <tr key={m.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-3 py-1.5 font-semibold">{m.item}</td>
+                  <td className="px-3 py-1.5">{[m.intervaloKm ? nk(m.intervaloKm) : null, m.intervaloDias ? `${m.intervaloDias} dias` : null].filter(Boolean).join(" ou ") || "—"}</td>
+                  <td className="px-3 py-1.5">{[m.ultimaKm != null ? nk(m.ultimaKm) : null, m.ultimaData ? m.ultimaData.split("-").reverse().join("/") : null].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-3 py-1.5">{[m.proxKm != null ? `${nk(m.proxKm)}${m.faltaKm != null ? ` (faltam ${m.faltaKm.toLocaleString("pt-BR")})` : ""}` : null, m.proxData ? m.proxData.split("-").reverse().join("/") : null].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-3 py-1.5 font-semibold" style={{ color: c }}>{t}</td>
+                  <td className="px-3 py-1.5">{pode && <button onClick={() => setEd({ ...m, ultimaKm: m.ultimaKm ?? "", ultimaData: m.ultimaData || "", intervaloKm: m.intervaloKm ?? "", intervaloDias: m.intervaloDias ?? "" })} className="underline" style={{ color: C.accent }}>{m.status === "SEM_DADOS" ? "preencher" : "registrar feita"}</button>}</td>
+                </tr>); })}</tbody>
+            </table>
+          </div>
+          {ed && <div className="rounded-lg p-3 mb-3 grid gap-2 text-xs" style={{ background: C.panel, border: `1px solid ${C.accent}`, gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr" }}>
+            {[["item", "Item"], ["intervaloKm", "A cada (km)"], ["intervaloDias", "A cada (dias)"], ["ultimaKm", "Feita com (km)"], ["ultimaData", "Feita em", "date"]].map(([k, l, t]) => (
+              <label key={k} style={{ color: C.sub }}>{l}<input type={t || "text"} value={ed[k] ?? ""} onChange={(e) => setEd((x) => ({ ...x, [k]: e.target.value }))} className="w-full px-2 py-1 rounded mt-0.5" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>))}
+            <div className="col-span-5 flex gap-2 justify-end">
+              {ed.id && <button onClick={() => confirmar(`Tirar ${ed.item} do checklist?`).then((ok) => ok && salvar({ ...ed, excluir: true }))} className="px-3 py-1 rounded" style={{ color: C.red }}>Excluir</button>}
+              <button onClick={() => setEd(null)} className="px-3 py-1 rounded" style={{ color: C.sub }}>Cancelar</button>
+              <button onClick={() => salvar(ed)} className="px-3 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+            </div>
+          </div>}
+          <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="px-3 py-2 text-sm font-bold" style={{ color: C.navy, background: C.panel2 }}>Abastecimentos (últimos 30)</div>
+            {!d.abastecimentos.length ? <div className="px-3 py-3 text-xs" style={{ color: C.sub }}>Nenhum ainda — o motorista registra pelo app (⛽ Registrar abastecimento).</div> :
+            <table className="w-full text-xs">
+              <thead><tr style={{ color: C.sub }}>{["Data", "Motorista", "Km", "Combustível", "Litros", "Km/l", "Extras", "Total"].map((h) => <th key={h} className="text-left px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+              <tbody>{d.abastecimentos.map((a) => (
+                <tr key={a.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-3 py-1.5">{new Date(a.data).toLocaleDateString("pt-BR")}</td><td className="px-3 py-1.5">{sc(a.motoristaNome || "")}</td>
+                  <td className="px-3 py-1.5">{nk(a.km)}</td><td className="px-3 py-1.5">{a.combustivel || "—"}</td><td className="px-3 py-1.5">{a.litros != null ? String(a.litros).replace(".", ",") : "—"}</td>
+                  <td className="px-3 py-1.5">{a.kmL != null ? String(a.kmL).replace(".", ",") : "—"}</td>
+                  <td className="px-3 py-1.5">{(a.extras || []).map((x) => `${x.descricao} ${brl(x.valor)}`).join(" · ") || "—"}</td>
+                  <td className="px-3 py-1.5 font-semibold">{brl(a.valorTotal)}</td>
+                </tr>))}</tbody>
+            </table>}
+          </div>
+        </>}
       </div>
     </div>
   );

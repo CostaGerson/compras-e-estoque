@@ -25,6 +25,9 @@ export async function GET(req) {
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
   if (q.get("minhas")) return Response.json({ ...(await minhasRotas(u.pessoaId)), pessoaId: u.pessoaId, nome: u.nome });   // v452 — app do motorista
+  // v778 — #67/#68: km atual, checklist de manutenção e abastecimentos do veículo
+  if (q.get("ultimoKm")) { const { ultimoKm } = await import("@/lib/rotas"); return Response.json({ km: await ultimoKm(q.get("ultimoKm")) }); }
+  if (q.get("manutencao")) { const { manutencao, listarAbastecimentos } = await import("@/lib/rotas"); const v = q.get("manutencao") === "MOTO" ? "MOTO" : "CARRO"; return Response.json({ ...(await manutencao(v)), abastecimentos: await listarAbastecimentos({ veiculo: v, limite: 30 }) }); }
   if (q.get("aovivo")) return Response.json(await aoVivo());   // v463 — motoristas em rota, ao vivo
   if (q.get("destinatarios")) return Response.json(await listarDestinatarios());   // v430
   // v427 — autocomplete de endereço do Google
@@ -92,8 +95,10 @@ export async function POST(req) {
         : await prisma.rotaBloco.findFirst({ where: { id: (await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) }, select: { blocoId: true } }))?.blocoId || 0 } });
       if (!bl) return r({ error: "Rota não encontrada." });
       if (!podeMontar(u) && bl.motoristaId !== u.pessoaId) return negado("Só o motorista da rota ou o administrativo.");
-      return r(b.acao === "retorno" ? await registrarRetorno(b.id) : await concluirParada(b.id, u, !!b.desfazer));
+      return r(b.acao === "retorno" ? await registrarRetorno(b.id, b.km) : await concluirParada(b.id, u, !!b.desfazer));
     }
+    case "abastecer": { const { registrarAbastecimento } = await import("@/lib/rotas"); return r(await registrarAbastecimento(b, u, u.pessoaId)); }   // v778 — #68
+    case "manutencao": { if (!podeMontar(u)) return negado(); const { salvarManutencao } = await import("@/lib/rotas"); return r(await salvarManutencao(b, u)); }   // v778 — #67
     default: return r({ error: "Ação?" });
   }
 }

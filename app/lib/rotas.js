@@ -329,7 +329,7 @@ export async function painel({ de, ate }) {
   const porAdm = Object.fromEntries(adms.map((a) => [a.id, { status: a.status, valor: a.cotacao?.valor ?? null, prazo: a.cotacao?.prazo ?? null, transportadoras: a.cotacao?.transportadoras ?? null, temAnexo: !!a.cotacao?.anexo }]));
   return {
     demandas: ds.map((d) => ({ ...demandaOut(d), cotacao: d.admDemandaId ? porAdm[d.admDemandaId] || null : null, rotaNum: d.blocoId ? numBl[d.blocoId] ?? null : null })),
-    blocos: bs.map((b) => ({ ...b, data: iso(b.data) })), fabrica: fab, motoristas: mots,
+    blocos: bs.map((b) => ({ ...b, data: iso(b.data), kmRodados: kmDaRota(b, ds.filter((d) => d.blocoId === b.id)) })), fabrica: fab, motoristas: mots,
   };
 }
 
@@ -818,29 +818,50 @@ export async function minhasRotas(pessoaId) {
   };
 }
 // v452 — o motorista inicia uma perna: até a parada (id) ou a volta à fábrica (volta)
-export async function iniciarPerna({ id, blocoId, volta }) {
+// v778 — #67: odômetro (km atual do veículo) em cada partida e na chegada à fábrica
+const kmNum = (v) => { const n = Number(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : null; };
+export async function ultimoKm(veiculo) {
+  const v = veiculo || "CARRO";
+  const [b, d, a] = await Promise.all([
+    prisma.rotaBloco.findMany({ where: { veiculo: v, OR: [{ kmChegada: { not: null } }, { kmVolta: { not: null } }] }, select: { kmChegada: true, kmVolta: true }, orderBy: { id: "desc" }, take: 20 }),
+    prisma.rotaDemanda.findMany({ where: { kmPartida: { not: null }, veiculo: v }, select: { kmPartida: true }, orderBy: { id: "desc" }, take: 20 }),
+    prisma.rotaAbastecimento.findMany({ where: { veiculo: v, km: { not: null } }, select: { km: true }, orderBy: { id: "desc" }, take: 20 }),
+  ]).catch(() => [[], [], []]);
+  const l = [...b.flatMap((x) => [x.kmChegada, x.kmVolta]), ...d.map((x) => x.kmPartida), ...a.map((x) => x.km)].filter((x) => x != null);
+  return l.length ? Math.max(...l) : null;
+}
+export function kmDaRota(b, paradas) {
+  const ini = (paradas || []).map((p) => p.kmPartida).filter((x) => x != null);
+  if (!ini.length || b.kmChegada == null) return null;
+  const k = Math.round((b.kmChegada - Math.min(...ini)) * 10) / 10;
+  return k >= 0 ? k : null;
+}
+export async function iniciarPerna({ id, blocoId, volta, km }) {
+  const kmv = kmNum(km);
+  if (!kmv) return { error: "Informe o km atual do veículo (odômetro)." };
   if (volta) {
     const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(blocoId) } });
     if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
     const faltam = await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: { not: "CONCLUIDA" } } });
     if (faltam) return { error: `Ainda falta concluir ${faltam} parada(s).` };
-    await prisma.rotaBloco.update({ where: { id: bl.id }, data: { voltaIniciadaEm: bl.voltaIniciadaEm || new Date() } });
+    await prisma.rotaBloco.update({ where: { id: bl.id }, data: { voltaIniciadaEm: bl.voltaIniciadaEm || new Date(), kmVolta: kmv } });
     return { ok: true };
   }
   const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(id) } });
   if (!d?.blocoId) return { error: "Parada não encontrada." };
   const bl = await prisma.rotaBloco.findUnique({ where: { id: d.blocoId } });
   if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota ainda não foi despachada." };
-  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { iniciadaEm: d.iniciadaEm || new Date() } });
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { iniciadaEm: d.iniciadaEm || new Date(), kmPartida: kmv } });
   return { ok: true };
 }
 
-export async function registrarRetorno(id) {
+export async function registrarRetorno(id, km) {
   const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(id) } });
   if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
+  const kmv = kmNum(km);   // v778 — #67 (o escritório pode fechar sem km)
   const faltam = await prisma.rotaDemanda.count({ where: { blocoId: bl.id, status: { not: "CONCLUIDA" } } });
   if (faltam) return { error: `Ainda falta concluir ${faltam} parada(s) antes do retorno.` };
-  const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "CONCLUIDO", retornoEm: new Date() } });
+  const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { status: "CONCLUIDO", retornoEm: new Date(), ...(kmv ? { kmChegada: kmv } : {}) } });
   return { ok: true, bloco: { ...n, data: iso(n.data) } };
 }
 
@@ -948,4 +969,52 @@ export async function moverDemanda(b, u) {
   const n = await prisma.rotaDemanda.update({ where: { id: d.id }, data });
   if (n.admDemandaId) await prisma.admDemanda.update({ where: { id: n.admDemandaId }, data: { prazo: n.data } }).catch(() => null);
   return { ok: true, demanda: demandaOut(n) };
+}
+
+// ---------- v778 — #68: abastecimento · #67: checklist de manutenção ----------
+const r2v = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const numBR = (v) => { const n = Number(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+export async function registrarAbastecimento(b, u, pessoaId) {
+  const km = kmNum(b.km), litros = numBR(b.litros), valor = numBR(b.valor);
+  if (!km) return { error: "Informe o km atual." };
+  if (!(litros > 0) && !(valor > 0) && !(b.extras || []).length) return { error: "Informe litros e valor do abastecimento (ou um item extra)." };
+  const extras = (Array.isArray(b.extras) ? b.extras : []).map((x) => ({ descricao: String(x.descricao || "").trim().toUpperCase(), valor: r2v(numBR(x.valor)) })).filter((x) => x.descricao && x.valor > 0);
+  const bl = await prisma.rotaBloco.findFirst({ where: { status: "EM_EXECUCAO", ...(pessoaId ? { motoristaId: pessoaId } : {}) }, orderBy: { id: "desc" } }).catch(() => null);
+  const a = await prisma.rotaAbastecimento.create({ data: {
+    blocoId: bl?.id || null, motoristaId: pessoaId || null, motoristaNome: bl?.motoristaNome || [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase(),
+    veiculo: b.veiculo === "MOTO" ? "MOTO" : bl?.veiculo || "CARRO", km, combustivel: ["GASOLINA", "ETANOL", "DIESEL", "GNV"].includes(b.combustivel) ? b.combustivel : null,
+    litros: litros > 0 ? litros : null, valorTotal: r2v(valor + extras.reduce((s, x) => s + x.valor, 0)), extras, obs: b.obs ? String(b.obs).toUpperCase() : null,
+    criadoPorNome: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() } });
+  return { ok: true, id: a.id };
+}
+export async function listarAbastecimentos({ veiculo, limite = 50 } = {}) {
+  const l = await prisma.rotaAbastecimento.findMany({ where: veiculo ? { veiculo } : {}, orderBy: { data: "desc" }, take: limite });
+  // consumo (km/l) entre abastecimentos do mesmo veículo
+  const porV = {};
+  for (const a of [...l].reverse()) { const p = porV[a.veiculo]; a.kmL = p && p.km && a.km && a.litros ? Math.round(((a.km - p.km) / a.litros) * 10) / 10 : null; porV[a.veiculo] = a; }
+  return l.map((a) => ({ ...a, valorTotal: a.valorTotal != null ? Number(a.valorTotal) : null }));
+}
+export const ITENS_MANUTENCAO = [["TROCA DE ÓLEO", 10000, 180], ["FILTRO DE ÓLEO", 10000, 180], ["FILTRO DE AR", 20000, 365], ["PNEUS (RODÍZIO/CALIBRAGEM)", 10000, 90], ["FREIOS (PASTILHAS)", 20000, 365], ["REVISÃO GERAL", 20000, 365], ["CORREIA DENTADA", 50000, null], ["LICENCIAMENTO / SEGURO", null, 365]];
+export async function manutencao(veiculo = "CARRO") {
+  if (!(await prisma.veiculoManutencao.count({ where: { veiculo } }))) await prisma.veiculoManutencao.createMany({ data: ITENS_MANUTENCAO.map(([item, km, dias]) => ({ veiculo, item, intervaloKm: km, intervaloDias: dias })) }).catch(() => null);
+  const [l, kmAtual] = await Promise.all([prisma.veiculoManutencao.findMany({ where: { veiculo, ativo: true }, orderBy: { id: "asc" } }), ultimoKm(veiculo)]);
+  const hoje = Date.now();
+  return { veiculo, kmAtual, itens: l.map((m) => {
+    const proxKm = m.intervaloKm && m.ultimaKm != null ? m.ultimaKm + m.intervaloKm : null;
+    const proxData = m.intervaloDias && m.ultimaData ? new Date(new Date(m.ultimaData).getTime() + m.intervaloDias * 86400000) : null;
+    const faltaKm = proxKm != null && kmAtual != null ? Math.round(proxKm - kmAtual) : null;
+    const faltaDias = proxData ? Math.round((proxData.getTime() - hoje) / 86400000) : null;
+    const st = m.ultimaKm == null && !m.ultimaData ? "SEM_DADOS" : (faltaKm != null && faltaKm <= 0) || (faltaDias != null && faltaDias <= 0) ? "VENCIDA"
+      : (faltaKm != null && faltaKm <= 1000) || (faltaDias != null && faltaDias <= 15) ? "PROXIMA" : "OK";
+    return { ...m, ultimaData: m.ultimaData ? iso(m.ultimaData) : null, proxKm, proxData: proxData ? iso(proxData) : null, faltaKm, faltaDias, status: st };
+  }) };
+}
+export async function salvarManutencao(b, u) {
+  const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
+  const data = { item: String(b.item || "").trim().toUpperCase(), intervaloKm: Number(b.intervaloKm) || null, intervaloDias: Number(b.intervaloDias) || null,
+    ultimaKm: kmNum(b.ultimaKm), ultimaData: /^\d{4}-\d{2}-\d{2}$/.test(String(b.ultimaData || "")) ? dUTC(b.ultimaData) : null, obs: b.obs ? String(b.obs).toUpperCase() : null, atualizadoPorNome: quem };
+  if (!data.item) return { error: "Informe o item." };
+  if (b.id) await prisma.veiculoManutencao.update({ where: { id: Number(b.id) }, data: { ...data, ...(b.excluir ? { ativo: false } : {}) } });
+  else await prisma.veiculoManutencao.create({ data: { ...data, veiculo: b.veiculo === "MOTO" ? "MOTO" : "CARRO" } });
+  return { ok: true };
 }
