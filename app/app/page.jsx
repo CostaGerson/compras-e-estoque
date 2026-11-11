@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useMobile } from "./useMobile";   // v550
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
@@ -20,7 +20,7 @@ import MotoristaApp from "./motorista";   // v452 — usuário do setor Logísti
 import NfRegistro from "./nfRegistro";
 import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCompras, OrdensCompra, Cotacoes, PainelCompras } from "./compras";
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
-import { Layers } from "lucide-react";
+import { Layers, Loader2 } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
 import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
@@ -407,6 +407,7 @@ export default function Home() {
             {!mobile && migalha}
           </div>
           <div className="flex items-center gap-3">
+            {!mobile && (user.isMaster || user.diretoria) && <SeloVersao />}
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
               onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} demo={podeDemo} />
@@ -770,6 +771,30 @@ function Badge({ n }) {
   if (!n) return null;
   return (
     <span style={{ position: "absolute", top: -5, right: -5, minWidth: 17, height: 17, padding: "0 4px", borderRadius: 9, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{n > 99 ? "99+" : n}</span>
+  );
+}
+
+// v770 — selo da versão no topo: qual está no ar, se está construindo uma nova e se a página precisa recarregar
+function SeloVersao() {
+  const [v, setV] = useState(null);
+  const aberta = useRef(null);   // versão que esta página carregou
+  useEffect(() => {
+    let vivo = true;
+    const ler = () => fetch("/api/versao", { cache: "no-store" }).then((r) => r.json()).then((j) => { if (!vivo) return; if (!aberta.current && j.rodando) aberta.current = j.rodando.commit; setV(j); }).catch(() => {});
+    ler(); const t = setInterval(ler, 10000); return () => { vivo = false; clearInterval(t); };
+  }, []);
+  if (!v?.rodando && !v?.deploy) return null;
+  const r = v.rodando, d = v.deploy;
+  const hora = (s) => (s ? new Date(s).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "");
+  let cor = C.green, bg = C.greenSoft, txt = `${r?.versao || "?"} no ar${r?.construidoEm ? ` · ${hora(r.construidoEm)}` : ""}`, tip = d?.mensagem || "", acao = null, gira = false;
+  if (d?.estado === "CONSTRUINDO" && d.commit !== r?.commit) { cor = C.yellow; bg = "#FFF6DD"; txt = `atualizando para ${d.versao}…`; gira = true; tip = `Construindo desde ${hora(d.em)}: ${d.mensagem}`; }
+  else if (d?.estado === "ERRO" && d.commit !== r?.commit) { cor = "#D92D20"; bg = "#FDECEC"; txt = `falha no deploy ${d.versao}`; tip = "Veja o log na VPS: tail -50 /var/log/ce-auto-deploy.log"; }
+  else if (r && aberta.current && r.commit !== aberta.current) { cor = C.blue; bg = "#E8F1FC"; txt = `${r.versao} no ar · recarregar`; tip = "Nova versão no ar. Clique para recarregar a página."; acao = () => location.reload(); }
+  return (
+    <button onClick={acao || undefined} title={tip} className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0"
+      style={{ background: bg, color: cor, cursor: acao ? "pointer" : "default" }}>
+      {gira ? <Loader2 size={11} className="animate-spin" /> : <span style={{ width: 7, height: 7, borderRadius: 9, background: cor, display: "inline-block" }} />} {txt}
+    </button>
   );
 }
 

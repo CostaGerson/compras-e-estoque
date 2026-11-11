@@ -10,3 +10,4 @@ node_modules/
 tools/km/node_modules/
 tools/km/package-lock.json
 tools/km/km-estrutura.txt
+/app/versao.json
