@@ -353,6 +353,7 @@ export default function Home() {
           <button onClick={() => irInicio(inicio)} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
           </button>
+          <SeloVersao />
           <button onClick={() => setCollapsed(true)} title="Recolher menu"
             className="px-3 py-4 flex items-center justify-center" style={{ color: C.sidebarSub }}>
             <ChevronLeft size={20} />
@@ -407,7 +408,6 @@ export default function Home() {
             {!mobile && migalha}
           </div>
           <div className="flex items-center gap-3">
-            {!mobile && (user.isMaster || user.diretoria) && <SeloVersao />}
             <TopoUsuario user={user} perfil={perfil} badgeTick={badgeTick} tela={noAtual?.label || view}
               onAbrirPerfil={() => setPerfilAberto(true)} onSair={sair}
               onIrNotificacoes={() => setView("notificacoes")} onIrMensagens={() => setView("mensagens")} onIrAgenda={() => setView("agenda")} agendaAtiva={view === "agenda"} demo={podeDemo} />
@@ -774,7 +774,7 @@ function Badge({ n }) {
   );
 }
 
-// v770 — selo da versão no topo: qual está no ar, se está construindo uma nova e se a página precisa recarregar
+// v772 — ao lado da logo: bolinha verde (última versão no ar) ou amarela (build em andamento) + número da versão
 function SeloVersao() {
   const [v, setV] = useState(null);
   const aberta = useRef(null);   // versão que esta página carregou
@@ -785,15 +785,20 @@ function SeloVersao() {
   }, []);
   if (!v?.rodando && !v?.deploy) return null;
   const r = v.rodando, d = v.deploy;
-  const hora = (s) => (s ? new Date(s).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "");
-  let cor = C.green, bg = C.greenSoft, txt = `${r?.versao || "?"} no ar${r?.construidoEm ? ` · ${hora(r.construidoEm)}` : ""}`, tip = d?.mensagem || "", acao = null, gira = false;
-  if (d?.estado === "CONSTRUINDO" && d.commit !== r?.commit) { cor = C.yellow; bg = "#FFF6DD"; txt = `atualizando para ${d.versao}…`; gira = true; tip = `Construindo desde ${hora(d.em)}: ${d.mensagem}`; }
-  else if (d?.estado === "ERRO" && d.commit !== r?.commit) { cor = "#D92D20"; bg = "#FDECEC"; txt = `falha no deploy ${d.versao}`; tip = "Veja o log na VPS: tail -50 /var/log/ce-auto-deploy.log"; }
-  else if (r && aberta.current && r.commit !== aberta.current) { cor = C.blue; bg = "#E8F1FC"; txt = `${r.versao} no ar · recarregar`; tip = "Nova versão no ar. Clique para recarregar a página."; acao = () => location.reload(); }
+  const hora = (s) => (s ? new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  const construindo = d?.estado === "CONSTRUINDO" && d.commit !== r?.commit;
+  const falhou = d?.estado === "ERRO" && d.commit !== r?.commit;
+  const velha = !construindo && r && aberta.current && r.commit !== aberta.current;   // nova versão no ar, página aberta antes dela
+  const cor = falhou ? "#F04438" : construindo ? "#FDB022" : "#32D583";
+  const tip = falhou ? `Falha no deploy da ${d.versao}. Log na VPS: tail -50 /var/log/ce-auto-deploy.log`
+    : construindo ? `Construindo a ${d.versao} desde ${hora(d.em)}: ${d.mensagem}`
+    : velha ? `A ${r.versao} já está no ar. Clique para recarregar a página.`
+    : `${r?.versao || ""} no ar desde ${hora(r?.construidoEm)}${d?.mensagem ? ` — ${d.mensagem}` : ""}`;
   return (
-    <button onClick={acao || undefined} title={tip} className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0"
-      style={{ background: bg, color: cor, cursor: acao ? "pointer" : "default" }}>
-      {gira ? <Loader2 size={11} className="animate-spin" /> : <span style={{ width: 7, height: 7, borderRadius: 9, background: cor, display: "inline-block" }} />} {txt}
+    <button onClick={velha ? () => location.reload() : undefined} title={tip} className="flex items-center gap-1.5 pr-1 shrink-0 text-[11px] font-semibold"
+      style={{ color: C.sidebarSub, cursor: velha ? "pointer" : "default", background: "transparent" }}>
+      <span className={construindo ? "animate-pulse" : ""} style={{ width: 8, height: 8, borderRadius: 9, background: cor, display: "inline-block", boxShadow: `0 0 6px ${cor}` }} />
+      {construindo ? d.versao : r?.versao || d?.versao}{velha && " ↻"}
     </button>
   );
 }
