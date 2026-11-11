@@ -382,17 +382,29 @@ function lerFaturaItau(paginas) {
   const total = valorBR((t.match(/Total da fatura\s+(R\$\s*-?[\d.]+,\d{2})/) || [])[1]);
   let dentro = false, portador = "";
   const itens = [];
-  for (const l of ls) {
-    const s = txt(l);
+  // v781 — layout novo do Itaú (colunas mudaram e, no internacional, a descrição vem 2 pontos acima da linha):
+  //   lê pelo texto — data no início e o último valor R$ no fim; moedas/cotação no meio saem do histórico
+  const ehMoeda = (w) => /^-?(R\$|US\$|USD|EUR|€)\s*-?[\d.]+,\d{2}$/i.test(w);
+  for (let k = 0; k < ls.length; k++) {
+    const l = ls[k], s = txt(l);
     if (/^Lançamentos$/i.test(s)) { dentro = true; continue; }
-    if (/^Encargos desta fatura/i.test(s)) break;
+    if (/^Encargos desta fatura|^Produtos, serviços e encargos|^Total de lançamentos, produtos/i.test(s)) { if (dentro) break; continue; }
     if (!dentro) continue;
     const mp = s.match(/^(.+?)\s+-\s+FINAL\s+(\d{4})$/i); if (mp) { portador = mp[1].trim(); continue; }
-    const dm = ddmm(col(l, 0, 100)); if (!dm || !venc) continue;
-    const v = valorBR(col(l, 480, 9999)); if (v === null) continue;
-    const h = col(l, 100, 480);
+    const md = s.match(/^(\d{2})\/(\d{2})\s+(.*)$/); if (!md || !venc) continue;
+    const ws = md[3].split(/\s+/);
+    const vtxt = ws.length && /R\$\s*-?[\d.]+,\d{2}$/.test(ws[ws.length - 1]) ? ws.pop() : null;
+    if (!vtxt) continue;
+    const neg = /^-/.test(vtxt) || /R\$\s*-/.test(vtxt);
+    const v = valorBR(vtxt.replace(/^-/, "").replace("R$-", "R$")); if (v === null) continue;
+    let h = ws.filter((w) => !ehMoeda(w)).join(" ").trim();
+    if (!h) {   // descrição em linha vizinha (sem data e sem valor)
+      const viz = [ls[k - 1], ls[k + 1]].filter(Boolean).find((x) => Math.abs((x.y ?? 0) - (l.y ?? 0)) <= 6 && !/^\d{2}\/\d{2}\b/.test(txt(x)) && !/R\$\s*[\d.]+,\d{2}/.test(txt(x)));
+      h = viz ? txt(viz).trim() : "COMPRA INTERNACIONAL";
+    }
     if (/PAGAMENTO EFETUADO/i.test(h)) continue;
-    itens.push({ data: dataCompra(dm, venc), historico: h, identificacao: `${portador} · COMPRA ${dm[0]}`, valor: -v });
+    const dm = [`${md[1]}/${md[2]}`, md[1], md[2]];
+    itens.push({ data: dataCompra(dm, venc), historico: h, identificacao: `${portador} · COMPRA ${dm[0]}`, valor: neg ? v : -v });
   }
   return { modo: "FATURA", total: total !== null ? -total : soma(itens), totalDeclarado: total !== null ? -total : null, dataRef: venc, itens };
 }
