@@ -33,6 +33,7 @@ import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInte
 import Tributario from "./tributario";   // v628
 import ItensPadrao from "./itensPadrao";   // v647
 import ItensKm from "./itensKm";   // v670
+import { Acervo, EmpresaMeridian } from "./acervo";   // v780 — #22
 import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
 function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
@@ -107,6 +108,7 @@ const MENU = [
   { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída), demandas administrativas e rotas", filhos: [
     { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
     { key: "faccoesPcp", label: "Facções a pagar (PCP)", icon: Receipt, perfis: ["FINANCEIRO"], desc: "OS de facção fechadas no Cronograma: conferir e lançar nos terceirizados da semana" },   // v501
+    { key: "documentacao", label: "Documentação", icon: FileText, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Contratos e documentos administrativos com anexos e validade" },   // v780 — #22
     { key: "demandas", label: "Demandas ADM", icon: ListChecks, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Tarefas administrativas para a auxiliar administrativa cumprir" },
     // v448 — Rota saiu da aba Logística (removida) e entrou no ADM
     { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
@@ -137,6 +139,7 @@ const MENU = [
     ] },
   ] },
   { key: "dados", label: "Dados", icon: Database, desc: "Cadastros: clientes, fornecedores, artigos, freelancers, terceirizados, notas fiscais, dados financeiros e uploads", filhos: [
+    { key: "empresa", label: "Meridian", icon: Building2, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Dados da empresa e documentos de constituição (contrato social, cartão CNPJ, alvarás, certidões)" },   // v780 — #22
     { key: "clientes", label: "Clientes", icon: Building2, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD, "COMERCIAL", "NORT"], desc: "Cadastro de clientes" },
     { key: "fornecedores", label: "Fornecedores", icon: Truck, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Fabricantes e seus CNPJs" },
     { key: "artigos", label: "Artigos", icon: Tags, perfis: ["FINANCEIRO", "PCP", "COMPRAS", ...PROD], desc: "Malhas, tecidos, aviamentos e outros" },
@@ -184,6 +187,8 @@ const PODE = {
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
   rota: () => true,
   destinatarios: () => true,   // v430
+  empresa: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
+  documentacao: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
   vendedores: (u) => gerencial(u) || lancaPP(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO", "COMERCIAL"),   // v747
   clientes: (u) => gerencial(u) || T(u, "COMERCIAL", "PRODUCAO", "ADMINISTRATIVO", "FINANCEIRO"),
   fornecedores: (u) => gerencial(u) || T(u, "PRODUCAO", "ADMINISTRATIVO"),
@@ -426,6 +431,8 @@ export default function Home() {
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && pode("rota") && <Rotas user={user} nova={rotaInicial} />}
           {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}
+          {view === "empresa" && pode("empresa") && <EmpresaMeridian user={user} />}
+          {view === "documentacao" && pode("documentacao") && <Acervo user={user} area="ADM" />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}
           {view === "comercial" && pode("comercial") && <Comercial key={fppInicial?.t || "com"} user={user} master={master || tipo === "COMERCIAL"} fppInicial={fppInicial} componentes={COMPONENTES} />}
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}

@@ -2643,3 +2643,37 @@ model VendaComissao {
   @@index([vendedorId])
   @@index([pedidoNumero])
 }
+
+// v780 — sugestão #22: acervo de documentos — EMPRESA (constituição da Meridian, em Dados › Meridian),
+//   ADM (contratos e documentos administrativos, em ADM › Documentação) e REUNIAO (Gestão › Reuniões: ata e material)
+model DocAcervo {
+  id            Int       @id @default(autoincrement())
+  area          String                         // EMPRESA | ADM | REUNIAO
+  titulo        String
+  categoria     String?
+  data          DateTime? @db.Date             // data do documento / da reunião
+  validade      DateTime? @db.Date
+  participantes String?
+  texto         String?                        // ata da reunião / observações
+  criadoPorNome String?
+  atualizadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  anexos        DocAcervoAnexo[]
+
+  @@index([area])
+}
+
+model DocAcervoAnexo {
+  id            Int       @id @default(autoincrement())
+  docId         Int
+  doc           DocAcervo @relation(fields: [docId], references: [id], onDelete: Cascade)
+  nome          String
+  mime          String?
+  tamanho       Int       @default(0)
+  conteudo      String                         // base64
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([docId])
+}

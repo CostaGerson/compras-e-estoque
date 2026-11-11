@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Acervo } from "./acervo";   // v780 — #22
 import MetasPagina from "./metas";
 import Capacidade from "./capacidade";
 import {
@@ -58,11 +59,12 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
           </button>
           <button onClick={voltar} className="hover:underline" style={{ color: C.sub }}>Gestão</button>
           <ChevronRight size={14} style={{ color: C.sub }} />
-          <span>{tela.v === "metas" ? `Metas de ${tela.ano}` : tela.v === "capacidade" ? "Capacidade × freelancer" : `Relatório de KPIs ${tela.ano}`}</span>
+          <span>{tela.v === "metas" ? `Metas de ${tela.ano}` : tela.v === "capacidade" ? "Capacidade × freelancer" : tela.v === "reunioes" ? "Reuniões" : `Relatório de KPIs ${tela.ano}`}</span>
         </div>
       )}
       {tela.v === "painel"
-        ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
+        ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirReunioes={() => setTela({ v: "reunioes" })} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
+        : tela.v === "reunioes" ? <Acervo user={user} area="REUNIAO" />   // v780 — #22
         : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} rascunho={tela.rascunho} irMatriz={irMatriz}
             irCapacidade={(mt) => setTela({ v: "capacidade", metas: mt || null })} />
         : tela.v === "capacidade" ? <Capacidade user={user} irMatriz={irMatriz} metasTela={tela.metas}
@@ -74,7 +76,7 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
 }
 
 /* ---------------- PAINEL (tela inicial da Gestão) ---------------- */
-function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abrirCapacidade }) {
+function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abrirCapacidade, abrirReunioes }) {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1);
@@ -142,6 +144,7 @@ function Painel({ user, master, money, abrirRelatorio, abrirMetas, irMatriz, abr
             <Target size={15} /> Metas de {ano}
           </button>
         )}
+        {abrirReunioes && <button onClick={abrirReunioes} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }} title="Reuniões realizadas: ata e material utilizado">Reuniões</button>}
         {d?.podeEditar && abrirCapacidade && (
           <button onClick={abrirCapacidade} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.blue}`, color: C.blue, background: C.panel }}
             title="Capacidade × freelancer: quanto gastar e quantos contratar para a meta"><Factory size={15} /> Capacidade</button>
