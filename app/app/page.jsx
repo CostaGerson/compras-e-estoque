@@ -246,6 +246,7 @@ export default function Home() {
       if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, voltar: d.voltar || null, t: Date.now() }); setView("comercial"); }
       if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
       if (d.v === "editarPedido" && (d.ppId || d.novo)) setPpEdit({ ppId: d.ppId || null, numero: d.numero || null, t: Date.now() });   // v729 — novo: Lançar pedido da Produção
+      if (d.v === "reuniao") { setGestaoInicial({ v: "reunioes", mes: d.mes || null, t: Date.now() }); setView("gestao"); }   // v785 — tarefa da reunião → apresentação
       if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
   }, []);

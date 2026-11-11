@@ -794,7 +794,9 @@ function ReuniaoPainel({ t, user, acao }) {
   const ORI = { FIXA: ["fixa", C.panel2, C.sub], DECISAO: ["decisão", "#F5EEFF", "#7E3AF2"], MANUAL: ["incluída", C.blueSoft, C.blue] };
   return (
     <div className="mb-3 rounded-xl p-3" style={{ border: `2px solid ${C.navy || "#001E41"}`, background: "#F2F5FA" }}>
-      <div className="flex items-center gap-2 mb-2"><Landmark size={16} style={{ color: "#001E41" }} /><span className="text-sm font-bold" style={{ color: "#001E41" }}>Reunião de gestão · pautas</span><span className="text-xs" style={{ color: C.sub }}>{P.length}</span></div>
+      <div className="flex items-center gap-2 mb-2"><Landmark size={16} style={{ color: "#001E41" }} /><span className="text-sm font-bold" style={{ color: "#001E41" }}>Reunião de gestão · pautas</span><span className="text-xs" style={{ color: C.sub }}>{P.length}</span>
+        {/* v785 — mesma reunião em Gestão › Reuniões: apresentação do mês com os números e estas pautas na lateral */}
+        <button onClick={() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "reuniao", mes: t.reuniao?.mes || null } }))} className="ml-auto text-xs font-semibold px-2 py-1 rounded" style={{ background: "#001E41", color: "#fff" }}>Abrir apresentação ↗</button></div>
       <ol className="flex flex-col gap-1">
         {P.map((p, k) => <li key={p.id} className="flex items-center gap-2 text-sm leading-5 rounded-lg px-3 py-1.5" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           <span className="text-sm font-bold tabular-nums leading-5" style={{ color: C.sub, minWidth: 18 }}>{k + 1}.</span>   {/* v684 — número alinhado com o texto */}

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Acervo } from "./acervo";   // v780 — #22
+import ReuniaoGestao from "./reuniaoGestao";   // v785 — reunião mensal: apresentação + pautas + atas
 import MetasPagina from "./metas";
 import Capacidade from "./capacidade";
 import {
@@ -48,7 +48,7 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 
 /* ============================================================ */
 export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
-  const [tela, setTela] = useState(telaInicial?.v ? { v: telaInicial.v, ano: telaInicial.ano } : { v: "painel" });
+  const [tela, setTela] = useState(telaInicial?.v ? { v: telaInicial.v, ano: telaInicial.ano, mes: telaInicial.mes } : { v: "painel" });
   const voltar = () => setTela({ v: "painel" });
   return (
     <div>
@@ -64,7 +64,7 @@ export default function Gestao({ user, master, money, irMatriz, telaInicial }) {
       )}
       {tela.v === "painel"
         ? <Painel user={user} master={master} money={money} irMatriz={irMatriz} abrirReunioes={() => setTela({ v: "reunioes" })} abrirCapacidade={() => setTela({ v: "capacidade" })} abrirRelatorio={(ano) => setTela({ v: "relatorio", ano })} abrirMetas={(ano) => setTela({ v: "metas", ano })} />
-        : tela.v === "reunioes" ? <Acervo user={user} area="REUNIAO" />   // v780 — #22
+        : tela.v === "reunioes" ? <ReuniaoGestao user={user} irMatriz={irMatriz} mesInicial={tela.mes || null} />   // v785
         : tela.v === "metas" ? <MetasPagina key={`metas-${tela.ano}-${tela.t || ""}`} user={user} anoInicial={tela.ano} freelaInicial={tela.freela} rascunho={tela.rascunho} irMatriz={irMatriz}
             irCapacidade={(mt) => setTela({ v: "capacidade", metas: mt || null })} />
         : tela.v === "capacidade" ? <Capacidade user={user} irMatriz={irMatriz} metasTela={tela.metas}
