@@ -110,6 +110,7 @@ model Usuario {
   permissoes       Json?                     // v170 — permissões do tipo que estão ligadas (null = todas as do tipo)
   statusManual     String?                   // v169 — REUNIAO (quando a pessoa marca); ocupado vem do play de uma demanda
   statusDesde      DateTime?
+  gestorId         Int?                      // v782 — gestor direto: vê nas Designadas todas as tarefas deste usuário
   pessoaId         String?                   // v169 — funcionário da Matriz (férias → status inativo)   // v167 — chave Diretoria: contas, pedidos e valores (financeiro e gestão)
   resetHash        String?                   // v167 — redefinição de senha por e-mail (sha-256 do token)
   resetExpira      DateTime?

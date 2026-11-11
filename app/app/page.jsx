@@ -4378,12 +4378,15 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     diretoria: usuario?.diretoria ?? false,
     permissoes: Array.isArray(usuario?.permissoes) ? usuario.permissoes : null,   // v170 — null = todas as do tipo
     pessoaId: usuario?.pessoaId || "",   // v451 — funcionário da folha
+    gestorId: usuario?.gestorId || "",   // v782 — gestor vê as tarefas deste usuário nas Designadas
     portalClienteId: usuario?.portalClienteId || "",   // v699 — portal do cliente
   });
   const [clientesPortal, setClientesPortal] = useState([]);
   useEffect(() => { if (!self && f.setor === "CLIENTE" && !clientesPortal.length) fetch("/api/clientes").then((r) => r.json()).then((l) => setClientesPortal(Array.isArray(l) ? l : [])).catch(() => {}); }, [f.setor]);
   const [pessoas, setPessoas] = useState([]);
   useEffect(() => { if (!self) fetch(`/api/usuarios?u=${sessaoId()}&pessoas=1`).then((r) => r.json()).then((l) => setPessoas(Array.isArray(l) ? l : [])).catch(() => {}); }, []);
+  const [todosU, setTodosU] = useState([]);   // v782
+  useEffect(() => { if (!self) fetch(`/api/usuarios?u=${sessaoId()}`).then((r) => r.json()).then((l) => setTodosU(Array.isArray(l) ? l.filter((x) => x.ativo !== false && x.id !== usuario?.id) : [])).catch(() => {}); }, []);
   const [verSenha, setVerSenha] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -4485,6 +4488,12 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
                 <option value="">— nenhum —</option>
                 {pessoas.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.cargo ? ` · ${x.cargo}` : ""}</option>)}
               </Sel>
+              <div className="mt-3">
+                <Sel label="Gestor — vê nas Designadas todas as tarefas deste usuário (inclusive criação de layout e as de outros usuários)" value={f.gestorId || ""} onChange={(e) => set("gestorId", e.target.value)}>
+                  <option value="">— nenhum —</option>
+                  {todosU.map((x) => <option key={x.id} value={x.id}>{x.nome} {x.sobrenome || ""}</option>)}
+                </Sel>
+              </div>
             </div>
           )}
           {!self && (

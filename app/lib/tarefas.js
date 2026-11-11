@@ -14,6 +14,21 @@ const hojeSP = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_P
 export const HORIZONTE_DIAS = 60;                       // séries geram ocorrências até 60 dias à frente
 export const EXPEDIENTE = { dias: [1, 2, 3, 4, 5], ini: "07:00", fim: "18:00" };   // fora disso a pessoa fica "inativo"
 const SEL_U = { id: true, nome: true, sobrenome: true, email: true, setor: true, isMaster: true, ativo: true, diretoria: true, fotoBase64: true, statusManual: true, statusDesde: true, pessoaId: true };
+// v782 — gestor vê todas as tarefas dos liderados (Usuario.gestorId), inclusive criação de layout e as que outros designaram
+export async function lideradosDe(uid) {
+  await garantirGestorInicial();
+  return (await prisma.usuario.findMany({ where: { gestorId: Number(uid) || 0, ativo: true }, select: { id: true } }).catch(() => [])).map((x) => x.id);
+}
+// decisão do Igor (11/11/2026): o Gerson é o gestor do Ayrllon — aplicado uma vez, depois muda em Usuários
+async function garantirGestorInicial() {
+  if (globalThis.__gestorInicial) return; globalThis.__gestorInicial = true;
+  const K = "TAREFAS|GESTOR_INICIAL";
+  if (await prisma.finConfig.findUnique({ where: { chave: K } }).catch(() => null)) return;
+  const us = await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, gestorId: true } }).catch(() => []);
+  const g = us.find((x) => /^GERSON\b/i.test(x.nome || "")), a = us.filter((x) => /^AYRL?L?ON\b/i.test(x.nome || ""));
+  if (g) for (const x of a) if (!x.gestorId) await prisma.usuario.update({ where: { id: x.id }, data: { gestorId: g.id } }).catch(() => null);
+  await prisma.finConfig.create({ data: { chave: K, valor: JSON.stringify({ gestor: g?.id || null, liderados: a.map((x) => x.id) }) } }).catch(() => null);
+}
 
 export async function usuarioAtivo(id) {
   const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: SEL_U });
@@ -29,7 +44,7 @@ const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.i
 //   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
 const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
-const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null)
+const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (t.criadoPorId !== t.responsavelId && (await lideradosDe(u.id)).includes(t.responsavelId))
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
@@ -111,8 +126,10 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const R = await projRestritos();
   const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
   if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v733
+  const lid = await lideradosDe(u.id);   // v782 — gestor: tarefas dos liderados (Designadas)
+  if (lid.length && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { responsavelId: { in: lid } }];
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R));
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || (lid.includes(t.responsavelId) && t.criadoPorId !== t.responsavelId));   // as que o liderado criou para si ficam privadas
   return enriquecer(l, u);
 }
 

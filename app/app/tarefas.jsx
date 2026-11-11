@@ -1331,7 +1331,9 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [colab, setColab] = useState(null);
   const [menuColab, setMenuColab] = useState(false);
   // v737 — criação de layout é do arte finalista · v756 — a não ser que eu tenha reprovado: aí acompanho nas Designadas
-  const ehDesignada = (t) => t.responsavelId !== user.id && ((t.layout?.etapa === "CRIACAO" || /^CRIAÇÃO DE LAYOUT/.test(t.titulo || "")) ? Number(t.layout?.acompanhaId) === user.id : t.criadoPorId === user.id);
+  // v782 — gestor: toda tarefa de liderado (qualquer criador, inclusive criação de layout) aparece nas Designadas
+  const ehDesignada = (t) => t.responsavelId !== user.id && ((d?.liderados || []).includes(t.responsavelId)
+    || ((t.layout?.etapa === "CRIACAO" || /^CRIAÇÃO DE LAYOUT/.test(t.titulo || "")) ? Number(t.layout?.acompanhaId) === user.id : t.criadoPorId === user.id));
   const colabs = useMemo(() => {
     const m = new Map();
     (d?.tarefas || []).filter((t) => ehDesignada(t) && t.status !== "CANCELADA").forEach((t) => { const x = m.get(t.responsavelId) || { id: t.responsavelId, nome: t.responsavelNome, n: 0 }; if (t.status !== "CONCLUIDA") x.n++; m.set(t.responsavelId, x); });
