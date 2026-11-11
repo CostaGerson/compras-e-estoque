@@ -45,6 +45,30 @@ export async function GET(req, { params }) {
     const ips = await prisma.itemPadrao.findMany({ where: { id: { in: semCod.map((i) => i.itemPadraoId) } }, select: { id: true, codigoPadrao: true, codigo: true } }).catch(() => []);
     for (const i of semCod) { const x = ips.find((y) => y.id === i.itemPadraoId); if (x) i.codigo = x.codigoPadrao || x.codigo || null; }
   }
+  // v775 — #61: item ligado a um produto do KM (código do KM no item ou no cadastro de itens) completa os detalhes de produção
+  //   que faltam com os do KM (o que foi lançado no pedido prevalece)
+  try {
+    const ipIds = pp.itens.map((i) => i.itemPadraoId).filter(Boolean);
+    const ips = ipIds.length ? await prisma.itemPadrao.findMany({ where: { id: { in: ipIds } }, select: { id: true, codigo: true } }) : [];
+    const codKm = (i) => [i.codigo, ips.find((x) => x.id === i.itemPadraoId)?.codigo].find((c) => c && /^[A-Z]{2}\.\d{2}\.\d{3}\.\d{3,4}$/.test(String(c).toUpperCase()));
+    const cods = [...new Set(pp.itens.map(codKm).filter(Boolean).map((c) => String(c).toUpperCase()))];
+    const kms = cods.length ? await prisma.kmProduto.findMany({ where: { codigo: { in: cods } }, select: { codigo: true, parametros: true } }) : [];
+    const nk = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\b(DA|DO|DE)\b/g, " ").replace(/\s+/g, " ").trim();
+    for (const i of pp.itens) {
+      const c = codKm(i); if (!c) continue;
+      const km = kms.find((x) => x.codigo === String(c).toUpperCase()); if (!km || !Array.isArray(km.parametros)) continue;
+      let pr; try { pr = JSON.parse(i.parametrosJson || "{}") || {}; } catch { pr = {}; }
+      const tem = new Map(Object.entries(pr).map(([k, v]) => [nk(k), v]));
+      for (const x of km.parametros) {
+        if (!x?.t || !String(x.v || "").trim()) continue;
+        const k = nk(x.t), atual = [...tem.entries()].find(([kk]) => kk === k || kk.startsWith(k.split(" ")[0]) && k.startsWith(kk.split(" ")[0]));
+        if (atual && atual[1] && (typeof atual[1] === "object" || String(atual[1]).trim())) continue;
+        pr[String(x.t).toUpperCase()] = x.v;
+      }
+      if (!i.codigo) i.codigo = String(c).toUpperCase();
+      i.parametrosJson = JSON.stringify(pr);
+    }
+  } catch (e) { console.log("pp/km:", e.message); }
   // v774 — #58: tecido gravado antes da v774 ganha nome do artigo, cor, código e fabricante pela FPP (para a OP)
   try {
     const { resumoFpp } = await import("@/lib/pedidoLanc");
