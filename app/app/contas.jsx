@@ -285,10 +285,44 @@ function ContaSelect({ conta, contas, onPick }) {
 }
 
 /* ============================================================ */
+// v779 — #33: prévia e envio da cobrança semanal
+function CobrancaSemanalModal({ user, onClose }) {
+  const [d, setD] = useState(null);
+  const [st, setSt] = useState("");
+  useEffect(() => { fetch(`/api/fin/cobranca-semanal?u=${user.id}`).then((r) => r.json()).then(setD).catch((e) => setD({ error: e.message })); }, []);
+  const enviar = async () => {
+    if (!(await confirmar(`Enviar agora os e-mails da semana para ${(d?.clientes || []).filter((c) => c.emails.length).length} cliente(s)?`))) return;
+    setSt("Enviando…");
+    const r = await fetch("/api/fin/cobranca-semanal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, forcar: true }) }).then((x) => x.json()).catch((e) => ({ error: e.message }));
+    setSt(r.error ? r.error : `${r.enviados} e-mail(s) enviado(s).${r.semEmail?.length ? ` Sem e-mail: ${r.semEmail.join(", ")}.` : ""}${r.erros?.length ? ` Erros: ${r.erros.join("; ")}` : ""}`);
+  };
+  const m = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onMouseDown={onClose}>
+      <div className="rounded-xl w-full max-w-2xl p-5 overflow-y-auto" style={{ background: "#fff", maxHeight: "85vh" }} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold mb-1" style={{ color: C.navy || "#001E41" }}>Cobrança semanal por e-mail</div>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>Toda sexta às 17h cada cliente recebe os boletos emitidos para ele na semana (e-mail "p/ NFs e Boletos" do cadastro). Sem boletos, não envia.</div>
+        {!d ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div> : d.error ? <div className="text-sm" style={{ color: C.red }}>{d.error}</div> : <>
+          <div className="text-sm mb-2">Semana {String(d.de).split("-").reverse().join("/")} a {String(d.ate).split("-").reverse().join("/")}{d.jaEnviada ? " · já enviada" : ""}</div>
+          {!d.clientes.length ? <div className="text-sm" style={{ color: C.sub }}>Nenhum boleto emitido nesta semana.</div> :
+          <table className="w-full text-xs mb-3"><thead><tr style={{ color: C.sub }}><th className="text-left py-1">Cliente</th><th className="text-left">E-mail</th><th className="text-right">Boletos</th><th className="text-right">Total</th></tr></thead>
+            <tbody>{d.clientes.map((c, i) => <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">{c.cliente}</td><td style={{ color: c.emails.length ? C.text : C.red }}>{c.emails.join(", ") || "sem e-mail no cadastro"}</td><td className="text-right">{c.boletos}</td><td className="text-right">{m(c.total)}</td></tr>)}</tbody></table>}
+          {st && <div className="text-sm mb-2" style={{ color: C.text }}>{st}</div>}
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="px-3 py-1.5 rounded text-sm" style={{ color: C.sub }}>Fechar</button>
+            {d.clientes.some((c) => c.emails.length) && <button onClick={enviar} className="px-3 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Enviar agora</button>}
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
 let _destaqueId = null;
 export default function ContasPagarReceber({ user, inicial = null }) {
   const [tipo, setTipo] = useState(inicial?.tipo || "PAGAR");   // v365 — pode abrir já filtrado
   const [mes, setMes] = useState(inicial?.mes || mesAtual());
+  const [cobSem, setCobSem] = useState(false);   // v779
   _destaqueId = inicial?.tituloId || null;   // v761 — conta aberta pela mensagem fica destacada
   useEffect(() => { if (!inicial?.tituloId) return; const t = setTimeout(() => document.getElementById(`tit-${inicial.tituloId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 900); return () => clearTimeout(t); }, [d]);
   const [d, setD] = useState(null);
@@ -396,7 +430,10 @@ export default function ContasPagarReceber({ user, inicial = null }) {
           </button>
           );
         })}
+        {/* v779 — #33: cobrança semanal por e-mail (prévia e envio manual) */}
+        {tipo === "RECEBER" && user?.isMaster && <button onClick={() => setCobSem(true)} className="ml-auto self-center px-3 py-1 rounded text-xs font-semibold" style={{ color: C.accent, border: `1px solid ${C.accent}` }} title="E-mail toda sexta às 17h para cada cliente com os boletos emitidos na semana">📧 Cobrança semanal</button>}
       </div>
+      {cobSem && <CobrancaSemanalModal user={user} onClose={() => setCobSem(false)} />}
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} dCtx={d} />}
       {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
