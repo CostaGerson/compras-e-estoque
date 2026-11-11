@@ -6,8 +6,8 @@ import { compDoParcial, filtrarRepetidos } from "@/lib/finParciais";
 export const TIPOS_PADRAO = [
   { codigo: "BRADESCO_EXTRATO",  banco: "BRADESCO", documento: "Extrato conta corrente", descricao: "Extrato mensal Net Empresa (PDF)" },
   { codigo: "BRADESCO_COBRANCA", banco: "BRADESCO", documento: "Títulos pagos (cobrança)", descricao: "Boletos recebidos — substitui a LIQUIDACAO DE COBRANCA do extrato" },
-  { codigo: "BRADESCO_FOLHA",    banco: "BRADESCO", documento: "Comprovantes de folha", descricao: "Crédito em conta salário — substitui PAGAMENTO FUNCIONARIOS", multiplo: true },
-  { codigo: "BRADESCO_FATURA",   banco: "BRADESCO", documento: "Faturas de cartão", descricao: "1 fatura por portador", qtdEsperada: 3, multiplo: true },
+  { codigo: "BRADESCO_FOLHA",    banco: "BRADESCO", documento: "Comprovantes de folha", descricao: "Dia 5 (salário) e dia 20 (adiantamento) — substitui PAGAMENTO FUNCIONARIOS", qtdEsperada: 2, multiplo: true },
+  { codigo: "BRADESCO_FATURA",   banco: "BRADESCO", documento: "Faturas de cartão", descricao: "3 ou 4 faturas (1 por portador)", qtdEsperada: 3, multiplo: true },
   { codigo: "ITAU_EXTRATO",      banco: "ITAÚ", documento: "Extrato conta corrente", descricao: "Extrato do período (PDF)" },
   { codigo: "ITAU_PAGAMENTOS",   banco: "ITAÚ", documento: "Relatório de pagamentos / Pix", descricao: "Detalha o SISPAG do extrato", multiplo: true },
   { codigo: "ITAU_FATURA",       banco: "ITAÚ", documento: "Fatura Mastercard", descricao: "Fatura com todos os portadores" },
@@ -16,7 +16,7 @@ export const TIPOS_PADRAO = [
   { codigo: "C6_EXTRATO",        banco: "C6 BANK", documento: "Extrato conta corrente", descricao: "Extrato do período (PDF)" },
   { codigo: "C6_FATURA",         banco: "C6 BANK", documento: "Fatura de cartão", descricao: "PDF com senha — cadastre em Senhas de PDF" },
   { codigo: "BB_EXTRATO",        banco: "BANCO DO BRASIL", documento: "Extrato conta corrente", descricao: "Extrato do mês (PDF)" },
-  { codigo: "BB_FATURA",         banco: "BANCO DO BRASIL", documento: "Faturas de cartão", descricao: "1 fatura por portador", qtdEsperada: 3, multiplo: true },
+  { codigo: "BB_FATURA",         banco: "BANCO DO BRASIL", documento: "Faturas de cartão", descricao: "3 ou 4 faturas (1 por portador)", qtdEsperada: 3, multiplo: true },
   { codigo: "CAIXA_EXTRATO",     banco: "CAIXA", documento: "Extrato conta corrente", descricao: "Gerenciador Caixa (PDF)" },
   { codigo: "CAIXA_FATURA",      banco: "CAIXA", documento: "Fatura Elo", descricao: "Fatura com todos os cartões" },
   { codigo: "IFOOD_RECARGA",     banco: "IFOOD BENEFÍCIOS", documento: "Relatórios de recarga", descricao: "Todas as recargas do mês — substituem o PIX global ao iFood", multiplo: true },
@@ -25,6 +25,13 @@ export const TIPOS_PADRAO = [
 // Garante que o catálogo existe (sem sobrescrever ajustes feitos depois).
 export async function garantirTipos() {
   const n = await prisma.finDocTipo.count();
+  // v763 — folha: 2 comprovantes (dia 5 e adiantamento do dia 20); faturas de cartão: 3 ou 4 (1 por portador)
+  const K = "FIN|TIPOS_V763";
+  if (n && !(await prisma.finConfig.findUnique({ where: { chave: K } }).catch(() => null))) {
+    for (const t of TIPOS_PADRAO.filter((x) => ["BRADESCO_FOLHA", "BRADESCO_FATURA", "BB_FATURA"].includes(x.codigo)))
+      await prisma.finDocTipo.updateMany({ where: { codigo: t.codigo }, data: { descricao: t.descricao, qtdEsperada: t.qtdEsperada, multiplo: true } }).catch(() => null);
+    await prisma.finConfig.upsert({ where: { chave: K }, create: { chave: K, valor: "1" }, update: { valor: "1" } }).catch(() => null);
+  }
   if (n >= TIPOS_PADRAO.length) return;
   await prisma.finDocTipo.createMany({
     data: TIPOS_PADRAO.map((t, i) => ({
