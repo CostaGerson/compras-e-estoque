@@ -2080,6 +2080,7 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
   const imp = podeImportar(user, "docsFinanceiros");   // v167 — importar/excluir: só o master
   const podeMais = imp && (tipo.multiplo || arqs.length === 0);   // v172 — o card é a entrada do documento MENSAL
   const mensalLanc = /_(EXTRATO|FATURA)$/.test(tipo.codigo || "");
+  const aceitaOfx = imp && ehExtrato && !ofx;   // v762
   const alterado = (texto || "").trim().toUpperCase() !== (just?.texto || "");
 
   const salvarJust = async () => {
@@ -2095,9 +2096,12 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
   return (
     <div id={`doc-${tipo.id}`} className="rounded-xl flex flex-col"
       style={{ scrollMarginTop: 80, background: C.panel, border: `1px solid ${drag ? C.accent : st.k === "pend" ? "#F5C2BD" : C.line}`, borderTop: `3px solid ${st.cor}` }}
-      onDragOver={(e) => { if (!podeMais) return; e.preventDefault(); setDrag(true); }}
+      onDragOver={(e) => { if (!podeMais && !aceitaOfx) return; e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); if (podeMais) onArquivos(e.dataTransfer.files); }}>
+      onDrop={(e) => { e.preventDefault(); setDrag(false);   // v762 — o OFX continua entrando depois do PDF
+        const fs = Array.from(e.dataTransfer.files || []), ofxs = fs.filter((f) => /\.ofx$/i.test(f.name)), outros = fs.filter((f) => !/\.ofx$/i.test(f.name));
+        if (ofxs.length && aceitaOfx) onOfx(ofxs);
+        if (outros.length && podeMais) onArquivos(outros); }}>
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -2169,6 +2173,11 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
                   <div className="text-[11px]" style={{ color: C.sub }}>OFX · {kb(ofx.tamanho)} · na contabilidade</div>
                 </a>
                 {imp && <button onClick={() => onExcluirOfx(ofx)} title="Excluir OFX" style={{ color: C.sub }}><Trash2 size={14} /></button>}
+              </>
+            ) : aceitaOfx ? (
+              <>
+                <input ref={inpOfx} type="file" accept=".ofx" className="hidden" onChange={(e) => { onOfx(e.target.files); e.target.value = ""; }} />
+                <button onClick={() => inpOfx.current?.click()} className="flex-1 text-left text-xs" style={{ color: C.accent }}>OFX não enviado · <b>enviar ou arrastar o OFX aqui</b></button>
               </>
             ) : <span className="flex-1 text-xs" style={{ color: C.sub }}>OFX não enviado</span>}
           </div>
