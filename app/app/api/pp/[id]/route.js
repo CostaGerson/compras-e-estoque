@@ -45,6 +45,22 @@ export async function GET(req, { params }) {
     const ips = await prisma.itemPadrao.findMany({ where: { id: { in: semCod.map((i) => i.itemPadraoId) } }, select: { id: true, codigoPadrao: true, codigo: true } }).catch(() => []);
     for (const i of semCod) { const x = ips.find((y) => y.id === i.itemPadraoId); if (x) i.codigo = x.codigoPadrao || x.codigo || null; }
   }
+  // v774 — #58: tecido gravado antes da v774 ganha nome do artigo, cor, código e fabricante pela FPP (para a OP)
+  try {
+    const { resumoFpp } = await import("@/lib/pedidoLanc");
+    const cache = {};
+    for (const i of pp.itens) {
+      let pr; try { pr = JSON.parse(i.parametrosJson || "{}"); } catch { continue; }
+      const t = pr?.TECIDO;
+      if (!t || typeof t !== "object" || !t.fpp || t.nome) continue;
+      if (!(t.fpp in cache)) cache[t.fpp] = resumoFpp(await prisma.fpp.findFirst({ where: { numero: Number(t.fpp) } }).catch(() => null));
+      const rf = cache[t.fpp];
+      if (!rf) continue;
+      const cor = t.cor || (String(t.artigo || "").split(" · ")[1] || null) || rf.artigoCor;
+      pr.TECIDO = { ...t, nome: rf.artigo || null, corArtigo: cor, codigo: ((rf.cores || []).find((c) => c.cor === cor) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null };
+      i.parametrosJson = JSON.stringify(pr);
+    }
+  } catch (e) { console.log("pp/tecido:", e.message); }
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
   const rec = pp.efetivadoEm ? {} : await ppsRecebendoDetalhes([pp.id]);
   return Response.json({ ...ppParaUsuario(pp, u), recebendoDetalhes: !!rec[pp.id] }, { headers: { "Cache-Control": "no-store" } });   // v660 — nunca devolve o lançamento antigo do cache

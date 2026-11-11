@@ -56,7 +56,7 @@ export async function salvarPp(id, b, quem) {
     gradeJson: JSON.stringify(it.grade || []),
     parametrosJson: JSON.stringify(Object.fromEntries(Object.entries(it.parametros || {}).filter(([k]) => !paramFora(k)))),
     fotoBase64: servico ? null : it.fotoBase64 || null,
-    anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64 })) : undefined,   // v650
+    anexosJson: !servico && Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64, ...(a.categoria ? { categoria: a.categoria } : {}) })) : undefined,   // v650
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
     ...(it.desconto && num(it.desconto.valor) > 0 && num(it.desconto.base) > 0 ? { desconto: { tipo: it.desconto.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(num(it.desconto.valor)), base: r2(num(it.desconto.base)) } } : {}),   // v750 — valorUnitario já vem com o desconto

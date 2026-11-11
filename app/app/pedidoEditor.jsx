@@ -946,11 +946,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                 </label>
                 {it.fotoBase64 && podeLancar && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1 flex items-center gap-1 font-semibold" style={{ color: C.red }}><Trash2 size={12} /> remover layout</button>}
-                {/* v650 — arquivos do item (além da foto): saem na OP abaixo dos detalhes do item */}
-                <div className="mt-2" style={{ width: 120 }}>
-                  <label className="block text-[11px] text-center px-1 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent }}>
-                    <Paperclip size={11} className="inline mr-0.5" />Arquivos do item
-                    <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x) }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); e.target.value = ""; }} />
+                {/* v775 — #59: card de arrasto/anexo dos detalhes de personalização (qualquer formato): saem na OP e vão para o sistema do PCP */}
+                <div className="mt-2" style={{ width: 144 }}>
+                  <label className="block text-[11px] text-center px-1 py-2 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
+                    onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
+                    onDrop={async (e) => { e.preventDefault(); const fs = Array.from(e.dataTransfer?.files || []); if (!fs.length) return; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }}>
+                    <Paperclip size={11} className="inline mr-0.5" />Detalhes de personalização<br/><span style={{ fontSize: 10, color: C.sub }}>arraste ou clique</span>
+                    <input type="file" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }} />
                   </label>
                   {(it.anexos || []).map((a, k) => (
                     <div key={k} className="flex items-center gap-1 text-[11px] mt-1">

@@ -696,7 +696,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: doPedido.length, itens: [],
       fonte: p.fonte === "SISTEMA" ? "SISTEMA" : "KM", destino: "A_PROGRAMAR",   // v612 — o PCP recebe os itens liberados em A PROGRAMAR
     });
-    o.itens.push({
+    o.itens.push({ _n: idx + 1,
       chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(i.quantidade),
       grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [],
       origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm || i.updatedAt, fppNumero: i.fppNumero,
@@ -718,7 +718,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       if (o.itens.some((x) => x.chave === it.chave)) return;
       const bruto = (p.itens || [])[idx] || {};
       const c = cis.find((x) => x.chave === it.chave);
-      o.itens.push({ chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
+      o.itens.push({ _n: idx + 1, chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
         grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt,
         fppNumero: c?.fppNumero || null, aviamentosPendentes: false,
         materiais: (c?.demanda || []).map((m) => ({ nome: m.nome, categoria: m.categoria, fornecedor: m.fornecedor, cor: m.cor, codigo: m.codigo, quantidade: m.quantidade, unidade: m.unidade, obs: m.obs || null })) });
@@ -731,10 +731,12 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     const its = itensDoPedido(p);
     out[p.numero] = { pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
       condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: its.length, fonte: "SISTEMA", destino: "A_PROGRAMAR", servico: true,
-      itens: its.map((i) => ({ chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: [], op: null, parametros: [], origemMaterial: "SERVICO",
+      itens: its.map((i, k) => ({ _n: k + 1, chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: [], op: null, parametros: [], origemMaterial: "SERVICO",
         liberadoEm: p.createdAt, fppNumero: null, materiais: [], aviamentosPendentes: false })) };
   }
-  return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens }));
+  // v775 — #59: cada item traz o endereço dos arquivos (layout e detalhes de personalização) — GET /api/ext/arquivos, mesmo X-Api-Key
+  return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens,
+    itens: p.itens.map(({ _n, ...i }) => ({ ...i, ...(_n ? { item: _n, arquivos: `/api/ext/arquivos?pedido=${encodeURIComponent(p.pedido)}&item=${_n}` } : {}) })) }));
 }
 
 // ---------- v685 — excluir demanda de compra em qualquer etapa e gerar de novo as demandas de um pedido ----------

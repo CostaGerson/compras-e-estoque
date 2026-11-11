@@ -95,6 +95,33 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   }).join("");
 
   // ---------- PP: detalhamento de produção de cada item ----------
+  // v775 — #59/#60: a OP sai com um item por folha (cabeçalho, grade, layout e detalhes daquela peça), sem a tabela de itens do topo
+  const cabecalho = `  <div class="top">
+    <div class="marca">
+      <img src="${origin}/meridian-wordmark.svg" onerror="this.outerHTML='<div class=&quot;t&quot;>MERIDIAN</div>'"/>
+      <div class="s">Meridian Ltda · CNPJ 48.011.287/0001-81</div>
+      <div class="s" style="margin-top:2px">R. Dr. Natalino Triginelli, 281 · Jardim Atlântico · Belo Horizonte/MG · CEP 31710-420</div>
+    </div>
+    <div class="doc"><div class="k">${titulo}</div><div class="n">Nº ${esc(numero)}</div><div class="d">Emissão ${dBR(f.emissao) || "—"}</div></div>
+  </div>
+
+  <div class="caixas">
+    <div class="cx"><div class="h">Cliente</div>
+      <div class="nm">${esc(f.clienteNome || "—")}</div>
+      ${f.clienteCnpj ? `<div>CNPJ/CPF ${esc(f.clienteCnpj)}${f.clienteIe ? ` · IE ${esc(f.clienteIe)}` : ""}</div>` : ""}
+      ${f.clienteEndereco ? `<div>${esc(f.clienteEndereco)}</div>` : ""}
+      ${f.clienteContato ? `<div>${esc(f.clienteContato)}</div>` : ""}
+    </div>
+    <div class="cx"><div class="h">Atendimento</div>
+      <div>Vendedor: <b>${esc(f.vendedor || "—")}</b></div>
+      <div>Prazo: <b>${esc(f.prazoEntrega || "—")}</b>${f.dtDespacho ? ` · despacho <b>${esc(f.dtDespacho)}</b>` : ""}</div>
+      ${f.oc ? `<div>OC do cliente: <b>${esc(f.oc)}</b></div>` : ""}
+      <div>Tipo: ${esc(cap(f.tipoPedido || (servico ? "serviço" : "venda normal")))}</div>
+    </div>
+  </div>
+
+`;
+  const cabecalhoItem = cabecalho;   // o cabeçalho repete em cada folha
   const producao = PV || servico ? "" : lista.map((it, i) => {
     const comps = componentes[it.tipoPecaNome] || [];
     const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
@@ -103,7 +130,8 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
       return `<tr><td class="pk">${esc(c)}</td><td>${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
     }).join("");
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
-    return `<div class="peca">
+    const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT");
+    return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem}` : ""}<div class="sec">Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
       <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
         ${it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vz">sem layout</div>`}
@@ -114,7 +142,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
         </div>
       </div>
       ${duHtml(it.dadosUnitarios)}
-      ${anexosHtml((it.anexos || []).map((a) => ({ ...a, src: a.src || a.base64 })), "Arquivos do item")}
+      ${anexosHtml(pessoais.map((a) => ({ ...a, src: a.src || a.base64 })), "Detalhes de personalização")}
     </div>`;
   }).join("");
 
@@ -133,6 +161,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     ? `<div class="sec">${f.entregaModo === "TERCEIROS" ? "Entrega com terceiros" : "Entrega fracionada"}</div>
       <table class="pag">${f.entregas.map((e, k) => `<tr><td class="b">${k + 1}. ${esc(e.local || "—")}</td><td>${esc(e.endereco || "—")}${e.responsavel ? ` · resp. ${esc(e.responsavel)}` : ""}${e.contato ? ` · ${esc(e.contato)}` : ""}${e.documento ? `<div class="mut">${esc(DOCS[e.documento] || e.documento)}</div>` : ""}</td></tr>`).join("")}</table>` : "";
 
+  const opPorItem = !PV && !servico && producao;
   const html = `<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>${PV ? "PV" : "OP"} ${esc(numero)} · Meridian</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -188,33 +217,12 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   table.params { width: 100%; border-collapse: collapse; font-size: 10px; }
   table.params td { border: 1px solid #EEF0F3; padding: 3px 6px; }
   table.params td.pk { color: #667085; width: 34%; text-transform: uppercase; font-size: 9px; }
+  .folha { page-break-before: always; break-before: page; height: 0; }
+  .peca-folha { page-break-inside: auto; } .peca-folha .foto { max-height: 120mm; }
   .rod { margin-top: 16px; display: flex; justify-content: space-between; color: #98A2B3; font-size: 8.5px; border-top: 1px solid #E4E7EC; padding-top: 5px; }
 </style></head><body>${previa ? `<div style="background:#FFF4E5;border:2px dashed #FF6B1A;color:#B54708;font-weight:700;text-align:center;padding:8px;margin-bottom:10px;font-size:13px">${previa}</div>` : ""}
-  <div class="top">
-    <div class="marca">
-      <img src="${origin}/meridian-wordmark.svg" onerror="this.outerHTML='<div class=&quot;t&quot;>MERIDIAN</div>'"/>
-      <div class="s">Meridian Ltda · CNPJ 48.011.287/0001-81</div>
-      <div class="s" style="margin-top:2px">R. Dr. Natalino Triginelli, 281 · Jardim Atlântico · Belo Horizonte/MG · CEP 31710-420</div>
-    </div>
-    <div class="doc"><div class="k">${titulo}</div><div class="n">Nº ${esc(numero)}</div><div class="d">Emissão ${dBR(f.emissao) || "—"}</div></div>
-  </div>
-
-  <div class="caixas">
-    <div class="cx"><div class="h">Cliente</div>
-      <div class="nm">${esc(f.clienteNome || "—")}</div>
-      ${f.clienteCnpj ? `<div>CNPJ/CPF ${esc(f.clienteCnpj)}${f.clienteIe ? ` · IE ${esc(f.clienteIe)}` : ""}</div>` : ""}
-      ${f.clienteEndereco ? `<div>${esc(f.clienteEndereco)}</div>` : ""}
-      ${f.clienteContato ? `<div>${esc(f.clienteContato)}</div>` : ""}
-    </div>
-    <div class="cx"><div class="h">Atendimento</div>
-      <div>Vendedor: <b>${esc(f.vendedor || "—")}</b></div>
-      <div>Prazo: <b>${esc(f.prazoEntrega || "—")}</b>${f.dtDespacho ? ` · despacho <b>${esc(f.dtDespacho)}</b>` : ""}</div>
-      ${f.oc ? `<div>OC do cliente: <b>${esc(f.oc)}</b></div>` : ""}
-      <div>Tipo: ${esc(cap(f.tipoPedido || (servico ? "serviço" : "venda normal")))}</div>
-    </div>
-  </div>
-
-  <table class="itens">
+  ${cabecalho}
+  ${opPorItem ? "" : `<table class="itens">
     <tr><th>#</th><th>${servico ? "Serviço" : "Item"}</th><th>${servico ? "" : "Tamanhos"}</th><th class="r">Qtd</th>${PV ? `<th class="r">${servico ? "Valor unit." : "Preço/pç"}</th><th class="r">Subtotal</th>` : ""}</tr>
     ${linhas || `<tr><td colspan="6" class="mut">Nenhum item.</td></tr>`}
   </table>
@@ -223,12 +231,12 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     <tr><td class="mut">${servico ? "Quantidade total" : "Total de peças"}</td><td class="r b">${totalPecas.toLocaleString("pt-BR")}</td></tr>
     ${PV && (freteImp > 0 || descImp > 0) ? `<tr><td class="mut">Itens</td><td class="r">${money(totalItensImp)}</td></tr>${descImp > 0 ? `<tr><td class="mut">Desconto</td><td class="r">− ${money(descImp)}</td></tr>` : ""}${freteImp > 0 ? `<tr><td class="mut">Frete</td><td class="r">${money(freteImp)}</td></tr>` : ""}` : ""}
     ${PV ? `<tr class="g"><td class="b">Total</td><td class="r v">${money(totalGeral)}</td></tr>` : ""}
-  </table></div>
+  </table></div>`}
 
   ${pagHtml}
   ${cfHtml(f.clienteFinal)}
   ${entregas}
-  ${producao ? `<div class="sec">Detalhamento de produção</div>${producao}` : ""}
+  ${producao ? (opPorItem ? producao : `<div class="sec">Detalhamento de produção</div>${producao}`) : ""}
 
   ${f.obs || (PV && f.obsNfTexto) ? `<div class="notas">
     ${f.obs ? `<div><b>Observações:</b> ${esc(f.obs).replace(/\n/g, "<br/>")}</div>` : ""}
