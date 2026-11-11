@@ -338,7 +338,23 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   // v566 — Ctrl+V com imagem (print, foto copiada) entra nos anexos
-  useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length) { e.preventDefault(); setArqs((a) => [...a, ...fs]); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); }, []);
+  // v767 — os arquivos são copiados ANTES de limpar o campo (antes a lista era lida depois de limpa e nada entrava);
+  // na edição de demanda que já existe, o arquivo sobe na hora (não depende de clicar em Salvar)
+  const [subindo, setSubindo] = useState(0);
+  const addArqs = async (fs) => {
+    fs = [...(fs || [])].filter(Boolean);
+    if (!fs.length) return;
+    if (!inicial.id) { setArqs((a) => [...a, ...fs]); return; }
+    setSubindo((n) => n + fs.length);
+    for (const a of fs) {
+      try {
+        const r = await api(`/api/tarefas/${inicial.id}/arquivos`, "POST", { usuarioId: user.id, nome: a.name, mime: a.type, conteudo: await readB64(a) });
+        if (r.arquivo) setJaArqs((l) => [...l, { ...r.arquivo, criadoPorNome: "" }]);
+      } catch (e) { alerta(`Não foi possível anexar ${a.name}: ${e.message}`); }
+      setSubindo((n) => n - 1);
+    }
+  };
+  useEffect(() => { const f = (e) => { const fs = arquivosColados(e); if (fs.length) { e.preventDefault(); addArqs(fs); } }; document.addEventListener("paste", f); return () => document.removeEventListener("paste", f); }, []);
   const setRec = (k, v) => setF((x) => ({ ...x, rec: { ...x.rec, [k]: v } }));
   useEffect(() => { api(`/api/tarefas?u=${user.id}&escopo=todas&pendentes=1`).then((j) => setPublicas(j.tarefas.filter((t) => t.id !== inicial.id && !t.modelo))).catch(() => setPublicas([])); }, []);
   const doSetor = usuarios.filter((u) => u.setorTarefa === f.setor);
@@ -578,10 +594,10 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
               <button onClick={() => tirarJa(a)} className="p-1 rounded" title="Excluir" style={{ color: C.sub }}><Trash2 size={13} /></button></div>)}
           </div>}
           <label onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobreArq(true); } }} onDragLeave={() => setSobreArq(false)}
-            onDrop={(e) => { e.preventDefault(); setSobreArq(false); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) setArqs((a) => [...a, ...fs]); }}
+            onDrop={(e) => { e.preventDefault(); setSobreArq(false); addArqs([...(e.dataTransfer?.files || [])]); }}
             className="flex items-center justify-center gap-2 rounded-xl text-sm cursor-pointer py-4 px-3" style={{ border: `1.5px dashed ${sobreArq ? C.accent : C.line}`, color: C.sub, background: sobreArq ? C.accentSoft : C.panel }}>
-            <Upload size={16} style={{ color: C.accent }} /> <span><b style={{ color: C.text }}>Anexar arquivos</b> · arraste aqui, clique ou cole uma imagem (Ctrl+V)</span>
-            <input type="file" multiple className="hidden" onChange={(e) => { setArqs((a) => [...a, ...e.target.files]); e.target.value = ""; }} />
+            {subindo > 0 ? <Loader2 size={16} className="animate-spin" style={{ color: C.accent }} /> : <Upload size={16} style={{ color: C.accent }} />} <span><b style={{ color: C.text }}>{subindo > 0 ? `Anexando ${subindo} arquivo(s)…` : "Anexar arquivos"}</b> · arraste aqui, clique ou cole uma imagem (Ctrl+V)</span>
+            <input type="file" multiple className="hidden" onChange={(e) => { const fs = [...(e.target.files || [])]; e.target.value = ""; addArqs(fs); }} />
           </label>
           {arqs.length > 0 && <div className="mt-2 flex flex-col gap-1.5">
             {arqs.map((a, i) => <div key={i} className="flex items-center gap-2.5 text-xs rounded-lg px-3 py-2" style={{ background: C.panel2 }}><FileText size={14} style={{ color: C.sub }} /> <span className="flex-1 truncate">{a.name}</span>
