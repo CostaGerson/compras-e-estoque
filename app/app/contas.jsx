@@ -324,7 +324,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [mes, setMes] = useState(inicial?.mes || mesAtual());
   const [cobSem, setCobSem] = useState(false);   // v779
   _destaqueId = inicial?.tituloId || null;   // v761 — conta aberta pela mensagem fica destacada
-  useEffect(() => { if (!inicial?.tituloId) return; const t = setTimeout(() => document.getElementById(`tit-${inicial.tituloId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 900); return () => clearTimeout(t); }, [d]);
+  // v787 — sem depender de "d" (declarado abaixo: referência antes da declaração quebrava a tela); tenta até a linha aparecer
+  useEffect(() => { if (!inicial?.tituloId) return; let n = 0; const t = setInterval(() => { const el = document.getElementById(`tit-${inicial.tituloId}`); if (el || ++n > 20) { clearInterval(t); el?.scrollIntoView({ block: "center", behavior: "smooth" }); } }, 500); return () => clearInterval(t); }, [inicial?.tituloId]);
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState(inicial?.busca || "");
