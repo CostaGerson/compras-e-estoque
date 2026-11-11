@@ -901,6 +901,7 @@ model FinArquivo {
   itens          Json?    // documentos de detalhamento: itens lidos (fatura, cobrança, folha, iFood…)
   conciliacao    Json?    // resultado da conferência com o extrato
   prova          Json?    // prova real da leitura: lido x totais declarados no próprio PDF
+  linhasDoc      Json?    // v784 — lançamentos como estão no documento (extrato), para conferir com a DRE do mês
   // v172 — extrato/fatura PARCIAL (dias ou semanas, enviado pela Transmissão): não conta como o documento do mês;
   // o mensal (card da Importação) absorve os lançamentos dos parciais e descarta as duplicidades
   parcial        Boolean  @default(false)

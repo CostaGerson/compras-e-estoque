@@ -288,6 +288,7 @@ export async function processarArquivo(arquivoId, { conciliarDepois = true } = {
     prisma.finLancamento.deleteMany({ where: { arquivoId: a.id } }),
     prisma.finLancamento.createMany({ data: linhas }),
     prisma.finArquivo.update({ where: { id: a.id }, data: { processado: true, saldoAnterior: a.parcial ? null : r.saldoAnterior, prova: r.prova,
+      linhasDoc: r.lancamentos.map((l) => ({ data: l.data, historico: String(l.historico || "").toUpperCase(), valor: Number(l.valor) })),   // v784
       ...(a.parcial && !linhas.length && noMensal ? { consolidadoEm: new Date() } : {}) } }),
   ]);
   let auto = 0;

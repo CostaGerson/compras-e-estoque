@@ -55,6 +55,7 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 
 function statusCard(n, esperado, justificativa, arqs = []) {
   if (arqs.some((a) => a.prova && a.prova.ok === false)) return { k: "erro", label: "Erro de leitura", cor: C.red, bg: C.redSoft, Ico: AlertTriangle };
+  if (arqs.some((a) => a.dre && a.dre.ok === false)) return { k: "erro", label: "Diverge da DRE", cor: C.red, bg: C.redSoft, Ico: AlertTriangle };   // v784
   if (n >= esperado) return { k: "ok", label: "Enviado", cor: C.green, bg: C.greenSoft, Ico: CheckCircle2 };
   if (justificativa) return { k: "just", label: n > 0 ? "Parcial · justificado" : "Justificado", cor: C.blue, bg: C.blueSoft, Ico: CheckCircle2 };
   if (n > 0) return { k: "parc", label: `Parcial ${n}/${esperado}`, cor: C.yellow, bg: C.yellowSoft, Ico: AlertTriangle };
@@ -2122,6 +2123,12 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
           <b>{a.nome}:</b> {a.prova.msg} <span style={{ color: C.text }}>— exclua e envie de novo; se continuar, o formato mudou e o leitor precisa de ajuste.</span>
         </div>
       ))}
+      {/* v784 — conferência com a DRE: lançamento do documento fora da DRE ou com sinal trocado */}
+      {arqs.filter((a) => a.dre && a.dre.ok === false).map((a) => (
+        <div key={"d" + a.id} className="mx-4 mb-2 rounded-lg p-2 text-[11px]" style={{ background: C.redSoft, color: C.red }}>
+          <b>{a.nome} × DRE:</b> {a.dre.msg}
+        </div>
+      ))}
       {arqs.length > 0 && (
         <div className="px-4 pb-2 flex flex-col gap-1">
           {arqs.map((a) => (
@@ -2132,6 +2139,8 @@ function CardDoc({ c, user, comp, onArquivos, onExcluir, onMudou, onOfx, onExclu
                 <div className="text-[11px]" style={{ color: C.sub }}>{kb(a.tamanho)} · {dataHora(a.createdAt)}{a.enviadoPorNome ? ` · ${a.enviadoPorNome}` : ""}</div>
               </a>
               <ProvaChip a={a} />
+              {a.dre && a.dre.ok !== null && <span className="text-[10px] px-1.5 rounded font-semibold shrink-0 cursor-help" title={a.dre.msg}
+                style={{ background: a.dre.ok ? C.greenSoft : C.redSoft, color: a.dre.ok ? C.green : C.red }}>{a.dre.ok ? "✓ DRE" : "✗ DRE"}</span>}
               {a.protegido && <Lock size={13} style={{ color: C.sub }} title="PDF com senha" />}
               {imp && <button onClick={() => onExcluir(a)} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
             </div>

@@ -26,6 +26,9 @@ export async function GET(req) {
   }).catch(() => []);
   // arquivos lidos antes da prova real existir: confere agora (uma vez só)
   for (const a of arquivos) if (a.prova == null) a.prova = await provarArquivo(a.id);
+  // v784 — segunda conferência: cada lançamento do documento está na DRE do mês com o sinal certo
+  const { conferirComDre } = await import("@/lib/finConfereDre");
+  for (const a of arquivos) { try { a.dre = await conferirComDre(a.id); } catch (e) { a.dre = { ok: false, msg: `Erro na conferência com a DRE: ${e.message}` }; } }
   const { parciaisDoMes } = await import("@/lib/finParciais");
   const parciais = await parciaisDoMes(competencia).catch(() => []);
   return Response.json({
