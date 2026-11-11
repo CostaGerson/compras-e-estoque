@@ -463,7 +463,7 @@ export default function Home() {
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}
-          {view === "itensKm" && pode("itensKm") && <ItensKm user={user} />}
+          {view === "itensKm" && pode("itensKm") && <ItensKm user={user} componentes={COMPONENTES} />}
           {view === "itensPadrao" && pode("itensPadrao") && <ItensPadrao user={user} componentes={COMPONENTES} />}
           {view === "tributario" && pode("tributario") && <Tributario user={user} tiposPeca={Object.keys(COMPONENTES)} />}
           {view === "uploads" && pode("uploads") && <Uploads user={user} />}

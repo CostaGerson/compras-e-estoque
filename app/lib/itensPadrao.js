@@ -166,21 +166,34 @@ export async function registrarItensDoPedido(ppId, quem = null) {
         ...(!ex.fotoBase64 && it.fotoBase64 ? { fotoBase64: it.fotoBase64 } : {}),
         ...(!ex.fppId && it.fppId ? { fppId: it.fppId, fppNumero: it.fppNumero } : {}),
         ...(!ex.codigo && codigo ? { codigo } : {}),
+        // v774 — #57: item que ainda não tinha código padrão ganha o automático
+        ...(!ex.codigoPadrao && (ex.tipoPecaNome || it.tipoPecaNome) ? await (async () => { const sg = await sugerirCodigo({ tipoPeca: ex.tipoPecaNome || it.tipoPecaNome, codigoKm: ex.codigo || codigo, nome: desc }).catch(() => null); return sg?.codigo ? { codigoPadrao: sg.codigo } : {}; })() : {}),
         ...((!ex.parametros || !Object.keys(ex.parametros).length) && Object.keys(params).length ? { parametros: params } : {}),
         atualizadoPorNome: quem,
       } }).catch(() => null);
-      if (!it.itemPadraoId) await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: ex.id } }).catch(() => null);
+      const cod = !codigo ? (await prisma.itemPadrao.findUnique({ where: { id: ex.id }, select: { codigoPadrao: true } }).catch(() => null))?.codigoPadrao : null;
+      if (!it.itemPadraoId || cod) await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: ex.id, ...(cod ? { codigo: cod } : {}) } }).catch(() => null);
       atualizados++;
       continue;
     }
     let codigoPadrao = null;
     if (it.tipoPecaNome) { const sg = await sugerirCodigo({ tipoPeca: it.tipoPecaNome, codigoKm: codigo, nome: desc }).catch(() => null); if (sg?.codigo) codigoPadrao = sg.codigo; }
-    const n = await prisma.itemPadrao.create({ data: {
+    const dados = {
       nomeInterno: desc, nomeNf: desc, clienteIds: cli ? [cli.id] : [], fppId: it.fppId || null, fppNumero: it.fppNumero || null,
       tipoPecaNome: up(it.tipoPecaNome), codigo, codigoPadrao, parametros: Object.keys(params).length ? params : null,
       fotoBase64: it.fotoBase64 || null, precoAtual: preco, obs: `Cadastrado pelo pedido ${pp.numero || pp.id}`, criadoPorNome: quem, atualizadoPorNome: quem,
-    } }).catch(() => null);
-    if (n) { novos++; await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: n.id } }).catch(() => null); }
+    };
+    // v774 — #57: o erro não some mais em silêncio; código repetido (dois itens do mesmo pedido) tenta o próximo livre
+    let n = null;
+    for (let t = 0; t < 4 && !n; t++) {
+      try { n = await prisma.itemPadrao.create({ data: dados }); }
+      catch (e) {
+        console.log("itens/cadastro do pedido:", e.message);
+        if (/codigoPadrao/i.test(e.message) && it.tipoPecaNome) { const sg = await sugerirCodigo({ tipoPeca: it.tipoPecaNome, codigoKm: codigo, nome: desc }).catch(() => null); dados.codigoPadrao = sg?.codigo ? sg.codigo.replace(/\d{4}$/, (x) => String(Number(x) + t).padStart(4, "0")) : null; }
+        else if (t >= 1) dados.codigoPadrao = null;
+      }
+    }
+    if (n) { novos++; await prisma.ppItem.update({ where: { id: it.id }, data: { itemPadraoId: n.id, ...(!codigo && n.codigoPadrao ? { codigo: n.codigoPadrao } : {}) } }).catch(() => null); }
   }
   return { novos, atualizados };
 }

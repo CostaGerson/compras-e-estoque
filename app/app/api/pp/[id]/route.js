@@ -39,6 +39,12 @@ export async function GET(req, { params }) {
     include: { itens: { orderBy: { id: "asc" } }, anexos: { select: { id: true, nome: true, tipo: true, categoria: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } },
   });
   if (!pp) return Response.json({ error: "PP não encontrado" }, { status: 404 });
+  // v774 — #61: item sem código mostra o código do cadastro de itens (padrão do sistema ou do KM)
+  const semCod = pp.itens.filter((i) => !i.codigo && i.itemPadraoId);
+  if (semCod.length) {
+    const ips = await prisma.itemPadrao.findMany({ where: { id: { in: semCod.map((i) => i.itemPadraoId) } }, select: { id: true, codigoPadrao: true, codigo: true } }).catch(() => []);
+    for (const i of semCod) { const x = ips.find((y) => y.id === i.itemPadraoId); if (x) i.codigo = x.codigoPadrao || x.codigo || null; }
+  }
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");   // v707
   const rec = pp.efetivadoEm ? {} : await ppsRecebendoDetalhes([pp.id]);
   return Response.json({ ...ppParaUsuario(pp, u), recebendoDetalhes: !!rec[pp.id] }, { headers: { "Cache-Control": "no-store" } });   // v660 — nunca devolve o lançamento antigo do cache

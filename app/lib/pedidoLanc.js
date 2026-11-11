@@ -187,7 +187,7 @@ export function resumoFpp(f) {
     id: f.id, numero: f.numero, item: f.item, nomeComercial: f.nomeComercial, cliente: f.clienteNome, tipo: f.tipo,
     valorProposto: f.valorProposto ?? null, leadTime: Number(f.leadTime) > 0 ? Number(f.leadTime) : null,   // v702
     artigo: String(e.nomeArtigo || "").trim().toUpperCase() || null,
-    artigoCor: det.cor || null, artigoCodigo: det.codigo || null,
+    artigoCor: det.cor || null, artigoCodigo: det.codigo || null, artigoFabricante: det.fornecedorNome ? String(det.fornecedorNome).toUpperCase() : null,   // v774 — #58
     cores: [det.cor ? { cor: det.cor, codigo: det.codigo || null } : null, ...(Array.isArray(det.variantes) ? det.variantes.filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })) : [])].filter(Boolean),   // v664
     tecidoTipo: malha ? "MALHA" : "PLANO",
     rendimento: malha ? rc : null, consumo: malha ? null : rc,
@@ -196,6 +196,9 @@ export function resumoFpp(f) {
   };
 }
 // valor do parâmetro TECIDO montado pela FPP
+// v774 — #58: guarda também nome do artigo, cor, código e fabricante (a OP mostra nessa ordem, sem o rendimento)
 export const tecidoDaFpp = (rf, cor) => (rf ? { tipo: rf.tecidoTipo, artigo: [rf.artigo, cor || rf.artigoCor].filter(Boolean).join(" · ") || "", medida: rf.medida, ...((rf.cores || []).length > 1 ? { cor: cor || rf.artigoCor || null } : {}),
+  nome: rf.artigo || null, corArtigo: cor || rf.artigoCor || null,
+  codigo: ((rf.cores || []).find((c) => c.cor === (cor || rf.artigoCor)) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null,
   fpp: rf.numero, forro: rf.forro ? `${rf.forro}${rf.consumoForro ? ` · ${fmt(rf.consumoForro)} m/pç` : ""}` : "" } : null);
 export const numFpp = (n) => (n != null ? String(n).padStart(5, "0") : "");

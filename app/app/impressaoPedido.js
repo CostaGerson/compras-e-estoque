@@ -10,10 +10,13 @@ const dBR = (s) => (s && /^\d{4}-\d{2}-\d{2}/.test(String(s)) ? String(s).slice(
 const cap = (s) => String(s || "").toLowerCase().replace(/(^|\s|·)\S/g, (m) => m.toUpperCase());
 const BASE_TXT = { EMISSAO: "do pedido", NF: "da NF", ENTREGA: "da entrega" };
 
+// v774 — #58: tecido na OP = artigo (malha PV, brim leve…), cor, código e fabricante; sem o rendimento da FPP
 function tecidoTxt(v) {
   if (!v) return "";
   if (typeof v !== "object") return esc(v);
-  return [v.tipo, v.artigo, v.medida, v.forro ? `forro ${v.forro}` : ""].filter(Boolean).map(esc).join(" · ") + (v.fpp ? ` <span class="mut">(FPP ${esc(String(v.fpp).padStart(5, "0"))})</span>` : "");
+  const partes = v.nome ? [v.nome, v.corArtigo || v.cor, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante]
+    : [v.artigo, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante];
+  return [...partes, v.forro ? `forro ${v.forro}` : ""].filter(Boolean).map(esc).join(" · ") + (v.fpp ? ` <span class="mut">(FPP ${esc(String(v.fpp).padStart(5, "0"))})</span>` : "");
 }
 
 /**
