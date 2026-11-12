@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, competenciaValida, garantirContas, sugerirTermo, descartarPagamentosFatura } from "@/lib/fin";
+import { carregarPrestadores, prestadorDoHistorico, descPrestador, contaDoPrestador } from "@/lib/finPrestadorNome";
 import { indiceHistorico, candidatos, topConta, chaveHist, iaDisponivel, perguntarIA, acharCnpj, consultarCnpj } from "@/lib/finIA";
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -26,6 +27,7 @@ Regras:
 - Contas 1xxxxxx são receitas (entradas), 2xxxxxx despesas (saídas), 3000000 é CONCILIAÇÃO (transferência entre contas da própria empresa — Meridian Ltda, Meridian Artigos Militares, Igor Santos Costa como sócio pode ser empréstimo/pró-labore, confira pelo histórico).
 - Sem candidato bom, use o seu conhecimento (nome de fornecedor, tipo de serviço) e dê confiança MEDIA ou BAIXA. Se não der para saber, contaCodigo = null.
 - Nunca invente conta fora do plano enviado. Respeite o sinal: entrada raramente vai para despesa e vice-versa (só estornos).
+- Quando vier a linha "CADASTRO:", o nome no histórico bate com um freelancer ou terceirizado cadastrado na Meridian: trate como pagamento a esse prestador (saída) e use a conta da função/serviço dele (freelancer de corte, costura, silk, prensa, logística; facção do produto; bordado, silk, sublimação…), ou a conta que o histórico já usa para ele. Confiança ALTA se for saída e o nome bater bem; se for entrada, desconfie (pode ser estorno ou homônimo). No motivo cite o prestador.
 - termo: a palavra-chave curta que identificaria esse lançamento no futuro (nome do fornecedor/cliente, sem datas e números). null se for genérico demais.
 Responda SOMENTE um JSON (lista), sem texto fora dele: [{"g": <número do grupo>, "contaCodigo": "2112100" | null, "confianca": "ALTA"|"MEDIA"|"BAIXA", "motivo": "frase curta em português", "termo": "TEXTO" | null}]`;
 
@@ -44,11 +46,12 @@ export async function POST(req) {
   await garantirContas();
   const pagFatura = await descartarPagamentosFatura(comp);
 
-  const [contas, ls, regras, idx] = await Promise.all([
+  const [contas, ls, regras, idx, prestadores] = await Promise.all([
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
     prisma.finLancamento.findMany({ where: { competencia: comp, desmembrado: false, substituido: false } }),
     prisma.finRegra.findMany({ select: { id: true, termo: true } }),
     indiceHistorico(comp),
+    carregarPrestadores(),   // v798
   ]);
   if (!idx.total) return Response.json({ error: "Ainda não há histórico de identificações. Importe o histórico primeiro." }, { status: 400 });
   const cId = Object.fromEntries(contas.map((c) => [c.id, c]));
@@ -75,11 +78,15 @@ export async function POST(req) {
     ];
     // palpite do próprio sistema (vale se a IA estiver fora)
     const pTop = !top && cand.parecidos[0] ? topConta(cand.parecidos[0].c.contas) : null;
-    const base = top || pTop;
+    // v798 — nome de freelancer/terceirizado cadastrado no histórico
+    const prest = prestadorDoHistorico(prestadores, `${g.historico} ${g.ex.identificacao || ""}`, g.ex.documento);
+    const cPrest = prest ? contaDoPrestador(prest, contas) : null;
+    const base = top || (prest && cPrest && g.sinal === "D" ? { contaId: cPrest.id, prest: true } : pTop);
     return {
-      g: i + 1, ...g, total: r2(g.total), candidatos: lista,
-      sistema: base ? { contaId: base.contaId, confianca: top && top.share >= 0.8 && top.tot >= 2 ? "ALTA" : top ? "MEDIA" : "BAIXA",
-        motivo: `${top ? "Mesmo histórico" : "Histórico parecido"}: ${base.n} de ${base.tot} vezes em ${nomeC(base.contaId)}` } : null,
+      g: i + 1, ...g, total: r2(g.total), candidatos: lista, prest,
+      ...(base?.prest ? { sistema: { contaId: base.contaId, confianca: prest.score >= 0.8 ? "ALTA" : "MEDIA", motivo: `Nome do cadastro: ${descPrestador(prest)} → ${nomeC(base.contaId)}` } } : {}),
+      ...(base?.prest ? {} : { sistema: base ? { contaId: base.contaId, confianca: top && top.share >= 0.8 && top.tot >= 2 ? "ALTA" : top ? "MEDIA" : "BAIXA",
+        motivo: `${top ? "Mesmo histórico" : "Histórico parecido"}: ${base.n} de ${base.tot} vezes em ${nomeC(base.contaId)}` } : null }),
     };
   });
 
@@ -87,7 +94,7 @@ export async function POST(req) {
   grupos.forEach((g) => {
     const c = candidatos(idx, g.ex, 1);
     g.chavePesq = `${g.sinal}|${chaveHist(g.historico)}`;
-    g.semHist = !c.exata && (!c.parecidos.length || c.parecidos[0].s < 0.5);
+    g.semHist = !g.prest && !c.exata && (!c.parecidos.length || c.parecidos[0].s < 0.5);   // v798 — prestador cadastrado: não pesquisa na internet (pessoa)
   });
   const semHist = grupos.filter((g) => g.semHist);
   const salvas = semHist.length ? await prisma.finPesquisa.findMany({ where: { chave: { in: semHist.map((g) => g.chavePesq) } } }) : [];
@@ -123,6 +130,7 @@ export async function POST(req) {
   if (iaDisponivel() && (grupos.length || susp.length)) {
     const fmtContas = (c) => Object.entries(c).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${nomeC(id)} ×${n}`).join("; ");
     const txtG = (g) => `#${g.g} | ${g.sinal} | ${g.banco} | ${g.historico} | ${g.ids.length} lanç. | R$ ${g.total.toFixed(2)}\n` +
+      (g.prest ? `   CADASTRO: ${descPrestador(g.prest)} (nome bate ${Math.round(g.prest.score * 100)}%)${g.sistema?.contaId ? " · conta provável " + nomeC(g.sistema.contaId) : ""}\n` : "") +
       (g.candidatos.length ? g.candidatos.map((c) => `   ${c.tipo}: "${c.exemplo}" → ${fmtContas(c.contas)}`).join("\n") : "   (sem candidatos no histórico)");
     const txtS = (s) => `#${s.i} | ${Number(s.l.valor) > 0 ? "C" : "D"} | ${s.l.banco} | ${s.l.data.toISOString().slice(0, 10)} | ${s.l.historico}${s.l.identificacao ? " / " + s.l.identificacao : ""} | R$ ${Number(s.l.valor).toFixed(2)}\n` +
       `   conta atual: ${s.conta.codigo} ${s.conta.nome} (por ${s.l.identificadoPor || "?"})\n   alerta: ${s.motivos.join("; ")}\n` +
@@ -179,8 +187,9 @@ export async function POST(req) {
     return {
       g: g.g, ids: g.ids, historico: g.historico, banco: g.banco, sinal: g.sinal, total: g.total, qtd: g.ids.length,
       contaId, confianca: r ? r.confianca : g.sistema?.confianca || null,
-      motivo: r ? r.motivo : g.sistema?.motivo || "Sem histórico parecido.",
-      termo: r ? r.termo || null : g.sistema ? sugerirTermo(g.historico) : null,
+      motivo: (g.prest && !(r?.motivo || "").toUpperCase().includes(g.prest.pal[0] || "#") ? `Cadastro: ${descPrestador(g.prest)} · ` : "") + (r ? r.motivo : g.sistema?.motivo || "Sem histórico parecido."),
+      termo: g.prest ? g.prest.nome.toUpperCase() : r ? r.termo || null : g.sistema ? sugerirTermo(g.historico) : null,   // v798
+      prestador: g.prest ? descPrestador(g.prest) : null,
       fonte: r ? (r.salva ? "PESQUISA SALVA" : r.web ? "INTERNET" : "IA") : g.sistema ? "HISTÓRICO" : null,
       achado: r?.achado || null, semHist: !!g.semHist,
     };
