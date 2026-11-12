@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown, Send, Download,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown, Send, Download, Copy,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -609,6 +609,29 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   );
 }
 
+// v789 — personalização exclusiva do item (nome, número… de cada peça) na tarefa de layout
+function PersonalizacaoExclusiva({ du }) {
+  const [aberto, setAberto] = useState(true);
+  if (!du || !Array.isArray(du.campos) || !du.campos.length) return null;
+  const linhas = Array.isArray(du.linhas) ? du.linhas : [];
+  const ordem = []; for (const l of linhas) if (!ordem.includes(l.tam)) ordem.push(l.tam);
+  const lin = ordem.flatMap((t) => linhas.filter((l) => l.tam === t));
+  const copiar = () => { const txt = [["TAM", ...du.campos.map((c) => c.rotulo || c.local || "")].join("\t"), ...lin.map((l) => [l.tam, ...du.campos.map((c) => (l.valores || {})[c.id] || "")].join("\t"))].join("\n"); navigator.clipboard?.writeText(txt).then(() => alerta("Lista copiada: cole no Excel ou no Corel."), () => {}); };
+  return (
+    <div className="mt-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: "#FAFBFC" }}>
+      <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold" style={{ color: C.text }}>
+        <button onClick={() => setAberto((x) => !x)} className="flex items-center gap-1"><ChevronDown size={12} style={{ transform: aberto ? "" : "rotate(-90deg)" }} /> Personalização exclusiva · {linhas.length} peça(s)</button>
+        <span className="font-normal" style={{ color: C.sub }}>{ordem.map((t) => `${t} ${linhas.filter((l) => l.tam === t).length}`).join(" · ")}</span>
+        {lin.length > 0 && <button onClick={copiar} className="ml-auto flex items-center gap-1 font-semibold" style={{ color: C.blue }}><Copy size={11} /> copiar lista</button>}
+      </div>
+      {aberto && (lin.length ? <div className="overflow-auto" style={{ maxHeight: 260 }}><table className="w-full text-[11px]">
+        <thead><tr style={{ background: C.panel2, color: C.sub }}><th className="px-2 py-1 text-left">#</th><th className="px-2 py-1 text-left">TAM</th>{du.campos.map((c) => <th key={c.id} className="px-2 py-1 text-left">{c.rotulo || "Inscrição"}<div className="font-normal">{String(c.local || "").toLowerCase()}</div></th>)}</tr></thead>
+        <tbody>{lin.map((l, k) => <tr key={k} style={{ borderTop: `1px solid ${C.line}` }}><td className="px-2 py-0.5" style={{ color: C.sub }}>{k + 1}</td><td className="px-2 py-0.5 font-semibold">{l.tam}</td>{du.campos.map((c) => <td key={c.id} className="px-2 py-0.5">{(l.valores || {})[c.id] || "—"}</td>)}</tr>)}</tbody>
+      </table></div> : <div className="px-2 pb-2 text-[11px]" style={{ color: C.sub }}>Aguardando a lista do cliente.</div>)}
+    </div>
+  );
+}
+
 /* ======================= v757 — demanda com aprovação (arte finalista) ======================= */
 function AprovacaoPainel({ t, user, onMudou }) {
   const A = t.aprovacao || {};
@@ -880,7 +903,7 @@ function LayoutTarefa({ t, user, onMudou }) {
     const base = `/api/tarefas/${t.id}/layout?u=${user.id}`;
     imprimirPedido("OP", { numero: d.pedido.numero, emissao: d.pedido.emissao, clienteNome: d.pedido.cliente, vendedor: d.pedido.vendedor, oc: d.pedido.oc, obs: d.pedido.obs,
       prazoEntrega: d.pedido.prazoDias != null ? `${d.pedido.prazoDias} dias ${d.pedido.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "" },
-      d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
+      d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, dadosUnitarios: i.dadosUnitarios || null, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
         fotoBase64: "", anexos: [...(i.arquivos || (i.arquivo ? [i.arquivo] : [])).map((a) => ({ nome: `Layout · ${a.nome}`, mime: a.mime, src: urlArq(a) })), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
       { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta,
         previa: aprovado ? null : "PRÉVIA — layout aguardando aprovação. Os arquivos só entram na OP do pedido depois que o vendedor aprovar." });   // v755
@@ -910,6 +933,7 @@ function LayoutTarefa({ t, user, onMudou }) {
               {i.grade.length > 0 && <div className="mt-0.5" style={{ color: C.text }}>{i.grade.map((g) => `${g.tam}:${g.qtd}`).join("  ")} · <b>{i.grade.reduce((s0, g) => s0 + Number(g.qtd || 0), 0)} pç</b></div>}
               {Object.entries(i.parametros || {}).filter(([k, v]) => v && typeof v !== "object").length > 0 && <div className="mt-1 flex flex-wrap gap-x-3" style={{ color: C.sub }}>
                 {Object.entries(i.parametros).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => <span key={k}><b>{k}</b> {String(v)}</span>)}</div>}
+              <PersonalizacaoExclusiva du={i.dadosUnitarios} />   {/* v789 */}
               {(i.arquivos || []).length > 0 && <div className="mt-1.5 flex flex-col gap-0.5">
                 {i.arquivos.map((a) => <div key={a.id} className="flex items-center gap-1.5">
                   <FileText size={11} style={{ color: C.accent }} />

@@ -68,7 +68,8 @@ export async function opDaTarefa(t) {
       const it = pp.itens[x.idx] || {};
       return { ...x, tipoPecaNome: it.tipoPecaNome || null, codigo: it.codigo || x.codigo, descricao: it.descricao || x.descricao,
         grade: safe(it.gradeJson, []).filter((g) => Number(g.qtd) > 0), parametros: safe(it.parametrosJson, {}), fppNumero: it.fppNumero ?? null,
-        temLayout: !!it.fotoBase64, arquivos: idsDe(x).map((id) => A[id]).filter(Boolean),
+        temLayout: !!it.fotoBase64, dadosUnitarios: it.dadosUnitarios || null,   // v789 — personalização exclusiva (nome, número… por peça)
+        arquivos: idsDe(x).map((id) => A[id]).filter(Boolean),
         arquivo: (() => { const l = idsDe(x).map((id) => A[id]).filter(Boolean); return l.find((a) => ehImg(a.mime, a.nome)) || l[0] || null; })(), anexosItem: (Array.isArray(it.anexosJson) ? it.anexosJson : []).map((a, k) => ({ k, nome: a.nome, mime: a.mime })) };
     }),
   };

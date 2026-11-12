@@ -8,7 +8,9 @@ while true; do
   # constrói quando o GitHub tem commit diferente do último construído (backup/ultimo-deploy)
   if git fetch -q origin main 2>/dev/null && [ "$(cat backup/ultimo-deploy 2>/dev/null)" != "$(git rev-parse origin/main)" ]; then
     git pull -q --ff-only origin main || git reset -q --hard origin/main
-    C=$(git rev-parse --short HEAD); V=$(git log -1 --format=%s HEAD | grep -oE '^v[0-9]+' || echo "$C")
+    C=$(git rev-parse --short HEAD); V=$(git log -1 --format=%s HEAD | grep -oE '^v[0-9]+')
+    # v789 — commit sem "vN:" no começo: mostra a última versão numerada + o commit (ex.: v788+d1cb044)
+    [ -n "$V" ] || V="$(git log -200 --format=%s HEAD | grep -m1 -oE '^v[0-9]+')+$C"; [ "$V" != "+$C" ] || V="$C"
     echo "=== $(date '+%d/%m/%Y %H:%M:%S') deploy de $V ($C): $(git log -1 --format=%s HEAD)"
     status CONSTRUINDO
     printf '{"versao":"%s","commit":"%s","construidoEm":"%s"}\n' "$V" "$C" "$(date -Iseconds)" > app/versao.json
