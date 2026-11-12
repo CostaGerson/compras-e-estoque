@@ -103,6 +103,14 @@ export async function DELETE(req, { params }) {
     if (r.error) return Response.json(r, { status: 400 });
     return Response.json({ ok: true, lixeira: true });
   }
+  // v793 — pedido com número nunca é apagado: rascunho numerado vai para a lixeira (Produção › Excluídos); só a tentativa sem número é descartada
+  if (pp?.numero) {
+    const motivo = new URL(req.url).searchParams.get("motivo") || "";
+    const { excluirPpNumerado } = await import("@/lib/pedidoLixeira");
+    const r = await excluirPpNumerado(id, { motivo, quem: nomeQuem(u) });
+    if (r.error) return Response.json(r, { status: 400 });
+    return Response.json({ ok: true, lixeira: true });
+  }
   await prisma.pp.delete({ where: { id } }); // itens em cascata
   return Response.json({ ok: true });
 }

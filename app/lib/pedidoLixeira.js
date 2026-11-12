@@ -27,12 +27,29 @@ export async function excluirPedido(numero, { motivo, quem } = {}) {
   return { ok: true, numero: n, itensCompra: compraItens.length };
 }
 
+// v793 — pedido nunca some: rascunho com número (sem pedido de venda) também vai para a lixeira, com o status guardado
+export async function excluirPpNumerado(ppId, { motivo, quem } = {}) {
+  const pp = await prisma.pp.findUnique({ where: { id: Number(ppId) }, select: { id: true, numero: true, status: true, clienteNome: true, valorTotal: true } });
+  if (!pp?.numero) return { error: "Pedido sem número." };
+  if (await prisma.pedidoVenda.findUnique({ where: { numero: pp.numero }, select: { id: true } })) return excluirPedido(pp.numero, { motivo, quem });
+  if (await prisma.pedidoExcluido.findUnique({ where: { numero: pp.numero } })) return { error: "Pedido já está na lixeira." };
+  await prisma.pedidoExcluido.create({ data: { numero: pp.numero, cliente: pp.clienteNome || null, total: pp.valorTotal ?? null,
+    motivo: String(motivo || "").trim().slice(0, 500) || "RASCUNHO EXCLUÍDO", excluidoPorNome: quem || null, dados: { soPp: true, ppStatus: pp.status || "RASCUNHO" } } });
+  await prisma.pp.update({ where: { id: pp.id }, data: { status: "EXCLUIDO" } });
+  return { ok: true, numero: pp.numero, lixeira: true };
+}
+
 const DATAS = ["emissao", "despacho", "faturadoEm", "entregaPrevista", "cronoEm", "cronoPrazo", "cronoFimProgramado", "createdAt", "updatedAt"];
 export async function restaurarPedido(numero, quem) {
   const x = await prisma.pedidoExcluido.findUnique({ where: { numero: String(numero) } });
   if (!x) return { error: "Pedido não está na lixeira." };
   if (await prisma.pedidoVenda.findUnique({ where: { numero: x.numero }, select: { id: true } })) return { error: "Já existe um pedido com esse número no sistema." };
   const d = x.dados || {};
+  if (d.soPp) {   // v793 — rascunho: só volta o status do PP
+    await prisma.pp.updateMany({ where: { numero: x.numero, status: "EXCLUIDO" }, data: { status: d.ppStatus || "RASCUNHO" } });
+    await prisma.pedidoExcluido.delete({ where: { id: x.id } });
+    return { ok: true, numero: x.numero };
+  }
   const { id, updatedAt, ...ped } = d.pedido || {};
   for (const k of DATAS) if (ped[k]) ped[k] = new Date(ped[k]);
   await prisma.pedidoVenda.create({ data: { ...ped, ...(d.pvPdf ? { pvPdf: d.pvPdf } : {}), ...(d.ppPdf ? { ppPdf: d.ppPdf } : {}), atualizadoPorNome: quem || null } });

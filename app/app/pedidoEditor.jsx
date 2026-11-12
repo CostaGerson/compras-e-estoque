@@ -734,7 +734,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {/* v705 — resetar: limpa o pedido em lançamento (cliente, itens, anexos, prazos); o rascunho salvo só muda ao salvar de novo */}
           {podeLancar && !efetivado && <button onClick={async () => {
             if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela."))) return;
-            setF((s) => ({ ...vazioF(), numero: s.numero, emissao: hojeISO() })); setItens([novoItem()]); setAnexos([]);
+            setF((s) => ({ ...vazioF(), numero: s.numero, status: s.status, emissao: hojeISO() }));   // v793 — rascunho continua rascunho setItens([novoItem()]); setAnexos([]);
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
             Salvar rascunho</button>}

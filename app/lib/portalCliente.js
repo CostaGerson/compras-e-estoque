@@ -354,7 +354,9 @@ export async function excluirRascunho(cliente, ppId, u) {
   const st = x.pp.portalStatus;
   const nPortal = fmtNumPortal(x.pp.portalNumero);
   await prisma.dadoUnitarioLink.deleteMany({ where: { ppId: x.pp.id } }).catch(() => null);
-  await prisma.pp.delete({ where: { id: x.pp.id } });
+  const nn = (await prisma.pp.findUnique({ where: { id: x.pp.id }, select: { numero: true } }))?.numero;
+  if (nn) { const { excluirPpNumerado } = await import("@/lib/pedidoLixeira"); await excluirPpNumerado(x.pp.id, { motivo: "EXCLUÍDO PELO CLIENTE NO PORTAL", quem: "PORTAL" }); }   // v793 — com número, nunca some
+  else await prisma.pp.delete({ where: { id: x.pp.id } });
   if (st && st !== "EM_ABERTO") await avisar(u, cliente, -1, `pedido${nPortal ? ` nº ${nPortal}` : ""} ${st === "LIBERADO" ? "liberado para produção" : "em recebimento de detalhes"} foi EXCLUÍDO pelo cliente`).catch(() => null);
   return { ok: true };
 }
