@@ -2,12 +2,28 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivo, anexar, detalhe } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
+import { zipSync } from "fflate";
 
 // GET ?u=&arquivo=id → baixa o arquivo (quem vê a demanda)
 export async function GET(req, { params }) {
   const sp = new URL(req.url).searchParams;
   const u = await usuarioAtivo(sp.get("u"));
   if (!u || !(await detalhe(params.id, u))) return new Response("Sem acesso.", { status: 403 });
+  // v788 — sugestão #69: ?zip=1[&ids=1,2,3] baixa todos (ou os escolhidos) num .zip
+  if (sp.get("zip")) {
+    const ids = String(sp.get("ids") || "").split(",").map(Number).filter(Boolean);
+    const l = await prisma.tarefaArquivo.findMany({ where: { tarefaId: Number(params.id), ...(ids.length ? { id: { in: ids } } : {}) }, orderBy: { id: "asc" } });
+    if (!l.length) return new Response("Nenhum arquivo.", { status: 404 });
+    const usados = {}, arqs = {};
+    for (const x of l) {
+      let n = String(x.nome || `arquivo-${x.id}`).replace(/[\\/:*?"<>|]/g, "_");
+      if (usados[n.toLowerCase()]) { const i = n.lastIndexOf("."); n = i > 0 ? `${n.slice(0, i)} (${x.id})${n.slice(i)}` : `${n} (${x.id})`; }
+      usados[n.toLowerCase()] = 1;
+      arqs[n] = [new Uint8Array(Buffer.from(x.conteudo, "base64")), { level: 0 }];
+    }
+    const nomeZip = `demanda-${Number(params.id)}-arquivos.zip`;
+    return new Response(Buffer.from(zipSync(arqs)), { headers: { "Cache-Control": "no-store", "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${nomeZip}"` } });
+  }
   const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(sp.get("arquivo")) || 0, tarefaId: Number(params.id) } });
   if (!a) return new Response("Não encontrado.", { status: 404 });
   return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });

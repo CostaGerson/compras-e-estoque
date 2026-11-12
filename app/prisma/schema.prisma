@@ -2312,6 +2312,20 @@ model RotaDemanda {
   @@index([origem, origemRef])
 }
 
+// v788 — sugestão #70: anexos da demanda de rota (nota, romaneio, foto…)
+model RotaDemandaArquivo {
+  id            Int      @id @default(autoincrement())
+  demandaId     Int
+  nome          String
+  mime          String?
+  tamanho       Int      @default(0)
+  conteudo      String                         // base64
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([demandaId])
+}
+
 model RotaBloco {
   id            Int       @id @default(autoincrement())
   data          DateTime  @db.Date

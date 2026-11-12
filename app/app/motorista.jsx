@@ -211,6 +211,7 @@ export default function MotoristaApp({ user, onSair }) {
                     <div className="mt-2 flex items-center gap-2 text-base" style={{ color: C.sub }}><Clock size={18} /> {atual.horario}{atual.tempoLocal != null ? ` · ~${atual.tempoLocal} min no local` : ""}</div>
                     {atual.telefone && <a href={`tel:${tel(atual.telefone)}`} className="mt-2 flex items-center gap-2 text-base font-bold" style={{ color: C.green }}><Phone size={18} /> {atual.contato ? `${sc(atual.contato)} · ` : ""}{atual.telefone}</a>}
                     {atual.obs && <div className="mt-2 rounded-xl px-3 py-2 text-base" style={{ background: C.yellowSoft, color: C.yellow }}>📝 {atual.obs}</div>}
+                    {(atual.anexos || []).length > 0 && <div className="mt-2 flex flex-col gap-1">{atual.anexos.map((a) => <a key={a.id} href={`/api/rotas?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" className="text-base font-semibold truncate" style={{ color: C.blue }}>📎 {a.nome}</a>)}</div>}   {/* v788 — #70 */}
                   </div>
                   <div className="px-4 pb-4 space-y-3">
                     {!indo ? (

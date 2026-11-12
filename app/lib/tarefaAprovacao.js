@@ -26,6 +26,18 @@ export async function arquivosDaRodada(t) {
   return prisma.tarefaArquivo.findMany({ where: { tarefaId: t.id, id: { gt: desde }, ...so }, select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true }, orderBy: { id: "asc" } });
 }
 
+// v788 — histórico por versão: cada envio para aprovação é uma versão (V1, V2…) com os arquivos enviados e a decisão
+export async function versoesAprovacao(t) {
+  const origemId = t.aprovacao?.etapa === "APROVACAO" ? Number(t.aprovacao.origemId) || 0 : t.id;
+  if (!origemId) return [];
+  const l = await prisma.tarefa.findMany({ where: { aprovacao: { path: ["origemId"], equals: origemId } }, orderBy: { id: "asc" },
+    select: { id: true, createdAt: true, concluidaEm: true, concluidaPorNome: true, status: true, aprovacao: true,
+      arquivos: { select: { id: true, nome: true, mime: true, tamanho: true }, orderBy: { id: "asc" } } } });
+  return l.map((x, i) => ({ tarefaId: x.id, versao: Number(x.aprovacao?.rodada) || i + 1, enviadoEm: x.createdAt, enviadoPor: x.aprovacao?.executorNome || null,
+    decisao: x.aprovacao?.decisao || null, motivo: x.aprovacao?.motivo || null, decididoEm: x.aprovacao?.decisao ? x.concluidaEm : null,
+    decididoPor: x.aprovacao?.decisao ? x.concluidaPorNome : null, arquivos: x.arquivos }));
+}
+
 export async function enviarParaAprovacao(t, u) {
   const A = t.aprovacao || {};
   if (A.etapa !== "EXECUCAO") return { error: "Esta demanda não está aguardando envio para aprovação." };

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from "re
 import {
   Plus, X, Loader2, Play, Square, CheckCircle2, Repeat, Paperclip, Lock, Globe, ListChecks, Link2, Trash2, Pencil, Upload,
   ChevronLeft, ChevronRight, Search, Clock, RotateCcw, CalendarDays, Users2, Flag, FileText,
-  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown, Send,
+  Eye, EyeOff, Users, AlertTriangle, Vote, Landmark, History, ChevronDown, Send, Download,
 } from "lucide-react";
 import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
@@ -626,7 +626,32 @@ function AprovacaoPainel({ t, user, onMudou }) {
     setOcup(false);
   };
   const arqs = d?.arquivos || [];
-  const Lista = () => arqs.length ? <div className="flex flex-col gap-0.5 mt-1">{arqs.map((a) => <a key={a.id} href={urlArq(a)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs" style={{ color: C.blue }}><FileText size={12} style={{ color: C.accent }} /> {a.nome}</a>)}</div> : null;
+  // v788 — uma versão por envio (V1, V2…): arquivos enviados + decisão; a rodada em preparação aparece como a próxima versão
+  const versoes = d?.versoes || [];
+  const base = `/api/tarefas/${t.id}/aprovacao?u=${user.id}`;
+  const hora = (x) => (x ? new Date(x).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  const atual = A.etapa === "APROVACAO" ? Number(A.rodada) || 0 : 0;   // na demanda de aprovação, a versão que está sendo decidida
+  const Versoes = () => versoes.length ? <div className="mt-2 flex flex-col gap-2">
+    {versoes.map((v) => {
+      const cv = v.decisao === "APROVADO" ? C.green : v.decisao === "REPROVADO" ? C.red : C.accent;
+      const emDecisao = !v.decisao && v.versao === atual;
+      return <div key={v.tarefaId} className="rounded-lg p-2.5" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${cv}` }}>
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="font-bold text-sm" style={{ color: C.text }}>V{v.versao}</span>
+          <span className="px-1.5 py-0.5 rounded font-semibold text-[11px]" style={{ color: cv, background: v.decisao === "APROVADO" ? C.greenSoft : v.decisao === "REPROVADO" ? C.redSoft : C.accentSoft }}>
+            {v.decisao === "APROVADO" ? "Aprovada" : v.decisao === "REPROVADO" ? "Reprovada" : emDecisao ? "Em aprovação (esta)" : "Aguardando aprovação"}</span>
+          <span style={{ color: C.sub }}>enviada{v.enviadoPor ? ` por ${v.enviadoPor}` : ""} em {hora(v.enviadoEm)}</span>
+          {v.arquivos.length > 1 && <a href={`${base}&zip=1&versao=${v.tarefaId}`} className="ml-auto flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.blue }}><Download size={12} /> baixar V{v.versao} ({v.arquivos.length})</a>}
+        </div>
+        <div className="flex flex-col gap-0.5 mt-1">{v.arquivos.map((a) => <a key={a.id} href={`${base}&arquivo=${a.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs truncate" style={{ color: C.blue }}><FileText size={12} style={{ color: C.accent }} /> {a.nome}</a>)}</div>
+        {v.decisao && <div className="mt-1.5 text-xs p-1.5 rounded" style={{ background: v.decisao === "APROVADO" ? C.greenSoft : C.redSoft, color: cv }}>
+          <b>{v.decisao === "APROVADO" ? "Aprovada" : "Reprovada"}</b>{v.decididoPor ? ` por ${v.decididoPor}` : ""}{v.decididoEm ? ` em ${hora(v.decididoEm)}` : ""}{v.motivo ? <> — instruções: {v.motivo}</> : null}</div>}
+      </div>;
+    })}
+  </div> : null;
+  const Lista = () => arqs.length ? <div className="flex flex-col gap-0.5 mt-1">
+    {arqs.length > 1 && <a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&zip=1&ids=${arqs.map((a) => a.id).join(",")}`} className="self-start flex items-center gap-1 text-[11px] font-semibold mb-0.5" style={{ color: C.blue }}><Download size={12} /> baixar todos ({arqs.length})</a>}   {/* v788 — sugestão #69 */}
+    {arqs.map((a) => <a key={a.id} href={urlArq(a)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs" style={{ color: C.blue }}><FileText size={12} style={{ color: C.accent }} /> {a.nome}</a>)}</div> : null;
   const cor = A.etapa === "APROVADO" ? C.green : A.etapa === "APROVACAO" ? C.accent : "#9E47FF";
   return (
     <div className="mb-3 rounded-xl p-3 text-sm" style={{ border: `2px solid ${cor}`, background: A.etapa === "APROVADO" ? C.greenSoft : A.etapa === "APROVACAO" ? C.accentSoft : "#F5EEFF" }}>
@@ -634,16 +659,21 @@ function AprovacaoPainel({ t, user, onMudou }) {
         {A.etapa === "APROVACAO" ? "Aprovação" : "Demanda com aprovação"}{Number(A.rodada) > 1 ? <span className="font-normal text-xs" style={{ color: C.sub }}>· rodada {A.rodada}</span> : null}</div>
       {A.etapa === "EXECUCAO" && <>
         <div className="text-xs mt-1" style={{ color: C.sub }}>Quem aprova: <b>{A.solicitanteNome || "quem criou"}</b>. {meu ? "Anexe os arquivos de resposta (abaixo, em Arquivos) e envie." : `Aguardando ${t.responsavelNome} anexar e enviar.`}</div>
-        {A.motivo && <div className="mt-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>Reprovado — instruções: {A.motivo}</div>}
-        <div className="mt-2 text-xs" style={{ color: C.text }}>Arquivos de resposta desta rodada: <b>{arqs.length}</b></div>
-        <Lista />
+        <Versoes />
+        <div className="mt-2 rounded-lg p-2.5" style={{ background: "#fff", border: `1px dashed ${C.accent}` }}>
+          <div className="text-xs flex items-center gap-2"><span className="font-bold text-sm" style={{ color: C.text }}>V{Number(A.rodada) || 1}</span>
+            <span className="px-1.5 py-0.5 rounded font-semibold text-[11px]" style={{ color: C.accent, background: C.accentSoft }}>{Number(A.rodada) > 1 ? "Correção em preparação" : "Em preparação"}</span>
+            <span style={{ color: C.sub }}>{arqs.length} arquivo(s) de resposta</span></div>
+          {A.motivo && <div className="mt-1.5 p-1.5 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>Corrigir — instruções da V{(Number(A.rodada) || 2) - 1}: {A.motivo}</div>}
+          <Lista />
+        </div>
         {meu && aberta && <div className="flex justify-end mt-2"><Btn cor={C.accent} disabled={ocup || !arqs.length} onClick={() => acao("enviar")}>{ocup ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Enviar para aprovação</Btn></div>}
       </>}
-      {A.etapa === "AGUARDANDO" && <div className="text-xs mt-1" style={{ color: C.sub }}>Enviado para aprovação de <b>{A.solicitanteNome}</b> — aguardando a decisão.</div>}
-      {A.etapa === "APROVADO" && <div className="text-xs mt-1" style={{ color: C.green }}>Aprovado{t.retorno ? ` · ${t.retorno}` : ""}</div>}
+      {A.etapa === "AGUARDANDO" && <><div className="text-xs mt-1" style={{ color: C.sub }}>Enviado para aprovação de <b>{A.solicitanteNome}</b> — aguardando a decisão.</div><Versoes /></>}
+      {A.etapa === "APROVADO" && <><div className="text-xs mt-1" style={{ color: C.green }}>Aprovado{t.retorno ? ` · ${t.retorno}` : ""}</div><Versoes /></>}
       {A.etapa === "APROVACAO" && <>
-        <div className="text-xs mt-1" style={{ color: C.sub }}>{A.executorNome || t.criadoPorNome} enviou os arquivos abaixo. Aprove ou reprove com as instruções.</div>
-        <Lista />
+        <div className="text-xs mt-1" style={{ color: C.sub }}>{A.executorNome || t.criadoPorNome} enviou a V{Number(A.rodada) || 1}. Aprove ou reprove com as instruções.</div>
+        {versoes.length ? <Versoes /> : <Lista />}
         {A.decisao && <div className="mt-2 text-xs font-semibold" style={{ color: A.decisao === "APROVADO" ? C.green : C.red }}>{A.decisao === "APROVADO" ? "Aprovado" : `Reprovado: ${A.motivo || ""}`}</div>}
         {meu && aberta && <>
           <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Instruções para o arte finalista (obrigatório para reprovar)" className="w-full mt-2 px-2 py-1.5 rounded outline-none text-sm" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
@@ -739,8 +769,9 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
           style={{ outline: sobreDet ? `2px dashed ${C.accent}` : "none", background: sobreDet ? C.accentSoft : "transparent", padding: sobreDet ? 6 : 0 }}>
           <div className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos ({t.arquivos.length}){(meu || t.podeEditar || t.podeAnexar) && <span className="font-normal">· arraste arquivos aqui</span>}
             {(meu || t.podeEditar || t.podeAnexar) && <label className="text-[11px] font-semibold cursor-pointer" style={{ color: C.accent }}>+ anexar<input type="file" multiple className="hidden" onChange={(e) => { anexar([...e.target.files]); e.target.value = ""; }} /></label>}
+            {t.arquivos.length > 1 && <a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&zip=1`} className="ml-auto flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.blue }} title="Baixa todos os arquivos da demanda num .zip"><Download size={12} /> baixar todos</a>}   {/* v788 — sugestão #69 */}
           </div>
-          {t.arquivos.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} style={{ color: C.accent }} /><a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" draggable onDragStart={(e) => arrastarArquivo(e, a, `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`)} title="Clique para abrir ou arraste para a área de trabalho" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a><span style={{ color: C.sub }}>{a.criadoPorNome}</span><button onClick={() => tirarArq(a)} style={{ color: C.sub }}><Trash2 size={12} /></button></div>)}
+          {t.arquivos.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} style={{ color: C.accent }} /><a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" draggable onDragStart={(e) => arrastarArquivo(e, a, `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`)} title="Clique para abrir ou arraste para a área de trabalho" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a>{t.aprovacao && !t.layout && t.aprovacao.etapa !== "APROVACAO" && <span className="text-[10px] px-1 rounded" style={{ background: C.panel2, color: C.sub }}>{a.criadoPorNome === t.responsavelNome ? "resposta" : "briefing"}</span>}<span style={{ color: C.sub }}>{a.criadoPorNome}</span><button onClick={() => tirarArq(a)} style={{ color: C.sub }}><Trash2 size={12} /></button></div>)}
         </div>
         {t.status === "CONCLUIDA" && <div className="rounded-lg p-3 text-sm mb-2" style={{ background: C.greenSoft }}><div className="text-[11px] font-semibold mb-1" style={{ color: C.green }}>CONCLUÍDA por {t.concluidaPorNome} em {dBR(t.concluidaEm)}</div>{t.retorno && <div className="whitespace-pre-wrap">{t.retorno}</div>}</div>}
         {t.sessoes.length > 0 && <details className="text-xs" style={{ color: C.sub }}><summary className="cursor-pointer">Histórico de trabalho</summary>

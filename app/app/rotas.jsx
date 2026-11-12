@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass, Paperclip, Trash2 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -311,7 +311,7 @@ export default function Rotas({ user, nova }) {
 
       {form && <DemandaForm user={user} inicial={form} motoristas={d?.motoristas || []} onClose={() => setForm(null)} onOk={(c) => { setForm(null); if (c?.blocoId) abrirAlteracao(c); carregar(); }} />}
       {montar && <MontarRota user={user} podeLiberar={!!d?.podeLiberar} onRecarregar={carregar} ids={montar.ids} bloco={montar.bloco} canceladas={montar.canceladas} demandas={d?.demandas || []} motoristas={d?.motoristas || []} dia={dia} onClose={() => setMontar(null)} onOk={() => { setMontar(null); setMarc(new Set()); carregar(); }} />}
-      {escolher && <EscolherDemandas dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
+      {escolher && <EscolherDemandas user={user} onConfirmou={carregar} dia={dia} hoje={H} lista={doDia.filter((x) => x.status === "ABERTA" && !x.frete)} onClose={() => setEscolher(false)} onOk={(ids) => { setEscolher(false); setMontar({ ids }); }} />}
       {verRota && (() => {
         const b = (d?.blocos || []).find((x) => x.id === verRota);
         if (!b) return null;
@@ -374,7 +374,7 @@ function MiniDemanda({ x, grande, onClick, onRota, onConcluir, arrastar }) {
   const feita = x.status === "CONCLUIDA";
   // v507 — igual ao calendário: no hover aparece o check à esquerda e o texto desliza
   const btn = (
-    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}${x.pendente ? ` · PENDENTE${x.pendencia ? `: ${x.pendencia}` : ""}` : ""}${arrastar ? " · arraste para outro dia" : ""}`}
+    <div role="button" tabIndex={0} onClick={onClick} title={`${OBJ[x.objetivo]?.[0] || ""} · ${x.horario}${x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}${x.pendente ? ` · ESTIMADA (confirmar)${x.pendencia ? `: ${x.pendencia}` : ""}` : ""}${arrastar ? " · arraste para outro dia" : ""}`}
       draggable={!!arrastar} onDragStart={arrastar ? (e) => { e.stopPropagation(); e.dataTransfer.setData("text/rota-demanda", String(x.id)); e.dataTransfer.effectAllowed = "move"; } : undefined}
       className="group relative flex-1 text-left rounded-md px-1.5 py-0.5 block min-w-0 overflow-hidden cursor-pointer" style={{ background: c.bg, border: `${c.bw}px ${c.bs || "solid"} ${c.bd}`, opacity: feita ? 0.55 : naRota ? 0.6 : 1 }}>
       {onConcluir && (
@@ -599,6 +599,10 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const [aberto, setAberto] = useState(false);
   const [salv, setSalv] = useState(false);
   const [erro, setErro] = useState("");
+  const [novosArq, setNovosArq] = useState([]);   // v788 — #70: anexos escolhidos antes de salvar a demanda nova
+  async function confirmarDem() {
+    try { await postRotas(user, { acao: "confirmar", id: inicial.id }); onOk(); alerta("Demanda confirmada: já pode entrar numa rota."); } catch (e) { setErro(e.message); }
+  }
   useEffect(() => { if (!_destinos) api(urlRotas(user, "destinos=1")).then((l) => { _destinos = l; setLista(l); }).catch(() => {}); }, []);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   // v438 — busca também pela razão social/CNPJ; quem começa com o texto vem primeiro
@@ -640,6 +644,7 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
     try {
       const r = await postRotas(user, { acao: "demanda", demanda: { ...f, destinoNome: f.destinoNome || q } });
       _destinos = null;   // v430 — destinatário novo entra na lista
+      for (const a of novosArq) { try { await postRotas(user, { acao: "anexar", id: r.demanda?.id, ...a }); } catch (e) { await alerta(`${a.nome}: ${e.message}`); } }   // v788 — #70
       if (r.semMapa) await alerta("Demanda salva, mas o endereço não foi encontrado no mapa. Confira rua, número, cidade e UF para ela aparecer no mapa e entrar no cálculo da rota.");
       // v467 — mesmo destinatário, dia e horário: oferece juntar numa demanda só
       if (r.consolidar?.length) {
@@ -719,10 +724,10 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
 
           <div className="col-span-2 flex items-center gap-4 pt-1">
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.urgente ? C.red : C.sub }}><input type="checkbox" checked={!!f.urgente} onChange={(e) => set("urgente", e.target.checked)} /> Urgente</label>
-            <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.pendente ? "#475467" : C.sub }} title="Só registro: a parada ainda depende de algo e não está pronta para despachar"><input type="checkbox" checked={!!f.pendente} onChange={(e) => set("pendente", e.target.checked)} /> Com pendência</label>
+            <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.pendente ? "#475467" : C.sub }} title="Demanda estimada: só entra numa rota depois de confirmada (botão Confirmar)"><input type="checkbox" checked={!!f.pendente} onChange={(e) => set("pendente", e.target.checked)} /> Estimada (confirmar depois)</label>
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: f.frete ? C.blue : C.sub }}><input type="checkbox" checked={!!f.frete} onChange={(e) => set("frete", e.target.checked)} /> Frete (contratado à parte)</label>
           </div>
-          {f.pendente && <L t="Pendência (o que falta para ficar pronta)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v586 */}
+          {f.pendente && <L t="O que falta confirmar (opcional)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v586 */}
           {f.frete ? (
             <>
               <L t="Tipo de frete" span><Seg v={f.freteTipo} opts={[["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"]]} on={(v) => set("freteTipo", v)} /></L>
@@ -746,9 +751,11 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           <L t="Observação" span><textarea value={f.obs || ""} onChange={(e) => set("obs", e.target.value)} rows={2} className={inp} style={inpS} /></L>
           {erro && <div className="col-span-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
         </fieldset>
+        {!user?.token && <AnexosDemanda user={user} id={inicial.id} iniciais={inicial.anexos || []} novos={novosArq} setNovos={setNovosArq} />}   {/* v788 — #70 */}
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
           {inicial.status === "CONCLUIDA" && <button onClick={reativar} className="text-xs flex items-center gap-1 font-semibold" style={{ color: C.accent }}><Undo2 size={13} /> Reativar demanda</button>}
           {!novo && inicial.status !== "CONCLUIDA" && <button onClick={cancelar} className="text-xs flex items-center gap-1" style={{ color: C.red }}><X size={13} /> Cancelar demanda</button>}
+          {!novo && inicial.pendente && !trava && <button onClick={confirmarDem} className="text-xs flex items-center gap-1 font-semibold px-2.5 py-1.5 rounded-md" style={{ background: C.green, color: "#fff" }} title="A demanda estimada passa a poder entrar numa rota"><CheckCircle2 size={13} /> Confirmar demanda</button>}
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button>
           {!trava && <button onClick={salvar} disabled={salv} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{salv && <Loader2 size={14} className="animate-spin" />} Salvar</button>}
@@ -758,9 +765,50 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   );
 }
 
+// v788 — #70: anexos da demanda (na demanda nova, sobem ao salvar)
+const lerB64 = (f) => new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = err; r.readAsDataURL(f); });
+function AnexosDemanda({ user, id, iniciais, novos, setNovos }) {
+  const [l, setL] = useState(iniciais);
+  const [ocup, setOcup] = useState(false);
+  const [sobre, setSobre] = useState(false);
+  const subir = async (fs) => {
+    setOcup(true);
+    for (const f of [...fs]) {
+      if (f.size > 15 * 1024 * 1024) { await alerta(`${f.name}: maior que 15 MB.`); continue; }
+      const a = { nome: f.name, mime: f.type || null, conteudo: await lerB64(f) };
+      if (!id) { setNovos((x) => [...x, a]); continue; }
+      try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "anexar", id, ...a }); setL((x) => [...x, r.anexo]); } catch (e) { await alerta(e.message); }
+    }
+    setOcup(false);
+  };
+  const tirar = async (a, i) => {
+    if (!id) return setNovos((x) => x.filter((_, j) => j !== i));
+    if (!(await confirmar(`Tirar o anexo ${a.nome}?`))) return;
+    try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "tirarAnexo", anexoId: a.id }); setL((x) => x.filter((y) => y.id !== a.id)); } catch (e) { alerta(e.message); }
+  };
+  const todos = id ? l : novos;
+  return (
+    <div className="mx-5 mb-3 rounded-lg p-2.5" onDragOver={(e) => { e.preventDefault(); setSobre(true); }} onDragLeave={() => setSobre(false)} onDrop={(e) => { e.preventDefault(); setSobre(false); subir(e.dataTransfer.files); }}
+      style={{ border: `1px ${sobre ? "dashed" : "solid"} ${sobre ? C.accent : C.line}`, background: sobre ? C.accentSoft || "#FFF1E8" : C.panel2 }}>
+      <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: C.sub }}><Paperclip size={13} /> Anexos ({todos.length}) <span className="font-normal">· arraste aqui</span>
+        <label className="ml-auto cursor-pointer" style={{ color: C.accent }}>{ocup ? <Loader2 size={13} className="animate-spin inline" /> : "+ anexar"}<input type="file" multiple className="hidden" onChange={(e) => { subir(e.target.files); e.target.value = ""; }} /></label></div>
+      {todos.map((a, i) => <div key={a.id || `n${i}`} className="flex items-center gap-2 text-xs mt-1">
+        {a.id ? <a href={`/api/rotas?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a> : <span className="flex-1 truncate" style={{ color: C.text }}>{a.nome} <span style={{ color: C.sub }}>(sobe ao salvar)</span></span>}
+        {a.criadoPorNome && <span style={{ color: C.sub }}>{sc(a.criadoPorNome)}</span>}
+        <button type="button" onClick={() => tirar(a, i)} style={{ color: C.sub }}><Trash2 size={12} /></button>
+      </div>)}
+    </div>
+  );
+}
+
 // v426 — escolher as demandas do dia que entram na rota
-function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
-  const [m, setM] = useState(new Set(lista.map((x) => x.id)));
+function EscolherDemandas({ user, onConfirmou, dia, hoje, lista: lista0, onClose, onOk }) {
+  // v788 — #70: demanda estimada não entra na rota até ser confirmada (botão Confirmar na linha)
+  const [conf, setConf] = useState(new Set());
+  const lista = lista0.map((x) => (conf.has(x.id) ? { ...x, pendente: false, pendencia: null } : x));
+  const livres = lista.filter((x) => !x.pendente);
+  const [m, setM] = useState(new Set(lista0.filter((x) => !x.pendente).map((x) => x.id)));
+  const confirmarLinha = async (x) => { try { await api("/api/rotas", "POST", { usuarioId: user.id, acao: "confirmar", id: x.id }); setConf((s0) => new Set([...s0, x.id])); setM((s0) => new Set([...s0, x.id])); onConfirmou?.(); } catch (e) { alerta(e.message); } };
   const tog = (id) => setM((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
@@ -774,21 +822,22 @@ function EscolherDemandas({ dia, hoje, lista, onClose, onOk }) {
           <div className="py-1">
             {/* v569 — marcar / desmarcar todas */}
             <label className="flex items-center gap-3 px-5 py-2 cursor-pointer text-sm font-semibold sticky top-0 z-10" style={{ background: C.panel2, color: C.navy }}>
-              <input type="checkbox" checked={m.size === lista.length} ref={(el) => { if (el) el.indeterminate = m.size > 0 && m.size < lista.length; }}
-                onChange={() => setM(m.size === lista.length ? new Set() : new Set(lista.map((x) => x.id)))} />
-              {m.size === lista.length ? "Desmarcar todas" : "Marcar todas"} <span className="font-normal text-xs" style={{ color: C.sub }}>· {m.size} de {lista.length} selecionada(s)</span>
+              <input type="checkbox" checked={m.size === livres.length} ref={(el) => { if (el) el.indeterminate = m.size > 0 && m.size < livres.length; }}
+                onChange={() => setM(m.size === livres.length ? new Set() : new Set(livres.map((x) => x.id)))} />
+              {m.size === livres.length ? "Desmarcar todas" : "Marcar todas"} <span className="font-normal text-xs" style={{ color: C.sub }}>· {m.size} de {livres.length} selecionada(s){lista.length > livres.length ? ` · ${lista.length - livres.length} estimada(s) a confirmar` : ""}</span>
             </label>
             {ordenar(lista).map((x) => {
               const Ico = OBJ[x.objetivo]?.[1] || MapPin;
               return (
-                <label key={x.id} className="flex items-start gap-3 px-5 py-2 cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente ? C.redSoft : undefined }}>
-                  <input type="checkbox" checked={m.has(x.id)} onChange={() => tog(x.id)} className="mt-1" />
+                <label key={x.id} className="flex items-start gap-3 px-5 py-2 cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, background: x.urgente ? C.redSoft : undefined, opacity: x.pendente ? 0.85 : 1 }}>
+                  <input type="checkbox" checked={m.has(x.id)} disabled={x.pendente} title={x.pendente ? "Confirme a demanda antes de pôr na rota" : ""} onChange={() => tog(x.id)} className="mt-1" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold flex items-center gap-1" style={{ color: x.urgente ? C.red : C.text }}><Ico size={13} /> {OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}{x.urgente ? " · URGENTE" : ""}</div>
-                    {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Pendente{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
+                    {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Estimada · confirmar{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
                     <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                     <div className="text-[11px]" style={{ color: C.sub }}>{sc(x.horario)}{x.motoristaNome ? ` · ${sc(x.motoristaNome)}` : ""}{x.lat == null ? " · sem localização" : ""}</div>
                   </div>
+                  {x.pendente && <button type="button" onClick={(e) => { e.preventDefault(); confirmarLinha(x); }} className="shrink-0 self-center text-xs font-semibold px-2.5 py-1 rounded-md flex items-center gap-1" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={12} /> Confirmar</button>}
                 </label>
               );
             })}
@@ -945,7 +994,7 @@ function MontarRota({ user, podeLiberar, onRecarregar, ids, bloco, canceladas, d
                     <span className="rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ width: 22, height: 22, background: C.accent, color: "#fff" }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate" style={{ color: x.urgente ? C.red : C.text }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</div>
-                      {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Pendente{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
+                      {x.pendente && <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "#475467" }}><Hourglass size={11} /> Estimada · confirmar{x.pendencia ? `: ${x.pendencia}` : ""}</div>}
                       <div className="text-[11px] truncate" style={{ color: C.sub }}>{x.endereco}</div>
                       <div className="text-[11px]" style={{ color: e?.atrasoMin ? C.red : C.sub }}>{sc(x.horario)}{e ? ` · chegada prevista ${e.chegada} · sai ${e.saida}${e.atrasoMin ? ` · ${e.atrasoMin} min fora do horário` : ""}` : ""}{x.lat == null ? " · sem localização (estimado)" : ""}</div>
                     </div>

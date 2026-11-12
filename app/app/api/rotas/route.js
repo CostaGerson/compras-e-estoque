@@ -24,6 +24,12 @@ export async function GET(req) {
   const u = await quem(q.get("u"));
   if (!u) return negado();
   if (q.get("destinos")) return Response.json(await destinos());
+  if (q.get("anexo")) {   // v788 — #70
+    const { arquivoDemanda } = await import("@/lib/rotaAnexos");
+    const a = await arquivoDemanda(q.get("anexo"));
+    if (!a) return new Response("Não encontrado.", { status: 404 });
+    return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `${q.get("baixar") ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(a.nome)}` } });
+  }
   if (q.get("minhas")) return Response.json({ ...(await minhasRotas(u.pessoaId)), pessoaId: u.pessoaId, nome: u.nome });   // v452 — app do motorista
   // v778 — #67/#68: km atual, checklist de manutenção e abastecimentos do veículo
   if (q.get("ultimoKm")) { const { ultimoKm } = await import("@/lib/rotas"); return Response.json({ km: await ultimoKm(q.get("ultimoKm")) }); }
@@ -46,6 +52,9 @@ export async function POST(req) {
   switch (b.acao) {
     case "demanda": return r(await salvarDemanda(b.demanda || {}, u));
     case "cancelar": return r(await cancelarDemanda(b.id, u));
+    case "anexar": { const { anexarDemanda } = await import("@/lib/rotaAnexos"); return r(await anexarDemanda(b, u)); }   // v788 — #70
+    case "tirarAnexo": { const { tirarAnexoDemanda } = await import("@/lib/rotaAnexos"); return r(await tirarAnexoDemanda(b.anexoId)); }
+    case "confirmar": { const { confirmarDemanda } = await import("@/lib/rotaAnexos"); return r(await confirmarDemanda(b.id, u)); }
     case "destinatario": return r(await salvarDestinatario(b.destinatario || {}, u));   // v430
     case "excluirDestinatario": return r(await excluirDestinatario(b.id));
     case "fabrica": if (!podeMontar(u)) return negado(); return r(await salvarFabrica(b.endereco, b.geo));

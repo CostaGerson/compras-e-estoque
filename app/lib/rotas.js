@@ -327,8 +327,10 @@ export async function painel({ de, ate }) {
   const cot = ds.filter((d) => d.admDemandaId).map((d) => d.admDemandaId);
   const adms = cot.length ? await prisma.admDemanda.findMany({ where: { id: { in: cot } }, select: { id: true, status: true, cotacao: true } }) : [];
   const porAdm = Object.fromEntries(adms.map((a) => [a.id, { status: a.status, valor: a.cotacao?.valor ?? null, prazo: a.cotacao?.prazo ?? null, transportadoras: a.cotacao?.transportadoras ?? null, temAnexo: !!a.cotacao?.anexo }]));
+  const { anexosDe } = await import("@/lib/rotaAnexos");   // v788 — #70
+  const anx = await anexosDe(ds.map((d) => d.id)).catch(() => ({}));
   return {
-    demandas: ds.map((d) => ({ ...demandaOut(d), cotacao: d.admDemandaId ? porAdm[d.admDemandaId] || null : null, rotaNum: d.blocoId ? numBl[d.blocoId] ?? null : null })),
+    demandas: ds.map((d) => ({ ...demandaOut(d), anexos: anx[d.id] || [], cotacao: d.admDemandaId ? porAdm[d.admDemandaId] || null : null, rotaNum: d.blocoId ? numBl[d.blocoId] ?? null : null })),
     blocos: bs.map((b) => ({ ...b, data: iso(b.data), kmRodados: kmDaRota(b, ds.filter((d) => d.blocoId === b.id)) })), fabrica: fab, motoristas: mots,
   };
 }
@@ -383,6 +385,7 @@ export async function salvarDemanda(b, u) {
   if (freteTipo === "FRETEBRAS" && (!vMax || !vol)) return { error: "Fretebras: informe o valor máximo e o número de volumes." };
   const ant = b.id ? await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) } }) : null;
   if (ant && ["EM_EXECUCAO", "CONCLUIDA"].includes(ant.status)) return { error: "Demanda em rota ou concluída não pode ser alterada." };
+  if (ant?.blocoId && !ant.pendente && b.pendente) return { error: "A demanda já está numa rota: tire-a da rota antes de marcar como estimada." };   // v788 — #70
   let geo = ant && ant.endereco === endereco ? { lat: ant.lat, lng: ant.lng, municipio: ant.municipio, uf: ant.uf } : null;
   // v427 — endereço escolhido no autocomplete do Google já vem com as coordenadas
   if (b.geo && b.geo.endereco === endereco && b.geo.lat != null) geo = { lat: Number(b.geo.lat), lng: Number(b.geo.lng), municipio: b.geo.municipio || null, uf: b.geo.uf || null };
@@ -657,6 +660,8 @@ export async function salvarBloco(b, u) {
   if (!mot) return { error: "Escolha o motorista." };
   const ds = await prisma.rotaDemanda.findMany({ where: { id: { in: ids } } });
   if (ds.some((d) => d.frete)) return { error: "Demanda de frete é contratada à parte e não entra na rota." };
+  const est = ds.filter((d) => d.pendente && d.blocoId !== Number(b.id || 0));   // v788 — #70: estimada só entra depois de confirmada
+  if (est.length) return { error: `Demanda estimada precisa ser confirmada antes de entrar na rota: ${est.map((d) => d.destinoNome).join(", ")}.` };
   if (ds.some((d) => ["EM_EXECUCAO", "CONCLUIDA", "CANCELADA"].includes(d.status) || (d.blocoId && d.blocoId !== Number(b.id || 0)))) return { error: "Alguma demanda já está em outra rota ou foi concluída." };
   const porId = Object.fromEntries(ds.map((d) => [d.id, d]));
   const tl = tempos(b.tempos);   // v439 — tempo previsto no local
@@ -812,9 +817,10 @@ export async function minhasRotas(pessoaId) {
     orderBy: [{ data: "asc" }, { id: "asc" }] });
   const ds = bs.length ? await prisma.rotaDemanda.findMany({ where: { blocoId: { in: bs.map((b) => b.id) }, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } }) : [];
   const ordemSt = { EM_EXECUCAO: 0, MONTAGEM: 1, CONCLUIDO: 2 };
+  const anx = await (await import("@/lib/rotaAnexos")).anexosDe(ds.map((d) => d.id)).catch(() => ({}));   // v788 — #70
   return {
     fabrica: await fabrica(),
-    rotas: bs.sort((a, b) => (ordemSt[a.status] - ordemSt[b.status]) || (a.data - b.data)).map((b) => ({ ...b, data: iso(b.data), paradas: ds.filter((d) => d.blocoId === b.id).map(demandaOut) })),
+    rotas: bs.sort((a, b) => (ordemSt[a.status] - ordemSt[b.status]) || (a.data - b.data)).map((b) => ({ ...b, data: iso(b.data), paradas: ds.filter((d) => d.blocoId === b.id).map((d) => ({ ...demandaOut(d), anexos: anx[d.id] || [] })) })),
   };
 }
 // v452 — o motorista inicia uma perna: até a parada (id) ou a volta à fábrica (volta)

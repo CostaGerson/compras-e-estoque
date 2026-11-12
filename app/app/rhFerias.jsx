@@ -35,7 +35,8 @@ export default function PlanoFerias({ user, onMudou }) {
   const ini = `${ano}-01-01`, nDias = diasEntre(ini, `${ano}-12-31`);
   const pos = (s) => Math.max(0, Math.min(100, ((diasEntre(ini, s) - 1) / nDias) * 100));
   const H = hojeISO();
-  const grupos = d ? Object.entries(d.pessoas.reduce((a, p) => { (a[p.depto] ||= []).push(p); return a; }, {})).sort((a, b) => String(a[0]).localeCompare(String(b[0]))) : [];
+  const grupos = d ? Object.entries(d.pessoas.reduce((a, p) => { (a[p.depto] ||= []).push(p); return a; }, {})).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    .map(([k, ps]) => [k, [...ps].sort((x, y) => String(x.nome || "").localeCompare(String(y.nome || ""), "pt-BR"))]) : [];   // v788 — sugestão #54: nomes em ordem alfabética
   const temSobre = (depto, a, b) => (d?.sobreposicoes || []).some((s) => s.depto === depto && s.inicio <= b && s.fim >= a);
 
   return (
