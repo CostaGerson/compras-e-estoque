@@ -44,7 +44,7 @@ const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.i
 //   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
 const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
-const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (t.criadoPorId !== t.responsavelId && (await lideradosDe(u.id)).includes(t.responsavelId))
+const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
 
@@ -129,7 +129,7 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const lid = await lideradosDe(u.id);   // v782 — gestor: tarefas dos liderados (Designadas)
   if (lid.length && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { responsavelId: { in: lid } }];
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || (lid.includes(t.responsavelId) && t.criadoPorId !== t.responsavelId));   // as que o liderado criou para si ficam privadas
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId));   // v791 — inclusive as que o liderado cria para si
   return enriquecer(l, u);
 }
 
@@ -479,6 +479,7 @@ export async function statusEquipe(u) {
   const pessoas = (m?.dados?.pessoal || []).map((p) => ({ ...p, nomeCompleto: F[p.id] || null }));
   const deFerias = new Set(ferias.map((f) => f.pessoaId));
   const exp = noExpediente(a);
+  const lid = await lideradosDe(u.id);   // v791 — gestor vê no que o liderado está trabalhando
   return users.map((x) => {
     const s = sessoes.find((s) => s.usuarioId === x.id);
     const p = casarPessoa(x, pessoas);
@@ -486,7 +487,7 @@ export async function statusEquipe(u) {
     if (p && deFerias.has(p.id)) { status = "INATIVO"; detalhe = "de férias"; }
     else if (s) {
       status = "OCUPADO";
-      const vis = podeVer(s.tarefa, u);   // v733
+      const vis = podeVer(s.tarefa, u) || lid.includes(s.tarefa.responsavelId);   // v733 · v791
       detalhe = { tarefaId: vis ? s.tarefa.id : null, titulo: vis ? s.tarefa.titulo : "demanda privada", setor: s.tarefa.setor, desde: s.inicio };
     } else if (x.statusManual === "REUNIAO") { status = "REUNIAO"; detalhe = { desde: x.statusDesde }; }
     else if (!exp) { status = "INATIVO"; detalhe = "fora do expediente"; }
