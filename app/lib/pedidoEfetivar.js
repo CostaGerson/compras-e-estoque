@@ -1,6 +1,7 @@
 // v595 — lançamento de pedido sem o KM: salvar, efetivar (nº automático, pedido de venda, entrada e parcelas no contas a receber,
 // FPP → Compras) e faturar (NF + previsão de entrega → restante das parcelas)
 import { prisma } from "@/lib/prisma";
+import { getPcp } from "@/lib/cronograma";
 import { chaveEntrada } from "@/lib/pedidos";
 import { itensDoPedido, demandaDoItem } from "@/lib/compras";
 import { parametrosDoDetalhe, rtfTexto } from "@/lib/kmSync";
@@ -224,6 +225,8 @@ export async function efetivarPedido(id, quem) {
     ? await prisma.pedidoVenda.update({ where: { id: atual.id }, data: dados, select: { id: true } })
     : await prisma.pedidoVenda.create({ data: { numero, ...dados, status: "ANDAMENTO", criadoPorNome: quem }, select: { id: true } });
   await prisma.pp.update({ where: { id: pp.id }, data: { status: pp.status === "FATURADO" ? "FATURADO" : "LANCADO", efetivadoEm: new Date(), efetivadoPorNome: quem, valorTotal: total } });
+  // v792d — avisa o PCP na hora: ele relê este pedido (grade, detalhes, anexos) sem esperar a leitura periódica
+  setTimeout(() => { getPcp(`/api/ext/erp-aviso?pedido=${encodeURIComponent(numero)}`).catch(() => {}); }, 2000);
 
   // contas a receber: entrada (na data informada) e parcelas contadas da emissão do pedido. NF/entrega: no faturamento
   const lancadas = [];
