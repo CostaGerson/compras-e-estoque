@@ -100,7 +100,9 @@ export async function gestaoProducao() {
   // v556 — casamento automático desligado: só remove (uma vez) os que foram feitos sozinhos
   try { await (await import("@/lib/faturamentoCasamento")).removerCasamentosAutomaticos(); } catch (e) { console.log("producao/remover-auto:", e.message); }
   const hoje = hojeBR();
-  const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", interno: false }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
+  // v790 — pedido do portal (Loja Way) aparece mesmo marcado como interno: é produção para cliente
+  const doPortal = (await prisma.pp.findMany({ where: { portalClienteId: { not: null }, numero: { not: null } }, select: { numero: true } }).catch(() => [])).map((x) => x.numero);
+  const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", OR: [{ interno: false }, ...(doPortal.length ? [{ numero: { in: doPortal } }] : [])] }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
