@@ -89,7 +89,7 @@ export async function layoutsPendentes() {
   // v745 — também o pedido lançado no sistema com item sem layout, mesmo sem tarefa (ex.: lançado antes do fluxo de layout)
   const sem = await prisma.$queryRawUnsafe(`SELECT p."numero" AS numero, COUNT(*)::int AS n FROM "PpItem" i JOIN "Pp" p ON p."id" = i."ppId"
     WHERE p."numero" IS NOT NULL AND p."efetivadoEm" IS NOT NULL AND p."kmAssumidoEm" IS NULL AND COALESCE(p."tipoPedido", '') <> 'SERVIÇO'
-      AND COALESCE(i."tipoPecaNome", '') <> 'SERVIÇO' AND COALESCE(i."fotoBase64", '') = '' GROUP BY p."numero"`).catch((e) => { console.log("producao/semLayout:", e.message); return []; });
+      AND COALESCE(i."tipoPecaNome", '') <> 'SERVIÇO' AND COALESCE(i."fotoBase64", '') = '' AND NOT i."dispensaDesign" GROUP BY p."numero"`).catch((e) => { console.log("producao/semLayout:", e.message); return []; });
   for (const r of sem) if (!m[r.numero]) m[r.numero] = { etapa: "SEM_LAYOUT", com: null, desde: null, tarefaId: null, texto: `${r.n} item(ns) sem layout` };
   return m;
 }

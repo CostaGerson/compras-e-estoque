@@ -32,9 +32,9 @@ const itensDoPp = (pp) => (pp.itens || []).map((it, idx) => ({ idx, it })).filte
 
 // chamada ao efetivar/salvar o pedido: cria a CRIAÇÃO DE LAYOUT se houver item sem layout e ainda não houver uma em aberto
 export async function gerarCriacaoLayout(ppId, quem) {
-  const pp = await prisma.pp.findUnique({ where: { id: Number(ppId) }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, tipoPecaNome: true, descricao: true, codigo: true, fotoBase64: true } } } });
+  const pp = await prisma.pp.findUnique({ where: { id: Number(ppId) }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, tipoPecaNome: true, descricao: true, codigo: true, fotoBase64: true, dispensaDesign: true } } } });
   if (!pp || !pp.numero || pp.tipoPedido === "SERVIÇO") return null;
-  const falta = itensDoPp(pp).filter(({ it }) => !it.fotoBase64);
+  const falta = itensDoPp(pp).filter(({ it }) => !it.fotoBase64 && !it.dispensaDesign);   // v796
   if (!falta.length) return null;
   const abertas = await prisma.tarefa.findMany({ where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] }, modelo: false, OR: [{ titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, { titulo: { startsWith: "APROVAÇÃO DE LAYOUT" } }] }, select: { id: true, layout: true } });
   if (abertas.some((t) => Number(t.layout?.ppId) === pp.id)) return null;   // já tem criação ou aprovação em curso

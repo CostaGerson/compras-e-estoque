@@ -61,6 +61,7 @@ export async function salvarPp(id, b, quem) {
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
     ...(it.desconto && num(it.desconto.valor) > 0 && num(it.desconto.base) > 0 ? { desconto: { tipo: it.desconto.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(num(it.desconto.valor)), base: r2(num(it.desconto.base)) } } : {}),   // v750 — valorUnitario já vem com o desconto
+    dispensaDesign: !servico && !!it.dispensaDesign,   // v796
     itemPadraoId: Number(it.itemPadraoId) || null, valorVenda: num(it.valorVenda) > 0 ? r2(num(it.valorVenda)) : null,   // v711
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
@@ -86,6 +87,11 @@ export async function salvarPp(id, b, quem) {
       await prisma.ppAnexo.create({ data: { ppId: pp.id, nome: String(a.nome || "anexo").slice(0, 200), tipo: a.tipo || null, categoria: a.categoria || "OUTRO",
         tamanho: Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: quem || null } });
     }
+  }
+  // v796 — todos os itens sem layout com design dispensado: a criação de layout em aberto deste pedido é cancelada
+  if (!servico && itens.length && itensData.every((x) => x.fotoBase64 || x.dispensaDesign || x.tipoPecaNome === "SERVIÇO")) {
+    await prisma.tarefa.updateMany({ where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] }, modelo: false, titulo: { startsWith: "CRIAÇÃO DE LAYOUT" }, layout: { path: ["ppId"], equals: pp.id } },
+      data: { status: "CANCELADA" } }).catch((e) => console.log("dispensaDesign:", e.message));
   }
   return pp.id;
 }

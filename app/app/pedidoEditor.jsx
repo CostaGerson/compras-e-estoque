@@ -391,6 +391,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
+          dispensaDesign: !!it.dispensaDesign,   // v796
           dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null,   // v699
           itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "",   // v711 — portal: mantém ao salvar aqui
           desconto: it.desconto && it.desconto.base ? { tipo: it.desconto.tipo, valor: String(it.desconto.valor).replace(".", ","), base: String(it.desconto.base).replace(".", ",") } : null };   // v750
@@ -613,7 +614,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       if (!it.tipoPecaNome) av.push(`Item ${i + 1} (${doc.pecas[i].categoria}): tipo de peça não reconhecido — escolha o tipo.`);
       const fora = it.grade.filter((g) => num(g.qtd) > 0 && !tamanhos.includes(g.tam) && !/^\d+$/.test(g.tam) && !/^BL /.test(g.tam)).map((g) => g.tam);
       if (fora.length) av.push(`Item ${i + 1}: tamanhos fora da grade padrão (${fora.join(", ")}) — entraram no fim da grade.`);
-      if (!it.fotoBase64) av.push(`Item ${i + 1}: sem layout — ao efetivar, vira tarefa para o arte-finalista.`);
+      if (!it.fotoBase64 && !it.dispensaDesign) av.push(`Item ${i + 1}: sem layout — ao efetivar, vira tarefa para o arte-finalista.`);
       if (veVal && it.fpp?.valorProposto && Math.abs(num(it.desconto ? it.desconto.base : it.valorUnitario) - Number(it.fpp.valorProposto)) > 0.009) av.push(`Item ${i + 1}: valor unitário ${money(num(it.valorUnitario))} diferente do valor da FPP ${numFpp(it.fppNumero)} (${money(it.fpp.valorProposto)}).`);
     });
     if (doc.valorTotal != null && Math.abs(doc.valorTotal - total) > 0.05) av.push(`Total calculado ${money(total)} diferente do total do documento ${money(doc.valorTotal)}.`);
@@ -967,9 +968,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
                     className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
                   {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar o layout<br/><span style={{ fontSize: 10 }}>sem layout → tarefa para o arte finalista</span></div>}
+                    : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar o layout<br/><span style={{ fontSize: 10 }}>{it.dispensaDesign ? "design dispensado" : "sem layout → tarefa para o arte finalista"}</span></div>}
                   <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                 </label>
+                {/* v796 — dispensar design: o item não pede layout e pula a etapa de design */}
+                <label className="text-xs mt-1 flex items-center gap-1 cursor-pointer" style={{ color: it.dispensaDesign ? C.accent : C.sub, width: 144 }} title="O item não passa pela etapa de design: não pede layout nem gera tarefa para o arte finalista">
+                  <input type="checkbox" checked={!!it.dispensaDesign} onChange={(e) => upItem(i, { dispensaDesign: e.target.checked })} /> Dispensar design</label>
                 {it.fotoBase64 && podeLancar && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1 flex items-center gap-1 font-semibold" style={{ color: C.red }}><Trash2 size={12} /> remover layout</button>}
                 {/* v775 — #59: card de arrasto/anexo dos detalhes de personalização (qualquer formato): saem na OP e vão para o sistema do PCP */}
                 <div className="mt-2" style={{ width: 144 }}>
