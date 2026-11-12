@@ -343,7 +343,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
     codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   // v614 — pedido de serviço: item = tipo de serviço (texto livre) · quantidade · valor unitário (total calculado)
-  const novoServico = () => ({ tipoPecaNome: "SERVIÇO", codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
+  const novoServico = () => ({ tipoPecaNome: "SERVIÇO", anexos: [], codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
   const [ppId, setPpId] = useState(ppId0 || null);
   const [f, setF] = useState(vazioF());
@@ -385,7 +385,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         let grade = []; try { grade = it.gradeJson ? JSON.parse(it.gradeJson) : []; } catch {}
         const tams = new Set(grade.map((g) => g.tam));
         if (d.tipoPedido === "SERVIÇO") return { ...novoServico(), descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
-          quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ",") };
+          quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ","), anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };   // v792
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
@@ -868,6 +868,21 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <div className="text-right text-sm font-semibold" style={{ color: C.text }}>{money(totalItem(it))}</div>
             </> : <><span /><span /></>}
             {podeLancar && itens.length > 1 ? <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={15} /></button> : <span />}
+            {/* v792 — todo serviço tem anexos (layout, arte, referência…): saem com o item, como nos produtos */}
+            <div className="flex items-center gap-2 flex-wrap" style={{ gridColumn: "1 / -1" }}>
+              <label className="text-[11px] px-2 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
+                onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
+                onDrop={async (e) => { e.preventDefault(); const fs = Array.from(e.dataTransfer?.files || []); if (!fs.length) return; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }}>
+                <Paperclip size={11} className="inline mr-0.5" />Anexos do serviço <span style={{ color: C.sub }}>· arraste ou clique</span>
+                <input type="file" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }} />
+              </label>
+              {(it.anexos || []).map((a, k) => (
+                <span key={k} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: C.panel2 }}>
+                  <button type="button" onClick={() => { const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : `<img src="${a.base64}" style="max-width:100%"/>`); }} className="truncate text-left" style={{ color: C.text, maxWidth: 220 }} title={a.nome}><Paperclip size={10} className="inline mr-0.5" />{a.nome}</button>
+                  {podeLancar && <button type="button" onClick={() => upItem(i, { anexos: it.anexos.filter((_, j) => j !== k) })} style={{ color: "#C77" }}><X size={11} /></button>}
+                </span>
+              ))}
+            </div>
           </div>
         ))}
         {podeLancar && <button type="button" onClick={() => setItens((arr) => [...arr, novoServico()])} className="mt-1 px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Adicionar serviço</button>}
