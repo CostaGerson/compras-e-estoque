@@ -1336,6 +1336,53 @@ function AvisoSemCategoria({ user }) {
   );
 }
 
+// v795 — busca na agenda: título, descrição, subtarefas, projeto, pessoas e nº; procura em todas as datas
+const semAc = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+function BuscaAgenda({ user, P, mobile, onAbrir }) {
+  const [q, setQ] = useState("");
+  const [todas, setTodas] = useState(null);
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!q.trim() || todas) return;
+    fetch(`/api/tarefas?u=${user.id}&escopo=todas&de=2000-01-01&ate=${somaDia(hojeISO(), 800)}`, { cache: "no-store" }).then((r) => r.json()).then((j) => setTodas(j.tarefas || [])).catch(() => setTodas([]));
+  }, [q]);
+  useEffect(() => { const f = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false); }; document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, []);
+  const termos = semAc(q).split(/\s+/).filter(Boolean);
+  const res = !termos.length || !todas ? [] : todas.filter((t) => t.status !== "CANCELADA" && !t.modelo).filter((t) => {
+    const txt = semAc(`${t.titulo} ${t.descricao || ""} ${(t.subtarefas || []).map((s) => s.texto).join(" ")} ${t.responsavelNome || ""} ${t.criadoPorNome || ""} ${P[t.projetoId]?.nome || ""} #${t.id}`);
+    return termos.every((w) => txt.includes(w));
+  }).sort((a, b) => (a.status === "CONCLUIDA") - (b.status === "CONCLUIDA") || Math.abs(dUTC(a.prazo) - dUTC(hojeISO())) - Math.abs(dUTC(b.prazo) - dUTC(hojeISO()))).slice(0, 40);
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-1 rounded-md px-2" style={{ border: `1px solid ${A.linha}`, width: mobile ? 150 : 240 }}>
+        <Search size={14} style={{ color: A.sub }} />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setAberto(true); }} onFocus={() => { setAberto(true); setTodas(null); }} placeholder="Buscar tarefa…" className="flex-1 py-1.5 text-sm outline-none bg-transparent" style={{ color: A.texto, minWidth: 0 }} />
+        {q && <button onClick={() => { setQ(""); setAberto(false); }} style={{ color: A.sub }}><X size={13} /></button>}
+      </div>
+      {aberto && termos.length > 0 && (
+        <div className="absolute right-0 mt-1 rounded-lg shadow-lg z-40 overflow-y-auto" style={{ background: "#fff", border: `1px solid ${A.linha}`, width: mobile ? 300 : 420, maxHeight: 420 }}>
+          {!todas ? <div className="px-3 py-2 text-xs" style={{ color: A.sub }}>Buscando…</div>
+            : !res.length ? <div className="px-3 py-2 text-xs" style={{ color: A.sub }}>Nenhuma tarefa encontrada.</div>
+            : res.map((t) => {
+              const sub = (t.subtarefas || []).find((s) => termos.every((w) => semAc(s.texto).includes(w)));
+              return (
+                <button key={t.id} onClick={() => { setAberto(false); onAbrir(t); }} className="w-full text-left px-3 py-2 text-sm block" style={{ borderBottom: `1px solid ${A.linha}` }}>
+                  <div className="flex items-center gap-2">
+                    {P[t.projetoId] && <span style={{ width: 8, height: 8, borderRadius: 2, background: P[t.projetoId].cor, flexShrink: 0 }} />}
+                    <span className="flex-1 truncate font-medium" style={{ color: A.texto, textDecoration: t.status === "CONCLUIDA" ? "line-through" : "none" }}>{t.titulo}</span>
+                    <span className="text-xs" style={{ color: t.status !== "CONCLUIDA" && t.prazo < hojeISO() ? "#C0392B" : A.sub }}>{t.prazo ? t.prazo.split("-").reverse().join("/") : ""}</span>
+                  </div>
+                  <div className="text-[11px] truncate" style={{ color: A.sub }}>{t.responsavelNome}{P[t.projetoId] ? ` · ${P[t.projetoId].nome}` : ""}{sub ? ` · subtarefa: ${sub.texto}` : ""}</div>
+                </button>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Agenda({ user, pedidoModo, onModo }) {
   const [tela, setTela] = useState("calendario");   // calendario | tarefas
   const [modo, setModo] = useState(pedidoModo?.modo === "mes" ? "mes" : "semana");        // abre na semana atual
@@ -1675,6 +1722,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
               <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
               {!(mobile && modo === "mes") && <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>}
               <span className="flex-1" />
+              <BuscaAgenda user={user} P={P} mobile={mobile} onAbrir={(t) => { setAbrir(t.id); }} />
               {/* v735 — botão Designadas: clicar alterna; a seta escolhe o colaborador (só quem tem tarefa designada) */}
               <div className="relative flex items-stretch rounded-md text-xs font-semibold" style={{ border: `1px solid ${designadas ? A.azul : A.linha}`, background: designadas ? A.azulSoft : "transparent", color: designadas ? A.azul : A.texto, transition: "all .18s" }}>
                 <button onClick={() => { setDesignadas((v) => !v); if (designadas) setColab(null); setMenuColab(false); }} title={designadas ? "Voltar para as minhas tarefas" : "Ver as tarefas que você designou"}
