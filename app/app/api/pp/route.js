@@ -15,6 +15,7 @@ export async function GET(req) {
   }
   // v328 — todo pedido do sistema aparece no Lançar PP: cria as cascas que faltam
   try { const { concluirVencidosPortal } = await import("@/lib/portalCliente"); await concluirVencidosPortal(); } catch {}   // v711
+  try { const { ajustarContasPedidosV797 } = await import("@/lib/pedidoEfetivar"); await ajustarContasPedidosV797(); } catch (e) { console.log("v797:", e.message); }
   try { await garantirPpTodos([u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase()); } catch {}
   // v320 — lista sem o conteúdo dos PDFs (só se existem)
   const pps = await prisma.pp.findMany({

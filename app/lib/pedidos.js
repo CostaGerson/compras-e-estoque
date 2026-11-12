@@ -298,14 +298,17 @@ export function preverPedido(p, { hoje = hojeISO(), titulosEntrada = [] } = {}) 
     const base = !baseOrig || atrasado || (pronto && baseOrig < hoje) ? hoje : baseOrig;
     const c = parcelasCalc(p.pagamento, r2(p.total), { emissao: iso(p.emissao), nf: base, entrega: base });
     const entrada = c.entrada?.valor || 0;
-    const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO");
+    // v797 — parcelas da NF/entrega já lançadas no contas a receber (previstas) saem da previsão; não contam como entrada
+    const ehParc = (t) => String(t.chaveImport || "").startsWith(`PED|${p.numero}|PARC|`);
+    const parcLanc = new Set(titulosEntrada.filter((t) => t.status !== "CANCELADO" && ehParc(t)).map((t) => t.chaveImport));
+    const lancadas = titulosEntrada.filter((t) => t.status !== "CANCELADO" && !ehParc(t));
     const entradaLancada = r2(lancadas.reduce((s, t) => s + Number(t.valor), 0));
     const parcelas = [];
     if (entrada > 0 && entradaLancada + Math.max(1, entrada * 0.005) < entrada) parcelas.push({ tipo: "ENTRADA", data: c.entrada.data && c.entrada.data > hoje ? c.entrada.data : hoje, valor: r2(entrada - entradaLancada), pendente: true });
-    for (const x of c.parcelas) if (x.base !== "EMISSAO") parcelas.push({ tipo: "PARCELA", n: x.n, de: x.de, dias: x.dias, data: x.data, valor: x.valor });
+    for (const x of c.parcelas) if (x.base !== "EMISSAO" && !parcLanc.has(`PED|${p.numero}|PARC|${x.n}`)) parcelas.push({ tipo: "PARCELA", n: x.n, de: x.de, dias: x.dias, data: x.data, valor: x.valor });
     return { condicaoOk: c.ok, entradaPct: p.total > 0 ? entrada / Number(p.total) : 0, prazos: c.parcelas.map((x) => x.dias), entrada, entradaCalc: entrada, entradaLancada,
       entradaTitulos: lancadas.map((t) => ({ id: t.id, valor: r2(t.valor), vencimento: iso(t.vencimento), status: t.status })),
-      restante: r2(c.parcelas.filter((x) => x.base !== "EMISSAO").reduce((s, x) => s + x.valor, 0)), base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE",
+      restante: r2(c.parcelas.filter((x) => x.base !== "EMISSAO" && !parcLanc.has(`PED|${p.numero}|PARC|${x.n}`)).reduce((s, x) => s + x.valor, 0)), base, baseOrigem: p.entregaPrevista ? "CRONOGRAMA" : p.despacho ? "DESPACHO" : "HOJE",
       atrasado, reprogramar: atrasado ? (p.entregaPrevista ? "PCP" : "DESPACHO") : null, pronto, desconsiderado: false, parcelas };
   }
   const entradaCalc = r2(r2(p.total) * cond.entradaPct);   // v403 — entrada é % do pedido (não do saldo a faturar)

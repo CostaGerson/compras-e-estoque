@@ -20,6 +20,12 @@ export async function excluirPedido(numero, { motivo, quem } = {}) {
   const { pvPdf, ppPdf, ...resto } = p;   // PDFs vão junto, mas separados (o JSON fica legível)
   await prisma.pedidoExcluido.create({ data: { numero: n, cliente: p.cliente, total: p.total, motivo: String(motivo || "").trim().slice(0, 500) || null, excluidoPorNome: quem || null,
     dados: JSON.parse(JSON.stringify({ pedido: resto, pvPdf, ppPdf, ppStatus: pp?.status || null, compraItens, dispensaAntes: !!dispensaAntes })) } });
+  // v797 — contas a receber em aberto do pedido são canceladas (voltam ao restaurar)
+  const tits = await prisma.finTitulo.findMany({ where: { chaveImport: { startsWith: `PED|${n}|` }, status: "ABERTO" }, select: { id: true } }).catch(() => []);
+  if (tits.length) {
+    await prisma.finTitulo.updateMany({ where: { id: { in: tits.map((t) => t.id) } }, data: { status: "CANCELADO", atualizadoPorNome: `${quem || "SISTEMA"} · PEDIDO NA LIXEIRA` } });
+    await prisma.pedidoExcluido.update({ where: { numero: n }, data: { dados: { ...(JSON.parse(JSON.stringify({ pedido: resto, pvPdf, ppPdf, ppStatus: pp?.status || null, compraItens, dispensaAntes: !!dispensaAntes }))), titulos: tits.map((t) => t.id) } } });
+  }
   await prisma.pedidoVenda.delete({ where: { id: p.id } });
   if (pp) await prisma.pp.update({ where: { id: pp.id }, data: { status: "EXCLUIDO" } }).catch(() => null);
   if (!dispensaAntes) await prisma.compraDispensa.create({ data: { pedidoNumero: n, motivo: "PEDIDO EXCLUÍDO (LIXEIRA)", porNome: quem || null } }).catch(() => null);
@@ -59,6 +65,7 @@ export async function restaurarPedido(numero, quem) {
     const { id: _i, createdAt, updatedAt: _u, entrega, autorizadoEm, liberadoEm, ...r } = it;
     await prisma.compraItem.create({ data: { ...r, entrega: entrega ? new Date(entrega) : null, autorizadoEm: autorizadoEm ? new Date(autorizadoEm) : null, liberadoEm: liberadoEm ? new Date(liberadoEm) : null } }).catch(() => null);
   }
+  if (Array.isArray(d.titulos) && d.titulos.length) await prisma.finTitulo.updateMany({ where: { id: { in: d.titulos }, status: "CANCELADO" }, data: { status: "ABERTO", atualizadoPorNome: quem || null } }).catch(() => null);   // v797
   await prisma.pedidoExcluido.delete({ where: { id: x.id } });
   return { ok: true, numero: x.numero };
 }

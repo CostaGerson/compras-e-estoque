@@ -151,6 +151,36 @@ async function cancelarTitulo(chave, quem) {
   if (ja) await prisma.finTitulo.update({ where: { id: ja.id }, data: { status: "CANCELADO", atualizadoPorNome: quem } });
 }
 
+const obsPrevista = (numero, x, despacho) => `PARCELA ${x.n}/${x.de} DO PEDIDO ${numero} · ${x.dias} ${x.tipo === "UTEIS" ? "DIAS ÚTEIS" : "DIAS"} DA ${x.base === "NF" ? "NF" : "ENTREGA"} · VENCIMENTO PREVISTO (BASE ${despacho ? "DESPACHO " + brData(despacho) : "EMISSÃO DO PEDIDO"}) — ACERTA NO FATURAMENTO`;
+
+// v797 — uma vez: lança as parcelas previstas (NF/entrega) dos pedidos do sistema em andamento e cancela as contas abertas de pedidos na lixeira
+export async function ajustarContasPedidosV797() {
+  const K = "PEDIDOS|CONTAS_PREVISTAS_V797";
+  if (globalThis.__v797) return; globalThis.__v797 = true;
+  if (await prisma.finConfig.findUnique({ where: { chave: K } }).catch(() => null)) return;
+  const peds = await prisma.pedidoVenda.findMany({ where: { fonte: "SISTEMA", status: "ANDAMENTO", interno: false } });
+  let n = 0;
+  for (const ped of peds) {
+    if (!ped.pagamento) continue;
+    const em = ped.emissao ? ped.emissao.toISOString().slice(0, 10) : hojeISO();
+    const desp = ped.despacho ? ped.despacho.toISOString().slice(0, 10) : null;
+    const c = parcelasCalc(ped.pagamento, Number(ped.total), { emissao: em, nf: desp || em, entrega: desp || em });
+    for (const x of c.parcelas) {
+      if (x.base === "EMISSAO" || !(x.valor > 0)) continue;
+      const ch = chaveParcela(ped.numero, x.n);
+      if (await prisma.finTitulo.findFirst({ where: { chaveImport: ch, status: { not: "CANCELADO" } }, select: { id: true } })) continue;
+      await titulo({ chave: ch, numero: ped.numero, cliente: ped.cliente, cnpj: ped.cnpj, emissao: em, valor: x.valor, venc: x.data, nome: `PEDIDO ${ped.numero} - PARC ${x.n}/${x.de}`,
+        numeroDoc: `${ped.numero} · PARC ${x.n}/${x.de}`, obs: obsPrevista(ped.numero, x, desp), quem: "SISTEMA" });
+      n++;
+    }
+    try { const { sincronizarComissoes } = await import("@/lib/comissoes"); await sincronizarComissoes(ped.numero, "SISTEMA"); } catch {}
+  }
+  const exc = await prisma.pedidoExcluido.findMany({ select: { numero: true } }).catch(() => []);
+  let c2 = 0;
+  for (const e of exc) c2 += (await prisma.finTitulo.updateMany({ where: { chaveImport: { startsWith: `PED|${e.numero}|` }, status: "ABERTO" }, data: { status: "CANCELADO", atualizadoPorNome: "SISTEMA · PEDIDO NA LIXEIRA" } })).count;
+  await prisma.finConfig.create({ data: { chave: K, valor: JSON.stringify({ previstas: n, canceladas: c2, em: new Date().toISOString() }) } }).catch(() => null);
+}
+
 // itens do pedido de venda no formato do KM (codigo, descricao, qtd, preco, total, grade, parametros)
 function itensPv(pp) {
   return (pp.itens || []).map((it) => {
@@ -243,13 +273,22 @@ export async function efetivarPedido(id, quem) {
       obs: `ENTRADA DO PEDIDO ${numero} · CONDIÇÃO ${dados.condicao || "—"}` });
     lancadas.push({ tipo: "ENTRADA", valor: calc.entrada.valor, data: calc.entrada.data });
   } else await cancelarTitulo(chaveEntrada(numero), quem);
+  // v797 — todo pedido gera as contas a receber na hora: as parcelas da NF / da entrega entram com vencimento previsto
+  //   (contado do despacho) e o Faturar só acerta a data. Pedido já faturado: as parcelas da NF/entrega ficam como estão.
+  const calcPrev = pag ? parcelasCalc(pag, total, { emissao: pp.emissao, nf: despacho || pp.emissao || hojeISO(), entrega: despacho || pp.emissao || hojeISO() }) : null;
   for (let i = 1; i <= (kmSemPag ? 0 : 24); i++) {
     const x = calc?.parcelas?.[i - 1];
     if (x && x.base === "EMISSAO") {
       await titulo({ ...base, chave: chaveParcela(numero, i), valor: x.valor, venc: x.data, nome: `PEDIDO ${numero} - PARC ${i}/${x.de}`,
         numeroDoc: `${numero} · PARC ${i}/${x.de}`, obs: `PARCELA ${i}/${x.de} DO PEDIDO ${numero} · ${x.dias} ${x.tipo === "UTEIS" ? "DIAS ÚTEIS" : "DIAS"} DA EMISSÃO` });
       lancadas.push({ tipo: `PARC ${i}/${x.de}`, valor: x.valor, data: x.data });
-    } else if (!(x && atual?.status === "FATURADO")) await cancelarTitulo(chaveParcela(numero, i), quem);   // parcela que saiu/mudou de base
+    } else if (x && atual?.status === "FATURADO") { /* já faturado: vale o que o faturamento lançou */ }
+    else if (x) {
+      const xp = calcPrev.parcelas[i - 1];
+      await titulo({ ...base, chave: chaveParcela(numero, i), valor: xp.valor, venc: xp.data, nome: `PEDIDO ${numero} - PARC ${i}/${xp.de}`,
+        numeroDoc: `${numero} · PARC ${i}/${xp.de}`, obs: obsPrevista(numero, xp, despacho) });
+      lancadas.push({ tipo: `PARC ${i}/${xp.de} (prevista)`, valor: xp.valor, data: xp.data });
+    } else await cancelarTitulo(chaveParcela(numero, i), quem);   // parcela que saiu
   }
 
   // v617 — item com FPP indexada no lançamento vai direto para o levantamento; sem FPP passa pela Sincronização de pedidos
