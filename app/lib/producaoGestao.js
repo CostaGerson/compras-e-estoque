@@ -47,7 +47,7 @@ function resumoPedido(p, hoje) {
   const parcial = Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0;
   const saldoPecas = p.qtEntregar != null ? Number(p.qtEntregar) : null;
   const saldoValor = p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total);
-  const faturar = p.faturamentoPendente ? "NF_SEM_CONTAS" : p.cronoConcluido ? "A_FATURAR" : null;
+  const faturar = p.semFaturar ? null : p.faturamentoPendente ? "NF_SEM_CONTAS" : p.cronoConcluido ? "A_FATURAR" : null;   // v794 — interno não fatura
   // v555 — peças concluídas na expedição sem NF casada
   const ciP = ci.filter((i) => Number(i.pecas ?? i.qtd) > 0);
   const concl = ciP.filter((i) => faseDe(i.situacao, i.etapa) === "CONCLUIDO").reduce((a, i) => a + (Number(i.pecas ?? i.qtd) || 0), 0);
@@ -73,7 +73,7 @@ function resumoPedido(p, hoje) {
 
 const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
   cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
-  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true };   // v450 · v618 fonte
+  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true, interno: true };   // v794 interno   // v450 · v618 fonte
 
 // v738 — pedidos com tarefa de layout em aberto (criação ou aprovação) → { numero: { etapa, com, desde, texto } }
 export async function layoutsPendentes() {
@@ -102,7 +102,9 @@ export async function gestaoProducao() {
   const hoje = hojeBR();
   // v790 — pedido do portal (Loja Way) aparece mesmo marcado como interno: é produção para cliente
   const doPortal = (await prisma.pp.findMany({ where: { portalClienteId: { not: null }, numero: { not: null } }, select: { numero: true } }).catch(() => [])).map((x) => x.numero);
-  const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO", OR: [{ interno: false }, ...(doPortal.length ? [{ numero: { in: doPortal } }] : [])] }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
+  // v794 — todo pedido aparece, inclusive o interno (antes sumia da Produção); o interno só não entra no "a faturar"
+  const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO" }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
+  for (const p of ps) if (p.interno && !doPortal.includes(p.numero)) p.semFaturar = true;
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
