@@ -734,9 +734,16 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       itens: its.map((i, k) => ({ _n: k + 1, chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: [], op: null, parametros: [], origemMaterial: "SERVICO",
         liberadoEm: p.createdAt, fppNumero: null, materiais: [], aviamentosPendentes: false })) };
   }
+  // PCP: preço de facção sugerido na FPP do item (R$/peça), para vir pré-preenchido na OS de costura
+  const nums = [...new Set(Object.values(out).flatMap((p) => p.itens.map((i) => Number(i.fppNumero)).filter((n) => n > 0)))];
+  const facFpp = {};
+  if (nums.length) {
+    const fpps = await db.fpp.findMany({ where: { numero: { in: nums } }, select: { numero: true, entradas: true } }).catch(() => []);
+    for (const f of fpps) { const t = String((f.entradas && f.entradas.faccao) ?? "").trim(); const v = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); if (v > 0) facFpp[f.numero] = Math.round(v * 100) / 100; }
+  }
   // v775 — #59: cada item traz o endereço dos arquivos (layout e detalhes de personalização) — GET /api/ext/arquivos, mesmo X-Api-Key
   return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens,
-    itens: p.itens.map(({ _n, ...i }) => ({ ...i, ...(_n ? { item: _n, arquivos: `/api/ext/arquivos?pedido=${encodeURIComponent(p.pedido)}&item=${_n}` } : {}) })) }));
+    itens: p.itens.map(({ _n, ...i }) => ({ ...i, faccaoFpp: facFpp[Number(i.fppNumero)] || null, ...(_n ? { item: _n, arquivos: `/api/ext/arquivos?pedido=${encodeURIComponent(p.pedido)}&item=${_n}` } : {}) })) }));
 }
 
 // ---------- v685 — excluir demanda de compra em qualquer etapa e gerar de novo as demandas de um pedido ----------
