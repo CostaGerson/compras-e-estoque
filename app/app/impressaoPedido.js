@@ -133,7 +133,8 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
       return `<tr><td class="pk">${esc(c)}</td><td style="white-space:pre-line">${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
     }).join("") + ((it.aplicacoes || []).length ? `<tr><td class="pk">PERSONALIZAÇÃO</td><td>${it.aplicacoes.map((a, k) => `<div>${k + 1}. ${esc(rotuloAplicacao(a))}${a.obs ? ` — ${esc(a.obs)}` : ""}</div>`).join("")}</td></tr>` : "");   // v806 — estampas com medidas
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
-    const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT");
+    // v816 — arquivos de personalização (estampas e "detalhes de personalização") não saem na OP impressa: ficam no sistema e vão para o PCP
+    const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT" && a.categoria !== "PERSONALIZACAO" && !a.aplicacao);
     return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem}` : ""}<div class="sec">Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
       <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
@@ -145,7 +146,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
         </div>
       </div>
       ${duHtml(it.dadosUnitarios)}
-      ${anexosHtml(pessoais.map((a) => ({ ...a, src: a.src || a.base64 })), "Detalhes de personalização")}
+      ${anexosHtml(pessoais.map((a) => ({ ...a, src: a.src || a.base64 })), "Layout e anexos do item")}
     </div>`;
   }).join("");
 
