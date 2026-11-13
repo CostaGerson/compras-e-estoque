@@ -265,6 +265,7 @@ export default function Home() {
   // v490 — ao atualizar a página, volta para a tela em que estava (guardada nesta aba do navegador)
   useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t);
     const sp = new URLSearchParams(window.location.search), q = sp.get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); }
+    if (q === "pedido" && sp.get("numero")) { setPedidoInicial({ numero: sp.get("numero"), t: Date.now() }); setView("producao"); window.history.replaceState(null, "", "/"); }   // v828 — "conferir origem" da conta
     if (q === "rota") { setView("rota"); if (sp.get("demanda")) sessionStorage.setItem("ce_abrir_demanda", `${sp.get("demanda")}|${sp.get("data") || ""}`); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v725 — link da demanda (PCP) abre a rota   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);
   useEffect(() => { if (view === "pp") setView("producao"); }, [view]);   // v729 — a guia Lançar pedido saiu: o lançamento é pela Produção

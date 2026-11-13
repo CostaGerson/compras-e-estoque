@@ -6,7 +6,9 @@ import { excluirTitulo } from "@/lib/finLote";
 
 // v823 — GET ?u= → uma conta (abrir pela conferência com o banco)
 export async function GET(req, { params }) {
-  if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
+  const sp0 = new URL(req.url).searchParams;
+  if (!(await usuarioMaster(sp0.get("u")))) return negado();
+  if (sp0.get("origem")) return Response.json(await (await import("@/lib/finOrigem")).origemDoTitulo(params.id, sp0.get("u")));   // v828
   const t = await prisma.finTitulo.findUnique({ where: { id: Number(params.id) } });
   return t ? Response.json(tituloOut(t)) : Response.json({ error: "Conta não encontrada." }, { status: 404 });
 }

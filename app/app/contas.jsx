@@ -11,7 +11,7 @@ import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
-  Info as InfoI, Handshake, Landmark,
+  Info as InfoI, Handshake, Landmark, ExternalLink,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -1969,6 +1969,8 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
   return (
     <Modal titulo={novo ? `Nova conta ${P ? "a pagar" : "a receber"}` : "Editar conta"} icone={P ? TrendingDown : TrendingUp} onClose={onClose} largura={680}
       rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar</BtnP></>}>
+      {/* v828 — conferir origem: abre em outra guia o que gerou a conta (NF, pedido, OS do PCP, anexos) */}
+      {!novo && <OrigemConta user={user} id={item.id} />}
       {/* v191 — o que não cabe na linha da lista aparece aqui */}
       {!novo && (
         <div className="mb-3 p-2.5 rounded-lg text-xs grid gap-x-4 gap-y-1" style={{ background: C.panel2, color: C.text, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
@@ -2771,6 +2773,35 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
         })}</tbody>
       </table>
     </Modal>
+  );
+}
+
+function OrigemConta({ user, id }) {
+  const [ops, setOps] = useState(null);
+  const [st, setSt] = useState(false);
+  const abrir = async () => {
+    setSt(true);
+    const w = window.open("about:blank", "_blank");   // abre já no clique (o navegador bloqueia janela aberta depois de esperar)
+    try {
+      const j = await api(`/api/fin/titulos/${id}?u=${user.id}&origem=1`);
+      const l = j.opcoes || [];
+      const comUrl = l.filter((o) => o.url);
+      if (comUrl.length === 1 && l.length === 1 && w) w.location.href = comUrl[0].url;
+      else { if (w) w.close(); setOps(l); }
+    } catch (e) { if (w) w.close(); setOps([{ rotulo: e.message, url: null }]); }
+    setSt(false);
+  };
+  return (
+    <div className="mb-3 -mt-1">
+      <button type="button" onClick={abrir} disabled={st} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "#fff", color: C.navy, border: `1px solid ${C.navy}` }}>
+        {st ? <Loader2 size={13} className="animate-spin" /> : <ExternalLink size={13} />} Conferir origem
+      </button>
+      {ops && <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: C.panel2 }}>
+        {!ops.length ? <span style={{ color: C.sub }}>Não encontrei a origem desta conta (lançada à mão, sem NF, pedido ou anexo).</span>
+          : ops.map((o, k) => o.url ? <a key={k} href={o.url} target="_blank" rel="noreferrer" className="block py-0.5 font-semibold" style={{ color: C.blue }}>↗ {o.rotulo}</a>
+            : <div key={k} className="py-0.5" style={{ color: C.sub }}>{o.rotulo}</div>)}
+      </div>}
+    </div>
   );
 }
 
