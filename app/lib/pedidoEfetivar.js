@@ -20,6 +20,16 @@ export const chaveParcela = (numero, i) => `PED|${numero}|PARC|${i}`;
 
 // ---------- salvar (rascunho ou edição) ----------
 const CAMPOS_PP = ["clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "clienteContato", "oc", "vendedor", "obs", "nfObs"];
+// v806 — personalizações do item (silk, DTF, bordado…): medidas da estampa; os arquivos vão em anexosJson com { aplicacao: uid }
+const numOuNull = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null; };
+export function limparAplicacoes(l) {
+  const out = (Array.isArray(l) ? l : []).filter((a) => a && a.metodo).map((a) => ({
+    uid: String(a.uid || Math.random().toString(36).slice(2, 10)).slice(0, 40), metodo: String(a.metodo).toUpperCase(), local: a.local ? String(a.local).toUpperCase().slice(0, 60) : null,
+    ...(Number(a.cores) > 0 ? { cores: Number(a.cores) } : {}), largura: numOuNull(a.largura), altura: numOuNull(a.altura),
+    ...(String(a.obs || "").trim() ? { obs: String(a.obs).trim().toUpperCase().slice(0, 300) } : {}), ...(a.fpp ? { fpp: Number(a.fpp) || true } : {}) }));
+  return out.length ? out : null;
+}
+
 export async function salvarPp(id, b, quem) {
   const itens = Array.isArray(b.itens) ? b.itens : [];
   const servico = !!b.servico;   // v614 — pedido de serviço: cliente, prazo, itens com tipo de serviço, quantidade e valor
@@ -57,10 +67,11 @@ export async function salvarPp(id, b, quem) {
     gradeJson: JSON.stringify(it.grade || []),
     parametrosJson: JSON.stringify(Object.fromEntries(Object.entries(it.parametros || {}).filter(([k]) => !paramFora(k)))),
     fotoBase64: servico ? null : it.fotoBase64 || null,
-    anexosJson: Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64, ...(a.categoria ? { categoria: a.categoria } : {}) })) : undefined,   // v650 · v792 — serviço também guarda anexos
+    anexosJson: Array.isArray(it.anexos) && it.anexos.some((a) => a && a.base64) ? it.anexos.filter((a) => a && a.base64).map((a) => ({ nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, base64: a.base64, ...(a.categoria ? { categoria: a.categoria } : {}), ...(a.aplicacao ? { aplicacao: String(a.aplicacao).slice(0, 40) } : {}) })) : undefined,   // v650 · v792 — serviço também guarda anexos
     fppId: !servico && it.fppId ? Number(it.fppId) : null, fppNumero: !servico && it.fppNumero != null ? Number(it.fppNumero) : null,
     ...(!servico && limparDU(it.dadosUnitarios) ? { dadosUnitarios: limparDU(it.dadosUnitarios) } : {}),   // v699
     ...(it.desconto && num(it.desconto.valor) > 0 && num(it.desconto.base) > 0 ? { desconto: { tipo: it.desconto.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(num(it.desconto.valor)), base: r2(num(it.desconto.base)) } } : {}),   // v750 — valorUnitario já vem com o desconto
+    aplicacoes: (!servico && limparAplicacoes(it.aplicacoes)) || undefined,   // v806
     dispensaDesign: !servico && !!it.dispensaDesign,   // v796
     itemPadraoId: Number(it.itemPadraoId) || null, valorVenda: num(it.valorVenda) > 0 ? r2(num(it.valorVenda)) : null,   // v711
     ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",

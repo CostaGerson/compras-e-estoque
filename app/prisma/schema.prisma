@@ -468,6 +468,7 @@ model PpItem {
   anexosJson        Json?     // v650 — arquivos do item além da foto: [{ nome, mime, base64 }] (saem na OP abaixo do item)
   itemPadraoId      Int?      // v711 — item padrão de origem (portal: editar o pedido)
   valorVenda        Decimal?  @db.Decimal(14, 2)   // v711 — portal: preço por peça que o cliente vendeu (para a MC do pedido)
+  aplicacoes        Json?     // v806 — personalizações do item: [{ uid, metodo, local, cores, largura, altura, obs, fpp }] (arquivos em anexosJson com { aplicacao: uid })
   dispensaDesign    Boolean  @default(false)   // v796 — item pula a etapa de design (não pede layout nem gera tarefa para o arte finalista)
   dadosUnitarios    Json?     // v699 — dados por peça: { campos: [{ id, local, rotulo }], linhas: [{ tam, valores }], linkId? }
   desconto          Json?     // v750 — desconto na peça: { tipo: PCT|VALOR, valor, base } (valorUnitario já é o preço com desconto)
@@ -2583,6 +2584,7 @@ model FppAnexo {
   tamanho       Int?
   base64        String
   criadoPorNome String?
+  aplicacaoUid  String?  // v806 — arquivo de detalhe de uma aplicação (estampa) da FPP; null = anexo geral
   createdAt     DateTime @default(now())
   @@index([fppId])
 }

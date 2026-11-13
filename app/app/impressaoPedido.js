@@ -1,7 +1,7 @@
 // v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
 //   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
 //   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
-import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal, valorDesconto } from "@/lib/pedidoLanc";
+import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal, valorDesconto, rotuloAplicacao } from "@/lib/pedidoLanc";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n = (v) => { const s = String(v ?? "").trim(); return (s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s)) || 0; };
@@ -133,7 +133,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
         return `<tr><td class="pk">${esc(c)}</td><td style="padding:0">${ls.map((x, j) => `<div style="min-height:18px;padding:2px 6px;${j < ls.length - 1 ? "border-bottom:1px solid #D0D5DD;" : ""}">${x ? esc(x) : "&nbsp;"}</div>`).join("")}</td></tr>`;
       }
       return `<tr><td class="pk">${esc(c)}</td><td style="white-space:pre-line">${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
-    }).join("");
+    }).join("") + ((it.aplicacoes || []).length ? `<tr><td class="pk">PERSONALIZAÇÃO</td><td>${it.aplicacoes.map((a, k) => `<div>${k + 1}. ${esc(rotuloAplicacao(a))}${a.obs ? ` — ${esc(a.obs)}` : ""}</div>`).join("")}</td></tr>` : "");   // v806 — estampas com medidas
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
     const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT");
     return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem}` : ""}<div class="sec">Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
@@ -306,7 +306,7 @@ export function dadosImpressaoPp(d, veVal = true) {
     const grade = js(it.gradeJson, []);
     const base = { tipoPecaNome: it.tipoPecaNome || "", codigo: it.codigo || "", descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario) : "",
       parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "",
-      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [], dadosUnitarios: it.dadosUnitarios || null };   // v699
+      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [], aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [], dadosUnitarios: it.dadosUnitarios || null };   // v699
     return servico ? { ...base, grade: [{ tam: "UN", qtd: grade.reduce((q, g) => q + (n(g.qtd) || 0), 0) }] } : { ...base, grade };
   });
   const total = itens.reduce((s, it) => s + (it.grade || []).reduce((q, g) => q + n(g.qtd), 0) * n(it.valorUnitario), 0);

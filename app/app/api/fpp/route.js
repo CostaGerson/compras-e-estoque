@@ -43,5 +43,6 @@ export async function POST(req) {
   await registrarNegociacao(f.negociacao);
   // v404 — artigos detalhados na ficha entram no cadastro (origem FPP)
   try { if (await sincronizarArtigosFpp(f)) return NextResponse.json(await prisma.fpp.findUnique({ where: { id: f.id } })); } catch (e) { console.error("artigos da FPP", e); }
+  if (b.copiarEstampasDe) { const { copiarEstampas } = await import("@/lib/fppEstampas"); await copiarEstampas(b.copiarEstampasDe, f.id); }   // v806
   return NextResponse.json(f);
 }

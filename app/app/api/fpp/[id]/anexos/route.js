@@ -10,7 +10,9 @@ export async function GET(req, { params }) {
     if (!a) return new Response("Não encontrado.", { status: 404 });
     return new Response(Buffer.from(a.base64, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
   }
-  const l = await prisma.fppAnexo.findMany({ where: { fppId }, orderBy: { id: "asc" }, select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true } });
+  // v806 — ?aplicacao=uid → arquivos daquela estampa · ?aplicacao=todas → todos com uid · sem o parâmetro → só os anexos gerais
+  const ap = new URL(req.url).searchParams.get("aplicacao");
+  const l = await prisma.fppAnexo.findMany({ where: { fppId, aplicacaoUid: ap === "todas" ? { not: null } : ap || null }, orderBy: { id: "asc" }, select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true, aplicacaoUid: true } });
   return Response.json(l, { headers: { "Cache-Control": "no-store" } });
 }
 
@@ -22,7 +24,7 @@ export async function POST(req, { params }) {
   if (!base64) return Response.json({ error: "Arquivo vazio." }, { status: 400 });
   const tam = Math.floor(base64.length * 3 / 4);
   if (tam > 20 * 1048576) return Response.json({ error: "Arquivo acima de 20 MB." }, { status: 400 });
-  const a = await prisma.fppAnexo.create({ data: { fppId, nome: String(b.nome || "arquivo").slice(0, 200), mime: b.mime || null, tamanho: tam, base64, criadoPorNome: b.quem || null } });
+  const a = await prisma.fppAnexo.create({ data: { fppId, nome: String(b.nome || "arquivo").slice(0, 200), mime: b.mime || null, tamanho: tam, base64, criadoPorNome: b.quem || null, aplicacaoUid: b.aplicacao ? String(b.aplicacao).slice(0, 40) : null } });
   return Response.json({ ok: true, id: a.id });
 }
 

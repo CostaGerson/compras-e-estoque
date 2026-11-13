@@ -193,7 +193,24 @@ export function resumoFpp(f) {
     rendimento: malha ? rc : null, consumo: malha ? null : rc,
     medida: rc ? (malha ? `Rend. ${fmt(rc, 2)} pç/kg` : `Consumo ${fmt(rc)} m/pç`) : "",
     forro, consumoForro: forro ? cf : null,
+    aplicacoes: aplicacoesDaFpp(e),   // v806
   };
+}
+// v806 — locais de aplicação (mesmos da FPP) e rótulos
+export const LOCAIS_APL = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."],
+  ["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."], ["TOTAL", "Total"]];
+export const nomeLocalApl = (k) => (LOCAIS_APL.find((x) => x[0] === k) || [k, String(k || "").replace(/_/g, " ")])[1];
+export const NOME_METODO = { SILK: "Silk", DTF: "DTF", BORDADO: "Bordado", SUBLIMACAO: "Sublimação" };
+// "SILK 2 CORES · PEITO ESQ. · 10 × 8 CM"
+export const rotuloAplicacao = (a) => [`${(NOME_METODO[a.metodo] || a.metodo || "").toUpperCase()}${a.metodo === "SILK" && a.cores ? ` ${a.cores} COR${a.cores > 1 ? "ES" : ""}` : ""}`,
+  a.local ? nomeLocalApl(a.local).toUpperCase() : null, a.largura && a.altura ? `${String(a.largura).replace(".", ",")} × ${String(a.altura).replace(".", ",")} CM` : null].filter(Boolean).join(" · ");
+
+// v806 — personalizações com arte (silk, DTF, bordado) da FPP: vão para o item do pedido com medidas e arquivos
+export const METODOS_ARTE = ["SILK", "DTF", "BORDADO"];
+export function aplicacoesDaFpp(e) {
+  return (Array.isArray(e?.personalizacoes) ? e.personalizacoes : []).filter((a) => a && METODOS_ARTE.includes(a.metodo))
+    .map((a, k) => ({ uid: a.uid || `fpp${k}`, metodo: a.metodo, local: a.local || null, ...(a.metodo === "SILK" ? { cores: Number(a.cores) || 1 } : {}),
+      largura: a.largura || "", altura: a.altura || "", ...(a.obsArte ? { obs: a.obsArte } : {}) }));
 }
 // valor do parâmetro TECIDO montado pela FPP
 // v774 — #58: guarda também nome do artigo, cor, código e fabricante (a OP mostra nessa ordem, sem o rendimento)

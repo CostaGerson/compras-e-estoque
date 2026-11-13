@@ -8,6 +8,7 @@ import { alerta, confirmar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
 import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
+import PersonalizacaoItem, { juntarAplicacoesFpp } from "./personalizacaoItem";   // v806 — estampas com medidas e arquivos
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
@@ -229,14 +230,14 @@ export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, o
             </div>
             <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(0, 1fr))` }}>
               {linhas.map((g) => (
-                <div key={g.tam} className="rounded-lg px-1 pt-1 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? C.accent : C.line}` }}>
+                <div key={g.tam} className="rounded-lg px-1 pt-1 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? "#001E41" : C.line}` }}>
                   <div className="text-[11px] font-semibold" style={{ color: C.sub }}>{k === "BL" ? g.tam.slice(3) : g.tam}</div>
                   {/* v672 — sem a barrinha piscando (digitar substitui o número) e botões – / + maiores */}
                   <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} onFocus={(e) => e.target.select()} inputMode="numeric" placeholder="0"
                     className="w-full bg-transparent outline-none text-center text-lg font-bold" style={{ color: num(g.qtd) ? C.text : "#98A2B3", caretColor: "transparent" }} />
                   <div className="flex justify-between gap-1 pb-0.5">
-                    <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: C.sub, background: "#fff", border: `1px solid ${C.line}` }}>–</button>
-                    <button type="button" onClick={() => passo(g, 1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#fff", background: C.accent }}>+</button>
+                    <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#001E41", background: "#fff", border: "1px solid #001E4155" }}>–</button>
+                    <button type="button" onClick={() => passo(g, 1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#fff", background: "#001E41" }}>+</button>
                   </div>
                 </div>
               ))}
@@ -369,7 +370,7 @@ export const limparDescKm = (d) => String(d || "").split(/\*{3,}/)[0].replace(/(
 export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir }) {
   const TIPOS = Object.keys(componentes);
   const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
-    codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
+    codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null, aplicacoes: [] });
   // v614 — pedido de serviço: item = tipo de serviço (texto livre) · quantidade · valor unitário (total calculado)
   const novoServico = () => ({ tipoPecaNome: "SERVIÇO", anexos: [], codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
@@ -419,6 +420,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
+          aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [],   // v806
           dispensaDesign: !!it.dispensaDesign,   // v796
           dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null,   // v699
           itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "",   // v711 — portal: mantém ao salvar aqui
@@ -500,6 +502,21 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       valorUnitario: it.valorUnitario || (veVal && rf.valorProposto ? String(Number(rf.valorProposto).toFixed(2)).replace(".", ",") : ""),
     })));
     setFppModal(null);
+    puxarEstampas(i, rf.id);   // v806
+  };
+  // v806 — estampas da FPP (medidas e arquivos) entram no item; o que já está no item fica
+  const baixarArqFpp = (fppId, id) => fetch(`/api/fpp/${fppId}/anexos?arquivo=${id}`).then((r) => { if (!r.ok) throw new Error(); return r.blob(); });
+  const itensRef = useRef(itens); itensRef.current = itens;
+  const puxarEstampas = async (i, fppId) => {
+    const rf = await api(`/api/pp/catalogo?fppId=${fppId}`).then((r) => r.json()).catch(() => null);
+    if (!rf?.aplicacoes?.length) return;
+    await new Promise((r) => setTimeout(r, 0));
+    const alvo = itensRef.current[i];
+    if (!alvo) return;
+    const patch = await juntarAplicacoesFpp(alvo, rf, baixarArqFpp);
+    if (!patch.aplicacoes) return;
+    const novos = patch.anexos.slice((alvo.anexos || []).length);
+    setItens((arr) => arr.map((it, j) => (j === i ? { ...it, aplicacoes: patch.aplicacoes, anexos: [...(it.anexos || []), ...novos] } : it)));
   };
   // v647 — itens padrão do cliente: campo em destaque com autocompletar; o item escolhido entra preenchido (nome NF, preço, parâmetros, foto, FPP)
   const [padroes, setPadroes] = useState([]);
@@ -526,8 +543,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id };
     // ocupa o primeiro item vazio; senão acrescenta
     // v754 — escolhido no próprio item (código/descrição): entra nele, mantendo a grade já digitada
-    if (alvo != null) { setItens((arr) => arr.map((it, j) => (j === alvo ? { ...item, grade: qtdGrade(it.grade) ? it.grade : item.grade, dadosUnitarios: it.dadosUnitarios || null } : it))); setBuscaPadrao(""); if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`); return; }
+    if (alvo != null) { setItens((arr) => arr.map((it, j) => (j === alvo ? { ...item, grade: qtdGrade(it.grade) ? it.grade : item.grade, dadosUnitarios: it.dadosUnitarios || null } : it))); setBuscaPadrao(""); if (rf) puxarEstampas(alvo, rf.id); /* v806 */ if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`); return; }
     setItens((arr) => { const k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); return k >= 0 ? arr.map((it, j) => (j === k ? item : it)) : [...arr, item]; });
+    if (rf) { const arr0 = itensRef.current, k0 = arr0.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); puxarEstampas(k0 >= 0 ? k0 : arr0.length, rf.id); }   // v806
     setBuscaPadrao("");
     if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`);
   };
@@ -989,35 +1007,25 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             </div>
 
             <div className="flex gap-4">
-              <div className="w-36 shrink-0">
-                <div className="text-xs mb-1" style={{ color: it.fotoBase64 ? C.sub : C.accent }}>Layout da peça{it.fotoBase64 ? "" : " (obrigatório)"}</div>
-                <label className="block rounded cursor-pointer overflow-hidden relative" style={{ border: `1px dashed ${C.line}`, height: 136, background: C.panel2 }}>
-                  {/* v673 — remover o layout direto na imagem */}
-                  {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
-                    className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
-                  {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    : <div className="flex items-center justify-center h-full text-xs text-center px-2" style={{ color: C.sub }}>Clique para adicionar o layout<br/><span style={{ fontSize: 10 }}>{it.dispensaDesign ? "design dispensado" : "sem layout → tarefa para o arte finalista"}</span></div>}
-                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
-                </label>
-                {/* v796 — dispensar design: o item não pede layout e pula a etapa de design */}
-                <label className="text-xs mt-1 flex items-center gap-1 cursor-pointer" style={{ color: it.dispensaDesign ? C.accent : C.sub, width: 144 }} title="O item não passa pela etapa de design: não pede layout nem gera tarefa para o arte finalista">
-                  <input type="checkbox" checked={!!it.dispensaDesign} onChange={(e) => upItem(i, { dispensaDesign: e.target.checked })} /> Dispensar design</label>
-                {it.fotoBase64 && podeLancar && <button type="button" onClick={() => upItem(i, { fotoBase64: "" })} className="text-xs mt-1 flex items-center gap-1 font-semibold" style={{ color: C.red }}><Trash2 size={12} /> remover layout</button>}
-                {/* v775 — #59: card de arrasto/anexo dos detalhes de personalização (qualquer formato): saem na OP e vão para o sistema do PCP */}
-                <div className="mt-2" style={{ width: 144 }}>
-                  <label className="block text-[11px] text-center px-1 py-2 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
-                    onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
-                    onDrop={async (e) => { e.preventDefault(); const fs = Array.from(e.dataTransfer?.files || []); if (!fs.length) return; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }}>
-                    <Paperclip size={11} className="inline mr-0.5" />Detalhes de personalização<br/><span style={{ fontSize: 10, color: C.sub }}>arraste ou clique</span>
-                    <input type="file" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }} />
+              {/* v806 — layout em destaque */}
+              <div className="w-48 shrink-0">
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${it.fotoBase64 || it.dispensaDesign ? "#001E4133" : C.accent}` }}>
+                  <div className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" style={{ background: it.fotoBase64 || it.dispensaDesign ? "#001E41" : C.accent, color: "#fff" }}>
+                    Layout da peça{it.fotoBase64 || it.dispensaDesign ? "" : <span className="font-normal opacity-90">· obrigatório</span>}</div>
+                  <label className="block cursor-pointer relative" style={{ height: 190, background: it.fotoBase64 ? "#fff" : C.panel2 }}>
+                    {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
+                      className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
+                    {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      : <div className="flex flex-col items-center justify-center h-full text-xs text-center px-3 gap-1" style={{ color: C.sub }}>
+                          <Paperclip size={20} style={{ color: it.dispensaDesign ? C.sub : C.accent }} />
+                          <span className="font-semibold" style={{ color: it.dispensaDesign ? C.sub : C.accent }}>Clique para adicionar o layout</span>
+                          <span style={{ fontSize: 10 }}>{it.dispensaDesign ? "design dispensado" : "sem layout → tarefa para o arte finalista"}</span></div>}
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                   </label>
-                  {(it.anexos || []).map((a, k) => (
-                    <div key={k} className="flex items-center gap-1 text-[11px] mt-1">
-                      <button type="button" onClick={() => { const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : `<img src="${a.base64}" style="max-width:100%"/>`); }} className="truncate flex-1 text-left" style={{ color: C.text }} title={a.nome}>{a.nome}</button>
-                      <button type="button" onClick={() => upItem(i, { anexos: it.anexos.filter((_, j) => j !== k) })} style={{ color: "#C77" }}><X size={11} /></button>
-                    </div>
-                  ))}
                 </div>
+                {/* v796 — dispensar design: o item não pede layout e pula a etapa de design */}
+                <label className="text-xs mt-1.5 flex items-center gap-1 cursor-pointer" style={{ color: it.dispensaDesign ? C.accent : C.sub }} title="O item não passa pela etapa de design: não pede layout nem gera tarefa para o arte finalista">
+                  <input type="checkbox" checked={!!it.dispensaDesign} onChange={(e) => upItem(i, { dispensaDesign: e.target.checked })} /> Dispensar design</label>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
@@ -1056,6 +1064,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 </div>
               </div>
             </div>
+            {/* v806 — detalhes de personalização: estampas (medidas + arquivos) e demais arquivos; saem na OP e vão para o PCP */}
+            <PersonalizacaoItem it={it} onChange={(patch) => upItem(i, patch)} />
           </Card>
         );
       })}

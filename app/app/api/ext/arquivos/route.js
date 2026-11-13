@@ -2,10 +2,12 @@
 //   GET ?pedido=26115011&item=1                     → JSON { layout: {nome,mime,url}|null, personalizacao: [{nome,mime,url}] }
 //   GET ?pedido=26115011&item=1&arquivo=layout      → o arquivo do layout
 //   GET ?pedido=26115011&item=1&arquivo=2           → o 2º arquivo de detalhes de personalização
+//   v806 — cada arquivo de estampa traz "aplicacao" { metodo, local, cores, larguraCm, alturaCm, obs, descricao }; "aplicacoes" lista as estampas com as URLs dos arquivos
 // Autenticação: cabeçalho X-Api-Key (o mesmo token de /api/ext/compras).
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { tokenExterno } from "@/lib/compras";
+import { nomeLocalApl, rotuloAplicacao } from "@/lib/pedidoLanc";   // v806
 
 const dataUrl = (s) => { const m = String(s || "").match(/^data:([^;,]*)(?:;base64)?,(.*)$/s); return m ? { mime: m[1] || null, b64: m[2] } : { mime: null, b64: String(s || "") }; };
 const ext = (mime) => ({ "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf" }[mime] || "bin");
@@ -16,7 +18,7 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const numero = String(sp.get("pedido") || "").trim(), idx = Number(sp.get("item")) || 0;
   if (!numero || idx < 1) return Response.json({ error: "Informe pedido e item (1, 2, 3…)." }, { status: 400 });
-  const pp = await prisma.pp.findFirst({ where: { numero }, orderBy: { id: "desc" }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, fotoBase64: true, anexosJson: true, descricao: true } } } });
+  const pp = await prisma.pp.findFirst({ where: { numero }, orderBy: { id: "desc" }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, fotoBase64: true, anexosJson: true, descricao: true, aplicacoes: true } } } });
   const it = pp?.itens?.[idx - 1];
   if (!it) return Response.json({ error: "Item não encontrado." }, { status: 404 });
   const persItem = (Array.isArray(it.anexosJson) ? it.anexosJson : []).filter((a) => a && a.base64 && a.categoria !== "LAYOUT");
@@ -42,11 +44,15 @@ export async function GET(req) {
     }
     return new Response(Buffer.from(d.b64, "base64"), { headers: { "Content-Type": d.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome)}`, "Cache-Control": "no-store" } });
   }
+  const apl = Array.isArray(it.aplicacoes) ? it.aplicacoes : [];
+  const resumoApl = (ap) => ({ metodo: ap.metodo, local: ap.local ? nomeLocalApl(ap.local).toUpperCase() : null, ...(ap.cores ? { cores: ap.cores } : {}), larguraCm: ap.largura ?? null, alturaCm: ap.altura ?? null, ...(ap.obs ? { obs: ap.obs } : {}), descricao: rotuloAplicacao(ap) });
   const base = `${new URL(req.url).origin}/api/ext/arquivos?pedido=${encodeURIComponent(numero)}&item=${idx}`;
   return Response.json({
     pedido: numero, item: idx, descricao: it.descricao || "",
     layout: it.fotoBase64 ? { nome: `layout-${numero}-item${idx}.${ext(dataUrl(it.fotoBase64).mime)}`, mime: dataUrl(it.fotoBase64).mime, url: `${base}&arquivo=layout` }
       : layoutPed ? { nome: layoutPed.nome, mime: layoutPed.tipo || null, url: `${base}&arquivo=layout` } : null,
-    personalizacao: pers.map((a, k) => ({ nome: a.nome, mime: a.mime || null, url: `${base}&arquivo=${k + 1}` })),
+    // v806 — arquivo de uma estampa traz a estampa (método, local, medidas); "aplicacoes" lista as estampas do item
+    personalizacao: pers.map((a, k) => { const ap = a.aplicacao ? apl.find((x) => x.uid === a.aplicacao) : null; return { nome: a.nome, mime: a.mime || null, url: `${base}&arquivo=${k + 1}`, ...(ap ? { aplicacao: resumoApl(ap) } : {}) }; }),
+    aplicacoes: apl.map((ap) => ({ ...resumoApl(ap), arquivos: pers.map((a, k) => (a.aplicacao === ap.uid ? `${base}&arquivo=${k + 1}` : null)).filter(Boolean) })),
   });
 }

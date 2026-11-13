@@ -90,6 +90,7 @@ async function clonarFpp(fpp, user, origemId) {
     custoProducao: fpp.custoProducao ?? null, custoFinal: fpp.custoFinal ?? null, valorProposto: fpp.valorProposto ?? null,
     margem: fpp.margem ?? null, totalItem: fpp.totalItem ?? null,
     criadoPorId: user?.id ?? null, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim() || null,
+    ...(origemId ? { copiarEstampasDe: origemId } : {}),   // v806
   };
   const r = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const d = await r.json().catch(() => ({}));
@@ -779,7 +780,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
             <Card title="Personalização">
               {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
-              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} item={f.item} />
+              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} item={f.item} fppId={editId} user={user} />
               {num(f.arteTotal) > 0 && <div className="mt-2"><ArteInp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} qtde={num(f.qtde)} /></div>}
               {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
               {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
@@ -2003,10 +2004,13 @@ function ArteInput({ value, onChange, qtde, rotulo = "arte", className, style, t
   return <input value={value || ""} onFocus={() => { ini.current = value; }} onChange={(e) => onChange(e.target.value)} onBlur={sair} inputMode="decimal" className={className} style={style} title={title} />;
 }
 
-function PersAplicacoes({ lista, onChange, params, qtde, item }) {
+function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user }) {
   const pc = silkPorCorDe(params);
   const locais = locaisDaPeca(item);   // v693 — calça: laterais e bolsos
-  const add = () => onChange([...lista, { metodo: "SILK", local: locais[0][0], cores: 1, valor: "", interno: true }]);
+  const novoUid = () => Math.random().toString(36).slice(2, 10);
+  const add = () => onChange([...lista, { uid: novoUid(), metodo: "SILK", local: locais[0][0], cores: 1, valor: "", interno: true }]);
+  // v806 — toda aplicação tem uid (os arquivos da estampa se ligam a ele)
+  useEffect(() => { if (lista.some((a) => !a.uid)) onChange(lista.map((a) => (a.uid ? a : { ...a, uid: novoUid() }))); }, [lista]);
   const mud = (i, k, v) => onChange(lista.map((a, j) => {
     if (j !== i) return a;
     const n = { ...a, [k]: v };
@@ -2027,7 +2031,8 @@ function PersAplicacoes({ lista, onChange, params, qtde, item }) {
         const lbl = (t, el) => <label className="block min-w-0"><div className="text-[11px] mb-1 truncate" style={{ color: C.sub }}>{t}</div><div className="flex items-center" style={{ height: 34 }}>{el}</div></label>;
         const rateio = num(a.arte) > 0 ? num(a.arte) / Math.max(1, qtde || 1) : 0;
         return (
-          <div key={i} className="flex items-center gap-2 mb-2">
+          <div key={a.uid || i} className="mb-2">
+          <div className="flex items-center gap-2">
             <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(120px,1.3fr) minmax(120px,1.3fr) minmax(100px,1fr) minmax(130px,1.1fr) minmax(110px,1fr) auto" }}>
               {/* v659 — método primeiro; sublimação tem o local "Total" */}
               {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
@@ -2061,11 +2066,61 @@ function PersAplicacoes({ lista, onChange, params, qtde, item }) {
             </div>
             <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="p-1.5 rounded shrink-0" style={{ color: C.sub }} title="Remover"><Trash2 size={15} /></button>
           </div>
+          {/* v806 — silk, DTF e bordado: medidas da estampa e arquivos de detalhe (vão para o pedido ao indexar a FPP) */}
+          {temArte && a.uid && <EstampaFpp a={a} mud={(k, v) => mud(i, k, v)} fppId={fppId} user={user} />}
+          </div>
         );
       })}
       <button type="button" onClick={add} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>
         <Plus size={13} /> Aplicação
       </button>
+    </div>
+  );
+}
+
+// v806 — estampa da FPP: largura × altura (cm), detalhes e arquivos. Antes de salvar a FPP os arquivos ficam guardados e sobem ao salvar.
+const _pendEstampa = {};   // uid → arquivos ainda sem FPP salva (sobrevive a re-render)
+function EstampaFpp({ a, mud, fppId, user }) {
+  const [l, setL] = useState([]);
+  const [pend, setPend] = useState(_pendEstampa[a.uid] || []);
+  const [sobre, setSobre] = useState(false);
+  const quem = `${user?.nome || ""} ${user?.sobrenome || ""}`.trim().toUpperCase();
+  const ler = () => (fppId ? fetch(`/api/fpp/${fppId}/anexos?aplicacao=${a.uid}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setL(Array.isArray(d) ? d : [])).catch(() => {}) : setL([]));
+  const b64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
+  const subir = async (arqs) => {
+    for (const x of arqs) { const r = await fetch(`/api/fpp/${fppId}/anexos`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...x, quem, aplicacao: a.uid }) }); if (!r.ok) { const j = await r.json().catch(() => ({})); alerta(`${x.nome}: ${j.error || "erro ao enviar"}`); } }
+    ler();
+  };
+  useEffect(() => { ler(); }, [fppId, a.uid]);
+  useEffect(() => { if (fppId && pend.length) { const p = pend; setPend([]); delete _pendEstampa[a.uid]; subir(p); } }, [fppId]);
+  const adicionar = async (files) => {
+    const arqs = [];
+    for (const x of [...(files || [])]) { if (x.size > 20 * 1048576) { alerta(`${x.name}: maior que 20 MB.`); continue; } arqs.push({ nome: x.name, mime: x.type || null, base64: await b64(x) }); }
+    if (!arqs.length) return;
+    if (fppId) subir(arqs); else setPend((p) => { const n = [...p, ...arqs]; _pendEstampa[a.uid] = n; return n; });
+  };
+  const tirar = async (x) => { if (!(await confirmar(`Excluir o arquivo ${x.nome}?`))) return; await fetch(`/api/fpp/${fppId}/anexos?anexo=${x.id}`, { method: "DELETE" }); ler(); };
+  const tirarPend = (k) => setPend((p) => { const n = p.filter((_, j) => j !== k); _pendEstampa[a.uid] = n; return n; });
+  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  const med = (k) => <input value={a[k] || ""} onChange={(e) => mud(k, e.target.value.replace(/[^\d.,]/g, ""))} inputMode="decimal" placeholder="cm" className="w-16 px-2 py-1 rounded text-sm text-center" style={{ ...sel, borderColor: a[k] ? C.line : C.accent }} />;
+  const chip = (nome, onX, href) => <span className="inline-flex items-center gap-1 max-w-[220px] pl-2 pr-1 py-0.5 rounded-full text-[11px]" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+    <Paperclip size={10} className="shrink-0" style={{ color: C.sub }} />{href ? <a href={href} target="_blank" rel="noreferrer" className="truncate" title={nome}>{nome}</a> : <span className="truncate" title={nome}>{nome}</span>}
+    <button type="button" onClick={onX} className="shrink-0" style={{ color: C.red }}><X size={11} /></button></span>;
+  return (
+    <div className="ml-4 mr-9 mt-1 px-4 py-2.5 rounded-b-lg flex flex-wrap items-center gap-3" style={{ background: "#EEF3FB", borderLeft: "3px solid #001E41" }}>
+      <span className="text-xs font-semibold" style={{ color: "#001E41" }}>Estampa</span>
+      <span className="flex items-center gap-1 text-xs" style={{ color: C.sub }}>Largura {med("largura")} × Altura {med("altura")} cm</span>
+      <input value={a.obsArte || ""} onChange={(e) => mud("obsArte", e.target.value.toUpperCase())} placeholder="detalhes (Pantone, posição…)" className="flex-1 min-w-[180px] px-2 py-1 rounded text-sm" style={sel} />
+      <label className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer" style={{ border: `1.5px dashed ${sobre ? "#001E41" : C.accent}`, color: C.accent, background: sobre ? "#fff" : C.accentSoft }}
+        onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
+        onDrop={(e) => { e.preventDefault(); setSobre(false); adicionar(e.dataTransfer?.files); }}>
+        <Paperclip size={12} /> Arquivos da estampa{l.length + pend.length ? ` (${l.length + pend.length})` : ""}
+        <input type="file" multiple className="hidden" onChange={(e) => { const fs = e.target.files; adicionar(fs).then(() => { e.target.value = ""; }); }} />
+      </label>
+      {(l.length > 0 || pend.length > 0) && <div className="w-full flex flex-wrap gap-1.5">
+        {l.map((x) => <React.Fragment key={x.id}>{chip(x.nome, () => tirar(x), `/api/fpp/${fppId}/anexos?arquivo=${x.id}`)}</React.Fragment>)}
+        {pend.map((x, k) => <React.Fragment key={`p${k}`}>{chip(`${x.nome} · sobe ao salvar`, () => tirarPend(k))}</React.Fragment>)}
+      </div>}
     </div>
   );
 }

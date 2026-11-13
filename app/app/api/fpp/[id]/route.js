@@ -60,5 +60,7 @@ export async function POST(req, { params }) {
     ...resto, nomeComercial: nome, entradas: { ...(o.entradas || {}), nomeComercial: nome },
     criadoPorId: b.criadoPorId != null ? Number(b.criadoPorId) : o.criadoPorId, criadoPorNome: b.criadoPorNome || o.criadoPorNome,
   });
+  await (await import("@/lib/fppEstampas")).copiarEstampas(o.id, f.id);   // v806 — arquivos das estampas vão junto
   return NextResponse.json(f);
 }
+

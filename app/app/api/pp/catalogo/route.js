@@ -16,7 +16,14 @@ export async function GET(req) {
     return Response.json(await catalogoItens(sp.get("q")));
   }
   if (!(await usuarioPP(req, "ve"))) return negadoPP();
-  if (sp.get("fppId")) return Response.json(resumoFpp(await prisma.fpp.findUnique({ where: { id: Number(sp.get("fppId")) } })));
+  if (sp.get("fppId")) {   // v806 — com os arquivos de cada estampa (sem o conteúdo)
+    const r = resumoFpp(await prisma.fpp.findUnique({ where: { id: Number(sp.get("fppId")) } }));
+    if (r && r.aplicacoes?.length) {
+      const arqs = await prisma.fppAnexo.findMany({ where: { fppId: r.id, aplicacaoUid: { in: r.aplicacoes.map((a) => a.uid) } }, orderBy: { id: "asc" }, select: { id: true, nome: true, mime: true, aplicacaoUid: true } }).catch(() => []);
+      for (const a of r.aplicacoes) a.arquivos = arqs.filter((x) => x.aplicacaoUid === a.uid).map(({ aplicacaoUid, ...x }) => x);
+    }
+    return Response.json(r);
+  }
   if (sp.has("fpp")) return Response.json(await buscarFpps(sp.get("fpp"), sp.get("cliente")));
   if (sp.get("status") === "1") {
     const st = await prisma.finConfig.findUnique({ where: { chave: "KM_PRODUTOS_SYNC" } });
