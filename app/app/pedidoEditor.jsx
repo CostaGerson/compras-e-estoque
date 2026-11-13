@@ -13,7 +13,7 @@ import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valore
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
   num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoRestricao, DOWS, DOWS_LONGO, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal, valorDesconto, precoComDesconto,
-  paramFora, tecidoDaFpp, numFpp,
+  paramFora, tecidoDaFpp, numFpp, partesTecido, tecidoDoResumo,
 } from "@/lib/pedidoLanc";
 
 const C = {
@@ -990,7 +990,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               {it.fppId ? <>
                 <span className="font-semibold" style={{ color: C.green }}>FPP {numFpp(it.fppNumero)}</span>
                 <span style={{ color: C.text }}>{it.fpp ? `${it.fpp.nomeComercial || it.fpp.item}${it.fpp.cliente ? " · " + it.fpp.cliente : ""}` : ""}</span>
-                {it.fpp && <span style={{ color: C.sub }}>· {it.fpp.tecidoTipo} · {it.fpp.artigo || "sem artigo"}{it.fpp.medida ? ` · ${it.fpp.medida}` : ""}{it.fpp.forro ? ` · forro ${it.fpp.forro}` : ""}</span>}
+                {it.fpp && <span style={{ color: C.sub }}>· {tecidoDoResumo(it.fpp).join(" · ")}</span>}
                 {/* v664 — FPP com várias cores do mesmo tecido: escolher a cor deste item (vai para compras) */}
                 {it.fpp && (it.fpp.cores || []).length > 1 && <select value={it.parametros?.TECIDO?.cor || ""} onChange={(e) => upItem(i, { parametros: { ...it.parametros, TECIDO: tecidoDaFpp(it.fpp, e.target.value) } })}
                   className="px-2 py-1 rounded text-xs font-semibold" style={{ ...inp, borderColor: it.parametros?.TECIDO?.cor ? C.line : C.accent }}>
@@ -1045,7 +1045,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                     <div key={comp} className="col-span-2 flex items-center gap-2">
                       <span className="w-40 text-sm" style={{ color: C.sub }}>TECIDO</span>
                       {tec ? <div className="flex-1 px-2 py-1 rounded text-sm" style={{ background: C.greenSoft, color: C.text }} title="vem da FPP">
-                        <b>{tec.tipo}</b> · {tec.artigo || "—"}{tec.medida ? ` · ${tec.medida}` : ""}{tec.forro ? ` · forro ${tec.forro}` : ""} <span className="text-xs" style={{ color: C.green }}>(FPP {numFpp(tec.fpp)})</span>
+                        {(() => { const p = partesTecido(tec); return <><b>{p[0]}</b>{p.length > 1 ? ` · ${p.slice(1).join(" · ")}` : ""}</>; })()} <span className="text-xs" style={{ color: C.green }}>(FPP {numFpp(tec.fpp)})</span>
                       </div> : <input value={typeof it.parametros?.TECIDO === "string" ? it.parametros.TECIDO : ""} onChange={(e) => upParam(i, "TECIDO", e.target.value)} placeholder="indexe a FPP para trazer artigo e rendimento"
                         className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inp} />}
                     </div>
@@ -1258,7 +1258,7 @@ function FppBusca({ api, cliente, item, veVal, onPick, onFechar }) {
         <button key={rf.id} type="button" onClick={() => onPick(rf)} className="w-full text-left rounded px-3 py-2 mb-1 text-sm" style={{ border: `1px solid ${C.line}` }}>
           <div><b style={{ color: C.accent }}>FPP {numFpp(rf.numero)}</b> · <b>{rf.nomeComercial || rf.item}</b> <span style={{ color: C.sub }}>· {rf.item}{rf.cliente ? ` · ${rf.cliente}` : ""}</span>
             {veVal && rf.valorProposto ? <span className="float-right" style={{ color: C.accent }}>{money(rf.valorProposto)}</span> : null}</div>
-          <div className="text-xs" style={{ color: C.sub }}>{rf.tecidoTipo} · {rf.artigo || "sem artigo"}{rf.medida ? ` · ${rf.medida}` : ""}{rf.forro ? ` · forro ${rf.forro}` : ""}</div>
+          <div className="text-xs" style={{ color: C.sub }}>{tecidoDoResumo(rf).join(" · ")}</div>
         </button>
       ))}
     </Modal>

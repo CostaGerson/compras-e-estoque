@@ -48,6 +48,7 @@ import PedidoEditor from "./pedidoEditor";
 import Integracoes from "./integracoes";   // v732
 import Vendedores from "./vendedores";   // v747
 import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
+import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
 /* ============================================================
    MERIDIAN — Protótipo (v2 · tema claro estilo Asana + laranja Meridian)
@@ -1817,7 +1818,7 @@ function imprimirPPAntigo(f, itens, totalPecas, totalGeral, comValores = true) {
     const params = COMPONENTES[it.tipoPecaNome].map((comp) => {
       let val = it.parametros[comp];
       if (comp === "TECIDO" && val && typeof val === "object") {
-        val = `${esc(val.tipo)}${val.artigo ? " · " + esc(val.artigo) : ""}${val.medida ? " · " + esc(val.medida) : ""}${val.forro ? " · forro " + esc(val.forro) : ""}${val.fpp ? " (FPP " + esc(String(val.fpp).padStart(5, "0")) + ")" : ""}`;
+        val = `${partesTecido(val).map(esc).join(" · ")}${val.fpp ? " (FPP " + esc(String(val.fpp).padStart(5, "0")) + ")" : ""}`;
       } else { val = esc(val || "—"); }
       return `<tr><td class="pk">${esc(comp)}</td><td>${val}</td></tr>`;
     }).join("");

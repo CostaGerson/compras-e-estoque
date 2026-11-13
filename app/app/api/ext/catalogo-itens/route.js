@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { tokenExterno } from "@/lib/compras";
 import { paramFora } from "@/lib/pedidoLanc";
+import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
 const autorizado = async (req) => { const tk = req.headers.get("x-api-key") || ""; return !!tk && tk === (await tokenExterno()); };
 const TAMS = ["RN", "BB", "PP", "P", "M", "G", "GG", "XG", "EG", "XGG", "EGG", "EXG", "G1", "G2", "G3", "G4", "EXGG", "XXG", "XXXG", "LXG", "UNICO", "ÚNICO", "U", "ESPECIAL", "INFANTIL"];
@@ -16,7 +17,7 @@ const tiraTam = (n) => {
   return s;
 };
 const deObjeto = (o) => Object.entries(o && typeof o === "object" ? o : {}).filter(([k, v]) => !paramFora(k) && v)
-  .map(([t, v]) => ({ t, v: typeof v === "object" ? [v.tipo, v.artigo, v.medida, v.forro ? `FORRO ${v.forro}` : ""].filter(Boolean).join(" · ") : String(v) }));
+  .map(([t, v]) => ({ t, v: typeof v === "object" ? partesTecido(v).join(" · ").toUpperCase() : String(v) }));
 
 export async function GET(req) {
   if (!(await autorizado(req))) return Response.json({ ok: false, error: "Token inválido." }, { status: 401 });

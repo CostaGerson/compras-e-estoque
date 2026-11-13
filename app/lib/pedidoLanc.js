@@ -218,4 +218,13 @@ export const tecidoDaFpp = (rf, cor) => (rf ? { tipo: rf.tecidoTipo, artigo: [rf
   nome: rf.artigo || null, corArtigo: cor || rf.artigoCor || null,
   codigo: ((rf.cores || []).find((c) => c.cor === (cor || rf.artigoCor)) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null,
   fpp: rf.numero, forro: rf.forro ? `${rf.forro}${rf.consumoForro ? ` · ${fmt(rf.consumoForro)} m/pç` : ""}` : "" } : null);
+// v809 — tecido na ordem TIPO · NOME DO ARTIGO · COR · CÓD · FABRICANTE (sem rendimento)
+export function partesTecido(v) {
+  if (!v) return [];
+  if (typeof v !== "object") return [String(v)];
+  const nome = v.nome || String(v.artigo || "").split(" · ")[0] || "";
+  const cor = v.corArtigo || v.cor || (v.nome ? "" : String(v.artigo || "").split(" · ")[1] || "");
+  return [v.tipo, nome, cor, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante, v.forro ? `forro ${v.forro}` : ""].filter(Boolean);
+}
+export const tecidoDoResumo = (rf) => (rf ? [rf.tecidoTipo, rf.artigo || "sem artigo", rf.artigoCor, rf.artigoCodigo ? `cód. ${rf.artigoCodigo}` : "", rf.artigoFabricante, rf.forro ? `forro ${rf.forro}` : ""].filter(Boolean) : []);
 export const numFpp = (n) => (n != null ? String(n).padStart(5, "0") : "");

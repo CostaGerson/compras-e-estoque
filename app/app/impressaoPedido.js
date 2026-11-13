@@ -1,7 +1,7 @@
 // v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
 //   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
 //   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
-import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal, valorDesconto, rotuloAplicacao } from "@/lib/pedidoLanc";
+import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal, valorDesconto, rotuloAplicacao, partesTecido } from "@/lib/pedidoLanc";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n = (v) => { const s = String(v ?? "").trim(); return (s.includes(",") ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s)) || 0; };
@@ -11,12 +11,10 @@ const cap = (s) => String(s || "").toLowerCase().replace(/(^|\s|·)\S/g, (m) => 
 const BASE_TXT = { EMISSAO: "do pedido", NF: "da NF", ENTREGA: "da entrega" };
 
 // v774 — #58: tecido na OP = artigo (malha PV, brim leve…), cor, código e fabricante; sem o rendimento da FPP
-function tecidoTxt(v) {
+function tecidoTxt(v) {   // v809 — TIPO · NOME · COR · CÓD · FABRICANTE
   if (!v) return "";
   if (typeof v !== "object") return esc(v);
-  const partes = v.nome ? [v.nome, v.corArtigo || v.cor, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante]
-    : [v.artigo, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante];
-  return [...partes, v.forro ? `forro ${v.forro}` : ""].filter(Boolean).map(esc).join(" · ") + (v.fpp ? ` <span class="mut">(FPP ${esc(String(v.fpp).padStart(5, "0"))})</span>` : "");
+  return partesTecido(v).map(esc).join(" · ") + (v.fpp ? ` <span class="mut">(FPP ${esc(String(v.fpp).padStart(5, "0"))})</span>` : "");
 }
 
 /**

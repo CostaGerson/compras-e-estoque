@@ -10,6 +10,7 @@ import {
 } from "@/lib/pedidoLanc";
 
 import { limparDU, temDU, conferirComGrade } from "@/lib/dadosUnitarios";
+import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const dUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
@@ -197,7 +198,7 @@ function itensPv(pp) {
   return (pp.itens || []).map((it) => {
     const grade = safe(it.gradeJson, []).filter((g) => num(g.qtd) > 0).map((g) => ({ tam: g.tam, qtd: num(g.qtd) }));
     const params = Object.entries(safe(it.parametrosJson, {})).filter(([k, v]) => !paramFora(k) && v)
-      .map(([t, v]) => ({ t, v: typeof v === "object" ? [v.tipo, v.artigo, v.medida, v.forro ? `FORRO ${v.forro}` : ""].filter(Boolean).join(" · ") : String(v) }));
+      .map(([t, v]) => ({ t, v: typeof v === "object" ? partesTecido(v).join(" · ").toUpperCase() : String(v) }));
     const qtd = grade.reduce((s, g) => s + g.qtd, 0);
     return { codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: num(it.valorUnitario), total: r2(qtd * num(it.valorUnitario)), grade, parametros: params,
       fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null,

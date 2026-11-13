@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Search, X, Loader2, Plus, RefreshCw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { ItemPadraoModal } from "./itensPadrao";   // v774 — #56: item do KM edita na mesma tela do item padrão
+import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6", navy: "#001E41", green: "#12A150", red: "#D92D20" };
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
@@ -34,7 +35,7 @@ export default function ItensKm({ user, componentes = {} }) {
     const noKm = new Set(km.map((i) => String(i.codigo).toUpperCase()));
     const sis = (ips || []).filter((i) => !i.codigo || !noKm.has(String(i.codigo).toUpperCase())).map((i) => ({
       codigo: i.codigoPadrao || i.codigo || `#${i.id}`, nome: i.nomeInterno, ncm: i.ncm, gtin: i.gtin, unidade: "UN", preco: i.precoAtual,
-      parametros: Object.entries(i.parametros || {}).map(([t, v]) => ({ t, v: typeof v === "object" ? [v.artigo, v.medida].filter(Boolean).join(" · ") : v })),
+      parametros: Object.entries(i.parametros || {}).map(([t, v]) => ({ t, v: typeof v === "object" ? partesTecido(v).join(" · ") : v })),
       usos: null, kmSyncEm: i.updatedAt, padrao: i, origem: "SISTEMA" }));
     return { ...d0, itens: [...km, ...sis] };
   }, [d0, ips]);

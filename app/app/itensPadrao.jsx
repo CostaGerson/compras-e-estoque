@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, X, Search, AlertTriangle, Paperclip, Trash2, FileText, Users, List, Upload } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import { partesTecido, tecidoDoResumo } from "@/lib/pedidoLanc";   // v809
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -351,7 +352,7 @@ export function ItemPadraoModal({ id, user, componentes, clientes: clientes0, on
             <span className="font-semibold" style={{ color: C.green }}>FPP {numFpp(f.fpp.numero)}</span>
             <span style={{ color: C.text }}>{f.fpp.nomeComercial || f.fpp.item}{f.fpp.cliente ? ` · ${f.fpp.cliente}` : ""}</span>
             <span style={{ color: C.sub }}>· valor de venda {brl(f.fpp.valorProposto)}</span>
-            {(f.fpp.artigo || f.parametros?.TECIDO?.artigo) && <span className="w-full text-xs" style={{ color: C.sub }}>Tecido: {[f.fpp.tecidoTipo || f.parametros?.TECIDO?.tipo, f.fpp.artigo ? [f.fpp.artigo, f.fpp.artigoCor].filter(Boolean).join(" · ") : f.parametros?.TECIDO?.artigo, f.fpp.medida || f.parametros?.TECIDO?.medida, (f.fpp.forro || f.parametros?.TECIDO?.forro) ? `forro ${f.fpp.forro || f.parametros.TECIDO.forro}` : ""].filter(Boolean).join(" · ")}</span>}
+            {(f.fpp.artigo || f.parametros?.TECIDO?.artigo) && <span className="w-full text-xs" style={{ color: C.sub }}>Tecido: {(f.fpp.artigo ? tecidoDoResumo(f.fpp) : partesTecido(f.parametros?.TECIDO)).join(" · ")}</span>}
             <button onClick={() => setF((x) => ({ ...x, fpp: null, fppId: null }))} className="ml-auto text-xs underline" style={{ color: C.sub }}>tirar</button>
           </div>
         ) : (
