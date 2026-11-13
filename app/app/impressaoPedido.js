@@ -81,11 +81,14 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
     const tams = servico ? "—" : grade.map((g) => `${esc(g.tam)} ${esc(g.qtd)}`).join(" · ") || "—";
     const tec = it.parametros?.TECIDO;
-    const det = servico ? "" : [cap(it.tipoPecaNome), it.codigo ? `cód. ${esc(it.codigo)}` : "", PV && tec ? (typeof tec === "object" ? [tec.tipo, tec.artigo].filter(Boolean).map(esc).join(" · ") : esc(tec)) : ""].filter(Boolean).join(" · ");
+    const det = servico ? "" : [cap(it.tipoPecaNome), it.codigo ? `cód. ${esc(it.codigo)}` : "", PV && tec ? partesTecido(tec).map(esc).join(" · ") : ""].filter(Boolean).join(" · ");
     const q = qtdDe(it), vu = n(it.valorUnitario);
+    // v818 — PV: layout da peça reduzido abaixo do item
+    const lay = !PV || servico ? null : it.fotoBase64 || ((it.anexos || []).find((a) => /^layout\b/i.test(String(a.nome || "")) && ehImg({ ...a, src: a.src || a.base64 })) || {}).base64 || null;
+    const layHtml = lay ? `<img class="lay-pv" src="${esc(/^data:/.test(lay) ? lay : `data:image/png;base64,${lay}`)}"/>` : "";
     return `<tr>
       <td class="num">${i + 1}</td>
-      <td><div class="it">${esc(it.descricao || cap(it.tipoPecaNome) || "—")}</div>${det ? `<div class="sub">${det}</div>` : ""}</td>
+      <td><div class="it">${esc(it.descricao || cap(it.tipoPecaNome) || "—")}</div>${det ? `<div class="sub">${det}</div>` : ""}${layHtml}</td>
       <td class="tam">${tams}</td>
       <td class="r">${q.toLocaleString("pt-BR")}</td>
       ${PV ? `<td class="r">${money(vu)}</td><td class="r b">${money(q * vu)}</td>` : ""}
@@ -217,6 +220,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   .peca-h .bd { background: #001E41; color: #fff; border-radius: 50%; width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; }
   .peca-h .q { margin-left: auto; color: #FF6B1A; }
   .peca-b { display: flex; gap: 10px; padding: 9px; }
+  .lay-pv { display: block; margin-top: 4px; max-width: 150px; max-height: 70px; object-fit: contain; border: 1px solid #E4E7EC; border-radius: 4px; }
   .foto { width: 125px; height: 125px; object-fit: cover; border-radius: 5px; border: 1px solid #E4E7EC; flex-shrink: 0; }
   .foto.vz { display: flex; align-items: center; justify-content: center; color: #98A2B3; font-size: 9.5px; }
   .peca-i { flex: 1; min-width: 0; }
