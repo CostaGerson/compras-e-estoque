@@ -77,6 +77,10 @@ async function cobrarVencidos(quem) {
   return n;
 }
 
+// v832 — cliente pagou direto à Meridian (baixa manual) com a recompra já lançada: o banco ainda vai cobrar a recompra,
+//   então ela continua no contas a pagar até aparecer no relatório de Títulos Baixados (pagarRecompra)
+export const AGUARDA_BAIXADOS = "AGUARDANDO O RELATÓRIO DE TÍTULOS BAIXADOS";
+
 // conta a pagar da cobrança paga → título original liquidado; estornada → volta; cliente pagou → cancela a cobrança
 async function amarrarCobrancas(quem) {
   const ligados = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", recompraId: { not: null } }, select: { id: true, recompraId: true, liquidadoEm: true, liquidacao: true, titulo: true, status: true, cobranca: true, valor: true, antecipadoEm: true, dataPagamento: true, observacao: true, critica: true } });
@@ -98,7 +102,7 @@ async function amarrarCobrancas(quem) {
       // recompra estornada: volta a ser antecipado aguardando o cliente (se o cliente ainda não pagou)
       await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null,
         ...(t.status === "ABERTO" && t.cobranca === "RECOMPRADO" ? { status: "PAGO", dataPagamento: t.antecipadoEm || hojeUTC(), valorPago: t.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO" } : {}) } });
-    } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE") {
+    } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE" && !String(c.observacao || "").includes(AGUARDA_BAIXADOS)) {   // v832 — cliente pagou à Meridian: a recompra espera os Títulos Baixados
       await prisma.finTitulo.update({ where: { id: c.id }, data: { status: "CANCELADO", critica: null,
         observacao: [c.observacao, `CANCELADA: O CLIENTE PAGOU O TÍTULO (${dBR(t.liquidadoEm)})`].filter(Boolean).join(" · ").slice(0, 1000) } });
     }
@@ -241,6 +245,11 @@ export async function liquidar(id, data, quem, { relatorio = false } = {}) {
   }
   if (!ehAntecipado(t) || t.status !== "PAGO") throw new Error("Só título antecipado pode ser liquidado.");
   if (t.liquidadoEm) return { ja: true };
+  if (!relatorio && t.recompraId) {   // v832 — baixa manual (cliente pagou à Meridian): a recompra em aberto fica esperando os Títulos Baixados
+    const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId }, select: { id: true, status: true, observacao: true } });
+    if (c && c.status === "ABERTO" && !String(c.observacao || "").includes(AGUARDA_BAIXADOS))
+      await prisma.finTitulo.update({ where: { id: c.id }, data: { observacao: [c.observacao, `CLIENTE PAGOU À MERIDIAN EM ${dBR(dataUTC(data))} — ${AGUARDA_BAIXADOS} PARA DAR COMO PAGA`].filter(Boolean).join(" · ").slice(0, 1000) } });
+  }
   await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: dataUTC(data), liquidacao: "CLIENTE", liquidadoPorNome: quem || null,
     critica: limparCriticaAnt(t.critica) } });   // v544 — cliente pagou: sai a crítica de "não pagou / vencidos / recompra"
   await amarrarCobrancas(quem);
