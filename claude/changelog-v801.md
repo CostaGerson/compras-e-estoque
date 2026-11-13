@@ -7,3 +7,6 @@
 # v802 — FPP em maiúsculas
 - Todos os campos editáveis da FPP aparecem em MAIÚSCULAS (campos, listas, selects; o placeholder continua normal).
 - O que é digitado já é gravado em maiúsculas: nome comercial e demais textos, cliente, negociação, artigo e listas. Quando o texto digitado é uma opção cadastrada (sem diferenciar maiúsculas), o sistema usa a opção, para não perder o vínculo com o banco de dados.
+
+# v803 — gramatura no detalhe do artigo da FPP
+- Janela do artigo (malha e tecido plano): campo **Gramatura (g/m²)** depois da largura. Aparece no resumo do artigo e vai para o cadastro de Artigos (`gramatura`) ao salvar a FPP.

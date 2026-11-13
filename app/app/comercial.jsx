@@ -2118,7 +2118,7 @@ function SeletorOrigem({ interno, onChange }) {
    Preenchido, o artigo entra no cadastro de Artigos com origem FPP ao salvar a ficha. Campo vazio não distingue um artigo do outro. */
 let _fornCache = null;
 function resumoDet(d, categoria, botao) {
-  return [d.fornecedorNome && sc(d.fornecedorNome), d.cor && sc(d.cor) + ((d.variantes || []).filter((v) => v?.cor).length ? ` +${(d.variantes || []).filter((v) => v?.cor).length} cor(es)` : ""), d.codigo, d.largura ? `${d.largura} m larg.` : null,
+  return [d.fornecedorNome && sc(d.fornecedorNome), d.cor && sc(d.cor) + ((d.variantes || []).filter((v) => v?.cor).length ? ` +${(d.variantes || []).filter((v) => v?.cor).length} cor(es)` : ""), d.codigo, d.largura ? `${d.largura} m larg.` : null, d.gramatura ? `${d.gramatura} g/m²` : null,
     categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null,
     categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${String(d.obs).toLocaleLowerCase("pt-BR")}` : null].filter(Boolean);
 }
@@ -2207,7 +2207,7 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
   );
 }
 function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar }) {
-  const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "", qtdPeca: det.qtdPeca || "", obs: det.obs || "" });
+  const [x, setX] = useState({ fornecedorId: det.fornecedorId || "", fornecedorNome: det.fornecedorNome || "", cor: det.cor || "", codigo: det.codigo || "", largura: det.largura || "", gramatura: det.gramatura || "", rendimento: det.rendimento || "", tipoMalha: det.tipoMalha || "", qtdPeca: det.qtdPeca || "", obs: det.obs || "" });
   const [vars, setVars] = useState(Array.isArray(det.variantes) ? det.variantes.map((v) => ({ ...v })) : []);   // v664 — outras cores do mesmo tecido
   const [forns, setForns] = useState(_fornCache || []);
   useEffect(() => { if (!_fornCache) fetch("/api/fornecedores").then((r) => r.json()).then((l) => { _fornCache = Array.isArray(l) ? l : []; setForns(_fornCache); }).catch(() => {}); }, []);
@@ -2222,7 +2222,7 @@ function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar
     const out = { ...(det.artigoId ? { artigoId: det.artigoId } : {}) };
     for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
     if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
-    if (av) delete out.largura; else delete out.qtdPeca;
+    if (av) { delete out.largura; delete out.gramatura; } else delete out.qtdPeca;
     if (botao || semQtd) delete out.qtdPeca;
     const vs = vars.map((v) => ({ ...(v.artigoId ? { artigoId: v.artigoId } : {}), cor: String(v.cor || "").trim().toUpperCase(), codigo: String(v.codigo || "").trim().toUpperCase() || null })).filter((v) => v.cor);
     if (!av && vs.length) out.variantes = vs; else delete out.variantes;
@@ -2252,6 +2252,7 @@ function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar
             {vars.length > 0 && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Mesma FPP para todas as cores; no lançamento do pedido escolhe-se a cor de cada item (vai para compras).</div>}
           </div>}
           {!av && campo("Largura (m)", "largura", "ex.: 1,60")}
+          {!av && campo("Gramatura (g/m²)", "gramatura", "ex.: 180")}
           {categoria === "MALHA" && campo("Rendimento da malha (m/kg)", "rendimento", "ex.: 2,8")}
           {av && !botao && !semQtd && campo("Qtd por peça (un)", "qtdPeca", "1")}
           {botao && <div className="text-xs self-end pb-2" style={{ color: C.sub }}>Qtd por peça = Qtde de botões. Compra em grosa (144), arredondada para cima.</div>}

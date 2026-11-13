@@ -172,7 +172,7 @@ const chaveDet = (d) => ({
   cor: vazio(d.cor) ? null : norm(d.cor),
   codigo: vazio(d.codigo) ? null : norm(d.codigo),
 });
-const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura", "rendimento", "tipoMalha", "obs"].some((k) => !vazio(d[k]));
+const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura", "gramatura", "rendimento", "tipoMalha", "obs"].some((k) => !vazio(d[k]));
 
 // procura o artigo idêntico (mesma categoria, nome e mesmos campos de identificação, vazio = vazio); senão cria
 export async function artigoDaFpp(m, fpp, db = prisma) {
@@ -189,6 +189,7 @@ export async function artigoDaFpp(m, fpp, db = prisma) {
   const d = m.det || {};
   const dados = {
     ...(n0(d.largura) != null ? { largura: n0(d.largura) } : {}),
+    ...(n0(d.gramatura) != null ? { gramatura: n0(d.gramatura) } : {}),   // v803
     ...(m.categoria === "MALHA" && n0(d.rendimento) != null ? { rendimento: n0(d.rendimento) } : {}),
     ...(m.categoria === "MALHA" && ["RAMADA", "TUBULAR"].includes(d.tipoMalha) ? { tipoMalha: d.tipoMalha } : {}),
     ...(m.valorUnitario != null ? { valorUnitario: m.valorUnitario } : {}),
