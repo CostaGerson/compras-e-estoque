@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, garantirTipos, limparLancamentosOrfaos } from "@/lib/fin";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 // GET ?u=&ano=AAAA → números por mês (competência) + dia/mês/ano corrente (pela data do lançamento)
 export async function GET(req) {
@@ -59,7 +60,7 @@ export async function GET(req) {
   const hojeSP = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const mesSP = hojeSP.slice(0, 7);
   const ini = new Date(`${mesSP}-01T00:00:00Z`), fim = new Date(Date.UTC(Number(mesSP.slice(0, 4)), Number(mesSP.slice(5, 7)), 0));
-  const tits = await prisma.finTitulo.findMany({ where: { status: { not: "CANCELADO" }, vencimento: { gte: ini, lte: fim } }, select: { tipo: true, valor: true, vencimento: true, status: true } });
+  const tits = await prisma.finTitulo.findMany({ where: { ...SEM_NORT, status: { not: "CANCELADO" }, vencimento: { gte: ini, lte: fim } }, select: { tipo: true, valor: true, vencimento: true, status: true } });
   const prev = () => ({ receber: 0, pagar: 0, qtdReceber: 0, qtdPagar: 0, abertoReceber: 0, abertoPagar: 0, qtdAbertoReceber: 0, qtdAbertoPagar: 0 });
   const previsao = { dia: prev(), mes: prev(), hoje: hojeSP };
   for (const t of tits) {

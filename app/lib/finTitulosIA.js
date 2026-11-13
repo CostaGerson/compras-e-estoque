@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { normRegra } from "@/lib/fin";
 import { indiceHistorico, candidatos, topConta, iaDisponivel, perguntarIA } from "@/lib/finIA";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 const DIA = 86400000;
@@ -128,8 +129,8 @@ export async function analisarTitulos({ tipo = "PAGAR", dIni, dFim, usarIA = tru
   const ini = new Date(`${dIni}T00:00:00Z`), fim = new Date(`${dFim}T00:00:00Z`);
   const sel = { id: true, tipo: true, titulo: true, parceiro: true, documento: true, numeroDoc: true, valor: true, vencimento: true, competencia: true, status: true, previsao: true, recorrenciaId: true, rateio: true, chaveImport: true, forma: true, observacao: true, _count: { select: { anexos: true } } };
   const [escopo, vizinhos, hist, contas] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo, status: { not: "CANCELADO" }, vencimento: { gte: ini, lte: fim } }, select: sel }),
-    prisma.finTitulo.findMany({ where: { tipo, status: { not: "CANCELADO" }, vencimento: { gte: new Date(ini.getTime() - 40 * DIA), lte: new Date(fim.getTime() + 40 * DIA) } }, select: sel }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, status: { not: "CANCELADO" }, vencimento: { gte: ini, lte: fim } }, select: sel }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, status: { not: "CANCELADO" }, vencimento: { gte: new Date(ini.getTime() - 40 * DIA), lte: new Date(fim.getTime() + 40 * DIA) } }, select: sel }),
     prisma.finTitulo.findMany({ where: { tipo, status: { not: "CANCELADO" } }, select: { id: true, tipo: true, parceiro: true, documento: true, rateio: true, status: true, chaveImport: true } }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
   ]);

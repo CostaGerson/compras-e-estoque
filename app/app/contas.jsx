@@ -4,16 +4,17 @@ import { PrestadorModal } from "./prestadores";
 import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
+import Nort from "./nort";   // v808 — guia NORT
 import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel, BotaoRecompra, BotaoObs, Notas } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
-  Info as InfoI,
+  Info as InfoI, Handshake,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
-const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA", "ANTECIPACOES"];   // guias que não usam a lista principal
+const ABAS_FORA = [...ABAS_ATRASO, "LIXEIRA", "ANTECIPACOES", "NORT"];   // guias que não usam a lista principal
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
@@ -422,7 +423,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {/* pagar / receber */}
       <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
         {[["PAGAR", "Contas a pagar", TrendingDown], ["RECEBER", "Contas a receber", TrendingUp], ["ANTECIPACOES", "Antecipações", BadgePercent], ["ATRASADAS", "Atrasados, execuções e perdas", Clock],
-          ["RECORRENTES", "Recorrentes", Repeat], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => {
+          ["RECORRENTES", "Recorrentes", Repeat], ["NORT", "NORT", Handshake], ["LIXEIRA", "Lixeira", Trash2]].map(([k, t, I]) => {
           const ativo = tipo === k || (k === "ATRASADAS" && ABAS_ATRASO.includes(tipo));
           return (
           <button key={k} onClick={() => setTipo(k === "ATRASADAS" && ABAS_ATRASO.includes(tipo) ? tipo : k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
@@ -439,6 +440,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} dCtx={d} />}
       {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
       {tipo === "LIXEIRA" && <Lixeira user={user} />}
+      {tipo === "NORT" && <Nort user={user} tick={tickAtraso} onEditar={(t) => setModal({ t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} />}
       {tipo === "ANTECIPACOES" && <Antecipacoes user={user} />}
       {tipo !== "RECORRENTES" && !ABAS_FORA.includes(tipo) && <>
       {/* NFs lançadas pelo Compras */}
@@ -612,8 +614,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
 
       </>}
 
-      {modal?.t === "titulo" && <TituloModal user={user} tipo={tipoApi} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); if (ABAS_ATRASO.includes(tipo)) setTickAtraso((x) => x + 1); }} />}
-      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); }} />}
+      {modal?.t === "titulo" && <TituloModal user={user} tipo={modal.item?.tipo || tipoApi} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); if (tipo === "NORT") setTickAtraso((x) => x + 1); if (ABAS_ATRASO.includes(tipo)) setTickAtraso((x) => x + 1); }} />}
+      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={modal.item.tipo ? modal.item.tipo === "PAGAR" : P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); if (tipo === "NORT") setTickAtraso((x) => x + 1); }} />}
       {modal?.t === "semana" && <SemanaModal user={user} tituloId={modal.item.id} onClose={() => { setModal(null); carregar(); }} onMudou={carregar} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}

@@ -5,6 +5,7 @@
 //   PDFs anexados à conta (boleto/NF) vão junto. Cada semana é enviada uma vez (registro em FinConfig).
 import { prisma } from "@/lib/prisma";
 import { enviarEmail, emailDisponivel, LIMITE_ANEXO } from "@/lib/email";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const K = (seg) => `COBRANCA_SEMANAL|${seg}`;
 const so = (s) => String(s || "").replace(/\D/g, "");
@@ -27,7 +28,7 @@ export async function montarCobranca(dataIso) {
   const { de, ate } = semanaDe(dataIso);
   const ini = new Date(`${de}T03:00:00Z`), fim = new Date(new Date(`${ate}T03:00:00Z`).getTime() + 86400000);
   const ts = await prisma.finTitulo.findMany({
-    where: { tipo: "RECEBER", status: "ABERTO", OR: [{ formaPagamento: "BOLETO" }, { nossoNumero: { not: null } }],
+    where: { ...SEM_NORT, tipo: "RECEBER", status: "ABERTO", OR: [{ formaPagamento: "BOLETO" }, { nossoNumero: { not: null } }],
       AND: [{ OR: [{ createdAt: { gte: ini, lt: fim } }, { remessaEm: { gte: new Date(`${de}T00:00:00Z`), lte: new Date(`${ate}T00:00:00Z`) } }] }] },
     select: { id: true, titulo: true, parceiro: true, documento: true, numeroDoc: true, valor: true, valorBruto: true, vencimento: true, vencimentoBoleto: true, nossoNumero: true },
     orderBy: { vencimento: "asc" },

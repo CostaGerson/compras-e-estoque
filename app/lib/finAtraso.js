@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { garantirContas } from "@/lib/fin";
 import { createHash } from "crypto";
 import { tituloOut } from "@/lib/finTitulos";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const up = (s) => String(s || "").toUpperCase().trim();
@@ -36,8 +37,8 @@ export async function visaoAtraso() {
   const hoje = dUTC(hojeISO());
   { const { preencherEmissao } = await import("@/lib/finEmissao"); await preencherEmissao().catch(() => null); }   // v205: emissão da NF no card de cobrança
   const [atrasadas, perdas, execs] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO", vencimento: { lt: hoje } }, orderBy: { vencimento: "asc" } }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PERDA" }, orderBy: [{ perdaData: "desc" }, { id: "desc" }] }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "ABERTO", vencimento: { lt: hoje } }, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "PERDA" }, orderBy: [{ perdaData: "desc" }, { id: "desc" }] }),
     listarExecucoes(),
   ]);
   // v205 — contato do cliente (cadastro) para a cobrança: e-mail, preposto, telefones
@@ -241,8 +242,8 @@ export async function anexarExecucao(execucaoId, arquivos, quem) {
 // ---------------- painel de previsão ----------------
 export async function numerosPainel(competencia) {
   const [exec, perdas] = await Promise.all([
-    prisma.finTitulo.aggregate({ where: { tipo: "RECEBER", status: "EXECUCAO" }, _sum: { valor: true }, _count: true }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PERDA" }, select: { valor: true, perdaData: true } }),
+    prisma.finTitulo.aggregate({ where: { ...SEM_NORT, tipo: "RECEBER", status: "EXECUCAO" }, _sum: { valor: true }, _count: true }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "PERDA" }, select: { valor: true, perdaData: true } }),
   ]);
   const doMes = perdas.filter((p) => p.perdaData && p.perdaData.toISOString().slice(0, 7) === competencia);
   return {

@@ -7,6 +7,7 @@
 // (recebíveis atrasados que devem entrar no mês). Bancos já vêm com os limites. Cenários são calculados.
 // Salvar grava os dados e um retrato (snapshot) datado; o painel seguinte compara previsto × realizado.
 import { prisma } from "@/lib/prisma";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
@@ -52,11 +53,11 @@ function calcBancos(lista) {
 async function posicao(M, hoje) {
   const ini = `${M}-01`, fim = fimDoMes(M);
   const [pagar0, receberAb, receberAnt, receberExec] = await Promise.all([
-    prisma.finTitulo.findMany({ where: { tipo: "PAGAR", status: "ABERTO" }, select: { ...SEL, chaveImport: true }, orderBy: { vencimento: "asc" } }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "ABERTO" }, select: SEL, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "PAGAR", status: "ABERTO" }, select: { ...SEL, chaveImport: true }, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "ABERTO" }, select: SEL, orderBy: { vencimento: "asc" } }),
     // v338 — virtual igual ao contas a receber: todo antecipado que o cliente ainda não pagou (com ou sem recompra)
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "PAGO", liquidadoEm: null, OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }] }, select: SEL, orderBy: { vencimento: "asc" } }),
-    prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: "EXECUCAO" }, select: SEL, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "PAGO", liquidadoEm: null, OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }] }, select: SEL, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "EXECUCAO" }, select: SEL, orderBy: { vencimento: "asc" } }),
   ]);
   // v338 — conta da semana com baixas parciais: vale só o SALDO (valor − itens já pagos), como no contas a pagar
   const semIds = pagar0.filter((t) => String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id);
@@ -335,7 +336,7 @@ export async function previstoRealizado(competencia) {
   const s = await painelSalvo(competencia, -1);
   if (!s) return null;
   const M = s.mesPrevisto, ini = dUTC(`${M}-01`), fim = dUTC(fimDoMes(M));
-  const pagos = await prisma.finTitulo.findMany({ where: { status: "PAGO", dataPagamento: { gte: ini, lte: fim } }, select: { id: true, tipo: true, valor: true, valorPago: true } });
+  const pagos = await prisma.finTitulo.findMany({ where: { ...SEM_NORT, status: "PAGO", dataPagamento: { gte: ini, lte: fim } }, select: { id: true, tipo: true, valor: true, valorPago: true } });
   const v = (t) => Number(t.valorPago ?? t.valor) || 0;
   const recebido = r2(pagos.filter((t) => t.tipo === "RECEBER").reduce((a, t) => a + v(t), 0));
   const pago = r2(pagos.filter((t) => t.tipo === "PAGAR").reduce((a, t) => a + v(t), 0));

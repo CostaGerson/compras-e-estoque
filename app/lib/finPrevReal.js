@@ -2,6 +2,7 @@
 // Só pode ser gerado a partir do 1º dia de M+1. Realizado: baixas do contas a pagar/receber em M, títulos previstos que foram
 // pagos/recebidos, quitação provável, prioridades, atrasadas pagas, faturamento (NFs de saída) e a DRE do mês.
 import { prisma } from "@/lib/prisma";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const dUTC = (s) => new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
@@ -49,7 +50,7 @@ export async function analisar(competencia, salvoEm, quem) {
   const M = s.mesPrevisto;
   if (hojeSP() < liberadoEm(M)) throw new Error(`O realizado de ${M.split("-").reverse().join("/")} só pode ser gerado a partir de ${liberadoEm(M).split("-").reverse().join("/")}.`);
   const ini = dUTC(`${M}-01`), fim = dUTC(fimDoMes(M));
-  const pagosMes = await prisma.finTitulo.findMany({ where: { status: "PAGO", dataPagamento: { gte: ini, lte: fim } }, select: { id: true, tipo: true, valor: true, valorPago: true } });
+  const pagosMes = await prisma.finTitulo.findMany({ where: { ...SEM_NORT, status: "PAGO", dataPagamento: { gte: ini, lte: fim } }, select: { id: true, tipo: true, valor: true, valorPago: true } });
   const v = (t) => Number(t.valorPago ?? t.valor) || 0;
   const pagoIds = new Set(pagosMes.map((t) => t.id));
   const soma = (l) => r2(l.reduce((a, t) => a + v(t), 0));

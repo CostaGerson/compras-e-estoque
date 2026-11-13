@@ -3,6 +3,11 @@
 // ou traz NORT no título, no fornecedor ou no número do documento.
 import { prisma } from "@/lib/prisma";
 
+// v808 — contas da NORT (empresa amiga) não entram em relatórios, atrasados nem nas guias de pagar/receber:
+//   ficam só na guia NORT. Toda conta NORT tem o título "NORT - …" (padronizarNort).
+export const SEM_NORT = { NOT: { titulo: { startsWith: "NORT - " } } };
+export const SO_NORT = { titulo: { startsWith: "NORT - " } };
+
 const sem = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const temNort = (s) => /(^|[^A-Z])NORT([^A-Z]|$)/.test(sem(s));
 
@@ -44,4 +49,31 @@ export async function padronizarNort() {
     if (t !== x.titulo) { await prisma.finTitulo.update({ where: { id: x.id }, data: { titulo: t } }); n++; }
   }
   return n;
+}
+
+// v808 — guia NORT: movimento realizado (lançamentos da DRE) + contas NORT em aberto
+//   créditos = lançamentos positivos nas contas-caixa do grupo NORT
+//   débitos  = lançamentos negativos no grupo NORT + empréstimos concedidos à NORT (2131600; recebimento 1136000 volta como crédito)
+const CONTAS_EMPRESTIMO = ["2131600", "1136000"];
+export async function movimentoNort({ de, ate } = {}) {
+  const { mapaDeContas } = await import("@/lib/finDre");
+  const m = await mapaDeContas();
+  const nortIds = m.filter((c) => c.grupo === "NORT").map((c) => c.id);
+  const empIds = m.filter((c) => CONTAS_EMPRESTIMO.includes(String(c.codigo))).map((c) => c.id);
+  const nomeDe = Object.fromEntries(m.map((c) => [c.id, `${c.codigo} · ${c.nome}`]));
+  const where = { desmembrado: false, substituido: false, contaId: { in: [...nortIds, ...empIds] }, ...(de || ate ? { competencia: { ...(de ? { gte: de } : {}), ...(ate ? { lte: ate } : {}) } } : {}) };
+  const lanc = (await prisma.finLancamento.findMany({ where, orderBy: [{ data: "desc" }, { id: "desc" }], select: { id: true, data: true, competencia: true, historico: true, documento: true, identificacao: true, valor: true, contaId: true, banco: true } }))
+    // empréstimo concedido entra só quando é da NORT (histórico/identificação citam a NORT)
+    .filter((l) => nortIds.includes(l.contaId) || temNort(`${l.historico} ${l.identificacao || ""} ${l.documento || ""}`))
+    .map((l) => ({ ...l, valor: Number(l.valor), data: l.data.toISOString().slice(0, 10), conta: nomeDe[l.contaId] || "—", emprestimo: empIds.includes(l.contaId) }));
+  const abertos = (await prisma.finTitulo.findMany({ where: { ...SO_NORT, status: { notIn: ["CANCELADO", "PAGO"] } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }] }))
+    .map((t) => ({ ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null, vencimento: t.vencimento.toISOString().slice(0, 10) }));
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const creditos = r2(lanc.filter((l) => l.valor > 0).reduce((s, l) => s + l.valor, 0));
+  const debitos = r2(lanc.filter((l) => l.valor < 0).reduce((s, l) => s + l.valor, 0));
+  return {
+    lancamentos: lanc, abertos,
+    totais: { creditos, debitos, saldo: r2(creditos + debitos), emprestimos: r2(lanc.filter((l) => l.emprestimo).reduce((s, l) => s + l.valor, 0)),
+      aPagar: r2(abertos.filter((t) => t.tipo === "PAGAR").reduce((s, t) => s + t.valor, 0)), aReceber: r2(abertos.filter((t) => t.tipo === "RECEBER").reduce((s, t) => s + t.valor, 0)) },
+  };
 }

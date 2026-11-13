@@ -47,27 +47,28 @@ export async function GET(req) {
     let n = 0;
     for (let c = mesDe(dIni); c <= mesDe(dFim) && n < 24; c = somaMes(c, 1), n++) await garantirSemanas(c).catch(() => null);
   }
-  const fora = { status: { notIn: ["EXECUCAO", "PERDA"] } };   // v135: execução e perda têm guias próprias
+  const { SEM_NORT } = await import("@/lib/finNort");   // v808 — contas NORT ficam só na guia NORT
+  const fora = { status: { notIn: ["EXECUCAO", "PERDA"] }, ...SEM_NORT };   // v135: execução e perda têm guias próprias
   const [titulos, atrasados, criticas, contas, parceiros, recs, periodo, vencTot] = await Promise.all([
     prisma.finTitulo.findMany({ where: { tipo, ...fora, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
     // em aberto de meses anteriores (vencidos) — aparecem sempre
-    prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO", competencia: { lt: de } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, status: "ABERTO", competencia: { lt: de } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }),
     // recorrências do mês atual (e anteriores em aberto) com valor ainda não conferido
-    prisma.finTitulo.findMany({ where: { tipo, recorrenciaId: { not: null }, valorConfirmado: false, status: "ABERTO", competencia: { lte: hoje } }, orderBy: { vencimento: "asc" } }),
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, recorrenciaId: { not: null }, valorConfirmado: false, status: "ABERTO", competencia: { lte: hoje } }, orderBy: { vencimento: "asc" } }),
     prisma.finConta.findMany({ orderBy: { codigo: "asc" }, select: { id: true, codigo: true, nome: true, ativo: true } }),
     prisma.finTitulo.findMany({ where: { tipo }, distinct: ["parceiro"], select: { parceiro: true, documento: true }, orderBy: { parceiro: "asc" }, take: 2000 }),
     prisma.finRecorrencia.findMany({ where: { tipo }, orderBy: { titulo: "asc" } }),
     // lista do período escolhido (de / até, por vencimento)
     dIni ? prisma.finTitulo.findMany({ where: { tipo, ...fora, vencimento: { gte: dataUTC(dIni), lte: dataUTC(dFim) } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }) : null,
     // vencido total: tudo em aberto com vencimento antes de hoje, de qualquer mês
-    prisma.finTitulo.aggregate({ where: { tipo, status: "ABERTO", vencimento: { lt: hojeUTC } }, _sum: { valor: true }, _count: true }),
+    prisma.finTitulo.aggregate({ where: { ...SEM_NORT, tipo, status: "ABERTO", vencimento: { lt: hojeUTC } }, _sum: { valor: true }, _count: true }),
   ]);
   // crítica: contas em aberto sem conta-caixa (as contas da semana se rateiam pelos itens e ficam fora)
-  const abertas = await prisma.finTitulo.findMany({ where: { tipo, status: "ABERTO" }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
+  const abertas = await prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, status: "ABERTO" }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS });
   const semConta = abertas.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|")
     && !(Array.isArray(t.rateio) && t.rateio.some((r) => Number(r.contaId) && Number(r.pct) > 0)));
   // contas com crítica a conferir (qualquer data) — filtro "Críticas"
-  const comCritica = (await prisma.finTitulo.findMany({ where: { tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }))
+  const comCritica = (await prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo, critica: { not: null }, status: { notIn: ["CANCELADO"] } }, orderBy: { vencimento: "asc" }, include: COM_ANEXOS }))
     .filter((t) => t.criticaVista !== t.critica);   // v196: vistadas saem do botão (a linha continua vermelha)
   const nfsPendentes = tipo === "PAGAR" ? await prisma.notaFiscal.count({ where: { finIgnorada: false, titulos: { none: {} } } }) : 0;
   // v178 — situação de cada recorrência no mês atual e no próximo (para achar a que "sumiu")

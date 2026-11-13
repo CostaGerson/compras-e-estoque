@@ -5,6 +5,7 @@
 // o caixa + tudo que entra/sai até lá. Atrasados (vencidos antes de hoje e ainda em aberto) entram em hoje, se marcado.
 // Sugestões: com base no saldo projetado, no limite disponível dos bancos (painel) e nas duplicatas a vencer.
 import { prisma } from "@/lib/prisma";
+import { SEM_NORT } from "@/lib/finNort";   // v808 — contas da NORT ficam só na guia NORT
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const iso = (d) => new Date(d).toISOString().slice(0, 10);
@@ -39,7 +40,7 @@ export async function dfc({ dIni, dFim, atrasadosPagar = true, atrasadosReceber 
   const base = ini < hoje ? ini : hoje;   // a projeção corre a partir de hoje (ou do início, se for passado)
   const caixa = await caixaAtual();
   const tits = await prisma.finTitulo.findMany({
-    where: { status: "ABERTO", vencimento: { lte: dUTC(fim) } },
+    where: { ...SEM_NORT, status: "ABERTO", vencimento: { lte: dUTC(fim) } },
     select: { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, previsao: true, cobranca: true, numeroDoc: true },
     orderBy: { vencimento: "asc" },
   });
