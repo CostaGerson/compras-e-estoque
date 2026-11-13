@@ -632,7 +632,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       </>}
 
       {modal?.t === "titulo" && <TituloModal user={user} tipo={modal.item?.tipo || tipoApi} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); if (tipo === "NORT") setTickAtraso((x) => x + 1); if (ABAS_ATRASO.includes(tipo)) setTickAtraso((x) => x + 1); }} />}
-      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={modal.item.tipo ? modal.item.tipo === "PAGAR" : P} onClose={() => setModal(null)} onOk={async (dt, v) => { const it = modal.item; setModal(null); await acao(it, "baixar", { dataPagamento: dt, valorPago: v }); if (tipo === "NORT") setTickAtraso((x) => x + 1); }} />}
+      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={modal.item.tipo ? modal.item.tipo === "PAGAR" : P} onClose={() => setModal(null)} onOk={async (dt, v, pagoPor) => { const it = modal.item; setModal(null); await acao(it, "baixar", { dataPagamento: dt, valorPago: v, ...(pagoPor ? { pagoPor } : {}) }); if (tipo === "NORT") setTickAtraso((x) => x + 1); }} />}
       {modal?.t === "ajustePedido" && <AjustePedidoModal user={user} d={modal.d} onClose={() => setModal(null)} onOk={(m) => { setModal(null); setAviso(m); carregar(); }} />}
       {modal?.t === "semana" && <SemanaModal user={user} tituloId={modal.item.id} onClose={() => { setModal(null); carregar(); }} onMudou={carregar} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
@@ -2115,9 +2115,12 @@ function BaixaModal({ t, P, onClose, onOk }) {
   const [dt, setDt] = useState(hojeISO());
   const [v, setV] = useState(t.valor);
   const [s, setS] = useState(false);
+  // v829 — conta a pagar da NORT: quem pagou? Meridian → empréstimo à NORT · NORT → só baixa
+  const ehNort = P && /^NORT - /.test(String(t.titulo || ""));
+  const [pagoPor, setPagoPor] = useState("");
   return (
     <Modal titulo={antPendente(t) ? "Cliente pagou o título antecipado" : P ? "Registrar pagamento" : "Registrar recebimento"} icone={CheckCircle2} onClose={onClose} largura={420}
-      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP disabled={s} onClick={async () => { setS(true); await onOk(dt, v); }}>Confirmar</BtnP></>}>
+      rodape={<><button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button><BtnP disabled={s || (ehNort && !pagoPor)} onClick={async () => { setS(true); await onOk(dt, v, ehNort ? pagoPor : undefined); }}>Confirmar</BtnP></>}>
       <div className="text-sm font-semibold mb-1" style={{ color: C.navy }}>{t.titulo}</div>
       <div className="text-xs mb-4" style={{ color: C.sub }}>{t.parceiro} · vence {dBR(t.vencimento)} · {moeda(t.valor)}</div>
       {antPendente(t) ? (
@@ -2131,6 +2134,15 @@ function BaixaModal({ t, P, onClose, onOk }) {
         <Campo t="Valor" dica="com juros/desconto"><Valor value={v} onChange={setV} width="100%" /></Campo>
       </div>
       )}
+      {ehNort && <div className="mt-4">
+        <div className="text-[11px] font-semibold mb-1.5" style={{ color: C.sub }}>Pago por</div>
+        <div className="grid grid-cols-2 gap-2">
+          {[["MERIDIAN", "Meridian", "vira empréstimo à NORT na guia NORT"], ["NORT", "NORT", "só baixa a conta, sem impacto na guia NORT"]].map(([k, n, d]) => (
+            <button key={k} type="button" onClick={() => setPagoPor(k)} className="rounded-lg p-2.5 text-left" style={pagoPor === k ? { background: C.navy, color: "#fff", border: `1px solid ${C.navy}` } : { background: "#fff", color: C.text, border: `1px solid ${C.line}` }}>
+              <div className="text-sm font-bold">{n}</div><div className="text-[11px]" style={{ opacity: 0.8 }}>{d}</div></button>
+          ))}
+        </div>
+      </div>}
     </Modal>
   );
 }

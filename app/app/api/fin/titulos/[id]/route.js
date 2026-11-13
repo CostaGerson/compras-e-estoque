@@ -54,14 +54,15 @@ export async function PATCH(req, { params }) {
   if (b.acao === "baixar") {
     const vp = r2(b.valorPago ?? t.valor);
     if (!b.dataPagamento) return Response.json({ error: "Informe a data do pagamento." }, { status: 400 });
-    data = { status: "PAGO", dataPagamento: dataUTC(b.dataPagamento), valorPago: vp, previsao: false, valorConfirmado: true };
+    data = { status: "PAGO", dataPagamento: dataUTC(b.dataPagamento), valorPago: vp, previsao: false, valorConfirmado: true,
+      ...(["MERIDIAN", "NORT"].includes(b.pagoPor) ? { pagoPor: b.pagoPor } : {}) };   // v829
   } else if (b.acao === "estornar") {
     // v203 — "Excluir pagamento": a conta volta a ficar em aberto e o que veio com a baixa sai
     if (t.status !== "PAGO") return Response.json({ error: "Esta conta não está paga." }, { status: 400 });
     const br = (d) => d ? d.toISOString().slice(0, 10).split("-").reverse().join("/") : "—";
     const nota = `PAGAMENTO EXCLUÍDO EM ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} POR ${quem.atualizadoPorNome || "—"} (ERA ${br(t.dataPagamento)} · R$ ${Number(t.valorPago ?? t.valor).toFixed(2).replace(".", ",")})`;
     const obs = String(t.observacao || "").split(" · ").filter((x) => !/^BAIXA (PELO EXTRATO|POR COMPROVANTE)\b/.test(x) && !/^CONTA [\d.,]+ .*= PAGO /.test(x));
-    data = { status: "ABERTO", dataPagamento: null, valorPago: null, lancamentoId: null, observacao: [...obs, nota].filter(Boolean).join(" · ").slice(0, 4000) };
+    data = { status: "ABERTO", dataPagamento: null, valorPago: null, lancamentoId: null, pagoPor: null, observacao: [...obs, nota].filter(Boolean).join(" · ").slice(0, 4000) };
     // comprovante anexado pela baixa: sai, para poder ser usado de novo
     await prisma.finTituloAnexo.deleteMany({ where: { tituloId: id, nome: { startsWith: "COMPROVANTE " } } }).catch(() => null);
     // conta da semana: os itens voltam a ficar em aberto

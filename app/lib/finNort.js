@@ -69,7 +69,8 @@ export async function movimentoNort({ de, ate } = {}) {
     .filter((l) => nortIds.includes(l.contaId) || temNort(`${l.historico} ${l.identificacao || ""} ${l.documento || ""}`))
     .map((l) => ({ ...l, valor: Number(l.valor), data: l.data.toISOString().slice(0, 10), conta: nomeDe[l.contaId] || "—", emprestimo: empIds.includes(l.contaId) }));
   // v827 — contas a pagar da NORT pagas pela Meridian = empréstimo à NORT na data do pagamento
-  const pagas = await prisma.finTitulo.findMany({ where: { ...SO_NORT, tipo: "PAGAR", status: "PAGO", ...(de || ate ? { dataPagamento: { ...(de ? { gte: new Date(`${de}-01T00:00:00Z`) } : {}), ...(ate ? { lt: new Date(Date.UTC(Number(ate.slice(0, 4)), Number(ate.slice(5, 7)), 1)) } : {}) } } : {}) },
+  // v829 — paga pela própria NORT (pagoPor NORT) não é empréstimo; sem a marcação (baixa pelo extrato da Meridian, lote…) = Meridian
+  const pagas = await prisma.finTitulo.findMany({ where: { ...SO_NORT, tipo: "PAGAR", status: "PAGO", OR: [{ pagoPor: null }, { pagoPor: { not: "NORT" } }], ...(de || ate ? { dataPagamento: { ...(de ? { gte: new Date(`${de}-01T00:00:00Z`) } : {}), ...(ate ? { lt: new Date(Date.UTC(Number(ate.slice(0, 4)), Number(ate.slice(5, 7)), 1)) } : {}) } } : {}) },
     orderBy: [{ dataPagamento: "desc" }, { id: "desc" }], select: { id: true, titulo: true, parceiro: true, valor: true, valorPago: true, dataPagamento: true, lancamentoId: true, rateio: true } });
   const jaNoTitulo = new Set(pagas.map((t) => t.lancamentoId).filter(Boolean));
   // o pagamento já entra pela conta paga: tira o lançamento ligado a ela ou, sem ligação, o de mesmo valor até 3 dias da data paga

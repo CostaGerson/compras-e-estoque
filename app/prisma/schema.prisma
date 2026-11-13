@@ -1085,6 +1085,7 @@ model FinTitulo {
   arquivoXml       String?
   recorrenciaId    Int?
   recorrencia      FinRecorrencia? @relation(fields: [recorrenciaId], references: [id], onDelete: SetNull)
+  pagoPor          String?                      // v829 — conta da NORT: MERIDIAN (vira empréstimo à NORT) | NORT (só baixa)
   nfId             Int?                         // NF lançada pelo Compras que originou a conta
   nf               NotaFiscal?     @relation(fields: [nfId], references: [id], onDelete: SetNull)
   valorConfirmado  Boolean   @default(false)    // recorrência: valor do mês conferido
