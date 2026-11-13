@@ -4,6 +4,13 @@ import { usuarioMaster, negado } from "@/lib/fin";
 import { tituloOut, validarRateio, nomeU, r2, so, dataUTC, mesDe } from "@/lib/finTitulos";
 import { excluirTitulo } from "@/lib/finLote";
 
+// v823 — GET ?u= → uma conta (abrir pela conferência com o banco)
+export async function GET(req, { params }) {
+  if (!(await usuarioMaster(new URL(req.url).searchParams.get("u")))) return negado();
+  const t = await prisma.finTitulo.findUnique({ where: { id: Number(params.id) } });
+  return t ? Response.json(tituloOut(t)) : Response.json({ error: "Conta não encontrada." }, { status: 404 });
+}
+
 // PATCH { usuarioId, acao, ... }
 //  acao "editar"    → campos do título (valor de recorrência editado = conferido)
 //  acao "baixar"    → { dataPagamento, valorPago }

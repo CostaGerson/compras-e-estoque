@@ -4,13 +4,14 @@ import { PrestadorModal } from "./prestadores";
 import { podeImportar } from "@/lib/acesso";
 import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
+import ConferirBanco from "./conferirBanco";   // v823
 import Nort from "./nort";   // v808 — guia NORT
 import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel, BotaoRecompra, BotaoObs, Notas } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
-  Info as InfoI, Handshake,
+  Info as InfoI, Handshake, Landmark,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -334,6 +335,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [soCompra, setSoCompra] = useState(false);
   const [soRec, setSoRec] = useState(false);   // v196: só contas recorrentes   // filtro rápido: só contas vindas de NF de compra (XML)
   const [modal, setModal] = useState(null);
+  const [confBanco, setConfBanco] = useState(false);   // v823
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
   const [dIni, setDIni] = useState(inicial?.de || hojeISO());
@@ -582,6 +584,17 @@ export default function ContasPagarReceber({ user, inicial = null }) {
                 <FileCode2 size={14} /> Entrada por compra{soCompra ? " ✓" : ""}
               </button>
             )}
+            {/* v823 — conferir as cobranças em aberto do banco (print/PDF) com o contas a receber */}
+            {!P && (
+              <button onClick={() => setConfBanco(true)} title="Envie o print ou o PDF das cobranças em aberto do banco e confira com o contas a receber"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.navy}` }}>
+                <Landmark size={14} /> Conferir com o banco
+              </button>
+            )}
+            {confBanco && <ConferirBanco user={user} onClose={() => setConfBanco(false)} onEditar={async (id) => {
+              const t = await api(`/api/fin/titulos/${id}?u=${user.id}`).catch((e) => { setAviso(e.message); return null; });
+              if (t) setModal({ t: "titulo", item: t });
+            }} />}
           </div>
           )}
 
