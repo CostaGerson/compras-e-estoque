@@ -24,6 +24,7 @@ export async function PATCH(req, { params }) {
   if (b.item != null) data.item = String(b.item).toUpperCase();
   if (b.nomeComercial !== undefined) data.nomeComercial = b.nomeComercial ? String(b.nomeComercial).toUpperCase() : null;
   if (b.tipo != null) data.tipo = ["PLANO", "REVENDA"].includes(b.tipo) ? b.tipo : "MALHA";   // v512 — revenda
+  if (b.clienteNome && b.clienteId == null) { const { clienteDaFpp } = await import("@/lib/fppCliente"); b.clienteId = await clienteDaFpp(b.clienteNome); b.clienteNome = String(b.clienteNome).trim().toUpperCase(); }   // v805
   if (b.clienteId !== undefined) data.clienteId = b.clienteId != null ? Number(b.clienteId) : null;
   if (b.clienteNome !== undefined) data.clienteNome = b.clienteNome || null;
   if (b.negociacao !== undefined) data.negociacao = b.negociacao ? String(b.negociacao).toUpperCase() : null;

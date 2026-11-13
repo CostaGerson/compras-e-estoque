@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  try { await (await import("@/lib/fppCliente")).cadastrarClientesDasFpps(); } catch (e) { console.log("clientes/fpp:", e.message); }   // v805
   const clientes = await prisma.cliente.findMany({
     where: { ativo: true },
     orderBy: { razaoSocial: "asc" },
