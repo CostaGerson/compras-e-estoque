@@ -85,7 +85,7 @@ export async function deduplicarComprasXml(quem = "SISTEMA") {
     for (const o of g.slice(1)) {
       if (Math.abs(new Date(o.vencimento) - new Date(fica.vencimento)) > 5 * DIA) continue;
       const parc = (t) => { const m = String(t.chaveImport || "").match(/\|0*(\d+)$/); return m ? m[1] : null; };
-      if (parc(o) && parc(fica) && parc(o) !== parc(fica)) continue;   // parcelas diferentes da mesma NF
+      if (!parc(o) || !parc(fica) || parc(o) !== parc(fica)) continue;   // só junta quando as duas são a MESMA parcela da NF (1/3 × 2/3 nunca)
       if (o.status === "PAGO" && fica.status === "PAGO") continue;   // duas pagas: não mexe (pode ser pagamento em dobro — confira à mão)
       const dados = { atualizadoPorNome: quem, observacao: [fica.observacao, `UNIFICADA COM "${o.titulo}" (MESMA NF IMPORTADA DUAS VEZES)`].filter(Boolean).join(" · ").slice(0, 1000) };
       if (!fica.nfId && o.nfId) dados.nfId = o.nfId;
