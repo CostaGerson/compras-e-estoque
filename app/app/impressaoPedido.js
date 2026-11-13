@@ -127,7 +127,12 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
     const params = [...comps, ...extras].map((c) => {
       const v = it.parametros?.[c];
-      return `<tr><td class="pk">${esc(c)}</td><td>${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
+      if (/ESTAMP/.test(String(c).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase())) {   // v801 — #71: estampa com no mínimo 5 linhas
+        const ls = String(v || "").split(/\n/).map((x) => x.trim()).filter(Boolean);
+        while (ls.length < 5) ls.push("");
+        return `<tr><td class="pk">${esc(c)}</td><td style="padding:0">${ls.map((x, j) => `<div style="min-height:18px;padding:2px 6px;${j < ls.length - 1 ? "border-bottom:1px solid #D0D5DD;" : ""}">${x ? esc(x) : "&nbsp;"}</div>`).join("")}</td></tr>`;
+      }
+      return `<tr><td class="pk">${esc(c)}</td><td style="white-space:pre-line">${c === "TECIDO" ? tecidoTxt(v) || "—" : esc(v || "—")}</td></tr>`;
     }).join("");
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
     const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT");

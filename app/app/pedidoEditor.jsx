@@ -338,6 +338,34 @@ const vazioF = () => ({
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
 
+// v801 — #71: campo de estampa (texto longo, uma linha por aplicação)
+const nkParam = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\b(DA|DO|DE|DAS|DOS|E)\b/g, " ").replace(/\s+/g, " ").trim();
+const ehEstampa = (c) => /ESTAMP/.test(nkParam(c));
+// v801 — #72: parâmetros do KM → campos do tipo de peça. Casa pelo nome normalizado (sem acento, sem "da/de/do", plural);
+//   o que não casa entra em maiúsculas; nomes repetidos no KM juntam o texto em vez de virar dois campos
+const singular = (w) => w.length > 3 ? w.replace(/S$/, "") : w;
+const chaveParam = (t) => nkParam(t).split(" ").map(singular).join(" ");
+export function paramsDoKm(lista, comps = []) {
+  const porChave = new Map(comps.filter((c) => c !== "TECIDO").map((c) => [chaveParam(c), c]));
+  const acha = (t) => {
+    const k = chaveParam(t);
+    if (porChave.has(k)) return porChave.get(k);
+    const pk = k.split(" ");
+    for (const [kc, c] of porChave) { const pc = kc.split(" "); if (pc[0] === pk[0] && (pc.every((w) => pk.includes(w)) || pk.every((w) => pc.includes(w)))) return c; }
+    return String(t).trim().toUpperCase();
+  };
+  const out = {};
+  for (const x of Array.isArray(lista) ? lista : []) {
+    if (!x?.t || !String(x.v || "").trim() || paramFora(x.t)) continue;
+    const nome = acha(x.t), v = String(x.v).trim();
+    if (!out[nome]) out[nome] = v;
+    else if (!out[nome].toUpperCase().includes(v.toUpperCase())) out[nome] = `${out[nome]}\n${v}`;
+  }
+  return out;
+}
+// descrição do KM sem espaços/sinais repetidos e sem os parâmetros colados no nome
+export const limparDescKm = (d) => String(d || "").split(/\*{3,}/)[0].replace(/([-·,/])(\s*\1)+/g, "$1").replace(/\s+/g, " ").replace(/^[\s\-·,/]+|[\s\-·,/]+$/g, "").trim().toUpperCase();
+
 export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir }) {
   const TIPOS = Object.keys(componentes);
   const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
@@ -456,9 +484,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const pickItemKm = (i, p) => setItens((arr) => arr.map((it, j) => {
     if (j !== i) return it;
     const tipo = tipoPeca(p.descricao, TIPOS) || it.tipoPecaNome;
-    const params = Object.fromEntries((p.parametros || []).filter((x) => x.v && !paramFora(x.t)).map((x) => [x.t, x.v]));
+    const params = paramsDoKm(p.parametros, componentes[tipo] || []);   // v801 — #72: nomes do KM casados com os campos do tipo de peça (sem duplicar)
     if (it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object") params.TECIDO = it.parametros.TECIDO;   // tecido da FPP fica
-    return { ...it, codigo: p.codigo, descricao: p.descricao, tipoPecaNome: tipo, parametros: params,
+    return { ...it, codigo: p.codigo, descricao: limparDescKm(p.descricao), tipoPecaNome: tipo, parametros: params,
       valorUnitario: it.valorUnitario || (p.preco ? String(Number(p.preco).toFixed(2)).replace(".", ",") : "") };
   }));
   // v702 — item com FPP: o lead time dela sugere o prazo de entrega do pedido (quando ainda está vazio)
@@ -1012,6 +1040,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                         <b>{tec.tipo}</b> · {tec.artigo || "—"}{tec.medida ? ` · ${tec.medida}` : ""}{tec.forro ? ` · forro ${tec.forro}` : ""} <span className="text-xs" style={{ color: C.green }}>(FPP {numFpp(tec.fpp)})</span>
                       </div> : <input value={typeof it.parametros?.TECIDO === "string" ? it.parametros.TECIDO : ""} onChange={(e) => upParam(i, "TECIDO", e.target.value)} placeholder="indexe a FPP para trazer artigo e rendimento"
                         className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inp} />}
+                    </div>
+                  ) : ehEstampa(comp) ? (
+                    <div key={comp} className="col-span-2 flex items-start gap-2">   {/* v801 — #71: estampa com 5 linhas, uma por aplicação */}
+                      <span className="w-40 text-sm pt-1" style={{ color: C.sub }} title={comp}>{comp}<span className="block text-[10px]">uma linha por aplicação</span></span>
+                      <textarea value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} rows={Math.max(5, String(it.parametros?.[comp] || "").split("\n").length)}
+                        placeholder={"1. frente — …\n2. costas — …\n3. manga esq. — …\n4. …\n5. …"} className="flex-1 px-2 py-1 rounded outline-none text-sm leading-6" style={inp} />
                     </div>
                   ) : (
                     <div key={comp} className="flex items-center gap-2">

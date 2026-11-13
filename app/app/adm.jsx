@@ -6,7 +6,7 @@ import { CasarNotaModal } from "./casamentoNf";   // v555
 import { unzipSync } from "fflate";
 import {
   Upload, Loader2, Search, Trash2, FileCode2, FileText, AlertTriangle, CheckCircle2, X, Plus, ArrowDownLeft, ArrowUpRight,
-  Link2, Circle, CirclePlay, List, Columns3, Pencil, CalendarDays, Flag, Route as IcoRota, Truck,
+  Link2, Circle, CirclePlay, ChevronDown, List, Columns3, Pencil, CalendarDays, Flag, Route as IcoRota, Truck,
 } from "lucide-react";
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { BotoesCritica } from "./nfRegistro";   // v365
@@ -43,6 +43,30 @@ const TIPO = {
   ENTRADA: { t: "ENTRADA", s: "A PAGAR", c: C.red, bg: C.redSoft, I: ArrowDownLeft },
   SAIDA: { t: "SAÍDA", s: "A RECEBER", c: C.green, bg: C.greenSoft, I: ArrowUpRight },
 };
+// v801 — subtipo da NF pela natureza da operação (cards do Movimento fiscal)
+const semAc = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+export function subtipoNf(n) {
+  const t = semAc(n.natureza), ent = n.tipo === "ENTRADA";
+  if (n.modelo === "CT-e") return "Frete (CT-e)";
+  if (/RETORNO/.test(t)) return ent ? "Retorno de remessa" : "Retorno";
+  if (/DEVOLU/.test(t)) return "Devolução";
+  if (/INDUSTRIALIZ/.test(t)) return "Industrialização";
+  if (/REMESSA|CONSIGNA|COMODATO|CONSERTO|DEMONSTRA/.test(t)) return "Remessa";
+  if (/BONIFICA|BRINDE|AMOSTRA/.test(t)) return "Bonificação / amostra";
+  if (/TRANSFER/.test(t)) return "Transferência";
+  if (n.modelo === "NFS-e" || /SERVI|PRESTA/.test(t)) return "Serviço";
+  if (/VENDA|COMPRA/.test(t)) return ent ? "Compra" : "Venda";
+  if (n.km && !ent) return "Venda";
+  return "Outras";
+}
+const GRUPOS_NF = {
+  ent: (n) => n.tipo === "ENTRADA",
+  sai: (n) => n.tipo === "SAIDA",
+  contas: (n) => n.acao !== "REGISTRADA" && !n.km && (n.parcelas || []).some((p) => p.situacao === "CRIADA"),
+  reg: (n) => n.acao === "REGISTRADA",
+};
+const subContas = (n) => (n.tipo === "ENTRADA" ? "A pagar" : "A receber");
+
 const ST_PARC = { ABERTO: [C.blue, C.blueSoft, "aberto"], PAGO: [C.green, C.greenSoft, "baixado"], CANCELADO: [C.sub, C.panel2, "cancelado"], EXCLUIDA: [C.sub, C.panel2, "excluída"] };
 
 // arquivos soltos (.xml / .pdf) ou compactados (.zip) → [{ nome, xml } | { nome, b64 }]
@@ -86,7 +110,9 @@ const totalParcelas = (n) => n.totalParcelas ?? (Math.round(n.parcelas.reduce((s
 export default function MovimentoFiscal({ user }) {
   const [de, setDe] = useState(iniMes());
   const [ate, setAte] = useState(fimMes());
-  const [tipo, setTipo] = useState("");
+  const [grupo, setGrupo] = useState("");   // v801 — card clicado: ent | sai | contas | reg
+  const [sub, setSub] = useState("");       // v801 — subtipo escolhido na setinha do card
+  const [menuSub, setMenuSub] = useState("");
   const [busca, setBusca] = useState("");
   const [lista, setLista] = useState(null);
   const [erro, setErro] = useState("");
@@ -99,10 +125,10 @@ export default function MovimentoFiscal({ user }) {
 
   const carregar = async () => {
     setErro("");
-    try { setLista(await api(`/api/fiscal?u=${user.id}&de=${de}&ate=${ate}&tipo=${tipo}&busca=${encodeURIComponent(busca)}`)); }
+    try { setLista(await api(`/api/fiscal?u=${user.id}&de=${de}&ate=${ate}&busca=${encodeURIComponent(busca)}`)); }
     catch (e) { setErro(e.message); setLista([]); }
   };
-  useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [de, ate, tipo, busca]);
+  useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [de, ate, busca]);
 
   const tot = useMemo(() => {
     const l = (lista || []).filter((n) => !n.km);   // v408 — NF do KM sem arquivo não entra nos totais
@@ -115,6 +141,15 @@ export default function MovimentoFiscal({ user }) {
       km: (lista || []).filter((n) => n.km).length,
     };
   }, [lista]);
+
+  // v801 — filtro pelos cards (com subtipo na setinha)
+  const subDe = (k, n) => (k === "contas" ? subContas(n) : subtipoNf(n));
+  const subsDe = (k) => {
+    const m = new Map();
+    for (const n of (lista || []).filter((x) => !x.km).filter(GRUPOS_NF[k])) { const x = subDe(k, n); m.set(x, (m.get(x) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const visiveis = useMemo(() => (lista || []).filter((n) => !grupo || (GRUPOS_NF[grupo](n) && (!sub || subDe(grupo, n) === sub))), [lista, grupo, sub]);
 
   const excluir = async (n) => {
     if (!(await confirmar(`Excluir o registro da NF ${n.numero} (${n.parceiro})?\n\nAs contas criadas por esta importação vão para a lixeira do contas a pagar/receber.`))) return;
@@ -148,17 +183,35 @@ export default function MovimentoFiscal({ user }) {
       <Soltar onArquivos={(f) => { if (podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento")) setImportar([...f]); }} dica="Solte os XMLs/PDFs para importar">
         <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
           {[
-            ["NFs de entrada", tot.ent, moeda(tot.entV), C.red],
-            ["NFs de saída", tot.sai, moeda(tot.saiV), C.green],
-            ["Contas geradas", tot.pagar + tot.receber, `${tot.pagar} a pagar · ${tot.receber} a receber`, C.navy],
-            ["Só registradas", tot.reg, "remessa, retorno, devolução…", C.sub],
-          ].map(([t, v, s, c]) => (
-            <div key={t} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>{t}</div>
-              <div className="text-2xl font-bold" style={{ color: c }}>{v}</div>
-              <div className="text-xs" style={{ color: C.sub }}>{s}</div>
-            </div>
-          ))}
+            ["ent", "NFs de entrada", tot.ent, moeda(tot.entV), C.red],
+            ["sai", "NFs de saída", tot.sai, moeda(tot.saiV), C.green],
+            ["contas", "Contas geradas", tot.pagar + tot.receber, `${tot.pagar} a pagar · ${tot.receber} a receber`, C.navy],
+            ["reg", "Só registradas", tot.reg, "remessa, retorno, devolução…", C.sub],
+          ].map(([k, t, v, s, c]) => {
+            const on = grupo === k, subs = subsDe(k);
+            return (
+              <div key={k} onClick={() => { setMenuSub(""); if (on && !sub) setGrupo(""); else { setGrupo(k); setSub(""); } }} title={on ? "Clique para ver todas" : "Clique para ver só estas"}
+                className="relative rounded-xl p-4 cursor-pointer select-none" style={{ background: C.panel, border: `${on ? 2 : 1}px solid ${on ? c : C.line}`, margin: on ? 0 : 1 }}>
+                <div className="flex items-start gap-2">
+                  <div className="text-[11px] font-semibold uppercase flex-1" style={{ color: C.sub }}>{t}</div>
+                  {subs.length > 0 && <button onClick={(e) => { e.stopPropagation(); setMenuSub(menuSub === k ? "" : k); }} title="Escolher um tipo"
+                    className="flex items-center gap-1 -mt-1 -mr-1 px-1.5 py-0.5 rounded text-[11px] font-semibold" style={{ background: on && sub ? c : C.panel2, color: on && sub ? "#fff" : C.sub }}>
+                    {on && sub ? sub : null}<ChevronDown size={14} /></button>}
+                </div>
+                <div className="text-2xl font-bold" style={{ color: c }}>{on && sub ? `${(lista || []).filter((n) => !n.km && GRUPOS_NF[k](n) && subDe(k, n) === sub).length}` : v}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{on && sub ? `de ${v} · ${sub.toLowerCase()}` : s}</div>
+                {menuSub === k && <>
+                  <div className="fixed inset-0 z-20" onClick={(e) => { e.stopPropagation(); setMenuSub(""); }} />
+                  <div className="absolute right-2 top-9 z-30 rounded-lg py-1 shadow-lg min-w-[200px]" style={{ background: "#fff", border: `1px solid ${C.line}` }} onClick={(e) => e.stopPropagation()}>
+                    {[["", `Todas (${v})`], ...subs.map(([x, q]) => [x, `${x} (${q})`])].map(([x, rot]) => (
+                      <button key={x || "_"} onClick={() => { setGrupo(k); setSub(x); setMenuSub(""); }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
+                        style={{ color: on && sub === x ? c : C.text, fontWeight: on && sub === x ? 700 : 500 }}>{rot}</button>
+                    ))}
+                  </div>
+                </>}
+              </div>
+            );
+          })}
         </div>
       </Soltar>
 
@@ -173,11 +226,8 @@ export default function MovimentoFiscal({ user }) {
           <span className="text-xs" style={{ color: C.sub }}>até</span>
           <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="rounded px-2 py-1 text-xs" style={inpS} />
           <Chip onClick={() => atalho("mes")}>Mês</Chip><Chip onClick={() => atalho("ant")}>Mês anterior</Chip><Chip onClick={() => atalho("ano")}>Ano</Chip>
-          <div className="flex gap-1 ml-auto">
-            <Chip on={!tipo} onClick={() => setTipo("")}>Todas</Chip>
-            <Chip on={tipo === "ENTRADA"} onClick={() => setTipo("ENTRADA")}>Entradas</Chip>
-            <Chip on={tipo === "SAIDA"} onClick={() => setTipo("SAIDA")}>Saídas</Chip>
-          </div>
+          {grupo && <button onClick={() => { setGrupo(""); setSub(""); }} className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: C.navy, color: "#fff" }}>
+            {{ ent: "Entradas", sai: "Saídas", contas: "Contas geradas", reg: "Só registradas" }[grupo]}{sub ? ` · ${sub}` : ""} <X size={12} /></button>}
         </div>
         {msg && <div className="mx-4 mt-3 p-2 rounded text-xs flex items-center gap-2" style={{ background: C.greenSoft, color: C.green }}><CheckCircle2 size={14} /> {msg}<button className="ml-auto" onClick={() => setMsg("")}><X size={13} /></button></div>}
         {erro && <div className="mx-4 mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -198,8 +248,9 @@ export default function MovimentoFiscal({ user }) {
             </thead>
             <tbody>
               {lista === null && <tr><td colSpan={9} className="px-3 py-6 text-center" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin inline" /></td></tr>}
+              {lista && !!lista.length && !visiveis.length && <tr><td colSpan={9} className="px-3 py-8 text-center" style={{ color: C.sub }}>Nenhuma nota deste tipo no período.</td></tr>}
               {lista && !lista.length && <tr><td colSpan={9} className="px-3 py-8 text-center" style={{ color: C.sub }}>Nenhuma nota neste período. Use <b>Importar NFs</b> ou arraste os arquivos para os cards acima.</td></tr>}
-              {(lista || []).filter((n) => !soEtq || n.semEtiquetas).map((n) => {
+              {visiveis.filter((n) => !soEtq || n.semEtiquetas).map((n) => {
                 const T = TIPO[n.tipo] || TIPO.ENTRADA;
                 return (
                   <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, ...(n.critica ? { background: C.redSoft, color: C.red } : {}) }}>   {/* v360/v363 — crítica (sem conta lançada) */}
