@@ -27,6 +27,12 @@ export async function PUT(req, { params }) {
       tamanho: Math.round(base64.length * 0.75), base64, criadoPorNome: quem } });
     return Response.json({ ok: true, id: a.id });
   }
+  // v810 — pedido: "salvar edições nos parâmetros no item padrão?" → só os parâmetros mudam
+  if (b.acao === "parametros") {
+    const p = b.parametros && typeof b.parametros === "object" ? Object.fromEntries(Object.entries(b.parametros).filter(([, v]) => v != null && v !== "")) : {};
+    await prisma.itemPadrao.update({ where: { id }, data: { parametros: Object.keys(p).length ? p : null, atualizadoPorNome: quem } });
+    return Response.json({ ok: true });
+  }
   if (b.acao === "tirarAnexo") { await prisma.itemPadraoAnexo.deleteMany({ where: { id: Number(b.anexoId), itemId: id } }); return Response.json({ ok: true }); }
   const d = await dadosItemPadrao(b);
   if (d.error) return Response.json(d, { status: 400 });

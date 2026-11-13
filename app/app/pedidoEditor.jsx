@@ -686,7 +686,27 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     desconto: veVal ? f.desconto : undefined,   // v750
     anexos: anexos.map((a) => (a.id ? { id: a.id, categoria: a.categoria } : a)),
   });
+  // v810 — item padrão do cliente com parâmetros de produção editados no pedido: pergunta se atualiza o item padrão
+  const respPadrao = useRef({});   // "id|assinatura" → já respondido nesta tela (não pergunta de novo)
+  const chaveParams = (p) => JSON.stringify(Object.entries(p || {}).filter(([k, v]) => k !== "TECIDO" && !paramFora(k) && v != null && String(typeof v === "object" ? JSON.stringify(v) : v).trim() !== "")
+    .map(([k, v]) => [k.trim().toUpperCase(), typeof v === "object" ? JSON.stringify(v) : String(v).trim().toUpperCase()]).sort((a, b) => a[0].localeCompare(b[0])));
+  const conferirPadroes = async () => {
+    for (const it of itens) {
+      if (!it.itemPadraoId) continue;
+      const d = await fetch(`/api/itens-padrao/${it.itemPadraoId}`).then((r) => r.json()).catch(() => null);
+      if (!d || d.error) continue;
+      const nova = chaveParams(it.parametros), k = `${it.itemPadraoId}|${nova}`;
+      if (nova === chaveParams(d.parametros) || respPadrao.current[k] != null) continue;
+      const sim = await confirmar(`Salvar edições nos parâmetros no item padrão "${d.nomeInterno || d.nomeNf}"?\n\nSim: o item padrão fica atualizado e os próximos pedidos já vêm com estes parâmetros.\nNão: as edições valem só para este pedido.`, { okTexto: "Sim, atualizar o item padrão", cancelar: "Não, só neste pedido" });
+      respPadrao.current[k] = sim;
+      if (!sim) continue;
+      const parametros = { ...Object.fromEntries(Object.entries(it.parametros || {}).filter(([kk, v]) => kk !== "TECIDO" && !paramFora(kk) && v != null && String(v).trim() !== "")), ...(d.parametros?.TECIDO ? { TECIDO: d.parametros.TECIDO } : {}) };
+      const r = await fetch(`/api/itens-padrao/${it.itemPadraoId}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-usuario-id": String(uid || "") }, body: JSON.stringify({ acao: "parametros", parametros }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+      if (r.error) alerta(`Não consegui atualizar o item padrão: ${r.error}`);
+    }
+  };
   const salvar = async () => {
+    await conferirPadroes();
     const r = await api(ppId ? `/api/pp/${ppId}` : "/api/pp", { method: ppId ? "PUT" : "POST", body: JSON.stringify(payload()) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "Erro ao salvar.");
