@@ -228,6 +228,7 @@ function lerSessao() {
 }
 function sessaoId() { return lerSessao()?.id || null; }
 
+let _ultimoTitulo = null;   // v835 — título da guia do navegador definido pela tela (as guias internas refinam)
 export default function Home() {
   const [user, setUser] = useState(null);
   const [carregouSessao, setCarregouSessao] = useState(false);
@@ -317,7 +318,7 @@ export default function Home() {
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
   const noAtual = caminho[caminho.length - 1];
   // v833 — guia do navegador mostra a tela atual: "ERP Meridian - Agenda"
-  if (typeof document !== "undefined") { const nomeTela = noAtual?.label || { notificacoes: "Notificações", mensagens: "Mensagens", agenda: "Agenda", tarefas: "Tarefas" }[view] || ""; const tt = nomeTela ? `ERP Meridian - ${nomeTela}` : "ERP Meridian"; if (document.title !== tt) document.title = tt; }   // (sem hook: fica depois dos retornos antecipados)
+  if (typeof document !== "undefined") { const nomeTela = noAtual?.label || { notificacoes: "Notificações", mensagens: "Mensagens", agenda: "Agenda", tarefas: "Tarefas" }[view] || ""; const tt = nomeTela ? `ERP Meridian - ${nomeTela}` : "ERP Meridian"; if (_ultimoTitulo !== tt) { _ultimoTitulo = tt; document.title = tt; } }   // v835 — só ao trocar de tela: a guia interna (ex.: Contas a pagar) pode refinar   // (sem hook: fica depois dos retornos antecipados)
   const ir = (k) => { setView(k); setTab("lista"); };
   const fasesCompras = FASES_COMPRAS.map(([k]) => k).filter((k) => pode(k));   // v415
   // clicar em qualquer parte do caminho volta para a tela inicial daquele módulo

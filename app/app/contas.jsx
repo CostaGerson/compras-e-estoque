@@ -336,6 +336,11 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [soRec, setSoRec] = useState(false);   // v196: só contas recorrentes   // filtro rápido: só contas vindas de NF de compra (XML)
   const [modal, setModal] = useState(null);
   const [confBanco, setConfBanco] = useState(false);   // v823
+  // v835 — guia do navegador mostra a guia interna: "ERP Meridian - Contas a pagar"
+  useEffect(() => {
+    const n = { PAGAR: "Contas a pagar", RECEBER: "Contas a receber", ANTECIPACOES: "Antecipações", ATRASADAS: "Atrasados", EXECUCOES: "Execuções", PERDAS: "Perdas", RECORRENTES: "Recorrentes", NORT: "NORT", LIXEIRA: "Lixeira" }[tipo];
+    try { document.title = `ERP Meridian - ${n || "Contas a pagar e receber"}`; } catch {}
+  }, [tipo]);
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
   const [dIni, setDIni] = useState(inicial?.de || hojeISO());
