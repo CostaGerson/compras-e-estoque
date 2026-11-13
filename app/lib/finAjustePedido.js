@@ -12,9 +12,13 @@ export async function ajusteParcelasPedido(t) {
   const tits = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", chaveImport: { startsWith: `PED|${numero}|` }, status: { not: "CANCELADO" } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }] });
   const abertas = tits.filter((x) => x.status === "ABERTO");
   if (!abertas.length) return null;
-  const total = r2(tits.reduce((s, x) => s + Number(x.valor), 0));
+  // v831 — total = valor do pedido (não a soma das parcelas, que muda a cada ajuste); sem o pedido, a soma
+  const ped = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { total: true } }).catch(() => null);
+  const pp = await prisma.pp.findFirst({ where: { numero }, orderBy: { id: "desc" }, select: { valorTotal: true } }).catch(() => null);
+  const total = r2(Number(pp?.valorTotal) || Number(ped?.total) || tits.reduce((s, x) => s + Number(x.valor), 0));
   const recebido = r2(tits.filter((x) => x.status !== "ABERTO").reduce((s, x) => s + Number(x.valorPago ?? x.valor), 0));
   const restante = r2(Math.max(0, total - recebido));
+  if (Math.abs(abertas.reduce((s, x) => s + Number(x.valor), 0) - restante) < 0.01) return null;   // já fecha o total: nada a ajustar
   const base = Math.floor((restante / abertas.length) * 100) / 100;
   const sug = abertas.map((x, i) => (i === abertas.length - 1 ? r2(restante - base * (abertas.length - 1)) : base));
   return {

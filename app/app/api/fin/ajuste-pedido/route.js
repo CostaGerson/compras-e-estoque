@@ -11,7 +11,7 @@ export async function GET(req) {
   if (!(await usuarioMaster(sp.get("u")))) return negado();
   const t = await prisma.finTitulo.findUnique({ where: { id: Number(sp.get("tituloId")) || 0 } });
   const d = await ajusteParcelasPedido(t);
-  return d ? Response.json(d) : Response.json({ error: "Não há parcelas em aberto deste pedido para ajustar." }, { status: 404 });
+  return d ? Response.json(d) : Response.json({ error: "As parcelas em aberto deste pedido já fecham o total — nada a ajustar." }, { status: 404 });
 }
 
 export async function POST(req) {

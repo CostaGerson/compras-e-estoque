@@ -761,7 +761,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                         className="block mt-0.5 text-[10px] font-semibold px-1.5 rounded" style={{ background: t.pagoPor === "NORT" ? C.panel2 : C.navySoft || "#EEF3FB", color: C.navy }} title="Clique para trocar quem pagou">
                         {t.pagoPor === "NORT" ? "NORT · pago pela NORT" : `NORT · pago pela Meridian (empréstimo)${t.pagoPor ? "" : " ?"}`}</button>}
                       {t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}
-                        {!P && onAjustePedido && String(t.chaveImport || "").startsWith("PED|") && <button onClick={() => onAjustePedido(t)}
+                        {!P && onAjustePedido && t.ajustavel && <button onClick={() => onAjustePedido(t)}
                           className="ml-1 underline" style={{ color: C.accent }} title="Redistribuir a diferença nas próximas parcelas do pedido">ajustar parcelas</button>}</div>}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>

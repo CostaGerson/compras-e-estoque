@@ -83,8 +83,17 @@ export async function GET(req) {
   // v697 — conta recorrente que vem da Matriz de custos ganha o "M" na lista
   const recM = new Set(recs.filter((r) => /^(MATRIZ|NORT)\|/.test(String(r.chaveOrigem || ""))).map((r) => r.id));
   const tituloOutM = (t) => { const o = tituloOut(t); return o.recorrenciaId && recM.has(o.recorrenciaId) ? { ...o, recMatriz: true } : o; };
+  // v831 — "ajustar parcelas" só aparece quando as parcelas em aberto do pedido ainda não fecham o total
+  const ajustaveis = new Set();
+  if (tipo === "RECEBER") {
+    const cand = [...titulos, ...(periodo || [])].filter((t) => t.status === "PAGO" && String(t.chaveImport || "").startsWith("PED|") && t.valorPago != null && Math.abs(Number(t.valorPago) - Number(t.valor)) >= 0.01);
+    const { ajusteParcelasPedido } = await import("@/lib/finAjustePedido");
+    const vistos = new Map();
+    for (const t of cand) { const nped = String(t.chaveImport).split("|")[1]; if (!vistos.has(nped)) vistos.set(nped, !!(await ajusteParcelasPedido(t).catch(() => null))); if (vistos.get(nped)) ajustaveis.add(t.id); }
+  }
   const saida = (t) => {
-    const o = tituloOutM(t), p = pagoDe[t.id];
+    const o0 = tituloOutM(t), p = pagoDe[t.id];
+    const o = ajustaveis.has(t.id) ? { ...o0, ajustavel: true } : o0;
     return p > 0 && t.status === "ABERTO" ? { ...o, valorTotal: o.valor, pagoParcial: Math.round(p * 100) / 100, valor: Math.round((o.valor - p) * 100) / 100 } : o;
   };
   // v338 — vencido total desconta o pago parcial de TODAS as contas da semana vencidas (não só as anteriores ao período)
