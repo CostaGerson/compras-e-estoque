@@ -97,7 +97,7 @@ export async function camposRota() {
       { id: "pendencia", rotulo: "Pendência (o que falta para ficar pronta)", tipo: "texto", obrigatorio: false, max: 120, mostrarSe: { campo: "pendente", valores: [true] } },
       { id: "frete", rotulo: "Frete (contratado à parte)", tipo: "sim/nao", obrigatorio: false, padrao: false },
       { id: "freteTipo", rotulo: "Tipo de frete", tipo: "opcao", obrigatorio: true, mostrarSe: { campo: "frete", valores: [true] },
-        opcoes: [{ valor: "TRANSPORTADORA", rotulo: "Transportadora" }, { valor: "FRETEBRAS", rotulo: "Fretebras" }] },
+        opcoes: [{ valor: "TRANSPORTADORA", rotulo: "Transportadora" }, { valor: "FRETEBRAS", rotulo: "Fretebras" }, { valor: "UBER", rotulo: "Uber" }] },   // v836 — #79
       { id: "freteValorMax", rotulo: "Valor máximo a pagar (R$)", tipo: "numero", obrigatorio: true, mostrarSe: { campo: "freteTipo", valores: ["FRETEBRAS"] } },
       { id: "freteVolumes", rotulo: "Número de volumes", tipo: "numero", obrigatorio: false, mostrarSe: { campo: "frete", valores: [true] }, dica: "obrigatório na Fretebras" },
       { id: "motoristaId", rotulo: "Motorista", tipo: "opcao", obrigatorio: false, mostrarSe: { campo: "frete", valores: [false] }, padrao: padrao?.id || "",

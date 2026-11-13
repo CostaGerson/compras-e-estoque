@@ -730,7 +730,7 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           {f.pendente && <L t="O que falta confirmar (opcional)" span><input value={f.pendencia || ""} onChange={(e) => set("pendencia", e.target.value)} placeholder="Ex.: quando o pedido estiver pronto · em condições" maxLength={120} className={inp} style={inpS} /></L>}   {/* v586 */}
           {f.frete ? (
             <>
-              <L t="Tipo de frete" span><Seg v={f.freteTipo} opts={[["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"]]} on={(v) => set("freteTipo", v)} /></L>
+              <L t="Tipo de frete" span><Seg v={f.freteTipo} opts={[["TRANSPORTADORA", "Transportadora"], ["FRETEBRAS", "Fretebras"], ["UBER", "Uber"]]} on={(v) => set("freteTipo", v)} /></L>
               {f.freteTipo === "FRETEBRAS" && <L t="Valor máximo a pagar (R$)"><input value={f.freteValorMax} onChange={(e) => set("freteValorMax", e.target.value)} inputMode="decimal" className={inp} style={inpS} /></L>}
               {f.freteTipo && <L t="Número de volumes"><input value={f.freteVolumes} onChange={(e) => set("freteVolumes", e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={inp} style={inpS} /></L>}
               {f.freteTipo === "TRANSPORTADORA" && <div className="col-span-2 text-xs px-3 py-2 rounded" style={{ background: C.blueSoft, color: C.blue }}>

@@ -378,8 +378,8 @@ export async function salvarDemanda(b, u) {
   if (["FIXO", "ATE", "APOS", "ENTRE"].includes(horarioTipo) && !min(b.hora1)) return { error: "Informe o horário." };
   if (horarioTipo === "ENTRE" && !min(b.hora2)) return { error: "Informe o horário final." };
   const frete = !!b.frete;
-  const freteTipo = frete ? (b.freteTipo === "FRETEBRAS" ? "FRETEBRAS" : b.freteTipo === "TRANSPORTADORA" ? "TRANSPORTADORA" : null) : null;
-  if (frete && !freteTipo) return { error: "Escolha transportadora ou Fretebras." };
+  const freteTipo = frete ? (["FRETEBRAS", "TRANSPORTADORA", "UBER"].includes(b.freteTipo) ? b.freteTipo : null) : null;   // v836 — #79: Uber
+  if (frete && !freteTipo) return { error: "Escolha transportadora, Fretebras ou Uber." };
   const vMax = Number(String(b.freteValorMax ?? "").replace(/\./g, "").replace(",", ".")) || null;
   const vol = parseInt(b.freteVolumes, 10) || null;
   if (freteTipo === "FRETEBRAS" && (!vMax || !vol)) return { error: "Fretebras: informe o valor máximo e o número de volumes." };
