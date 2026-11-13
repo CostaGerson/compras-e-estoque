@@ -122,7 +122,8 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   </div>
 
 `;
-  const cabecalhoItem = cabecalho;   // o cabeçalho repete em cada folha
+  // v822 — #74: em pedido com mais de um item, cada folha da OP leva "Nº 26115022 / 2-4" (como a ficha do KM)
+  const cabecalhoItem = (i) => (lista.length > 1 ? cabecalho.replace(`<div class="n">Nº ${esc(numero)}</div>`, `<div class="n">Nº ${esc(numero)} / ${i + 1}-${lista.length}</div>`) : cabecalho);
   const producao = PV || servico ? "" : lista.map((it, i) => {
     const comps = componentes[it.tipoPecaNome] || [];
     const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
@@ -140,12 +141,13 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
     // v816 — arquivos de personalização (estampas e "detalhes de personalização") não saem na OP impressa: ficam no sistema e vão para o PCP
     const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT" && a.categoria !== "PERSONALIZACAO" && !a.aplicacao);
-    return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem}` : ""}<div class="sec">Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
+    return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem(i)}` : ""}<div class="sec">${lista.length > 1 ? `<b style="color:#001E41;font-size:11px">${esc(numero)} / ${i + 1}-${lista.length}</b> · ` : ""}Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
       <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
         <div class="peca-i">
-          <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}<th class="tt">TOTAL</th></tr>
-            <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}<td class="tt">${qtdDe(it).toLocaleString("pt-BR")}</td></tr></table>
+          <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}</tr>
+            <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}</tr></table>
+          <div style="margin:2px 0 6px;font-size:10px">TOTAL DA GRADE: <b style="font-size:12px;color:#FF6B1A">${qtdDe(it).toLocaleString("pt-BR")} pç</b></div>
           <table class="params">${params || `<tr><td class="pk">Parâmetros</td><td>—</td></tr>`}</table>
         </div>
       </div>

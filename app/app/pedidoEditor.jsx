@@ -492,7 +492,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const pickItemKm = (i, p) => setItens((arr) => arr.map((it, j) => {
     if (j !== i) return it;
     const tipo = tipoPeca(p.descricao, TIPOS) || it.tipoPecaNome;
-    const params = paramsDoKm(p.parametros, componentes[tipo] || []);   // v801 — #72: nomes do KM casados com os campos do tipo de peça (sem duplicar)
+    // v801 — #72: nomes do KM casados com os campos do tipo de peça (sem duplicar)
+    // v822 — #72: o que já estava preenchido (ficha/PP) e o KM não traz continua; o KM só completa/atualiza
+    const doKm = paramsDoKm(p.parametros, componentes[tipo] || []);
+    const params = { ...Object.fromEntries(Object.entries(it.parametros || {}).filter(([k, v]) => k !== "TECIDO" && v != null && String(v).trim() !== "")), ...doKm };
     if (it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object") params.TECIDO = it.parametros.TECIDO;   // tecido da FPP fica
     return { ...it, codigo: p.codigo, descricao: limparDescKm(p.descricao), tipoPecaNome: tipo, parametros: params,
       valorUnitario: it.valorUnitario || (p.preco ? String(Number(p.preco).toFixed(2)).replace(".", ",") : "") };
@@ -987,7 +990,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k) && !paramFora(k));
         const tec = it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object" ? it.parametros.TECIDO : null;
         return (
-          <Card key={i} destaque titulo={<>Item {i + 1}{it.descricao ? <span className="font-semibold opacity-80"> · {it.descricao}</span> : null}</>} extra={podeLancar && <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} title="Excluir item" style={{ color: "#FFB4A8" }}><Trash2 size={16} /></button>}>
+          <Card key={i} destaque titulo={<>Item {i + 1}{it.descricao ? <span className="font-semibold opacity-80"> · {it.descricao}</span> : null}</>} extra={podeLancar && <span className="flex items-center gap-3">
+              {/* v822 — #77: duplicar o item (mesmo produto mudando cor, estampa ou valor) */}
+              <button type="button" onClick={() => setItens((arr) => { const { id, linkId, linkToken, ...copia } = JSON.parse(JSON.stringify(arr[i])); return [...arr.slice(0, i + 1), copia, ...arr.slice(i + 1)]; })}
+                title="Duplicar este item logo abaixo" className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#fff" }}><Copy size={14} /> Duplicar</button>
+              <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} title="Excluir item" style={{ color: "#FFB4A8" }}><Trash2 size={16} /></button>
+            </span>}>
             <div className="grid grid-cols-6 gap-3 mb-3">
               <Campo label="Tipo de peça">
                 <select value={it.tipoPecaNome} onChange={(e) => upItem(i, { tipoPecaNome: e.target.value })} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, ...(it.tipoPecaNome ? {} : { color: C.sub }) }}>

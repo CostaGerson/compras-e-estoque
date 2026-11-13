@@ -125,10 +125,12 @@ export async function POST(req) {
     if (fim && fim < inicio) return Response.json({ error: "O fim da recorrência é antes do início." }, { status: 400 });
     const dia = Number(String(b.vencimento).slice(8, 10));
     const periodicidade = Math.max(1, Math.min(12, Number(b.periodicidade) || 1));   // v697
-    const r = await prisma.finRecorrencia.create({ data: { ...base, valor, diaVencimento: dia, periodicidade, inicio, fim, criadoPorNome: nomeU(u) } });
+    const { chavePix, ...baseRec } = base;   // v822 — #78: a recorrência não tem chave PIX (criar dava erro); vai nos títulos gerados
+    const r = await prisma.finRecorrencia.create({ data: { ...baseRec, valor, diaVencimento: dia, periodicidade, inicio, fim, criadoPorNome: nomeU(u) } });
     const n = await gerarRecorrencias(tipo);
     // o 1º mês é o que foi lançado agora: já nasce conferido e respeita a chave de previsão
     await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, competencia: inicio }, data: { valorConfirmado: true, previsao: !!b.previsao, numeroDoc: b.numeroDoc || null, criadoPorId: u.id } });
+    if (chavePix) await prisma.finTitulo.updateMany({ where: { recorrenciaId: r.id, chavePix: null }, data: { chavePix } });
     const primeiro = await prisma.finTitulo.findFirst({ where: { recorrenciaId: r.id }, orderBy: { competencia: "asc" }, select: { id: true } });
     return Response.json({ ok: true, recorrenciaId: r.id, gerados: n, id: primeiro?.id || null });
   }

@@ -152,7 +152,7 @@ export function validarItem(item) {
   for (const [i, l] of linhas.entries()) {
     const n = i + 1;
     if (l.desconto) { if (!(Number(l.unitario) < 0)) return `Linha ${n}: o desconto precisa ser um valor negativo.`; continue; }   // v726 — desconto do PCP
-    if (!String(l.pedido || "").trim()) return `Linha ${n}: informe o nº do pedido.`;
+    if (!String(l.pedido || "").trim() && !(item.grupo === GRUPO_DESCREVE && item.semPedido)) return `Linha ${n}: informe o nº do pedido.`;   // v822 — #73: outro serviço sem pedido
     if (!(Number(l.qtd) > 0)) return `Linha ${n}: informe a quantidade.`;
     if (!(Number(l.unitario) > 0)) return `Linha ${n}: informe o valor unitário.`;
   }

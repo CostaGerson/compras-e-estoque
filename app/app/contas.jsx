@@ -2429,6 +2429,8 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
     dataPagamento: "",
     linhas: item?.linhas?.length ? item.linhas.map((l) => ({ ...l, tipo: l.tipo || (grupo === "FACCAO" ? item.setor : undefined) })) : [{ pedido: "", item: "", qtd: 0, unitario: 0, tipo: "" }],
     observacao: item?.observacao || "",
+    // v822 — #73: outro serviço nasce sem pedido; editando, fica sem pedido se nenhuma linha tem pedido
+    semPedido: descreve ? !(item?.linhas || []).some((l) => String(l.pedido || "").trim()) : false,
   }));
   const porLinha = grupo === "FACCAO";   // v208: facção — tipo de peça em cada linha (pedido), não no prestador
   const [prog, setProg] = useState(null);     // { sexta, vencimento, aviso }
@@ -2523,7 +2525,17 @@ function ItemSemanaModal({ user, tituloId, grupo, rotulo, descreve, item, tipoPr
         </Campo></div>
       )}
 
-      {!free && (
+      {/* v822 — #73: outro serviço (manutenção etc.) não precisa de pedido; "Atribuir a pedido" abre as linhas por pedido */}
+      {descreve && (
+        <div className="mt-4 flex flex-wrap items-end gap-4">
+          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.text }}>
+            <input type="checkbox" checked={!f.semPedido} onChange={(e) => setF((x) => ({ ...x, semPedido: !e.target.checked, linhas: e.target.checked ? (x.linhas.some((l) => String(l.pedido || "").trim()) ? x.linhas : [{ pedido: "", item: "", qtd: 0, unitario: 0 }]) : x.linhas }))} />
+            Atribuir a pedido <span className="text-xs" style={{ color: C.sub }}>· o serviço foi feito para um pedido específico</span>
+          </label>
+          {f.semPedido && <Campo t="Valor do serviço"><Valor value={f.linhas[0]?.unitario || 0} onChange={(v) => setF((x) => ({ ...x, linhas: [{ pedido: "", item: x.descricao || "", qtd: 1, unitario: v }] }))} width="180px" /></Campo>}
+        </div>
+      )}
+      {!free && !(descreve && f.semPedido) && (
         <div className="mt-4">
           <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>Pedidos · dá para lançar vários</div>
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase mb-1" style={{ color: C.sub }}>
