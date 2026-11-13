@@ -492,7 +492,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
               titulo="Saldo inicial do primeiro mês lançado + resultado acumulado" />
             <Ind rotulo="Recursos externos" valor={t.externo} cor={t.externo >= 0 ? C.blue : C.red}
               titulo="Empréstimo, factoring, capital social, mútuo e NORT (loja) — entrada menos pagamento"
-              onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS,NORT", "Recursos externos")} />
+              onClick={() => ir("EXT_BANCARIO,EXT_SOCIOS,EXT_FACTORING,EXT_CAPITAL,EXT_MUTUO,EXT_SEM_JUROS,EXT_CONCEDIDO,NORT", "Recursos externos")} />
             {Math.abs(t.aIdentificar || 0) >= 0.01 && <Ind rotulo="A identificar" valor={t.aIdentificar} cor={C.accent}
               titulo="Lançamentos ainda sem conta: já estão no saldo final; ao identificar, só mudam de linha na DRE" />}
             <Ind rotulo="Saldo final" valor={t.saldoFinal} cor={t.saldoFinal >= 0 ? C.green : C.red} destaque />

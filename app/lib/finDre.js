@@ -20,6 +20,8 @@ export const GRUPOS_EXTERNOS = [
   { k: "EXT_CAPITAL", n: "Capital social" },
   { k: "EXT_MUTUO", n: "Mútuo" },
   { k: "EXT_SEM_JUROS", n: "Investimento externo sem juros" },
+  // v800 — dinheiro que a Meridian empresta a alguém: sai do caixa e volta, não é despesa nem receita
+  { k: "EXT_CONCEDIDO", n: "Empréstimo concedido", ajuda: "Empréstimo que a Meridian faz a funcionário ou terceiro (saída) e o que ele devolve (entrada)" },
   // v314 — NORT (loja) virou origem de recurso externo: receitas da NORT entram, custos da loja saem; não mexe no resultado da operação
   { k: "NORT", n: "NORT (loja)", ajuda: "Receitas da NORT (caixa NORT) menos aluguel, CEMIG, COPASA, folha e benefícios da loja" },
 ];
@@ -76,6 +78,7 @@ export const MAPA_OFICIAL = {
   1134000: "EXT_CAPITAL", 2131400: "EXT_CAPITAL",
   1135000: "EXT_MUTUO", 2131500: "EXT_MUTUO",
   1140000: "EXT_SEM_JUROS",
+  1136000: "EXT_CONCEDIDO", 2131600: "EXT_CONCEDIDO",   // v800
   // NORT — futura loja: receita (caixa NORT, antigo caixa 4mil) e custos ficam num grupo próprio
   1117000: "NORT", 2151000: "NORT", 2152000: "NORT", 2153000: "NORT", 2154000: "NORT", 2155000: "NORT", 2156000: "NORT", 2157000: "NORT",
   // FORA DA DRE
