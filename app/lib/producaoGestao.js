@@ -47,7 +47,7 @@ function resumoPedido(p, hoje) {
   const parcial = Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0;
   const saldoPecas = p.qtEntregar != null ? Number(p.qtEntregar) : null;
   const saldoValor = p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total);
-  const faturar = p.semFaturar ? null : p.faturamentoPendente ? "NF_SEM_CONTAS" : p.cronoConcluido ? "A_FATURAR" : null;   // v794 — interno não fatura
+  const faturar = p.semNota ? "SEM_NOTA" : p.semFaturar ? null : p.faturamentoPendente ? "NF_SEM_CONTAS" : p.cronoConcluido ? "A_FATURAR" : null;   // v794 — interno não fatura
   // v555 — peças concluídas na expedição sem NF casada
   const ciP = ci.filter((i) => Number(i.pecas ?? i.qtd) > 0);
   const concl = ciP.filter((i) => faseDe(i.situacao, i.etapa) === "CONCLUIDO").reduce((a, i) => a + (Number(i.pecas ?? i.qtd) || 0), 0);
@@ -71,7 +71,7 @@ function resumoPedido(p, hoje) {
   };
 }
 
-const CAMPOS_LISTA = { numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
+const CAMPOS_LISTA = { semNota: true, numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
   cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
   cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true, interno: true };   // v794 interno   // v450 · v618 fonte
 

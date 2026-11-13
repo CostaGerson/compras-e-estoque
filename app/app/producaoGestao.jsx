@@ -49,12 +49,12 @@ function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub, pecas }) {
 }
 const Chip = ({ cor, fundo, children }) => <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ color: cor, background: fundo || C.panel2 }}>{children}</span>;
 // v450 — a faturar / NF aguardando contas / crítica
-const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.accent}>A faturar</Chip> : f === "NF_SEM_CONTAS" ? <Chip cor={C.yellow} fundo={C.yellowSoft}>NF sem contas</Chip> : null);
+const ChipFaturar = ({ f }) => (f === "A_FATURAR" ? <Chip cor="#fff" fundo={C.accent}>A faturar</Chip> : f === "SEM_NOTA" ? <Chip cor={C.sub} fundo={C.panel2}>Sem nota</Chip> : f === "NF_SEM_CONTAS" ? <Chip cor={C.yellow} fundo={C.yellowSoft}>NF sem contas</Chip> : null);
 const ChipStatus = ({ s }) => (s === "ATRASADO" ? <Chip cor={C.red} fundo={C.redSoft}>Atrasado</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>Em dia</Chip>);
 const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{FASE_TXT[f] || f}</Chip>;
 // v641 — opções do filtro de status (um pedido pode ter mais de uma)
 const FASES_UI = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
-const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["CRITICA", "Com crítica"]];
+const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["SEM_NOTA", "Sem nota"], ["CRITICA", "Com crítica"]];
 const statusDe = (p) => [p.status, p.faturar, p.critica || p.criticaPrazo ? "CRITICA" : null].filter(Boolean);
 const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
 
@@ -342,6 +342,14 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-lg font-bold" style={{ color: C.navy }}>Pedido {numero}</span>
               {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}{p?.layout && <span className="text-xs font-semibold" style={{ color: "#7E3AF2" }}>{p.layout.texto}</span>}{p && <ChipFaturar f={p.faturar} />}
+              {/* v819 — a faturar → "sem nota" (sai do a faturar e da demanda FATURAR); desfazer volta */}
+              {p && (p.faturar === "A_FATURAR" || p.faturar === "SEM_NOTA") && <button onClick={async () => {
+                const v = p.faturar !== "SEM_NOTA";
+                if (!(await confirmar(v ? `Marcar o pedido ${numero} como SEM NOTA? Ele sai do "a faturar" e a demanda de faturamento é concluída.` : `Desfazer o "sem nota" do pedido ${numero}? Ele volta para o "a faturar".`))) return;
+                const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "semNota", numero, valor: v, autorNome: nomeU(user) }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+                if (r.error) return alerta(r.error);
+                carregar();
+              }} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}>{p.faturar === "SEM_NOTA" ? "Desfazer sem nota" : "Marcar sem nota"}</button>}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>

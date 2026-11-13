@@ -2046,6 +2046,9 @@ model OpAnalise {
 // v316 — pedidos em andamento (PV + PP do KM Sistemas): base da previsão de receitas; a programação de entrega virá do Cronograma (Maycon)
 model PedidoVenda {
   id            Int       @id @default(autoincrement())
+  semNota       Boolean   @default(false)   // v819 — a faturar marcado "sem nota": sai do a faturar e da demanda FATURAR
+  semNotaPor    String?
+  semNotaEm     DateTime?
   numero        String    @unique
   cliente       String
   clienteCodigo String?

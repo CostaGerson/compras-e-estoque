@@ -27,6 +27,14 @@ export async function POST(req) {
   const numero = String(b.numero || "");
   const p = await prisma.pedidoVenda.findFirst({ where: { numero }, select: { id: true, numero: true, cliente: true } });
   if (!p) return Response.json({ error: "Pedido não encontrado." }, { status: 404 });
+  // v819 — pedido a faturar "sem nota" (ou desfazer): sai do a faturar e a demanda FATURAR em aberto é concluída
+  if (b.acao === "semNota") {
+    const v = !!b.valor;
+    await prisma.pedidoVenda.update({ where: { id: p.id }, data: { semNota: v, semNotaPor: v ? b.autorNome || null : null, semNotaEm: v ? new Date() : null } });
+    if (v) await prisma.admDemanda.updateMany({ where: { pedidoNumero: p.numero, tipo: "FATURAR", status: { not: "CONCLUIDA" } },
+      data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: b.autorNome || "SISTEMA", retorno: "PEDIDO MARCADO SEM NOTA" } }).catch(() => null);
+    return Response.json({ ok: true });
+  }
   if (b.acao === "obs") {
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { obs: String(b.obs || "").slice(0, 1000) || null, atualizadoPorNome: b.autorNome || null } });
     return Response.json({ ok: true });

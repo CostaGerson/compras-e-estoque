@@ -60,7 +60,7 @@ export async function formaDoPedido(p) {
   return f || null;
 }
 
-const CAMPOS = { id: true, numero: true, cliente: true, cnpj: true, vendedor: true, status: true, interno: true, total: true, qtd: true, vlEntregar: true, qtEntregar: true,
+const CAMPOS = { semNota: true, id: true, numero: true, cliente: true, cnpj: true, vendedor: true, status: true, interno: true, total: true, qtd: true, vlEntregar: true, qtEntregar: true,
   cronoConcluido: true, cronoSituacao: true, faturamentoPendente: true, nfsFaturadas: true, kmNfs: true, nfNumero: true, formaEntrega: true, updatedAt: true };
 
 function resumoSaldo(p) {
@@ -167,7 +167,7 @@ export async function fluxoFaturamento() {
         f.status = "CONCLUIDA"; res.faturarConcluidas++;
       }
       // B) concluído no PCP, sem NF pendente de contas → FATURAR (parcial com tudo concluído de novo → nova FATURAR do saldo)
-      if (p.status === "ANDAMENTO" && p.cronoConcluido && !p.faturamentoPendente && !minhas.some((d) => d.tipo === "FATURAR" && d.status !== "CONCLUIDA")) {
+      if (p.status === "ANDAMENTO" && p.cronoConcluido && !p.semNota && !p.faturamentoPendente && !minhas.some((d) => d.tipo === "FATURAR" && d.status !== "CONCLUIDA")) {
         const sd = resumoSaldo(p);
         const parcial = cc.length > 0;
         const d = await prisma.admDemanda.create({ data: {
