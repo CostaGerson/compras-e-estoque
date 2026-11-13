@@ -35,7 +35,8 @@ export const nomeGrupo = (k) => (TODOS_GRUPOS.find((g) => g.k === k) || {}).n ||
 export const MAPA_OFICIAL = {
   // 01. RECEITA
   1111000: "RECEITA", 1112000: "RECEITA", 1113000: "RECEITA", 1114000: "RECEITA", 1115000: "RECEITA",
-  1116000: "RECEITA", 1118000: "RECEITA", 1121000: "RECEITA", 1122000: "RECEITA", 1150000: "RECEITA",
+  1116000: "RECEITA", 1116100: "RECEITA", 1116200: "RECEITA", 1116300: "RECEITA", 1116400: "RECEITA", 1116500: "RECEITA", 1116600: "RECEITA",   // v826 — serviços
+  1118000: "RECEITA", 1121000: "RECEITA", 1122000: "RECEITA", 1150000: "RECEITA",
   1210000: "RECEITA", 1220000: "RECEITA",
   2141000: "RECEITA",            // devolução de venda abate a receita
   2142000: "RECEITA",            // multa contratual (atraso/descumprimento com cliente) também abate a receita

@@ -8,7 +8,8 @@ import { alerta, confirmar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
 import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
-import PersonalizacaoItem, { juntarAplicacoesFpp } from "./personalizacaoItem";   // v806 — estampas com medidas e arquivos
+import PersonalizacaoItem, { juntarAplicacoesFpp } from "./personalizacaoItem";
+import { SERVICOS, servicoDe } from "@/lib/servicosLista";   // v826 — tipo de serviço → receita   // v806 — estampas com medidas e arquivos
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
@@ -932,11 +933,15 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
       {/* ---------- Itens ---------- */}
       {f.servico && <Card titulo="Serviços" extra={veVal && <span className="text-sm">Total <b style={{ color: C.accent }}>{money(totalGeral)}</b></span>}>
-        <div className="grid gap-2 text-xs font-semibold mb-1" style={{ color: C.sub, gridTemplateColumns: "1fr 110px 140px 140px 28px" }}>
-          <span>Tipo de serviço</span><span className="text-right">Quantidade</span>{veVal ? <><span className="text-right">Valor unit. (R$)</span><span className="text-right">Total</span></> : <><span /><span /></>}<span />
+        <div className="grid gap-2 text-xs font-semibold mb-1" style={{ color: C.sub, gridTemplateColumns: "190px 1fr 110px 140px 140px 28px" }}>
+          <span>Tipo de serviço</span><span>Descrição</span><span className="text-right">Quantidade</span>{veVal ? <><span className="text-right">Valor unit. (R$)</span><span className="text-right">Total</span></> : <><span /><span /></>}<span />
         </div>
         {itens.map((it, i) => (
-          <div key={i} className="grid gap-2 items-center mb-2" style={{ gridTemplateColumns: "1fr 110px 140px 140px 28px" }}>
+          <div key={i} className="grid gap-2 items-center mb-2" style={{ gridTemplateColumns: "190px 1fr 110px 140px 140px 28px" }}>
+            {(() => { const tp = it.tipoServico ?? it.parametros?.TIPO_SERVICO ?? servicoDe(null, it.descricao)?.k ?? ""; return (
+              <select value={tp} onChange={(e) => upItem(i, { tipoServico: e.target.value })} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, borderColor: tp ? undefined : C.accent }} title="Define a conta de receita do serviço no financeiro">
+                <option value="">Escolha…</option>{SERVICOS.map((s) => <option key={s.k} value={s.k}>{s.nome}</option>)}
+              </select>); })()}
             <input value={it.descricao} onChange={(e) => upItem(i, { descricao: e.target.value })} placeholder="ex.: bordado de logo no peito, silk 2 cores, costura de faixa…" className="w-full px-2 py-1.5 rounded outline-none text-sm" style={inp} />
             <input value={it.quantidade} onChange={(e) => upItem(i, { quantidade: e.target.value })} placeholder="0" className="w-full px-2 py-1.5 rounded outline-none text-sm text-right" style={inp} />
             {veVal ? <>

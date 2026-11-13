@@ -75,7 +75,7 @@ export async function salvarPp(id, b, quem) {
     aplicacoes: (!servico && limparAplicacoes(it.aplicacoes)) || undefined,   // v806
     dispensaDesign: !servico && !!it.dispensaDesign,   // v796
     itemPadraoId: Number(it.itemPadraoId) || null, valorVenda: num(it.valorVenda) > 0 ? r2(num(it.valorVenda)) : null,   // v711
-    ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: "{}",
+    ...(servico ? { tipoPecaNome: "SERVIÇO", codigo: null, gradeJson: JSON.stringify([{ tam: "UN", qtd: num(it.quantidade ?? qtdGrade(it.grade)) }]), parametrosJson: JSON.stringify((it.tipoServico || it.parametros?.TIPO_SERVICO) ? { TIPO_SERVICO: String(it.tipoServico || it.parametros.TIPO_SERVICO) } : {}),   // v826
       quantidade: num(it.quantidade ?? qtdGrade(it.grade)), valorTotal: r2(num(it.quantidade ?? qtdGrade(it.grade)) * num(it.valorUnitario)) || null } : {}),
   }));
   let pp;
@@ -150,9 +150,10 @@ const safe = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d;
 async function contaVenda() { return prisma.finConta.findUnique({ where: { codigo: "1111000" }, select: { id: true } }).catch(() => null); }
 async function titulo({ chave, numero, cliente, cnpj, emissao, valor, venc, nome, numeroDoc, obs, quem }) {
   const venda = await contaVenda();
+  const rServ = await (await import("@/lib/servicosReceita")).rateioDoPedido(numero).catch(() => null);   // v826 — pedido de serviço → receita do serviço
   const dados = { tipo: "RECEBER", titulo: nome, parceiro: cliente, documento: so(cnpj) || null, numeroDoc: numeroDoc || numero,
     emissao: emissao ? dUTC(emissao) : null, valor: r2(valor), vencimento: dUTC(venc), competencia: String(venc).slice(0, 7), previsao: false,
-    rateio: venda ? [{ contaId: venda.id, pct: 100 }] : [], forma: "PEDIDO", observacao: obs };
+    rateio: rServ || (venda ? [{ contaId: venda.id, pct: 100 }] : []), forma: "PEDIDO", observacao: obs };
   const ja = await prisma.finTitulo.findFirst({ where: { chaveImport: chave }, select: { id: true, status: true } });
   if (ja && ja.status !== "ABERTO" && ja.status !== "CANCELADO") return { id: ja.id, mantido: true };   // já recebido: não mexe
   if (ja) return prisma.finTitulo.update({ where: { id: ja.id }, data: { ...dados, status: "ABERTO", atualizadoPorNome: quem } });

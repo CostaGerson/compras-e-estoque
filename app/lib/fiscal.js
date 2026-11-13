@@ -108,6 +108,7 @@ export function lerXmlFiscal(xml, nome = "") {
     chave: null, chaveRegistro: `NFSE|${prestDoc}|${numero}`, numero, serie: null, emissao,
     parceiro: ehSaida ? tomaNome : prestNome, razao: ehSaida ? tomaNome : prestNome, documento: (ehSaida ? tomaDoc : prestDoc) || null, emitDoc: prestDoc,
     natureza: "PRESTAÇÃO DE SERVIÇO", cfops: [], valor: r2(valor),
+    servicoTexto: String(achar(d, ["xDescServ", "Discriminacao", "discriminacao", "xServ", "Descricao"]) || "").slice(0, 2000) || null,   // v826 — para a receita do serviço
     parcelas: [{ parcela: "1", vencimento: emissao, valor: r2(valor), semVencimento: true }],
   };
 }
@@ -241,6 +242,12 @@ async function rateioPadrao(tipoT, n) {
   if (n.modelo === "CT-e") {
     const c = await prisma.finConta.findUnique({ where: { codigo: n.cte?.tipo === "ENTREGA" ? "2111220" : "2111210" }, select: { id: true } }).catch(() => null);
     if (c) return { rateio: [{ contaId: c.id, pct: 100 }], origem: n.cte?.tipo === "ENTREGA" ? "FRETE ENTREGA" : "FRETE COMPRA" };
+  }
+  // v826 — NF de serviço emitida: receita do serviço (silk, bordado, DTF, sublimação, facção, prensagem) pela descrição
+  if (tipoT === "RECEBER" && n.modelo === "NFS-e" && n.empresa !== "NORT") {
+    const { servicoDe } = await import("@/lib/servicosLista");
+    const sv = servicoDe(null, `${n.servicoTexto || ""} ${n.natureza || ""}`);
+    if (sv) { const c = await prisma.finConta.findUnique({ where: { codigo: sv.conta }, select: { id: true } }).catch(() => null); if (c) return { rateio: [{ contaId: c.id, pct: 100 }], origem: sv.contaNome }; }
   }
   const ant = n.documento ? await prisma.finTitulo.findMany({ where: { tipo: tipoT, documento: n.documento }, orderBy: { createdAt: "desc" }, take: 10, select: { rateio: true } }) : [];
   const r = ant.map((a) => a.rateio).find((x) => Array.isArray(x) && x.some((y) => y.contaId && y.pct > 0));

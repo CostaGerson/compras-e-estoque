@@ -153,6 +153,8 @@ export async function garantirContas() {
   await dividirImposto().catch(() => null);
   const { criarNort } = await import("@/lib/finAjustes");
   await criarNort().catch(() => null);
+  // v826 — contas a receber de pedido de serviço em aberto → receita do serviço
+  try { await (await import("@/lib/servicosReceita")).realocarReceitasServico(); } catch (e) { console.log("receita servico:", e.message); }
 }
 
 // Importa as palavras-chave do sistema anterior UMA vez (marca origem = BASE).

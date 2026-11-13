@@ -2034,7 +2034,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
             <Campo t={item.vencimentoOriginal ? "Vencimento original" : "Vencimento"}>
               <input type="date" value={item.vencimentoOriginal || f.vencimento} disabled={!!item.vencimentoOriginal} onChange={(e) => s("vencimento", e.target.value)} className={inp} style={{ ...inpS, opacity: item.vencimentoOriginal ? 0.6 : 1 }} />
             </Campo>
-            <Campo t="Reprogramado" dica="nova data; o original fica no histórico">
+            <Campo t="Reprogramado">   {/* v826 — sem a explicação, alinhado ao vencimento */}
               <input type="date" value={f.reprogramado ?? (item.vencimentoOriginal ? item.vencimento : "")} onChange={(e) => s("reprogramado", e.target.value)} className={inp}
                 style={{ ...inpS, borderColor: (f.reprogramado ?? (item.vencimentoOriginal ? item.vencimento : "")) ? C.roxo : C.line }} />
             </Campo>
