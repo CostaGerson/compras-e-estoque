@@ -7,7 +7,8 @@ import {
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star,
 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
-import { ItemPadraoModal } from "./itensPadrao";   // v701 — tornar a FPP um item padrão do cliente
+import { ItemPadraoModal } from "./itensPadrao";
+import SolicitarLancamento from "./solicitarLancamento";   // v812   // v701 — tornar a FPP um item padrão do cliente
 import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";   // v692 — FPP em PDF no padrão do PV
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -361,6 +362,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
   const [over, setOver] = useState({});             // overrides só desta precificação {caminho: valor}
   const [modoOverride, setModoOverride] = useState(false);
   const [paramsLocaisOpen, setParamsLocaisOpen] = useState(false);
+  const [solLanc, setSolLanc] = useState(false);   // v812
   const [aba, setAba] = useState(abrirId ? "ficha" : "salvas");   // v514 — Orçamentação abre nas FPPs salvas (negociações e guias); ficha | banco | salvas
   const [origem, setOrigem] = useState(null);       // v513 — de onde a ficha em edição foi aberta: { aba: "salvas" } | { externo: { v: "pedido", numero } }
   const voltarSalvas = useRef(null);                // v513 — Voltar dentro das salvas (negociação aberta → cards da guia)
@@ -629,6 +631,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             </button>
           ))}
         </div>
+        {/* v812 — solicitar lançamento: mensagem do sistema para o PCP */}
+        <button onClick={() => setSolLanc(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: "#fff", color: C.navy, border: `1px solid ${C.navy}` }}>
+          <Send size={15} /> Solicitar lançamento
+        </button>
+        {solLanc && <SolicitarLancamento user={user} onClose={() => setSolLanc(false)} />}
         {aba !== "ficha" && (
           <button onClick={criarFpp} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
             <Plus size={15} /> Criar FPP
