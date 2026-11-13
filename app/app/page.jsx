@@ -316,6 +316,8 @@ export default function Home() {
   const caminho = caminhoMenu(menu, view) || [];
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
   const noAtual = caminho[caminho.length - 1];
+  // v833 — guia do navegador mostra a tela atual: "ERP Meridian - Agenda"
+  if (typeof document !== "undefined") { const tt = noAtual?.label ? `ERP Meridian - ${noAtual.label}` : "ERP Meridian"; if (document.title !== tt) document.title = tt; }   // (sem hook: fica depois dos retornos antecipados)
   const ir = (k) => { setView(k); setTab("lista"); };
   const fasesCompras = FASES_COMPRAS.map(([k]) => k).filter((k) => pode(k));   // v415
   // clicar em qualquer parte do caminho volta para a tela inicial daquele módulo
