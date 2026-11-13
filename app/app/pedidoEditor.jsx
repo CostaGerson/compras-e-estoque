@@ -228,16 +228,16 @@ export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, o
               <span className="ml-2 font-normal normal-case">{linhas.reduce((s, g) => s + num(g.qtd), 0)} pç</span>
               {k !== "MASC" && <button type="button" onClick={() => remover(k)} className="ml-auto normal-case font-normal flex items-center gap-1" style={{ color: C.red }}><X size={12} /> remover</button>}
             </div>
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(0, 1fr))` }}>
+            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(0, 1fr))` }}>
               {linhas.map((g) => (
-                <div key={g.tam} className="rounded-lg px-1 pt-1 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? "#001E41" : C.line}` }}>
+                <div key={g.tam} className="rounded-md px-0.5 pt-0.5 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? "#001E41" : C.line}` }}>
                   <div className="text-[11px] font-semibold" style={{ color: C.sub }}>{k === "BL" ? g.tam.slice(3) : g.tam}</div>
                   {/* v672 — sem a barrinha piscando (digitar substitui o número) e botões – / + maiores */}
                   <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} onFocus={(e) => e.target.select()} inputMode="numeric" placeholder="0"
-                    className="w-full bg-transparent outline-none text-center text-lg font-bold" style={{ color: num(g.qtd) ? C.text : "#98A2B3", caretColor: "transparent" }} />
-                  <div className="flex justify-between gap-1 pb-0.5">
-                    <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#001E41", background: "#fff", border: "1px solid #001E4155" }}>–</button>
-                    <button type="button" onClick={() => passo(g, 1)} className="flex-1 flex items-center justify-center rounded-md text-lg font-bold leading-none select-none" style={{ height: 28, color: "#fff", background: "#001E41" }}>+</button>
+                    className="w-full bg-transparent outline-none text-center text-base font-bold leading-6" style={{ color: num(g.qtd) ? C.text : "#98A2B3", caretColor: "transparent" }} />
+                  <div className="flex justify-between gap-0.5">
+                    <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded text-sm font-bold leading-none select-none" style={{ height: 22, color: "#001E41", background: "#fff", border: "1px solid #001E4155" }}>–</button>
+                    <button type="button" onClick={() => passo(g, 1)} className="flex-1 flex items-center justify-center rounded text-sm font-bold leading-none select-none" style={{ height: 22, color: "#fff", background: "#001E41" }}>+</button>
                   </div>
                 </div>
               ))}
@@ -278,7 +278,13 @@ function Campo({ label, children, cls = "" }) {
 function In({ label, cls, upper = true, ...p }) {
   return <Campo label={label} cls={cls}><input {...p} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, textTransform: upper ? "uppercase" : "none" }} /></Campo>;
 }
-function Card({ titulo, extra, children }) {
+function Card({ titulo, extra, children, destaque }) {
+  if (destaque) return (   // v811 — título em faixa azul-marinho (itens do pedido)
+    <div className="rounded-lg mb-4 overflow-hidden" style={{ background: C.panel, border: "1px solid #001E4133" }}>
+      <div className="flex items-center gap-2 px-4 py-2" style={{ background: "#001E41", color: "#fff" }}><div className="font-bold text-sm flex-1 min-w-0 truncate">{titulo}</div>{extra}</div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
   return (
     <div className="rounded-lg p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       {(titulo || extra) && <div className="flex items-center justify-between mb-3"><div className="font-semibold text-sm">{titulo}</div>{extra}</div>}
@@ -981,7 +987,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k) && !paramFora(k));
         const tec = it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object" ? it.parametros.TECIDO : null;
         return (
-          <Card key={i} titulo={`Item ${i + 1}`} extra={podeLancar && <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={16} /></button>}>
+          <Card key={i} destaque titulo={<>Item {i + 1}{it.descricao ? <span className="font-semibold opacity-80"> · {it.descricao}</span> : null}</>} extra={podeLancar && <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} title="Excluir item" style={{ color: "#FFB4A8" }}><Trash2 size={16} /></button>}>
             <div className="grid grid-cols-6 gap-3 mb-3">
               <Campo label="Tipo de peça">
                 <select value={it.tipoPecaNome} onChange={(e) => upItem(i, { tipoPecaNome: e.target.value })} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, ...(it.tipoPecaNome ? {} : { color: C.sub }) }}>
@@ -1028,11 +1034,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
             <div className="flex gap-4">
               {/* v806 — layout em destaque */}
-              <div className="w-48 shrink-0">
+              <div className="shrink-0" style={{ width: 380 }}>
                 <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${it.fotoBase64 || it.dispensaDesign ? "#001E4133" : C.accent}` }}>
                   <div className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" style={{ background: it.fotoBase64 || it.dispensaDesign ? "#001E41" : C.accent, color: "#fff" }}>
                     Layout da peça{it.fotoBase64 || it.dispensaDesign ? "" : <span className="font-normal opacity-90">· obrigatório</span>}</div>
-                  <label className="block cursor-pointer relative" style={{ height: 190, background: it.fotoBase64 ? "#fff" : C.panel2 }}>
+                  <label className="block cursor-pointer relative" style={{ height: 380, background: it.fotoBase64 ? "#fff" : C.panel2 }}>
                     {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
                       className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
                     {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
@@ -1060,25 +1066,25 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />}
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   {[...comps, ...extras].map((comp) => comp === "TECIDO" ? (
                     <div key={comp} className="col-span-2 flex items-center gap-2">
-                      <span className="w-40 text-sm" style={{ color: C.sub }}>TECIDO</span>
-                      {tec ? <div className="flex-1 px-2 py-1 rounded text-sm" style={{ background: C.greenSoft, color: C.text }} title="vem da FPP">
+                      <span className="w-28 shrink-0 text-[11px]" style={{ color: C.sub }}>TECIDO</span>
+                      {tec ? <div className="flex-1 px-2 py-0.5 rounded text-xs" style={{ background: C.greenSoft, color: C.text }} title="vem da FPP">
                         {(() => { const p = partesTecido(tec); return <><b>{p[0]}</b>{p.length > 1 ? ` · ${p.slice(1).join(" · ")}` : ""}</>; })()} <span className="text-xs" style={{ color: C.green }}>(FPP {numFpp(tec.fpp)})</span>
                       </div> : <input value={typeof it.parametros?.TECIDO === "string" ? it.parametros.TECIDO : ""} onChange={(e) => upParam(i, "TECIDO", e.target.value)} placeholder="indexe a FPP para trazer artigo e rendimento"
                         className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inp} />}
                     </div>
                   ) : ehEstampa(comp) ? (
                     <div key={comp} className="col-span-2 flex items-start gap-2">   {/* v801 — #71: estampa com 5 linhas, uma por aplicação */}
-                      <span className="w-40 text-sm pt-1" style={{ color: C.sub }} title={comp}>{comp}<span className="block text-[10px]">uma linha por aplicação</span></span>
+                      <span className="w-28 shrink-0 text-[11px] pt-1" style={{ color: C.sub }} title={comp}>{comp}<span className="block text-[10px]">uma linha por aplicação</span></span>
                       <textarea value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} rows={Math.max(5, String(it.parametros?.[comp] || "").split("\n").length)}
-                        placeholder={"1. frente — …\n2. costas — …\n3. manga esq. — …\n4. …\n5. …"} className="flex-1 px-2 py-1 rounded outline-none text-sm leading-6" style={inp} />
+                        placeholder={"1. frente — …\n2. costas — …\n3. manga esq. — …\n4. …\n5. …"} className="flex-1 px-2 py-0.5 rounded outline-none text-xs leading-5" style={inp} />
                     </div>
                   ) : (
                     <div key={comp} className="flex items-center gap-2">
-                      <span className="w-40 text-sm truncate" style={{ color: C.sub }} title={comp}>{comp}</span>
-                      <input value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inp} />
+                      <span className="w-28 shrink-0 text-[11px] truncate" style={{ color: C.sub }} title={comp}>{comp}</span>
+                      <input value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} className="flex-1 min-w-0 px-2 py-0.5 rounded outline-none text-xs" style={inp} />
                     </div>
                   ))}
                 </div>

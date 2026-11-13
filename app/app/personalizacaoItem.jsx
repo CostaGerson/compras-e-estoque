@@ -58,11 +58,12 @@ export default function PersonalizacaoItem({ it, onChange, travado }) {
     className="w-16 px-2 py-1 rounded text-sm text-center" style={{ ...sel, borderColor: String(a[k] ?? "").trim() ? C.line : C.accent }} />;
 
   return (
-    <div className="rounded-xl mt-3 overflow-hidden" style={{ border: `1px solid ${C.navy}33` }}>
-      <div className="flex items-center gap-2 px-3 py-2" style={{ background: C.navy, color: "#fff" }}>
+    <div className="rounded-xl mt-3 overflow-hidden" style={{ border: "1px solid #3D679933" }}>
+      {/* v811 — subitem do item: faixa azul-aço (mais opaca que a do item) */}
+      <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: "#5B7FA8", color: "#fff" }}>
         <Brush size={15} /><span className="text-sm font-bold">Detalhes de personalização</span>
         <span className="text-[11px] opacity-80">{apl.length ? `${apl.length} estampa(s)` : "nenhuma estampa"} · {comK.length} arquivo(s) · saem na OP e vão para o PCP</span>
-        {!travado && <button type="button" onClick={add} className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold" style={{ background: "#fff", color: C.navy }}><Plus size={13} /> Estampa</button>}
+        {!travado && <button type="button" onClick={add} className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold" style={{ background: "#fff", color: "#3D6799" }}><Plus size={13} /> Estampa</button>}
       </div>
       <div className="p-3 space-y-2" style={{ background: C.navySoft }}>
         {apl.map((a) => {
