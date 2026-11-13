@@ -444,7 +444,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {cobSem && <CobrancaSemanalModal user={user} onClose={() => setCobSem(false)} />}
 
       {tipo === "RECORRENTES" && <Recorrentes user={user} contasPorId={contasPorId} dCtx={d} />}
-      {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
+      {ABAS_ATRASO.includes(tipo) && <AtrasoReceber key={tickAtraso} user={user} aba={tipo} setAba={setTipo} contasPorId={contasPorId} onEditar={(t) => setModal({ t: "titulo", item: t })} />}
       {tipo === "LIXEIRA" && <Lixeira user={user} />}
       {tipo === "NORT" && <Nort user={user} tick={tickAtraso} onEditar={(t) => setModal({ t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} />}
       {tipo === "ANTECIPACOES" && <Antecipacoes user={user} />}

@@ -13,6 +13,7 @@ const C = {
   red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41",
 };
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const fmtDoc = (d) => { const s = String(d || "").replace(/\D/g, ""); if (s.length === 14) return s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"); if (s.length === 11) return s.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4"); return s; };
 const moeda = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dBR = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "—");
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -43,7 +44,7 @@ function useOrdem(itens) {
   const clicar = (col) => setOrdem((o) => (!o || o.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
   const Th = ({ col, children, direita }) => (
     <th className={`px-3 py-2 ${direita ? "text-right" : ""}`}>
-      <button onClick={() => clicar(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 uppercase tracking-wide ${direita ? "flex-row-reverse" : ""}`}
+      <button onClick={() => clicar(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 font-semibold ${direita ? "flex-row-reverse" : ""}`}
         style={{ color: ordem?.col === col ? C.accent : C.sub }}>
         {children}<span className="text-[10px]">{ordem?.col === col ? (ordem.dir === 1 ? "▲" : "▼") : "↕"}</span>
       </button>
@@ -103,7 +104,7 @@ const BtnA = ({ children, cor = C.navy, ...p }) => <button {...p} className="fle
 const BtnP = ({ children, cor = C.accent, ...p }) => <button {...p} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: cor, opacity: p.disabled ? 0.5 : 1 }}>{children}</button>;
 
 /* ============================================================ */
-export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
+export default function AtrasoReceber({ user, aba, setAba, onEditar, contasPorId = {} }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -129,7 +130,7 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
 
-      {aba === "ATRASADAS" && <Atrasadas user={user} d={d} ok={ok} setErro={setErro} onEditar={onEditar} irExecucao={(id) => { setAba("EXECUCOES"); setTimeout(() => setAberta(id), 0); }} />}
+      {aba === "ATRASADAS" && <Atrasadas user={user} d={d} ok={ok} setErro={setErro} onEditar={onEditar} contasPorId={contasPorId} irExecucao={(id) => { setAba("EXECUCOES"); setTimeout(() => setAberta(id), 0); }} />}
       {aba === "EXECUCOES" && (aberta
         ? <Execucao user={user} id={aberta} atrasadas={d.atrasadas} voltar={() => { setAberta(null); carregar(); }} ok={ok} />
         : <Execucoes d={d} abrir={setAberta} />)}
@@ -139,7 +140,7 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
 }
 
 /* ---------------- atrasadas (em cobrança) ---------------- */
-function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
+function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {} }) {
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState(() => new Set());
   const [modal, setModal] = useState(null);   // "execucao" | "perda" | "card" | "email"
@@ -170,26 +171,31 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
         <BtnA cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={14} /> Reconhecer perda</BtnA>
       </div>
       <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <table className="w-full text-sm">
-          <thead><tr className="text-xs uppercase tracking-wide text-left" style={{ background: C.panel2, color: C.sub }}>
-            <th className="px-3 py-2 w-8"><input type="checkbox" checked={todas} onChange={(e) => lista.forEach((t) => marcar(t.id, e.target.checked))} /></th>
-            <Th col="parceiro">Cliente</Th><Th col="titulo">Conta</Th><Th col="vencimento">Vencimento</Th>
-            <Th col="diasAtraso" direita>Atraso</Th><Th col="valor" direita>Valor</Th><th className="px-3 py-2">Situação</th><th className="px-3 py-2"></th>
+        {/* v825 — mesma fonte e informações da lista do contas a receber */}
+        <table className="w-full text-xs">
+          <thead><tr className="text-left" style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
+            <th className="pl-3 py-2 w-6"><input type="checkbox" checked={todas} onChange={(e) => lista.forEach((t) => marcar(t.id, e.target.checked))} /></th>
+            <Th col="vencimento">Vencimento</Th><Th col="titulo">Título</Th><Th col="parceiro">Cliente</Th><th className="px-3 py-2 font-semibold">Rateio (conta-caixa)</th>
+            <Th col="diasAtraso" direita>Atraso</Th><Th col="valor" direita>Valor</Th><th className="px-3 py-2 font-semibold">Situação</th><th className="px-3 py-2"></th>
           </tr></thead>
           <tbody>
             {lista.map((t) => (
               <tr key={t.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(t.id) ? C.accentSoft : undefined }}>
-                <td className="px-3 py-2"><input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar(t.id, e.target.checked)} /></td>
-                <td className="px-3 py-2 font-semibold" style={{ color: C.navy }}>{t.parceiro}</td>
-                <td className="px-3 py-2">{t.titulo}<MarcaA t={t} user={user} />{t.numeroDoc ? <span style={{ color: C.sub }}> · {t.numeroDoc}</span> : null}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{dBR(t.vencimento)}<MarcaR t={t} /></td>
+                <td className="pl-3 py-2"><input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar(t.id, e.target.checked)} /></td>
+                <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: C.red }}>{dBR(t.vencimento)}<MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }}>emissão {dBR(t.emissao)}</div>}</td>
+                <td className="px-3 py-2" style={{ maxWidth: 280 }}>
+                  <div className="flex items-center gap-1 font-semibold" style={{ color: C.navy }}><span className="truncate">{t.titulo}</span><MarcaA t={t} user={user} /></div>
+                  {(t.numeroDoc || t.observacao) && <div className="truncate" style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div>}
+                </td>
+                <td className="px-3 py-2" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div>{t.documento && <div className="truncate" style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
+                <td className="px-3 py-2" style={{ maxWidth: 220 }}>{(t.rateio || []).length ? (t.rateio || []).map((x, i) => { const c = contasPorId[x.contaId]; return <div key={i} className="truncate" style={{ maxWidth: 210 }}>{c ? `${c.codigo} ${c.nome}` : "—"}{(t.rateio || []).length > 1 ? ` · ${x.pct}%` : ""}</div>; }) : <span style={{ color: C.sub }}>—</span>}</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold" style={{ color: corAtraso(t.diasAtraso) }}>{t.diasAtraso} dia(s)</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">{moeda(t.valor)}</td>
-                <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: C.yellowSoft, color: C.yellow }}>EM COBRANÇA</span></td>
-                <td className="px-3 py-2 text-right">{onEditar && <button onClick={() => onEditar(t)} title="Editar conta" className="p-1 rounded" style={{ color: C.blue }}><Pencil size={15} /></button>}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap font-bold">{moeda(t.valor)}</td>
+                <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: C.yellowSoft, color: C.yellow }}>EM COBRANÇA</span></td>
+                <td className="px-3 py-2 text-right">{onEditar && <button onClick={() => onEditar(t)} title="Editar conta" className="p-1 rounded" style={{ color: C.blue }}><Pencil size={14} /></button>}</td>
               </tr>
             ))}
-            {!lista.length && <tr><td colSpan={8} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhuma conta a receber atrasada.</td></tr>}
+            {!lista.length && <tr><td colSpan={9} className="px-3 py-6 text-center" style={{ color: C.sub }}>Nenhuma conta a receber atrasada.</td></tr>}
           </tbody>
         </table>
       </div>
