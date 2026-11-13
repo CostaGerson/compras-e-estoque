@@ -44,13 +44,13 @@ export default function Nort({ user, onEditar, onBaixar, tick }) {
   return (
     <div>
       <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: C.navySoft, color: C.navy }}>
-        Contas da <b>NORT</b> (empresa amiga): ficam só aqui. Não entram nos relatórios, no painel, na previsão, nos atrasados nem nas guias de contas a pagar e a receber.
+        Contas da <b>NORT</b> (empresa amiga). As <b>a pagar</b> ficam no contas a pagar da Meridian até serem pagas; pagas, viram <b>empréstimo à NORT</b> aqui, na data do pagamento. As <b>a receber</b> ficam só aqui. Nada desta guia entra nos relatórios, nos atrasados nem nas listas de contas.
       </div>
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <Card rotulo="Créditos" valor={moeda(T.creditos)} sub="lançamentos positivos da NORT na DRE" cor={C.green} on={ver === "CREDITOS"} onClick={() => tog("CREDITOS")} />
-        <Card rotulo="Débitos" valor={moeda(T.debitos)} sub={`contas pagas e empréstimos (${moeda(T.emprestimos)})`} cor={C.red} on={ver === "DEBITOS"} onClick={() => tog("DEBITOS")} />
+        <Card rotulo="Débitos" valor={moeda(T.debitos)} sub={`contas pagas e empréstimos à NORT (${moeda(T.emprestimos)})`} cor={C.red} on={ver === "DEBITOS"} onClick={() => tog("DEBITOS")} />
         <Card rotulo="Saldo do período" valor={moeda(T.saldo)} sub={T.saldo >= 0 ? "a favor da NORT" : "a favor da Meridian"} cor={C.navy} on={ver === "TUDO"} onClick={() => setVer("TUDO")} />
-        <Card rotulo="Em aberto" valor={moeda(T.aPagar + T.aReceber)} sub={`${moeda(T.aPagar)} a pagar · ${moeda(T.aReceber)} a receber`} cor={C.accent} on={ver === "ABERTOS"} onClick={() => tog("ABERTOS")} />
+        <Card rotulo="A receber da NORT" valor={moeda(T.aReceber)} sub={`${moeda(T.aPagar)} a pagar ainda no contas a pagar`} cor={C.accent} on={ver === "ABERTOS"} onClick={() => tog("ABERTOS")} />
       </div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
@@ -64,7 +64,7 @@ export default function Nort({ user, onEditar, onBaixar, tick }) {
       </div>
 
       {(ver === "TUDO" || ver === "ABERTOS") && <div className="rounded-xl overflow-auto mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="px-3 py-2 text-xs font-bold uppercase tracking-wide" style={{ background: C.panel2, color: C.sub }}>Contas NORT em aberto · {abertos.length}</div>
+        <div className="px-3 py-2 text-xs font-bold uppercase tracking-wide" style={{ background: C.panel2, color: C.sub }}>Contas a receber da NORT em aberto · {abertos.length}</div>
         <table className="w-full text-sm">
           <tbody>
             {abertos.map((t) => (

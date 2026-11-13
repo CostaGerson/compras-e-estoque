@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 
 // v808 — contas da NORT (empresa amiga) não entram em relatórios, atrasados nem nas guias de pagar/receber:
 //   ficam só na guia NORT. Toda conta NORT tem o título "NORT - …" (padronizarNort).
-export const SEM_NORT = { NOT: { titulo: { startsWith: "NORT - " } } };
+// v827 — conta a PAGAR da NORT continua no contas a pagar da Meridian enquanto não for paga; ao ser paga vira empréstimo
+//   da Meridian à NORT e passa para a guia NORT (na data do pagamento). Conta a RECEBER da NORT fica só na guia NORT.
+export const SEM_NORT = { NOT: { titulo: { startsWith: "NORT - " }, OR: [{ tipo: "RECEBER" }, { status: "PAGO" }] } };
 export const SO_NORT = { titulo: { startsWith: "NORT - " } };
 
 const sem = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
@@ -62,11 +64,27 @@ export async function movimentoNort({ de, ate } = {}) {
   const empIds = m.filter((c) => CONTAS_EMPRESTIMO.includes(String(c.codigo))).map((c) => c.id);
   const nomeDe = Object.fromEntries(m.map((c) => [c.id, `${c.codigo} · ${c.nome}`]));
   const where = { desmembrado: false, substituido: false, contaId: { in: [...nortIds, ...empIds] }, ...(de || ate ? { competencia: { ...(de ? { gte: de } : {}), ...(ate ? { lte: ate } : {}) } } : {}) };
-  const lanc = (await prisma.finLancamento.findMany({ where, orderBy: [{ data: "desc" }, { id: "desc" }], select: { id: true, data: true, competencia: true, historico: true, documento: true, identificacao: true, valor: true, contaId: true, banco: true } }))
+  let lanc = (await prisma.finLancamento.findMany({ where, orderBy: [{ data: "desc" }, { id: "desc" }], select: { id: true, data: true, competencia: true, historico: true, documento: true, identificacao: true, valor: true, contaId: true, banco: true } }))
     // empréstimo concedido entra só quando é da NORT (histórico/identificação citam a NORT)
     .filter((l) => nortIds.includes(l.contaId) || temNort(`${l.historico} ${l.identificacao || ""} ${l.documento || ""}`))
     .map((l) => ({ ...l, valor: Number(l.valor), data: l.data.toISOString().slice(0, 10), conta: nomeDe[l.contaId] || "—", emprestimo: empIds.includes(l.contaId) }));
-  const abertos = (await prisma.finTitulo.findMany({ where: { ...SO_NORT, status: { notIn: ["CANCELADO", "PAGO"] } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }] }))
+  // v827 — contas a pagar da NORT pagas pela Meridian = empréstimo à NORT na data do pagamento
+  const pagas = await prisma.finTitulo.findMany({ where: { ...SO_NORT, tipo: "PAGAR", status: "PAGO", ...(de || ate ? { dataPagamento: { ...(de ? { gte: new Date(`${de}-01T00:00:00Z`) } : {}), ...(ate ? { lt: new Date(Date.UTC(Number(ate.slice(0, 4)), Number(ate.slice(5, 7)), 1)) } : {}) } } : {}) },
+    orderBy: [{ dataPagamento: "desc" }, { id: "desc" }], select: { id: true, titulo: true, parceiro: true, valor: true, valorPago: true, dataPagamento: true, lancamentoId: true, rateio: true } });
+  const jaNoTitulo = new Set(pagas.map((t) => t.lancamentoId).filter(Boolean));
+  // o pagamento já entra pela conta paga: tira o lançamento ligado a ela ou, sem ligação, o de mesmo valor até 3 dias da data paga
+  const usadas = new Set();
+  for (let i = lanc.length - 1; i >= 0; i--) {
+    const l = lanc[i];
+    if (jaNoTitulo.has(l.id)) { lanc.splice(i, 1); continue; }
+    if (!(l.valor < 0) || !nortIds.includes(l.contaId)) continue;
+    const t = pagas.find((x) => !usadas.has(x.id) && !x.lancamentoId && Math.abs(Number(x.valorPago ?? x.valor) + l.valor) < 0.01 && Math.abs(new Date(l.data) - x.dataPagamento) <= 3 * 864e5);
+    if (t) { usadas.add(t.id); lanc.splice(i, 1); }
+  }
+  for (const t of pagas) lanc.push({ id: `T${t.id}`, tituloId: t.id, data: t.dataPagamento.toISOString().slice(0, 10), competencia: t.dataPagamento.toISOString().slice(0, 7),
+    historico: `EMPRÉSTIMO À NORT · PAGAMENTO DE ${t.titulo.replace(/^NORT - /, "")}`, identificacao: t.parceiro, valor: -Number(t.valorPago ?? t.valor), conta: (nomeDe[(t.rateio || [])[0]?.contaId] || "conta a pagar NORT"), emprestimo: true, contaPaga: true });
+  lanc.sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const abertos = (await prisma.finTitulo.findMany({ where: { ...SO_NORT, tipo: "RECEBER", status: { notIn: ["CANCELADO", "PAGO"] } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }] }))
     .map((t) => ({ ...t, valor: Number(t.valor), valorPago: t.valorPago != null ? Number(t.valorPago) : null, vencimento: t.vencimento.toISOString().slice(0, 10) }));
   const r2 = (n) => Math.round(n * 100) / 100;
   const creditos = r2(lanc.filter((l) => l.valor > 0).reduce((s, l) => s + l.valor, 0));
@@ -74,6 +92,6 @@ export async function movimentoNort({ de, ate } = {}) {
   return {
     lancamentos: lanc, abertos,
     totais: { creditos, debitos, saldo: r2(creditos + debitos), emprestimos: r2(lanc.filter((l) => l.emprestimo).reduce((s, l) => s + l.valor, 0)),
-      aPagar: r2(abertos.filter((t) => t.tipo === "PAGAR").reduce((s, t) => s + t.valor, 0)), aReceber: r2(abertos.filter((t) => t.tipo === "RECEBER").reduce((s, t) => s + t.valor, 0)) },
+      aPagar: r2((await prisma.finTitulo.aggregate({ where: { ...SO_NORT, tipo: "PAGAR", status: "ABERTO" }, _sum: { valor: true } }))._sum.valor || 0), aReceber: r2(abertos.filter((t) => t.tipo === "RECEBER").reduce((s, t) => s + t.valor, 0)) },
   };
 }
