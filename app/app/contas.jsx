@@ -388,7 +388,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   }, [d, dIni, busca, soCompra, soRec, P]);
   // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
   const tot = useMemo(() => {
-    const ls = lista.filter((t) => t.status !== "CANCELADO");
+    const ls = lista.filter((t) => t.status !== "CANCELADO" && !(t.status === "PAGO" && /^NORT - /.test(t.titulo || "")));   // v830 — a paga da NORT aparece na lista, mas não soma nos cards
     const s = (f) => ls.filter(f).reduce((a, t) => a + t.valor, 0);
     return {
       total: s(() => true), pago: ls.filter((t) => t.status === "PAGO").reduce((a, t) => a + (t.valorPago ?? t.valor), 0),
@@ -755,7 +755,12 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     <AltInfo t={t} campo="valor" />{brl(t.valor)}
                     {t.pagoParcial > 0 && <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)} de {brl(t.valorTotal)}</div>}
                     {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
-                      : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}
+                      : null}
+                      {/* v830 — conta da NORT paga: quem pagou (clique troca) */}
+                      {P && t.status === "PAGO" && /^NORT - /.test(t.titulo || "") && <button onClick={async () => { const novo = t.pagoPor === "NORT" ? "MERIDIAN" : "NORT"; if (!(await confirmar(novo === "NORT" ? "Marcar como paga pela NORT? Sai da guia NORT (não é empréstimo)." : "Marcar como paga pela Meridian? Vira empréstimo à NORT na guia NORT."))) return; await onAcao(t, "pagoPor", { pagoPor: novo }); }}
+                        className="block mt-0.5 text-[10px] font-semibold px-1.5 rounded" style={{ background: t.pagoPor === "NORT" ? C.panel2 : C.navySoft || "#EEF3FB", color: C.navy }} title="Clique para trocar quem pagou">
+                        {t.pagoPor === "NORT" ? "NORT · pago pela NORT" : `NORT · pago pela Meridian (empréstimo)${t.pagoPor ? "" : " ?"}`}</button>}
+                      {t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}
                         {!P && onAjustePedido && String(t.chaveImport || "").startsWith("PED|") && <button onClick={() => onAjustePedido(t)}
                           className="ml-1 underline" style={{ color: C.accent }} title="Redistribuir a diferença nas próximas parcelas do pedido">ajustar parcelas</button>}</div>}
                   </td>

@@ -47,8 +47,8 @@ export async function GET(req) {
     let n = 0;
     for (let c = mesDe(dIni); c <= mesDe(dFim) && n < 24; c = somaMes(c, 1), n++) await garantirSemanas(c).catch(() => null);
   }
-  const { SEM_NORT } = await import("@/lib/finNort");   // v808 — contas NORT ficam só na guia NORT
-  const fora = { status: { notIn: ["EXECUCAO", "PERDA"] }, ...SEM_NORT };   // v135: execução e perda têm guias próprias
+  const { SEM_NORT, SEM_NORT_LISTA } = await import("@/lib/finNort");   // v808 — contas NORT ficam só na guia NORT
+  const fora = { status: { notIn: ["EXECUCAO", "PERDA"] }, ...SEM_NORT_LISTA };   // v830 — a paga da NORT aparece nos pagos   // v135: execução e perda têm guias próprias
   const [titulos, atrasados, criticas, contas, parceiros, recs, periodo, vencTot] = await Promise.all([
     prisma.finTitulo.findMany({ where: { tipo, ...fora, competencia: { gte: de, lte: ate } }, orderBy: [{ vencimento: "asc" }, { id: "asc" }], include: COM_ANEXOS }),
     // em aberto de meses anteriores (vencidos) — aparecem sempre

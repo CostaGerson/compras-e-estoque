@@ -51,6 +51,12 @@ export async function PATCH(req, { params }) {
     const n = await prisma.finTitulo.update({ where: { id }, data: { notas, ...quem } });
     return Response.json(tituloOut(n));
   }
+  // v830 — conta da NORT já paga: corrigir quem pagou (Meridian = empréstimo à NORT · NORT = só baixa)
+  if (b.acao === "pagoPor") {
+    if (!["MERIDIAN", "NORT"].includes(b.pagoPor)) return Response.json({ error: "Escolha Meridian ou NORT." }, { status: 400 });
+    const n2 = await prisma.finTitulo.update({ where: { id }, data: { pagoPor: b.pagoPor, ...quem } });
+    return Response.json(tituloOut(n2));
+  }
   if (b.acao === "baixar") {
     const vp = r2(b.valorPago ?? t.valor);
     if (!b.dataPagamento) return Response.json({ error: "Informe a data do pagamento." }, { status: 400 });

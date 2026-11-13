@@ -9,6 +9,9 @@ import { prisma } from "@/lib/prisma";
 //   da Meridian à NORT e passa para a guia NORT (na data do pagamento). Conta a RECEBER da NORT fica só na guia NORT.
 export const SEM_NORT = { NOT: { titulo: { startsWith: "NORT - " }, OR: [{ tipo: "RECEBER" }, { status: "PAGO" }] } };
 export const SO_NORT = { titulo: { startsWith: "NORT - " } };
+// v830 — nas LISTAS do contas a pagar a conta da NORT paga continua visível (histórico dos pagos, com a marca de quem pagou);
+//   relatórios, painel, DFC e atrasados seguem com SEM_NORT
+export const SEM_NORT_LISTA = { NOT: { titulo: { startsWith: "NORT - " }, tipo: "RECEBER" } };
 
 const sem = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const temNort = (s) => /(^|[^A-Z])NORT([^A-Z]|$)/.test(sem(s));
