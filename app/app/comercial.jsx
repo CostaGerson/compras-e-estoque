@@ -651,7 +651,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
         onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}
 
       {aba === "ficha" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fpp-maiusc">
+          {/* v801 — FPP: todos os campos editáveis em maiúsculas (a v414 exibia "primeira maiúscula") */}
+          <style>{`.fpp-maiusc input:not([type=number]):not([type=date]):not([type=email]), .fpp-maiusc textarea, .fpp-maiusc select, .fpp-maiusc option{text-transform:uppercase}
+            .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}`}</style>
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
             <Card title="Identificação">
@@ -2141,7 +2144,7 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <div className="flex gap-1">
-        <input value={sc(nome || "")} onChange={(e) => onNome(e.target.value)} placeholder="Nome do artigo"
+        <input value={sc(nome || "")} onChange={(e) => onNome(e.target.value.toLocaleUpperCase("pt-BR"))} placeholder="Nome do artigo"
           className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
         <DetBotao det={det} categoria={categoria} nome={nome} onDet={onDet} />
       </div>
@@ -2565,7 +2568,7 @@ function Inp({ label, value, onChange, destaque, text, placeholder, full }) {
   return (
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
+      <input value={value} onChange={(e) => onChange(text ? e.target.value.toLocaleUpperCase("pt-BR") : e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
         className={`px-2 py-1.5 rounded text-sm ${text || full ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
     </div>
   );
@@ -2599,7 +2602,10 @@ function Combo({ label, value, onChange, onPick, options, placeholder, livre }) 
     setHi(i >= 0 ? i : 0);
     setOpen(true);
   }
-  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); setNavegou(false); onChange?.(v); }
+  function digitar(v0) {   // v801 — o que é digitado vai em maiúsculas; se bate com uma opção (sem diferenciar maiúsculas), usa a opção
+    const v = (options || []).find((o) => String(o).toLocaleUpperCase("pt-BR") === v0.toLocaleUpperCase("pt-BR")) ?? v0.toLocaleUpperCase("pt-BR");
+    setQ(v); setSeed(v0); setHi(0); setOpen(true); setNavegou(false); onChange?.(v);
+  }
   function mover(dir) {
     if (!lista.length) return;
     const n = (hi + dir + lista.length) % lista.length;
@@ -2652,7 +2658,7 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
     const c = await res.json(); setCriando(false); setOpen(false);
     if (res.ok) { setQ(c.razaoSocial); onCreated?.(c); }
   }
-  function digitar(v) { setQ(v); setSeed(v); setHi(0); setOpen(true); onType?.(v); }
+  function digitar(v0) { const v = v0.toLocaleUpperCase("pt-BR"); setQ(v); setSeed(v0); setHi(0); setOpen(true); onType?.(v); }   // v801 — maiúsculas
   function mover(dir) {
     if (!lista.length) return;
     const n = (hi + dir + lista.length) % lista.length;
