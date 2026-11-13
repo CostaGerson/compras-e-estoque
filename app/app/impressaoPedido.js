@@ -140,7 +140,6 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem}` : ""}<div class="sec">Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
       <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
-        ${it.fotoBase64 ? `<img class="foto" src="${it.fotoBase64}"/>` : `<div class="foto vz">sem layout</div>`}
         <div class="peca-i">
           <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}<th class="tt">TOTAL</th></tr>
             <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}<td class="tt">${qtdDe(it).toLocaleString("pt-BR")}</td></tr></table>
@@ -148,7 +147,13 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
         </div>
       </div>
       ${duHtml(it.dadosUnitarios)}
-      ${anexosHtml(pessoais.map((a) => ({ ...a, src: a.src || a.base64 })), "Layout e anexos do item")}
+      ${(() => {   // v817 — layout grande embaixo dos dados (sem a miniatura ao lado da grade); se o item padrão já trouxe o layout como anexo, não repete
+        const ls = pessoais.map((a) => ({ ...a, src: a.src || a.base64 }));
+        const temLayoutAnexo = ls.some((a) => /^layout\b/i.test(String(a.nome || "")) && ehImg(a));
+        const foto = it.fotoBase64 && !temLayoutAnexo ? [{ nome: "Layout", src: it.fotoBase64, mime: "image/png" }] : [];
+        const tudo = [...foto, ...ls];
+        return tudo.length ? anexosHtml(tudo, "Layout e anexos do item") : `<div class="anx-bloco"><div class="anx-t">Layout e anexos do item</div><div class="mut">sem layout</div></div>`;
+      })()}
     </div>`;
   }).join("");
 
