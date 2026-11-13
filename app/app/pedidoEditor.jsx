@@ -1035,16 +1035,16 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             <div className="flex gap-4">
               {/* v806 — layout em destaque */}
               <div className="shrink-0" style={{ width: 380 }}>
-                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${it.fotoBase64 || it.dispensaDesign ? "#001E4133" : C.accent}` }}>
-                  <div className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" style={{ background: it.fotoBase64 || it.dispensaDesign ? "#001E41" : C.accent, color: "#fff" }}>
+                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #001E4155" }}>
+                  <div className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" style={{ background: "#001E41", color: "#fff" }}>
                     Layout da peça{it.fotoBase64 || it.dispensaDesign ? "" : <span className="font-normal opacity-90">· obrigatório</span>}</div>
                   <label className="block cursor-pointer relative" style={{ height: 380, background: it.fotoBase64 ? "#fff" : C.panel2 }}>
                     {it.fotoBase64 && podeLancar && <button type="button" title="Remover layout" onClick={(e) => { e.preventDefault(); e.stopPropagation(); upItem(i, { fotoBase64: "" }); }}
                       className="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full shadow" style={{ width: 26, height: 26, background: "#fff", color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /></button>}
                     {it.fotoBase64 ? <img src={it.fotoBase64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       : <div className="flex flex-col items-center justify-center h-full text-xs text-center px-3 gap-1" style={{ color: C.sub }}>
-                          <Paperclip size={20} style={{ color: it.dispensaDesign ? C.sub : C.accent }} />
-                          <span className="font-semibold" style={{ color: it.dispensaDesign ? C.sub : C.accent }}>Clique para adicionar o layout</span>
+                          <Paperclip size={20} style={{ color: it.dispensaDesign ? C.sub : "#001E41" }} />
+                          <span className="font-semibold" style={{ color: it.dispensaDesign ? C.sub : "#001E41" }}>Clique para adicionar o layout</span>
                           <span style={{ fontSize: 10 }}>{it.dispensaDesign ? "design dispensado" : "sem layout → tarefa para o arte finalista"}</span></div>}
                     <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upItem(i, { fotoBase64: await readB64(file) }); }} />
                   </label>
@@ -1066,25 +1066,25 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />}
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   {[...comps, ...extras].map((comp) => comp === "TECIDO" ? (
                     <div key={comp} className="col-span-2 flex items-center gap-2">
                       <span className="w-28 shrink-0 text-[11px]" style={{ color: C.sub }}>TECIDO</span>
-                      {tec ? <div className="flex-1 px-2 py-0.5 rounded text-xs" style={{ background: C.greenSoft, color: C.text }} title="vem da FPP">
+                      {tec ? <div className="flex-1 px-2 py-1.5 rounded text-xs" style={{ background: C.greenSoft, color: C.text }} title="vem da FPP">
                         {(() => { const p = partesTecido(tec); return <><b>{p[0]}</b>{p.length > 1 ? ` · ${p.slice(1).join(" · ")}` : ""}</>; })()} <span className="text-xs" style={{ color: C.green }}>(FPP {numFpp(tec.fpp)})</span>
                       </div> : <input value={typeof it.parametros?.TECIDO === "string" ? it.parametros.TECIDO : ""} onChange={(e) => upParam(i, "TECIDO", e.target.value)} placeholder="indexe a FPP para trazer artigo e rendimento"
-                        className="flex-1 px-2 py-1 rounded outline-none text-sm" style={inp} />}
+                        className="flex-1 min-w-0 px-2 py-1.5 rounded outline-none text-xs" style={inp} />}
                     </div>
                   ) : ehEstampa(comp) ? (
                     <div key={comp} className="col-span-2 flex items-start gap-2">   {/* v801 — #71: estampa com 5 linhas, uma por aplicação */}
                       <span className="w-28 shrink-0 text-[11px] pt-1" style={{ color: C.sub }} title={comp}>{comp}<span className="block text-[10px]">uma linha por aplicação</span></span>
                       <textarea value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} rows={Math.max(5, String(it.parametros?.[comp] || "").split("\n").length)}
-                        placeholder={"1. frente — …\n2. costas — …\n3. manga esq. — …\n4. …\n5. …"} className="flex-1 px-2 py-0.5 rounded outline-none text-xs leading-5" style={inp} />
+                        placeholder={"1. frente — …\n2. costas — …\n3. manga esq. — …\n4. …\n5. …"} className="flex-1 px-2 py-1.5 rounded outline-none text-xs leading-5" style={inp} />
                     </div>
                   ) : (
                     <div key={comp} className="flex items-center gap-2">
                       <span className="w-28 shrink-0 text-[11px] truncate" style={{ color: C.sub }} title={comp}>{comp}</span>
-                      <input value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} className="flex-1 min-w-0 px-2 py-0.5 rounded outline-none text-xs" style={inp} />
+                      <input value={it.parametros?.[comp] || ""} onChange={(e) => upParam(i, comp, e.target.value)} className="flex-1 min-w-0 px-2 py-1.5 rounded outline-none text-xs" style={inp} />
                     </div>
                   ))}
                 </div>
