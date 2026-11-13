@@ -806,7 +806,7 @@ function SeloVersao() {
     <button onClick={velha ? () => location.reload() : undefined} title={tip} className="flex items-center gap-1.5 pr-1 shrink-0 text-[11px] font-semibold"
       style={{ color: C.sidebarSub, cursor: velha ? "pointer" : "default", background: "transparent" }}>
       <span className={construindo ? "animate-pulse" : ""} style={{ width: 8, height: 8, borderRadius: 9, background: cor, display: "inline-block", boxShadow: `0 0 6px ${cor}` }} />
-      {String((construindo ? d.versao : r?.versao || d?.versao) || "").split("+")[0]}{velha && " ↻"}
+      {String((construindo ? d.versao : r?.versao || d?.versao) || "").split("+")[0]}
     </button>
   );
 }
