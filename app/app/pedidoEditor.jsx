@@ -1172,8 +1172,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {!f.interno ? veVal && (
         <Card titulo="Prazo de pagamento" extra={<span className="text-sm">Total do pedido <b style={{ color: C.accent }}>{money(totalGeral)}</b>{freteV > 0 && <span className="text-xs ml-1" style={{ color: C.sub }}>(com frete {money(freteV)})</span>}</span>}>
           <div className="flex gap-2 mb-3">
-            {!f.pagamento?.entrada && <button type="button" onClick={() => setPag((p) => ({ ...p, entrada: { data: f.emissao, valor: "" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir entrada</button>}
-            <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: [...(p.parcelas || []), { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir parcela</button>
+            {/* v814 — pagamento único: uma parcela só (100%), com as mesmas opções de prazo e base */}
+            {!(f.pagamento?.parcelas || []).some((x) => x.unico) && <button type="button" onClick={async () => {
+              if ((f.pagamento?.entrada || (f.pagamento?.parcelas || []).length) && !(await confirmar("Trocar a entrada e as parcelas por um pagamento único?"))) return;
+              setPag(() => ({ entrada: null, parcelas: [{ dias: "30", tipo: "CORRIDOS", base: "NF", valor: "", unico: true }] }));
+            }} className="px-3 py-1.5 rounded text-sm flex items-center gap-1 font-semibold" style={{ color: "#fff", background: "#001E41", border: "1px solid #001E41" }}><Plus size={14} /> Pagamento único</button>}
+            {!f.pagamento?.entrada && <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: (p.parcelas || []).map(({ unico, ...y }) => y), entrada: { data: f.emissao, valor: "" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir entrada</button>}
+            <button type="button" onClick={() => setPag((p) => ({ ...p, parcelas: [...(p.parcelas || []).map(({ unico, ...y }) => y), { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Inserir parcela</button>
           </div>
           {f.pagamento?.entrada && (
             <div className="flex items-center gap-2 mb-2 text-sm">
@@ -1190,7 +1195,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             const c = calc.parcelas[k];
             return (
               <div key={k} className="flex items-center gap-2 mb-2 text-sm flex-wrap">
-                <span className="w-24 font-semibold">Parcela {k + 1}</span>
+                <span className="w-24 font-semibold">{x.unico ? "Pagamento único" : `Parcela ${k + 1}`}</span>
                 <input type="number" min="0" value={x.dias} onChange={(e) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, dias: e.target.value } : y)) }))} className="w-16 px-2 py-1 rounded outline-none text-sm" style={inp} />
                 <select value={x.tipo} onChange={(e) => setPag((p) => ({ ...p, parcelas: p.parcelas.map((y, j) => (j === k ? { ...y, tipo: e.target.value } : y)) }))} className="px-2 py-1 rounded outline-none text-sm" style={inp}>
                   <option value="CORRIDOS">dias corridos</option><option value="UTEIS">dias úteis</option>

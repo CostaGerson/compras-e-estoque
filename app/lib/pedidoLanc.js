@@ -147,7 +147,7 @@ export function textoCondicao(pag, total) {
   const c = parcelasCalc(pag, total);
   const partes = [];
   if (c.entrada) partes.push(`ENTRADA ${brl(c.entrada.valor)}`);
-  if (c.parcelas.length) partes.push(c.parcelas.map((x) => `${x.dias} ${x.tipo === "UTEIS" ? "DU" : "DD"} ${SIG[x.base]}`).join(" / "));
+  if (c.parcelas.length) partes.push((c.parcelas.length === 1 && pag?.parcelas?.[0]?.unico ? "PAGAMENTO ÚNICO " : "") + c.parcelas.map((x) => `${x.dias} ${x.tipo === "UTEIS" ? "DU" : "DD"} ${SIG[x.base]}`).join(" / "));   // v814
   return partes.join(" + ") || (r2(total) > 0 ? "À VISTA" : "");
 }
 
