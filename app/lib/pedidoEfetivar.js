@@ -361,6 +361,35 @@ export async function faturarPedido(id, { nf, emissaoNf, entrega } = {}, quem) {
   return { ok: true, lancadas };
 }
 
+// v820 — pedido marcado SEM NOTA: as parcelas que esperariam a NF (ou a entrega) vão para o contas a receber com a data da marcação
+//   como base. Mesma chave das parcelas do faturamento: se depois sair NF, o título é atualizado (não duplica).
+//   Pedido sem prazo de pagamento (ex.: vindo do KM) → um título com o saldo a faturar, vencendo na data da marcação.
+export async function lancarSemNota(numero, quem, data) {
+  const ped = await prisma.pedidoVenda.findUnique({ where: { numero: String(numero) } });
+  if (!ped || ped.interno) return { lancadas: [] };
+  const dBase = /^\d{4}-\d{2}-\d{2}$/.test(String(data || "")) ? data : hojeISO();
+  const entrega = ped.entregaPrevista ? ped.entregaPrevista.toISOString().slice(0, 10) : dBase;
+  const lancadas = [];
+  const calc = ped.pagamento ? parcelasCalc(ped.pagamento, Number(ped.total), { emissao: ped.emissao?.toISOString().slice(0, 10), nf: dBase, entrega }) : null;
+  if (calc && (calc.parcelas.length || calc.entrada)) {
+    for (const x of calc.parcelas) {
+      if (x.base === "EMISSAO") continue;   // já lançada ao efetivar
+      await titulo({ chave: chaveParcela(ped.numero, x.n), numero: ped.numero, cliente: ped.cliente, cnpj: ped.cnpj, emissao: dBase, valor: x.valor, venc: x.data,
+        nome: `SEM NOTA - PEDIDO ${ped.numero} - PARC ${x.n}/${x.de}`, numeroDoc: `SEM NOTA · PARC ${x.n}/${x.de}`, quem,
+        obs: `PARCELA ${x.n}/${x.de} DO PEDIDO ${ped.numero} · PEDIDO SEM NOTA · ${x.dias} ${x.tipo === "UTEIS" ? "DIAS ÚTEIS" : "DIAS"} A PARTIR DE ${brData(x.base === "ENTREGA" ? entrega : dBase)}` });
+      lancadas.push({ tipo: `PARC ${x.n}/${x.de}`, valor: x.valor, data: x.data });
+    }
+  } else {
+    const v = ped.vlEntregar != null ? Number(ped.vlEntregar) : Number(ped.total);
+    if (v > 0) {
+      await titulo({ chave: `PV:${ped.numero}:SEMNOTA`, numero: ped.numero, cliente: ped.cliente, cnpj: ped.cnpj, emissao: dBase, valor: v, venc: dBase,
+        nome: `SEM NOTA - PEDIDO ${ped.numero}`, numeroDoc: "SEM NOTA", quem, obs: `PEDIDO ${ped.numero} SEM NOTA · SEM PRAZO DE PAGAMENTO NO PEDIDO — CONFIRA O VENCIMENTO` });
+      lancadas.push({ tipo: "ÚNICA", valor: v, data: dBase });
+    }
+  }
+  return { lancadas };
+}
+
 // ---------- catálogo de itens do KM ----------
 // KmProduto (enviado pelo agente) + itens dos pedidos que já vieram do KM (código, descrição e parâmetros de produção)
 export async function catalogoItens(q, max = 15) {

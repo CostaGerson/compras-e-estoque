@@ -345,9 +345,10 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
               {/* v819 — a faturar → "sem nota" (sai do a faturar e da demanda FATURAR); desfazer volta */}
               {p && (p.faturar === "A_FATURAR" || p.faturar === "SEM_NOTA") && <button onClick={async () => {
                 const v = p.faturar !== "SEM_NOTA";
-                if (!(await confirmar(v ? `Marcar o pedido ${numero} como SEM NOTA? Ele sai do "a faturar" e a demanda de faturamento é concluída.` : `Desfazer o "sem nota" do pedido ${numero}? Ele volta para o "a faturar".`))) return;
+                if (!(await confirmar(v ? `Marcar o pedido ${numero} como SEM NOTA? Ele sai do "a faturar", a demanda de faturamento é concluída e as parcelas que esperavam a NF vão para o contas a receber com a data de hoje como base.` : `Desfazer o "sem nota" do pedido ${numero}? Ele volta para o "a faturar".`))) return;
                 const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "semNota", numero, valor: v, autorNome: nomeU(user) }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
                 if (r.error) return alerta(r.error);
+                if (v) alerta(r.lancadas?.length ? `Pedido sem nota. Lançado no contas a receber: ${r.lancadas.map((l) => `${l.tipo} R$ ${Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} vence ${String(l.data).split("-").reverse().join("/")}`).join(" · ")}.` : "Pedido sem nota. Nenhuma parcela nova para lançar (as do pedido já estão no contas a receber).");
                 carregar();
               }} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}>{p.faturar === "SEM_NOTA" ? "Desfazer sem nota" : "Marcar sem nota"}</button>}
             </div>

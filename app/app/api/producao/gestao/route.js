@@ -31,9 +31,11 @@ export async function POST(req) {
   if (b.acao === "semNota") {
     const v = !!b.valor;
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { semNota: v, semNotaPor: v ? b.autorNome || null : null, semNotaEm: v ? new Date() : null } });
+    let lanc = { lancadas: [] };
+    if (v) { try { lanc = await (await import("@/lib/pedidoEfetivar")).lancarSemNota(p.numero, b.autorNome || "SISTEMA"); } catch (e) { console.log("semNota/contas:", e.message); return Response.json({ error: `Marcado sem nota, mas as contas não foram lançadas: ${e.message}` }, { status: 500 }); } }   // v820 — sem nota continua no contas a receber
     if (v) await prisma.admDemanda.updateMany({ where: { pedidoNumero: p.numero, tipo: "FATURAR", status: { not: "CONCLUIDA" } },
       data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: b.autorNome || "SISTEMA", retorno: "PEDIDO MARCADO SEM NOTA" } }).catch(() => null);
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, lancadas: lanc.lancadas });
   }
   if (b.acao === "obs") {
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { obs: String(b.obs || "").slice(0, 1000) || null, atualizadoPorNome: b.autorNome || null } });
