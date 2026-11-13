@@ -144,7 +144,7 @@ export function lerXmlTitulo(xml, nomeArq = "") {
     const base = { modelo: "NF-e", parceiro: String(emit.xFant || emit.xNome || "").toUpperCase(), razao: String(emit.xNome || "").toUpperCase(),
       documento: so(emit.CNPJ || emit.CPF), numero: String(ide.nNF || ""), emissao: String(ide.dhEmi || ide.dEmi || "").slice(0, 10), total, chave, natOp: ide.natOp || "" };
     const parcelas = dups.length
-      ? dups.map((p, i) => ({ parcela: String(p.nDup || i + 1), vencimento: String(p.dVenc || base.emissao).slice(0, 10), valor: num(p.vDup) }))
+      ? dups.map((p, i) => ({ parcela: String(p.nDup || i + 1).replace(/^0+(?=\d)/, ""), vencimento: String(p.dVenc || base.emissao).slice(0, 10), valor: num(p.vDup) }))
       : [{ parcela: "1", vencimento: base.emissao, valor: total, semVencimento: true }];
     return { ...base, parcelas, chaveBase: `NFE|${chave}` };
   }
@@ -165,10 +165,13 @@ export function lerXmlTitulo(xml, nomeArq = "") {
 // Prévia de uma nota para virar conta(s) a pagar: sugere nome/rateio já usados e marca parcelas já lançadas
 export async function previaNota(tipo, x, extra = {}) {
   const ant = x.documento ? await prisma.finTitulo.findFirst({ where: { tipo, documento: x.documento }, orderBy: { createdAt: "desc" } }) : null;
-  const chaves = x.parcelas.map((p) => `${x.chaveBase}|${p.parcela}`);
+  // v821 — a parcela pode ter entrado como "001" (importação de XML antiga) ou "1" (Movimento fiscal): as duas contam
+  const alt = (p) => { const s0 = String(p.parcela), z = s0.replace(/^0+(?=\d)/, ""); return [...new Set([s0, z, z.padStart(3, "0")])].map((q) => `${x.chaveBase}|${q}`); };
+  const chaves = x.parcelas.flatMap(alt);
   // só marca como já lançada se a conta ainda está ativa (cancelada não bloqueia)
   const ja = await prisma.finTitulo.findMany({ where: { chaveImport: { in: chaves }, status: { not: "CANCELADO" } }, select: { chaveImport: true } });
-  const jaSet = new Set(ja.map((j) => j.chaveImport));
+  const jaSet0 = new Set(ja.map((j) => j.chaveImport));
+  const jaSet = new Set(x.parcelas.filter((p) => alt(p).some((k) => jaSet0.has(k))).map((p) => `${x.chaveBase}|${p.parcela}`));
   return {
     ...x, ...extra, parceiro: ant?.parceiro || x.parceiro, rateioSugerido: ant?.rateio || null,
     parcelas: x.parcelas.map((p) => ({ ...p, chaveImport: `${x.chaveBase}|${p.parcela}`, jaImportada: jaSet.has(`${x.chaveBase}|${p.parcela}`) })),

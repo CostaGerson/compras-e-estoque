@@ -65,5 +65,38 @@ export async function deduplicarComprasXml(quem = "SISTEMA") {
     r.removidas++;
     r.linhas.push(`${o.titulo} → ficou ${x.titulo}`);
   }
+  // v821 — B) a mesma parcela da NF importada duas vezes (XML × Movimento fiscal; parcela "001" × "1"):
+  //   mesma raiz de CNPJ, mesma NF, mesmo valor, vencimento ±5 dias → fica uma (a paga, a ligada à NF, a mais antiga)
+  const vivos = (await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", status: { not: "CANCELADO" } }, select: { id: true, titulo: true, documento: true, numeroDoc: true, valor: true, vencimento: true, status: true, forma: true,
+    chaveImport: true, nfId: true, rateio: true, dataPagamento: true, valorPago: true, formaPagamento: true, lancamentoId: true, observacao: true } })).filter(ehXml);
+  const grupos = new Map();
+  for (const t of vivos) {
+    const nf = nfDe(t), d = so(t.documento).slice(0, 8);
+    if (!nf || d.length < 8) continue;
+    const k = `${d}|${nf}|${Math.round(Number(t.valor) * 100)}`;
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(t);
+  }
+  const ponto = (t) => (t.status === "PAGO" ? 100 : 0) + (t.nfId ? 10 : 0) + (Array.isArray(t.rateio) && t.rateio.some((q) => Number(q.contaId)) ? 5 : 0);
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue;
+    g.sort((a, b) => ponto(b) - ponto(a) || a.id - b.id);
+    const fica = g[0];
+    for (const o of g.slice(1)) {
+      if (Math.abs(new Date(o.vencimento) - new Date(fica.vencimento)) > 5 * DIA) continue;
+      const parc = (t) => { const m = String(t.chaveImport || "").match(/\|0*(\d+)$/); return m ? m[1] : null; };
+      if (parc(o) && parc(fica) && parc(o) !== parc(fica)) continue;   // parcelas diferentes da mesma NF
+      if (o.status === "PAGO" && fica.status === "PAGO") continue;   // duas pagas: não mexe (pode ser pagamento em dobro — confira à mão)
+      const dados = { atualizadoPorNome: quem, observacao: [fica.observacao, `UNIFICADA COM "${o.titulo}" (MESMA NF IMPORTADA DUAS VEZES)`].filter(Boolean).join(" · ").slice(0, 1000) };
+      if (!fica.nfId && o.nfId) dados.nfId = o.nfId;
+      if (!(Array.isArray(fica.rateio) && fica.rateio.some((q) => Number(q.contaId))) && Array.isArray(o.rateio) && o.rateio.length) dados.rateio = o.rateio;
+      await prisma.finTitulo.update({ where: { id: fica.id }, data: dados });
+      await prisma.finTituloAnexo.updateMany({ where: { tituloId: o.id }, data: { tituloId: fica.id } });
+      const cheia = await prisma.finTitulo.findUnique({ where: { id: o.id } });
+      if (cheia) { await paraLixeira(cheia, `${quem} (NF ${nfDe(o)} IMPORTADA DUAS VEZES)`, "EXCLUIDA"); await prisma.finTitulo.delete({ where: { id: o.id } }); }
+      r.removidas++;
+      r.linhas.push(`${o.titulo} → ficou ${fica.titulo} (#${fica.id})`);
+    }
+  }
   return r;
 }
