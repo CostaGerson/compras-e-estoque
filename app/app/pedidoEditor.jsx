@@ -1268,6 +1268,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <div className="flex justify-end mt-3"><button type="button" onClick={() => setResultado(null)} className="px-4 py-2 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>OK</button></div>
         </Modal>
       )}
+      {/* v815 — salvar rascunho e gerar pedido também no fim da página (canto inferior direito) */}
+      {podeLancar && <div className="flex justify-end gap-2 mt-2 mb-6">
+        {!efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-5 py-2.5 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
+          Salvar rascunho</button>}
+        <button onClick={efetivar} disabled={salvando} className="px-5 py-2.5 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+          {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Gerar pedido"}</button>
+      </div>}
     </div>
   );
 }
