@@ -72,9 +72,10 @@ function valorBate(t, q) {
     return br.includes(s) || br.replace(/\./g, "").includes(s) || n.toFixed(2).includes(s) || n.toFixed(2).replace(".", "").startsWith(digitos);
   });
 }
-function Kpi({ rotulo, valor, sub, cor }) {
+function Kpi({ rotulo, valor, sub, cor, on, onClick }) {   // v807 — o card escolhe a visualização
   return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+    <div onClick={onClick} className={`rounded-xl p-4 ${onClick ? "cursor-pointer select-none" : ""}`} title={onClick ? "Clique para ver" : undefined}
+      style={{ background: C.panel, border: on ? `2px solid ${cor || C.navy}` : `1px solid ${C.line}`, margin: on ? 0 : 1 }}>
       <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{rotulo}</div>
       <div className="text-xl font-bold mt-1" style={{ color: cor || C.navy }}>{valor}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
@@ -96,6 +97,9 @@ function Janela({ titulo, onClose, children, rodape, largura = 560 }) {
   );
 }
 const Campo = ({ l, children }) => <label className="block text-xs" style={{ color: C.sub }}>{l}<div className="mt-1">{children}</div></label>;
+// v807 — botões de ação discretos: fundo branco, ícone na cor da ação
+const BtnA = ({ children, cor = C.navy, ...p }) => <button {...p} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "#fff", color: C.text, border: `1px solid ${C.line}`, opacity: p.disabled ? 0.45 : 1, cursor: p.disabled ? "default" : "pointer" }}>
+  {React.Children.map(children, (c) => (React.isValidElement(c) ? React.cloneElement(c, { style: { color: cor } }) : c))}</button>;
 const BtnP = ({ children, cor = C.accent, ...p }) => <button {...p} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: cor, opacity: p.disabled ? 0.5 : 1 }}>{children}</button>;
 
 /* ============================================================ */
@@ -116,17 +120,11 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar }) {
   return (
     <div>
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <Kpi rotulo="Em cobrança (atrasado)" valor={moeda(soma(d.atrasadas))} sub={`${d.atrasadas.length} conta(s)`} cor={d.atrasadas.length ? C.yellow : C.green} />
-        <Kpi rotulo="Em execução judicial" valor={moeda(execAtivas.reduce((s, e) => s + e.valorEmExecucao, 0))} sub={`${execAtivas.length} execução(ões) ativa(s)`} cor={C.red} />
-        <Kpi rotulo="Recuperado em execuções" valor={moeda(d.execucoes.reduce((s, e) => s + e.valorRecuperado, 0))} cor={C.green} />
-        <Kpi rotulo="Perdas reconhecidas" valor={moeda(soma(d.perdas))} sub={`no mês: ${moeda(soma(perdasMes))}`} cor={C.red} />
-      </div>
-      {/* v196 — uma guia só: troca o status aqui dentro */}
-      <div className="inline-flex rounded-lg overflow-hidden mb-4" style={{ border: `1px solid ${C.line}` }}>
-        {[["ATRASADAS", `Em cobrança · ${d.atrasadas.length}`], ["EXECUCOES", `Execuções judiciais · ${execAtivas.length}`], ["PERDAS", `Perdas · ${d.perdas.length}`]].map(([k, t]) => (
-          <button key={k} onClick={() => setAba(k)} className="px-4 py-2 text-xs font-semibold"
-            style={aba === k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub }}>{t}</button>
-        ))}
+        {/* v807 — os cards trocam a visualização (sem os botões Em cobrança / Execuções / Perdas) */}
+        <Kpi rotulo="Em cobrança (atrasado)" valor={moeda(soma(d.atrasadas))} sub={`${d.atrasadas.length} conta(s)`} cor={d.atrasadas.length ? C.yellow : C.green} on={aba === "ATRASADAS"} onClick={() => setAba("ATRASADAS")} />
+        <Kpi rotulo="Em execução judicial" valor={moeda(execAtivas.reduce((s, e) => s + e.valorEmExecucao, 0))} sub={`${execAtivas.length} execução(ões) ativa(s)`} cor={C.red} on={aba === "EXECUCOES"} onClick={() => { setAba("EXECUCOES"); setAberta(null); }} />
+        <Kpi rotulo="Recuperado em execuções" valor={moeda(d.execucoes.reduce((s, e) => s + e.valorRecuperado, 0))} sub="ver execuções" cor={C.green} onClick={() => { setAba("EXECUCOES"); setAberta(null); }} />
+        <Kpi rotulo="Perdas reconhecidas" valor={moeda(soma(d.perdas))} sub={`no mês: ${moeda(soma(perdasMes))} · ${d.perdas.length} conta(s)`} cor={C.red} on={aba === "PERDAS"} onClick={() => setAba("PERDAS")} />
       </div>
       {aviso && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{aviso}</div>}
       {erro && <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -165,11 +163,11 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar }) {
         {/* v205 — Excel (marcadas, ou todas da tela) e cobrança das marcadas */}
         <BotaoExcel onClick={() => exportarExcel(user, (escolhidas.length ? lista.filter((t) => sel.has(t.id)) : lista).map((t) => t.id),
           `Atrasados a receber${escolhidas.length ? " (selecionados)" : ""}${busca ? ` · busca "${busca}"` : ""}`, `atrasados-receber-${hojeISO()}.xlsx`)} />
-        <BtnP cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={15} /> E-mail de cobrança</BtnP>
-        <BtnP cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={15} /> Gerar card cobrança</BtnP>
-        <BtnP cor={C.green} disabled={!escolhidas.length} onClick={() => setModal("baixar")} title="Baixar como recebida (justificativa ou arquivo obrigatório)"><CheckCircle2 size={15} /> Baixar</BtnP>
-        <BtnP cor={C.navy} disabled={!escolhidas.length} onClick={() => setModal("execucao")}><Gavel size={15} /> Mover para execução</BtnP>
-        <BtnP cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={15} /> Reconhecer perda</BtnP>
+        <BtnA cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={14} /> E-mail de cobrança</BtnA>
+        <BtnA cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={14} /> Gerar card cobrança</BtnA>
+        <BtnA cor={C.green} disabled={!escolhidas.length} onClick={() => setModal("baixar")} title="Baixar como recebida (justificativa ou arquivo obrigatório)"><CheckCircle2 size={14} /> Baixar</BtnA>
+        <BtnA cor={C.navy} disabled={!escolhidas.length} onClick={() => setModal("execucao")}><Gavel size={14} /> Mover para execução</BtnA>
+        <BtnA cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={14} /> Reconhecer perda</BtnA>
       </div>
       <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <table className="w-full text-sm">
