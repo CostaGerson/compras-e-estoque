@@ -341,6 +341,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
     const n = { PAGAR: "Contas a pagar", RECEBER: "Contas a receber", ANTECIPACOES: "Antecipações", ATRASADAS: "Atrasados", EXECUCOES: "Execuções", PERDAS: "Perdas", RECORRENTES: "Recorrentes", NORT: "NORT", LIXEIRA: "Lixeira" }[tipo];
     try { document.title = `ERP Meridian - ${n || "Contas a pagar e receber"}`; } catch {}
   }, [tipo]);
+  useEffect(() => () => { try { if (window.__ceTituloBase) document.title = window.__ceTituloBase; } catch {} }, []);   // saiu do contas: volta ao nome da tela
   const [aviso, setAviso] = useState("");
   // lista por período (de / até, pelo vencimento) — abre no dia de hoje
   const [dIni, setDIni] = useState(inicial?.de || hojeISO());
