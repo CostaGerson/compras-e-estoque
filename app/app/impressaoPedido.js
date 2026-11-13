@@ -123,7 +123,9 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   const producao = PV || servico ? "" : lista.map((it, i) => {
     const comps = componentes[it.tipoPecaNome] || [];
     const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
-    const params = [...comps, ...extras].map((c) => {
+    const temApl = (it.aplicacoes || []).length > 0;
+    const ehPers = (c) => String(c).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() === "PERSONALIZACAO";
+    const params = [...comps, ...extras].filter((c) => !(temApl && ehPers(c) && !String(it.parametros?.[c] || "").trim())).map((c) => {   // v816 — sem a linha PERSONALIZAÇÃO vazia quando há estampas
       const v = it.parametros?.[c];
       if (/ESTAMP/.test(String(c).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase())) {   // v801 — #71: estampa com no mínimo 5 linhas
         const ls = String(v || "").split(/\n/).map((x) => x.trim()).filter(Boolean);
