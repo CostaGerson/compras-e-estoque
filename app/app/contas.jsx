@@ -413,8 +413,12 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   };
 
   const acao = async (t, a, extra = {}) => {
-    try { await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar(); } catch (e) { setErro(e.message); }
+    try {
+      const r = await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: a, ...extra }); carregar();
+      if (r?.ajustePedido) setModal({ t: "ajustePedido", d: r.ajustePedido });   // v824 — recebido diferente numa parcela de pedido
+    } catch (e) { setErro(e.message); }
   };
+  const abrirAjuste = async (t) => { try { const d = await api(`/api/fin/ajuste-pedido?u=${user.id}&tituloId=${t.id}`); setModal({ t: "ajustePedido", d }); } catch (e) { setErro(e.message); } };   // v824
   const excluir = async (t) => {
     if (!(await confirmar(t.recorrenciaId ? `Cancelar "${t.titulo}" de ${nomeMes(t.competencia)}? (os outros meses da recorrência continuam)` : `Excluir "${t.titulo}"? Ela fica 30 dias na Lixeira.`))) return;
     try { await api(`/api/fin/titulos/${t.id}`, "DELETE", { usuarioId: user.id }); carregar(); } catch (e) { setErro(e.message); }
@@ -611,14 +615,14 @@ export default function ContasPagarReceber({ user, inicial = null }) {
             </div>
           )}
 
-          <Tabela titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
+          <Tabela onAjustePedido={abrirAjuste} titulo={fSit === "SEMCONTA" ? `Em aberto sem conta-caixa · ${lista.length} conta(s)` : fSit === "CRITICA" ? `Com crítica a conferir · ${lista.length} conta(s)` : `${dIni === dFim ? (dIni === hojeISO() ? `Hoje · ${dBR(dIni)}` : dBR(dIni)) : `${dBR(dIni)} a ${dBR(dFim)}`} · ${lista.length} conta(s)`} itens={lista} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
             sel={sel} marcar={marcar}
             onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir}
             vazio={busca || fSit !== "TODOS" ? "Nada encontrado com esses filtros." : `Nenhuma conta ${P ? "a pagar" : "a receber"} vencendo neste período.`} />
 
           {/* só no filtro Vencidos, depois dos vencidos do período; sem repetir o que já está na lista acima */}
           {fSit === "VENC" && antigos.length > 0 && (
-            <Tabela titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
+            <Tabela onAjustePedido={abrirAjuste} titulo={`Vencidos de meses anteriores · ${moeda(antigos.reduce((a, t) => a + t.valor, 0))}`} cor={C.red} itens={antigos} contasPorId={contasPorId} P={P} user={user} onMudou={(m) => (typeof m === "string" ? ok(m) : carregar())}
               sel={sel} marcar={marcar}
               onEditar={(t) => setModal(ehSemana(t) ? { t: "semana", item: t } : { t: "titulo", item: t })} onBaixar={(t) => setModal({ t: "baixa", item: t })} onAcao={acao} onExcluir={excluir} />
           )}
@@ -628,7 +632,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       </>}
 
       {modal?.t === "titulo" && <TituloModal user={user} tipo={modal.item?.tipo || tipoApi} item={modal.item} d={d} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); if (tipo === "NORT") setTickAtraso((x) => x + 1); if (ABAS_ATRASO.includes(tipo)) setTickAtraso((x) => x + 1); }} />}
-      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={modal.item.tipo ? modal.item.tipo === "PAGAR" : P} onClose={() => setModal(null)} onOk={async (dt, v) => { await acao(modal.item, "baixar", { dataPagamento: dt, valorPago: v }); setModal(null); if (tipo === "NORT") setTickAtraso((x) => x + 1); }} />}
+      {modal?.t === "baixa" && <BaixaModal t={modal.item} P={modal.item.tipo ? modal.item.tipo === "PAGAR" : P} onClose={() => setModal(null)} onOk={async (dt, v) => { const it = modal.item; setModal(null); await acao(it, "baixar", { dataPagamento: dt, valorPago: v }); if (tipo === "NORT") setTickAtraso((x) => x + 1); }} />}
+      {modal?.t === "ajustePedido" && <AjustePedidoModal user={user} d={modal.d} onClose={() => setModal(null)} onOk={(m) => { setModal(null); setAviso(m); carregar(); }} />}
       {modal?.t === "semana" && <SemanaModal user={user} tituloId={modal.item.id} onClose={() => { setModal(null); carregar(); }} onMudou={carregar} />}
       {modal?.t === "conferir" && <ConferirModal user={user} itens={d.criticas} recorrencias={d.recorrencias || []} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
@@ -681,7 +686,7 @@ const chaveOrdem = (t, col, contasPorId) => {
     default: return "";
   }
 };
-function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar }) {
+function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar, onAjustePedido }) {
   const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
   const itens = useMemo(() => {
     if (!ordem) return itens0;
@@ -750,7 +755,9 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     <AltInfo t={t} campo="valor" />{brl(t.valor)}
                     {t.pagoParcial > 0 && <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)} de {brl(t.valorTotal)}</div>}
                     {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
-                      : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}</div>}
+                      : t.status === "PAGO" && t.valorPago != null && Math.abs(t.valorPago - t.valor) > 0.009 && <div className="font-normal" style={{ color: C.sub }}>{P ? "pago" : "recebido"} {brl(t.valorPago)}
+                        {!P && onAjustePedido && String(t.chaveImport || "").startsWith("PED|") && <button onClick={() => onAjustePedido(t)}
+                          className="ml-1 underline" style={{ color: C.accent }} title="Redistribuir a diferença nas próximas parcelas do pedido">ajustar parcelas</button>}</div>}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
                   <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
@@ -2763,6 +2770,45 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
           );
         })}</tbody>
       </table>
+    </Modal>
+  );
+}
+
+/* v824 — parcela de pedido recebida com valor diferente: redistribui o saldo nas parcelas em aberto (total do pedido mantido) */
+function AjustePedidoModal({ user, d, onClose, onOk }) {
+  const [vals, setVals] = useState(() => d.abertas.map((x) => x.valor));
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const soma = vals.reduce((s, v) => s + (Number(v) || 0), 0);
+  const falta = Math.round((d.restante - soma) * 100) / 100;
+  const salvar = async () => {
+    setSalvando(true); setErro("");
+    try {
+      const r = await api("/api/fin/ajuste-pedido", "POST", { usuarioId: user.id, itens: d.abertas.map((x, i) => ({ id: x.id, valor: Number(vals[i]) || 0 })) });
+      onOk(`${r.ajustadas} parcela(s) do pedido ${d.numero} ajustada(s).`);
+    } catch (e) { setErro(e.message); setSalvando(false); }
+  };
+  return (
+    <Modal titulo={`Ajustar as próximas parcelas · pedido ${d.numero}`} icone={Pencil} onClose={onClose} largura={720}
+      rodape={<>
+        <span className="mr-auto text-xs" style={{ color: Math.abs(falta) < 0.01 ? C.green : C.red }}>{Math.abs(falta) < 0.01 ? "✓ O total do pedido fica igual." : `${falta > 0 ? "Faltam" : "Sobram"} ${moeda(Math.abs(falta))} para fechar o total do pedido.`}</span>
+        <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Não ajustar</button>
+        <BtnP onClick={salvar} disabled={salvando}>{salvando && <Loader2 size={14} className="animate-spin" />} Salvar parcelas</BtnP>
+      </>}>
+      <div className="text-sm mb-3" style={{ color: C.text }}>
+        {d.cliente} · total do pedido <b>{moeda(d.total)}</b>. Foi recebido <b style={{ color: d.diferenca > 0 ? C.green : C.red }}>{moeda(Math.abs(d.diferenca))} {d.diferenca > 0 ? "a mais" : "a menos"}</b> que o previsto;
+        já entraram <b>{moeda(d.recebido)}</b> e faltam <b>{moeda(d.restante)}</b>, divididos igualmente nas parcelas em aberto. Altere se precisar.
+      </div>
+      <table className="w-full text-sm">
+        <thead><tr className="text-[11px] uppercase text-left" style={{ color: C.sub }}><th className="py-1">Parcela</th><th className="py-1">Vencimento</th><th className="py-1 text-right">Valor atual</th><th className="py-1 text-right">Novo valor</th></tr></thead>
+        <tbody>
+          {d.pagas.map((x) => <tr key={x.id} style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}><td className="py-1.5">{x.titulo}</td><td>{x.data ? `recebida ${dBR(x.data)}` : "baixada"}</td><td className="text-right">{moeda(x.valor)}</td><td className="text-right">{moeda(x.recebido)}</td></tr>)}
+          {d.abertas.map((x, i) => <tr key={x.id} style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1.5 font-semibold">{x.titulo}</td><td>{dBR(x.vencimento)}</td><td className="text-right" style={{ color: C.sub }}>{moeda(x.valorAtual)}</td>
+            <td className="text-right"><Valor value={vals[i]} onChange={(v) => setVals((a) => a.map((y, j) => (j === i ? v : y)))} width="130px" /></td></tr>)}
+        </tbody>
+      </table>
+      <div className="text-[11px] mt-2" style={{ color: C.sub }}>Parcela com valor zero é cancelada (saldo do pedido já recebido).</div>
+      {erro && <div className="mt-3 p-2 rounded text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
     </Modal>
   );
 }

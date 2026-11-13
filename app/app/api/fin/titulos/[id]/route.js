@@ -156,7 +156,10 @@ export async function PATCH(req, { params }) {
   if (data.valor !== undefined || b.acao === "baixar") { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(id, quem.atualizadoPorNome).catch(() => null); }
   // v186 — cobrança de antecipação: pagar/estornar baixa/volta o título original
   if (String(t.chaveImport || "").startsWith("RECOMPRA|")) { const { sincronizarAntecipados } = await import("@/lib/finAntecipados"); await sincronizarAntecipados(quem.atualizadoPorNome).catch(() => null); }
-  return Response.json(tituloOut(n));
+  // v824 — parcela de pedido recebida com valor diferente: devolve a proposta de ajuste das próximas parcelas
+  let ajustePedido = null;
+  if (b.acao === "baixar" || b.acao === "editar" || b.acao === undefined) { try { ajustePedido = await (await import("@/lib/finAjustePedido")).ajusteParcelasPedido(n); } catch (e) { console.log("ajustePedido:", e.message); } }
+  return Response.json({ ...tituloOut(n), ...(ajustePedido ? { ajustePedido } : {}) });
 }
 
 // DELETE { usuarioId } → exclui o título (de recorrência: o mês não é recriado — vira cancelado)
