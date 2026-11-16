@@ -50,6 +50,29 @@ async function paginasDoPdf(blob, max = 2) {
   } catch { return []; }
 }
 
+// v854 — padrão de todo layout: fundo cinza em gradiente + etiqueta MERIDIAN embaixo; fundo branco do arquivo some (multiply)
+function fundoBranco(src) {
+  return new Promise((ok) => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const n = 48, cv = document.createElement("canvas"); cv.width = n; cv.height = n;
+        const cx = cv.getContext("2d"); cx.drawImage(im, 0, 0, n, n);
+        const px = cx.getImageData(0, 0, n, n).data;
+        let tot = 0, br = 0;
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+          if (x > 1 && x < n - 2 && y > 1 && y < n - 2) continue;   // só a moldura de 2 px
+          const i = (y * n + x) * 4; tot++;
+          if (px[i + 3] < 20 || (px[i] > 235 && px[i + 1] > 235 && px[i + 2] > 235)) br++;
+        }
+        ok(br / tot >= 0.85);
+      } catch { ok(false); }
+    };
+    im.onerror = () => ok(false);
+    im.src = src;
+  });
+}
+
 // anexos gerais + arquivos das estampas da FPP → imagens (PDF vira as primeiras páginas); outros tipos só pelo nome
 async function anexosDaFpp(fppId) {
   if (!fppId) return { imgs: [], outros: [] };
@@ -63,8 +86,8 @@ async function anexosDaFpp(fppId) {
     if (!ehImg && !ehPdf) { outros.push(nome); continue; }
     const blob = await fetch(`/api/fpp/${fppId}/anexos?arquivo=${a.id}`, { cache: "no-store" }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
     if (!blob) { outros.push(nome); continue; }
-    if (ehImg) { const u = await blobParaDataUrl(blob); if (u) imgs.push({ src: u, nome }); else outros.push(nome); }
-    else { const ps = await paginasDoPdf(blob); if (ps.length) ps.forEach((src, k) => imgs.push({ src, nome: ps.length > 1 ? `${nome} · pág. ${k + 1}` : nome })); else outros.push(nome); }
+    if (ehImg) { const u = await blobParaDataUrl(blob); if (u) imgs.push({ src: u, nome, branco: await fundoBranco(u) }); else outros.push(nome); }
+    else { const ps = await paginasDoPdf(blob); if (ps.length) for (const [k, src] of ps.entries()) imgs.push({ src, nome: ps.length > 1 ? `${nome} · pág. ${k + 1}` : nome, branco: await fundoBranco(src) }); else outros.push(nome); }
   }
   return { imgs, outros };
 }
@@ -103,6 +126,12 @@ table.it tr.lay td { padding: 0 3mm 3mm; }
 .anx figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
 .anx .im { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 2mm; }
 .anx img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.anx .im.padrao { position: relative; background: linear-gradient(160deg, #F4F5F7 0%, #DCE0E6 55%, #BFC5CE 100%); padding: 3mm 3mm 11mm; border-color: #C9CED6; }
+.anx .im.branco img.lay { mix-blend-mode: multiply; }
+.etq { position: absolute; left: 50%; bottom: 2.5mm; transform: translateX(-50%); background: #1B2A45; color: #fff; display: flex; align-items: center; gap: 2mm;
+  padding: 1.4mm 6mm; font-weight: 800; font-size: 8pt; letter-spacing: 1.2mm; white-space: nowrap;
+  clip-path: polygon(2.4mm 0, calc(100% - 2.4mm) 0, 100% 50%, calc(100% - 2.4mm) 100%, 2.4mm 100%, 0 50%); }
+.etq img { width: 4.6mm; height: 4.6mm; mix-blend-mode: normal !important; }
 .anx figcaption { font-size: 6.5pt; color: #6B7A90; margin-top: 1.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .linha { display: flex; justify-content: space-between; align-items: baseline; padding: 2mm 0; border-bottom: .3mm solid #D3D9E2; font-size: 8.5pt; }
 .info div { font-size: 8.5pt; padding: 2.2mm 0; border-bottom: .3mm solid #D3D9E2; }
@@ -149,7 +178,7 @@ function layoutDoItem(it) {
   if (!im.length && !(it.outros || []).length) return "";
   const alt = it.altLay || 70;
   return `<tr class="lay"><td></td><td colspan="4">
-    ${im.length ? `<div class="anx" style="height:${alt}mm;grid-template-columns:repeat(${Math.min(im.length, 3)},1fr)">${im.map((a) => `<figure><div class="card im"><img src="${a.src}" /></div></figure>`).join("")}</div>` : ""}
+    ${im.length ? `<div class="anx" style="height:${alt}mm;grid-template-columns:repeat(${Math.min(im.length, 3)},1fr)">${im.map((a) => `<figure><div class="card im padrao${a.branco ? " branco" : ""}"><img class="lay" src="${a.src}" /><div class="etq"><img src="/meridian-emblema.svg" />MERIDIAN</div></div></figure>`).join("")}</div>` : ""}
     ${(it.outros || []).length ? `<div style="font-size:6.8pt;color:#6B7A90;margin-top:1.5mm">Outros arquivos: ${it.outros.map(ESC).join(", ")}</div>` : ""}
   </td></tr>`;
 }
