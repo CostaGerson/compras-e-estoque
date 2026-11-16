@@ -86,7 +86,8 @@ export async function POST(req) {
       return r(x);
     }
     case "criarRetorno": if (!podeMontar(u)) return negado(); return r(await criarRetorno(b, u));   // v521
-    case "retornoNaRota": return r(await retornoNaRota(b, u, podeMontar(u)));   // v521 — motorista (com justificativa) ou quem monta
+    case "retornoNaRota": return r(await retornoNaRota(b, u, podeMontar(u)));
+    case "inserirNaRota": { if (!podeMontar(u)) return negado(); const { inserirNaRota } = await import("@/lib/rotas"); return r(await inserirNaRota(b, u)); }   // v881 — #84   // v521 — motorista (com justificativa) ou quem monta
     case "mover": if (!podeMontar(u)) return negado(); return r(await moverDemanda(b, u));   // v521 — arrastar entre dias
     case "mensagem": if (!podeMontar(u)) return negado(); return r(await mensagemBloco(b.id));   // v443
     case "linkAcomp": { const { linkAcompanhamento } = await import("@/lib/rotas"); return r(await linkAcompanhamento(b.id, b.dia)); }   // v576

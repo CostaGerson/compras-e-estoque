@@ -961,6 +961,46 @@ export async function retornoNaRota(b, u, pode) {
   }
   return { ok: true, demanda: demandaOut(r.d), ordem: pos };
 }
+// ---------- v881 — sugestão #84: inserir parada numa rota em execução (entre duas paradas) ----------
+// a demanda (aberta, fora de rota) entra na posição escolhida; o motorista recebe aviso no app (push + mensagem)
+// e quem inseriu ganha os links do WhatsApp (mensagem com a rota atualizada e conversa para ligar)
+export async function inserirNaRota(b, u) {
+  const bl = await prisma.rotaBloco.findUnique({ where: { id: Number(b.blocoId) } });
+  if (!bl || bl.status !== "EM_EXECUCAO") return { error: "A rota não está em execução." };
+  const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(b.demandaId) } });
+  if (!d || d.status === "CANCELADA") return { error: "Demanda não encontrada." };
+  if (d.blocoId) return { error: "Essa demanda já está numa rota." };
+  if (d.objetivo === "RETORNO") return { error: "Para voltar à fábrica, use o retorno no meio da rota." };
+  const ds = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { not: "CANCELADA" } }, orderBy: { ordem: "asc" } });
+  const pend = ds.filter((x) => x.status !== "CONCLUIDA");
+  let pos;
+  if (b.depoisDe) {
+    const x = pend.find((y) => y.id === Number(b.depoisDe));
+    if (!x) return { error: "A parada escolhida já foi concluída ou saiu da rota. Abra de novo." };
+    pos = (x.ordem ?? 0) + 1;
+  } else pos = pend[0]?.ordem ?? ((ds[ds.length - 1]?.ordem ?? 0) + 1);   // próxima parada
+  for (const x of [...ds].reverse()) if ((x.ordem ?? 0) >= pos) await prisma.rotaDemanda.update({ where: { id: x.id }, data: { ordem: (x.ordem ?? 0) + 1 } });
+  const quem = nomeU(u) || "?";
+  await prisma.rotaDemanda.update({ where: { id: d.id }, data: { blocoId: bl.id, ordem: pos, status: "EM_EXECUCAO", motoristaId: bl.motoristaId, motoristaNome: bl.motoristaNome, veiculo: bl.veiculo,
+    obs: [d.obs, `Inserida na rota em andamento por ${quem}`].filter(Boolean).join(" · ").slice(0, 1000) } });
+  const todas = await prisma.rotaDemanda.findMany({ where: { blocoId: bl.id, status: { notIn: ["CANCELADA", "CONCLUIDA"] } }, orderBy: { ordem: "asc" } });
+  const fab = await fabrica();
+  const links = (fab ? linksMaps(fab, todas) : linksMaps(todas[0], todas.slice(1))).map((l, i) => (i === 0 && fab ? l.replace(/&origin=[^&]*/, "") : l));
+  const n = await prisma.rotaBloco.update({ where: { id: bl.id }, data: { links, alteradaEm: new Date(), voltaIniciadaEm: null } });
+  const oq = `${d.destinoNome}${d.tarefa ? ` - ${d.tarefa}` : ""}`;
+  const idx = todas.findIndex((x) => x.id === d.id);
+  const quando = idx === 0 ? "é a PRÓXIMA parada" : `entra depois de ${todas[idx - 1]?.destinoNome || "?"}`;
+  const usu = n.motoristaId && !n.motoristaId.startsWith("F") ? await prisma.usuario.findFirst({ where: { ativo: true, pessoaId: n.motoristaId }, select: { id: true } }) : null;
+  if (usu) {
+    await notificar(usu.id, { titulo: `🆕 Nova parada na rota R${numRota(n)}`, texto: `${oq} — ${quando}. Veja a ordem no app.`.slice(0, 180), url: "/", tag: `rota-${n.id}` }).catch(() => null);
+    if (u?.id && usu.id !== u.id) await prisma.mensagem.create({ data: { deId: u.id, paraId: usu.id, texto: `🆕 NOVA PARADA NA SUA ROTA R${numRota(n)}: ${oq.toUpperCase()}${d.endereco ? ` · ${d.endereco}` : ""} — ${quando.toUpperCase()}. VEJA A NOVA ORDEM NO APP.`.slice(0, 2000) } }).catch(() => null);
+  }
+  const texto = `🆕 *NOVA PARADA NA ROTA R${numRota(n)}*: ${oq}${d.endereco ? `\n📍 ${d.endereco}` : ""}\n(${quando})\n\n${mensagemWhats(n, todas, links, null)}`;
+  const tel = telefoneWa(await telefoneAtual(n));
+  return { ok: true, ordem: pos, quando, texto, telefone: tel || null,
+    whatsapp: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : null, ligar: tel ? `https://wa.me/${tel}` : null };
+}
+
 // v521 — arrastar a demanda para outro dia (e para manhã/tarde, quando o horário é por período)
 export async function moverDemanda(b, u) {
   const d = await prisma.rotaDemanda.findUnique({ where: { id: Number(b.id) } });

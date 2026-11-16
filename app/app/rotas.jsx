@@ -1,7 +1,7 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass, Paperclip, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass, Paperclip, Trash2, Phone } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = {
@@ -1084,6 +1084,7 @@ function LinkAcomp({ a }) {
 function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
   const [acomp, setAcomp] = useState(null);   // v576
   const [msg, setMsg] = useState(false);   // v443
+  const [inserir, setInserir] = useState(false);   // v881 — #84
   const l = [...demandas].sort((a, z) => (a.ordem || 0) - (z.ordem || 0));
   const feitas = l.filter((x) => x.status === "CONCLUIDA").length;
   const cor = b.status === "EM_EXECUCAO" ? C.accent : b.status === "CONCLUIDO" ? C.green : C.yellow;
@@ -1130,9 +1131,87 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
           <button onClick={() => acao({ acao: "desfazerBloco", id: b.id }, `Desfazer a rota R${b.numDia ?? b.id}? As demandas voltam a ficar abertas.`)} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Undo2 size={12} /> Desfazer</button>
           <button onClick={onEditar} className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.accent, color: "#fff" }}>Abrir / despachar</button>
         </>}
+        {b.status === "EM_EXECUCAO" && pode && <button onClick={() => setInserir(true)} title="Inserir uma demanda aberta nesta rota, entre duas paradas — o motorista é avisado na hora"
+          className="text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={12} /> Inserir parada</button>}
+        {inserir && <InserirParada user={user} bloco={b} paradas={l} onClose={() => setInserir(false)} onMudou={onMudou} />}
         {b.status === "EM_EXECUCAO" && (pode || meu) && feitas < l.length && !l.find((x) => x.status !== "CONCLUIDA" && x.objetivo === "RETORNO") && <BotaoRetornoMeio user={user} bloco={b} justificar={!pode} onMudou={onMudou} />}
         {b.status === "EM_EXECUCAO" && (pode || meu) && <button disabled={feitas < l.length} onClick={() => acao({ acao: "retorno", id: b.id }, `Registrar o retorno de ${sc(b.motoristaNome)} à fábrica? A rota fecha e ele fica disponível para outra.`)}
           className="text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1" style={{ background: feitas < l.length ? C.panel2 : C.green, color: feitas < l.length ? C.sub : "#fff" }} title={feitas < l.length ? "Conclua todas as paradas primeiro" : ""}><Home size={12} /> Retorno à fábrica</button>}
+      </div>
+    </div>
+  );
+}
+
+// v881 — sugestão #84: inserir parada numa rota em execução. Escolhe a demanda aberta e onde ela entra;
+// o motorista recebe aviso no app e quem inseriu manda a rota atualizada no WhatsApp ou abre a conversa para ligar.
+function InserirParada({ user, bloco, paradas, onClose, onMudou }) {
+  const [abertas, setAbertas] = useState(null);
+  const [sel, setSel] = useState(null);
+  const [depois, setDepois] = useState("");
+  const [busca, setBusca] = useState("");
+  const [oc, setOc] = useState(false);
+  const [feito, setFeito] = useState(null);
+  const pend = paradas.filter((x) => x.status !== "CONCLUIDA");
+  useEffect(() => {
+    const d0 = new Date(); const f = (n) => { const d = new Date(d0.getTime() + n * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+    api(`/api/rotas?u=${user.id}&de=${f(-7)}&ate=${f(30)}`).then((x) => setAbertas((x.demandas || []).filter((d) => !d.blocoId && ["ABERTA", "NO_BLOCO"].includes(d.status) && d.objetivo !== "RETORNO" && !d.frete)
+      .sort((a, z) => String(a.data).localeCompare(String(z.data))))).catch((e) => { alerta(e.message); setAbertas([]); });
+  }, []);
+  const lista = (abertas || []).filter((d) => !busca.trim() || `${d.destinoNome} ${d.tarefa || ""} ${d.endereco || ""}`.toUpperCase().includes(busca.trim().toUpperCase()));
+  const enviar = async () => {
+    if (!sel) return alerta("Escolha a demanda que vai entrar na rota.");
+    setOc(true);
+    try { const r = await api("/api/rotas", "POST", { usuarioId: user.id, acao: "inserirNaRota", blocoId: bloco.id, demandaId: sel, depoisDe: depois ? Number(depois) : null }); setFeito(r); onMudou?.(); }
+    catch (e) { alerta(e.message); }
+    setOc(false);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col" style={{ background: C.panel }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <Plus size={18} style={{ color: C.accent }} />
+          <div className="text-base font-bold flex-1" style={{ color: C.navy }}>Inserir parada · rota R{bloco.numDia ?? bloco.id} · {sc(bloco.motoristaNome)}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        {feito ? (
+          <div className="p-5 space-y-3">
+            <div className="text-sm font-semibold" style={{ color: C.green }}>✓ Parada inserida — {feito.quando}.</div>
+            <div className="text-xs" style={{ color: C.sub }}>{sc(bloco.motoristaNome)} já recebeu o aviso no app (notificação e mensagem). Avise também pelo WhatsApp:</div>
+            {feito.whatsapp ? <>
+              <a href={feito.whatsapp} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ background: "#25D366", color: "#fff" }}><Send size={15} /> Enviar a rota atualizada no WhatsApp</a>
+              <a href={feito.ligar} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold" style={{ border: "1px solid #25D366", color: "#128C7E" }} title="Abre a conversa do WhatsApp com o motorista: toque no telefone para ligar"><Phone size={15} /> Ligar pelo WhatsApp</a>
+            </> : <div className="text-xs font-semibold" style={{ color: C.red }}>{sc(bloco.motoristaNome)} não tem telefone cadastrado — cadastre na ficha para avisar pelo WhatsApp.</div>}
+            <div className="flex justify-end"><button onClick={onClose} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.text }}>Fechar</button></div>
+          </div>
+        ) : (
+          <>
+            <div className="p-5 space-y-3 overflow-auto">
+              <div>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.navy }}>1. Demanda que entra na rota <span className="font-normal" style={{ color: C.sub }}>(abertas, fora de rota · para uma nova, cadastre em Nova demanda e volte aqui)</span></div>
+                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar destino, tarefa ou endereço…" className="w-full px-3 py-1.5 rounded text-sm mb-2" style={{ border: `1px solid ${C.line}` }} />
+                {abertas === null ? <div className="text-xs flex items-center gap-1" style={{ color: C.sub }}><Loader2 size={13} className="animate-spin" /> Carregando…</div>
+                  : !lista.length ? <div className="text-xs" style={{ color: C.sub }}>Nenhuma demanda aberta{busca ? " com essa busca" : ""}.</div>
+                  : <div className="space-y-1 max-h-60 overflow-auto">{lista.map((d) => (
+                    <label key={d.id} className="flex items-start gap-2 px-2 py-1.5 rounded cursor-pointer text-xs" style={{ background: sel === d.id ? C.accentSoft : C.panel2, border: `1px solid ${sel === d.id ? C.accent : "transparent"}` }}>
+                      <input type="radio" checked={sel === d.id} onChange={() => setSel(d.id)} className="mt-0.5" />
+                      <span className="flex-1 min-w-0"><b style={{ color: C.navy }}>{OBJ[d.objetivo]?.[0]} · {nomeTarefa(d)}</b>{d.urgente ? <b style={{ color: C.red }}> · URGENTE</b> : ""}
+                        <span className="block truncate" style={{ color: C.sub }}>{String(d.data).split("-").reverse().join("/")}{d.horario ? ` · ${d.horario}` : ""}{d.endereco ? ` · ${d.endereco}` : ""}</span></span>
+                    </label>))}</div>}
+              </div>
+              <div>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.navy }}>2. Onde ela entra</div>
+                <select value={depois} onChange={(e) => setDepois(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}` }}>
+                  <option value="">Agora — vira a próxima parada{pend[0] ? ` (antes de ${nomeTarefa(pend[0])})` : ""}</option>
+                  {pend.map((x, i) => <option key={x.id} value={x.id}>Depois de {nomeTarefa(x)}{pend[i + 1] ? ` (antes de ${nomeTarefa(pend[i + 1])})` : " (no fim)"}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <button onClick={onClose} className="px-4 py-2 rounded-md text-sm" style={{ color: C.sub }}>Cancelar</button>
+              <button onClick={enviar} disabled={oc || !sel} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: oc || !sel ? 0.6 : 1 }}>{oc ? "Inserindo…" : "Inserir e avisar o motorista"}</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
