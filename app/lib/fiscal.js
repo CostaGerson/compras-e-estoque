@@ -647,7 +647,7 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   const l = await prisma.fiscalNota.findMany({
     where, orderBy: [{ emissao: "desc" }, { id: "desc" }], take: 2000,
     select: { id: true, tipo: true, empresa: true, modelo: true, chave: true, numero: true, serie: true, emissao: true, parceiro: true, documento: true, natureza: true,
-      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true, estoqueStatus: true, obsNf: true },
+      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true, estoqueStatus: true, obsNf: true, etqDispensa: true },
   });
   // v555 — pedido atendido por cada NF de saída (casamento manual ou pelas regras automáticas)
   const pedDaNf = new Map();
@@ -661,7 +661,7 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   // v624 — NF de compra sem etiquetas de volume emitidas: crítica até emitir
   const comEstoque = l.filter((n) => n.estoqueStatus).map((n) => n.id);
   const comEtq = new Set(comEstoque.length ? (await prisma.estoqueVolume.groupBy({ by: ["fiscalNotaId"], where: { fiscalNotaId: { in: comEstoque } }, _count: { _all: true } }).catch(() => [])).map((x) => x.fiscalNotaId) : []);
-  for (const n of l) if (n.estoqueStatus) n.semEtiquetas = !comEtq.has(n.id);
+  for (const n of l) if (n.estoqueStatus) n.semEtiquetas = !comEtq.has(n.id) && !n.etqDispensa;   // v876 — dispensada não critica
   const ids = [...new Set(l.flatMap((n) => (Array.isArray(n.parcelas) ? n.parcelas : []).map((p) => p.tituloId)).filter(Boolean))];
   const ts = ids.length ? await prisma.finTitulo.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, vencimento: true, valor: true, valorPago: true } }) : [];
   const porId = Object.fromEntries(ts.map((t) => [t.id, t]));

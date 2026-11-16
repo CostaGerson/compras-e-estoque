@@ -1720,6 +1720,7 @@ model FiscalNota {
   hashPdf       String?
   temPdf        Boolean   @default(false)
   ocId          Int?                             // v494 — NF de compra ligada a uma OC
+  etqDispensa   String?                          // v876 — etiquetas de volume dispensadas: "motivo · por NOME em dd/mm/aaaa" (tira a crítica)
   obsNf         String?                          // v874 — observação escrita na importação (! amarela nas listas)
   frete         FreteCte?                        // v557 — CT-e: dados logísticos do frete
   estoqueStatus String?                          // v619 — NF de compra: PENDENTE (falta parametrizar/dar entrada) | LANCADO

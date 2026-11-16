@@ -23,6 +23,14 @@ export async function POST(req) {
   if (b.acao === "gravar") return Response.json({ ok: true, resultados: await gravar(b.notas || [], u) });
   // v365 — nota com crítica: lançar as contas ou vistar (tirar a crítica sem conta)
   // v408 — NF emitida no KM sem arquivo: vistar tira a crítica
+  // v876 — dispensar (ou voltar a pedir) as etiquetas de volume da NF de compra: { id, motivo } · { id, desfazer: true }
+  if (b.acao === "dispensarEtiquetas") {
+    const { prisma } = await import("@/lib/prisma");
+    const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase() || u.email;
+    const txt = b.desfazer ? null : `${String(b.motivo || "").trim().toUpperCase() || "SEM MOTIVO"} · POR ${quem} EM ${new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10).split("-").reverse().join("/")}`.slice(0, 300);
+    await prisma.fiscalNota.update({ where: { id: Number(b.id) || 0 }, data: { etqDispensa: txt } });
+    return Response.json({ ok: true });
+  }
   if (b.acao === "vistarKm") { const { vistarKm } = await import("@/lib/kmNfs"); const r = await vistarKm(b.id, u.nome || u.email); return Response.json(r, { status: r.error ? 400 : 200 }); }
   if (b.acao === "lancarCritica" || b.acao === "vistar") {
     const r = b.acao === "vistar" ? await vistarCritica(b.id, u) : await lancarCritica(b.id, u);

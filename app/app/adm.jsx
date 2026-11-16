@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Soltar, Rateio, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { BotoesCritica } from "./nfRegistro";   // v365
-import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import ParametrizarNf, { VolumesNf } from "./parametrizarNf";   // v619 — NF de compra → artigo interno → estoque
 
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -120,6 +120,13 @@ export default function MovimentoFiscal({ user }) {
   const [paramId, setParamId] = useState(null);   // v619
   const [volId, setVolId] = useState(null);   // v620
   const [soEtq, setSoEtq] = useState(false);   // v624 — só NFs com etiquetas não emitidas
+  // v876 — dispensar as etiquetas de volume de uma NF (ou desfazer)
+  const dispensarEtq = async (n, desfazer = false) => {
+    let motivo = "";
+    if (desfazer) { if (!(await confirmar(`Voltar a pedir as etiquetas de volume da NF ${n.numero}?`))) return; }
+    else { motivo = await perguntar(`Dispensar as etiquetas de volume da NF ${n.numero} (${n.parceiro})?\nA crítica "etiquetas não emitidas" sai desta nota.\n\nMotivo (opcional):`, "Material não precisa de etiqueta"); if (motivo === null) return; }
+    try { await api("/api/fiscal", "POST", { usuarioId: user.id, acao: "dispensarEtiquetas", id: n.id, motivo, desfazer }); carregar(); } catch (e) { alerta(e.message); }
+  };
   const [casarNota, setCasarNota] = useState(null);   // v555 — id da NF de saída para casar com pedido
   const [msg, setMsg] = useState("");
 
@@ -284,7 +291,10 @@ export default function MovimentoFiscal({ user }) {
                       {n.estoqueStatus === "PENDENTE" && <button onClick={() => setParamId(n.id)} title="Parametrizar os itens e dar entrada no estoque" className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.accent, color: "#fff" }}>Dar entrada no estoque</button>}
                       {n.estoqueStatus === "LANCADO" && <span className="flex items-center gap-1 mt-1 text-[10px] font-semibold" style={{ color: C.green }}>✓ no estoque
                         <button onClick={() => setVolId(n.id)} title="Identificar volumes e imprimir etiquetas" className="px-1.5 py-0.5 rounded font-semibold" style={{ border: `1px solid ${n.semEtiquetas ? C.red : C.line}`, color: n.semEtiquetas ? C.red : C.text, background: "#fff" }}>{n.semEtiquetas ? "Emitir etiquetas" : "Etiquetas"}</button></span>}
-                      {n.semEtiquetas && <span className="block mt-1 text-[10px] font-semibold" style={{ color: C.red }} title="Emita as etiquetas quando o material for recebido">⚠ etiquetas não emitidas</span>}
+                      {n.semEtiquetas && <span className="flex items-center gap-1 mt-1 text-[10px] font-semibold" style={{ color: C.red }} title="Emita as etiquetas quando o material for recebido">⚠ etiquetas não emitidas
+                        {podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => dispensarEtq(n)} title="Esta NF não precisa de etiquetas de volume: tira a crítica" className="px-1.5 py-0.5 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}>Dispensar</button>}</span>}
+                      {n.etqDispensa && <span className="flex items-center gap-1 mt-1 text-[10px]" style={{ color: C.sub }} title={`Etiquetas dispensadas: ${n.etqDispensa}`}>etiquetas dispensadas
+                        {podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => dispensarEtq(n, true)} className="underline" style={{ color: C.accent }}>desfazer</button>}</span>}
                     </td>
                     <td className="px-3 py-2">{!n.km && podeImportar(user, "nfEntrada", "contasPagar", "contasReceber", "faturamento") && <button onClick={() => excluir(n)} title="Excluir registro" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                   </tr>
