@@ -95,7 +95,8 @@ async function anexosDaFpp(fppId) {
 const CSS = `
 @page { size: A4 landscape; margin: 0; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { margin: 0; font-family: 'Montserrat', Arial, sans-serif; color: #1B2A45; background: #888; }
+body { margin: 0; font-family: 'Montserrat', Arial, sans-serif; color: #1B2A45; background: #888; text-transform: uppercase; }
+.min { text-transform: none; }   /* e-mail, site e @ ficam como são */
 .pg { width: 297mm; height: 210mm; position: relative; overflow: hidden; background: #E8ECF2; page-break-after: always; break-after: page; margin: 0 auto; }
 .pg:last-child { page-break-after: auto; break-after: auto; }
 @media screen { .pg { margin: 10px auto; box-shadow: 0 2px 12px rgba(0,0,0,.25); } }
@@ -158,7 +159,7 @@ const capa = (cliente) => `
     <div style="font-size:30pt;font-weight:800;line-height:1.05">${ESC(String(cliente || "").toUpperCase())}.</div>
     <div class="barra" style="font-size:12pt;padding:3mm 6mm;margin-top:4mm">A <b>MERIDIAN</b> TEM ESTRUTURA PRA VESTIR SUA EQUIPE INTEIRA</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;margin-top:5mm">
-      ${[["1.600", "m²", "PARQUE FABRIL PRÓPRIO"], ["60", "mil", "PEÇAS/MÊS DE CAPACIDADE PRODUTIVA"], ["+100", "", "CLIENTES ATENDIDOS POR MÊS"], ["100%", "", "ETAPAS INTERNAS: DO CORTE À EMBALAGEM"]]
+      ${[["1.700", "m²", "PARQUE FABRIL PRÓPRIO"], ["60", "mil", "PEÇAS/MÊS DE CAPACIDADE PRODUTIVA"], ["+100", "", "CLIENTES ATENDIDOS POR MÊS"], ["100%", "", "ETAPAS INTERNAS: DO CORTE À EMBALAGEM"]]
     .map(([v, u, t]) => `<div class="card" style="padding:4mm 5mm;height:26mm"><div style="color:#FF6B1A;font-weight:800;font-size:19pt">${v}<span style="font-size:10pt"> ${u}</span></div><div style="font-size:6.8pt;font-weight:600;margin-top:1.5mm;line-height:1.35">${t}</div></div>`).join("")}
     </div>
     <div class="barra" style="position:absolute;left:0;width:135mm;top:105mm;font-size:9pt;padding:4mm 6mm;line-height:1.6">UMA CONFECÇÃO DE UNIFORMES DE <span class="lar">BELO HORIZONTE-MG</span> QUE ATENDE EMPRESAS DE <span class="lar">TODO O BRASIL</span></div>
@@ -262,8 +263,8 @@ const dadosCadastrais = () => `
         <p><b>CNAE:</b> 14.13-4-03. Facção de roupas profissionais</p>
         <p><b>Endereço:</b> Rua Doutor Natalino Triginelli, 281, Jardim Atlântico, Belo Horizonte-MG, CEP 31.710-420</p></div>
       <div><h4>Contato</h4>
-        <p><b>Pedro:</b> (31) 99930-2168</p><p><b>Igor:</b> (31) 99060-0506</p><p><b>E-mail:</b> contato@meridianpro.com.br</p>
-        <p><b>Site:</b> www.meridianpro.com.br</p><p><b>Instagram:</b> @meridian_uniformes</p></div>
+        <p><b>Pedro:</b> (31) 99930-2168</p><p><b>Igor:</b> (31) 99060-0506</p><p><b>E-mail:</b> <span class="min">contato@meridianpro.com.br</span></p>
+        <p><b>Site:</b> <span class="min">www.meridianpro.com.br</span></p><p><b>Instagram:</b> <span class="min">@meridian_uniformes</span></p></div>
       <div><h4>Dados bancários</h4>
         <p><b>Banco:</b> Bradesco (237)</p><p><b>Agência:</b> 1408</p><p><b>Conta corrente:</b> 13137-7</p><p><b>PIX:</b> 48011287000181 (CNPJ)</p></div>
     </div>
