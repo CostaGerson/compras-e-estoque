@@ -256,7 +256,7 @@ export default function MovimentoFiscal({ user }) {
                   <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, ...(n.critica ? { background: C.redSoft, color: C.red } : {}) }}>   {/* v360/v363 — crítica (sem conta lançada) */}
                     <td className="px-3 py-2"><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold" style={{ background: T.bg, color: T.c }}><T.I size={12} /> {T.t}</span></td>
                     <td className="px-3 py-2">{dBR(n.emissao)}</td>
-                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}{n.origem === "IMPORTAÇÃO CONTABILIDADE" && <div className="text-[10px] font-normal" style={{ color: C.sub }}>via contabilidade</div>}{n.km && <div className="text-[10px] font-normal" style={{ color: C.sub }}>emitida no KM</div>}</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{n.modelo} {n.numero}<ObsNf texto={n.obsNf} />{n.empresa === "NORT" && <span className="ml-1 px-1.5 rounded text-[10px]" style={{ background: C.roxoSoft, color: C.roxo }}>NORT</span>}{n.origem === "IMPORTAÇÃO CONTABILIDADE" && <div className="text-[10px] font-normal" style={{ color: C.sub }}>via contabilidade</div>}{n.km && <div className="text-[10px] font-normal" style={{ color: C.sub }}>emitida no KM</div>}</td>
                     <td className="px-3 py-2"><div className="font-semibold">{n.parceiro}</div><div style={{ color: C.sub }}>{fmtDoc(n.documento)}</div>
                       {n.tipo === "SAIDA" && !n.km && (n.pedido
                         ? <div className="mt-0.5"><span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: C.greenSoft, color: C.green }}>Pedido {n.pedido.numero}</span></div>
@@ -302,6 +302,12 @@ export default function MovimentoFiscal({ user }) {
   );
 }
 
+// v874 — ! amarela da observação da NF: passar o mouse mostra; clicar abre o texto
+export function ObsNf({ texto }) {
+  if (!String(texto || "").trim()) return null;
+  return <span role="button" title={`OBS DA NF: ${texto}`} onClick={(e) => { e.stopPropagation(); e.preventDefault(); alerta(`Observação da NF:\n\n${texto}`); }}
+    className="inline-flex items-center justify-center ml-1 rounded-full font-bold cursor-pointer align-middle shrink-0" style={{ width: 15, height: 15, fontSize: 11, lineHeight: 1, background: "#F5B800", color: "#fff" }}>!</span>;
+}
 const DECISOES = [["LANCAR", "Lançar contas"], ["REGISTRAR", "Só registrar"], ["IGNORAR", "Ignorar"]];
 
 // v162 — a importação fica aberta recebendo arquivos (arrastar várias vezes ou escolher), junta XML + PDF da mesma
@@ -625,6 +631,11 @@ function NotaConferencia({ n, i, contas, altN, altP, altValor, altVista, onGrava
                 <Campo t={n.modelo === "CT-e" ? "Transportadora" : n.tipo === "SAIDA" ? "Cliente" : "Fornecedor"}><input value={n.parceiro || ""} onChange={(e) => altN(i, "parceiro", e.target.value.toUpperCase())} className={inp} style={{ ...inpS, borderColor: n.parceiro ? C.line : C.yellow }} /></Campo>
                 {n.decisao === "LANCAR" && <Campo t="Título da conta"><input value={n.titulo || ""} onChange={(e) => altN(i, "titulo", e.target.value.toUpperCase())} className={inp} style={inpS} /></Campo>}
               </div>
+              {/* v874 — observação da NF: fica com ! amarela no movimento fiscal e nas contas a pagar/receber desta nota */}
+              <Campo t="Observação da NF (opcional) — aparece como ! amarela nas listas">
+                <textarea value={n.obsNf || ""} onChange={(e) => altN(i, "obsNf", e.target.value)} rows={2} placeholder="Ex.: conferir quantidade com o pedido de compra; pagar só depois da entrega…" className={inp} style={{ ...inpS, resize: "vertical", borderColor: n.obsNf ? C.yellow : undefined }} />
+              </Campo>
+              <div className="mb-3" />
             </>
           )}
           {n.decisao === "LANCAR" && (

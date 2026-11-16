@@ -50,6 +50,13 @@ const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")}
 const PERIODOS = { 1: "Mensal", 2: "Bimestral", 3: "Trimestral", 4: "Quadrimestral", 6: "Semestral", 12: "Anual" };
 const rotPeriodo = (n) => PERIODOS[Number(n) || 1] || `a cada ${n} meses`;
 // v697 — símbolo da recorrência; "M" discreto quando a recorrente vem da Matriz de custos
+// v874 — ! amarela da observação da NF (escrita na importação): passar o mouse mostra; clicar abre o texto
+function ObsNfC({ texto }) {
+  if (!String(texto || "").trim()) return null;
+  return <span role="button" title={`OBS DA NF: ${texto}`} onClick={(e) => { e.stopPropagation(); e.preventDefault(); alerta(`Observação da NF:\n\n${texto}`); }}
+    className="inline-flex items-center justify-center rounded-full font-bold cursor-pointer shrink-0" style={{ width: 15, height: 15, fontSize: 11, lineHeight: 1, background: "#F5B800", color: "#fff" }}>!</span>;
+}
+
 function MarcaRec({ m, size = 12 }) {
   return (
     <span className="inline-flex items-center shrink-0" title={m ? "Recorrente · vem da Matriz de custos" : "Recorrente"} style={{ color: C.roxo }}>
@@ -739,7 +746,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>
                     <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
-                        <MarcaA t={t} user={user} />{t.recorrenciaId && <MarcaRec m={!!t.recMatriz} />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span>
+                        <MarcaA t={t} user={user} />{t.recorrenciaId && <MarcaRec m={!!t.recMatriz} />}<span className="truncate" style={{ color: t.critica ? C.red : undefined }}>{t.titulo}</span><ObsNfC texto={t.obsNf} />
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                         <MarcaRemessa t={t} />
                       </div>

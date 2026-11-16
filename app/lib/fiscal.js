@@ -488,6 +488,8 @@ export async function gravar(notas, u) {
       }
     }
     await prisma.fiscalNota.update({ where: { id: reg.id }, data: { parcelas: parc } });
+    { const obs = String(n0.obsNf || "").trim().slice(0, 1000);   // v874 — observação da NF: na nota e nas contas dela
+      if (obs) { await prisma.fiscalNota.update({ where: { id: reg.id }, data: { obsNf: obs } }); const ids = parc.map((p) => p.tituloId).filter(Boolean); if (ids.length) await prisma.finTitulo.updateMany({ where: { id: { in: ids } }, data: { obsNf: obs } }); } }
     // v557 — CT-e: dados logísticos do frete (Análise da logística › Frete compra / Frete entrega)
     if (n.modelo === "CT-e" && n.cte) { try { const { gravarFrete } = await import("@/lib/fretes"); const f = await gravarFrete(reg.id, n); r.frete = f?.tipo || null; } catch (e) { console.log("fiscal/frete:", e.message); r.freteErro = e.message; } }
     // v555 — casamento escolhido na conferência: a NF atende este pedido (confere as peças com a expedição)
@@ -645,7 +647,7 @@ export async function listar({ de, ate, tipo, busca, km = false }) {
   const l = await prisma.fiscalNota.findMany({
     where, orderBy: [{ emissao: "desc" }, { id: "desc" }], take: 2000,
     select: { id: true, tipo: true, empresa: true, modelo: true, chave: true, numero: true, serie: true, emissao: true, parceiro: true, documento: true, natureza: true,
-      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true, estoqueStatus: true },
+      valor: true, acao: true, motivo: true, temXml: true, temPdf: true, parcelas: true, criadoPorNome: true, createdAt: true, pedidoNumero: true, estoqueStatus: true, obsNf: true },
   });
   // v555 — pedido atendido por cada NF de saída (casamento manual ou pelas regras automáticas)
   const pedDaNf = new Map();
