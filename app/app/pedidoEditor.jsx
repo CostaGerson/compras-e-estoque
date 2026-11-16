@@ -744,7 +744,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     await conferirPadroes();
     const r = await api(ppId ? `/api/pp/${ppId}` : "/api/pp", { method: ppId ? "PUT" : "POST", body: JSON.stringify(payload()) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || "Erro ao salvar.");
+    if (!r.ok) throw new Error(d.error || (r.status === 502 || r.status === 503 ? "O sistema está reiniciando (atualização no ar). Espere 1 minuto e tente de novo — o que você lançou continua na tela." : r.status === 413 ? "O pedido ficou grande demais para enviar (HTTP 413)." : `Erro ao salvar (HTTP ${r.status}).`));   // v871
     if (!ppId) setPpId(d.id);
     // anexos novos passam a ter id: recarrega a lista (sem o conteúdo)
     const atual = await api(`/api/pp/${d.id}`).then((x) => x.json()).catch(() => null);

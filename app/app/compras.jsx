@@ -26,11 +26,12 @@ function Origens({ l, unidade }) {
   if (!l?.length) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1">
-      {l.map((o) => (
-        <span key={o.pedido} className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
-          <b>{/^AV\d+$/.test(String(o.pedido)) ? "Avulsa" : o.pedido}</b>{o.cliente ? ` · ${String(o.cliente).replace(/^AVULSA\s+/i, "")}` : ""}{l.length > 1 ? <span style={{ color: C.sub }}> · {qtdU(o.quantidade, unidade)}</span> : null}
-        </span>
-      ))}
+      {l.map((o) => { const av = /^AV\d+$/.test(String(o.pedido)); const Tag = av ? "span" : "a";   // v871 — clicar no pedido abre ele em nova guia
+        return (
+        <Tag key={o.pedido} {...(av ? {} : { href: `/?v=pedido&numero=${encodeURIComponent(o.pedido)}`, target: "_blank", rel: "noopener", title: "Abrir o pedido em nova guia", onClick: (e) => e.stopPropagation() })}
+          className={`text-[11px] px-1.5 py-0.5 rounded ${av ? "" : "hover:underline cursor-pointer"}`} style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <b>{av ? "Avulsa" : o.pedido}</b>{o.cliente ? ` · ${String(o.cliente).replace(/^AVULSA\s+/i, "")}` : ""}{l.length > 1 ? <span style={{ color: C.sub }}> · {qtdU(o.quantidade, unidade)}</span> : null}
+        </Tag>); })}
     </div>
   );
 }
