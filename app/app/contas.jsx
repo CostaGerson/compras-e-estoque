@@ -871,7 +871,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       setAn(Object.fromEntries((j.analise || []).map((x) => [x.nome, { ok: !x.jaEnviado, competencia: x.competencia }])));
       const ja = (j.analise || []).map((x) => x.arquivoId).filter(Boolean);
       if (ja.length) setBaixaIds((v) => [...new Set([...v, ...ja])]);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA"].includes(it.tipo) || (it.tipo === "FOLHA" && it.novo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA", "BORDERO"].includes(it.tipo) || (it.tipo === "FOLHA" && it.novo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
         valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
       return j;
     }

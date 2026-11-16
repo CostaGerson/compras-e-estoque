@@ -186,10 +186,34 @@ DETECTORES.push(
   },
 );
 
+// ---- v879 — Borderô de cheques (factoring / ESC, ex.: Azul Capital): cada cheque vira uma conta a pagar
+//      valor = valor do cheque · vencimento = vencimento do cheque · parceiro = quem comprou o cheque ----
+DETECTORES.push({
+  tipo: "BORDERO",
+  casa: (L) => L.some((l) => /^Border[ôo]\s+Cheques/i.test(l)) && L.some((l) => /N[ºo°]\s*Opera[çc][ãa]o/i.test(l)),
+  ler(L) {
+    const t = L.join("\n");
+    const op = (t.match(/N[ºo°]\s*Opera[çc][ãa]o:\s*(\d+)/i) || [])[1] || null;
+    const iC = L.findIndex((l) => /^CNPJ:/i.test(l));
+    const credor = String(iC > 0 ? L[iC - 1] : "").replace(/\s+FACTOR\s*$/i, "").trim().toUpperCase();
+    const cnpj = ((t.match(/CNPJ:\s*([\d./-]{14,18})/i) || [])[1] || "").replace(/\D/g, "");
+    const dataOp = (t.match(/Data Opera[çc][ãa]o:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
+    const fator = (t.match(/Fator:\s*([\d,]+)\s*%/i) || [])[1] || null;
+    const V = "([\\d.]+,\\d{2})";
+    const re = new RegExp(`(\\d{11,14})\\s+(\\d{1,4})\\s+(\\d{1,4})\\s+(\\d{3,12})\\s+(\\d{2}\\/\\d{2}\\/\\d{4})\\s+(\\d{2}\\/\\d{2}\\/\\d{4})\\s+(\\d+)\\s+${V}\\s+${V}(?:\\s+${V}){4}\\s+${V}`, "g");
+    const cheques = [];
+    let m;
+    while ((m = re.exec(t))) cheques.push({ emitente: m[1], banco: m[3], cheque: m[4], vencimento: dataBR(m[5]), valor: num(m[8]), factoring: num(m[9]), liquido: num(m[11]) });
+    const res = t.match(/Valor Liquido\s*\n?\s*([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})/i);
+    return { operacao: op, credor, cnpj, dataOperacao: dataOp ? dataBR(dataOp) : null, fator, cheques,
+      valorOperacao: res ? num(res[1]) : null, tarifas: res ? num(res[3]) : null, liquido: res ? num(res[4]) : null, empresa: "MERIDIAN" };
+  },
+});
+
 export async function lerDocumento(nome, buf, senha) {
   const L = await textoDoc(buf, senha);
   const d = DETECTORES.find((x) => x.casa(L));
-  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", texto: L.slice(0, 120), erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS)." };
+  if (!d) return { arquivo: nome, tipo: "DESCONHECIDO", texto: L.slice(0, 120), erro: "Não reconheci este documento (folha, resumo de líquidos, recibo, guia de INSS ou FGTS, borderô de cheques)." };
   return { ...d.ler(L), arquivo: nome, tipo: d.tipo };
 }
 
@@ -434,6 +458,27 @@ export async function analisarDocumentos(docs) {
       novo: { titulo: `${nort ? "NORT - " : ""}${nomeG} ${d.comp ? d.comp.split("-").reverse().join("/") : ""}`.trim(), parceiro: tipoG === "FGTS" ? "CAIXA ECONÔMICA FEDERAL" : "RECEITA FEDERAL",
         vencimento: d.vencimento, contaId: rateio?.[0]?.contaId || null },
     });
+  }
+  // v879 — borderô de cheques: uma conta a pagar por cheque (valor do cheque, no vencimento do cheque)
+  for (const d of docs.filter((x) => x.tipo === "BORDERO")) {
+    const curto = /AZUL CAPITAL/.test(d.credor) ? "AZUL CAPITAL" : d.credor || "FACTORING";
+    const ant = await prisma.finTitulo.findFirst({ where: { tipo: "PAGAR", parceiro: { startsWith: curto.split(" ").slice(0, 2).join(" ") } }, orderBy: { createdAt: "desc" }, select: { rateio: true, parceiro: true } });
+    if (!d.cheques.length) itens.push({ chave: `BORDERO|${d.operacao}|${d.arquivo}`, tipo: "BORDERO", empresa: "MERIDIAN", comp: null, refTexto: "", descricao: `Borderô ${d.operacao || "?"} — ${curto}`,
+      valor: 0, arquivos: [d.arquivo], avisos: ["Não consegui ler os cheques deste borderô."], alvo: null, opcoes: [], novo: null });
+    for (const c of d.cheques) {
+      const comp = c.vencimento ? mesDe(c.vencimento) : null;
+      const opcoes = comp ? await contasDoMes(comp) : [];
+      const alvo = opcoes.find((t) => new RegExp(`\\bBD\\s*${d.operacao}\\b|BORDER[OÔ]\\s*${d.operacao}\\b|CHEQUE\\s*${c.cheque}\\b`).test(normRegra(`${t.titulo} ${t.parceiro}`)));
+      itens.push({
+        chave: `BORDERO|${d.operacao}|${c.cheque}`, tipo: "BORDERO", empresa: "MERIDIAN", comp, refTexto: comp ? nomeMes(comp) : "?",
+        descricao: `Borderô ${d.operacao} · cheque ${c.cheque} — ${curto} · vence ${dBR(c.vencimento)}`,
+        valor: r2(c.valor), arquivos: [d.arquivo], vencimento: c.vencimento,
+        avisos: [`Operação de ${dBR(d.dataOperacao)}: líquido recebido R$ ${(d.liquido ?? c.liquido).toFixed(2).replace(".", ",")} (factoring R$ ${c.factoring.toFixed(2).replace(".", ",")}${d.tarifas ? `, tarifas R$ ${d.tarifas.toFixed(2).replace(".", ",")}` : ""}). A conta a pagar é o valor do cheque.`],
+        alvo: saida(alvo), opcoes: opcoes.map(saida),
+        novo: { titulo: `ANTECIPAÇÃO BD${d.operacao} · CHEQUE ${c.cheque}`.slice(0, 120), parceiro: ant?.parceiro || curto, vencimento: c.vencimento,
+          contaId: Array.isArray(ant?.rateio) && ant.rateio.length ? ant.rateio[0].contaId : null },
+      });
+    }
   }
   return itens;
 }
