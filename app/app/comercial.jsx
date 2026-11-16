@@ -136,22 +136,18 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
   return (
     <div>
       {/* v842 — solicitar lançamento: mensagem do sistema para o PCP (saiu de dentro da Orçamentação) */}
-      <div className="flex justify-end mb-3" style={{ maxWidth: 1100 }}>
-        <button onClick={() => setSolLanc(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
-          <Send size={15} /> Solicitar lançamento
-        </button>
-      </div>
       {solLanc && <SolicitarLancamento user={user} onClose={() => setSolLanc(false)} />}
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", maxWidth: 1100 }}>
         {[
           ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
+          ["solic", Send, "Solicitar lançamento", "Manda o pedido para o PCP lançar", () => setSolLanc(true)],   // v844 — card laranja
         ].map(([k, Ico, t, sub, go]) => (
-          <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
-            <div className="flex items-center justify-between"><Ico size={26} style={{ color: C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: C.sub }} />}</div>
+          <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={k === "solic" ? { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+            <div className="flex items-center justify-between"><Ico size={26} style={{ color: k === "solic" ? "#fff" : C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: C.sub }} />}</div>
             <div className="text-lg font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
+            <div className="text-xs mt-1" style={{ color: k === "solic" ? "rgba(255,255,255,0.85)" : C.sub }}>{sub}</div>
           </button>
         ))}
       </div>
