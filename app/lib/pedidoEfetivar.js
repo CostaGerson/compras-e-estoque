@@ -274,6 +274,7 @@ export async function efetivarPedido(id, quem) {
   const ped = atual
     ? await prisma.pedidoVenda.update({ where: { id: atual.id }, data: dados, select: { id: true } })
     : await prisma.pedidoVenda.create({ data: { numero, ...dados, status: "ANDAMENTO", criadoPorNome: quem }, select: { id: true } });
+  try { await (await import("@/lib/pedidoIdentico")).avisarPedidosIdenticos(); } catch (e) { console.log("pedido idêntico:", e.message); }   // v866
   await prisma.pp.update({ where: { id: pp.id }, data: { status: pp.status === "FATURADO" ? "FATURADO" : "LANCADO", efetivadoEm: new Date(), efetivadoPorNome: quem, valorTotal: total } });
   // v792d — avisa o PCP na hora: ele relê este pedido (grade, detalhes, anexos) sem esperar a leitura periódica
   setTimeout(() => { getPcp(`/api/ext/erp-aviso?pedido=${encodeURIComponent(numero)}`).catch(() => {}); }, 2000);

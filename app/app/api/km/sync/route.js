@@ -22,6 +22,7 @@ export async function POST(req) {
   const previa = new URL(req.url).searchParams.get("previa") === "1";
   try {
     const r = await sincronizarKm(b?.pedidos, { previa, nfs: b?.nfs, nfsDesde: b?.nfsDesde });
+    if (!previa) try { await (await import("@/lib/pedidoIdentico")).avisarPedidosIdenticos(); } catch (e) { console.log("pedido idêntico:", e.message); }   // v866
     return Response.json({ ok: true, previa, ...r });
   } catch (e) {
     console.log("km/sync:", e);

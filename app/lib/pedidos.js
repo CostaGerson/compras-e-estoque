@@ -161,6 +161,7 @@ export async function aplicarLidos(lidos0, quem) {
       out.push({ nome: l.nome, tipo: "PP", numero: l.numero, cliente: l.cliente || atual?.cliente, itens: l.itens.length, novo: !atual, semPv: !atual?.pvPdf && !l.fonteKm });
     }
   }
+  try { await (await import("@/lib/pedidoIdentico")).avisarPedidosIdenticos(); } catch (e) { console.log("pedido idêntico:", e.message); }   // v866
   // v321 — relê o Cronograma para casar os pedidos novos na hora
   try { await sincronizar({ forcar: true }); } catch {}
   // v320 — espelha no Lançar PP
@@ -254,6 +255,7 @@ export async function aplicarPosicaoVendas(l0, quem) {
   for (let i = 0; i < ops.length; i += 100) await prisma.$transaction(ops.slice(i, i + 100));
   // v326 — todo pedido deve constar no Lançar PP: cria uma casca de PP para quem ainda não tem
   const espelhados = await espelharTodosPp(nums, quem);
+  try { await (await import("@/lib/pedidoIdentico")).avisarPedidosIdenticos(); } catch (e) { console.log("pedido idêntico:", e.message); }   // v866
   try { await sincronizar({ forcar: true }); } catch {}
   return { tipo: "POSICAO", criados, atualizados, pendentesNovos, ppCriados: espelhados, ...conf };
 }
