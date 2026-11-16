@@ -385,12 +385,13 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         || (fSit === "ABERTOS" && (aberta || (!P && antPendente(t)))) || (fSit === "VIRTUAL" && (aberta || antPendente(t)))
         || (fSit === "REAL" && aberta) || (fSit === "PAGO" && s === "LIQ"))) return false;
       if (!n) return true;
-      return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => String(x || "").toUpperCase().includes(n));
+      const na = semAc(n);   // v838 — busca sem acento: "pe direito" acha "PÉ DIREITO"
+      return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => semAc(x).includes(na));
     });
   }, [d, busca, fSit, contasPorId, soCompra, soRec, P]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase();
-    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => String(x || "").toUpperCase().includes(n))));
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => semAc(x).includes(semAc(n)))));
   }, [d, dIni, busca, soCompra, soRec, P]);
   // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
   const tot = useMemo(() => {
