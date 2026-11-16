@@ -1505,7 +1505,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const [alvo, setAlvo] = useState(null);        // data-zona sob o ponteiro
   const [diaArr, setDiaArr] = useState(null);    // dia em que a tarefa está sendo posicionada
   const arrAtivo = useRef(false), semClique = useRef(0), diaArrRef = useRef(null), ancora = useRef(null), rolRef = useRef(null);
-  const diaAmp = arr && diaArr ? diaArr : selDia;
+  const diaAmp = arr && diaArr ? diaArr : arr && !mobile && modo === "mes" ? null : selDia;   // v858 — mês no PC: arrastando, só amplia após 2 s sobre o dia
   const diasVis = modo === "semana" && !verPassados ? dias.filter((x) => x >= H || (porDia[x] || []).length > 0) : dias;   // v683
   const nOcultos = dias.length - diasVis.length;
   const nCols = modo === "semana" ? diasVis.length || 1 : 7;
@@ -1544,13 +1544,16 @@ export function Agenda({ user, pedidoModo, onModo }) {
     if (toque) { try { navigator.vibrate?.(25); } catch {} }
     rolRef.current = rolante(el);
     let pos = [x, y], z = null, raf = 0, tmDia = 0, diaPend = null;
-    arrAtivo.current = true; diaArrRef.current = null; setArr({ t, x, y, toque }); mudarDia(t.prazo);
+    // v858 — mês no PC: nenhum dia amplia ao começar o arraste (fica fácil levar a tarefa para outra semana)
+    const mesPc = !mobile && modo === "mes";
+    arrAtivo.current = true; diaArrRef.current = null; setArr({ t, x, y, toque }); if (!mesPc) mudarDia(t.prazo);
     document.body.style.userSelect = "none"; document.body.style.webkitUserSelect = "none"; document.body.style.cursor = toque ? "" : "grabbing";
     try { window.getSelection()?.removeAllRanges(); } catch {}
     const semSel = (e) => e.preventDefault();
     document.addEventListener("selectstart", semSel); document.addEventListener("contextmenu", semSel);
     // v611 — celular/mês: só troca o dia da régua parando ~0,5 s em cima dele (passar pelos dias a caminho da régua não muda o dia)
-    const esperaDia = mobile && modo === "mes" ? 550 : 140;
+    // v858 — mês no PC: o dia só amplia (com a régua de horários) depois de 2 s com o cursor parado em cima dele
+    const esperaDia = mobile && modo === "mes" ? 550 : mesPc ? 2000 : 140;
     const achar = () => {
       const nz = document.elementFromPoint(pos[0], pos[1])?.closest?.("[data-zona]")?.dataset.zona || null;
       if (nz !== z) { z = nz; setAlvo(nz); }
