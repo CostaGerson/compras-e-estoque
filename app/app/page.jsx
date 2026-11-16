@@ -1942,7 +1942,7 @@ function Estoque({ money, master }) {
     try {
       const [f, a] = await Promise.all([
         fetch("/api/fornecedores").then((r) => r.json()),
-        fetch("/api/artigos").then((r) => r.json()),
+        fetch("/api/artigos?estoque=1").then((r) => r.json()),
       ]);
       setFornecedores(Array.isArray(f) ? f : []);
       setArtigos(Array.isArray(a) ? a : []);
@@ -2494,7 +2494,7 @@ function Artigos({ money, master }) {
     try {
       const [f, a] = await Promise.all([
         fetch("/api/fornecedores").then((r) => r.json()),
-        fetch("/api/artigos").then((r) => r.json()),
+        fetch("/api/artigos?estoque=1").then((r) => r.json()),
       ]);
       setFornecedores(Array.isArray(f) ? f : []);
       setArtigos(Array.isArray(a) ? a : []);

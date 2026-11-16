@@ -2243,7 +2243,7 @@ function detDoArtigo(a) {
 function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick }) {
   const [arts, setArts] = useState(_artCache || []);
   const [open, setOpen] = useState(false);
-  useEffect(() => { if (!_artCache) fetch("/api/artigos").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; setArts(_artCache); }).catch(() => {}); }, []);
+  useEffect(() => { if (!_artCache) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; setArts(_artCache); }).catch(() => {}); }, []);
   const q = semAcA(nome).trim();
   const pal = q.split(/\s+/).filter(Boolean);
   const lista = !pal.length ? [] : arts.filter((a) => a.categoria === categoria && pal.every((w) => semAcA([a.nome, a.artigoInterno, a.codigo, a.codigoFornecedor, a.cor, a.composicao].join(" ")).includes(w))).slice(0, 12);

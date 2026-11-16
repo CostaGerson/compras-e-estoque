@@ -175,7 +175,7 @@ const chaveDet = (d) => ({
 const temAlgumDetalhe = (d) => d && ["fornecedorId", "cor", "codigo", "largura", "gramatura", "rendimento", "tipoMalha", "obs"].some((k) => !vazio(d[k]));
 
 // procura o artigo idêntico (mesma categoria, nome e mesmos campos de identificação, vazio = vazio); senão cria
-export async function artigoDaFpp(m, fpp, db = prisma) {
+export async function artigoDaFpp(m, fpp, db = prisma, { criar = true } = {}) {   // v851 — criar:false só procura (salvar a FPP não cadastra artigo)
   const k = chaveDet(m.det || {});
   // v523 — revenda: fornecedor digitado na ficha → cadastro de fornecedores pelo nome
   if (!k.fornecedorId && m.det?.fornecedorNome) {
@@ -195,9 +195,10 @@ export async function artigoDaFpp(m, fpp, db = prisma) {
     ...(m.valorUnitario != null ? { valorUnitario: m.valorUnitario } : {}),
   };
   if (igual) {
-    if (Object.keys(dados).length) await db.artigo.update({ where: { id: igual.id }, data: dados });
+    if (criar && Object.keys(dados).length) await db.artigo.update({ where: { id: igual.id }, data: dados });
     return igual.id;
   }
+  if (!criar) return null;
   const novo = await db.artigo.create({ data: {
     categoria: m.categoria, nome: m.nome, unidade: m.unidade, fornecedorId: k.fornecedorId, cor: k.cor, codigo: k.codigo,
     ...(m.det?.obs ? { especificacao: String(m.det.obs).toUpperCase() } : {}),
@@ -222,7 +223,9 @@ export async function sincronizarArtigosFpp(fpp, db = prisma) {
     // só cadastra quando alguém abriu o "+" e preencheu algo (FPP de proposta não enche o cadastro);
     // sem detalhe, o cadastro pelo nome acontece quando a FPP vira base de um pedido (demandaDoItem)
     if (!temAlgumDetalhe(m.det)) continue;
-    const id = await artigoDaFpp(m, fpp, db);
+    // v851 — só liga a FPP a um artigo que já existe; o cadastro novo nasce quando a FPP vira pedido (demandaDoItem)
+    const id = await artigoDaFpp(m, fpp, db, { criar: false });
+    if (!id) continue;
     let atual = lerDet(novas, m.ref);
     if (atual.artigoId !== id) { atual = { ...atual, artigoId: id }; novas = gravarDet(novas, m.ref, atual); mudou = true; }
     // v664 — demais cores do mesmo tecido também entram no cadastro de artigos
@@ -230,7 +233,8 @@ export async function sincronizarArtigosFpp(fpp, db = prisma) {
       const vs = [];
       for (const v of atual.variantes) {
         if (!v || vazio(v.cor)) { vs.push(v); continue; }
-        const vid = await artigoDaFpp({ ...m, det: { ...m.det, cor: v.cor, codigo: v.codigo || null, artigoId: undefined } }, fpp, db);
+        const vid = await artigoDaFpp({ ...m, det: { ...m.det, cor: v.cor, codigo: v.codigo || null, artigoId: undefined } }, fpp, db, { criar: false });
+        if (!vid) { vs.push(v); continue; }
         vs.push({ ...v, artigoId: vid }); if (v.artigoId !== vid) mudou = true;
       }
       novas = gravarDet(novas, m.ref, { ...atual, variantes: vs });

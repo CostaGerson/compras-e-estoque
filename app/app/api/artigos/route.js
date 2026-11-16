@@ -13,9 +13,12 @@ const dec = (v) => {
 };
 const up = (v) => (v ? String(v).toUpperCase() : null);
 
-export async function GET() {
+// v851 — ?estoque=1: só o que entrou no estoque por NF ou por lançamento manual. Artigo que nasceu da FPP (origem "FPP")
+//   só aparece depois de ter NF, movimentação ou saldo. Sem o parâmetro (compras, FME, banco de dados): todos.
+export async function GET(req) {
+  const soEstoque = new URL(req.url).searchParams.get("estoque") === "1";
   const artigos = await prisma.artigo.findMany({
-    where: { ativo: true },
+    where: { ativo: true, ...(soEstoque ? { OR: [{ origem: null }, { origem: { not: "FPP" } }, { nfId: { not: null } }, { nfItens: { some: {} } }, { movimentacoes: { some: {} } }, { saldos: { some: {} } }] } : {}) },
     include: {
       fornecedor: true,
       nf: { select: { id: true, numero: true, temPdf: true, temXml: true } },
