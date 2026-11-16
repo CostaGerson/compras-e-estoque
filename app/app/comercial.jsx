@@ -9,7 +9,8 @@ import {
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 import { ItemPadraoModal } from "./itensPadrao";
 import SolicitarLancamento from "./solicitarLancamento";   // v812   // v701 — tornar a FPP um item padrão do cliente
-import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";   // v692 — FPP em PDF no padrão do PV
+import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";
+import { gerarPropostaPdf } from "./propostaPdf";   // v848 — proposta no padrão do CRM, gerada pelo sistema   // v692 — FPP em PDF no padrão do PV
 
 /* Paleta Meridian (igual ao restante do sistema) */
 const C = {
@@ -1892,40 +1893,46 @@ function ProposalModal({ fichas, onClose, negociacao, onEnviado }) {   // v520 �
     if (r.ok) onEnviado?.(d);
   }
 
-  function imprimir() {
-    const R = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    const linhas = items.map((it, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td><b>${it.description}</b>${it.details ? `<div style="color:#667085;font-size:11px">${it.details}</div>` : ""}</td>
-        <td style="text-align:center">${it.qty ?? "—"}</td>
-        <td style="text-align:right">${R((it.unit_price_cents || 0) / 100)}</td>
-        <td style="text-align:right">${R(((it.unit_price_cents || 0) * (Number(it.qty) || 0)) / 100)}</td>
-        <td>${leadTxt(fichas[i] || {}) || "—"}</td>
-      </tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proposta ${cliente}</title>
-      <style>
-        body{font-family:Montserrat,Arial,sans-serif;color:#1F2733;padding:32px}
-        .top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #FF6B1A;padding-bottom:12px;margin-bottom:20px}
-        .marca{font-size:22px;font-weight:800;color:#001E41}
-        h1{font-size:16px;margin:0 0 4px}
-        table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
-        th,td{border:1px solid #E4E7EC;padding:8px}
-        th{background:#001E41;color:#fff;text-align:left}
-        .tot{text-align:right;font-size:15px;font-weight:800;margin-top:16px;color:#001E41}
-        .obs{color:#667085;font-size:12px;margin-top:24px}
-      </style></head><body>
-      <div class="top"><div class="marca">MERIDIAN</div><div style="text-align:right"><h1>Proposta comercial</h1><div style="color:#667085;font-size:12px">${hoje}</div></div></div>
-      <div><b>Cliente:</b> ${cliente}</div>
-      <table><thead><tr><th>#</th><th>Item</th><th style="text-align:center">Qtde</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th><th>Prazo</th></tr></thead>
-      <tbody>${linhas}</tbody></table>
-      <div class="tot">Total geral: ${totalGeral.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
-      ${condicoes ? `<div style="margin-top:12px"><b>Condição de pagamento:</b> ${condicoes}</div>` : ""}
-      ${prazo ? `<div style="margin-top:4px"><b>Entrega:</b> ${prazo}</div>` : ""}
-      <div class="obs">Proposta gerada pelo sistema Meridian. Valores sujeitos a confirmação.</div>
-      </body></html>`;
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); }
+  // v848 — PDF da proposta no padrão do CRM: condições pelo pagamento lançado em cada FPP; anexos da FPP na página do item.
+  //   Depois de gerar, pergunta se envia também ao CRM.
+  const [validade, setValidade] = useState("15 DIAS");
+  const [frete, setFrete] = useState("A combinar");
+  const [gerando, setGerando] = useState("");
+  function pagamentoDaProposta() {
+    const QUANDO = { EMISSAO: "O PEDIDO", NF: "A EMISSÃO DA NF", ENTREGA: "A ENTREGA" };
+    const NO = { EMISSAO: "NA CONFIRMAÇÃO DO PEDIDO", NF: "NO FATURAMENTO (EMISSÃO DA NF)", ENTREGA: "NA ENTREGA" };
+    const grupos = new Map();
+    fichas.forEach((f, i) => {
+      const it = items[i] || {};
+      const tot = ((Number(it.unit_price_cents) || 0) * (Number(it.qty) || 0)) / 100;
+      const pag = pagamentoFpp(f.entradas || { condPagamento: f.condicaoPagamento });
+      const fr = fracoesPag(pag, tot || 1);
+      const texto = textoPagFpp(pag, tot || 1);
+      const g = grupos.get(texto) || { texto, nomes: [], total: 0, fr };
+      g.nomes.push(it.description || f.nomeComercial || f.item); g.total += tot; grupos.set(texto, g);
+    });
+    return [...grupos.values()].map((g) => ({
+      texto: g.texto, itens: g.nomes.join(", "),
+      linhas: [
+        ...(g.fr.entrada > 0 ? [{ rotulo: "ENTRADA", frac: g.fr.entrada, valor: g.total * g.fr.entrada, quando: "NA CONFIRMAÇÃO DO PEDIDO" }] : []),
+        ...g.fr.parcelas.map((x, k) => ({ rotulo: g.fr.parcelas.length > 1 || g.fr.entrada > 0 ? `PARCELA ${k + 1}` : "PAGAMENTO ÚNICO", frac: x.frac, valor: g.total * x.frac,
+          quando: x.dias > 0 ? `${x.dias} DIAS ${x.tipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"} APÓS ${QUANDO[x.base]}` : NO[x.base] })),
+      ],
+    }));
+  }
+  async function imprimir() {
+    setGerando("Gerando…");
+    try {
+      await gerarPropostaPdf({
+        cliente,
+        itens: items.map((it, i) => ({ n: i + 1, fppId: fichas[i]?.id, nome: it.description, det: it.details, qtd: Number(it.qty) || 0,
+          unit: (Number(it.unit_price_cents) || 0) / 100, total: ((Number(it.unit_price_cents) || 0) * (Number(it.qty) || 0)) / 100, lead: leadTxt(fichas[i] || {}) })),
+        pagamento: pagamentoDaProposta(), prazo, validade, frete,
+        rodape: [negs.length ? `NEGOCIAÇÃO ${negs.join(", ")}` : "", `FPP ${fichas.map((f) => fmtFpp(f.numero)).join(", ")}`].filter(Boolean).join(" · "),
+      }, setGerando);
+    } catch (e) { setGerando(""); return alerta(e.message || "Não foi possível gerar a proposta."); }
+    setGerando("");
+    if (!meta?.error && ownerId && !res?.ok && (await confirmar("Proposta gerada. Deseja enviar esta proposta também ao CRM?"))) enviarCrm();
   }
 
   return (
@@ -1984,12 +1991,20 @@ function ProposalModal({ fichas, onClose, negociacao, onEnviado }) {   // v520 �
               <div className="text-xs mb-1" style={{ color: C.sub }}>Prazo de entrega (lead time)</div>
               <input value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
             </div>
+            <div className="md:col-span-2">
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Orçamento válido por</div>
+              <input value={validade} onChange={(e) => setValidade(e.target.value.toUpperCase())} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+            </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Frete</div>
+              <input value={frete} onChange={(e) => setFrete(e.target.value)} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+            </div>
             {clientes.length > 1 && <div className="md:col-span-3 text-xs" style={{ color: C.yellow }}>As FPPs têm {clientes.length} clientes diferentes — a proposta sai para o cliente escolhido.</div>}
           </div>
 
           <div className="flex justify-end gap-2">
-            <button onClick={imprimir} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>
-              <FileText size={15} /> PDF / impressão
+            <button onClick={imprimir} disabled={!!gerando} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}`, opacity: gerando ? 0.6 : 1 }}>
+              <FileText size={15} /> {gerando || "PDF / impressão"}
             </button>
             <button onClick={enviarCrm} disabled={enviando || !ownerId} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: enviando ? 0.6 : 1 }}>
               <Send size={15} /> {enviando ? "Enviando…" : "Enviar ao CRM"}
