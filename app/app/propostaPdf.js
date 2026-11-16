@@ -11,8 +11,8 @@ const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julh
 const dataExtenso = (d = new Date()) => `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 
 const MARCAS = Array.from({ length: 19 }, (_, i) => `/proposta/logo-${String(i + 1).padStart(2, "0")}.png`);
-// a 3ª marca (TERRAÇO) não tem imagem: entra escrita
-const GRADE_MARCAS = [MARCAS[0], MARCAS[1], "TERRAÇO", ...MARCAS.slice(2)];
+// v850 — a 3ª marca é a TERRAÇO (logo enviada pelo Igor)
+const GRADE_MARCAS = [MARCAS[0], MARCAS[1], "/proposta/logo-terraco.png", ...MARCAS.slice(2)];
 
 const blobParaDataUrl = (b) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => ok(null); r.readAsDataURL(b); });
 
