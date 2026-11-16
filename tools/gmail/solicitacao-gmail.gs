@@ -17,8 +17,10 @@ function enviarSolicitacoes() {
   if (!origem) throw new Error("Etiqueta não encontrada: " + ETIQUETA_ORIGEM);
   const feito = GmailApp.getUserLabelByName(ETIQUETA_FEITO) || GmailApp.createLabel(ETIQUETA_FEITO);
   const threads = origem.getThreads(0, 50);
+  const ignorar = PropertiesService.getScriptProperties();
   for (const th of threads) {
     if (th.getLabels().some((l) => l.getName() === ETIQUETA_FEITO)) continue;
+    if (ignorar.getProperty("ign:" + th.getId())) continue;   // já estava na etiqueta quando o script foi instalado (pedido já lançado)
     try { enviarConversa(th); th.addLabel(feito); }
     catch (e) { console.log("Falhou: " + th.getFirstMessageSubject() + " — " + e.message); }
   }
@@ -57,9 +59,15 @@ function chamar(corpo) {
   return j;
 }
 
-/** Rode UMA vez: liga a verificação automática a cada 5 minutos. */
+/** Rode UMA vez: guarda as conversas que JÁ estão na etiqueta (já lançadas — não vão para o ERP)
+ *  e liga a verificação automática a cada 5 minutos. Só o que entrar na etiqueta depois disso é enviado. */
 function instalar() {
+  const origem = GmailApp.getUserLabelByName(ETIQUETA_ORIGEM);
+  if (!origem) throw new Error("Etiqueta não encontrada: " + ETIQUETA_ORIGEM);
+  const props = PropertiesService.getScriptProperties();
+  let n = 0, inicio = 0, lote;
+  do { lote = origem.getThreads(inicio, 100); lote.forEach((th) => { props.setProperty("ign:" + th.getId(), "1"); n++; }); inicio += 100; } while (lote.length === 100);
   ScriptApp.getProjectTriggers().forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger("enviarSolicitacoes").timeBased().everyMinutes(5).create();
-  enviarSolicitacoes();
+  console.log(n + " conversa(s) que já estavam na etiqueta ficaram de fora. A partir de agora, só as novas vão para o ERP.");
 }
