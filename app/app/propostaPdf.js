@@ -188,11 +188,11 @@ function tabela(d, itens, primeira, ultimo) {
       <td><b style="font-size:9.5pt">${ESC(it.nome)}</b>${it.det ? `<div style="font-size:7pt;color:#6B7A90;margin-top:.8mm;text-transform:uppercase">${ESC(it.det)}</div>` : ""}</td>
       <td class="c" style="width:22mm">${N(it.qtd)}</td>
       <td class="r" style="width:32mm">${R$(it.unit)}</td>
-      <td class="r" style="width:36mm;color:#FF6B1A;font-weight:800">${R$(it.total)}</td></tr>${layoutDoItem(it)}`).join("");
+      <td class="c" style="width:36mm;color:#FF6B1A;font-weight:800">${R$(it.total)}</td></tr>${layoutDoItem(it)}`).join("");
   return `<div class="cont">
     <div class="barra">PROPOSTA COMERCIAL${primeira ? "" : " <span style='font-size:11pt;font-weight:600'>(continuação)</span>"}</div>
     <div class="sub">Para <b>${ESC(String(d.cliente || "").toUpperCase())}</b> · ${dataExtenso()}</div>
-    ${itens.length ? `<table class="it"><thead><tr><th>Item</th><th>Produto e descrição</th><th class="c">Qtd</th><th class="r">Unitário</th><th class="r">Total</th></tr></thead><tbody>${linhas}</tbody></table>` : ""}
+    ${itens.length ? `<table class="it"><thead><tr><th>Item</th><th>Produto e descrição</th><th class="c">Qtd</th><th class="r">Unitário</th><th class="c">Total</th></tr></thead><tbody>${linhas}</tbody></table>` : ""}
     ${ultimo ? `<div class="card" style="margin-top:5mm;padding:5mm 6mm;display:flex;justify-content:space-between;align-items:center">
       <div style="font-weight:700;font-size:9pt">${N(d.pecas)} PEÇAS · ${d.itens.length} ${d.itens.length === 1 ? "ITEM" : "ITENS"}</div>
       <div class="r"><div class="rot">Total</div><div style="color:#FF6B1A;font-weight:800;font-size:19pt">${R$(d.total)}</div></div></div>` : ""}
