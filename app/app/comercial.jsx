@@ -101,6 +101,7 @@ async function clonarFpp(fpp, user, origemId) {
 
 /* ============================================================ */
 export default function Comercial({ user, master, fppInicial, componentes = {} }) {
+  const [solLanc, setSolLanc] = useState(false);   // v812 · v842 — botão na tela principal do Comercial
   const [view, setView] = useState(fppInicial?.id ? "fpp" : null); // null = landing (2 cards) | "fpp" | "acomp"
   const voltarFpp = useRef(null);   // v513 — o Voltar devolve para onde estava (negociação, lista, pedido…) antes de sair da FPP
 
@@ -134,16 +135,23 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
 
   return (
     <div>
+      {/* v842 — solicitar lançamento: mensagem do sistema para o PCP (saiu de dentro da Orçamentação) */}
+      <div className="flex justify-end mb-3" style={{ maxWidth: 1100 }}>
+        <button onClick={() => setSolLanc(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+          <Send size={15} /> Solicitar lançamento
+        </button>
+      </div>
+      {solLanc && <SolicitarLancamento user={user} onClose={() => setSolLanc(false)} />}
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", maxWidth: 1100 }}>
         {[
           ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
         ].map(([k, Ico, t, sub, go]) => (
-          <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
-            <div className="flex items-center justify-between"><Ico size={26} style={{ color: C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: "#9FB0C7" }} />}</div>
+          <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+            <div className="flex items-center justify-between"><Ico size={26} style={{ color: C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: C.sub }} />}</div>
             <div className="text-lg font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
           </button>
         ))}
       </div>
@@ -362,7 +370,6 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
   const [over, setOver] = useState({});             // overrides só desta precificação {caminho: valor}
   const [modoOverride, setModoOverride] = useState(false);
   const [paramsLocaisOpen, setParamsLocaisOpen] = useState(false);
-  const [solLanc, setSolLanc] = useState(false);   // v812
   const [aba, setAba] = useState(abrirId ? "ficha" : "salvas");   // v514 — Orçamentação abre nas FPPs salvas (negociações e guias); ficha | banco | salvas
   const [origem, setOrigem] = useState(null);       // v513 — de onde a ficha em edição foi aberta: { aba: "salvas" } | { externo: { v: "pedido", numero } }
   const voltarSalvas = useRef(null);                // v513 — Voltar dentro das salvas (negociação aberta → cards da guia)
@@ -634,11 +641,6 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             </button>
           ))}
         </div>
-        {/* v812 — solicitar lançamento: mensagem do sistema para o PCP */}
-        <button onClick={() => setSolLanc(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: "#fff", color: C.navy, border: `1px solid ${C.navy}` }}>
-          <Send size={15} /> Solicitar lançamento
-        </button>
-        {solLanc && <SolicitarLancamento user={user} onClose={() => setSolLanc(false)} />}
         {aba !== "ficha" && (
           <button onClick={criarFpp} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
             <Plus size={15} /> Criar FPP
