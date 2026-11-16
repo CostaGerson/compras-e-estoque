@@ -144,6 +144,8 @@ export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } =
       const { pv, pp, extra } = mapearPedido(k);
       const at = existentes[pv.numero];
       if (at?.fonte === "SISTEMA") { res.iguais++; (res.assumidos ||= []).push(pv.numero); continue; }   // v730 — pedido assumido no sistema: o KM não mexe mais
+      // v867 — lançamento de pedido só pelo sistema: pedido novo no KM não entra (os que já existem seguem atualizando saldo, NFs e faturamento)
+      if (!at) { res.ignorados++; (res.novosKmIgnorados ||= []).push(`${pv.numero} · ${pv.cliente || ""}`); continue; }
       const h = hashDe(k);
       if (!previa && at && hashes[pv.numero] === h) { res.iguais++; continue; }   // v398 — só pula o que já existe aqui
       if (at?.cliente) pv.cliente = at.cliente; else if (pv.clienteCodigo && nomePorCodigo[pv.clienteCodigo]) pv.cliente = nomePorCodigo[pv.clienteCodigo];

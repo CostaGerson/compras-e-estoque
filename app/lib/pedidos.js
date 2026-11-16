@@ -216,6 +216,8 @@ export async function espelharPp(numero) {
 }
 
 // v325 — aplica o relatório de Posição de Vendas: cria os pendentes que faltam e atualiza o saldo a faturar de todos
+// v867 — a partir de 16/11/2026 o lançamento de pedidos é só pelo sistema (o KM segue para NF, saldo e faturamento)
+export const LANCAMENTO_SO_SISTEMA = true;
 export async function aplicarPosicaoVendas(l0, quem) {
   const excl = await (await import("@/lib/pedidoLixeira")).numerosExcluidos();   // v552
   const l = { ...l0, pedidos: (l0.pedidos || []).filter((p) => !excl.has(String(p.numero))) };
@@ -242,6 +244,8 @@ export async function aplicarPosicaoVendas(l0, quem) {
         atualizadoPorNome: quem,
       } }));
       atualizados++;
+    } else if (LANCAMENTO_SO_SISTEMA) {
+      continue;   // v867 — lançamento só pelo sistema: o relatório do KM não cria pedido novo
     } else {
       const pendente = (p.vlEntregar || 0) > 0.009;
       novos.push({ numero: p.numero, cliente: p.cliente || "SEM CLIENTE", emissao: p.emissao ? dUTC(p.emissao) : null,
