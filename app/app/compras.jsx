@@ -171,13 +171,14 @@ export function FasesCompras({ atual, fases, ir }) {
   );
 }
 // barra de seleção com a devolução para a fase anterior
-function BarraDevolver({ n, rotulo, onDevolver, onLimpar, ocupado, onExcluir }) {
+function BarraDevolver({ n, rotulo, onDevolver, onLimpar, ocupado, onExcluir, onDispensar }) {
   if (!n) return null;
   return (
     <div className="flex items-center gap-2 sticky bottom-0 py-3 z-10" style={{ background: "#F7F8FA" }}>
       <button disabled={ocupado} onClick={onDevolver} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}` }}>
         {ocupado ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />} {rotulo} ({n})
       </button>
+      {onDispensar && <button disabled={ocupado} onClick={onDispensar} title="O item sai de compras e do levantamento e vai para o PCP sem compra de material" className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Dispensar compras ({n})</button>}
       {onExcluir && <button disabled={ocupado} onClick={onExcluir} className="px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 text-white" style={{ background: C.red }}><Trash2 size={15} /> Excluir demanda ({n})</button>}
       <button onClick={onLimpar} className="text-xs" style={{ color: C.sub }}>limpar seleção</button>
     </div>
@@ -765,6 +766,21 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
     try { await devolverItens([...marc], "pedidos"); setMarc(new Set()); carregar(); } catch (e) { alerta(e.message); }
     setSalvando(false);
   }
+  // v872 — dispensar compras pelo levantamento (itens marcados; compra avulsa fica de fora)
+  async function dispensarSel() {
+    const alvo = [...new Map(d.linhas.filter((l) => marc.has(l.itemId) && !/^AV\d+$/.test(l.pedidoNumero)).map((l) => [`${l.pedidoNumero}|${l.chave}`, l])).values()];
+    if (!alvo.length) return alerta("Compra avulsa não tem dispensa: use Excluir demanda.");
+    const motivo = await perguntar(`Dispensar compras de ${alvo.length} item(ns)?\n${alvo.map((l) => `• ${l.pedidoNumero} · ${ch(l.chave)} · ${l.descricao || ""}`).join("\n")}\n\nOs itens saem de compras e do levantamento e vão para o PCP; os outros itens dos pedidos seguem normais.\n\nMotivo (opcional):`, "Material já disponível");
+    if (motivo === null) return;
+    setSalvando(true);
+    const erros = [];
+    for (const l of alvo) {
+      const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: l.pedidoNumero, chave: l.chave, motivo, quem: nomeUser(user) }) }).catch(() => null);
+      if (!r?.ok) erros.push(`${l.pedidoNumero} · ${ch(l.chave)}`);
+    }
+    setSalvando(false); setMarc(new Set()); carregar();
+    if (erros.length) alerta(`Não consegui dispensar: ${erros.join(", ")}`);
+  }
   const carregar = () => fetch("/api/compras/levantamento").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, []);
 
@@ -865,7 +881,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
         </div>
       )}
 
-      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada) ou excluir a demanda (master ou quem lançou a compra avulsa, com justificativa).</div>}
+      {aba === "itens" && d.linhas.length > 0 && <div className="text-xs mb-2" style={{ color: C.sub }}>Marque os itens para devolver a Pedidos (a FPP base é desvinculada), dispensar as compras (o item vai para o PCP sem compra) ou excluir a demanda (master ou quem lançou a compra avulsa, com justificativa).</div>}
       {aba === "itens" && porPedido.map((p) => (
         <div key={p.numero} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="px-4 py-2 text-sm font-semibold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}>
@@ -883,7 +899,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
           ))}
         </div>
       ))}
-      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
+      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())} onDispensar={dispensarSel}
         onExcluir={!podeExcluirSel ? undefined : async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />}
     </div>
   );

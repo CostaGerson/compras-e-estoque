@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { usuarioAtivo, anexar, detalhe } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
 import { zipSync } from "fflate";
+import { respostaAnexo, tokenDe, DIR } from "@/lib/arquivos";   // v872 — arquivo grande (e-mail) fica em disco
+import { readFile } from "fs/promises";
+import path from "path";
+const bytes = async (c) => (tokenDe(c) ? new Uint8Array(await readFile(path.join(DIR, `${tokenDe(c)}.bin`))) : new Uint8Array(Buffer.from(c, "base64")));
 
 // GET ?u=&arquivo=id → baixa o arquivo (quem vê a demanda)
 export async function GET(req, { params }) {
@@ -19,14 +23,14 @@ export async function GET(req, { params }) {
       let n = String(x.nome || `arquivo-${x.id}`).replace(/[\\/:*?"<>|]/g, "_");
       if (usados[n.toLowerCase()]) { const i = n.lastIndexOf("."); n = i > 0 ? `${n.slice(0, i)} (${x.id})${n.slice(i)}` : `${n} (${x.id})`; }
       usados[n.toLowerCase()] = 1;
-      arqs[n] = [new Uint8Array(Buffer.from(x.conteudo, "base64")), { level: 0 }];
+      arqs[n] = [await bytes(x.conteudo), { level: 0 }];
     }
     const nomeZip = `demanda-${Number(params.id)}-arquivos.zip`;
     return new Response(Buffer.from(zipSync(arqs)), { headers: { "Cache-Control": "no-store", "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${nomeZip}"` } });
   }
   const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(sp.get("arquivo")) || 0, tarefaId: Number(params.id) } });
   if (!a) return new Response("Não encontrado.", { status: 404 });
-  return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+  return respostaAnexo(a.conteudo, { nome: a.nome, mime: a.mime });
 }
 
 // POST { usuarioId, nome, mime, conteudo }
