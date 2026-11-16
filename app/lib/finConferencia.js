@@ -135,11 +135,12 @@ export async function conferencia(ano = new Date().getFullYear(), hoje = new Dat
   for (const t of titsImp) {
     const r = recsImp.find((x) => x.id === t.recorrenciaId), g = IMPOSTOS_VENDAS[r.chaveOrigem];
     const base = somaMes(t.competencia, -1);
-    const esperado = r2(recBloco(base, ["CREDITO", "BOLETO"]) * g.pct);
+    const fatBase = g.base === "FATURAMENTO" ? (await (await import("@/lib/kpiAuto")).rankingFaturamentoNfs(Number(base.slice(0, 4)), Number(base.slice(5, 7)))).reduce((s2, x) => s2 + x.v, 0) : null;   // v870
+    const esperado = r2((fatBase != null ? fatBase : recBloco(base, ["CREDITO", "BOLETO"])) * g.pct);
     const ajustado = t.pontual || t.valorConfirmado;
     checks.push(chk("Impostos", `${g.titulo} · ${t.competencia}`, [
       { tela: "Contas a pagar", fonte: ajustado ? "valor da guia (ajustado à mão)" : "previsão automática", valor: r2(t.valor) },
-      { tela: "Recebimentos", fonte: `${(g.pct * 100).toLocaleString("pt-BR")}% × recebimentos de ${base}`, valor: esperado },
+      { tela: fatBase != null ? "Movimento fiscal" : "Recebimentos", fonte: `${(g.pct * 100).toLocaleString("pt-BR")}% × ${fatBase != null ? "faturamento (NFs de saída de venda)" : "recebimentos"} de ${base}`, valor: esperado },
     ], ajustado ? "Guia lançada à mão: diferença é esperada (vale a guia)." : null, ajustado ? "INFO" : undefined));
   }
 

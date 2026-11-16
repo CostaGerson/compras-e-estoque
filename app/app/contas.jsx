@@ -2745,7 +2745,8 @@ function ConferirModal({ user, itens, recorrencias = [], contasPorId, onClose })
   const recPorId = useMemo(() => Object.fromEntries(recorrencias.map((r) => [r.id, r])), [recorrencias]);
   const [l, setL] = useState(itens.map((t) => {
     const rec = recPorId[t.recorrenciaId] || null;
-    const base = rec ? lerNum(rec.valor) : lerNum(t.valor);   // a recorrência manda
+    // a recorrência manda — menos nos impostos sobre vendas, que vêm calculados no mês (v870: ICMS 2% do faturamento, federal 9,1% da receita)
+    const base = rec && !/^IMPOSTO\|/.test(rec.chaveOrigem || "") ? lerNum(rec.valor) : lerNum(t.valor);
     return { ...t, rec, base, novo: base, soEsteMes: false, feito: false };
   }));
   const [erro, setErro] = useState("");

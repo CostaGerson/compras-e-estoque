@@ -8,8 +8,9 @@ import { prisma } from "@/lib/prisma";
 import { r2, mesAtual, somaMes, gerarRecorrencias } from "@/lib/finTitulos";
 
 export const IMPOSTOS_VENDAS = {
-  "IMPOSTO|ESTADUAL": { titulo: "ICMS E TRIBUTOS ESTADUAIS SOBRE VENDAS", parceiro: "SECRETARIA DA FAZENDA ESTADUAL", pct: 0.02, dia: 10, conta: "2115110" },
-  "IMPOSTO|FEDERAL": { titulo: "TRIBUTOS FEDERAIS SOBRE VENDAS", parceiro: "RECEITA FEDERAL", pct: 0.0593, dia: 20, conta: "2115110" },
+  // v870 — ICMS: 2% do FATURAMENTO do mês anterior (NFs de saída de venda, independente da receita) · federal: 9,1% da RECEITA do mês anterior (planilha de recebimentos)
+  "IMPOSTO|ESTADUAL": { titulo: "ICMS E TRIBUTOS ESTADUAIS SOBRE VENDAS", parceiro: "SECRETARIA DA FAZENDA ESTADUAL", pct: 0.02, dia: 10, conta: "2115110", base: "FATURAMENTO" },
+  "IMPOSTO|FEDERAL": { titulo: "TRIBUTOS FEDERAIS SOBRE VENDAS", parceiro: "RECEITA FEDERAL", pct: 0.091, dia: 20, conta: "2115110", base: "RECEITA" },
 };
 export const ehImpostoVendas = (k) => !!IMPOSTOS_VENDAS[k];
 const CHAVE_CRIADAS = "AJUSTE|impostos-vendas-v200";
@@ -29,6 +30,16 @@ async function recebimentos(comps) {
   for (const c of cs) { const x = g.find((y) => y.competencia === c); o[c] = x?._sum?.valor != null ? Number(x._sum.valor) : 0; }
   return o;
 }
+
+// v870 — faturamento por competência AAAA-MM: NFs de saída de venda do Movimento fiscal (a mesma base do card de Faturamento)
+async function faturamentos(comps) {
+  const { rankingFaturamentoNfs } = await import("@/lib/kpiAuto");
+  const o = {};
+  for (const c of [...new Set(comps)]) o[c] = r2((await rankingFaturamentoNfs(Number(c.slice(0, 4)), Number(c.slice(5, 7)))).reduce((s, x) => s + x.v, 0));
+  return o;
+}
+const txtBase = (g) => (g.base === "FATURAMENTO" ? "DO FATURAMENTO DO MÊS ANTERIOR (NFS DE SAÍDA DE VENDA)" : "DA RECEITA DO MÊS ANTERIOR (PLANILHA DE RECEBIMENTOS)");
+const CHAVE_OBS2 = "AJUSTE|impostos-vendas-v870";
 
 // Cria as duas recorrências (uma vez — se forem excluídas, não voltam) e recalcula as contas em aberto.
 export async function impostosSobreVendas() {
@@ -61,15 +72,24 @@ export async function impostosSobreVendas() {
       } });
     }
   }
+  // v870 — regra nova na observação das recorrências (uma vez)
+  if (!(await prisma.finConfig.findUnique({ where: { chave: CHAVE_OBS2 } }).catch(() => null))) {
+    await prisma.finConfig.create({ data: { chave: CHAVE_OBS2, valor: new Date().toISOString() } });
+    for (const r of recs) { const g = IMPOSTOS_VENDAS[r.chaveOrigem]; await prisma.finRecorrencia.update({ where: { id: r.id }, data: { observacao: `PREVISÃO: ${pctTxt(g.pct)} ${txtBase(g)}. ATUALIZE COM A GUIA DA CONTABILIDADE.` } }); }
+  }
   // só as previsões que ninguém ajustou (guia lançada = ajuste pontual ou valor conferido)
   const tits = await prisma.finTitulo.findMany({ where: { recorrenciaId: { in: recs.map((r) => r.id) }, status: "ABERTO", pontual: false, valorConfirmado: false } });
-  const fat = await recebimentos(tits.map((t) => somaMes(t.competencia, -1)));
+  const comps = tits.map((t) => somaMes(t.competencia, -1));
+  const rec = await recebimentos(comps), fatNf = await faturamentos(comps);
   let atualizadas = 0;
   for (const t of tits) {
     const r = recs.find((x) => x.id === t.recorrenciaId), g = IMPOSTOS_VENDAS[r.chaveOrigem];
-    const base = somaMes(t.competencia, -1), f = fat[base] || 0;
+    const fat = g.base === "FATURAMENTO";
+    const base = somaMes(t.competencia, -1), f = (fat ? fatNf[base] : rec[base]) || 0;
     const valor = r2(f * g.pct);
-    const observacao = `PREVISÃO: ${pctTxt(g.pct)} × RECEBIMENTOS DE ${nomeMes(base)} (R$ ${brl(f)})${f ? "" : " — PLANILHA DE RECEBIMENTOS DO MÊS SEM VALOR"}. ATUALIZE COM A GUIA DA CONTABILIDADE.`;
+    const observacao = fat
+      ? `PREVISÃO: ${pctTxt(g.pct)} × FATURAMENTO DE ${nomeMes(base)} (R$ ${brl(f)}, NFS DE SAÍDA DE VENDA)${f ? "" : " — SEM NF DE SAÍDA NO MÊS"}. ATUALIZE COM A GUIA DA CONTABILIDADE.`
+      : `PREVISÃO: ${pctTxt(g.pct)} × RECEITA DE ${nomeMes(base)} (R$ ${brl(f)}, PLANILHA DE RECEBIMENTOS)${f ? "" : " — PLANILHA DE RECEBIMENTOS DO MÊS SEM VALOR"}. ATUALIZE COM A GUIA DA CONTABILIDADE.`;
     if (Math.abs(Number(t.valor) - valor) < 0.005 && t.observacao === observacao) continue;
     await prisma.finTitulo.update({ where: { id: t.id }, data: { valor, observacao } });
     atualizadas++;
