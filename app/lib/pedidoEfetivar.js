@@ -113,6 +113,7 @@ export function criticas(pp) {
   const erros = [], avisos = [];
   const itens = (pp.itens || []).map((it) => ({ ...it, grade: safe(it.gradeJson, []) }));
   if (!String(pp.clienteNome || "").trim()) erros.push("Informe o cliente.");
+  if (!pp.interno && !String(pp.vendedor || "").trim()) erros.push("Informe o vendedor do pedido.");   // v861 — a aprovação de layout e a comissão dependem dele
   if (!pp.interno && so(pp.clienteCnpj).length < 11) avisos.push("Cliente sem CNPJ/CPF.");
   const serv = pp.tipoPedido === "SERVIÇO";
   if (!itens.length || itens.every((it) => qtdGrade(it.grade) <= 0)) erros.push(serv ? "Lance ao menos um serviço com quantidade." : "Lance ao menos um item com grade.");

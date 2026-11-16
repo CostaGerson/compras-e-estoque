@@ -952,17 +952,21 @@ function agruparAvisos(l) {
   return out;
 }
 function Mensagens({ user, onMudou }) {
-  const [dados, setDados] = useState({ recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+  const [dados, setDados] = useState({ recebidas: [], arquivadas: [], lixeira: [], enviadas: [], naoLidas: 0 });
   const [aba, setAba] = useState("recebidas");
   const [usuarios, setUsuarios] = useState([]);
   const [comp, setComp] = useState({ paraId: "", texto: "", aviso: false });   // v568 — aviso: aviso do desenvolvedor (para todos)
   const [enviando, setEnviando] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");   // v861
+  const [aberta, setAberta] = useState(null);
+  const [sel, setSel] = useState([]);   // v861 — selecionadas (ações em lote)
+  const mob = useMobile();
 
   const carregar = async () => {
     try {
       const m = await fetch(`/api/mensagens?usuarioId=${user.id}`).then((r) => r.json());
-      setDados(m && m.recebidas ? m : { recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+      setDados(m && m.recebidas ? { lixeira: [], ...m } : { recebidas: [], arquivadas: [], lixeira: [], enviadas: [], naoLidas: 0 });
     } catch {}
     setLoading(false);
   };
@@ -983,6 +987,12 @@ function Mensagens({ user, onMudou }) {
     await fetch(`/api/mensagens/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     await carregar(); onMudou && onMudou();
   };
+  const lote = async (acao, ids) => {   // v861
+    if (!ids.length) return;
+    const r = await fetch("/api/mensagens/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids, acao }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro."); }
+    setSel([]); setAberta(null); await carregar(); onMudou && onMudou();
+  };
   const enviar = async () => {
     if ((!comp.aviso && !comp.paraId) || !comp.texto.trim()) return;
     setEnviando(true);
@@ -1000,6 +1010,31 @@ function Mensagens({ user, onMudou }) {
   const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "" }); setAba("nova"); };
 
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+
+  // v861 — caixa no estilo Gmail: uma linha por mensagem (remetente · assunto - trecho · data); clicar abre
+  const casa = (m) => { const t = q.trim().toLowerCase(); if (!t) return true; const p = m.de || m.para || {}; return `${p.nome || ""} ${p.sobrenome || ""} ${m.texto || ""}`.toLowerCase().includes(t); };
+  const LinhaMsg = ({ m, chave, nome, foto, negrito, chip, acoesHover = [], detalhe, dataExtra, selecionavel }) => {
+    const [a, r] = assuntoDe(m.texto);
+    const on = aberta === chave;
+    return (
+      <div key={chave} style={{ borderBottom: `1px solid ${C.line}`, background: on || negrito ? C.panel : C.panel2 }}>
+        <div onClick={() => setAberta(on ? null : chave)} className="group flex items-center gap-3 px-3 cursor-pointer hover:shadow-sm" style={mob ? { padding: "8px 12px", flexWrap: "wrap" } : { height: 40 }}>
+          {selecionavel && <input type="checkbox" checked={sel.includes(m.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSel((l) => (e.target.checked ? [...l, m.id] : l.filter((x) => x !== m.id)))} style={{ width: 16, height: 16, accentColor: C.accent, cursor: "pointer" }} />}
+          <Avatar foto={foto} nome={nome} size={24} />
+          <div className="truncate text-sm" style={{ width: mob ? "auto" : 190, flex: mob ? 1 : "none", color: C.text, fontWeight: negrito ? 700 : 500 }}>{nome}</div>
+          <div className="truncate text-sm" style={{ flex: mob ? "1 1 100%" : 1, minWidth: 0, order: mob ? 3 : 0, color: C.sub }}>
+            {chip && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ background: C.accentSoft, color: C.accent }}>{chip}</span>}
+            {a && <span style={{ color: C.text, fontWeight: negrito ? 700 : 600 }}>{a}</span>}{a && r ? " - " : ""}{r}
+          </div>
+          <div className="shrink-0 text-xs text-right" style={{ width: 80, color: negrito ? C.text : C.sub, fontWeight: negrito ? 700 : 400 }}>
+            <span className={acoesHover.length && !mob ? "group-hover:hidden" : ""}>{dataCurta(m.createdAt)}{dataExtra ? <span className="block text-[10px]" style={{ fontWeight: 400 }}>{dataExtra}</span> : null}</span>
+            {!mob && acoesHover.map(([t, fn]) => <button key={t} onClick={(e) => { e.stopPropagation(); fn(); }} className="hidden group-hover:inline text-xs font-semibold ml-2" style={{ color: t === "Excluir" ? "#D92D20" : C.accent }}>{t}</button>)}
+          </div>
+        </div>
+        {on && <div className="px-4 pb-4 pt-1" style={{ paddingLeft: mob ? 16 : 48 }}>{detalhe}</div>}
+      </div>
+    );
+  };
 
   const abas = [
     ["recebidas", `Recebidas${dados.naoLidas ? ` (${dados.naoLidas})` : ""}`],
@@ -1038,14 +1073,18 @@ function Mensagens({ user, onMudou }) {
         </div>
       </div>
     </div>
-  ) : (
-    <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: !m.lida && !arquivada ? C.accentSoft : "transparent" }}>
-      <Avatar foto={m.de?.fotoBase64} nome={`${m.de?.nome || "?"} ${m.de?.sobrenome || ""}`} size={38} />
-      <div style={{ flex: 1 }}>
-        <div className="text-xs" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
-        <div className="text-sm mt-0.5" style={{ color: C.text }}>{m.texto}</div>
+  ) : LinhaMsg({
+    m, chave: m.id, nome: `${m.de?.nome || ""} ${m.de?.sobrenome || ""}`.trim() || "?", foto: m.de?.fotoBase64, negrito: !m.lida && !arquivada, selecionavel: true,
+    chip: m.convite === "PENDENTE" ? "Convite" : null,
+    acoesHover: m.excluidaEm ? [["Restaurar", () => lote("restaurar", [m.id])]]
+      : arquivada ? [["Desarquivar", () => lote("desarquivar", [m.id])], ["Excluir", () => lote("excluir", [m.id])]]
+      : [["Arquivar", () => lote("arquivar", [m.id])], ["Excluir", () => lote("excluir", [m.id])]],
+    detalhe: (
+      <>
+        <div className="text-xs mb-2" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
+        <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div>
         {/* v607 — convite de evento: responde aqui mesmo; confirmado aparece na agenda da pessoa */}
-        {m.convite && <div className="flex items-center gap-2 mt-2 flex-wrap">
+        {m.convite && <div className="flex items-center gap-2 mt-3 flex-wrap">
           {m.convite === "PENDENTE" ? <>
             <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: C.green, color: "#fff" }}>Confirmar</button>
             <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs font-semibold px-3 py-1.5 rounded" style={{ background: "#FDECEC", color: "#D92D20" }}>Recusar</button>
@@ -1055,73 +1094,121 @@ function Mensagens({ user, onMudou }) {
           {m.convite === "RECUSADO" && <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs" style={{ color: C.accent }}>Mudar para confirmar</button>}
           {m.convite === "CONFIRMADO" && <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs" style={{ color: C.sub }}>Não vou mais</button>}
         </div>}
-        <div className="flex gap-3 mt-2">
-          <button onClick={() => responder(m)} className="text-xs font-medium" style={{ color: C.accent }}>Responder</button>
-          {arquivada
-            ? <button onClick={() => patch(m.id, { arquivada: false })} className="text-xs" style={{ color: C.sub }}>Desarquivar</button>
-            : <button onClick={() => patch(m.id, { arquivada: true })} className="text-xs" style={{ color: C.sub }}>Arquivar</button>}
-          {!m.lida && !arquivada && <button onClick={() => patch(m.id, { lida: true })} className="text-xs" style={{ color: C.sub }}>Marcar lida</button>}
+        <div className="flex gap-2 mt-3">
+          <button onClick={() => responder(m)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>↩ Responder</button>
+          {m.excluidaEm
+            ? <button onClick={() => lote("restaurar", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Restaurar</button>
+            : <>
+              {arquivada
+                ? <button onClick={() => lote("desarquivar", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Desarquivar</button>
+                : <button onClick={() => lote("arquivar", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Arquivar</button>}
+              <button onClick={() => lote("excluir", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: "#D92D20" }}>Excluir</button>
+            </>}
+          {!m.lida && !arquivada && <button onClick={() => patch(m.id, { lida: true })} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Marcar lida</button>}
         </div>
-      </div>
-    </div>
-  );
+      </>
+    ),
+  });
+
+  const pastas = [
+    ["recebidas", "Caixa de entrada", Inbox, dados.naoLidas || 0],
+    ["arquivadas", "Arquivadas", Layers, dados.arquivadas.length],
+    ["enviadas", "Enviadas", Send, 0],
+    ["lixeira", "Lixeira", Trash2, 0],
+  ];
+  const lista = aba === "recebidas" ? dados.recebidas.filter(casa) : aba === "arquivadas" ? dados.arquivadas.filter(casa) : aba === "lixeira" ? dados.lixeira.filter(casa) : agruparAvisos(dados.enviadas).filter(casa);
+  const fixas = aba === "recebidas" ? lista.filter((m) => m.aviso || m.prioritaria) : aba === "arquivadas" ? lista.filter((m) => m.aviso) : [];
+  const normais = lista.filter((m) => !fixas.includes(m));
+  const vazio = { recebidas: "Nenhuma mensagem recebida.", arquivadas: "Nenhuma mensagem arquivada.", enviadas: "Nenhuma mensagem enviada.", lixeira: "Lixeira vazia." }[aba];
+  const selVis = aba === "enviadas" ? [] : normais.map((m) => m.id);
+  const selAqui = sel.filter((id) => selVis.includes(id));
+  const todas = selVis.length > 0 && selAqui.length === selVis.length;
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex gap-1 mb-4 flex-wrap">
-        {abas.map(([k, l]) => {
-          const on = aba === k;
-          return <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>;
-        })}
+    <div className="flex gap-4" style={{ flexDirection: mob ? "column" : "row", alignItems: "flex-start" }}>
+      {/* v861 — pastas à esquerda, como no Gmail */}
+      <div className="shrink-0" style={{ width: mob ? "100%" : 220 }}>
+        <button onClick={() => setAba("nova")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-semibold mb-3 shadow-sm" style={{ background: C.accentSoft, color: C.text }}><Pencil size={18} /> Escrever</button>
+        <div className={mob ? "flex gap-1 overflow-x-auto" : ""}>
+          {pastas.map(([k, l, Ico, n]) => {
+            const on = aba === k;
+            return (
+              <button key={k} onClick={() => { setAba(k); setAberta(null); setSel([]); }} className="flex items-center gap-3 px-4 py-1.5 text-sm rounded-full w-full" style={{ background: on ? C.accentSoft : "transparent", color: C.text, fontWeight: on || n ? 700 : 400, whiteSpace: "nowrap" }}>
+                <Ico size={16} style={{ color: on ? C.accent : C.sub }} /> <span style={{ flex: 1, textAlign: "left" }}>{l}</span>{n ? <span className="text-xs">{n}</span> : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {aba === "nova" && (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg p-4 mb-4">
-          <div className="text-sm font-semibold mb-3">Nova mensagem</div>
-          {user.isMaster && <label className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm cursor-pointer" style={{ background: comp.aviso ? "#001E41" : C.panel2, color: comp.aviso ? "#fff" : C.text, border: `1px solid ${comp.aviso ? C.accent : C.line}` }}>
-            <input type="checkbox" checked={comp.aviso} onChange={(e) => setComp((s) => ({ ...s, aviso: e.target.checked }))} />
-            <span>📢 <b>Aviso do desenvolvedor</b> <span style={{ opacity: 0.75 }}>— vai para todos os usuários, em destaque e fixo no topo da caixa de entrada até cada um dar "Ciente"</span></span>
-          </label>}
-          {!comp.aviso && <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-3 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
-            <option value="">Para quem…</option>
-            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
-          </select>}
-          <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={4} placeholder="Escreva a mensagem…" className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
-          <button onClick={enviar} disabled={enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim()} className="mt-3 px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: comp.aviso ? "#001E41" : C.accent, color: "#fff", opacity: enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> {comp.aviso ? "Enviar aviso para todos" : "Enviar"}</button>
-        </div>
-      )}
-
-      {aba !== "nova" && (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-          {aba === "recebidas" && (dados.recebidas.length === 0
-            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem recebida.</div>
-            : dados.recebidas.map((m) => CartaoRecebida(m, false)))}
-          {aba === "arquivadas" && (dados.arquivadas.length === 0
-            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem arquivada.</div>
-            : dados.arquivadas.map((m) => CartaoRecebida(m, true)))}
-          {aba === "enviadas" && (dados.enviadas.length === 0
-            ? <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>Nenhuma mensagem enviada.</div>
-            : agruparAvisos(dados.enviadas).map((m) => m.grupo ? (
-              <div key={`g${m.id}`} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}`, borderLeft: `5px solid ${C.accent}`, background: "#EEF2F8" }}>
-                <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: C.accent, fontSize: 18 }}>📢</div>
-                <div style={{ flex: 1 }}>
-                  <div className="text-xs" style={{ color: C.sub }}><b style={{ color: C.accent }}>Aviso do desenvolvedor</b> para todos · {quandoData(m.createdAt)} · ciente {m.lidos} de {m.total}</div>
-                  <div className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div>
-                </div>
-              </div>
-            ) : (
-              <div key={m.id} className="px-4 py-3 flex gap-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-                <Avatar foto={m.para?.fotoBase64} nome={`${m.para?.nome || "?"} ${m.para?.sobrenome || ""}`} size={38} />
-                <div style={{ flex: 1 }}>
-                  <div className="text-xs" style={{ color: C.sub }}>Para {m.para?.nome} {m.para?.sobrenome} · {quandoData(m.createdAt)} {m.lida ? "· lida" : "· não lida"}</div>
-                  <div className="text-sm mt-0.5" style={{ color: C.text }}>{m.texto}</div>
-                </div>
-              </div>
-            )))}
-        </div>
-      )}
+      <div style={{ flex: 1, minWidth: 0, width: mob ? "100%" : undefined }}>
+        {aba === "nova" ? (
+          <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4 max-w-3xl">
+            <div className="text-sm font-semibold mb-3">Nova mensagem</div>
+            {user.isMaster && <label className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm cursor-pointer" style={{ background: comp.aviso ? "#001E41" : C.panel2, color: comp.aviso ? "#fff" : C.text, border: `1px solid ${comp.aviso ? C.accent : C.line}` }}>
+              <input type="checkbox" checked={comp.aviso} onChange={(e) => setComp((s) => ({ ...s, aviso: e.target.checked }))} />
+              <span>📢 <b>Aviso do desenvolvedor</b> <span style={{ opacity: 0.75 }}>— vai para todos os usuários, em destaque e fixo no topo da caixa de entrada até cada um dar "Ciente"</span></span>
+            </label>}
+            {!comp.aviso && <select value={comp.paraId} onChange={(e) => setComp((s) => ({ ...s, paraId: e.target.value }))} className="w-full mb-3 px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+              <option value="">Para quem…</option>
+              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
+            </select>}
+            <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={6} placeholder="Escreva a mensagem…" className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
+            <div className="flex gap-2 mt-3">
+              <button onClick={enviar} disabled={enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim()} className="px-5 py-2 rounded-full font-semibold flex items-center gap-1" style={{ background: comp.aviso ? "#001E41" : C.accent, color: "#fff", opacity: enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> {comp.aviso ? "Enviar aviso para todos" : "Enviar"}</button>
+              <button onClick={() => setAba("recebidas")} className="px-4 py-2 rounded-full text-sm" style={{ color: C.sub }}>Descartar</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 flex-wrap" style={{ borderBottom: `1px solid ${C.line}` }}>
+              {aba !== "enviadas" && <input type="checkbox" title="Selecionar todas" checked={todas} ref={(el) => { if (el) el.indeterminate = selAqui.length > 0 && !todas; }} onChange={() => setSel(todas ? [] : selVis)} style={{ width: 16, height: 16, accentColor: C.accent, cursor: "pointer" }} />}
+              {selAqui.length > 0 && <div className="flex items-center gap-1">
+                <span className="text-xs font-semibold mr-1" style={{ color: C.text }}>{selAqui.length} selecionada{selAqui.length > 1 ? "s" : ""}</span>
+                {aba === "recebidas" && <button onClick={() => lote("arquivar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Arquivar</button>}
+                {aba === "recebidas" && <button onClick={() => lote("lida", selAqui)} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Marcar lidas</button>}
+                {aba === "arquivadas" && <button onClick={() => lote("desarquivar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Mover para a caixa de entrada</button>}
+                {aba === "lixeira"
+                  ? <button onClick={() => lote("restaurar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Restaurar</button>
+                  : <button onClick={() => lote("excluir", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: "#D92D20" }}>Excluir</button>}
+              </div>}
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Pesquisar mensagens" className="px-4 py-2 rounded-full text-sm outline-none" style={{ background: C.panel2, color: C.text, flex: 1, maxWidth: 520 }} />
+              <button onClick={carregar} title="Atualizar" className="px-2 py-1 rounded-full text-base" style={{ color: C.sub }}>⟳</button>
+              <span className="text-xs ml-auto" style={{ color: C.sub }}>{lista.length} mensage{lista.length === 1 ? "m" : "ns"}</span>
+            </div>
+            {aba === "lixeira" && lista.length > 0 && <div className="px-4 py-2 text-xs" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>As mensagens que estão na lixeira há mais de 30 dias são apagadas de vez.</div>}
+            {fixas.map((m) => CartaoRecebida(m, aba === "arquivadas"))}
+            {!lista.length && <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>{q ? "Nada encontrado." : vazio}</div>}
+            {aba !== "enviadas" && normais.map((m) => CartaoRecebida(m, aba !== "recebidas"))}
+            {aba === "enviadas" && normais.map((m) => m.grupo
+              ? LinhaMsg({ m, chave: `g${m.id}`, nome: "📢 Todos (aviso)", negrito: false, dataExtra: `ciente ${m.lidos}/${m.total}`,
+                  detalhe: <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div> })
+              : LinhaMsg({ m, chave: m.id, nome: `Para: ${m.para?.nome || "?"} ${m.para?.sobrenome || ""}`.trim(), foto: m.para?.fotoBase64, negrito: false, dataExtra: m.lida ? "lida" : "não lida",
+                  detalhe: <>
+                    <div className="text-xs mb-2" style={{ color: C.sub }}>Para {m.para?.nome} {m.para?.sobrenome} · {quandoData(m.createdAt)} · {m.lida ? "lida" : "não lida"}</div>
+                    <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div>
+                  </> }))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+// v861 — "🎨 APROVAÇÃO DE LAYOUT — pedido X" → ["🎨 APROVAÇÃO DE LAYOUT", "pedido X"]
+function assuntoDe(t) {
+  const s = String(t || "").replace(/\s+/g, " ").trim();
+  let best = -1, sep = "";
+  for (const x of [" — ", " · ", ": "]) { const i = s.indexOf(x); if (i > 0 && i <= 70 && (best < 0 || i < best)) { best = i; sep = x; } }
+  return best < 0 ? ["", s] : [s.slice(0, best), s.slice(best + sep.length)];
+}
+function dataCurta(d) {
+  try {
+    const x = new Date(d), h = new Date();
+    if (x.toDateString() === h.toDateString()) return x.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    if (x.getFullYear() === h.getFullYear()) return x.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+    return x.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  } catch { return ""; }
 }
 
 function Inicio({ money, master }) {

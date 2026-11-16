@@ -8,19 +8,22 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const usuarioId = Number(searchParams.get("usuarioId"));
   if (!usuarioId) return Response.json({ recebidas: [], arquivadas: [], enviadas: [], naoLidas: 0 });
+  // v861 — lixeira: apaga de vez o que está lá há mais de 30 dias
+  await prisma.mensagem.deleteMany({ where: { paraId: usuarioId, excluidaEm: { lt: new Date(Date.now() - 30 * 864e5) } } }).catch(() => {});
   const [recebidasTodas, enviadas] = await Promise.all([
-    prisma.mensagem.findMany({ where: { paraId: usuarioId }, orderBy: { createdAt: "desc" }, take: 200, include: { de: { select: selUser } } }),
+    prisma.mensagem.findMany({ where: { paraId: usuarioId }, orderBy: { createdAt: "desc" }, take: 300, include: { de: { select: selUser } } }),
     prisma.mensagem.findMany({ where: { deId: usuarioId }, orderBy: { createdAt: "desc" }, take: 2000, include: { para: { select: selUser } } }),
   ]);
   // v568 — aviso do desenvolvedor ainda sem "ciente" fica fixo no topo das recebidas
   // v761 — mensagem prioritária (ex.: boleto pago via PIX) fica sempre no topo até ser arquivada
-  const recebidas = recebidasTodas.filter((m) => !m.arquivada).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)) || (Number(!!b.prioritaria) - Number(!!a.prioritaria)));
+  const lixeira = recebidasTodas.filter((m) => m.excluidaEm);   // v861
+  const recebidas = recebidasTodas.filter((m) => !m.arquivada && !m.excluidaEm).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)) || (Number(!!b.prioritaria) - Number(!!a.prioritaria)));
   const tids = [...new Set(recebidasTodas.map((m) => m.tituloId).filter(Boolean))];
   if (tids.length) {
     const ts = await prisma.finTitulo.findMany({ where: { id: { in: tids } }, select: { id: true, tipo: true, titulo: true, numeroDoc: true, parceiro: true, vencimento: true, status: true } }).catch(() => []);
     for (const m of recebidasTodas) if (m.tituloId) m.conta = ts.find((t) => t.id === m.tituloId) || null;
   }
-  const arquivadas = recebidasTodas.filter((m) => m.arquivada);
+  const arquivadas = recebidasTodas.filter((m) => m.arquivada && !m.excluidaEm);
   const naoLidas = recebidas.filter((m) => !m.lida).length;
   // v607 — convite de evento: situação atual da resposta de quem recebeu
   const ids = [...new Set(recebidasTodas.map((m) => m.conviteTarefaId).filter(Boolean))];
@@ -32,7 +35,7 @@ export async function GET(req) {
       m.convite = !t || t.excluidaEm || t.status === "CANCELADA" ? "CANCELADO" : cs.find((c) => c.tarefaId === m.conviteTarefaId)?.status || "REMOVIDO";
     }
   }
-  return Response.json({ recebidas, arquivadas, enviadas, naoLidas });
+  return Response.json({ recebidas, arquivadas, lixeira, enviadas, naoLidas });
 }
 
 // POST /api/mensagens  { deId, paraId, texto } · { deId, texto, aviso: true } → aviso do desenvolvedor para todos (só master)

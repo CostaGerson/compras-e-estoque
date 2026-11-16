@@ -8,6 +8,7 @@ export async function PATCH(req, { params }) {
   const data = {};
   if ("lida" in b) data.lida = !!b.lida;
   if ("arquivada" in b) data.arquivada = !!b.arquivada;
+  if ("excluida" in b) data.excluidaEm = b.excluida ? new Date() : null;   // v861 — lixeira (30 dias)
   const m = await prisma.mensagem.update({ where: { id }, data });
   return Response.json(m);
 }

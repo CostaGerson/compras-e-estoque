@@ -176,9 +176,9 @@ function CampoVendedor({ uid, value, onChange }) {
   const [vs, setVs] = useState(null);
   useEffect(() => { fetch(`/api/vendedores?u=${uid}`).then((r) => (r.ok ? r.json() : null)).then((j) => setVs(j?.vendedores || [])).catch(() => setVs([])); }, []);
   const atual = String(value || "").toUpperCase();
-  if (vs && !vs.length) return <In label="Vendedor" value={value} onChange={(e) => onChange(e.target.value)} />;
+  if (vs && !vs.length) return <In label="Vendedor *" value={value} onChange={(e) => onChange(e.target.value)} />;
   return (
-    <Campo label="Vendedor">
+    <Campo label="Vendedor *">
       <select value={atual} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={{ ...inp, background: C.panel, borderColor: atual ? C.line : C.accent }}>
         <option value="">{vs ? "Selecione…" : "Carregando…"}</option>
         {atual && vs && !vs.some((x) => x.nome === atual) && <option value={atual}>{atual}</option>}
