@@ -566,6 +566,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     if (!f.item) return setMsg("Selecione o ITEM.");
     // v845 — artigo digitado sem escolher do estoque nem marcar "Artigo novo"
     const pend = [[f.nomeArtigo, f.artigoDet], [f.nomeArtigoForro, f.artigoForroDet], ...(Array.isArray(f.materiasExtras) ? f.materiasExtras : []).map((x) => [x?.nome, x?.det])].filter(([n, d]) => d?.pendente && String(n || "").trim());
+    // v847 — condição de pagamento tem de fechar 100% do valor
+    const frP = fracoesPag(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde)));
+    if (!frP.ok) return setMsg(`A condição de pagamento soma ${(Math.round(frP.soma * 1000) / 10).toString().replace(".", ",")}% do valor. Ajuste a entrada e as parcelas até fechar 100% para salvar a FPP.`);
     if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
     setSalvando(true); setMsg("");
     const body = montarBody();
@@ -966,8 +969,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                 </div>
               )}
               <div className="text-[11px] mt-3" style={{ color: C.sub }}>Mínimo venda 16% · boa venda 30% · excelente 40%</div>
+              {r?.pagFr && !r.pagFr.ok && <div className="text-xs mt-3 font-semibold" style={{ color: C.red }}>Condição de pagamento soma {(Math.round(r.pagFr.soma * 1000) / 10).toString().replace(".", ",")}%: feche 100% para salvar.</div>}
               <button onClick={salvar} disabled={salvando} className="w-full mt-3 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold"
-                style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+                style={{ background: C.accent, color: "#fff", opacity: salvando || (r?.pagFr && !r.pagFr.ok) ? 0.6 : 1 }}>
                 <Save size={15} /> {salvando ? "Salvando…" : editId ? "Atualizar ficha" : "Salvar ficha"}
               </button>
               {/* v692 — PDF da ficha na tela (padrão do PV) */}
