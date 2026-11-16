@@ -2640,13 +2640,36 @@ function CampoFin({ t, info, children }) {
     </div>
   );
 }
+// v846 — valor da entrada/parcela: seletor R$ | % + só o número (até 2 casas). Gravado como antes: "50%" ou "1500,00".
+function ValorPag({ valor, onChange, placeholder }) {
+  const pct = ehPct(valor) || valor == null || valor === "";
+  const numTxt = String(valor ?? "").replace("%", "");
+  const limpar = (t) => {
+    let x = String(t).replace(/\./g, ",").replace(/[^\d,]/g, "");
+    const i = x.indexOf(",");
+    if (i >= 0) x = x.slice(0, i + 1) + x.slice(i + 1).replace(/,/g, "").slice(0, 2);
+    return x;
+  };
+  const gravar = (n, p) => onChange(p ? `${n}%` : n);
+  const b = (on) => ({ background: on ? C.accent : "#fff", color: on ? "#fff" : C.sub });
+  return (
+    <div className="flex w-full h-full rounded overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+      <div className="flex text-xs font-semibold select-none" onMouseDown={(e) => e.preventDefault()}>
+        <button type="button" onClick={() => gravar(numTxt, false)} className="px-2" style={b(!pct)}>R$</button>
+        <button type="button" onClick={() => gravar(numTxt, true)} className="px-2" style={{ ...b(pct), borderLeft: `1px solid ${C.line}` }}>%</button>
+      </div>
+      <input value={numTxt} onChange={(e) => gravar(limpar(e.target.value), pct)} inputMode="decimal" placeholder={placeholder || "0,00"}
+        className="flex-1 min-w-0 px-2 text-sm outline-none" style={{ background: "#fff", color: C.text, borderLeft: `1px solid ${C.line}` }} />
+    </div>
+  );
+}
 function PagamentoFpp({ pag, onChange, total, fr }) {
   const p = pag || { entrada: null, parcelas: [] };
   const setP = (fn) => onChange(fn({ entrada: p.entrada || null, parcelas: p.parcelas || [] }));
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   const pc = (x) => `${((x || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
   const BAS = { EMISSAO: "Emissão do pedido", NF: "Emissão da NF", ENTREGA: "Entrega" };
-  const cols = "70px minmax(70px,0.7fr) minmax(120px,1fr) minmax(140px,1.2fr) minmax(110px,1fr) minmax(90px,0.8fr)";
+  const cols = "70px minmax(70px,0.7fr) minmax(120px,1fr) minmax(140px,1.2fr) minmax(150px,1fr) minmax(90px,0.8fr)";
   const res = (frac, valor) => <span className="text-sm font-semibold" style={{ color: C.text }}>{pc(frac)}{valor != null && <span className="font-normal text-xs ml-1" style={{ color: C.sub }}>{brl(valor)}</span>}</span>;
   // função (não componente) para os inputs não perderem o foco ao digitar
   const linha = (key, nome, onDel, children) => (
@@ -2663,7 +2686,7 @@ function PagamentoFpp({ pag, onChange, total, fr }) {
       {p.entrada && (
         linha("ent", "Entrada", () => setP((q) => ({ ...q, entrada: null })), <>
           <div /><div /><div />
-          <CampoFin t="Valor (R$ ou %)"><input value={p.entrada.valor ?? ""} onChange={(e) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: e.target.value } }))} placeholder="ex.: 50%" className="w-full h-full px-2 rounded text-sm" style={sel} /></CampoFin>
+          <CampoFin t="Valor"><ValorPag valor={p.entrada.valor} onChange={(v) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: v } }))} /></CampoFin>
           <CampoFin t="Do total">{fr ? res(fr.entrada, fr.entradaValor) : null}</CampoFin>
         </>)
       )}
@@ -2679,14 +2702,14 @@ function PagamentoFpp({ pag, onChange, total, fr }) {
             <CampoFin t="A contar da"><select value={x.base || "NF"} onChange={(e) => up("base", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
               {Object.entries(BAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
             </select></CampoFin>
-            <CampoFin t="Valor (R$ ou %)"><input value={x.valor ?? ""} onChange={(e) => up("valor", e.target.value)} placeholder="auto" className="w-full h-full px-2 rounded text-sm" style={sel} /></CampoFin>
+            <CampoFin t="Valor"><ValorPag valor={x.valor} onChange={(v) => up("valor", v)} placeholder="auto" /></CampoFin>
             <CampoFin t="Do total">{c ? res(c.frac, c.valor) : null}</CampoFin>
           </>)
         );
       })}
       <div className="flex items-center gap-2 flex-wrap">
-        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Entrada</button>}
-        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Parcela</button>
+        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "%" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Entrada</button>}
+        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "%" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Parcela</button>
         <span className="ml-auto text-sm"><span style={{ color: C.sub }}>Condição: </span><b style={{ color: C.text }}>{textoPagFpp(p, total)}</b>
           {fr && !fr.ok && <span className="ml-2 text-xs font-semibold" style={{ color: C.red }}>soma {pc(fr.soma)}</span>}</span>
       </div>
