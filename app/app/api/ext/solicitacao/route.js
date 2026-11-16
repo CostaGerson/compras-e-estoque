@@ -1,6 +1,7 @@
 // v872 — Gmail → solicitação de lançamento de pedido (script do Google na conta do Gmail, etiqueta "Pedidos a Lançar")
 // Autenticação: cabeçalho X-Api-Key (o mesmo token das integrações — Dados › Integrações).
-//   POST { acao: "criar", idEmail, de, assunto, data, corpo, solicitante }  → { tarefaId, ja }   (um e-mail = uma tarefa; repetir não duplica)
+//   POST { acao: "criar", tipo?, idEmail, de, assunto, data, corpo, solicitante }  → { tarefaId, ja }   (um e-mail = uma tarefa; repetir não duplica)
+//        tipo PEDIDO (padrão) → "LANÇAR PEDIDO" para o Leandro · v873 tipo FATURA → "LANÇAR FATURA/NOTA" para a Brenda (etiqueta "Fatura/nota a lançar")
 //   POST { acao: "iniciar", nome, mime, tamanho }                            → { token, parte }  (arquivo grande, em partes)
 //   POST { acao: "parte", token, off, conteudo }                             → { recebido, completo }   (conteudo em base64, até 8 MB)
 //   POST { acao: "anexar", tarefaId, nome, mime, conteudo | token }          → { ok, id }
@@ -24,17 +25,19 @@ export async function POST(req) {
     if (b.acao === "criar") {
       const id = String(b.idEmail || "").trim();
       if (!id) return Response.json({ error: "idEmail?" }, { status: 400 });
-      const chave = `gmail-solicitacao:${id}`.slice(0, 190);
+      const fatura = b.tipo === "FATURA";   // v873
+      const chave = `gmail-solicitacao:${fatura ? "FATURA:" : ""}${id}`.slice(0, 190);
       const ja = await prisma.finConfig.findUnique({ where: { chave } });
       if (ja && (await prisma.tarefa.findUnique({ where: { id: Number(ja.valor) || 0 }, select: { id: true } }))) return Response.json({ tarefaId: Number(ja.valor), ja: true });
       const us = await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, sobrenome: true, email: true, setor: true, isMaster: true, diretoria: true } });
-      const leandro = us.find((u) => semAc(u.nome).startsWith("LEANDRO") && u.setor === "PCP") || us.find((u) => semAc(u.nome).startsWith("LEANDRO"));
-      if (!leandro) return Response.json({ error: "Leandro não encontrado no cadastro de usuários." }, { status: 400 });
+      const leandro = fatura ? us.find((u) => semAc(u.nome).startsWith("BRENDA"))
+        : us.find((u) => semAc(u.nome).startsWith("LEANDRO") && u.setor === "PCP") || us.find((u) => semAc(u.nome).startsWith("LEANDRO"));
+      if (!leandro) return Response.json({ error: `${fatura ? "Brenda" : "Leandro"} não encontrado(a) no cadastro de usuários.` }, { status: 400 });
       const em = String(b.solicitante || "").toLowerCase().trim();
       const quem = (em && us.find((u) => String(u.email || "").toLowerCase().trim() === em)) || us.find((u) => u.isMaster) || leandro;
       const assunto = String(b.assunto || "(sem assunto)").replace(/^\s*((ENC|FWD?|RES|RE)\s*:\s*)+/i, "").trim();
       const descricao = [`E-MAIL de ${b.de || "—"}${b.data ? ` · ${b.data}` : ""}`, `Assunto: ${b.assunto || "—"}`, "", String(b.corpo || "").trim().slice(0, 6000)].join("\n");
-      const r = await criar({ titulo: `LANÇAR PEDIDO · solicitado por ${nomeU(quem)} · e-mail: ${assunto}`.slice(0, 200), descricao,
+      const r = await criar({ titulo: `${fatura ? "LANÇAR FATURA/NOTA" : "LANÇAR PEDIDO"} · solicitado por ${nomeU(quem)} · e-mail: ${assunto}`.slice(0, 200), descricao,
         setor: setorTarefaDe(leandro), responsavelId: leandro.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
       if (r.error) return Response.json({ error: r.error }, { status: 400 });
       await prisma.finConfig.upsert({ where: { chave }, create: { chave, valor: String(r.tarefa.id) }, update: { valor: String(r.tarefa.id) } });

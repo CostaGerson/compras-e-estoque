@@ -1,35 +1,48 @@
 /**
- * ERP Meridian — e-mail do Gmail vira SOLICITAÇÃO DE LANÇAMENTO DE PEDIDO (v872)
+ * ERP Meridian — e-mails do Gmail viram tarefas no ERP (v873)
  *
- * Como funciona: a cada 5 minutos o script olha as conversas com a etiqueta ETIQUETA_ORIGEM
- * que ainda não têm a ETIQUETA_FEITO, manda para o ERP (assunto, remetente, texto e TODOS os anexos)
- * e põe a ETIQUETA_FEITO na conversa. No ERP vira a tarefa "LANÇAR PEDIDO · solicitado por …" do Leandro.
- * A sua etiqueta "Pedidos a Lançar" fica como está.
+ *  · etiqueta "Pedidos a Lançar"      → tarefa "LANÇAR PEDIDO" do Leandro
+ *  · etiqueta "Fatura/nota a lançar"  → tarefa "LANÇAR FATURA/NOTA" da Brenda
+ *
+ * A cada 5 minutos o script olha cada etiqueta, manda para o ERP o que ainda não foi enviado
+ * (assunto, remetente, texto e TODOS os anexos) e põe a etiqueta "feito" na conversa.
+ * As suas etiquetas continuam como estão. O que já estava na etiqueta quando ela foi ligada fica de fora.
  */
 const ERP_URL = "https://erp.meridianpro.com.br/api/ext/solicitacao";
 const TOKEN = "COLE_AQUI_O_TOKEN";                       // Dados › Integrações no ERP (X-Api-Key)
-const ETIQUETA_ORIGEM = "1. Pedidos/Pedidos a Lançar";    // nome exato da etiqueta no Gmail
-const ETIQUETA_FEITO = "1. Pedidos/Enviado ao ERP";       // o script cria se não existir
 const PARTE = 8 * 1024 * 1024;
 
+// origem: nome exato da etiqueta OU um padrão (/.../i) para achar pelo nome · feito: o script cria se não existir
+const FLUXOS = [
+  { tipo: "PEDIDO", origem: "1. Pedidos/Pedidos a Lançar", feito: "1. Pedidos/Enviado ao ERP" },
+  { tipo: "FATURA", origem: /fatura\/nota a lan[çc]ar/i, feito: "Enviado ao ERP/Faturas e notas" },
+];
+
+function acharEtiqueta(origem) {
+  if (typeof origem === "string") return GmailApp.getUserLabelByName(origem);
+  return GmailApp.getUserLabels().find((l) => origem.test(l.getName())) || null;
+}
+
 function enviarSolicitacoes() {
-  const origem = GmailApp.getUserLabelByName(ETIQUETA_ORIGEM);
-  if (!origem) throw new Error("Etiqueta não encontrada: " + ETIQUETA_ORIGEM);
-  const feito = GmailApp.getUserLabelByName(ETIQUETA_FEITO) || GmailApp.createLabel(ETIQUETA_FEITO);
-  const threads = origem.getThreads(0, 50);
-  const ignorar = PropertiesService.getScriptProperties();
-  for (const th of threads) {
-    if (th.getLabels().some((l) => l.getName() === ETIQUETA_FEITO)) continue;
-    if (ignorar.getProperty("ign:" + th.getId())) continue;   // já estava na etiqueta quando o script foi instalado (pedido já lançado)
-    try { enviarConversa(th); th.addLabel(feito); }
-    catch (e) { console.log("Falhou: " + th.getFirstMessageSubject() + " — " + e.message); }
+  const props = PropertiesService.getScriptProperties();
+  for (const f of FLUXOS) {
+    const origem = acharEtiqueta(f.origem);
+    if (!origem) { console.log("Etiqueta não encontrada: " + f.origem); continue; }
+    if (!props.getProperty("instalado:" + f.tipo)) { ignorarExistentes(f, origem); continue; }   // etiqueta nova: só guarda o que já tem
+    const feito = GmailApp.getUserLabelByName(f.feito) || GmailApp.createLabel(f.feito);
+    for (const th of origem.getThreads(0, 50)) {
+      if (th.getLabels().some((l) => l.getName() === f.feito)) continue;
+      if (props.getProperty("ign:" + th.getId())) continue;   // já estava na etiqueta quando ela foi ligada
+      try { enviarConversa(th, f.tipo); th.addLabel(feito); }
+      catch (e) { console.log("Falhou (" + f.tipo + "): " + th.getFirstMessageSubject() + " — " + e.message); }
+    }
   }
 }
 
-function enviarConversa(th) {
+function enviarConversa(th, tipo) {
   const msgs = th.getMessages();
   const ult = msgs[msgs.length - 1];
-  const r = chamar({ acao: "criar", idEmail: th.getId(), de: ult.getFrom(), assunto: ult.getSubject(),
+  const r = chamar({ acao: "criar", tipo, idEmail: th.getId(), de: ult.getFrom(), assunto: ult.getSubject(),
     data: Utilities.formatDate(ult.getDate(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm"),
     corpo: ult.getPlainBody(), solicitante: Session.getActiveUser().getEmail() });
   const vistos = {};
@@ -59,15 +72,27 @@ function chamar(corpo) {
   return j;
 }
 
-/** Rode UMA vez: guarda as conversas que JÁ estão na etiqueta (já lançadas — não vão para o ERP)
- *  e liga a verificação automática a cada 5 minutos. Só o que entrar na etiqueta depois disso é enviado. */
-function instalar() {
-  const origem = GmailApp.getUserLabelByName(ETIQUETA_ORIGEM);
-  if (!origem) throw new Error("Etiqueta não encontrada: " + ETIQUETA_ORIGEM);
+// guarda as conversas que já estão na etiqueta (já lançadas) para nunca enviar
+function ignorarExistentes(f, origem) {
   const props = PropertiesService.getScriptProperties();
   let n = 0, inicio = 0, lote;
   do { lote = origem.getThreads(inicio, 100); lote.forEach((th) => { props.setProperty("ign:" + th.getId(), "1"); n++; }); inicio += 100; } while (lote.length === 100);
+  props.setProperty("instalado:" + f.tipo, new Date().toISOString());
+  console.log(origem.getName() + ": " + n + " conversa(s) que já estavam na etiqueta ficaram de fora. Daqui em diante, só as novas vão para o ERP.");
+}
+
+/** Rode UMA vez (ou de novo depois de colar uma versão nova): liga a verificação a cada 5 minutos.
+ *  Etiqueta que já estava ligada não muda; etiqueta nova guarda o que já tem e só envia o que entrar depois. */
+function instalar() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getKeys().some((k) => k.startsWith("ign:")) && !props.getProperty("instalado:PEDIDO"))
+    props.setProperty("instalado:PEDIDO", new Date().toISOString());   // instalação da versão anterior (só pedidos): mantém
+  for (const f of FLUXOS) {
+    if (props.getProperty("instalado:" + f.tipo)) { console.log(f.tipo + ": já estava ligada."); continue; }
+    const origem = acharEtiqueta(f.origem);
+    if (!origem) { console.log("Etiqueta não encontrada: " + f.origem + " — confira o nome em FLUXOS."); continue; }
+    ignorarExistentes(f, origem);
+  }
   ScriptApp.getProjectTriggers().forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger("enviarSolicitacoes").timeBased().everyMinutes(5).create();
-  console.log(n + " conversa(s) que já estavam na etiqueta ficaram de fora. A partir de agora, só as novas vão para o ERP.");
 }
