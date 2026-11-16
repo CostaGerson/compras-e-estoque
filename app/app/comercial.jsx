@@ -1514,7 +1514,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
   if (!lista) return <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>;
 
   let dados = filtro ? lista.filter((f) => guiaFpp(filtro.guia).chave(f) === filtro.valor) : lista;
-  const q = busca.trim().toLowerCase();
+  const q = busca.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   // cards da guia (negociação / cliente / peça)
   const g = guiaFpp(guia);
   const cards = g.chave && !filtro ? Object.values(lista.reduce((acc, f) => {
@@ -1524,7 +1524,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
     if (!c.ultima || f.createdAt > c.ultima) c.ultima = f.createdAt;
     if (f.clienteNome) c.clientes.add(f.clienteNome); if (f.item) c.pecas.add(f.item); if (f.negociacao) c.negs.add(f.negociacao);
     return acc;
-  }, {})).filter((c) => !q || c.valor.toLowerCase().includes(q)).sort((a, b) => (a.ultima < b.ultima ? 1 : -1)) : null;
+  }, {})).filter((c) => !q || c.valor.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)).sort((a, b) => (a.ultima < b.ultima ? 1 : -1)) : null;
   const abrirCard = (valor) => { setFiltro({ guia, valor }); setBusca(""); };
   async function clonar(f) {
     if (!onClonar) return;
@@ -2705,7 +2705,7 @@ function Combo({ label, value, onChange, onPick, options, placeholder, livre }) 
   const [seed, setSeed] = useState("");     // texto digitado que filtra (não muda ao navegar → a lista não "afunila")
   const [hi, setHi] = useState(0);          // índice destacado
   useEffect(() => { setQ(value || ""); }, [value]);
-  const lista = (options || []).filter((o) => o.toLowerCase().includes((seed || "").toLowerCase()));
+  const lista = (options || []).filter((o) => o.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes((seed || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
 
   function abrir() {
     setSeed("");
@@ -2761,7 +2761,7 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
   const [criando, setCriando] = useState(false);
   useEffect(() => { setQ(value || ""); }, [value]);
   const nome = (c) => c.razaoSocial || c.nomeFantasia || "";
-  const lista = clientes.filter((c) => nome(c).toLowerCase().includes((seed || "").toLowerCase())).slice(0, 30);
+  const lista = clientes.filter((c) => nome(c).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes((seed || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 30);
   const exato = clientes.some((c) => nome(c).toLowerCase() === (q || "").trim().toLowerCase());
   async function criar() {
     setCriando(true);

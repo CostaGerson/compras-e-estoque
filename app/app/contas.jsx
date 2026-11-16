@@ -374,7 +374,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const P = tipo === "PAGAR";
   const lista = useMemo(() => {
     if (!d) return [];
-    const n = busca.trim().toUpperCase();
+    const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
       if (soRec && !t.recorrenciaId) return false;
@@ -390,7 +390,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
     });
   }, [d, busca, fSit, contasPorId, soCompra, soRec, P]);
   const antigos = useMemo(() => {
-    const n = busca.trim().toUpperCase();
+    const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => semAc(x).includes(semAc(n)))));
   }, [d, dIni, busca, soCompra, soRec, P]);
   // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
@@ -3062,7 +3062,7 @@ function NfsComprasModal({ user, onClose, onLancar }) {
   const [erro, setErro] = useState("");
   const carregar = () => { setL(null); setSel(new Set()); api(`/api/fin/titulos/nfs?u=${user.id}&ver=${ver}`).then(setL).catch((e) => setErro(e.message)); };
   useEffect(carregar, [ver]);
-  const vis = (l || []).filter((n) => !busca || `${n.fornecedor} ${n.numero} ${n.cnpj}`.toUpperCase().includes(busca.toUpperCase()));
+  const vis = (l || []).filter((n) => !busca || `${n.fornecedor} ${n.numero} ${n.cnpj}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const tog = (id) => setSel((s) => { const x = new Set(s); x.has(id) ? x.delete(id) : x.add(id); return x; });
   const todos = vis.length > 0 && vis.every((n) => sel.has(n.id));
   const acao = async (acao, extra = {}) => {
@@ -3262,9 +3262,9 @@ function Recorrentes({ user, contasPorId, dCtx }) {
       setAviso({ tipo: "ok", texto: `${j.excluidas} recorrente(s) fora da Matriz excluída(s) · ${j.previsoesApagadas} previsão(ões) apagada(s).` });
     } catch (e) { setAviso({ tipo: "erro", texto: e.message }); }
   };
-  const n = busca.trim().toUpperCase();
+  const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const lista = d.recorrencias.filter((r) => (!soDivergentes || r.divergente) && (!soFora || r.foraMatriz) &&
-    (!n || [r.titulo, r.parceiro, r.observacao].some((x) => String(x || "").toUpperCase().includes(n))));
+    (!n || [r.titulo, r.parceiro, r.observacao].some((x) => String(x || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n))));
   const totalMes = d.recorrencias.filter((r) => r.ativo && r.tipo === "PAGAR").reduce((s, r) => s + r.valor, 0);
 
   return (

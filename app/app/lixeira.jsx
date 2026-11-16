@@ -28,8 +28,8 @@ export default function Lixeira({ user, onMudou }) {
   const carregar = () => api(`/api/fin/lixeira?u=${user.id}`).then((d) => { setL(d.itens); setSel(new Set()); }).catch((e) => setMsg({ erro: e.message }));
   useEffect(() => { carregar(); }, []);
   const lista = useMemo(() => {
-    const q = busca.trim().toUpperCase();
-    let x = (l || []).filter((i) => (tipo === "TODOS" || i.tipo === tipo) && (!q || [i.titulo, i.parceiro, i.excluidoPorNome].some((v) => String(v || "").toUpperCase().includes(q))));
+    const q = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    let x = (l || []).filter((i) => (tipo === "TODOS" || i.tipo === tipo) && (!q || [i.titulo, i.parceiro, i.excluidoPorNome].some((v) => String(v || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q))));
     if (ordem) x = [...x].sort((a, b) => { const p = a[ordem.col] ?? "", q2 = b[ordem.col] ?? ""; return (typeof p === "number" ? p - q2 : String(p).localeCompare(String(q2), "pt-BR", { numeric: true })) * ordem.dir; });
     return x;
   }, [l, busca, tipo, ordem]);

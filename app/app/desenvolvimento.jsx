@@ -192,7 +192,7 @@ export default function Desenvolvimento({ user }) {
   useEffect(() => { carregar(); }, []);
   const conta = (k) => (l || []).filter((s) => (k === "TODAS" ? true : k === "ABERTAS" ? ["NOVA", "EM_ANALISE"].includes(s.status) : s.status === k)).length;
   const lista = (l || []).filter((s) => (filtro === "TODAS" ? true : filtro === "ABERTAS" ? ["NOVA", "EM_ANALISE"].includes(s.status) : s.status === filtro))
-    .filter((s) => !busca || `${s.texto} ${s.usuarioNome} ${s.tela || ""} #${s.id}`.toUpperCase().includes(busca.toUpperCase()));
+    .filter((s) => !busca || `${s.texto} ${s.usuarioNome} ${s.tela || ""} #${s.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const simples = async (s, tipo) => {
     try { await api(`/api/sugestoes/${s.id}`, "PATCH", { usuarioId: user.id, acao: tipo }); carregar(); }
     catch (e) { setErro(e.message); }

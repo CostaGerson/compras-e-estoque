@@ -399,8 +399,12 @@ export async function catalogoItens(q, max = 15) {
   const palavras = t.split(/\s+/).filter(Boolean);
   const casa = (s) => { const x = String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); return palavras.every((w) => x.includes(w)); };
   const out = new Map();
-  const doKm = await prisma.kmProduto.findMany({ where: { AND: palavras.map((w) => ({ OR: [{ codigo: { contains: w, mode: "insensitive" } }, { nome: { contains: w, mode: "insensitive" } }] })) },
-    orderBy: [{ usos: "desc" }, { nome: "asc" }], take: max }).catch(() => []);
+  // v840 — sem acento/cedilha dos dois lados (o contains do Postgres diferencia "CALCA" de "CALÇA")
+  const SEM = (col) => `translate(upper(${col}), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ', 'AAAAAEEEEIIIIOOOOOUUUUCNAAAAAEEEEIIIIOOOOOUUUUCN')`;
+  const cond = palavras.map((_, i) => `(${SEM('"codigo"')} LIKE $${i + 1} OR ${SEM('"nome"')} LIKE $${i + 1})`).join(" AND ");
+  const cods = await prisma.$queryRawUnsafe(`SELECT "codigo" FROM "KmProduto" WHERE ${cond} ORDER BY "usos" DESC, "nome" ASC LIMIT ${Number(max) || 15}`, ...palavras.map((w) => `%${w}%`)).catch(() => []);
+  const ordem = cods.map((r) => r.codigo);
+  const doKm = ordem.length ? (await prisma.kmProduto.findMany({ where: { codigo: { in: ordem } } }).catch(() => [])).sort((x, y) => ordem.indexOf(x.codigo) - ordem.indexOf(y.codigo)) : [];
   for (const p of doKm) out.set(p.codigo, { codigo: p.codigo, descricao: p.nome, ncm: p.ncm || null, gtin: p.gtin || null, parametros: (Array.isArray(p.parametros) ? p.parametros : []).filter((x) => !paramFora(x.t)), preco: p.preco != null ? Number(p.preco) : null, origem: "KM" });
   if (out.size < max) {
     const peds = await prisma.pedidoVenda.findMany({ where: { OR: [{ fonte: null }, { fonte: { not: "SISTEMA" } }] }, select: { itens: true, emissao: true }, orderBy: { emissao: "desc" }, take: 1500 });

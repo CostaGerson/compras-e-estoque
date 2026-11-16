@@ -145,8 +145,8 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
   const [sel, setSel] = useState(() => new Set());
   const [modal, setModal] = useState(null);   // "execucao" | "perda" | "card" | "email"
   const filtradas = useMemo(() => {
-    const q = busca.trim().toUpperCase();
-    return d.atrasadas.filter((t) => !q || valorBate(t, q) || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().includes(q)));
+    const q = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return d.atrasadas.filter((t) => !q || valorBate(t, q) || [t.parceiro, t.titulo, t.numeroDoc].some((x) => String(x || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)));
   }, [d, busca]);
   const { lista, Th } = useOrdem(filtradas);
   const escolhidas = d.atrasadas.filter((t) => sel.has(t.id));

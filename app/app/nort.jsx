@@ -34,10 +34,10 @@ export default function Nort({ user, onEditar, onBaixar, tick }) {
     setD(null);
     fetch(`/api/fin/nort?u=${user.id}&de=${de}&ate=${ate}`).then((r) => r.json()).then((x) => { if (x.error) setErro(x.error); else { setD(x); setErro(""); } }).catch((e) => setErro(e.message));
   }, [de, ate, tick]);
-  const q = busca.trim().toUpperCase();
+  const q = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const lanc = useMemo(() => (d?.lancamentos || []).filter((l) => (ver === "CREDITOS" ? l.valor > 0 : ver === "DEBITOS" ? l.valor < 0 : true)
-    && (!q || `${l.historico} ${l.conta} ${l.identificacao || ""} ${l.valor}`.toUpperCase().includes(q))), [d, ver, q]);
-  const abertos = useMemo(() => (d?.abertos || []).filter((t) => !q || `${t.titulo} ${t.parceiro || ""} ${t.numeroDoc || ""} ${t.valor}`.toUpperCase().includes(q)), [d, q]);
+    && (!q || `${l.historico} ${l.conta} ${l.identificacao || ""} ${l.valor}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q))), [d, ver, q]);
+  const abertos = useMemo(() => (d?.abertos || []).filter((t) => !q || `${t.titulo} ${t.parceiro || ""} ${t.numeroDoc || ""} ${t.valor}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)), [d, q]);
   if (!d) return <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}>{erro || <><Loader2 size={16} className="animate-spin" /> Carregando…</>}</div>;
   const T = d.totais;
   const tog = (k) => setVer(ver === k ? "TUDO" : k);

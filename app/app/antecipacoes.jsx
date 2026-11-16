@@ -283,7 +283,7 @@ function ManualModal({ user, onClose, onOk }) {
       .catch((e) => setErro(e.message));
   }, []);
   const vis = useMemo(() => {
-    const n = busca.trim().toUpperCase();
+    const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     // v260 — tabela colada da tela do banco (vencimento … valor por linha): acha cada título por vencimento + valor
     const pares = [...n.matchAll(/(\d{2})\/(\d{2})\/(\d{4})\D[^]*?(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => ({ v: `${m[3]}-${m[2]}-${m[1]}`, c: Math.round(lerNum(m[4]) * 100) }));
     if (pares.length) {
@@ -295,7 +295,7 @@ function ManualModal({ user, onClose, onOk }) {
     const nums = n.split(/[\s,;]+/).filter(Boolean);
     if (nums.length > 1 && nums.every((x) => /^\d+$/.test(x)))
       return (abertos || []).filter((t) => nums.some((x) => String(t.nossoNumero || "").replace(/^0+/, "") === x.replace(/^0+/, "") || String(t.numeroDoc || "") === x)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
-    return (abertos || []).filter((t) => !n || [t.titulo, t.parceiro, t.numeroDoc, t.nossoNumero, brl(t.valor)].some((x) => String(x || "").toUpperCase().includes(n))).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+    return (abertos || []).filter((t) => !n || [t.titulo, t.parceiro, t.numeroDoc, t.nossoNumero, brl(t.valor)].some((x) => String(x || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n))).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   }, [abertos, busca]);
   const escolhidos = (abertos || []).filter((t) => sel.has(t.id));
   const total = escolhidos.reduce((s, t) => s + t.valor, 0);
@@ -416,10 +416,10 @@ export default function Antecipacoes({ user }) {
   const ok = (t) => { setAviso(t); setTimeout(() => setAviso(""), 4000); setModal(null); setSel(new Set()); carregar(); };
 
   const lista = useMemo(() => {
-    const n = busca.trim().toUpperCase();
+    const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return (d?.titulos || []).filter((t) => (!fForma || t.antecipadoForma === fForma)
       && (!fSit || fSit === "TODOS" || t.sitAnt === fSit)
-      && (!n || [t.titulo, t.parceiro, t.numeroDoc, brl(t.valor), t.critica].some((x) => String(x || "").toUpperCase().includes(n))));
+      && (!n || [t.titulo, t.parceiro, t.numeroDoc, brl(t.valor), t.critica].some((x) => String(x || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n))));
   }, [d, busca, fForma, fSit]);
   const tot = useMemo(() => {
     const s = (f) => (d?.titulos || []).filter(f).reduce((a, t) => a + t.valor, 0);

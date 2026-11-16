@@ -36,9 +36,9 @@ export default function Patrimonio({ user }) {
   useEffect(() => { carregar(); }, []);
 
   const lista = useMemo(() => {
-    const b = busca.trim().toUpperCase();
+    const b = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return (itens || []).filter((x) => (!fCat || x.categoria === fCat) && (!fSit || x.situacao === fSit)
-      && (!b || `${x.descricao} ${x.marcaModelo || ""} ${x.serie || ""} ${x.local || ""} ${x.nfNumero || ""} ${x.nfFornecedor || ""}`.toUpperCase().includes(b)));
+      && (!b || `${x.descricao} ${x.marcaModelo || ""} ${x.serie || ""} ${x.local || ""} ${x.nfNumero || ""} ${x.nfFornecedor || ""}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b)));
   }, [itens, busca, fCat, fSit]);
   const ativos = (itens || []).filter((x) => x.situacao === "ATIVO");
   const tot = (l, k) => l.reduce((s, x) => s + (Number(x[k]) || 0), 0);

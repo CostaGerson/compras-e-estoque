@@ -168,7 +168,7 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
   const H = hojeISO();
   const lista = (d?.tarefas || []).filter((t) => (natureza === "GERAL" || t.natureza === natureza) && (setor === "TODOS" || t.setor === setor)
     && (ver === "TODAS" || (ver === "ABERTAS" ? t.status !== "CONCLUIDA" : t.status === "CONCLUIDA"))
-    && (!busca || `${t.titulo} ${t.descricao || ""} ${t.responsavelNome} ${t.criadoPorNome} #${t.id}`.toUpperCase().includes(busca.toUpperCase())))
+    && (!busca || `${t.titulo} ${t.descricao || ""} ${t.responsavelNome} ${t.criadoPorNome} #${t.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))))
     .filter((t) => ver !== "ABERTAS" || t.prazo <= somaDia(H, 30) || t.serieId === null);   // rotinas: só os próximos 30 dias
   const grupos = ver === "ABERTAS" ? [
     ["Atrasadas", lista.filter((t) => t.prazo < H), C.red], ["Hoje", lista.filter((t) => t.prazo === H), C.accent],
@@ -206,7 +206,7 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
           <div className="px-4 pt-3 pb-2 text-xs" style={{ color: C.sub }}>Demandas excluídas ficam aqui por 30 dias, com dados e arquivos, e depois somem. Concluídas e passadas nunca são apagadas: ficam em <b>Concluídas</b>.</div>
           {!lix && <div className="px-4 py-4"><Loader2 size={16} className="animate-spin" style={{ color: C.sub }} /></div>}
           {lix && !lix.length && <div className="px-4 py-10 text-center text-sm" style={{ color: C.sub }}>A lixeira está vazia.</div>}
-          {(lix || []).filter((t) => !busca || `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(busca.toUpperCase())).map((t) => (
+          {(lix || []).filter((t) => !busca || `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).map((t) => (
             <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-[200px]">
                 <button onClick={() => setAbrir(t.id)} className="font-semibold text-left" style={{ color: C.text }}>#{t.id} {t.titulo}</button>
@@ -398,7 +398,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   // v606 — diz o que falta em vez de só deixar o botão apagado
   const faltando = [!f.titulo.trim() && "o que precisa ser feito (Demanda)", !f.responsavelId && "colaborador", !f.prazo && "data"].filter(Boolean);
   const depsSel = depsVal.filter((t) => f.dependencias.includes(t.id));
-  const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().includes(buscaDep.toUpperCase())).slice(0, 8);
+  const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaDep.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 8);
   return (
     <Janela titulo={ed ? `Editar demanda #${inicial.id}` : "Nova demanda"} onClose={onClose} largura={720}
       rodape={<>
@@ -475,7 +475,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
               <button onClick={() => set("envolvidos", f.envolvidos.filter((y) => y !== id))}><X size={11} /></button></span>; })}</div>}
           <input value={buscaEnv} onChange={(e) => setBuscaEnv(e.target.value)} placeholder="Buscar pessoa envolvida…" className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
           {buscaEnv && <div className="rounded-lg mt-1" style={{ border: `1px solid ${C.line}`, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
-            {usuarios.filter((x) => !f.envolvidos.includes(x.id) && String(x.nome).toUpperCase().includes(buscaEnv.toUpperCase())).slice(0, 10)
+            {usuarios.filter((x) => !f.envolvidos.includes(x.id) && String(x.nome).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaEnv.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 10)
               .map((x) => <button key={x.id} onClick={() => { set("envolvidos", [...f.envolvidos, x.id]); setBuscaEnv(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">{x.nome}</button>)}
           </div>}
         </>}
@@ -500,7 +500,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
           </div>}
           <input value={buscaConv} onChange={(e) => setBuscaConv(e.target.value)} placeholder="Buscar pessoa para convidar…" className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
           {buscaConv && <div className="rounded-lg mt-1" style={{ border: `1px solid ${C.line}`, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
-            {usuarios.filter((x) => !f.convidados.includes(x.id) && x.id !== (pessoal ? criador : Number(f.responsavelId)) && String(x.nome).toUpperCase().includes(buscaConv.toUpperCase())).slice(0, 10)
+            {usuarios.filter((x) => !f.convidados.includes(x.id) && x.id !== (pessoal ? criador : Number(f.responsavelId)) && String(x.nome).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaConv.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 10)
               .map((x) => <button key={x.id} onClick={() => { set("convidados", [...f.convidados, x.id]); setBuscaConv(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">{x.nome}</button>)}
           </div>}
         </>}
@@ -1072,7 +1072,7 @@ function ProjetoForm({ user, inicial, projetos = [], usuarios = [], onClose, onO
   const [f, setF] = useState({ nome: inicial?.nome || "", cor: inicial?.cor || livre, natureza: inicial?.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", acesso: ac0, membros: inicial?.membros || [] });
   const [buscaM, setBuscaM] = useState("");
   const dono = inicial?.donoId || user.id;
-  const candidatos = usuarios.filter((x) => x.id !== dono && (!buscaM || String(x.nome).toUpperCase().includes(buscaM.toUpperCase())));
+  const candidatos = usuarios.filter((x) => x.id !== dono && (!buscaM || String(x.nome).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaM.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))));
   const marcar = (id) => setF((x) => ({ ...x, membros: x.membros.includes(id) ? x.membros.filter((y) => y !== id) : [...x.membros, id] }));
   const mudouTipo = inicial?.id && (inicial.natureza === "PESSOAL") !== (f.natureza === "PESSOAL");
   const [st, setSt] = useState(false), [erro, setErro] = useState("");

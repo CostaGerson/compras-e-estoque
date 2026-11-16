@@ -570,6 +570,21 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const doCli = padroes.filter((p) => pal.every((w) => norm([p.nomeInterno, p.nomeNf, p.codigo, p.codigoPadrao].join(" ")).includes(w)));
     const ids = new Set(doCli.map((p) => p.id));
     return [...doCli, ...globais.filter((p) => !ids.has(p.id))].slice(0, 15); })();
+  // v840 — FPPs também entram na busca (FPP recém-criada ainda não é item cadastrado): escolher cria o item já indexado à FPP
+  const [fppsBusca, setFppsBusca] = useState([]);
+  useEffect(() => {
+    const t = buscaPadrao.trim(); if (t.length < 2) { setFppsBusca([]); return; }
+    const h = setTimeout(() => api(`/api/pp/catalogo?fpp=${encodeURIComponent(t)}&cliente=${encodeURIComponent(f.clienteNome || "")}`).then((r) => r.json()).then((d) => setFppsBusca(Array.isArray(d) ? d : [])).catch(() => setFppsBusca([])), 250);
+    return () => clearTimeout(h);
+  }, [buscaPadrao]);
+  const opFpp = (() => { const ja = new Set(opPadrao.map((p) => p.fppId).filter(Boolean)); return fppsBusca.filter((rf) => !ja.has(rf.id)).slice(0, 8); })();
+  const usarFppBusca = (rf) => {
+    const arr = itensRef.current, k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade));
+    const i = k >= 0 ? k : arr.length;
+    if (k < 0) setItens((a) => [...a, novoItem()]);
+    setBuscaPadrao("");
+    setTimeout(() => indexarFpp(i, rf), 0);
+  };
   // v754 — campos Código/Descrição do item: cadastro de itens primeiro (puxa tudo), depois o cadastro do KM
   const buscarItem = async (q) => {
     const [ps, km] = await Promise.all([fetch(`/api/itens-padrao?q=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => []), buscarItemKm(q)]);
@@ -971,9 +986,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {!f.servico && podeLancar && (
         <div className="rounded-lg p-4 mb-4" style={{ background: C.accentSoft, border: `2px solid ${C.accent}` }}>
           <div className="flex items-center gap-2 mb-2"><Search size={16} style={{ color: C.accent }} /><span className="font-bold text-sm" style={{ color: C.accent }}>Buscar item cadastrado{padroes.length ? ` · ${padroes.length} de ${f.clienteNome || "este cliente"}` : ""}</span>
-            <span className="text-xs" style={{ color: C.sub }}>· código, descrição, nome interno ou cliente: os dados entram preenchidos (nome da NF, preço, parâmetros, layout e FPP)</span></div>
+            <span className="text-xs" style={{ color: C.sub }}>· código, descrição, nome interno, cliente ou FPP: os dados entram preenchidos (nome da NF, preço, parâmetros, layout e FPP)</span></div>
           <div style={{ position: "relative" }}>
-            <input value={buscaPadrao} onChange={(e) => setBuscaPadrao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && opPadrao[0]) { e.preventDefault(); usarPadrao(opPadrao[0]); } }}
+            <input value={buscaPadrao} onChange={(e) => setBuscaPadrao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (opPadrao[0] || opFpp[0])) { e.preventDefault(); opPadrao[0] ? usarPadrao(opPadrao[0]) : usarFppBusca(opFpp[0]); } }}
  placeholder="código, descrição, nome interno ou cliente…" className="w-full px-3 py-2.5 rounded outline-none text-base font-semibold" style={{ background: C.panel, border: `1px solid ${C.accent}`, textTransform: "uppercase" }} />
             {buscaPadrao && (
               <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 300, overflowY: "auto" }}>
@@ -983,7 +998,15 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                     <span className="ml-auto" style={{ color: C.text }}>{veVal && p.precoAtual != null ? money(p.precoAtual) : ""}</span>
                     {p.critica && <span className="text-[10px] font-bold" style={{ color: C.red }}>≠ FPP</span>}
                   </button>
-                )) : <div className="px-3 py-2 text-sm" style={{ color: C.sub }}>Nenhum item cadastrado com isso.</div>}
+                )) : null}
+                {opFpp.map((rf) => (
+                  <button key={`fpp${rf.id}`} onMouseDown={(e) => { e.preventDefault(); usarFppBusca(rf); }} className="w-full text-left px-3 py-2 text-sm flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <span className="text-[10px] font-bold px-1 rounded" style={{ background: C.accentSoft, color: C.accent }}>FPP {numFpp(rf.numero)}</span>
+                    <b>{rf.nomeComercial || rf.item}</b><span style={{ color: C.sub }}>· {rf.item}{rf.cliente ? ` · ${rf.cliente}` : ""}</span>
+                    <span className="ml-auto" style={{ color: C.text }}>{veVal && rf.valorProposto ? money(rf.valorProposto) : ""}</span>
+                  </button>
+                ))}
+                {!opPadrao.length && !opFpp.length && <div className="px-3 py-2 text-sm" style={{ color: C.sub }}>Nenhum item cadastrado ou FPP com isso.</div>}
               </div>
             )}
           </div>

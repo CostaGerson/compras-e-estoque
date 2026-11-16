@@ -33,7 +33,7 @@ export function Acervo({ user, area }) {
   const [ed, setEd] = useState(null);
   const ler = () => fetch(`/api/acervo?u=${user.id}&area=${area}`, { cache: "no-store" }).then((r) => r.json()).then(setD).catch((e) => setD({ error: e.message }));
   useEffect(() => { ler(); }, [area]);
-  const lista = (d?.docs || []).filter((x) => !q || `${x.titulo} ${x.categoria || ""} ${x.participantes || ""} ${x.texto || ""} ${x.anexos.map((a) => a.nome).join(" ")}`.toUpperCase().includes(q.toUpperCase()));
+  const lista = (d?.docs || []).filter((x) => !q || `${x.titulo} ${x.categoria || ""} ${x.participantes || ""} ${x.texto || ""} ${x.anexos.map((a) => a.nome).join(" ")}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const hoje = new Date().toISOString().slice(0, 10);
   return (
     <div>

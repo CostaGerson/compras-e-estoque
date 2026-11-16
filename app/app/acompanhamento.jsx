@@ -38,12 +38,12 @@ export default function Acompanhamento({ user }) {
   useEffect(() => { carregar(); }, [todos]);
 
   const lista = useMemo(() => {
-    const b = busca.trim().toUpperCase();
-    const v = fVend.trim().toUpperCase(), c = fCli.trim().toUpperCase();
+    const b = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const v = fVend.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""), c = fCli.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return (d?.pedidos || []).filter((p) => (!fSit || p.situacao === fSit)
-      && (!v || String(p.vendedor || "").toUpperCase().includes(v))
-      && (!c || String(p.cliente || "").toUpperCase().includes(c))
-      && (!b || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(b)));
+      && (!v || String(p.vendedor || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(v))
+      && (!c || String(p.cliente || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(c))
+      && (!b || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b)));
   }, [d, busca, fSit, fVend, fCli]);
   const vendedores = useMemo(() => [...new Set((d?.pedidos || []).map((p) => p.vendedor).filter(Boolean))].sort(), [d]);
   const clientes = useMemo(() => [...new Set((d?.pedidos || []).map((p) => p.cliente).filter(Boolean))].sort(), [d]);

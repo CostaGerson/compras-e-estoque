@@ -95,7 +95,7 @@ export default function PedidosAndamento({ user }) {
   const R = d?.resumo;
   const normal = (p) => !p.oculto && !p.interno;
   const CR = d?.crono;
-  const f = filtro.trim().toUpperCase();
+  const f = filtro.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const VISTAS = {
     andamento: ["Pedidos em andamento · a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && (p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009],
     noMes: [`Com pagamento em ${curto(comp)}`, (p) => normal(p) && p.noMes > 0.009],
@@ -117,7 +117,7 @@ export default function PedidosAndamento({ user }) {
   };
   const tog = (k) => setVista(vista === k ? null : k);
   const base = (d?.pedidos || []).filter(vista && VISTAS[vista] ? VISTAS[vista][1] : (p) => !p.oculto && !(p.interno && p.status === "ANDAMENTO"));
-  const lista = base.filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().includes(f))
+  const lista = base.filter((p) => !f || `${p.numero} ${p.cliente} ${p.vendedor || ""}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(f))
     .map((p, i) => [p, i]).sort((a, b) => (b[0].previsao.atrasado ? 1 : 0) - (a[0].previsao.atrasado ? 1 : 0) || a[1] - b[1]).map(([p]) => p);   // v322 — vencidos no topo
 
   // v395 — exporta para Excel exatamente o que a lista mostra (filtro do card/aviso, busca e ordem escolhida no título da coluna)

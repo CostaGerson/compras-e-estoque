@@ -167,7 +167,7 @@ function MatrizPessoal({ user, d, onSalvo }) {
   const [busca, setBusca] = useState("");
   const [edit, setEdit] = useState(null);   // { pessoa, novo }
   const lista = (d.pessoas || []).filter((p) => (emp === "TODAS" || p.empresa === emp) && (mostrar === "ATIVOS" ? p.ativo !== false : p.ativo === false)
-    && (!busca || `${p.nome} ${p.nomeCompleto || ""} ${p.cargo}`.toUpperCase().includes(busca.toUpperCase())));
+    && (!busca || `${p.nome} ${p.nomeCompleto || ""} ${p.cargo}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))));
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -336,7 +336,7 @@ function Carometro({ user, d, p: painel, onMudou, recarregarPainel }) {
     he: [(a, b) => (stats?.[b.id]?.he ?? -1) - (stats?.[a.id]?.he ?? -1), "Hora extra (mais horas primeiro)"],
   };
   const lista = (d.pessoas || []).filter((p) => (desl ? p.ativo === false : p.ativo !== false) && (emp === "TODAS" || p.empresa === emp)
-    && (!busca || `${p.nome} ${p.nomeCompleto || ""} ${p.cargo}`.toUpperCase().includes(busca.toUpperCase())))
+    && (!busca || `${p.nome} ${p.nomeCompleto || ""} ${p.cargo}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))))
     .sort((a, b) => ORDENS[ordem][0](a, b) || String(a.nome).localeCompare(String(b.nome)));
   const grupos = visao === "setor"
     ? Object.entries(lista.reduce((g, p) => { (g[p.depto || "—"] ||= []).push(p); return g; }, {})).sort((a, b) => nomeDepto(a[0]).localeCompare(nomeDepto(b[0])))

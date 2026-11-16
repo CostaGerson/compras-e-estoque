@@ -137,8 +137,8 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
 
   // v712 — excluir pedido (enquanto não está na produção)
   const excluirPedido = async (p) => { if (!(await confirmar(`Excluir o pedido de ${p.cliente || "—"} (${p.pecas} peças)?${p.status === "RECEBENDO_DETALHES" ? "\n\nOs links de preenchimento param de funcionar e as respostas recebidas são apagadas." : ""}${p.status === "LIBERADO" ? "\n\nA nossa equipe será avisada." : ""}\n\nNão dá para desfazer.`))) return; try { const j = await api("/api/portal", { method: "DELETE", body: JSON.stringify({ ppId: p.id }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); setDetalhe(null); if (ppId === p.id) limpar(); } catch (e) { alerta(e.message); } };
-  const n = busca.trim().toLowerCase();
-  const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().includes(n));
+  const n = busca.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n));
   const val = calcValores(itens);
 
   const ABAS = [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList]];
@@ -409,8 +409,8 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
   const [filtro, setFiltro] = useState("TODOS");
   const [busca, setBusca] = useState("");
   const cont = useMemo(() => pedidos.reduce((m, p) => ({ ...m, [p.status]: (m[p.status] || 0) + 1 }), {}), [pedidos]);
-  const n = busca.trim().toLowerCase();
-  const lista = pedidos.filter((p) => (filtro === "TODOS" || p.status === filtro) && (!n || [p.numero, p.cliente, p.oc, ...p.itens.map((i) => i.descricao)].join(" ").toLowerCase().includes(n)));
+  const n = busca.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const lista = pedidos.filter((p) => (filtro === "TODOS" || p.status === filtro) && (!n || [p.numero, p.cliente, p.oc, ...p.itens.map((i) => i.descricao)].join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n)));
   const tot = lista.reduce((s, p) => ({ pecas: s.pecas + p.pecas, cmv: s.cmv + p.cmv, venda: s.venda + p.venda, mc: s.mc + p.mc }), { pecas: 0, cmv: 0, venda: 0, mc: 0 });
   return (
     <div>
