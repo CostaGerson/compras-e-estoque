@@ -468,8 +468,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     // Aviamentos (sem a linha, que já entrou na matéria-prima)
     // v410 — elástico e faixa por metro (consumo × R$/m); botão pelo tipo
     const elast = elasticoCalc(getP, f.elastico);
-    const golaOuElast = aberta ? pget("GOLA", f.gola) + elast.valor : isMalha ? pget("GOLA", f.gola) : elast.valor;   // v512 — acessório: gola e elástico
-    const punho = isMalha || aberta ? pget("PUNHO", f.punho) : 0;
+    // v839 — gola/punho em ribana: custo sai da malha da ficha (ribana = 140% do R$/kg da malha; gola 96 pç/kg, punho 125 pç/kg)
+    const rib = ribanaCalc(f, isMalha, cget, over);
+    const golaV = rib.gola ? rib.gola.valor : pget("GOLA", f.gola);
+    const golaOuElast = aberta ? golaV + elast.valor : isMalha ? golaV : elast.valor;   // v512 — acessório: gola e elástico
+    const punho = isMalha || aberta ? (rib.punho ? rib.punho.valor : pget("PUNHO", f.punho)) : 0;
     const fx = faixaCalc(getP, f.faixa, f.faixaTipo);
     const faixa = fx.valor;
     const botaoUn = botaoUnit(getP, f.botaoTipo);
@@ -541,7 +544,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
 
-    return { revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over, aberta, revenda]);
 
   function montarBody() {
@@ -716,7 +719,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             {!revenda && <Card title="Matéria-prima">
               {/* v411 — linhas na mesma grade: artigo · custo · consumo/rendimento · (forrada) */}
               <div className="space-y-3">
-                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (tipo === "PLANO" || aberta ? " 120px" : "") }}>
+                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(tipo === "PLANO" || aberta) }}>
                   <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
                     onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
                   <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
@@ -729,15 +732,17 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                       <div className="flex items-center" style={{ minHeight: 34 }}><Toggle on={!!f.forrada} onChange={(v) => set("forrada", v)} /></div>
                     </div>
                   )}
+                  <CustoPeca valor={r?.mpBase} />
                 </div>
                 {(tipo === "PLANO" || aberta) && f.forrada && (
-                  <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1fr) 150px 150px 120px" }}>
+                  <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(true) }}>
                     <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
                       onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />
                     <Inp full label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />
                     <Inp full label="Consumo (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
                       placeholder={r && r.consumoForroEst ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")}` : ""} />
                     <div />
+                    <CustoPeca valor={r ? num(f.forroValor) * (r.consumoForro || 0) : 0} />
                   </div>
                 )}
                 <MpExtras lista={f.materiasExtras} onChange={(l) => set("materiasExtras", l)} cols={tipo === "PLANO" || aberta} />
@@ -750,8 +755,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
               <div className="av-row flex flex-wrap gap-4 items-start px-4 py-3 rounded-lg mb-2" style={{ background: C.panel2 }}>
                 {(tipo === "MALHA" || aberta) && (
                   <>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet></div>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet></div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}</div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}</div>
                   </>
                 )}
                 {(tipo === "PLANO" || aberta) && (
@@ -2394,6 +2399,28 @@ function Card({ title, children }) {
     </div>
   );
 }
+// v839 — ribana da gola/punho calculada pela malha: R$/kg ribana = R$/kg malha × fator (1,4); R$/pç = R$/kg ribana ÷ rendimento
+//   constantes ajustáveis em Parâmetros (CONST): RIBANA_FATOR_CUSTO, RIBANA_REND_GOLA, RIBANA_REND_PUNHO.
+//   Se o valor da gola/punho foi ajustado na própria ficha (override), vale o ajuste.
+const ehRibana = (v) => /RIBANA/.test(String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase());
+function ribanaCalc(f, isMalha, cget, over) {
+  const malhaKg = num(f.mpValor);
+  if (!isMalha || !malhaKg) return {};
+  const fator = cget("RIBANA_FATOR_CUSTO") || 1.4;
+  const kg = malhaKg * fator;
+  const um = (grupo, chave, rendPadrao, constRend) => {
+    if (!ehRibana(chave)) return null;
+    const o = over?.[`${grupo}:${chave}:valor`];
+    if (o != null && o !== "") return null;
+    const rend = cget(constRend) || rendPadrao;
+    return { kg, fator, rend, valor: kg / rend };
+  };
+  return { gola: um("GOLA", f.gola, 96, "RIBANA_REND_GOLA"), punho: um("PUNHO", f.punho, 125, "RIBANA_REND_PUNHO") };
+}
+function RibanaHint({ x }) {
+  const n2 = (v) => v.toFixed(2).replace(".", ",");
+  return <div className="text-[11px] mt-1 leading-tight" style={{ color: C.sub }} title="Ribana = 140% do R$/kg da malha ÷ rendimento (pç/kg)">Ribana R$ {n2(x.kg)}/kg ÷ {String(x.rend).replace(".", ",")} pç/kg = <b style={{ color: C.text }}>{brl(x.valor)}/pç</b></div>;
+}
 /* custos extras (aviamentos / produção): sem limite de linhas, sempre em R$ por peça */
 const somaExtras = (l) => (Array.isArray(l) ? l : []).reduce((s, x) => s + num(x?.valor), 0);
 // v411 — matérias-primas adicionais: artigo (+ detalhe) · custo · consumo (m/peça) ou rendimento (peças/kg)
@@ -2403,34 +2430,55 @@ function custoMpExtras(l) {
     return s0 + (x?.modo === "RENDIMENTO" ? (q ? c / q : 0) : c * q);
   }, 0);
 }
+// v839 — grade única da matéria-prima: artigo · custo · rendimento/consumo · (forrada) · R$/peça
+const mpGrid = (forrada) => "minmax(0,1fr) 130px 150px" + (forrada ? " 110px" : "") + " 104px";
+function CustoPeca({ valor, onRemover }) {
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Custo/peça</div>
+      <div className="flex items-center justify-between gap-1 rounded px-2" style={{ height: 34, background: C.bg || "#F4F6F8", border: `1px solid ${C.line}` }}>
+        <span className="text-sm font-semibold whitespace-nowrap" style={{ color: C.text }}>{brl(valor || 0)}</span>
+        {onRemover && <button onClick={onRemover} title="Remover" className="flex-shrink-0" style={{ color: C.red }}><X size={14} /></button>}
+      </div>
+    </div>
+  );
+}
+function UnidadeSeg({ rend, onChange }) {
+  const b = (on) => ({ background: on ? C.accent : "#fff", color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` });
+  return (
+    <div className="flex items-center justify-between mb-1" style={{ height: 16 }}>
+      <span className="text-xs" style={{ color: C.sub }}>{rend ? "Rendimento" : "Consumo"}</span>
+      <span className="flex text-[10px] font-semibold leading-none">
+        <button type="button" onClick={() => onChange("RENDIMENTO")} className="px-1.5 py-0.5 rounded-l" style={b(rend)} title="Rendimento: peças por kg">pç/kg</button>
+        <button type="button" onClick={() => onChange("CONSUMO")} className="px-1.5 py-0.5 rounded-r" style={{ ...b(!rend), marginLeft: -1 }} title="Consumo: metros por peça">m/pç</button>
+      </span>
+    </div>
+  );
+}
 function MpExtras({ lista, onChange, cols }) {
   const l = Array.isArray(lista) ? lista : [];
   const alt = (i, k, v) => onChange(l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  const grid = { gridTemplateColumns: "minmax(0,1fr) 150px 150px" + (cols ? " 120px" : " 28px") };
-  const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
+  const inp = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   return (
-    <div>
+    <div className="space-y-3">
       {l.map((x, i) => {
         const rend = x.modo === "RENDIMENTO";
         return (
-          <div key={i} className="grid gap-3 items-start mb-3" style={grid}>
+          <div key={i} className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(cols) }}>
             <ArtigoNomeDet label={`Matéria-prima adicional ${i + 1}`} nome={x.nome} det={x.det} categoria={rend ? "MALHA" : "TECIDO"}
               onNome={(v) => alt(i, "nome", v.toUpperCase())} onDet={(d) => alt(i, "det", d)} />
             <Inp full label={rend ? "Custo (R$/kg)" : "Custo (R$/m)"} value={x.custo ?? ""} onChange={(v) => alt(i, "custo", v)} />
             <div>
-              <select value={rend ? "RENDIMENTO" : "CONSUMO"} onChange={(e) => alt(i, "modo", e.target.value)} className="text-xs mb-1 rounded px-1" style={{ ...sel, height: 18, padding: "0 2px" }}>
-                <option value="CONSUMO">Consumo (m/peça)</option><option value="RENDIMENTO">Rendimento (pç/kg)</option>
-              </select>
-              <input value={x.qtd ?? ""} onChange={(e) => alt(i, "qtd", e.target.value)} inputMode="decimal" className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
+              <UnidadeSeg rend={rend} onChange={(m) => alt(i, "modo", m)} />
+              <input value={x.qtd ?? ""} onChange={(e) => alt(i, "qtd", e.target.value)} inputMode="decimal" placeholder={rend ? "peças por kg" : "metros por peça"}
+                className="w-full px-2 py-1.5 rounded text-sm" style={inp} />
             </div>
-            <div className="flex items-end justify-between gap-1" style={{ minHeight: 54 }}>
-              <span className="text-[11px] pb-2" style={{ color: C.sub }}>{brl(custoMpExtras([x]))}/pç</span>
-              <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 pb-2" style={{ color: C.red }}><X size={15} /></button>
-            </div>
+            {cols && <div />}
+            <CustoPeca valor={custoMpExtras([x])} onRemover={() => onChange(l.filter((_, j) => j !== i))} />
           </div>
         );
       })}
-      <button onClick={() => onChange([...l, { nome: "", custo: "", modo: "CONSUMO", qtd: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
+      <button onClick={() => onChange([...l, { nome: "", custo: "", modo: "RENDIMENTO", qtd: "" }])} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}>
         <Plus size={14} /> Adicionar matéria-prima
       </button>
     </div>
