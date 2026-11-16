@@ -281,12 +281,12 @@ function CardKpi({ k, mes, ano, user, master, money, acumulado = false }) {
         <div className="min-w-0">
           {comRanking && temValor ? (
             <button onClick={() => setRanking(ranking ? null : mes)} title="Ver os 10 maiores clientes do mês"
-              className="font-semibold flex items-center gap-1" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>
+              className="font-semibold flex items-center gap-1 whitespace-nowrap" style={{ fontSize: 21, lineHeight: 1.15, color: C.text }}>{/* v868 — valor numa linha só */}
               {compacto(k.valor, k.unidade)}
-              <ChevronDown size={18} style={{ color: C.accent, transform: ranking ? "rotate(180deg)" : "none" }} />
+              <ChevronDown size={16} className="shrink-0" style={{ color: C.accent, transform: ranking ? "rotate(180deg)" : "none" }} />
             </button>
           ) : (
-          <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: temValor ? C.text : C.sub }}>
+          <div className="font-semibold whitespace-nowrap" style={{ fontSize: 21, lineHeight: 1.15, color: temValor ? C.text : C.sub }}>
             {!temValor ? "—" : esconder ? "•••••" : compacto(k.valor, k.unidade)}
           </div>
           )}

@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { respostaAnexo } from "@/lib/arquivos";
+import { respostaAnexo, enxugarItensPp } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
 import { salvarPp, efetivarPedido, faturarPedido, criticas } from "@/lib/pedidoEfetivar";   // v595
@@ -8,6 +8,7 @@ export async function GET(req, { params }) {
   const u = await usuarioPP(req, "ve");
   if (!u) return negadoPP();
   const id = Number(params.id);
+  try { await enxugarItensPp(id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868 — arquivos grandes dos itens vão para o disco
   // v320 — ?arquivo=arquivoPedidoPdf|arquivoOpPdf|arquivoPcPdf|arquivoLancPdf → o PDF
   // v595 — ?anexo=ID → o arquivo anexado
   const anx = new URL(req.url).searchParams.get("anexo");
@@ -121,6 +122,7 @@ export async function PUT(req, { params }) {
   if (!u) return negadoPP();
   try {
     const id = await salvarPp(Number(params.id), await req.json(), nomeQuem(u));
+    try { await enxugarItensPp(id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868
     const pp = await prisma.pp.findUnique({ where: { id }, include: { itens: true } });
     return Response.json({ id, ...criticas(pp) });
   } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }

@@ -6,9 +6,10 @@ export const tokenDe = (s) => { const m = String(s || "").match(/(?:^|,)arq:([A-
 export const urlDoArquivo = (s, baixar = true) => { const t = tokenDe(s); return t ? `/api/arquivos?t=${t}${baixar ? "&baixar=1" : ""}` : null; };
 
 // onProgresso(0..1) opcional
-export async function subirArquivo(file, uid, onProgresso) {
+export async function subirArquivo(file, uid, onProgresso, nome) {
   if (file.size <= GRANDE) return dataUrl(file);
-  const ini = await fetch("/api/arquivos", { method: "POST", headers: { "Content-Type": "application/json", "x-usuario-id": String(uid || "") }, body: JSON.stringify({ nome: file.name, mime: file.type || null, tamanho: file.size }) });
+  if (!uid) { try { uid = JSON.parse(localStorage.getItem("ce_user") || "null")?.id; } catch {} }   // v868
+  const ini = await fetch("/api/arquivos", { method: "POST", headers: { "Content-Type": "application/json", "x-usuario-id": String(uid || "") }, body: JSON.stringify({ nome: nome || file.name, mime: file.type || null, tamanho: file.size }) });
   const j = await ini.json().catch(() => ({}));
   if (!ini.ok) throw new Error(j.error || "Não consegui iniciar o envio.");
   const P = j.parte || GRANDE;
@@ -21,7 +22,7 @@ export async function subirArquivo(file, uid, onProgresso) {
       off = x.recebido; falhas = 0;
       onProgresso && onProgresso(off / file.size);
     } catch (e) {
-      if (++falhas > 4) throw new Error(`${file.name}: envio interrompido (${e.message}).`);
+      if (++falhas > 4) throw new Error(`${nome || file.name}: envio interrompido (${e.message}).`);
       await new Promise((r) => setTimeout(r, 1500 * falhas));
     }
   }

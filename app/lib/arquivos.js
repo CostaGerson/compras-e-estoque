@@ -52,6 +52,33 @@ export async function resposta(t, { nome, mime, baixar = false } = {}) {
     "Content-Disposition": `${baixar ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(n)}`,
   } });
 }
+// v868 — base64 grande (acima de 8 MB) vai para o disco e vira "arq:<token>"; o resto fica como está
+export const GRANDE = 8 * 1024 * 1024;
+export async function paraDisco(b64, { nome, mime, quem } = {}) {
+  if (!b64 || tokenDe(b64)) return b64;
+  const raw = String(b64).replace(/^data:[^,]+,/, "");
+  if (raw.length * 0.75 <= GRANDE) return b64;
+  const buf = Buffer.from(raw, "base64");
+  const mm = String(b64).match(/^data:([^;,]+)/);
+  const t = await iniciar({ nome, mime: mime || mm?.[1] || null, tamanho: buf.length, quem });
+  await parte(t, 0, buf);
+  return `arq:${t}`;
+}
+// anexos dos itens de um pedido (anexosJson): tira do banco os arquivos grandes — o pedido volta a salvar leve
+export async function enxugarItensPp(ppId, db) {
+  const prisma = db || (await import("@/lib/prisma")).prisma;
+  const its = await prisma.ppItem.findMany({ where: { ppId: Number(ppId) }, select: { id: true, anexosJson: true } });
+  let n = 0;
+  for (const it of its) {
+    const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
+    if (!l.some((a) => a && a.base64 && !tokenDe(a.base64) && String(a.base64).length * 0.75 > GRANDE)) continue;
+    const novo = [];
+    for (const a of l) novo.push(a && a.base64 ? { ...a, base64: await paraDisco(a.base64, { nome: a.nome, mime: a.mime }) } : a);
+    await prisma.ppItem.update({ where: { id: it.id }, data: { anexosJson: novo } });
+    n++;
+  }
+  return n;
+}
 // responde o anexo: arquivo em disco (marca arq:) ou base64 (data URL ou puro)
 export async function respostaAnexo(b64, { nome, mime } = {}) {
   const t = tokenDe(b64);

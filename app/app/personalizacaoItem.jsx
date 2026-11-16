@@ -8,10 +8,11 @@ import { LOCAIS_APL, nomeLocalApl, NOME_METODO, METODOS_ARTE } from "@/lib/pedid
 import { confirmar } from "./dialogo";
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", navySoft: "#EEF3FB", accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", red: "#C33" };
+import { subirArquivo, urlDoArquivo } from "@/lib/arquivosCliente";   // v868 — arquivo grande sobe em partes (não vai no corpo do salvar)
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 export const novoUid = () => Math.random().toString(36).slice(2, 10);
 export const prefixoArqApl = (a) => `${(NOME_METODO[a.metodo] || a.metodo || "").toUpperCase()} ${nomeLocalApl(a.local).toUpperCase()}`.trim();
-const abrir = (a) => { const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : /^image\//.test(a.mime || "") || /^data:image/.test(a.base64 || "") ? `<img src="${a.base64}" style="max-width:100%"/>` : `<a href="${a.base64}" download="${a.nome}">Baixar ${a.nome}</a>`); };
+const abrir = (a) => { const u = urlDoArquivo(a.base64); if (u) { window.open(u, "_blank"); return; } const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : /^image\//.test(a.mime || "") || /^data:image/.test(a.base64 || "") ? `<img src="${a.base64}" style="max-width:100%"/>` : `<a href="${a.base64}" download="${a.nome}">Baixar ${a.nome}</a>`); };
 
 function Soltar({ onArquivos, children, className, style, travado }) {
   const [sobre, setSobre] = useState(false);
@@ -43,7 +44,7 @@ export default function PersonalizacaoItem({ it, onChange, travado }) {
   const gerais = comK.filter(({ a }) => !a.aplicacao || !apl.some((x) => x.uid === a.aplicacao));
   const mudApl = (uid, patch) => onChange({ aplicacoes: apl.map((x) => (x.uid === uid ? { ...x, ...patch } : x)) });
   const anexar = async (fs, a) => {
-    const add = await Promise.all(fs.map(async (x) => ({ nome: a ? `${prefixoArqApl(a)} · ${x.name}` : x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO", ...(a ? { aplicacao: a.uid } : {}) })));
+    const add = await Promise.all(fs.map(async (x) => ({ nome: a ? `${prefixoArqApl(a)} · ${x.name}` : x.name, mime: x.type || null, base64: await subirArquivo(x), categoria: "PERSONALIZACAO", ...(a ? { aplicacao: a.uid } : {}) })));
     onChange({ anexos: [...anexos, ...add] });
   };
   const tirarArq = (k) => onChange({ anexos: anexos.filter((_, j) => j !== k) });
@@ -122,7 +123,7 @@ export async function juntarAplicacoesFpp(it, rf, baixar) {
     for (const x of arquivos || []) {
       const nome = `${prefixoArqApl(ap)} · ${x.nome}`;
       if (anexos.some((y) => y.aplicacao === uid && y.nome === nome)) continue;
-      try { const b = await baixar(rf.id, x.id); anexos.push({ nome, mime: x.mime || b.type || null, base64: await readB64(b), categoria: "PERSONALIZACAO", aplicacao: uid }); } catch {}
+      try { const b = await baixar(rf.id, x.id); anexos.push({ nome, mime: x.mime || b.type || null, base64: await subirArquivo(b, null, null, nome), categoria: "PERSONALIZACAO", aplicacao: uid }); } catch {}
     }
   }
   return { aplicacoes: apl, anexos };
