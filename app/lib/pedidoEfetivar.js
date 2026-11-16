@@ -97,7 +97,7 @@ export async function salvarPp(id, b, quem) {
     for (const a of b.anexos.filter((x) => !x.id && x.base64)) {
       const b64 = String(a.base64).replace(/^data:[^,]+,/, "");
       await prisma.ppAnexo.create({ data: { ppId: pp.id, nome: String(a.nome || "anexo").slice(0, 200), tipo: a.tipo || null, categoria: a.categoria || "OUTRO",
-        tamanho: Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: quem || null } });
+        tamanho: /^arq:/.test(b64) ? Number(a.tamanho) || null : Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: quem || null } });   // v865 — arq: arquivo grande em disco
     }
   }
   // v796 — todos os itens sem layout com design dispensado: a criação de layout em aberto deste pedido é cancelada

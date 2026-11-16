@@ -36,6 +36,7 @@ export async function GET(req) {
     if (it.fotoBase64) fotos.push({ nome: "Layout", src: comoSrc(it.fotoBase64) });
     for (const a of Array.isArray(it.anexosJson) ? it.anexosJson : []) {
       if (!ehImg(a.mime, a.nome) && !String(a.base64 || "").startsWith("data:image/")) continue;
+      if (/(^|,)arq:/.test(String(a.base64 || ""))) continue;   // v865 — arquivo grande em disco não vai como foto
       fotos.push({ nome: a.nome || "Anexo", src: comoSrc(a.base64, a.mime) });
     }
     return Response.json({ ok: true, fotos });

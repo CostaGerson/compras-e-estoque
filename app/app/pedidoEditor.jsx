@@ -10,6 +10,7 @@ import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import PersonalizacaoItem, { juntarAplicacoesFpp } from "./personalizacaoItem";
 import { SERVICOS, servicoDe } from "@/lib/servicosLista";   // v826 — tipo de serviço → receita   // v806 — estampas com medidas e arquivos
+import { subirArquivo, tokenDe, urlDoArquivo, LIMITE_MB } from "@/lib/arquivosCliente";   // v865 — arquivos grandes (RAR, ZIP…) em partes
 import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valores) e PV (com valores)
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
@@ -385,6 +386,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const [f, setF] = useState(vazioF());
   const [itens, setItens] = useState([novoItem()]);
   const [anexos, setAnexos] = useState([]);
+  const [envArq, setEnvArq] = useState("");   // v865 — progresso do envio de arquivo grande
   const [carregado, setCarregado] = useState(!ppId0);
   const [recDet, setRecDet] = useState(false);
   const [clienteFinal, setClienteFinal] = useState(null);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
@@ -622,12 +624,17 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const l = [...(files || [])];
     const novos = [];
     for (const file of l) {
-      if (file.size > 20 * 1024 * 1024) { alerta(`${file.name}: maior que 20 MB.`); continue; }
-      novos.push({ nome: file.name, tipo: file.type || null, tamanho: file.size, categoria: catDoNome(file.name, file.type), base64: await readB64(file) });
+      if (file.size > LIMITE_MB * 1024 * 1024) { alerta(`${file.name}: maior que 2 GB.`); continue; }
+      // v865 — acima de 8 MB sobe em partes para o servidor (sem o limite de 20 MB)
+      try {
+        setEnvArq(`Enviando ${file.name}…`);
+        novos.push({ nome: file.name, tipo: file.type || null, tamanho: file.size, categoria: catDoNome(file.name, file.type), base64: await subirArquivo(file, uid, (p) => setEnvArq(`Enviando ${file.name} · ${Math.round(p * 100)}%`)) });
+      } catch (e) { alerta(e.message || `Não consegui enviar ${file.name}.`); }
     }
+    setEnvArq("");
     if (novos.length) setAnexos((a) => [...a, ...novos]);
     // v696 — PDF da solicitação de lançamento (skill do vendedor): preenche o pedido sozinho
-    for (const a of novos) if (/pdf/i.test(a.tipo || a.nome) && !f.servico) { if (await preencherDaSolicitacao(a.base64, a.nome, true)) { setAnexos((l) => l.map((x) => (x === a ? { ...x, categoria: "SOLICITACAO" } : x))); break; } }
+    for (const a of novos) if (/pdf/i.test(a.tipo || a.nome) && !f.servico && !tokenDe(a.base64)) { if (await preencherDaSolicitacao(a.base64, a.nome, true)) { setAnexos((l) => l.map((x) => (x === a ? { ...x, categoria: "SOLICITACAO" } : x))); break; } }
   };
   // ---------- v696 — solicitação de lançamento → pedido preenchido ----------
   const [importando, setImportando] = useState(false);
@@ -698,6 +705,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     catch { alerta("Não consegui abrir o anexo."); return false; }
   };
   const abrirAnexo = (a) => {
+    if (tokenDe(a.base64)) { window.open(urlDoArquivo(a.base64), "_blank"); return; }   // v865
     if (a.base64) { const w = window.open(); if (w) w.document.write(`<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>`); return; }
     window.open(`/api/pp/${ppId}?anexo=${a.id}&_u=${uid}`, "_blank");
   };
@@ -844,7 +852,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         <div onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
           onDrop={(e) => { e.preventDefault(); setArrastando(false); adicionarArquivos(e.dataTransfer.files); }}
           className="rounded-lg px-4 py-3 text-xs text-center mb-3" style={{ border: `2px dashed ${arrastando ? C.accent : C.line}`, background: arrastando ? C.accentSoft : C.panel2, color: C.sub }}>
-          <Paperclip size={14} className="inline mr-1" />Arraste aqui a OC do cliente, a solicitação, o layout… (vários de uma vez) ou{" "}
+          {envArq && <div className="font-semibold mb-1" style={{ color: C.accent }}>{envArq}</div>}
+          <Paperclip size={14} className="inline mr-1" />Arraste aqui a OC do cliente, a solicitação, o layout, RAR/ZIP até 2 GB… (vários de uma vez) ou{" "}
           <label className="cursor-pointer font-semibold" style={{ color: C.accent }}>selecione<input type="file" multiple className="hidden" onChange={(e) => { adicionarArquivos(e.target.files); e.target.value = ""; }} /></label>
           <div className="mt-1" style={{ fontSize: 11 }}><Wand2 size={11} className="inline mr-1" style={{ color: C.accent }} />O PDF da <b>solicitação de lançamento</b> (gerado pela skill do vendedor) preenche o pedido sozinho: cliente, faturamento, vendedor, OC, prazo, pagamento, itens, grade, valores, parâmetros, FPP e layout.</div>
         </div>
@@ -867,7 +876,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         {(anexos.length > 0 || legados.length > 0) && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
           {anexos.map((a, k) => {
             const img = /^image\//.test(a.tipo || "");
-            const src = a.base64 || (a.id && ppId ? `/api/pp/${ppId}?anexo=${a.id}&_u=${uid}` : "");
+            const src = tokenDe(a.base64) ? "" : a.base64 || (a.id && ppId ? `/api/pp/${ppId}?anexo=${a.id}&_u=${uid}` : "");
             return (
               <div key={a.id || `n${k}`} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${a.id ? C.line : C.accent}` }}>
                 <button type="button" onClick={() => abrirAnexo(a)} className="block w-full" style={{ height: 90, background: C.panel2 }} title="Abrir">
@@ -968,13 +977,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
             <div className="flex items-center gap-2 flex-wrap" style={{ gridColumn: "1 / -1" }}>
               <label className="text-[11px] px-2 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
                 onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
-                onDrop={async (e) => { e.preventDefault(); const fs = Array.from(e.dataTransfer?.files || []); if (!fs.length) return; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }}>
+                onDrop={async (e) => { e.preventDefault(); const fs = Array.from(e.dataTransfer?.files || []); if (!fs.length) return; const add = []; for (const x of fs) { try { add.push({ nome: x.name, mime: x.type || null, base64: await subirArquivo(x, uid), categoria: "PERSONALIZACAO" }); } catch (er) { alerta(er.message); } } upItem(i, { anexos: [...(it.anexos || []), ...add] }); }}>
                 <Paperclip size={11} className="inline mr-0.5" />Anexos do serviço <span style={{ color: C.sub }}>· arraste ou clique</span>
-                <input type="file" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; const add = await Promise.all(fs.map(async (x) => ({ nome: x.name, mime: x.type || null, base64: await readB64(x), categoria: "PERSONALIZACAO" }))); upItem(i, { anexos: [...(it.anexos || []), ...add] }); }} />
+                <input type="file" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; const add = []; for (const x of fs) { try { add.push({ nome: x.name, mime: x.type || null, base64: await subirArquivo(x, uid), categoria: "PERSONALIZACAO" }); } catch (er) { alerta(er.message); } } upItem(i, { anexos: [...(it.anexos || []), ...add] }); }} />
               </label>
               {(it.anexos || []).map((a, k) => (
                 <span key={k} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded" style={{ background: C.panel2 }}>
-                  <button type="button" onClick={() => { const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : `<img src="${a.base64}" style="max-width:100%"/>`); }} className="truncate text-left" style={{ color: C.text, maxWidth: 220 }} title={a.nome}><Paperclip size={10} className="inline mr-0.5" />{a.nome}</button>
+                  <button type="button" onClick={() => { if (tokenDe(a.base64)) { window.open(urlDoArquivo(a.base64), "_blank"); return; } const w = window.open(); if (w) w.document.write(/pdf/i.test(a.mime || a.nome) ? `<iframe src="${a.base64}" style="border:0;width:100%;height:100%"></iframe>` : `<img src="${a.base64}" style="max-width:100%"/>`); }} className="truncate text-left" style={{ color: C.text, maxWidth: 220 }} title={a.nome}><Paperclip size={10} className="inline mr-0.5" />{a.nome}</button>
                   {podeLancar && <button type="button" onClick={() => upItem(i, { anexos: it.anexos.filter((_, j) => j !== k) })} style={{ color: "#C77" }}><X size={11} /></button>}
                 </span>
               ))}

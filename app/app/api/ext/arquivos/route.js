@@ -5,6 +5,7 @@
 //   v806 — cada arquivo de estampa traz "aplicacao" { metodo, local, cores, larguraCm, alturaCm, obs, descricao }; "aplicacoes" lista as estampas com as URLs dos arquivos
 // Autenticação: cabeçalho X-Api-Key (o mesmo token de /api/ext/compras).
 export const dynamic = "force-dynamic";
+import { tokenDe, resposta } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { tokenExterno } from "@/lib/compras";
 import { nomeLocalApl, rotuloAplicacao } from "@/lib/pedidoLanc";   // v806
@@ -31,17 +32,18 @@ export async function GET(req) {
   const lerPed = async (id) => { const a = await prisma.ppAnexo.findUnique({ where: { id }, select: { base64: true, tipo: true, nome: true } }); return a; };
   const arq = sp.get("arquivo");
   if (arq) {
-    let nome, d;
+    let nome, d, bruto;
     if (arq === "layout") {
       if (it.fotoBase64) { d = dataUrl(it.fotoBase64); nome = `layout-${numero}-item${idx}.${ext(d.mime)}`; }
-      else if (layoutPed) { const a = await lerPed(layoutPed.id); d = dataUrl(a.base64); d.mime = a.tipo || d.mime; nome = a.nome; }
+      else if (layoutPed) { const a = await lerPed(layoutPed.id); bruto = a.base64; d = dataUrl(a.base64); d.mime = a.tipo || d.mime; nome = a.nome; }
       else return Response.json({ error: "Item sem layout." }, { status: 404 });
     }
     else {
       const a = pers[Number(arq) - 1]; if (!a) return Response.json({ error: "Arquivo não encontrado." }, { status: 404 });
-      if (a._item) { d = dataUrl(a.base64); d.mime = a.mime || d.mime; nome = a.nome; }
-      else { const b = await lerPed(a.id); d = dataUrl(b.base64); d.mime = b.tipo || d.mime; nome = b.nome; }
+      if (a._item) { bruto = a.base64; d = dataUrl(a.base64); d.mime = a.mime || d.mime; nome = a.nome; }
+      else { const b = await lerPed(a.id); bruto = b.base64; d = dataUrl(b.base64); d.mime = b.tipo || d.mime; nome = b.nome; }
     }
+    if (tokenDe(bruto)) return resposta(tokenDe(bruto), { nome, mime: d.mime });   // v865 — arquivo grande em disco
     return new Response(Buffer.from(d.b64, "base64"), { headers: { "Content-Type": d.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome)}`, "Cache-Control": "no-store" } });
   }
   const apl = Array.isArray(it.aplicacoes) ? it.aplicacoes : [];

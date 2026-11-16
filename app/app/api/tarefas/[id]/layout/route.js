@@ -1,5 +1,6 @@
 // v654 — tarefa de layout: GET ?u= → OP dos itens · POST { usuarioId, acao: marcar|enviar|aprovar|reprovar, idx, arquivoId, motivo }
 export const dynamic = "force-dynamic";
+import { respostaAnexo } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivo } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
@@ -19,7 +20,7 @@ export async function GET(req, { params }) {
     if (sp.get("anexo")) { const a = await prisma.ppAnexo.findFirst({ where: { id: Number(sp.get("anexo")), ppId } }); if (a) { nome = a.nome; mime = a.tipo; b64 = a.base64; } }
     else { const its = await prisma.ppItem.findMany({ where: { ppId }, orderBy: { id: "asc" }, select: { anexosJson: true } }); const a = (its[Number(sp.get("item"))]?.anexosJson || [])[Number(sp.get("k"))]; if (a) { nome = a.nome; mime = a.mime; b64 = a.base64; } }
     if (!b64) return new Response("Não encontrado.", { status: 404 });
-    return new Response(Buffer.from(String(b64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(nome)}"` } });
+    return respostaAnexo(b64, { nome, mime });   // v865
   }
   return Response.json(await opDaTarefa(t));
 }

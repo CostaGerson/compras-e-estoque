@@ -12,6 +12,7 @@ import DadosUnitarios, { resumoDU, limiteTxt } from "./dadosUnitarios";
 import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";
 import { vazioClienteFinal, validarClienteFinal } from "@/lib/clienteFinal";
 import { qtdGrade, num } from "@/lib/pedidoLanc";
+import { subirArquivo, tokenDe, urlDoArquivo, LIMITE_MB } from "@/lib/arquivosCliente";   // v865 — arquivos grandes em partes
 import { temDU, conferirComGrade } from "@/lib/dadosUnitarios";
 
 // paleta padrão do sistema Meridian (identidade visual)
@@ -23,8 +24,9 @@ const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(
 // v724: foto ou PDF anexado abre em nova guia (data: URL não abre direto, vira blob)
 const MIME_EXT = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp" };
 const mimeArte = (a) => { const m = String(a.base64 || "").match(/^data:([^;,]+)/); const t = (a.mime || (m && m[1]) || "").toLowerCase(); return t && t !== "application/octet-stream" ? t : MIME_EXT[String(a.nome || "").split(".").pop().toLowerCase()] || ""; };
-const abreEmGuia = (a) => /^image\/|\/pdf$/.test(mimeArte(a));
+const abreEmGuia = (a) => !!tokenDe(a.base64) || /^image\/|\/pdf$/.test(mimeArte(a));
 const abrirArte = (a) => {
+  if (tokenDe(a.base64)) { window.open(urlDoArquivo(a.base64), "_blank", "noopener"); return; }   // v865
   try {
     const b64 = String(a.base64 || "").replace(/^data:[^,]*,/, "");
     const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
@@ -62,6 +64,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [obs, setObs] = useState("");
   const [cf, setCf] = useState(vazioClienteFinal());
   const [st, setSt] = useState("");
+  const [envArq, setEnvArq] = useState("");   // v865 — progresso do envio de arquivo grande
   const [busca, setBusca] = useState("");
   const [envio, setEnvio] = useState(null);         // janela de envio
   const [detalhe, setDetalhe] = useState(null);     // id do pedido aberto na lista
@@ -82,10 +85,18 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const tirar = async (it) => { if ((qtdGrade(it.grade) || it.artes.length) && !(await confirmar(`Tirar "${it.padrao.nome}" do pedido?`))) return; setItens((l) => l.filter((x) => x.key !== it.key)); };
   const anexar = async (it, files) => {
     const fs = Array.from(files || []).filter((f) => f && f.size > 0); // v723: qualquer formato (zip, rar, psd, ai, cdr…)
-    const grandes = fs.filter((f) => f.size > 15 * 1024 * 1024);
-    if (grandes.length) alerta(`Maior que 15 MB (não entrou): ${grandes.map((f) => f.name).join(", ")}`);
-    const add = await Promise.all(fs.filter((f) => f.size <= 15 * 1024 * 1024).map(async (f) => ({ nome: f.name, mime: f.type || null, base64: await readB64(f) })));
-    up(it.key, { artes: [...it.artes, ...add] });
+    // v865 — sem o limite de 15 MB: acima de 8 MB o arquivo sobe em partes e fica guardado no servidor
+    const grandes = fs.filter((f) => f.size > LIMITE_MB * 1024 * 1024);
+    if (grandes.length) alerta(`Maior que 2 GB (não entrou): ${grandes.map((f) => f.name).join(", ")}`);
+    const add = [];
+    for (const f of fs.filter((f) => f.size <= LIMITE_MB * 1024 * 1024)) {
+      try {
+        setEnvArq(`Enviando ${f.name}…`);
+        add.push({ nome: f.name, mime: f.type || null, base64: await subirArquivo(f, user.id, (p) => setEnvArq(`Enviando ${f.name} · ${Math.round(p * 100)}%`)) });
+      } catch (e) { alerta(e.message || `Não consegui enviar ${f.name}.`); }
+    }
+    setEnvArq("");
+    if (add.length) setItens((l) => l.map((x) => (x.key === it.key ? { ...x, artes: [...x.artes, ...add] } : x)));
   };
   const replicarLocais = (de) => setItens((l) => l.map((it) => (it.key === de.key ? it : { ...it, dadosUnitarios: { ...(it.dadosUnitarios || { linhas: [] }), campos: de.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: it.dadosUnitarios?.linhas || [] } })));
   const limpar = () => { setPpId(null); setPpNum(""); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); };
@@ -278,7 +289,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                     <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Artes</div>
                     <label className="flex items-center justify-center gap-2 rounded-lg p-3 cursor-pointer text-xs" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
                       onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); anexar(it, e.dataTransfer.files); }}>
-                      <Paperclip size={14} /> Anexar artes (arraste aqui ou clique) — imagem, PDF, ZIP, RAR, AI, CDR etc., até 15 MB
+                      <Paperclip size={14} /> {envArq || "Anexar artes (arraste aqui ou clique) — imagem, PDF, ZIP, RAR, AI, CDR etc., até 2 GB"}
                       <input type="file" multiple className="hidden" onChange={(e) => { anexar(it, e.target.files); e.target.value = ""; }} />
                     </label>
                     {it.artes.length > 0 && (
@@ -286,7 +297,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
                         {it.artes.map((a, k) => (
                           <div key={k} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
                             <span className={`flex items-center gap-1.5 ${abreEmGuia(a) ? "cursor-pointer hover:underline" : ""}`} title={abreEmGuia(a) ? "Abrir em nova guia" : a.nome} onClick={() => abreEmGuia(a) && abrirArte(a)}>
-                              {/^image\//.test(mimeArte(a)) ? <img src={a.base64} alt="" style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 4 }} /> : <FileText size={14} style={{ color: C.sub }} />}
+                              {/^image\//.test(mimeArte(a)) && !tokenDe(a.base64) ? <img src={a.base64} alt="" style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 4 }} /> : <FileText size={14} style={{ color: C.sub }} />}
                               <span className="truncate" style={{ maxWidth: 160 }}>{a.nome}</span>
                             </span>
                             <button onClick={() => up(it.key, { artes: it.artes.filter((_, j) => j !== k) })} style={{ color: C.sub }}><X size={12} /></button>

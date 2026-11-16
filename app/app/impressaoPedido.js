@@ -30,9 +30,9 @@ const ehPdf = (a) => /pdf/i.test(a.mime || a.tipo || "") || /\.pdf$/i.test(a.nom
 const ehImg = (a) => /^image\//i.test(a.mime || a.tipo || "") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.nome || "") || /^data:image\//.test(a.src || "");
 const semCache = (src) => (!src || /^data:/.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}_t=${Date.now()}`);   // v660
 function anexosHtml(lista, titulo) {
-  const l = (lista || []).filter((a) => a && a.src).map((a) => ({ ...a, src: semCache(a.src) }));
+  const l = (lista || []).filter((a) => a && a.src).map((a) => (/(^|,)arq:/.test(String(a.src)) ? { ...a, grande: true } : { ...a, src: semCache(a.src) }));   // v865 — arquivo grande em disco
   if (!l.length) return "";
-  return `<div class="anx-bloco">${titulo ? `<div class="anx-t">${esc(titulo)}</div>` : ""}${l.map((a) => ehImg(a)
+  return `<div class="anx-bloco">${titulo ? `<div class="anx-t">${esc(titulo)}</div>` : ""}${l.map((a) => a.grande ? `<div class="mut">Anexo ${esc(a.nome || "")} (arquivo grande — baixe no sistema)</div>` : ehImg(a)
     ? `<figure class="anx"><img src="${esc(a.src)}"/><figcaption>${esc(a.nome || "")}</figcaption></figure>`
     : ehPdf(a) ? `<figure class="anx"><div class="pdf" data-src="${esc(a.src)}"><span class="mut">carregando ${esc(a.nome || "PDF")}…</span></div><figcaption>${esc(a.nome || "")}</figcaption></figure>`
     : `<div class="mut">Anexo ${esc(a.nome || "")} (formato não imprimível)</div>`).join("")}</div>`;

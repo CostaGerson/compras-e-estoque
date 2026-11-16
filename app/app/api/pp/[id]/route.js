@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { respostaAnexo } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
 import { salvarPp, efetivarPedido, faturarPedido, criticas } from "@/lib/pedidoEfetivar";   // v595
@@ -13,7 +14,7 @@ export async function GET(req, { params }) {
   if (anx) {
     const a = await prisma.ppAnexo.findFirst({ where: { id: Number(anx), ppId: id } });
     if (!a) return Response.json({ error: "Anexo não encontrado." }, { status: 404 });
-    return new Response(Buffer.from(a.base64, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.tipo || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+    return respostaAnexo(a.base64, { nome: a.nome, mime: a.tipo });   // v865 — também arquivo grande em disco
   }
   // v650 — ?item=ID&k=n → arquivo n do item
   const itq = new URL(req.url).searchParams.get("item");
@@ -21,8 +22,7 @@ export async function GET(req, { params }) {
     const it = await prisma.ppItem.findFirst({ where: { id: Number(itq), ppId: id }, select: { anexosJson: true } });
     const a = Array.isArray(it?.anexosJson) ? it.anexosJson[Number(new URL(req.url).searchParams.get("k")) || 0] : null;
     if (!a?.base64) return Response.json({ error: "Arquivo não encontrado." }, { status: 404 });
-    const m = String(a.base64).match(/^data:([^;,]+)[^,]*,/);
-    return new Response(Buffer.from(String(a.base64).replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || m?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome || "arquivo")}"` } });
+    return respostaAnexo(a.base64, { nome: a.nome || "arquivo", mime: a.mime });   // v865
   }
   const arq = new URL(req.url).searchParams.get("arquivo");
   if (arq) {

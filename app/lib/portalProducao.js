@@ -2,6 +2,7 @@
 //   anexa as artes do cliente e a personalização exclusiva (Excel) ao pedido e efetiva (nº, PV, contas a receber, Compras → PCP).
 //   Condição de pagamento e vendedor: os do último pedido do mesmo cliente do portal já efetivado pela equipe.
 //   Sem como efetivar (sem condição reaproveitável, sem preço, sem prazo…) → fica em Lançar pedido e a equipe recebe o motivo.
+import { tokenDe, lerMeta } from "@/lib/arquivos";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { efetivarPedido } from "@/lib/pedidoEfetivar";
@@ -54,7 +55,8 @@ async function anexar(ppId, nome, mime, base64, categoria, quem) {
   const b64 = String(base64 || "").replace(/^data:[^,]+,/, "");
   if (!b64) return;
   await prisma.ppAnexo.deleteMany({ where: { ppId, nome } });   // refaz (não duplica se liberar de novo)
-  await prisma.ppAnexo.create({ data: { ppId, nome: nome.slice(0, 200), tipo: mime || null, categoria, tamanho: Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: quem } });
+  const t = tokenDe(b64), mt = t ? await lerMeta(t) : null;   // v865 — arquivo grande em disco
+  await prisma.ppAnexo.create({ data: { ppId, nome: nome.slice(0, 200), tipo: mime || null, categoria, tamanho: mt ? mt.tamanho : Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: quem } });
 }
 
 export async function lancarNaProducao(ppId, clienteNome) {
