@@ -307,10 +307,12 @@ function FinDashboard({ user, ir }) {
           ["pedidos", FileStack, "Pedidos em andamento", "PV e OP: valor, condição, entrada e previsão de receitas"],
           ["patrimonio", Building2, "Patrimônio", "Bens da empresa, valores e NF de compra"],
         ].map(([v, Ico, t, sub]) => (
-          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
-            <Ico size={26} style={{ color: C.accent }} />
-            <div className="text-lg font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
+          <button key={v} onClick={() => ir({ v })} title={sub} className="text-left rounded-xl px-3 py-2.5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
+            <div className="flex items-center gap-2">{/* v864 — ícone na linha do título */}
+              <Ico size={16} className="shrink-0" style={{ color: C.accent }} />
+              <div className="text-[13px] font-bold leading-tight">{t}</div>
+            </div>
+            <div className="text-[10.5px] mt-1 leading-snug" style={{ color: C.sub, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{sub}</div>
           </button>
         ))}
       </div>
