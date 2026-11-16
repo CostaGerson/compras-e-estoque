@@ -36,8 +36,13 @@ export async function salvarPp(id, b, quem) {
   const servico = !!b.servico;   // v614 — pedido de serviço: cliente, prazo, itens com tipo de serviço, quantidade e valor
   const interno = !servico && !!b.interno;
   const emissao = /^\d{4}-\d{2}-\d{2}$/.test(String(b.emissao || "")) ? b.emissao : hojeISO();
-  const prazoDias = b.prazoDias === "" || b.prazoDias == null ? null : Math.max(0, Math.round(num(b.prazoDias)));
-  const prazoTipo = b.prazoTipo === "UTEIS" ? "UTEIS" : "CORRIDOS";
+  // v869 — sem data única: cada item tem a sua data; o prazo do pedido vira a última delas (dias corridos)
+  const entregaPorItem = !!b.entregaPorItem;
+  const datasIt = entregaPorItem ? itens.map((it) => (/^\d{4}-\d{2}-\d{2}$/.test(String(it.entregaData || "")) ? it.entregaData : null)) : [];
+  const ultima = datasIt.filter(Boolean).sort().pop() || null;
+  const prazoDias = entregaPorItem ? (ultima ? Math.max(0, Math.round((new Date(`${ultima}T00:00:00Z`) - new Date(`${emissao}T00:00:00Z`)) / 864e5)) : null)
+    : b.prazoDias === "" || b.prazoDias == null ? null : Math.max(0, Math.round(num(b.prazoDias)));
+  const prazoTipo = entregaPorItem ? "CORRIDOS" : b.prazoTipo === "UTEIS" ? "UTEIS" : "CORRIDOS";
   const despacho = prazoDias != null ? somaDias(emissao, prazoDias, prazoTipo) : null;
   const qtdIt = (it) => (servico ? num(it.quantidade ?? qtdGrade(it.grade)) : qtdGrade(it.grade));
   const entregaModo = !servico && ["UNICA", "FRACIONADA", "TERCEIROS"].includes(b.entregaModo) ? b.entregaModo : "UNICA";
@@ -51,7 +56,7 @@ export async function salvarPp(id, b, quem) {
   const total = r2(valorItens - desconto + frete);
   const data = {
     ...Object.fromEntries(CAMPOS_PP.map((k) => [k, b[k] ? String(b[k]).trim() || null : null])),
-    interno, tipoPedido: servico ? "SERVIÇO" : interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo,
+    interno, tipoPedido: servico ? "SERVIÇO" : interno ? "INTERNO" : "VENDA NORMAL", emissao, prazoDias, prazoTipo, entregaPorItem,
     prazoEntrega: prazoDias != null ? `${prazoDias} DIAS ${prazoTipo === "UTEIS" ? "ÚTEIS" : "CORRIDOS"}` : null,
     dtDespacho: brData(despacho),
     entregaModo, entregas: entregasB, frete: freteU,
@@ -62,7 +67,8 @@ export async function salvarPp(id, b, quem) {
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,
   };
-  const itensData = itens.map((it) => ({
+  const itensData = itens.map((it, i) => ({
+    entregaData: entregaPorItem ? datasIt[i] : null,   // v869
     tipoPecaNome: it.tipoPecaNome || null, codigo: up(it.codigo), descricao: up(it.descricao),
     quantidade: qtdGrade(it.grade), valorUnitario: num(it.valorUnitario) || null, valorTotal: r2(qtdGrade(it.grade) * num(it.valorUnitario)) || null,
     gradeJson: JSON.stringify(it.grade || []),
@@ -128,7 +134,8 @@ export function criticas(pp) {
       else if (!cf.ok) erros.push(`Item ${i + 1}: a lista de personalização exclusiva não bate com a grade (${Object.entries(cf.dif).map(([t, d]) => `${t} ${d > 0 ? "+" : ""}${d}`).join(", ")}).`);
     }
   });
-  if (pp.prazoDias == null) erros.push("Informe o prazo de entrega (dias).");
+  if (pp.entregaPorItem) itens.forEach((it, i) => { if (!it.entregaData) erros.push(`${serv ? "Serviço" : "Item"} ${i + 1}: informe a data de entrega.`); });   // v869
+  else if (pp.prazoDias == null) erros.push("Informe o prazo de entrega (dias).");
   const ce = conferirEntregas(itens, pp.entregas, pp.entregaModo);
   if (ce.semLocais) erros.push("Entrega fracionada/terceiros: cadastre os locais de entrega.");
   for (const x of ce.itens) erros.push(`Item ${x.idx + 1}: a soma das entregas não bate com a grade (${Object.entries(x.dif).map(([t, d]) => `${t} ${d > 0 ? "falta " + d : "sobra " + -d}`).join(", ")}).`);
@@ -203,7 +210,7 @@ function itensPv(pp) {
       .map(([t, v]) => ({ t, v: typeof v === "object" ? partesTecido(v).join(" · ").toUpperCase() : String(v) }));
     const qtd = grade.reduce((s, g) => s + g.qtd, 0);
     return { codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: num(it.valorUnitario), total: r2(qtd * num(it.valorUnitario)), grade, parametros: params,
-      fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null,
+      fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null, entrega: it.entregaData || null,   // v869
       corFpp: (() => { const t = safe(it.parametrosJson, {}).TECIDO; return t && typeof t === "object" && t.cor ? String(t.cor).toUpperCase() : null; })() };   // v664
   });
 }
@@ -321,7 +328,7 @@ export async function efetivarPedido(id, quem) {
       if (at && at.status !== "LEVANTAMENTO") continue;
       if (at && at.fppId === fpp.id && Number(at.quantidade) === it.qtd && (at.corFpp || null) === (it.corFpp || null)) continue;
       const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, it.corFpp || null);
-      const d = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: dados.cliente, entrega: dados.despacho,
+      const d = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: dados.cliente, entrega: it.entrega ? dUTC(it.entrega) : dados.despacho,   // v869
         fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem };
       if (at) await prisma.compraItem.update({ where: { id: at.id }, data: d });
       else await prisma.compraItem.create({ data: { pedidoNumero: numero, chave: ch, ...d } });

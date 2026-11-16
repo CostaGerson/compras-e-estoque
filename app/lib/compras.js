@@ -677,7 +677,7 @@ export async function emComprasParaPcp({ pedido } = {}, db = prisma) {
       const c = cis.find((x) => x.pedidoNumero === p.numero && x.chave === i.chave);
       if (compraResolvida(c) || dItens.has(`${p.numero}|${i.chave}`)) return null;   // já está nos liberados (A PROGRAMAR)
       return { chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: (Array.isArray(p.itens) ? p.itens : []).find((x) => String(x.codigo || "") === String(i.codigo || ""))?.grade || [],
-        etapaCompras: c ? ETAPA_COMPRA[c.status] || c.status : "SINCRONIZACAO", fppNumero: c?.fppNumero || null,
+        etapaCompras: c ? ETAPA_COMPRA[c.status] || c.status : "SINCRONIZACAO", fppNumero: c?.fppNumero || null, entrega: (Array.isArray(p.itens) ? p.itens : []).find((x) => String(x.codigo || "") === String(i.codigo || ""))?.entrega || null,
         materialPrincipal: (Array.isArray(c?.demanda) ? c.demanda : []).filter((d) => ["PRINCIPAL", "REVENDA"].includes(d.papel)).map((d) => ({ nome: d.nome, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade })) };
     }).filter(Boolean);
     if (!itens.length) continue;
@@ -717,6 +717,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     o.itens.push({ _n: idx + 1,
       chave: i.chave, codigo: bruto.codigo || i.chave.split("#")[0], descricao: bruto.descricao || i.descricao, quantidade: Number(bruto.qtd) || Number(i.quantidade),   // v792c — quantidade atual do pedido
       grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [],
+      entrega: bruto.entrega || null,   // v869 — data de entrega do item (pedido sem data única); vazio = a do pedido
       origemMaterial: i.status === "ESTOQUE" ? "ESTOQUE" : "OC", liberadoEm: i.liberadoEm || i.updatedAt, fppNumero: i.fppNumero,
       aviamentosPendentes: !["ESTOQUE", "ENTREGUE"].includes(i.status),   // v613 — principal ok; aviamento ainda chegando
       materiais: (i.demanda || []).map((d) => ({ nome: d.nome, categoria: d.categoria, fornecedor: d.fornecedor, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade, obs: d.obs || null })),
@@ -737,7 +738,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       const bruto = (p.itens || [])[idx] || {};
       const c = cis.find((x) => x.chave === it.chave);
       o.itens.push({ _n: idx + 1, chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
-        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt,
+        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt, entrega: bruto.entrega || null,
         fppNumero: c?.fppNumero || null, aviamentosPendentes: false,
         materiais: (c?.demanda || []).map((m) => ({ nome: m.nome, categoria: m.categoria, fornecedor: m.fornecedor, cor: m.cor, codigo: m.codigo, quantidade: m.quantidade, unidade: m.unidade, obs: m.obs || null })) });
     });
@@ -756,7 +757,7 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
       const bruto = (p.itens || [])[idx] || {};
       const c = cis.find((x) => x.chave === it.chave);
       o.itens.push({ _n: idx + 1, chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
-        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt,
+        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt, entrega: bruto.entrega || null,
         fppNumero: c?.fppNumero || null, aviamentosPendentes: false,
         materiais: (c?.demanda || []).map((m) => ({ nome: m.nome, categoria: m.categoria, fornecedor: m.fornecedor, cor: m.cor, codigo: m.codigo, quantidade: m.quantidade, unidade: m.unidade, obs: m.obs || null })) });
     });

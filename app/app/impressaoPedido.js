@@ -88,7 +88,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     const layHtml = lay ? `<img class="lay-pv" src="${esc(/^data:/.test(lay) ? lay : `data:image/png;base64,${lay}`)}"/>` : "";
     return `<tr>
       <td class="num">${i + 1}</td>
-      <td><div class="it">${esc(it.descricao || cap(it.tipoPecaNome) || "—")}</div>${det ? `<div class="sub">${det}</div>` : ""}${layHtml}</td>
+      <td><div class="it">${esc(it.descricao || cap(it.tipoPecaNome) || "—")}</div>${it.entregaData ? `<div class="sub"><b>entrega ${esc(it.entregaData.split("-").reverse().join("/"))}</b></div>` : ""}${det ? `<div class="sub">${det}</div>` : ""}${layHtml}</td>
       <td class="tam">${tams}</td>
       <td class="r">${q.toLocaleString("pt-BR")}</td>
       ${PV ? `<td class="r">${money(vu)}</td><td class="r b">${money(q * vu)}</td>` : ""}
@@ -142,7 +142,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
     // v816 — arquivos de personalização (estampas e "detalhes de personalização") não saem na OP impressa: ficam no sistema e vão para o PCP
     const pessoais = (it.anexos || []).filter((a) => a.categoria !== "LAYOUT" && a.categoria !== "PERSONALIZACAO" && !a.aplicacao);
     return `${i > 0 ? `<div class="folha"></div>${cabecalhoItem(i)}` : ""}<div class="sec">${lista.length > 1 ? `<b style="color:#001E41;font-size:11px">${esc(numero)} / ${i + 1}-${lista.length}</b> · ` : ""}Item ${i + 1} de ${lista.length}</div><div class="peca peca-folha">
-      <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
+      <div class="peca-h"><span class="bd">${i + 1}</span>${esc(it.descricao || cap(it.tipoPecaNome))}<span class="mut"> · ${esc(cap(it.tipoPecaNome))}${it.codigo ? ` · cód. ${esc(it.codigo)}` : ""}${it.entregaData ? ` · <b>entrega ${esc(it.entregaData.split("-").reverse().join("/"))}</b>` : ""}</span><span class="q">${qtdDe(it).toLocaleString("pt-BR")} pç</span></div>
       <div class="peca-b">
         <div class="peca-i">
           <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}</tr>
@@ -318,7 +318,7 @@ export function dadosImpressaoPp(d, veVal = true) {
     const grade = js(it.gradeJson, []);
     const base = { tipoPecaNome: it.tipoPecaNome || "", codigo: it.codigo || "", descricao: it.descricao || "", valorUnitario: it.valorUnitario != null ? String(it.valorUnitario) : "",
       parametros: Object.fromEntries(Object.entries(js(it.parametrosJson, {})).filter(([k, v]) => v && !paramFora(k))), fotoBase64: it.fotoBase64 || "",
-      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [], aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [], dadosUnitarios: it.dadosUnitarios || null };   // v699
+      anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [], aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [], dadosUnitarios: it.dadosUnitarios || null, entregaData: it.entregaData || null };   // v699
     return servico ? { ...base, grade: [{ tam: "UN", qtd: grade.reduce((q, g) => q + (n(g.qtd) || 0), 0) }] } : { ...base, grade };
   });
   const total = itens.reduce((s, it) => s + (it.grade || []).reduce((q, g) => q + n(g.qtd), 0) * n(it.valorUnitario), 0);

@@ -339,7 +339,7 @@ function Modal({ titulo, onFechar, children, largura = 640 }) {
 
 const vazioF = () => ({
   numero: "", emissao: hojeISO(), interno: false, servico: false, clienteNome: "", clienteCnpj: "", clienteIe: "", clienteEndereco: "", clienteContato: "",
-  oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaModo: "UNICA", entregas: [],
+  oc: "", vendedor: "", obs: "", nfObs: "", prazoDias: "", prazoTipo: "UTEIS", entregaPorItem: false, entregaModo: "UNICA", entregas: [],
   frete: { contratado: false, valor: "" },   // v746 — frete da entrega única
   comissao: { vendedorId: null, tipo: "PCT", valor: "" },   // v747 — venda comissionada
   desconto: { tipo: "PCT", valor: "" },   // v750 — desconto no total do pedido
@@ -431,6 +431,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
           aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [],   // v806
           dispensaDesign: !!it.dispensaDesign,   // v796
+          entregaData: it.entregaData || "",   // v869
           dadosUnitarios: it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) ? it.dadosUnitarios : null,   // v699
           itemPadraoId: it.itemPadraoId || null, valorVenda: it.valorVenda != null ? String(it.valorVenda) : "",   // v711 — portal: mantém ao salvar aqui
           desconto: it.desconto && it.desconto.base ? { tipo: it.desconto.tipo, valor: String(it.desconto.valor).replace(".", ","), base: String(it.desconto.base).replace(".", ",") } : null };   // v750
@@ -454,7 +455,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const freteV = f.servico ? 0 : freteTotal(f);   // v746 — frete contratado: soma no total do pedido, não entra nos itens
   const totalGeral = totalItens - descV + freteV;
   const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
-  const despacho = f.prazoDias !== "" ? somaDias(f.emissao, num(f.prazoDias), f.prazoTipo) : null;
+  const despacho = f.entregaPorItem ? itens.map((it) => it.entregaData).filter(Boolean).sort().pop() || null   // v869 — a última data dos itens
+    : f.prazoDias !== "" ? somaDias(f.emissao, num(f.prazoDias), f.prazoTipo) : null;
   const calc = parcelasCalc(f.pagamento, totalGeral, { emissao: f.emissao });
   const confEnt = conferirEntregas(itens, f.entregas, f.entregaModo);
   const numeroExib = f.numero || proximo;
@@ -799,7 +801,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const precisaEntrega = (f.pagamento?.parcelas || []).some((x) => x.base === "ENTREGA");
 
   const imprimirAgora = (tipo) => imprimirPedido(tipo, {
-    ...f, clienteFinal, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
+    ...f, clienteFinal, numero: numeroExib, valorTotal: totalGeral, dtDespacho: dataBR(despacho), prazoEntrega: f.entregaPorItem ? "por item" : f.prazoDias !== "" ? `${f.prazoDias} dias ${f.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "",
     condicaoPagamento: f.interno ? "INTERNO" : veVal ? textoCondicao(f.pagamento, totalGeral) : "", tipoPedido: f.servico ? "SERVIÇO" : f.interno ? "INTERNO" : "VENDA NORMAL", obsNfTexto: obsNf,
     entregasTexto: f.entregaModo === "UNICA" ? "" : f.entregas.map((e, k) => `${k + 1}. ${e.local || "—"} · ${e.endereco || "—"} · resp. ${e.responsavel || "—"} ${e.contato || ""} · ${DOCS_ENTREGA[e.documento] || "—"}`).join("\n"),
   }, f.servico ? itens.map((it) => ({ ...it, grade: [{ tam: "UN", qtd: it.quantidade }] })) : itens, { componentes, alerta,
@@ -935,6 +937,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <In label="Contato" value={f.clienteContato} onChange={(e) => set("clienteContato", e.target.value)} />
           <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />
           <Campo label="Prazo de entrega" cls="col-span-2">
+            {/* v869 — data de entrega única (padrão) ou uma data por item */}
+            <label className="flex items-center gap-1.5 text-xs mb-1 cursor-pointer" style={{ color: f.entregaPorItem ? C.sub : C.accent }} title="Desmarque para informar uma data de entrega em cada item">
+              <input type="checkbox" checked={!f.entregaPorItem} onChange={(e) => set("entregaPorItem", !e.target.checked)} /> Data de entrega única para todo o pedido
+            </label>
+            {f.entregaPorItem ? <div className="text-xs py-1.5" style={{ color: C.sub }}>Cada item tem a sua data de entrega (campo no item). Prazo do pedido = a última data{(() => { const u = itens.map((it) => it.entregaData).filter(Boolean).sort().pop(); return u ? `: ${dataBR(u)} (${diaSem(u)})` : "."; })()}</div> :
             <div className="flex gap-2 items-center">
               <input type="number" min="0" value={f.prazoDias} onChange={(e) => set("prazoDias", e.target.value)} placeholder="dias" className="w-20 px-2 py-1.5 rounded outline-none text-sm" style={inp} />
               <select value={f.prazoTipo} onChange={(e) => set("prazoTipo", e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={inp}>
@@ -947,7 +954,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 setF((x) => ({ ...x, prazoDias: String(Math.max(0, dias)), prazoTipo: "CORRIDOS" })); }}
                 className="px-2 py-1 rounded outline-none text-sm font-semibold" style={{ ...inp, color: C.accent }} title="Escolha a data no calendário" />
               {despacho && <span className="text-xs" style={{ color: C.sub }}>{diaSem(despacho)}</span>}
-            </div>
+            </div>}
           </Campo>
           <Campo label="Observações internas" cls="col-span-4">
             <textarea value={f.obs} onChange={(e) => set("obs", e.target.value)} rows={2} className="w-full px-3 py-2 rounded outline-none text-sm" style={inp} />
@@ -973,6 +980,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               <div className="text-right text-sm font-semibold" style={{ color: C.text }}>{money(totalItem(it))}</div>
             </> : <><span /><span /></>}
             {podeLancar && itens.length > 1 ? <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} style={{ color: "#C77" }}><Trash2 size={15} /></button> : <span />}
+            {f.entregaPorItem && <div className="flex items-center gap-2 text-xs" style={{ gridColumn: "1 / -1" }}>   {/* v869 */}
+              <span className="font-semibold" style={{ color: C.navy }}>Entrega deste serviço</span>
+              <input type="date" value={it.entregaData || ""} min={f.emissao || undefined} disabled={!podeLancar} onChange={(e) => upItem(i, { entregaData: e.target.value })}
+                className="px-2 py-1 rounded outline-none text-sm font-semibold" style={{ ...inp, color: C.accent, borderColor: it.entregaData ? C.line : C.accent }} />
+              {it.entregaData && <span style={{ color: C.sub }}>{diaSem(it.entregaData)}</span>}
+            </div>}
             {/* v792 — todo serviço tem anexos (layout, arte, referência…): saem com o item, como nos produtos */}
             <div className="flex items-center gap-2 flex-wrap" style={{ gridColumn: "1 / -1" }}>
               <label className="text-[11px] px-2 py-1 rounded cursor-pointer" style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}
@@ -1099,6 +1112,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   <input type="checkbox" checked={!!it.dispensaDesign} onChange={(e) => upItem(i, { dispensaDesign: e.target.checked })} /> Dispensar design</label>
               </div>
               <div className="flex-1 min-w-0">
+                {f.entregaPorItem && <div className="flex items-center gap-2 mb-2 text-xs">   {/* v869 */}
+                  <span className="font-semibold" style={{ color: C.navy }}>Entrega deste item</span>
+                  <input type="date" value={it.entregaData || ""} min={f.emissao || undefined} disabled={!podeLancar} onChange={(e) => upItem(i, { entregaData: e.target.value })}
+                    className="px-2 py-1 rounded outline-none text-sm font-semibold" style={{ ...inp, color: C.accent, borderColor: it.entregaData ? C.line : C.accent }} />
+                  {it.entregaData && <span style={{ color: C.sub }}>{diaSem(it.entregaData)}</span>}
+                </div>}
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
                   {it.fpp?.leadTime > 0 && <span className="ml-2 px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }} title="Lead time da FPP, contado da emissão do pedido">entrega prevista {dataBR(somaDias(f.emissao || hojeISO(), it.fpp.leadTime, "CORRIDOS"))} · lead time {it.fpp.leadTime} dias</span>}</div>
                 <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })}

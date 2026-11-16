@@ -396,6 +396,7 @@ model Pp {
   emissao           String?   // AAAA-MM-DD
   prazoDias         Int?
   prazoTipo         String?   // UTEIS | CORRIDOS
+  entregaPorItem    Boolean   @default(false)   // v869 — sem data única: cada item tem a sua data de entrega (PpItem.entregaData); o prazo do pedido = a última
   entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
   entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
   desconto          Json?     // v750 — desconto no total do pedido: { tipo: PCT|VALOR, valor }
@@ -456,6 +457,7 @@ model KmProduto {
 
 model PpItem {
   id                Int      @id @default(autoincrement())
+  entregaData       String?  // v869 — AAAA-MM-DD, quando o pedido não tem data de entrega única
   ppId              Int
   tipoPecaId        Int?
   tipoPecaNome      String?
