@@ -82,9 +82,8 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   if (tela.v === "matriz") migalhas.push({ t: "Matriz de custos" });
   if (tela.v === "pagrec") migalhas.push({ t: "Contas a pagar e receber" });
   if (tela.v === "dfc") migalhas.push({ t: "DFC · fluxo de caixa futuro" });
-  if (tela.v === "alavancagem") migalhas.push({ t: "Alavancagem" });
+  if (tela.v === "alavancagem" || tela.v === "credito") migalhas.push({ t: "Alavancagem e crédito" });
   if (tela.v === "patrimonio") migalhas.push({ t: "Patrimônio" });
-  if (tela.v === "credito") migalhas.push({ t: "Posição de crédito" });
   if (tela.v === "pedidos") migalhas.push({ t: "Pedidos em andamento" });
   if (tela.v === "transmissao") migalhas.push({ t: "Transmissão de arquivos" });
   return (
@@ -122,8 +121,16 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
       {tela.v === "senhas" && <Senhas user={user} />}
       {tela.v === "matriz" && ger && <MatrizCustos user={user} irMetas={irMetas} abrirId={telaInicial?.id || null} />}
       {tela.v === "pagrec" && <ContasPagarReceber user={user} inicial={telaInicial?.v === "pagrec" ? telaInicial.rec : null} />}
-      {tela.v === "alavancagem" && ger && <Alavancagem user={user} master aba="dividas" />}
-      {tela.v === "credito" && ger && <Alavancagem user={user} master aba="credito" />}
+      {/* v841 — alavancagem e posição de crédito num card só, com guias */}
+      {(tela.v === "alavancagem" || tela.v === "credito") && ger && <>
+        <div className="flex gap-1 mb-4" style={{ borderBottom: `1px solid ${C.line}` }}>
+          {[["alavancagem", "Alavancagem"], ["credito", "Posição de crédito"]].map(([v, t]) => (
+            <button key={v} onClick={() => setTela({ ...tela, v })} className="px-4 py-2 text-sm font-semibold -mb-px"
+              style={{ color: tela.v === v ? C.accent : C.sub, borderBottom: `2px solid ${tela.v === v ? C.accent : "transparent"}` }}>{t}</button>
+          ))}
+        </div>
+        <Alavancagem user={user} master aba={tela.v === "credito" ? "credito" : "dividas"} />
+      </>}
       {tela.v === "dfc" && ger && <Dfc user={user} />}
       {tela.v === "pedidos" && ger && <PedidosAndamento user={user} />}
       {tela.v === "patrimonio" && ger && <Patrimonio user={user} />}
@@ -169,10 +176,10 @@ function FinOperacional({ user, ir }) {
       </div>
       <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {cards.map(([v, Ico, t, sub]) => (
-          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
             <Ico size={26} style={{ color: C.accent }} />
             <div className="text-lg font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
           </button>
         ))}
       </div>
@@ -294,8 +301,7 @@ function FinDashboard({ user, ir }) {
           ["pagrec", ArrowLeftRight, "Contas a pagar e receber", "Títulos em aberto, vencimentos e baixas"],
           ["dfc", LineChart, "DFC · fluxo de caixa futuro", "Saldo previsto por dia, com sugestões de operação"],
           ["meses", CalendarRange, "Análise financeira", "Indicadores do ano, DRE do mês, importação e identificação"],
-          ["alavancagem", TrendingDown, "Alavancagem", "Contratos, mútuos, investimentos e passivo tributário"],
-          ["credito", CreditCard, "Posição de crédito", "Limites por banco, utilizado e disponível"],
+          ["alavancagem", TrendingDown, "Alavancagem e crédito", "Contratos, mútuos, investimentos, passivo tributário e limites por banco"],
           ["pedidos", FileStack, "Pedidos em andamento", "PV e OP: valor, condição, entrada e previsão de receitas"],
           ["patrimonio", Building2, "Patrimônio", "Bens da empresa, valores e NF de compra"],
         ].map(([v, Ico, t, sub]) => (
