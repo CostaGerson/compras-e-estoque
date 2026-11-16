@@ -564,6 +564,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
   }
   async function salvar() {
     if (!f.item) return setMsg("Selecione o ITEM.");
+    // v845 — artigo digitado sem escolher do estoque nem marcar "Artigo novo"
+    const pend = [[f.nomeArtigo, f.artigoDet], [f.nomeArtigoForro, f.artigoForroDet], ...(Array.isArray(f.materiasExtras) ? f.materiasExtras : []).map((x) => [x?.nome, x?.det])].filter(([n, d]) => d?.pendente && String(n || "").trim());
+    if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
     setSalvando(true); setMsg("");
     const body = montarBody();
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
@@ -719,7 +722,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
               <div className="space-y-3">
                 <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(tipo === "PLANO" || aberta) }}>
                   <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
-                    onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)} />
+                    onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)}
+                    onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigo: String(nome || "").toUpperCase(), artigoDet: det, ...(custo != null ? { mpValor: custo } : {}) }))} />
                   <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
                   {aberta
                     ? <Inp full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} value={f.abRend} onChange={(v) => set("abRend", v)} />
@@ -735,7 +739,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                 {(tipo === "PLANO" || aberta) && f.forrada && (
                   <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(true) }}>
                     <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
-                      onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)} />
+                      onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)}
+                      onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigoForro: String(nome || "").toUpperCase(), artigoForroDet: det, ...(custo != null ? { forroValor: custo } : {}) }))} />
                     <Inp full label="Custo do forro (R$/m)" value={f.forroValor} onChange={(v) => set("forroValor", v)} />
                     <Inp full label="Consumo (m/peça)" value={f.consumoForro} onChange={(v) => set("consumoForro", v)}
                       placeholder={r && r.consumoForroEst ? `estimado ${(r.consumoForroEst || 0).toFixed(2).replace(".", ",")}` : ""} />
@@ -2204,15 +2209,65 @@ function ResumoDet({ det, categoria, botao }) {
   const r = resumoDet(det || {}, categoria, botao);
   return r.length ? <div className="text-[11px] mt-0.5 truncate" style={{ color: C.sub }} title={r.join(" · ")}>{r.join(" · ")}</div> : null;
 }
-function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet }) {
+// v845 — artigo: ao digitar, busca os artigos já cadastrados no estoque e preenche nome, custo e detalhes (fornecedor, cor, código…);
+//   sem correspondência → "Artigo novo". Enquanto não escolher um dos dois, o artigo fica pendente e a FPP não salva.
+let _artCache = null;
+const semAcA = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+const n4 = (v) => (v == null || v === "" ? "" : String(Number(v)).replace(".", ","));
+function detDoArtigo(a) {
+  const forn = a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial || "") : "";
+  const d = { artigoId: a.id, fornecedorId: a.fornecedorId || "", fornecedorNome: forn, cor: a.cor || "", codigo: a.codigo || a.codigoFornecedor || "",
+    largura: n4(a.largura), gramatura: n4(a.gramatura), rendimento: n4(a.rendimento), tipoMalha: a.tipoMalha || "" };
+  for (const k of Object.keys(d)) if (d[k] === "" || d[k] == null) delete d[k];
+  return d;
+}
+function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick }) {
+  const [arts, setArts] = useState(_artCache || []);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (!_artCache) fetch("/api/artigos").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; setArts(_artCache); }).catch(() => {}); }, []);
+  const q = semAcA(nome).trim();
+  const pal = q.split(/\s+/).filter(Boolean);
+  const lista = !pal.length ? [] : arts.filter((a) => a.categoria === categoria && pal.every((w) => semAcA([a.nome, a.artigoInterno, a.codigo, a.codigoFornecedor, a.cor, a.composicao].join(" ")).includes(w))).slice(0, 12);
+  const pendente = !!det?.pendente;
+  const escolher = (a) => {
+    const d = detDoArtigo(a);
+    const unOk = (categoria === "MALHA" && a.unidade === "KG") || (categoria !== "MALHA" && a.unidade === "M");
+    const custo = unOk && a.valorUnitario != null ? String(Number(a.valorUnitario).toFixed(2)).replace(".", ",") : null;
+    if (onPick) onPick({ nome: a.nome, det: d, custo }); else { onNome(a.nome); onDet(d); }
+    setOpen(false);
+  };
+  const novo = () => { const d = { ...(det || {}) }; delete d.pendente; delete d.artigoId; d.novo = true; onDet(d); setOpen(false); };
+  const digitar = (v) => {
+    const d = { ...(det || {}) }; delete d.artigoId; delete d.novo;
+    if (v.trim()) d.pendente = true; else delete d.pendente;
+    if (onPick) onPick({ nome: v, det: Object.keys(d).length ? d : null }); else { onNome(v); onDet(Object.keys(d).length ? d : null); }
+    setOpen(true);
+  };
   return (
-    <div>
-      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+    <div style={{ position: "relative" }}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}
+        {det?.artigoId ? <span style={{ color: C.green }}> · do estoque</span> : det?.novo ? <span style={{ color: C.accent }}> · artigo novo</span> : null}</div>
       <div className="flex gap-1">
-        <input value={sc(nome || "")} onChange={(e) => onNome(e.target.value.toLocaleUpperCase("pt-BR"))} placeholder="Nome do artigo"
-          className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+        <input value={sc(nome || "")} onChange={(e) => digitar(e.target.value.toLocaleUpperCase("pt-BR"))} onFocus={() => pendente && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Nome do artigo · busca no estoque"
+          className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${pendente ? C.accent : C.line}`, color: C.text }} />
         <DetBotao det={det} categoria={categoria} nome={nome} onDet={onDet} />
       </div>
+      {open && pendente && (
+        <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 280, overflowY: "auto" }}>
+          {lista.map((a) => (
+            <button key={a.id} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(a); }} className="w-full text-left px-3 py-2 text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <b style={{ color: C.text }}>{a.nome}</b>
+              <span className="text-xs" style={{ color: C.sub }}>{[a.cor, a.codigo || a.codigoFornecedor, a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial) : null, a.composicao].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
+            </button>
+          ))}
+          {!lista.length && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum artigo do estoque com esse nome.</div>}
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); novo(); }} className="w-full text-left px-3 py-2 text-sm font-semibold flex items-center gap-1" style={{ color: C.accent }}>
+            <Plus size={14} /> Artigo novo: {nome}
+          </button>
+        </div>
+      )}
+      {pendente && !open && <div className="text-[11px] mt-0.5" style={{ color: C.accent }}>Escolha um artigo do estoque ou clique em "Artigo novo".</div>}
       <ResumoDet det={det} categoria={categoria} />
     </div>
   );
@@ -2464,7 +2519,8 @@ function MpExtras({ lista, onChange, cols }) {
         return (
           <div key={i} className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(cols) }}>
             <ArtigoNomeDet label={`Matéria-prima adicional ${i + 1}`} nome={x.nome} det={x.det} categoria={rend ? "MALHA" : "TECIDO"}
-              onNome={(v) => alt(i, "nome", v.toUpperCase())} onDet={(d) => alt(i, "det", d)} />
+              onNome={(v) => alt(i, "nome", v.toUpperCase())} onDet={(d) => alt(i, "det", d)}
+              onPick={({ nome, det, custo }) => onChange(l.map((y, j) => (j === i ? { ...y, nome: String(nome || "").toUpperCase(), det, ...(custo != null ? { custo } : {}) } : y)))} />
             <Inp full label={rend ? "Custo (R$/kg)" : "Custo (R$/m)"} value={x.custo ?? ""} onChange={(v) => alt(i, "custo", v)} />
             <div>
               <UnidadeSeg rend={rend} onChange={(m) => alt(i, "modo", m)} />
