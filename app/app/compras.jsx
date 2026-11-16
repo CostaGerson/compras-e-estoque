@@ -263,6 +263,19 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
     if (!r.ok) return alerta("Erro ao dispensar.");
     carregar();
   }
+  // v862 — dispensar compras de um item só (o resto do pedido segue em compras)
+  async function dispensarItem(p, it) {
+    const motivo = await perguntar(`Dispensar compras do item ${it.codigo || ch(it.chave)} · ${it.descricao || ""} (pedido ${p.numero})?\nO item sai de compras e do levantamento e vai para o PCP; os outros itens seguem normais.\n\nMotivo (opcional):`, "Material já disponível");
+    if (motivo === null) return;
+    const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, chave: it.chave, motivo, quem: nomeUser(user) }) });
+    if (!r.ok) return alerta("Erro ao dispensar.");
+    carregar();
+  }
+  async function reativarItem(x) {
+    if (!(await confirmar(`Voltar o item ${x.codigo || ch(x.chave)} do pedido ${x.numero} para compras?`))) return;
+    await fetch("/api/compras/pedidos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: x.numero, chave: x.chave }) });
+    carregar();
+  }
   async function reativar(p) {
     if (!(await confirmar(`Voltar o pedido ${p.numero} para compras?`))) return;
     await fetch("/api/compras/pedidos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero }) });
@@ -297,7 +310,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       <FasesCompras atual="comprasPedidos" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Todo pedido <b>lançado no sistema</b> entra aqui e sai quando os itens são liberados para programação (o PCP lê e recebe em A PROGRAMAR). Do KM: pedidos em <b>levantamento</b> ou <b>compras</b> no PCP. Cada item precisa de uma FPP base; ao escolher a FPP, a demanda de matéria-prima vai para o <b>Levantamento</b>.{d.emProducao ? ` ${d.emProducao} pedido(s) já programados, em produção ou concluídos no PCP não aparecem (matéria-prima já comprada).` : ""}</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"], ["dispensadas", `Compras dispensadas (${(d.dispensados || []).length})`]].map(([k, l]) => (
+        {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"], ["dispensadas", `Compras dispensadas (${(d.dispensados || []).length + (d.dispensadosItens || []).length})`]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{l}</button>
         ))}
         <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
@@ -311,7 +324,17 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
       {filtro === "dispensadas" && (
         <div>
           <div className="text-xs mb-2" style={{ color: C.sub }}>Pedidos lançados no KM só para faturamento: não entram em compras, levantamento nem cruzamento.</div>
-          {!(d.dispensados || []).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido dispensado.</div>}
+          {!(d.dispensados || []).length && !(d.dispensadosItens || []).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum pedido dispensado.</div>}
+          {/* v862 — itens dispensados um a um */}
+          {(d.dispensadosItens || []).map((x) => (
+            <div key={`${x.numero}|${x.chave}`} className="flex items-center gap-3 px-4 py-3 rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold" style={{ color: C.navy }}>Pedido {x.numero} · item {x.codigo || ch(x.chave)} · {x.descricao}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{x.cliente} · {x.qtd} pç · entrega {dBR(x.entrega)}{x.motivo ? ` · ${x.motivo}` : ""} · dispensado {new Date(x.em).toLocaleDateString("pt-BR")}{x.porNome ? ` por ${x.porNome}` : ""}</div>
+              </div>
+              <button onClick={() => reativarItem(x)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.line}`, color: C.accent }}><Undo2 size={13} /> Voltar para compras</button>
+            </div>
+          ))}
           {(d.dispensados || []).map((p) => (
             <div key={p.numero} className="flex items-center gap-3 px-4 py-3 rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-0">
@@ -351,10 +374,11 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                         <td className="px-3 py-2 text-center"><Chip cor={sit === "Fora do PCP" ? C.sub : sit === "Compras" ? C.accent : C.blue} fundo={sit === "Fora do PCP" ? C.panel2 : sit === "Compras" ? C.accentSoft : C.blueSoft}>{sit}</Chip></td>
                         <td className="px-3 py-2 text-center">{p.total}</td>
                         <td className="px-3 py-2 text-center font-semibold" style={{ color: ok ? C.green : C.accent }}>{p.comFpp}/{p.total}</td>
-                        <td className="px-3 py-2 text-right whitespace-nowrap">{p.comFpp > 0 && <button onClick={async (e) => { e.stopPropagation(); if (await regerarDemandas(p.numero, user)) carregar(); }} title="Apaga e gera de novo as demandas de compra do pedido" className="text-xs px-2 py-1 rounded-md mr-1" style={{ border: `1px solid ${C.line}`, color: C.accent, background: C.panel }}><RefreshCw size={11} className="inline -mt-0.5" /> Gerar demandas</button>}<button onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras" className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button></td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">{p.comFpp > 0 && <button onClick={async (e) => { e.stopPropagation(); if (await regerarDemandas(p.numero, user)) carregar(); }} title="Apaga e gera de novo as demandas de compra do pedido" className="text-xs px-2 py-1 rounded-md mr-1" style={{ border: `1px solid ${C.line}`, color: C.accent, background: C.panel }}><RefreshCw size={11} className="inline -mt-0.5" /> Gerar demandas</button>}<button onClick={(e) => { e.stopPropagation(); dispensar(p); }} title="Pedido só para faturamento: tira de compras o pedido inteiro (para um item só, abra o pedido)" className="text-xs px-2 py-1 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar pedido inteiro</button></td>
                       </tr>
                       {ab && (
                         <tr><td colSpan={8} className="px-4 pb-3 pt-1" style={{ background: "#FCFCFD" }}>
+                          {p.itensDisp ? <div className="text-[11px] mb-1" style={{ color: C.sub }}>{p.itensDisp} item(ns) com compras dispensadas (veja em Compras dispensadas).</div> : null}
                           {p.itensFora ? <div className="text-[11px] mb-1" style={{ color: C.sub }}>{p.itensFora} item(ns) {p.proprio ? "já liberado(s) para programação (com o PCP)" : "já programado(s) no PCP"} não aparecem.</div> : null}
                           {(() => { const ind = p.itens.filter((it) => !it.vinculo && it.sugestoes?.[0]?.indicada); return ind.length > 0 && (   // v612
                             <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-md text-xs" style={{ background: C.accentSoft, color: C.text }}>
@@ -362,7 +386,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                               <button disabled={usando} onClick={() => confirmarIndicadas(p, ind)} className="px-3 py-1.5 rounded-md font-semibold text-white" style={{ background: C.accent }}>{usando ? "Enviando…" : `Confirmar FPPs do lançamento (${ind.length})`}</button>
                             </div>); })()}
                           <div className="space-y-2">
-                            {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores}
+                            {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores} onDispensar={() => dispensarItem(p, it)}
                               onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
                               onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
                               onBuscar={() => setBusca({ item: it, pedido: p })}
@@ -679,7 +703,7 @@ function AnexosAvulsa({ avulsaId, pendentes, setPendentes, quem, onMudou }) {
   );
 }
 
-function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular, onExcluir }) {
+function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular, onExcluir, onDispensar }) {
   const v = it.vinculo;
   return (
     <div className="rounded-md px-3 py-2.5" style={{ background: C.panel2, border: `1px solid ${v ? C.green + "55" : C.line}` }}>
@@ -690,6 +714,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
         </div>
         {it.colunaPcp && <Chip cor={C.navy} title="Coluna do item no PCP">PCP: {it.colunaPcp === "LEVANTAMENTO" ? "levantamento" : it.colunaPcp === "COMPRAS" ? "compras" : it.colunaPcp.toLowerCase()}</Chip>}
         {v ? <Chip cor={STATUS[v.status]?.[1] || C.green} fundo={STATUS[v.status]?.[2] || C.greenSoft}>{STATUS[v.status]?.[0] || v.status}</Chip> : <Chip cor={C.yellow} fundo={C.yellowSoft}>Sem FPP</Chip>}
+        {onDispensar && (!v || ["LEVANTAMENTO", "REPROVADO", "ESTOQUE"].includes(v.status)) && <button onClick={onDispensar} title="Tira só este item de compras: vai para o PCP sem compra de material" className="text-[11px] px-2 py-0.5 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button>}
       </div>
       {v ? (
         <div className="mt-2">

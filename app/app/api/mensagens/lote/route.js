@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { ehEtiqueta } from "@/lib/msgEtiquetas";
 
 // v861 — ação em várias mensagens recebidas: { usuarioId, ids: [], acao: "arquivar" | "desarquivar" | "excluir" | "restaurar" | "lida" }
 export async function POST(req) {
@@ -13,9 +14,10 @@ export async function POST(req) {
     excluir: { excluidaEm: new Date(), lida: true },
     restaurar: { excluidaEm: null },
     lida: { lida: true },
+    etiquetar: ehEtiqueta(b.etiqueta) ? { etiqueta: b.etiqueta } : null,   // v862
   }[b.acao];
   if (!data) return Response.json({ error: "Ação inválida." }, { status: 400 });
   // aviso do desenvolvedor sem "ciente" não sai da caixa
-  const r = await prisma.mensagem.updateMany({ where: { id: { in: ids }, paraId: usuarioId, NOT: { aviso: true, lida: false } }, data });
+  const r = await prisma.mensagem.updateMany({ where: { id: { in: ids }, ...(b.acao === "etiquetar" ? { OR: [{ paraId: usuarioId }, { deId: usuarioId }] } : { paraId: usuarioId, NOT: { aviso: true, lida: false } }) }, data });
   return Response.json({ ok: true, n: r.count });
 }

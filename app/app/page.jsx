@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile } from "./useMobile";   // v550
+import { ETIQUETAS } from "@/lib/msgEtiquetas";   // v862
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
@@ -868,10 +869,15 @@ const quandoData = (d) => { try { return new Date(d).toLocaleString("pt-BR", { d
 
 /* ===== Notificações (tela cheia) ===== */
 function Notificacoes({ user, perfil, onIrEstoque, onMudou }) {
+  // v862 — no estilo da caixa de mensagens (Gmail): pastas à esquerda, uma linha por notificação, seleção e ações em lote
   const [dados, setDados] = useState({ pendentes: [], resolvidas: [], naoVistos: 0 });
   const [aba, setAba] = useState("pendentes");
   const [aberta, setAberta] = useState(null); // id expandido
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState([]);
+  const [lim, setLim] = useState(100);
+  const mob = useMobile();
 
   const carregar = async () => {
     try {
@@ -886,54 +892,90 @@ function Notificacoes({ user, perfil, onIrEstoque, onMudou }) {
     await fetch("/api/alertas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     await carregar(); onMudou && onMudou();
   };
+  const lote = async (tipo, ids) => { if (!ids.length) return; await acao({ acao: "lote", tipo, ids }); setSel([]); setAberta(null); };
   const abrir = (a) => {
     const novo = aberta === a.id ? null : a.id;
     setAberta(novo);
-    if (novo && !a.visto) acao({ acao: "visto", id: a.id });
+    if (novo && !a.visto && aba === "pendentes") acao({ acao: "visto", id: a.id });
   };
   const vistarTudo = () => acao({ acao: "vistoTudo", usuarioId: user.id, setor: perfil });
 
-  const lista = aba === "pendentes" ? dados.pendentes : dados.resolvidas;
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
+  const t = q.trim().toLowerCase();
+  const lista = (aba === "pendentes" ? dados.pendentes : dados.resolvidas).filter((a) => !t || `${a.nome} ${a.categoria} ${a.nfNumero || ""} ${a.faltando.join(" ")}`.toLowerCase().includes(t));
+  const vis = lista.slice(0, lim);
+  const ids = lista.map((a) => a.id);
+  const selAqui = sel.filter((id) => ids.includes(id));
+  const todas = ids.length > 0 && selAqui.length === ids.length;
+  const pastas = [["pendentes", "Pendentes", Bell, dados.naoVistos || 0, dados.pendentes.length], ["resolvidas", "Resolvidas", CheckCircle2, 0, dados.resolvidas.length]];
+  const btn = { border: `1px solid ${C.line}`, color: C.text };
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-1">
-          {[["pendentes", `Pendentes (${dados.pendentes.length})`], ["resolvidas", `Resolvidas (${dados.resolvidas.length})`]].map(([k, l]) => {
+    <div className="flex gap-4" style={{ flexDirection: mob ? "column" : "row", alignItems: "flex-start" }}>
+      <div className="shrink-0" style={{ width: mob ? "100%" : 220 }}>
+        <button onClick={onIrEstoque} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-semibold mb-3 shadow-sm" style={{ background: C.accentSoft, color: C.text }}><Package size={18} /> Completar no estoque</button>
+        <div className={mob ? "flex gap-1 overflow-x-auto" : ""}>
+          {pastas.map(([k, l, Ico, nv, tot]) => {
             const on = aba === k;
-            return <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>;
+            return (
+              <button key={k} onClick={() => { setAba(k); setAberta(null); setSel([]); setLim(100); }} className="flex items-center gap-3 px-4 py-1.5 text-sm rounded-full w-full" style={{ background: on ? C.accentSoft : "transparent", color: C.text, fontWeight: on || nv ? 700 : 400, whiteSpace: "nowrap" }}>
+                <Ico size={16} style={{ color: on ? C.accent : C.sub }} /> <span style={{ flex: 1, textAlign: "left" }}>{l}</span><span className="text-xs">{nv ? `${nv} novas · ` : ""}{tot}</span>
+              </button>
+            );
           })}
         </div>
-        {aba === "pendentes" && dados.naoVistos > 0 && (
-          <button onClick={vistarTudo} className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}><CheckCircle2 size={15} /> Vistar tudo</button>
-        )}
       </div>
 
-      <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-        {lista.length === 0 && <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>{aba === "pendentes" ? "Nenhuma notificação pendente. Tudo cadastrado ✓" : "Nenhuma notificação resolvida."}</div>}
-        {lista.map((a) => (
-          <div key={a.id} style={{ borderBottom: `1px solid ${C.line}`, background: aba === "pendentes" && !a.visto ? C.accentSoft : "transparent" }}>
-            <button onClick={() => abrir(a)} className="w-full text-left px-4 py-3 flex items-start gap-2">
-              <AlertTriangle size={16} style={{ color: aba === "resolvidas" ? C.sub : "#E5484D", marginTop: 2 }} />
-              <div style={{ flex: 1 }}>
-                <div className="text-sm font-medium" style={{ color: C.text }}>{a.nome} {a.nfNumero ? <span style={{ color: C.sub }}>· NF {a.nfNumero}</span> : ""} {aba === "pendentes" && !a.visto && <span className="text-xs ml-1" style={{ color: "#E5484D" }}>• novo</span>}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.sub }}>{a.categoria} · falta {a.faltando.length} campo(s)</div>
-              </div>
-            </button>
-            {aberta === a.id && (
-              <div className="px-4 pb-3" style={{ marginLeft: 26 }}>
-                <div className="text-xs mb-2" style={{ color: C.sub }}>Campos faltando: <b style={{ color: C.text }}>{a.faltando.join(", ")}</b></div>
-                <div className="flex gap-2">
-                  <button onClick={onIrEstoque} className="px-3 py-1.5 rounded text-sm font-medium" style={{ background: C.accent, color: "#fff" }}>Completar no estoque</button>
-                  {aba === "pendentes"
-                    ? <button onClick={() => acao({ acao: "resolvido", id: a.id })} className="px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1" style={{ background: C.greenSoft, color: C.green, border: `1px solid ${C.green}` }}><CheckCircle2 size={15} /> Marcar resolvido</button>
-                    : <button onClick={() => acao({ acao: "reabrir", id: a.id })} className="px-3 py-1.5 rounded text-sm font-medium" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Reabrir</button>}
-                </div>
-              </div>
-            )}
+      <div style={{ flex: 1, minWidth: 0, width: mob ? "100%" : undefined }}>
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 flex-wrap" style={{ borderBottom: `1px solid ${C.line}` }}>
+            <input type="checkbox" title="Selecionar todas" checked={todas} ref={(el) => { if (el) el.indeterminate = selAqui.length > 0 && !todas; }} onChange={() => setSel(todas ? [] : ids)} style={{ width: 16, height: 16, accentColor: C.accent, cursor: "pointer" }} />
+            {selAqui.length > 0 ? <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-xs font-semibold mr-1" style={{ color: C.text }}>{selAqui.length} selecionada{selAqui.length > 1 ? "s" : ""}</span>
+              {aba === "pendentes" && <button onClick={() => lote("visto", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={btn}>Marcar como vistas</button>}
+              {aba === "pendentes" && <button onClick={() => lote("resolvido", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ ...btn, color: C.green }}>Marcar resolvidas</button>}
+              {aba === "resolvidas" && <button onClick={() => lote("reabrir", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={btn}>Reabrir</button>}
+            </div> : aba === "pendentes" && dados.naoVistos > 0 && <button onClick={vistarTudo} className="text-xs px-3 py-1.5 rounded-full flex items-center gap-1" style={{ ...btn, color: C.sub }}><CheckCircle2 size={13} /> Vistar tudo</button>}
+            <input value={q} onChange={(e) => { setQ(e.target.value); setLim(100); }} placeholder="Pesquisar notificações" className="px-4 py-2 rounded-full text-sm outline-none" style={{ background: C.panel2, color: C.text, flex: 1, maxWidth: 520, minWidth: 160 }} />
+            <button onClick={carregar} title="Atualizar" className="px-2 py-1 rounded-full text-base" style={{ color: C.sub }}>⟳</button>
+            <span className="text-xs ml-auto" style={{ color: C.sub }}>{lista.length} notificaç{lista.length === 1 ? "ão" : "ões"}</span>
           </div>
-        ))}
+          {!lista.length && <div className="px-4 py-8 text-sm text-center" style={{ color: C.sub }}>{t ? "Nada encontrado." : aba === "pendentes" ? "Nenhuma notificação pendente. Tudo cadastrado ✓" : "Nenhuma notificação resolvida."}</div>}
+          {vis.map((a) => {
+            const novo = aba === "pendentes" && !a.visto, on = aberta === a.id;
+            return (
+              <div key={a.id} style={{ borderBottom: `1px solid ${C.line}`, background: on || novo ? C.panel : C.panel2 }}>
+                <div onClick={() => abrir(a)} className="group flex items-center gap-3 px-3 cursor-pointer hover:shadow-sm" style={mob ? { padding: "8px 12px", flexWrap: "wrap" } : { height: 40 }}>
+                  <input type="checkbox" checked={sel.includes(a.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSel((l) => (e.target.checked ? [...l, a.id] : l.filter((x) => x !== a.id)))} style={{ width: 16, height: 16, accentColor: C.accent, cursor: "pointer" }} />
+                  <AlertTriangle size={15} className="shrink-0" style={{ color: aba === "resolvidas" ? C.sub : "#E5484D" }} />
+                  <div className="truncate text-sm" style={{ width: mob ? "auto" : 260, flex: mob ? 1 : "none", color: C.text, fontWeight: novo ? 700 : 500 }}>{a.nome}</div>
+                  <div className="truncate text-sm" style={{ flex: mob ? "1 1 100%" : 1, minWidth: 0, order: mob ? 3 : 0, color: C.sub }}>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded mr-2" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{a.categoria}</span>
+                    <span style={{ color: C.text, fontWeight: novo ? 700 : 600 }}>Falta {a.faltando.length} campo{a.faltando.length === 1 ? "" : "s"}</span> - {a.faltando.join(", ")}
+                  </div>
+                  <div className="shrink-0 text-xs text-right" style={{ width: 120, color: C.sub }}>
+                    <span className={mob ? "" : "group-hover:hidden"}>{a.nfNumero ? `NF ${a.nfNumero}` : ""}</span>
+                    {!mob && (aba === "pendentes"
+                      ? <button onClick={(e) => { e.stopPropagation(); acao({ acao: "resolvido", id: a.id }); }} className="hidden group-hover:inline text-xs font-semibold" style={{ color: C.green }}>Resolver</button>
+                      : <button onClick={(e) => { e.stopPropagation(); acao({ acao: "reabrir", id: a.id }); }} className="hidden group-hover:inline text-xs font-semibold" style={{ color: C.accent }}>Reabrir</button>)}
+                  </div>
+                </div>
+                {on && (
+                  <div className="px-4 pb-4 pt-1" style={{ paddingLeft: mob ? 16 : 72 }}>
+                    <div className="text-xs mb-2" style={{ color: C.sub }}>{a.categoria}{a.nfNumero ? ` · NF ${a.nfNumero}` : ""} · campos faltando: <b style={{ color: C.text }}>{a.faltando.join(", ")}</b></div>
+                    <div className="flex gap-2">
+                      <button onClick={onIrEstoque} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: C.accent, color: "#fff" }}>Completar no estoque</button>
+                      {aba === "pendentes"
+                        ? <button onClick={() => acao({ acao: "resolvido", id: a.id })} className="text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1" style={{ ...btn, color: C.green }}><CheckCircle2 size={13} /> Marcar resolvido</button>
+                        : <button onClick={() => acao({ acao: "reabrir", id: a.id })} className="text-xs px-3 py-1.5 rounded-full" style={{ ...btn, color: C.sub }}>Reabrir</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {lista.length > vis.length && <button onClick={() => setLim((n) => n + 200)} className="w-full py-3 text-xs font-semibold" style={{ color: C.accent }}>Mostrar mais ({lista.length - vis.length})</button>}
+        </div>
       </div>
     </div>
   );
@@ -955,12 +997,13 @@ function Mensagens({ user, onMudou }) {
   const [dados, setDados] = useState({ recebidas: [], arquivadas: [], lixeira: [], enviadas: [], naoLidas: 0 });
   const [aba, setAba] = useState("recebidas");
   const [usuarios, setUsuarios] = useState([]);
-  const [comp, setComp] = useState({ paraId: "", texto: "", aviso: false });   // v568 — aviso: aviso do desenvolvedor (para todos)
+  const [comp, setComp] = useState({ paraId: "", texto: "", aviso: false, etiqueta: "COMUNICACAO" });   // v568 — aviso: aviso do desenvolvedor (para todos)
   const [enviando, setEnviando] = useState(false);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");   // v861
   const [aberta, setAberta] = useState(null);
   const [sel, setSel] = useState([]);   // v861 — selecionadas (ações em lote)
+  const [fEtq, setFEtq] = useState(null);   // v862 — filtro por etiqueta
   const mob = useMobile();
 
   const carregar = async () => {
@@ -987,19 +1030,19 @@ function Mensagens({ user, onMudou }) {
     await fetch(`/api/mensagens/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     await carregar(); onMudou && onMudou();
   };
-  const lote = async (acao, ids) => {   // v861
+  const lote = async (acao, ids, etiqueta) => {   // v861
     if (!ids.length) return;
-    const r = await fetch("/api/mensagens/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids, acao }) });
+    const r = await fetch("/api/mensagens/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ids, acao, etiqueta }) });
     if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro."); }
     setSel([]); setAberta(null); await carregar(); onMudou && onMudou();
   };
   const enviar = async () => {
     if ((!comp.aviso && !comp.paraId) || !comp.texto.trim()) return;
     setEnviando(true);
-    const r = await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(comp.aviso ? { deId: user.id, texto: comp.texto, aviso: true } : { deId: user.id, paraId: Number(comp.paraId), texto: comp.texto }) });
+    const r = await fetch("/api/mensagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(comp.aviso ? { deId: user.id, texto: comp.texto, aviso: true } : { deId: user.id, paraId: Number(comp.paraId), texto: comp.texto, etiqueta: comp.etiqueta || "COMUNICACAO" }) });
     setEnviando(false);
     if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || "Erro ao enviar"); return; }
-    setComp({ paraId: "", texto: "", aviso: false }); setAba("enviadas"); carregar();
+    setComp({ paraId: "", texto: "", aviso: false, etiqueta: "COMUNICACAO" }); setAba("enviadas"); carregar();
   };
   const responderConvite = async (m, resposta) => {
     const r = await fetch("/api/tarefas/convites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "responder", tarefaId: m.conviteTarefaId, resposta }) });
@@ -1007,7 +1050,7 @@ function Mensagens({ user, onMudou }) {
     if (!m.lida) await fetch(`/api/mensagens/${m.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lida: true }) }).catch(() => {});
     await carregar(); onMudou && onMudou();
   };
-  const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "" }); setAba("nova"); };
+  const responder = (m) => { setComp({ paraId: String(m.de?.id || ""), texto: "", aviso: false, etiqueta: m.etiqueta || "COMUNICACAO" }); setAba("nova"); };
 
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
 
@@ -1023,6 +1066,7 @@ function Mensagens({ user, onMudou }) {
           <Avatar foto={foto} nome={nome} size={24} />
           <div className="truncate text-sm" style={{ width: mob ? "auto" : 190, flex: mob ? 1 : "none", color: C.text, fontWeight: negrito ? 700 : 500 }}>{nome}</div>
           <div className="truncate text-sm" style={{ flex: mob ? "1 1 100%" : 1, minWidth: 0, order: mob ? 3 : 0, color: C.sub }}>
+            {(() => { const e = ETIQUETAS.find((x) => x.k === m.etiqueta); return e ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded mr-2" style={{ background: e.cor + "1A", color: e.cor }}>{e.nome}</span> : null; })()}
             {chip && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ background: C.accentSoft, color: C.accent }}>{chip}</span>}
             {a && <span style={{ color: C.text, fontWeight: negrito ? 700 : 600 }}>{a}</span>}{a && r ? " - " : ""}{r}
           </div>
@@ -1094,7 +1138,10 @@ function Mensagens({ user, onMudou }) {
           {m.convite === "RECUSADO" && <button onClick={() => responderConvite(m, "CONFIRMAR")} className="text-xs" style={{ color: C.accent }}>Mudar para confirmar</button>}
           {m.convite === "CONFIRMADO" && <button onClick={() => responderConvite(m, "RECUSAR")} className="text-xs" style={{ color: C.sub }}>Não vou mais</button>}
         </div>}
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3 flex-wrap items-center">
+          <select value={m.etiqueta || "COMUNICACAO"} onChange={(e) => lote("etiquetar", [m.id], e.target.value)} title="Etiqueta" className="text-xs px-2 py-1.5 rounded-full outline-none" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>
+            {ETIQUETAS.map((e) => <option key={e.k} value={e.k}>🏷 {e.nome}</option>)}
+          </select>
           <button onClick={() => responder(m)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>↩ Responder</button>
           {m.excluidaEm
             ? <button onClick={() => lote("restaurar", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Restaurar</button>
@@ -1116,7 +1163,8 @@ function Mensagens({ user, onMudou }) {
     ["enviadas", "Enviadas", Send, 0],
     ["lixeira", "Lixeira", Trash2, 0],
   ];
-  const lista = aba === "recebidas" ? dados.recebidas.filter(casa) : aba === "arquivadas" ? dados.arquivadas.filter(casa) : aba === "lixeira" ? dados.lixeira.filter(casa) : agruparAvisos(dados.enviadas).filter(casa);
+  const lista = (aba === "recebidas" ? dados.recebidas.filter(casa) : aba === "arquivadas" ? dados.arquivadas.filter(casa) : aba === "lixeira" ? dados.lixeira.filter(casa) : agruparAvisos(dados.enviadas).filter(casa))
+    .filter((m) => !fEtq || m.etiqueta === fEtq || ((m.aviso || m.prioritaria) && aba === "recebidas"));   // v862
   const fixas = aba === "recebidas" ? lista.filter((m) => m.aviso || m.prioritaria) : aba === "arquivadas" ? lista.filter((m) => m.aviso) : [];
   const normais = lista.filter((m) => !fixas.includes(m));
   const vazio = { recebidas: "Nenhuma mensagem recebida.", arquivadas: "Nenhuma mensagem arquivada.", enviadas: "Nenhuma mensagem enviada.", lixeira: "Lixeira vazia." }[aba];
@@ -1133,8 +1181,21 @@ function Mensagens({ user, onMudou }) {
           {pastas.map(([k, l, Ico, n]) => {
             const on = aba === k;
             return (
-              <button key={k} onClick={() => { setAba(k); setAberta(null); setSel([]); }} className="flex items-center gap-3 px-4 py-1.5 text-sm rounded-full w-full" style={{ background: on ? C.accentSoft : "transparent", color: C.text, fontWeight: on || n ? 700 : 400, whiteSpace: "nowrap" }}>
+              <button key={k} onClick={() => { setAba(k); setAberta(null); setSel([]); setFEtq(null); }} className="flex items-center gap-3 px-4 py-1.5 text-sm rounded-full w-full" style={{ background: on && !fEtq ? C.accentSoft : "transparent", color: C.text, fontWeight: on || n ? 700 : 400, whiteSpace: "nowrap" }}>
                 <Ico size={16} style={{ color: on ? C.accent : C.sub }} /> <span style={{ flex: 1, textAlign: "left" }}>{l}</span>{n ? <span className="text-xs">{n}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+        {/* v862 — etiquetas (filtram a pasta aberta) */}
+        <div className={mob ? "flex gap-1 overflow-x-auto mt-1" : "mt-4"}>
+          {!mob && <div className="px-4 pb-1 text-xs font-semibold" style={{ color: C.sub }}>Etiquetas</div>}
+          {ETIQUETAS.map((e) => {
+            const on = fEtq === e.k;
+            const n = (aba === "nova" ? dados.recebidas : aba === "arquivadas" ? dados.arquivadas : aba === "lixeira" ? dados.lixeira : aba === "enviadas" ? dados.enviadas : dados.recebidas).filter((m) => m.etiqueta === e.k).length;
+            return (
+              <button key={e.k} onClick={() => { setFEtq(on ? null : e.k); if (aba === "nova") setAba("recebidas"); setSel([]); setAberta(null); }} className="flex items-center gap-3 px-4 py-1.5 text-sm rounded-full w-full" style={{ background: on ? C.accentSoft : "transparent", color: C.text, fontWeight: on ? 700 : 400, whiteSpace: "nowrap" }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: e.cor, display: "inline-block" }} /> <span style={{ flex: 1, textAlign: "left" }}>{e.nome}</span><span className="text-xs" style={{ color: C.sub }}>{n || ""}</span>
               </button>
             );
           })}
@@ -1153,6 +1214,11 @@ function Mensagens({ user, onMudou }) {
               <option value="">Para quem…</option>
               {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.sobrenome} · {u.setor}</option>)}
             </select>}
+            {!comp.aviso && <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
+              <span style={{ color: C.sub }}>Etiqueta:</span>
+              {ETIQUETAS.map((e) => { const on = (comp.etiqueta || "COMUNICACAO") === e.k; return (
+                <button key={e.k} type="button" onClick={() => setComp((s) => ({ ...s, etiqueta: e.k }))} className="px-3 py-1 rounded-full font-semibold" style={{ border: `1px solid ${on ? e.cor : C.line}`, background: on ? e.cor + "1A" : "transparent", color: on ? e.cor : C.sub }}>{e.nome}</button>); })}
+            </div>}
             <textarea value={comp.texto} onChange={(e) => setComp((s) => ({ ...s, texto: e.target.value }))} rows={6} placeholder="Escreva a mensagem…" className="w-full px-3 py-2 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, resize: "vertical" }} />
             <div className="flex gap-2 mt-3">
               <button onClick={enviar} disabled={enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim()} className="px-5 py-2 rounded-full font-semibold flex items-center gap-1" style={{ background: comp.aviso ? "#001E41" : C.accent, color: "#fff", opacity: enviando || (!comp.aviso && !comp.paraId) || !comp.texto.trim() ? 0.5 : 1 }}><Send size={15} /> {comp.aviso ? "Enviar aviso para todos" : "Enviar"}</button>
@@ -1168,6 +1234,10 @@ function Mensagens({ user, onMudou }) {
                 {aba === "recebidas" && <button onClick={() => lote("arquivar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Arquivar</button>}
                 {aba === "recebidas" && <button onClick={() => lote("lida", selAqui)} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Marcar lidas</button>}
                 {aba === "arquivadas" && <button onClick={() => lote("desarquivar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Mover para a caixa de entrada</button>}
+                <select value="" onChange={(e) => e.target.value && lote("etiquetar", selAqui, e.target.value)} className="text-xs px-2 py-1.5 rounded-full outline-none" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>
+                  <option value="">🏷 Etiquetar…</option>
+                  {ETIQUETAS.map((e) => <option key={e.k} value={e.k}>{e.nome}</option>)}
+                </select>
                 {aba === "lixeira"
                   ? <button onClick={() => lote("restaurar", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>Restaurar</button>
                   : <button onClick={() => lote("excluir", selAqui)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: "#D92D20" }}>Excluir</button>}

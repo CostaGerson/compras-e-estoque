@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { etiquetaDe, ehEtiqueta } from "@/lib/msgEtiquetas";   // v862
 
 const selUser = { id: true, nome: true, sobrenome: true, fotoBase64: true, setor: true };
 
@@ -16,6 +17,8 @@ export async function GET(req) {
   ]);
   // v568 — aviso do desenvolvedor ainda sem "ciente" fica fixo no topo das recebidas
   // v761 — mensagem prioritária (ex.: boleto pago via PIX) fica sempre no topo até ser arquivada
+  for (const m of recebidasTodas) m.etiqueta = etiquetaDe(m);   // v862
+  for (const m of enviadas) m.etiqueta = etiquetaDe(m);
   const lixeira = recebidasTodas.filter((m) => m.excluidaEm);   // v861
   const recebidas = recebidasTodas.filter((m) => !m.arquivada && !m.excluidaEm).sort((a, b) => (Number(b.aviso && !b.lida) - Number(a.aviso && !a.lida)) || (Number(!!b.prioritaria) - Number(!!a.prioritaria)));
   const tids = [...new Set(recebidasTodas.map((m) => m.tituloId).filter(Boolean))];
@@ -55,6 +58,6 @@ export async function POST(req) {
   }
   if (!deId || !paraId) return Response.json({ error: "Remetente e destinatário são obrigatórios" }, { status: 400 });
   if (!texto) return Response.json({ error: "Escreva a mensagem" }, { status: 400 });
-  const m = await prisma.mensagem.create({ data: { deId, paraId, texto } });
+  const m = await prisma.mensagem.create({ data: { deId, paraId, texto, etiqueta: ehEtiqueta(b.etiqueta) ? b.etiqueta : "COMUNICACAO" } });   // v862 — sem escolher, comunicação
   return Response.json(m, { status: 201 });
 }

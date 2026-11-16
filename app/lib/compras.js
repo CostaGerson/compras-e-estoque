@@ -448,6 +448,13 @@ export function pedidoDoItemAvulsa(c, i) {
   return c.destino === "PEDIDO" ? c.pedidoRef || null : null;
 }
 export const ehAvulsa = (num) => /^AV\d+$/.test(String(num || ""));   // v419 — itens de compra avulsa (pedidoNumero "AV<id>")
+// v862 — itens com compras dispensadas: Set "pedido|chave"
+export async function itensDispensados(db = prisma, pedidos = null) {
+  const l = await db.compraDispensaItem.findMany({ where: pedidos ? { pedidoNumero: { in: pedidos } } : {} }).catch(() => []);
+  const s = new Set(l.map((x) => `${x.pedidoNumero}|${x.chave}`));
+  s.lista = l;
+  return s;
+}
 export async function pedidosDispensados(db = prisma) {
   return new Set((await db.compraDispensa.findMany({ select: { pedidoNumero: true } }).catch(() => [])).map((x) => x.pedidoNumero));
 }
@@ -518,7 +525,8 @@ export async function itensAbertos(db = prisma) {
   try { await limparGolaVies(db); } catch (e) { console.log("compras/gola viés:", e.message); }
   try { await refazerLevantamento(db); } catch (e) { console.log("compras/refazer levantamento:", e.message); }
   const dispensados = await pedidosDispensados(db);   // v419
-  const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero));
+  const dItens = await itensDispensados(db);   // v862
+  const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero) && !dItens.has(`${i.pedidoNumero}|${i.chave}`));
   const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cliente: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
   for (const i of itens) if (!i.cliente && porNum[i.pedidoNumero]?.cliente) i.cliente = porNum[i.pedidoNumero].cliente;   // v524 — nome do cliente sempre presente
@@ -635,11 +643,12 @@ export async function situacaoComprasSistema(peds, db = prisma) {
   if (!sis.length) return {};
   const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: sis.map((p) => p.numero) }, OR: [{ liberadoEm: { not: null } }, { status: { in: ["ESTOQUE", "ENTREGUE"] } }] }, select: { pedidoNumero: true, chave: true } });
   const disp = new Set((await dispensasParaPcp(db)).map((d) => d.pedidoNumero));   // v759
+  const dItens = await itensDispensados(db, sis.map((p) => p.numero));   // v862 — item dispensado conta como liberado
   const out = {};
   for (const p of sis) {
     if (p.tipoPedido === "SERVIÇO" || disp.has(p.numero)) { out[p.numero] = "A PROGRAMAR"; continue; }
     const chaves = itensDoPedido(p).map((i) => i.chave);
-    const lib = new Set(cis.filter((c) => c.pedidoNumero === p.numero).map((c) => c.chave));
+    const lib = new Set([...cis.filter((c) => c.pedidoNumero === p.numero).map((c) => c.chave), ...chaves.filter((c) => dItens.has(`${p.numero}|${c}`))]);
     out[p.numero] = chaves.length && chaves.every((c) => lib.has(c)) ? "A PROGRAMAR" : lib.size ? "EM COMPRAS · PARTE A PROGRAMAR" : "EM COMPRAS";
   }
   return out;
@@ -660,12 +669,13 @@ export async function emComprasParaPcp({ pedido } = {}, db = prisma) {
   if (!ps.length) return [];
   const cis = await db.compraItem.findMany({ where: { pedidoNumero: { in: ps.map((p) => p.numero) } } });
   const disp = new Set((await dispensasParaPcp(db)).map((d) => d.pedidoNumero));   // v759 — dispensado já vai nos liberados
+  const dItens = await itensDispensados(db, ps.map((p) => p.numero));   // v862
   const out = [];
   for (const p of ps) {
     if (disp.has(p.numero)) continue;
     const itens = itensDoPedido(p).map((i) => {
       const c = cis.find((x) => x.pedidoNumero === p.numero && x.chave === i.chave);
-      if (compraResolvida(c)) return null;   // já está nos liberados (A PROGRAMAR)
+      if (compraResolvida(c) || dItens.has(`${p.numero}|${i.chave}`)) return null;   // já está nos liberados (A PROGRAMAR)
       return { chave: i.chave, codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd, grade: (Array.isArray(p.itens) ? p.itens : []).find((x) => String(x.codigo || "") === String(i.codigo || ""))?.grade || [],
         etapaCompras: c ? ETAPA_COMPRA[c.status] || c.status : "SINCRONIZACAO", fppNumero: c?.fppNumero || null,
         materialPrincipal: (Array.isArray(c?.demanda) ? c.demanda : []).filter((d) => ["PRINCIPAL", "REVENDA"].includes(d.papel)).map((d) => ({ nome: d.nome, cor: d.cor, codigo: d.codigo, quantidade: d.quantidade, unidade: d.unidade })) };
@@ -724,6 +734,25 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     o.comprasDispensadas = true;
     doPedido.forEach((it, idx) => {
       if (o.itens.some((x) => x.chave === it.chave)) return;
+      const bruto = (p.itens || [])[idx] || {};
+      const c = cis.find((x) => x.chave === it.chave);
+      o.itens.push({ _n: idx + 1, chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
+        grade: bruto.grade || [], op: bruto.op || null, parametros: bruto.parametros || [], origemMaterial: "DISPENSADO", liberadoEm: d.createdAt,
+        fppNumero: c?.fppNumero || null, aviamentosPendentes: false,
+        materiais: (c?.demanda || []).map((m) => ({ nome: m.nome, categoria: m.categoria, fornecedor: m.fornecedor, cor: m.cor, codigo: m.codigo, quantidade: m.quantidade, unidade: m.unidade, obs: m.obs || null })) });
+    });
+  }
+  // v862 — item com compras dispensadas: vai para o PCP como o pedido dispensado, só aquele item
+  const dLista = (await itensDispensados(db)).lista.filter((d) => (!pedido || d.pedidoNumero === String(pedido)) && (!dt || new Date(d.createdAt) >= dt));
+  const pDi = dLista.length ? await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(dLista.map((d) => d.pedidoNumero))] }, fonte: "SISTEMA", status: "ANDAMENTO", NOT: { tipoPedido: "SERVIÇO" } } }) : [];
+  for (const p of pDi) {
+    const doPedido = itensDoPedido(p);
+    const cis = await db.compraItem.findMany({ where: { pedidoNumero: p.numero } });
+    const o = (out[p.numero] ||= { pedido: p.numero, cliente: p.cliente, cnpj: p.cnpj, emissao: p.emissao, entrega: p.despacho, oc: p.oc, vendedor: p.vendedor, tipoPedido: p.tipoPedido,
+      condicao: p.condicao, obs: p.obs, interno: p.interno, totalItens: doPedido.length, itens: [], fonte: "SISTEMA", destino: "A_PROGRAMAR" });
+    doPedido.forEach((it, idx) => {
+      const d = dLista.find((x) => x.pedidoNumero === p.numero && x.chave === it.chave);
+      if (!d || o.itens.some((x) => x.chave === it.chave)) return;
       const bruto = (p.itens || [])[idx] || {};
       const c = cis.find((x) => x.chave === it.chave);
       o.itens.push({ _n: idx + 1, chave: it.chave, codigo: bruto.codigo || it.codigo || it.chave.split("#")[0], descricao: bruto.descricao || it.descricao, quantidade: Number(it.qtd),
@@ -807,7 +836,9 @@ export async function regerarDemandasPedido(numero, quem, db = prisma) {
   await db.compraDispensa.deleteMany({ where: { pedidoNumero: p.numero } }).catch(() => null);
   const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
   let gerados = 0; const semFpp = [];
+  const dItens = await itensDispensados(db, [p.numero]);   // v862 — item com compras dispensadas não volta a gerar demanda
   for (const it of itensDoPedido(p)) {
+    if (dItens.has(`${p.numero}|${it.chave}`)) continue;
     const fppId = it.fppId || fppAntes[it.chave] || null;
     if (!fppId) { semFpp.push(it.chave); continue; }
     const fpp = await db.fpp.findUnique({ where: { id: Number(fppId) } });

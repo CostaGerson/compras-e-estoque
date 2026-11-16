@@ -133,6 +133,7 @@ model Mensagem {
   conviteTarefaId Int?               // v607 — convite de evento: confirmar/recusar direto pela mensagem
   prioritaria Boolean @default(false)   // v761 — fixa no topo das recebidas até arquivar (ex.: boleto pago por PIX)
   tituloId  Int?                       // v761 — conta (FinTitulo) ligada à mensagem: clicar abre no contas a pagar/receber
+  etiqueta   String?                   // v862 — COMUNICACAO | LANCAMENTO; vazia = automática pelo texto (lib/msgEtiquetas)
   excluidaEm DateTime?                 // v861 — lixeira: some das recebidas e é apagada de vez depois de 30 dias
   aviso     Boolean  @default(false)   // v568 — aviso do desenvolvedor: vai para todos, fixo e em destaque até a pessoa dar "ciente"
   createdAt DateTime @default(now())
@@ -2250,6 +2251,18 @@ model CompraDispensa {
   motivo       String?
   porNome      String?
   createdAt    DateTime @default(now())
+}
+
+// v862 — compras dispensadas de um item do pedido (o resto do pedido segue em compras); o item vai para o PCP como "DISPENSADO"
+model CompraDispensaItem {
+  id           Int      @id @default(autoincrement())
+  pedidoNumero String
+  chave        String
+  motivo       String?
+  porNome      String?
+  createdAt    DateTime @default(now())
+
+  @@unique([pedidoNumero, chave])
 }
 
 // v420 — comentários do pedido (gestão da produção), com marcação de usuários

@@ -2,19 +2,26 @@
 export const dynamic = "force-dynamic";
 import { ehRevenda } from "@/lib/fppAv";   // v523
 import { prisma } from "@/lib/prisma";
-import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp } from "@/lib/compras";
+import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp, itensDispensados } from "@/lib/compras";
 
 // v419 — dispensar compras (pedido só para faturamento): POST { pedidoNumero, motivo, quem } · DELETE { pedidoNumero } reativa
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const n = String(b.pedidoNumero || "").trim();
   if (!n) return Response.json({ error: "Pedido?" }, { status: 400 });
+  if (b.chave) {   // v862 — só um item do pedido
+    const chave = String(b.chave);
+    await prisma.compraDispensaItem.upsert({ where: { pedidoNumero_chave: { pedidoNumero: n, chave } }, create: { pedidoNumero: n, chave, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
+    await prisma.compraItem.deleteMany({ where: { pedidoNumero: n, chave, OR: [{ status: "LEVANTAMENTO" }, { status: "ESTOQUE", reservaLiberada: false }] } });
+    return Response.json({ ok: true });
+  }
   await prisma.compraDispensa.upsert({ where: { pedidoNumero: n }, create: { pedidoNumero: n, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
   await prisma.compraItem.deleteMany({ where: { pedidoNumero: n, OR: [{ status: "LEVANTAMENTO" }, { status: "ESTOQUE", reservaLiberada: false }] } });
   return Response.json({ ok: true });
 }
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
+  if (b.chave) { await prisma.compraDispensaItem.deleteMany({ where: { pedidoNumero: String(b.pedidoNumero || ""), chave: String(b.chave) } }); return Response.json({ ok: true }); }   // v862
   await prisma.compraDispensa.deleteMany({ where: { pedidoNumero: String(b.pedidoNumero || "") } });
   return Response.json({ ok: true });
 }
@@ -45,6 +52,8 @@ export async function GET() {
   let emProducao = 0;
   const disp = Object.fromEntries((await prisma.compraDispensa.findMany()).map((x) => [x.pedidoNumero, x]));   // v419
   const dispensados = [];
+  const dItens = await itensDispensados(prisma, numeros);   // v862
+  const dispensadosItens = [];
   for (const p of pedidos) {
     if (disp[p.numero]) { dispensados.push({ numero: p.numero, cliente: p.cliente, entrega: iso(p.despacho), total: p.total, motivo: disp[p.numero].motivo, porNome: disp[p.numero].porNome, em: disp[p.numero].createdAt }); continue; }
     // v417 — só os pedidos em levantamento/compras no PCP (ou ainda fora dele); programado/produção/concluído já tem MP comprada
@@ -54,6 +63,7 @@ export async function GET() {
     if (proprio && p.tipoPedido === "SERVIÇO") continue;   // v614 — pedido de serviço não tem matéria-prima
     const fase = proprio ? "COMPRAS" : faseCompraPcp(p);
     if (fase === "PRODUCAO") { emProducao++; continue; }
+    let itensDisp = 0;   // v862
     let itensFora = 0;   // v418 — itens do pedido já programados/em produção no PCP
     const itens = itensDoPedido(p);
     const chaves = new Set(itens.map((i) => i.chave));
@@ -62,6 +72,8 @@ export async function GET() {
       await prisma.compraItem.delete({ where: { id: v.id } }).catch(() => {});
     const lst = [];
     for (const it of itens) {
+      const di = dItens.lista.find((x) => x.pedidoNumero === p.numero && x.chave === it.chave);   // v862
+      if (di) { itensDisp++; dispensadosItens.push({ numero: p.numero, cliente: p.cliente, entrega: iso(p.despacho), chave: it.chave, codigo: it.codigo, descricao: it.descricao, qtd: it.qtd, motivo: di.motivo, porNome: di.porNome, em: di.createdAt }); continue; }
       let v = porChave[`${p.numero}|${it.chave}`];
       const fi = proprio ? { fase: v?.liberadoEm || ["ESTOQUE", "ENTREGUE"].includes(v?.status) ? "PRODUCAO" : "COMPRAS", coluna: null } : faseItemPcp(p, it.chave);
       if (fi.fase === "PRODUCAO") { itensFora++; continue; }
@@ -82,10 +94,11 @@ export async function GET() {
           fpp: v.fppId && fppPorId[v.fppId] ? { nomeComercial: fppPorId[v.fppId].nomeComercial, item: fppPorId[v.fppId].item, valorProposto: fppPorId[v.fppId].valorProposto } : null } : null,
         sugestoes: v ? [] : comIndicada(it, sugerirFpps(it, p, fpps, clientes), fppPorId) });
     }
+    if (!lst.length && itensDisp) continue;   // v862 — o que sobrou foi dispensado
     if (proprio && !lst.length) { emProducao++; continue; }   // tudo liberado: está com o PCP
     out.push({ id: p.id, numero: p.numero, proprio, cliente: p.cliente, cnpj: p.cnpj, emissao: iso(p.emissao), entrega: iso(p.despacho), interno: p.interno,
-      situacaoPcp: p.cronoSituacao, fasePcp: fase, itensFora, vendedor: p.vendedor, itens: lst,
+      situacaoPcp: p.cronoSituacao, fasePcp: fase, itensFora, itensDisp, vendedor: p.vendedor, itens: lst,
       comFpp: lst.filter((i) => i.vinculo).length, total: lst.length });
   }
-  return Response.json({ pedidos: out, emProducao, dispensados });
+  return Response.json({ pedidos: out, emProducao, dispensados, dispensadosItens });
 }

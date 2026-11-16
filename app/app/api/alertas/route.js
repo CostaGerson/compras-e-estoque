@@ -68,6 +68,11 @@ export async function POST(req) {
     await prisma.artigo.update({ where: { id: Number(b.id) }, data: { alertaResolvido: true, alertaVisto: true } });
   } else if (acao === "reabrir") {
     await prisma.artigo.update({ where: { id: Number(b.id) }, data: { alertaResolvido: false, alertaVisto: false } });
+  } else if (acao === "lote") {   // v862 — { ids, tipo: visto | resolvido | reabrir }
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Boolean);
+    const data = { visto: { alertaVisto: true }, resolvido: { alertaResolvido: true, alertaVisto: true }, reabrir: { alertaResolvido: false, alertaVisto: false } }[b.tipo];
+    if (!data || !ids.length) return Response.json({ error: "Nada selecionado." }, { status: 400 });
+    await prisma.artigo.updateMany({ where: { id: { in: ids } }, data });
   } else if (acao === "vistoTudo") {
     const pend = (await incompletosVisiveis(b.usuarioId ? Number(b.usuarioId) : null, b.setor || "")).filter((a) => !a.resolvido);
     const ids = pend.map((a) => a.id);
