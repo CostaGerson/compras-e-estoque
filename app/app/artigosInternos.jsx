@@ -22,14 +22,14 @@ export const ehCategoriaTipo = (c) => c === "MALHA" || c === "TECIDO";
 export const sugerirTipo = (txt, categoria, tipos) => tipoDoTexto(txt, tipos.filter((t) => t.categoria === categoria))?.nome || "";
 
 // select do artigo interno (malha/tecido): os tipos cadastrados; valor fora da lista aparece marcado para trocar
-export function SeletorTipo({ categoria, valor, onChange, className = "", style = {} }) {
+export function SeletorTipo({ categoria, valor, onChange, className = "", style = {}, sugestao = "" }) {   // v878 — sugestao: nome do artigo na NF (pré-preenche o "criar novo")
   const [tipos, setTipos] = useState(_cache || []);
   useEffect(() => { carregarTipos().then(setTipos); }, []);
   const lista = tipos.filter((t) => t.categoria === categoria);
   const dentro = lista.some((t) => t.nome === valor);
   // v875 — "+ Criar novo tipo…" no fim da lista: cadastra o artigo interno e já escolhe
   const criar = async () => {
-    const n = await perguntar(`Novo artigo interno de ${categoria === "MALHA" ? "MALHA" : "TECIDO PLANO"}:`, valor && !dentro ? valor : "");
+    const n = await perguntar(`Novo artigo interno de ${categoria === "MALHA" ? "MALHA" : "TECIDO PLANO"}:`, String(sugestao || "").trim().toUpperCase() || (valor && !dentro ? valor : ""));
     const nome = String(n || "").trim().toUpperCase();
     if (!nome) return;
     const r = await fetch("/api/artigos/internos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoria, nome }) });

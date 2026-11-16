@@ -85,7 +85,7 @@ export default function ParametrizarNf({ user, id, onFim }) {
                       {forns.map((f) => <option key={f.id} value={f.id}>{nomeF(f)}</option>)}</select></Campo>
                     <Campo rot="Artigo NF (vem da nota)"><div className={inp} style={{ ...iS, color: C.sub }} title={it.xProd}><span className="block truncate">{it.xProd}</span></div></Campo>
                     <Campo rot={ehCategoriaTipo(v.categoria) ? `Artigo interno (tipo de ${v.categoria === "MALHA" ? "malha" : "plano"})` : "Artigo interno"}>{ehCategoriaTipo(v.categoria)
-                      ? <SeletorTipo categoria={v.categoria} valor={v.artigoInterno} onChange={(x) => set(i, "artigoInterno", x)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />
+                      ? <SeletorTipo categoria={v.categoria} valor={v.artigoInterno} sugestao={it.xProd} onChange={(x) => set(i, "artigoInterno", x)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />
                       : <input value={v.artigoInterno || ""} onChange={(e) => set(i, "artigoInterno", e.target.value)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />}</Campo>
                     <Campo rot="Cor"><input value={v.cor || ""} onChange={(e) => set(i, "cor", e.target.value)} className={inp} style={iS} /></Campo>
                     <Campo rot="Código"><input value={v.codigo || ""} onChange={(e) => set(i, "codigo", e.target.value)} className={inp} style={iS} /></Campo>
