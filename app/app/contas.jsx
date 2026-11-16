@@ -1937,12 +1937,26 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
     } catch (e) { setErro(e.message); setNat(""); }
     setAbrindo(false);
   };
+  // v860 — sugestão #80: o campo Fornecedor também lista o cadastro de fornecedores e puxa CNPJ, PIX, telefone e endereço
+  const [forns, setForns] = useState([]);
+  useEffect(() => { if (P) fetch("/api/fornecedores").then((r) => r.json()).then((l) => setForns(Array.isArray(l) ? l.filter((x) => x.ativo !== false) : [])).catch(() => {}); }, [P]);
+  const nomeF = (x) => String(x.nome || x.nomeFantasia || x.razaoSocial || "").toUpperCase().trim();
+  const semAcF = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  const fornDe = (v) => { const k = semAcF(v); return k ? forns.find((x) => [x.nome, x.nomeFantasia, x.razaoSocial].some((n) => n && semAcF(n) === k)) : null; };
+  const fornSel = P ? fornDe(f.parceiro) : null;
+  const endF = (x) => [[x.logradouro, x.numero].filter(Boolean).join(", "), x.complemento, x.bairro, [x.municipio, x.uf].filter(Boolean).join("-"), x.cep ? `CEP ${x.cep}` : ""].filter(Boolean).join(" · ");
   // fornecedor conhecido: preenche CNPJ e o último rateio
   const escolherParceiro = (v) => {
     s("parceiro", v.toUpperCase());
     const p = (d?.parceiros || []).find((x) => x.parceiro === v.toUpperCase());
     if (p?.documento && !f.documento) s("documento", p.documento);
     if (p?.chavePix && !String(f.chavePix || "").trim()) s("chavePix", p.chavePix);   // v698 — PIX do cadastro do fornecedor
+    const fo = P ? fornDe(v) : null;   // v860
+    if (fo) {
+      const doc = (fo.cnpjs || [])[0]?.cnpj;
+      if (doc && !f.documento && !p?.documento) s("documento", String(doc).replace(/\D/g, ""));
+      if (fo.chavePix && !String(f.chavePix || "").trim() && !p?.chavePix) s("chavePix", fo.chavePix);
+    }
   };
   const salvar = async () => {
     setSalvando(true); setErro("");
@@ -2019,7 +2033,8 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
           <label className="flex items-center gap-1 whitespace-nowrap font-semibold cursor-pointer"><input type="checkbox" checked={f.critica === null} onChange={(e) => s("critica", e.target.checked ? null : item.critica)} /> conferida</label>
         </div>
       )}
-      <datalist id="parceiros-lst">{(d?.parceiros || []).map((p) => <option key={p.parceiro} value={p.parceiro} />)}</datalist>
+      <datalist id="parceiros-lst">{(() => { const vis = new Set((d?.parceiros || []).map((p) => p.parceiro)); return [...(d?.parceiros || []).map((p) => <option key={p.parceiro} value={p.parceiro} />),
+        ...(P ? forns.map(nomeF).filter((n) => n && !vis.has(n) && (vis.add(n), true)).map((n) => <option key={`f-${n}`} value={n}>cadastro de fornecedores</option>) : [])]; })()}</datalist>
       {novo && P && (
         <div className="mb-4 p-3 rounded-lg" style={{ background: C.panel2 }}>
           <Campo t="Natureza do lançamento" dica="freelancer e terceirizado vão para a conta da próxima sexta">
@@ -2038,7 +2053,10 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
       )}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Campo t="Título"><input value={f.titulo} onChange={(e) => s("titulo", e.target.value.toUpperCase())} className={inp} style={inpS} placeholder="EX.: ALUGUEL GALPÃO" autoFocus /></Campo></div>
-        <Campo t={P ? "Fornecedor" : "Cliente"}><input list="parceiros-lst" value={f.parceiro} onChange={(e) => escolherParceiro(e.target.value)} className={inp} style={inpS} /></Campo>
+        <Campo t={P ? "Fornecedor" : "Cliente"}><input list="parceiros-lst" value={f.parceiro} onChange={(e) => escolherParceiro(e.target.value)} className={inp} style={inpS} placeholder={P ? "digite para buscar no cadastro" : ""} />
+          {fornSel && <div className="text-[11px] mt-1 leading-snug" style={{ color: C.sub }}>
+            {[fornSel.contato, fornSel.telefone || fornSel.telefones, fornSel.email].filter(Boolean).join(" · ")}{endF(fornSel) ? <div>{endF(fornSel)}</div> : null}</div>}
+        </Campo>
         <Campo t="CNPJ / CPF"><input value={fmtDoc(f.documento)} onChange={(e) => s("documento", e.target.value.replace(/\D/g, ""))} className={inp} style={inpS} /></Campo>
         <Campo t="Valor"><Valor value={f.valor} onChange={(v) => s("valor", v)} width="100%" /></Campo>
         {novo ? (
