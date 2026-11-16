@@ -305,10 +305,10 @@ function FinDashboard({ user, ir }) {
           ["pedidos", FileStack, "Pedidos em andamento", "PV e OP: valor, condição, entrada e previsão de receitas"],
           ["patrimonio", Building2, "Patrimônio", "Bens da empresa, valores e NF de compra"],
         ].map(([v, Ico, t, sub]) => (
-          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.navy, color: "#fff" }}>
+          <button key={v} onClick={() => ir({ v })} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
             <Ico size={26} style={{ color: C.accent }} />
             <div className="text-lg font-bold mt-2">{t}</div>
-            <div className="text-xs mt-1" style={{ color: "#9FB0C7" }}>{sub}</div>
+            <div className="text-xs mt-1" style={{ color: C.sub }}>{sub}</div>
           </button>
         ))}
       </div>
