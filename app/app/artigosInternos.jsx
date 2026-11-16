@@ -23,13 +23,27 @@ export const sugerirTipo = (txt, categoria, tipos) => tipoDoTexto(txt, tipos.fil
 
 // select do artigo interno (malha/tecido): os tipos cadastrados; valor fora da lista aparece marcado para trocar
 export function SeletorTipo({ categoria, valor, onChange, className = "", style = {} }) {
-  const tipos = useTiposInternos();
+  const [tipos, setTipos] = useState(_cache || []);
+  useEffect(() => { carregarTipos().then(setTipos); }, []);
   const lista = tipos.filter((t) => t.categoria === categoria);
   const dentro = lista.some((t) => t.nome === valor);
+  // v875 — "+ Criar novo tipo…" no fim da lista: cadastra o artigo interno e já escolhe
+  const criar = async () => {
+    const n = await perguntar(`Novo artigo interno de ${categoria === "MALHA" ? "MALHA" : "TECIDO PLANO"}:`, valor && !dentro ? valor : "");
+    const nome = String(n || "").trim().toUpperCase();
+    if (!nome) return;
+    const r = await fetch("/api/artigos/internos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoria, nome }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok || x.error) { alerta(x.error || "Não consegui criar o tipo."); return; }
+    const l = await carregarTipos(true);
+    setTipos(l);
+    onChange(x.nome || nome);
+  };
   return (
-    <select value={dentro ? valor : ""} onChange={(e) => onChange(e.target.value)} className={className} style={{ ...style, ...(dentro ? {} : { borderColor: C.accent }) }}>
+    <select value={dentro ? valor : ""} onChange={(e) => (e.target.value === "__novo" ? criar() : onChange(e.target.value))} className={className} style={{ ...style, ...(dentro ? {} : { borderColor: C.accent }) }}>
       <option value="">{valor && !dentro ? `${valor} — escolha o tipo` : `— escolha o ${categoria === "MALHA" ? "tipo de malha" : "tipo de tecido plano"} —`}</option>
       {lista.map((t) => <option key={t.id} value={t.nome}>{t.nome}</option>)}
+      <option value="__novo" style={{ color: C.accent, fontWeight: 700 }}>+ Criar novo tipo…</option>
     </select>
   );
 }
