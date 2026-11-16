@@ -12,7 +12,9 @@ const dataExtenso = (d = new Date()) => `${d.getDate()} de ${MESES[d.getMonth()]
 
 const MARCAS = Array.from({ length: 19 }, (_, i) => `/proposta/logo-${String(i + 1).padStart(2, "0")}.png`);
 // v850 — a 3ª marca é a TERRAÇO (logo enviada pelo Igor)
-const GRADE_MARCAS = [MARCAS[0], MARCAS[1], "/proposta/logo-terraco.png", ...MARCAS.slice(2)];
+// v852 — varejo/alimentos (Verdemar, Super Nosso, Porto Alegre, Verde Campo, Friboi) logo depois do Mart Minas
+const VAREJO = ["verdemar", "supernosso", "portoalegre", "verdecampo", "friboi"].map((n) => `/proposta/logo-${n}.png`);
+const GRADE_MARCAS = [MARCAS[0], MARCAS[1], "/proposta/logo-terraco.png", ...MARCAS.slice(2, 11), ...VAREJO, ...MARCAS.slice(11)];
 
 const blobParaDataUrl = (b) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => ok(null); r.readAsDataURL(b); });
 
@@ -86,14 +88,16 @@ body { margin: 0; font-family: 'Montserrat', Arial, sans-serif; color: #1B2A45; 
 .sub { font-size: 8.5pt; color: #6B7A90; margin: 3mm 0 4mm; }
 .sub b { color: #1B2A45; }
 table.it { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 9pt; }
-table.it th { background: #1B2A45; color: #fff; font-size: 7pt; font-weight: 700; letter-spacing: .3mm; text-transform: uppercase; padding: 2.6mm 3mm; text-align: left; }
+table.it th { background: #1B2A45; color: #fff; font-size: 7pt; font-weight: 700; letter-spacing: .3mm; text-transform: uppercase; padding: 2.6mm 3mm; text-align: left; vertical-align: middle; }
+table.it th.r, table.it td.r { text-align: right; } table.it th.c, table.it td.c { text-align: center; }
 table.it th:first-child { border-radius: 2mm 0 0 2mm; } table.it th:last-child { border-radius: 0 2mm 2mm 0; }
-table.it td { padding: 2.8mm 3mm; border-bottom: .3mm solid #D3D9E2; vertical-align: top; }
+table.it td { padding: 2.8mm 3mm; border-bottom: .3mm solid #D3D9E2; vertical-align: middle; }
+table.it tr.lay td { padding: 0 3mm 3mm; }
 .r { text-align: right; } .c { text-align: center; }
 .card { background: #fff; border: .3mm solid #D3D9E2; border-radius: 3mm; }
 .rot { font-size: 6.5pt; font-weight: 700; letter-spacing: .4mm; text-transform: uppercase; color: #6B7A90; }
-.marcas { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4mm; margin-top: 7mm; }
-.marcas div { height: 20mm; display: flex; align-items: center; justify-content: center; padding: 2.5mm 4mm; }
+.marcas { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3.2mm; margin-top: 5mm; }
+.marcas div { height: 17.5mm; display: flex; align-items: center; justify-content: center; padding: 2.5mm 4mm; }
 .marcas img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .anx { display: grid; gap: 4mm; }
 .anx figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
@@ -136,20 +140,30 @@ const marcas = () => `
   <div class="cont">
     <div class="barra">MARCAS QUE CONFIAM NA <b>MERIDIAN</b></div>
     <div class="marcas">${GRADE_MARCAS.map((m) => `<div class="card">${m.startsWith("/") ? `<img src="${m}" />` : `<span style="font-weight:800;font-size:12pt;letter-spacing:.5mm">${m}</span>`}</div>`).join("")}</div>
-    <div class="barra" style="font-size:9.5pt;padding:4mm 6mm;margin-top:7mm">TODO MÊS, EMPRESAS DE DIVERSOS SETORES CONFIAM NA <b>MERIDIAN</b> PARA VESTIR SUAS EQUIPES.</div>
+    <div class="barra" style="font-size:9.5pt;padding:4mm 6mm;margin-top:5mm">TODO MÊS, EMPRESAS DE DIVERSOS SETORES CONFIAM NA <b>MERIDIAN</b> PARA VESTIR SUAS EQUIPES.</div>
   </div>`;
 
+// v852 — layout (anexos da FPP) logo abaixo da linha do item, na própria página da proposta
+function layoutDoItem(it) {
+  const im = it.imgs || [];
+  if (!im.length && !(it.outros || []).length) return "";
+  const alt = it.altLay || 70;
+  return `<tr class="lay"><td></td><td colspan="4">
+    ${im.length ? `<div class="anx" style="height:${alt}mm;grid-template-columns:repeat(${Math.min(im.length, 3)},1fr)">${im.map((a) => `<figure><div class="card im"><img src="${a.src}" /></div></figure>`).join("")}</div>` : ""}
+    ${(it.outros || []).length ? `<div style="font-size:6.8pt;color:#6B7A90;margin-top:1.5mm">Outros arquivos: ${it.outros.map(ESC).join(", ")}</div>` : ""}
+  </td></tr>`;
+}
 function tabela(d, itens, primeira, ultimo) {
-  const linhas = itens.map((it) => `<tr>
+  const linhas = itens.map((it) => it.cont ? layoutDoItem(it) : `<tr>
       <td style="width:14mm;color:#FF6B1A;font-weight:800">${String(it.n).padStart(2, "0")}</td>
       <td><b style="font-size:9.5pt">${ESC(it.nome)}</b>${it.det ? `<div style="font-size:7pt;color:#6B7A90;margin-top:.8mm;text-transform:uppercase">${ESC(it.det)}</div>` : ""}</td>
       <td class="c" style="width:22mm">${N(it.qtd)}</td>
       <td class="r" style="width:32mm">${R$(it.unit)}</td>
-      <td class="r" style="width:36mm;color:#FF6B1A;font-weight:800">${R$(it.total)}</td></tr>`).join("");
+      <td class="r" style="width:36mm;color:#FF6B1A;font-weight:800">${R$(it.total)}</td></tr>${layoutDoItem(it)}`).join("");
   return `<div class="cont">
     <div class="barra">PROPOSTA COMERCIAL${primeira ? "" : " <span style='font-size:11pt;font-weight:600'>(continuação)</span>"}</div>
     <div class="sub">Para <b>${ESC(String(d.cliente || "").toUpperCase())}</b> · ${dataExtenso()}</div>
-    <table class="it"><thead><tr><th>Item</th><th>Produto e descrição</th><th class="c">Qtd</th><th class="r">Unitário</th><th class="r">Total</th></tr></thead><tbody>${linhas}</tbody></table>
+    ${itens.length ? `<table class="it"><thead><tr><th>Item</th><th>Produto e descrição</th><th class="c">Qtd</th><th class="r">Unitário</th><th class="r">Total</th></tr></thead><tbody>${linhas}</tbody></table>` : ""}
     ${ultimo ? `<div class="card" style="margin-top:5mm;padding:5mm 6mm;display:flex;justify-content:space-between;align-items:center">
       <div style="font-weight:700;font-size:9pt">${N(d.pecas)} PEÇAS · ${d.itens.length} ${d.itens.length === 1 ? "ITEM" : "ITENS"}</div>
       <div class="r"><div class="rot">Total</div><div style="color:#FF6B1A;font-weight:800;font-size:19pt">${R$(d.total)}</div></div></div>` : ""}
@@ -243,17 +257,29 @@ export async function gerarPropostaPdf(d, aoProgresso) {
     porItem.push(await anexosDaFpp(it.fppId));
   }
 
-  const conteudos = [];
-  conteudos.push([capa(d.cliente), { wm: "capa" }]);
-  conteudos.push([marcas(), { wm: "dir" }]);
-  const POR_PAG = 7;
-  for (let i = 0; i < d.itens.length; i += POR_PAG) conteudos.push([tabela(dd, d.itens.slice(i, i + POR_PAG), i === 0, i + POR_PAG >= d.itens.length), { wm: "capa" }]);
+  // anexos entram no item; até 3 imagens lado a lado (as demais em outra linha do mesmo item)
+  const itens = [];
   d.itens.forEach((it, k) => {
     const { imgs, outros } = porItem[k];
-    const grupos = []; for (let i = 0; i < imgs.length; i += 6) grupos.push(imgs.slice(i, i + 6));
-    if (!grupos.length) grupos.push([]);
-    grupos.forEach((g, j) => conteudos.push([paginaItem(it, g, j === 0 ? outros : [], j + 1, grupos.length), { wm: "capa" }]));
+    const grupos = []; for (let i = 0; i < imgs.length; i += 3) grupos.push(imgs.slice(i, i + 3));
+    if (!grupos.length) itens.push({ ...it, imgs: [], outros });
+    grupos.forEach((g, j) => itens.push(j === 0 ? { ...it, imgs: g, outros } : { ...it, imgs: g, outros: [], cont: true }));
   });
+  // paginação pela altura (mm): linha ~13, layout ~76, total ~30; útil ~150 abaixo do título
+  const ALT = 150, conteudos = [];
+  conteudos.push([capa(d.cliente), { wm: "capa" }]);
+  conteudos.push([marcas(), { wm: "dir" }]);
+  const paginas = []; let atual = [], usado = 0;
+  for (const it of itens) {
+    const h = (it.cont ? 0 : 13) + (it.imgs.length ? 76 : 0) + (it.outros.length ? 5 : 0);
+    if (atual.length && usado + h > ALT) { paginas.push(atual); atual = []; usado = 0; }
+    atual.push(it); usado += h;
+  }
+  if (atual.length) paginas.push(atual);
+  if (!paginas.length) paginas.push([]);
+  const cabeTotal = usado + 30 <= ALT;
+  paginas.forEach((pg, i) => conteudos.push([tabela(dd, pg, i === 0, i === paginas.length - 1 && cabeTotal), { wm: "capa" }]));
+  if (!cabeTotal) conteudos.push([tabela(dd, [], false, true), { wm: "capa" }]);
   conteudos.push([condicoes(dd), { wm: "dir" }]);
   conteudos.push([dadosCadastrais(), { wm: "esq" }]);
 

@@ -1928,7 +1928,7 @@ function ProposalModal({ fichas, onClose, negociacao, onEnviado }) {   // v520 �
         itens: items.map((it, i) => ({ n: i + 1, fppId: fichas[i]?.id, nome: it.description, det: it.details, qtd: Number(it.qty) || 0,
           unit: (Number(it.unit_price_cents) || 0) / 100, total: ((Number(it.unit_price_cents) || 0) * (Number(it.qty) || 0)) / 100, lead: leadTxt(fichas[i] || {}) })),
         pagamento: pagamentoDaProposta(), prazo, validade, frete,
-        rodape: [negs.length ? `NEGOCIAÇÃO ${negs.join(", ")}` : "", `FPP ${fichas.map((f) => fmtFpp(f.numero)).join(", ")}`].filter(Boolean).join(" · "),
+        rodape: `FPP ${fichas.map((f) => fmtFpp(f.numero)).join(", ")}`,   // v852 — sem o nome da negociação
       }, setGerando);
     } catch (e) { setGerando(""); return alerta(e.message || "Não foi possível gerar a proposta."); }
     setGerando("");
