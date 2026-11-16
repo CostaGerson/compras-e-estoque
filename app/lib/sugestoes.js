@@ -29,7 +29,17 @@ export async function criar(u, { texto, tela, anexos }) {
   return { ok: true, sugestao: s };
 }
 
+// v849 — sugestão respondida (acatada ou recusada): o aviso "💡 SUGESTÃO DE MELHORIA #id" sai das recebidas de todos (vai para arquivadas)
+export async function arquivarAvisos(ids) {
+  const l = (Array.isArray(ids) ? ids : [ids]).map(Number).filter(Boolean);
+  if (!l.length) return 0;
+  const r = await prisma.mensagem.updateMany({ where: { arquivada: false, OR: l.map((id) => ({ texto: { startsWith: `💡 SUGESTÃO DE MELHORIA #${id} ` } })) }, data: { arquivada: true, lida: true } }).catch(() => ({ count: 0 }));
+  return r.count;
+}
+
 export async function listar(u) {
+  // v849 — também arquiva os avisos das que já foram respondidas antes desta versão
+  if (ehMaster(u)) { const resp = await prisma.sugestao.findMany({ where: { status: { in: ["ACATADA", "RECUSADA"] } }, select: { id: true } }).catch(() => []); await arquivarAvisos(resp.map((x) => x.id)); }
   const where = ehMaster(u) ? {} : { usuarioId: u.id };
   return prisma.sugestao.findMany({ where, orderBy: [{ createdAt: "desc" }], take: 500,
     include: { anexos: { select: { id: true, nome: true, mime: true, tamanho: true }, orderBy: { id: "asc" } } } });
@@ -56,6 +66,7 @@ export async function decidir(id, acao, resposta, master) {
     respondidoPor: fecha ? nome(master) : acao === "REABRIR" ? null : s.respondidoPor, respondidoEm: fecha ? new Date() : acao === "REABRIR" ? null : s.respondidoEm,
   } });
   let avisos = { mensagem: false, email: null };
+  if (fecha) await arquivarAvisos(s.id);   // v849
   if (fecha) {
     const autor = await prisma.usuario.findUnique({ where: { id: s.usuarioId }, select: { id: true, nome: true, email: true } });
     const resumo = s.texto.length > 300 ? `${s.texto.slice(0, 300)}…` : s.texto;
