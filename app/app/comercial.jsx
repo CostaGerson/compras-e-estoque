@@ -547,8 +547,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const sugestaoBase = denBase > 0 ? custoProducao / denBase : null;
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
     const sugestao = f.repassarTaxas ? sugestaoRepasse : sugestaoBase;
+    // v915 — breakeven: preço em que o lucro é zero (cobre custo de produção, investimento, imposto, comissão e título)
+    const denBe = 1 - imposto - comissaoPct - kTit;
+    const breakeven = denBe > 0 ? (custoProducao + opInv) / denBe : null;
 
-    return { rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { breakeven, rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over, aberta, revenda]);
 
   function montarBody() {
@@ -952,6 +955,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   <Lin l="Operação financeira" v={brl(r.opFin)} />
                   {r.comissao > 0 && <Lin l={`Comissão vendedor (${(r.comissaoPct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} v={brl(r.comissao)} />}
                   <Lin l="Custo final" v={brl(r.custoFinal)} forte />
+                  {/* v915 — breakeven: vendendo por este valor, depois de imposto, comissão e operações, o lucro é zero */}
+                  {r.breakeven != null && <div title="Preço por peça em que o lucro é zero: cobre o custo de produção, o imposto, a comissão e as operações financeiras">
+                    <Lin l="Breakeven (lucro zero)" v={brl(r.breakeven)} forte cor={C.navy} />
+                    {num(f.valorProposto) > 0 && <div className="text-[11px] text-right -mt-0.5" style={{ color: num(f.valorProposto) >= r.breakeven ? C.green : "#E5484D" }}>{num(f.valorProposto) >= r.breakeven ? `proposto ${pct(num(f.valorProposto) / r.breakeven - 1)} acima` : `proposto ${pct(1 - num(f.valorProposto) / r.breakeven)} abaixo · prejuízo`}</div>}
+                  </div>}
                   <div style={{ borderTop: `1px solid ${C.line}` }} className="my-2" />
                   <Lin l="ROIC" v={pct(r.roic)} cor={r.roic >= 0.3 ? C.green : r.roic >= 0.16 ? C.yellow : "#E5484D"} />
                   {(() => {
