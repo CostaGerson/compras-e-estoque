@@ -85,13 +85,16 @@ export function Acervo({ user, area }) {
       {d?.error && <div className="text-sm" style={{ color: C.red }}>{d.error}</div>}
       {d && !d.error && !lista.length && <div className="text-sm rounded-lg p-4" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{cf.vazio}</div>}
       {(() => {
+        // v916 — clicar no documento baixa na hora (todos os anexos dele)
+        const baixarAnexos = (l) => (l || []).forEach((a, k) => setTimeout(() => { const el = document.createElement("a"); el.href = `/api/acervo?u=${user.id}&anexo=${a.id}&baixar=1`; el.download = a.nome; document.body.appendChild(el); el.click(); el.remove(); }, k * 400));
         const card = (x) => {
           const venc = x.validade && x.validade < hoje, vence = x.validade && !venc && x.validade <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
             return (
               <div key={x.id} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold" style={{ color: C.navy }}>{x.titulo}{x.categoria && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>{x.categoria}</span>}</div>
+                    <div className={`text-sm font-bold ${(x.anexos || []).length ? "cursor-pointer hover:underline" : ""}`} style={{ color: C.navy }} title={(x.anexos || []).length ? "Baixar o documento" : undefined}
+                      onClick={() => baixarAnexos(x.anexos)}>{x.titulo}{x.categoria && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>{x.categoria}</span>}</div>
                     <div className="text-xs mt-0.5" style={{ color: C.sub }}>
                       {x.data ? `${cf.reuniao ? "Reunião em" : "Data"} ${dBR(x.data)}` : ""}{x.validade ? <span style={{ color: venc ? C.red : vence ? C.yellow : C.sub }}> · validade {dBR(x.validade)}{venc ? " (vencido)" : vence ? " (vence em breve)" : ""}</span> : null}
                       {x.participantes ? ` · participantes: ${x.participantes}` : ""}{x.atualizadoPorNome ? ` · por ${x.atualizadoPorNome}` : ""}</div>
@@ -142,7 +145,7 @@ function Anexos({ user, doc, pode, rotulo, onMudou }) {
         {doc.anexos.map((a) => (
           <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{ background: C.panel2 }}>
             <FileText size={12} style={{ color: C.accent }} />
-            <a href={`/api/acervo?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" style={{ color: C.text }} title={`${a.nome} · ${kb(a.tamanho)}`}>{a.nome.length > 40 ? `${a.nome.slice(0, 38)}…` : a.nome}</a>
+            <a href={`/api/acervo?u=${user.id}&anexo=${a.id}&baixar=1`} download={a.nome} style={{ color: C.text }} title={`${a.nome} · ${kb(a.tamanho)}`}>{a.nome.length > 40 ? `${a.nome.slice(0, 38)}…` : a.nome}</a>
             {pode && <button onClick={async () => { if (await confirmar(`Tirar ${a.nome}?`)) { await api({ usuarioId: user.id, acao: "tirarAnexo", id: a.id }).catch((e) => alerta(e.message)); onMudou(); } }} style={{ color: C.sub }}><X size={11} /></button>}
           </span>))}
         {pode && <label className="cursor-pointer font-semibold px-2 py-1 rounded" style={{ color: C.accent, border: `1px dashed ${C.accent}` }}>{sub > 0 ? `anexando ${sub}…` : "+ anexar (ou arraste aqui)"}
@@ -298,7 +301,7 @@ function Certificados({ user }) {
             <div key={x.id} className="grid gap-2 items-end rounded-lg p-3" style={{ gridTemplateColumns: "2fr 1.3fr 1fr auto", border: `1px solid ${C.line}`, background: C.bg }}>
               <label className="text-xs" style={{ color: C.sub }}>Certificado
                 <input defaultValue={x.titulo} onBlur={(e) => { if (e.target.value.trim() && e.target.value.trim().toUpperCase() !== x.titulo) salvar(x, { titulo: e.target.value }); }} className={inp} style={inpS} />
-                <div className="mt-1 flex items-center gap-2">{a ? <a href={`/api/acervo?u=${user.id}&anexo=${a.id}`} className="flex items-center gap-1" style={{ color: C.navy }}><FileText size={12} style={{ color: C.accent }} />{a.nome}</a> : <span>sem arquivo</span>}</div></label>
+                <div className="mt-1 flex items-center gap-2">{a ? <a href={`/api/acervo?u=${user.id}&anexo=${a.id}&baixar=1`} download={a.nome} className="flex items-center gap-1" style={{ color: C.navy }}><FileText size={12} style={{ color: C.accent }} />{a.nome}</a> : <span>sem arquivo</span>}</div></label>
               <label className="text-xs" style={{ color: C.sub }}>Senha
                 <div className="flex items-center gap-1">
                   <input type={ver[x.id] ? "text" : "password"} value={senhas[x.id] ?? ""} onChange={(e) => setSenhas((s) => ({ ...s, [x.id]: e.target.value }))} placeholder="senha do certificado" autoComplete="new-password" className={inp} style={inpS} />

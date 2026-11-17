@@ -26,7 +26,7 @@ export async function GET(req) {
     const a = await prisma.docAcervoAnexo.findUnique({ where: { id: Number(sp.get("anexo")) }, include: { doc: { select: { area: true } } } });
     if (!a) return new Response("Não encontrado.", { status: 404 });
     if (a.doc?.area === "CERTIFICADO" && !gerencial(u)) return negado();   // v901
-    return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(a.nome)}`, "Cache-Control": "no-store" } });
+    return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `${sp.get("baixar") ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(a.nome)}`, "Cache-Control": "no-store" } });
   }
   if (sp.get("empresa")) {
     const c = await prisma.finConfig.findUnique({ where: { chave: "EMPRESA|DADOS" } }).catch(() => null);
