@@ -56,6 +56,7 @@ export async function GET(req, { params }) {
     const kms = cods.length ? await prisma.kmProduto.findMany({ where: { codigo: { in: cods } }, select: { codigo: true, parametros: true } }) : [];
     const nk = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\b(DA|DO|DE)\b/g, " ").replace(/\s+/g, " ").trim();
     for (const i of pp.itens) {
+      if (i.itemPadraoId) continue;   // v908 — item do cadastro de itens padrão: vale o cadastro (o KM não acrescenta estampa/detalhe que o item padrão não tem)
       const c = codKm(i); if (!c) continue;
       const km = kms.find((x) => x.codigo === String(c).toUpperCase()); if (!km || !Array.isArray(km.parametros)) continue;
       let pr; try { pr = JSON.parse(i.parametrosJson || "{}") || {}; } catch { pr = {}; }
@@ -63,7 +64,7 @@ export async function GET(req, { params }) {
       for (const x of km.parametros) {
         if (!x?.t || !String(x.v || "").trim()) continue;
         const k = nk(x.t), atual = [...tem.entries()].find(([kk]) => kk === k || kk.startsWith(k.split(" ")[0]) && k.startsWith(kk.split(" ")[0]));
-        if (atual && atual[1] && (typeof atual[1] === "object" || String(atual[1]).trim())) continue;
+        if (atual) continue;   // v908 — campo já existe no item (mesmo apagado pelo usuário): não volta o valor do KM
         pr[String(x.t).toUpperCase()] = x.v;
       }
       if (!i.codigo) i.codigo = String(c).toUpperCase();
