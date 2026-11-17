@@ -231,7 +231,7 @@ function BlocoPrevisao({ titulo, p, onClick }) {
   return (
     <button onClick={onClick} className="text-left rounded-xl p-4 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}` }} title="Abrir contas a pagar e receber">
       <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{titulo}</div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 ce-tres-valores">
         {/* v369 — o que ainda falta (em aberto): baixas e recebimentos já mexem nos números */}
         <div><div className="text-[11px]" style={{ color: C.sub }}>A receber</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.abertoReceber)}</div></div>
         <div><div className="text-[11px]" style={{ color: C.sub }}>A pagar</div><div className="font-bold" style={{ color: C.red }}>{moeda(-p.abertoPagar)}</div></div>
@@ -248,7 +248,7 @@ function BlocoPeriodo({ titulo, p }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="text-sm font-bold mb-3" style={{ color: C.navy }}>{titulo}</div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 ce-tres-valores">
         <div><div className="text-[11px]" style={{ color: C.sub }}>Entradas</div><div className="font-bold" style={{ color: C.blue }}>{moeda(p.entradas)}</div></div>
         <div><div className="text-[11px]" style={{ color: C.sub }}>Saídas</div><div className="font-bold" style={{ color: C.red }}>{moeda(p.saidas)}</div></div>
         <div><div className="text-[11px]" style={{ color: C.sub }}>Resultado</div><div className="font-bold" style={{ color: p.resultado >= 0 ? C.green : C.red }}>{moeda(p.resultado)}</div></div>
@@ -451,7 +451,7 @@ function Ind({ rotulo, valor, pct, cor, forte, destaque, titulo, onClick }) {   
         <span className="truncate">{rotulo}</span>
         {onClick && <Search size={10} className="shrink-0" style={{ color: C.accent }} />}
       </div>
-      <div className="font-bold whitespace-nowrap tabular-nums" style={{ fontSize: destaque ? 17 : 16, color: cor || C.text, lineHeight: 1.3 }}>
+      <div className="font-bold whitespace-nowrap tabular-nums" style={{ fontSize: destaque ? "clamp(14px, 1.05vw, 17px)" : "clamp(14px, 1vw, 16px)", color: cor || C.text, lineHeight: 1.3 }}>
         {compactoBR(valor)}
       </div>
       {pct != null && <div className="text-[10px]" style={{ color: C.sub }}>{pctBR(pct)} da receita</div>}
@@ -482,7 +482,7 @@ function IndicadoresAno({ d, ano, abrirGrupo, abrirAlav }) {
       ) : (
         <>
           {/* v314 — 9 colunas: linha 1 vai da receita ao resultado da operação; linha 2 começa no saldo da operação */}
-          <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(9, minmax(0, 1fr))" }}>
+          <div className="grid gap-2 mb-4 ce-dre9">
             <Ind rotulo="Receita" valor={t.receita} cor={C.blue} titulo="Vendas, serviços e patrimônio, já líquidas de devolução"
               onClick={() => ir("RECEITA", "Receita")} />
             <Ind rotulo="CMV" valor={t.cmv} cor={C.red} pct={t.receita ? t.cmv / t.receita : null} titulo="Tudo que varia com a produção"

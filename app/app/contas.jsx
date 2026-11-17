@@ -700,6 +700,8 @@ const chaveOrdem = (t, col, contasPorId) => {
     default: return "";
   }
 };
+// v887 — colunas que somem no celular (pc) e no iPad em pé (md); o valor e a situação vão para baixo da data
+const OCULTA_COL = { parceiro: "ce-tab-pc", rateio: "ce-tab-md", valor: "ce-tab-pc", fpgto: "ce-tab-md", situacao: "ce-tab-pc", origem: "ce-tab-md" };
 function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar, onAjustePedido }) {
   const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
   const itens = useMemo(() => {
@@ -726,7 +728,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
             <thead><tr style={{ color: C.sub, borderBottom: `1px solid ${C.line}` }}>
               {sel && <th className="pl-3 py-2 w-6"><input type="checkbox" checked={todos} disabled={!abertos.length} onChange={(e) => marcar(abertos, e.target.checked)} title="Selecionar todas em aberto" /></th>}
               {[["venc", "Vencimento"], ["titulo", "Título"], ["parceiro", P ? "Fornecedor" : "Cliente"], ["rateio", "Rateio (conta-caixa)"], ["valor", "Valor"], ["fpgto", "Forma pgto"], ["situacao", "Situação"], ["origem", "Origem"], [null, ""]].map(([col, h], i) => (
-                <th key={i} className={`px-3 py-2 font-semibold ${col === "valor" ? "text-right" : "text-left"}`}>
+                <th key={i} className={`px-3 py-2 font-semibold ${col === "valor" ? "text-right" : "text-left"} ${OCULTA_COL[col] || ""}`}>
                   {col ? (
                     <button onClick={() => clicarCol(col)} title="Ordenar" className={`inline-flex items-center gap-0.5 ${col === "valor" ? "flex-row-reverse" : ""}`} style={{ color: ordem?.col === col ? C.accent : C.sub }}>
                       {h}<span className="text-[10px]">{ordem?.col === col ? (ordem.dir === 1 ? "▲" : "▼") : "↕"}</span>
@@ -742,7 +744,10 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
               return (
                 <tr key={t.id} id={`tit-${t.id}`} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: t.id === _destaqueId ? "#FFE8D6" : sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.id === _destaqueId ? `inset 4px 0 0 ${C.accent}` : t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
-                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<AltInfo t={t} campo="vencimento" /><MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<AltInfo t={t} campo="vencimento" /><MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}
+                    {/* v887 — celular: valor e situação embaixo da data (as colunas ficam ocultas) */}
+                    <div className="ce-tab-cel text-[13px] font-bold tabular-nums mt-0.5" style={{ color: C.text }}>{brl(t.valor)}</div>
+                    <div className="ce-tab-cel"><span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold" style={{ color: s.c, background: s.bg }}>{s.t}</span></div></td>
                   <td className="px-3 py-2" style={{ maxWidth: 280 }}>
                     <button onClick={() => onEditar(t)} className="text-left block" style={{ maxWidth: 270 }} title={[t.titulo, t.critica && `CRÍTICA: ${t.critica}`, ...(t.notas || []).map((x) => `OBS: ${x.texto}`), t.numeroDoc, t.observacao].filter(Boolean).join("\n")}>
                       <div className="font-semibold flex items-center gap-1 whitespace-nowrap overflow-hidden" style={{ color: C.navy }}>
@@ -754,10 +759,11 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                       {t.critica ? <div className="font-semibold flex items-center gap-1 truncate" style={{ color: C.red }}><AlertTriangle size={11} className="shrink-0" /><span className="truncate">{t.critica}</span></div>
                         : (t.notas || []).length ? <div className="truncate" style={{ color: C.yellow }}><b className="text-[9px]">OBS</b> {t.notas[t.notas.length - 1].texto}{t.notas.length > 1 ? ` (+${t.notas.length - 1})` : ""}</div>
                         : (t.numeroDoc || t.observacao) ? <div className="truncate" style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div> : null}
+                      {t.parceiro && <div className="ce-tab-cel truncate" style={{ color: C.sub }}>{t.parceiro}</div>}
                     </button>
                   </td>
-                  <td className="px-3 py-2" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div>{t.documento && <div className="truncate" style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
-                  <td className="px-3 py-2" style={{ maxWidth: 220 }}>
+                  <td className="px-3 py-2 ce-tab-pc" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div>{t.documento && <div className="truncate" style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
+                  <td className="px-3 py-2 ce-tab-md" style={{ maxWidth: 220 }}>
                     {t.status === "ABERTO" && semRateio(t) && <button onClick={() => onEditar(t)} className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: C.redSoft, color: C.red }} title="Rateio obrigatório — clique para informar a conta-caixa">SEM CONTA-CAIXA</button>}
                     {(t.rateio || []).slice(0, 1).map((r, i) => {
                       const c = contasPorId[r.contaId];
@@ -765,7 +771,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     })}
                     {(t.rateio || []).length > 1 && <div className="text-[10px]" style={{ color: C.sub }}>+{t.rateio.length - 1} conta(s) no rateio</div>}
                   </td>
-                  <td className="px-3 py-2 text-right font-bold whitespace-nowrap">
+                  <td className="px-3 py-2 text-right font-bold whitespace-nowrap ce-tab-pc">
                     <AltInfo t={t} campo="valor" />{brl(t.valor)}
                     {t.pagoParcial > 0 && <div className="font-normal text-[10px]" style={{ color: C.green }}>saldo · pago {brl(t.pagoParcial)} de {brl(t.valorTotal)}</div>}
                     {conferir ? <div className="font-semibold text-[10px]" style={{ color: C.yellow }}>conferir valor</div>
@@ -778,9 +784,9 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                         {!P && onAjustePedido && t.ajustavel && <button onClick={() => onAjustePedido(t)}
                           className="ml-1 underline" style={{ color: C.accent }} title="Redistribuir a diferença nas próximas parcelas do pedido">ajustar parcelas</button>}</div>}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
-                  <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
-                  <td className="px-3 py-2" title={`${fT} · ${t.criadoPorNome || "—"} · ${new Date(t.createdAt).toLocaleString("pt-BR")}${t.atualizadoPorNome ? ` · alterado por ${t.atualizadoPorNome}` : ""}`}>
+                  <td className="px-3 py-2 whitespace-nowrap ce-tab-md" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
+                  <td className="px-3 py-2 ce-tab-pc"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
+                  <td className="px-3 py-2 ce-tab-md" title={`${fT} · ${t.criadoPorNome || "—"} · ${new Date(t.createdAt).toLocaleString("pt-BR")}${t.atualizadoPorNome ? ` · alterado por ${t.atualizadoPorNome}` : ""}`}>
                     {ehImportacao(t) ? (
                       <>
                         <div className="flex items-center gap-1 font-semibold" style={{ color: C.blue }}><FI size={13} /> IMPORTAÇÃO</div>

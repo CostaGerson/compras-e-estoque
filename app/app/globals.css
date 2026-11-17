@@ -200,3 +200,12 @@ input[list]::-webkit-list-button{display:none!important}
   .fixed.inset-0 > div > .flex:first-child > .flex-1 { flex-basis: calc(100% - 40px); }
   .ce-conteudo > div > div > .flex.justify-between:first-child { flex-wrap: wrap; row-gap: 8px; }
 }
+/* v887 — iPad/iPhone: sem inflar fonte no Safari; DRE do ano e previsões sem cortar valores; tabela de contas compacta */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.ce-dre9 { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+@media (max-width: 1599px) { .ce-dre9 { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+.ce-tres-valores { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.ce-tres-valores .font-bold { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: clamp(13px, 1.05vw, 16px); }
+.ce-tab-cel { display: none; }
+@media (max-width: 1023px) { .ce-tab-md { display: none; } }
+@media (max-width: 767px) { .ce-tab-pc, .ce-tab-md { display: none; } .ce-tab-cel { display: block; } }
