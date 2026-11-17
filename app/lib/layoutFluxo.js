@@ -175,7 +175,20 @@ export async function decidirLayout(t, u, aprovar, motivo) {
     const foto = arqs.find((a) => ehImg(a.mime, a.nome));
     const novos = arqs.filter((a) => a !== foto).map((a) => ({ nome: `Layout aprovado · ${a.nome}`, mime: a.mime, base64: `data:${a.mime || "application/octet-stream"};base64,${a.conteudo}` }));
     const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
-    await prisma.ppItem.update({ where: { id: it.id }, data: { ...(foto ? { fotoBase64: `data:${foto.mime || "image/png"};base64,${foto.conteudo}` } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
+    // v919 — imagem grande vira foto em versão leve (o original segue nos anexos do item)
+    let fotoUrl = foto ? `data:${foto.mime || "image/png"};base64,${foto.conteudo}` : null;
+    if (foto) {
+      try {
+        const { precisaPrevia, previa } = await import("@/lib/imgPrevia");
+        const { lerBase64 } = await import("@/lib/arquivos");
+        if (precisaPrevia(foto.mime, foto.nome, foto.tamanho) || String(foto.conteudo || "").startsWith("arq:")) {
+          const out = await previa(`tarefaArquivo|${foto.id}|${foto.tamanho}`, async () => Buffer.from(await lerBase64(foto.conteudo), "base64"));
+          fotoUrl = `data:image/webp;base64,${out.toString("base64")}`;
+          novos.unshift({ nome: `Layout aprovado · ${foto.nome}`, mime: foto.mime, base64: `data:${foto.mime || "application/octet-stream"};base64,${foto.conteudo}` });
+        }
+      } catch (e) { console.log("layout/prévia da foto:", e.message); }
+    }
+    await prisma.ppItem.update({ where: { id: it.id }, data: { ...(fotoUrl ? { fotoBase64: fotoUrl } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
   }
   try { await (await import("@/lib/arquivos")).enxugarItensPp(pp.id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868 — layout grande vai para o disco
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, decisao: "APROVADO", aprovadoEm: new Date().toISOString() } } });   // v755

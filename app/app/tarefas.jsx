@@ -912,7 +912,7 @@ function LayoutTarefa({ t, user, onMudou }) {
     imprimirPedido("OP", { numero: d.pedido.numero, emissao: d.pedido.emissao, clienteNome: d.pedido.cliente, vendedor: d.pedido.vendedor, oc: d.pedido.oc, obs: d.pedido.obs,
       prazoEntrega: d.pedido.prazoDias != null ? `${d.pedido.prazoDias} dias ${d.pedido.prazoTipo === "UTEIS" ? "úteis" : "corridos"}` : "" },
       d.itens.map((i) => ({ tipoPecaNome: i.tipoPecaNome || "", codigo: i.codigo, descricao: i.descricao, grade: i.grade, dadosUnitarios: i.dadosUnitarios || null, parametros: Object.fromEntries(Object.entries(i.parametros || {}).filter(([, v]) => v)),
-        fotoBase64: "", anexos: [...(i.arquivos || (i.arquivo ? [i.arquivo] : [])).map((a) => ({ nome: `Layout · ${a.nome}`, mime: a.mime, src: urlArq(a) })), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
+        fotoBase64: "", anexos: [...(i.arquivos || (i.arquivo ? [i.arquivo] : [])).map((a) => ({ nome: `Layout · ${a.nome}`, mime: a.mime, src: `${urlArq(a)}&prev=1` })), ...i.anexosItem.map((a) => ({ nome: a.nome, mime: a.mime, src: `${base}&item=${i.idx}&k=${a.k}` }))] })),
       { anexos: (d.anexosPedido || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `${base}&anexo=${a.id}` })), alerta,
         previa: aprovado ? null : "PRÉVIA — layout aguardando aprovação. Os arquivos só entram na OP do pedido depois que o vendedor aprovar." });   // v755
   };
@@ -931,7 +931,7 @@ function LayoutTarefa({ t, user, onMudou }) {
         <div key={i.idx} className="rounded-lg p-2.5 mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex items-start gap-3">
             <div className="shrink-0 rounded overflow-hidden flex items-center justify-center" style={{ width: 92, height: 92, background: C.panel2, border: `1px solid ${C.line}` }}>
-              {i.arquivo ? (img(i.arquivo) ? <a href={urlArq(i.arquivo)} target="_blank" rel="noreferrer"><img src={urlArq(i.arquivo)} alt="" style={{ width: 92, height: 92, objectFit: "contain" }} /></a>
+              {i.arquivo ? (img(i.arquivo) ? <a href={`${urlArq(i.arquivo)}&prev=1`} target="_blank" rel="noreferrer" title="Abrir (imagem grande abre em versão leve; o original baixa pelo nome do arquivo)"><img src={`${urlArq(i.arquivo)}&prev=1`} alt="" loading="lazy" style={{ width: 92, height: 92, objectFit: "contain" }} /></a>
                 : <a href={urlArq(i.arquivo)} target="_blank" rel="noreferrer" className="text-[11px] text-center px-1" style={{ color: C.red }}><FileText size={22} className="mx-auto" />{i.arquivo.nome}</a>)
                 : <span className="text-[11px]" style={{ color: C.sub }}>sem layout</span>}
             </div>

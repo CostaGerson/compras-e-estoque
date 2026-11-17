@@ -30,6 +30,16 @@ export async function GET(req, { params }) {
   }
   const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(sp.get("arquivo")) || 0, tarefaId: Number(params.id) } });
   if (!a) return new Response("Não encontrado.", { status: 404 });
+  // v919 — ?prev=1: imagem grande vem em prévia leve (o navegador não abre PNG de 24.000 px); o original segue sem o prev
+  if (sp.get("prev")) {
+    const { precisaPrevia, previa } = await import("@/lib/imgPrevia");
+    if (precisaPrevia(a.mime, a.nome, a.tamanho)) {
+      try {
+        const out = await previa(`tarefaArquivo|${a.id}|${a.tamanho}`, () => bytes(a.conteudo));
+        return new Response(out, { headers: { "Content-Type": "image/webp", "Cache-Control": "private, max-age=86400", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(String(a.nome || "imagem").replace(/\.[^.]+$/, "") + ".webp")}` } });
+      } catch (e) { console.log("prévia:", e.message); }
+    }
+  }
   return respostaAnexo(a.conteudo, { nome: a.nome, mime: a.mime });
 }
 
