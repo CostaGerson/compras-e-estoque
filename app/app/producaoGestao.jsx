@@ -1,7 +1,7 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory, Filter } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory, Filter, CalendarRange, ExternalLink } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";
@@ -186,14 +186,15 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
           {podeLancar && <button onClick={() => editarPp(p.id)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Continuar</button>}</div>)}
       </div>}
       {/* v618 — atalhos em cards grandes, acima dos indicadores */}
+      {/* v618 — atalhos em cards grandes, acima dos indicadores · v927 — todos em branco; ao lado de Compras, o PCP do Maycon (abre em outra guia) */}
       {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {atalhos.map((a, i) => {
+        {[...atalhos.slice(0, 1), { key: "__pcp", label: "PCP · Cronograma", desc: "Sistema do Maycon: programação de corte, costura, personalização e expedição", url: "https://pcp.meridianpro.com.br", icon: CalendarRange }, ...atalhos.slice(1)].map((a) => {
           const Ico = a.icon;
-          return <button key={a.key} onClick={() => ir(a.key)} title={a.desc} className="card-asana flex items-center gap-3 px-4 py-4 rounded-xl text-left"
-            style={{ background: i === 0 ? C.accent : C.panel, border: `1px solid ${i === 0 ? C.accent : C.line}`, color: i === 0 ? "#fff" : C.text }}>
-            {Ico && <span className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 44, height: 44, background: i === 0 ? "rgba(255,255,255,.18)" : C.panel2, color: i === 0 ? "#fff" : C.navy }}><Ico size={22} /></span>}
-            <span className="min-w-0"><span className="block text-base font-bold leading-tight">{a.label}</span>
-              {a.desc && <span className="block text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: i === 0 ? "rgba(255,255,255,.85)" : C.sub }}>{a.desc}</span>}</span>
+          return <button key={a.key} onClick={() => (a.url ? window.open(a.url, "_blank", "noopener") : ir(a.key))} title={a.url ? `Abrir ${a.url}` : a.desc} className="card-asana flex items-center gap-3 px-4 py-4 rounded-xl text-left"
+            style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>
+            {Ico && <span className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 44, height: 44, background: a.url ? "#EAF2FF" : C.panel2, color: a.url ? "#3B82F6" : C.navy }}><Ico size={22} /></span>}
+            <span className="min-w-0"><span className="flex items-center gap-1.5 text-base font-bold leading-tight">{a.label}{a.url && <ExternalLink size={13} style={{ color: C.sub }} />}</span>
+              {a.desc && <span className="block text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: C.sub }}>{a.desc}</span>}</span>
           </button>;
         })}
       </div>}
