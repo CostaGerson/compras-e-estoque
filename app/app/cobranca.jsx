@@ -59,82 +59,98 @@ function quebrar(ctx, txt, max) {
   if (l) out.push(l);
   return out;
 }
-// v903 — card sóbrio: fundo branco, tipografia escura, linhas finas; sem caixas coloridas
+// v904 — card no manual de marca Meridian (jan/2026): Oxford Blue #0C2342, Steel Blue #3D6799, Branco Gelo #F1F6FE,
+//   apoio Azul Cinzento #3E5066 e Azure #3B82F6, toque de Laranja Vibrante #EE6500; Montserrat ExtraBold (títulos),
+//   Regular (texto) e Light (legendas); logo claro sobre o Oxford; blocos quadrados da marca como grafismo
+const MB = { ox: "#0C2342", steel: "#3D6799", gelo: "#F1F6FE", cinz: "#3E5066", azure: "#3B82F6", lar: "#EE6500", linha: "#DCE5F2" };
 export async function desenharCard(g, { mensagem = MSG_PADRAO, contato = "" } = {}) {
-  try { await document.fonts?.ready; } catch { /* segue */ }
+  try { await document.fonts?.ready; await Promise.all(["300", "400", "600", "700", "800"].map((w) => document.fonts?.load?.(`${w} 20px Montserrat`))); } catch { /* segue */ }
   const F = "Montserrat, Arial, sans-serif";
-  const W = 1080, P = 72, linhaH = 52;
-  const TX = "#1F2733", SUB = "#6B7280", LN = "#E5E7EB", NAVY = "#001E41";
-  const logo = await carregarImg("/meridian-logo.png");
+  const W = 1080, P = 72, linhaH = 54;
+  const logo = (await carregarImg("/meridian-logo.svg")) || (await carregarImg("/meridian-logo.png"));
   const cv = document.createElement("canvas");
   const ctx0 = cv.getContext("2d");
-  ctx0.font = `400 23px ${F}`;
+  ctx0.font = `400 22px ${F}`;
   const msgL = quebrar(ctx0, mensagem, W - 2 * P);
   const contL = contato ? quebrar(ctx0, contato, W - 2 * P) : [];
-  const H = 250 + 110 + msgL.length * 34 + 40 + 120 + 50 + 56 + g.contas.length * linhaH + 70 + (contL.length ? contL.length * 32 + 60 : 0) + 90;
+  const H = 230 + 64 + 40 + 36 + msgL.length * 34 + 44 + 130 + 54 + 60 + g.contas.length * linhaH + 76 + (contL.length ? 64 + contL.length * 32 : 0) + 30 + 96;
   const esc = 2;
   cv.width = W * esc; cv.height = H * esc;
   const ctx = cv.getContext("2d");
   ctx.scale(esc, esc);
-  const linha = (y, x1 = P, x2 = W - P, cor = LN, w = 1) => { ctx.fillStyle = cor; ctx.fillRect(x1, y, x2 - x1, w); };
-  ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = NAVY; ctx.fillRect(0, 0, W, 8);
-  // cabeçalho: logo e data
-  if (logo) { const h = 54, w = (logo.width / logo.height) * h; ctx.drawImage(logo, P, 52, Math.min(w, 300), h); }
-  else { ctx.fillStyle = NAVY; ctx.font = `700 34px ${F}`; ctx.fillText("MERIDIAN", P, 92); }
-  ctx.textAlign = "right"; ctx.fillStyle = SUB; ctx.font = `400 19px ${F}`;
-  ctx.fillText(`Belo Horizonte, ${dBR(hojeISO())}`, W - P, 86); ctx.textAlign = "left";
-  linha(140);
-  // título
-  ctx.fillStyle = SUB; ctx.font = `600 17px ${F}`; ctx.fillText("AVISO DE TÍTULOS EM ABERTO", P, 192);
-  ctx.fillStyle = TX; ctx.font = `700 32px ${F}`; ctx.fillText(cortar(ctx, g.cliente, W - 2 * P), P, 236);
-  let y = 236;
-  if (g.documento) { ctx.fillStyle = SUB; ctx.font = `400 20px ${F}`; ctx.fillText(`CNPJ/CPF ${fmtDoc(g.documento)}`, P, y + 34); y += 34; }
-  y += 66;
-  ctx.fillStyle = TX; ctx.font = `400 23px ${F}`;
-  for (const l of msgL) { ctx.fillText(l, P, y); y += 34; }
-  y += 30;
-  // resumo em três colunas, só texto
-  const cols3 = [["Total em aberto", moeda(g.total)], ["Período", g.de === g.ate ? dBR(g.de) : `${dBR(g.de)} a ${dBR(g.ate)}`], ["Títulos · maior atraso", `${g.contas.length} · ${g.maiorAtraso} dia(s)`]];
+  const ret = (x, y, w, h, cor) => { ctx.fillStyle = cor; ctx.fillRect(x, y, w, h); };
+  const txt = (t, x, y, { peso = 400, tam = 20, cor = MB.cinz, al = "left", esp = 0 } = {}) => {
+    ctx.font = `${peso} ${tam}px ${F}`; ctx.fillStyle = cor; ctx.textAlign = al;
+    try { ctx.letterSpacing = `${esp}px`; } catch { /* sem suporte */ }
+    ctx.fillText(t, x, y);
+    try { ctx.letterSpacing = "0px"; } catch { /* sem suporte */ }
+  };
+  // blocos quadrados (grafismo do manual)
+  const blocos = (x0, y0, q, gap, mapa) => mapa.forEach((l, i) => [...l].forEach((c, j) => {
+    const cor = { o: MB.ox, s: MB.steel, a: MB.azure, l: MB.lar, c: MB.cinz, g: "#24406A" }[c]; if (!cor) return;
+    ctx.fillStyle = cor; const r = 4; const x = x0 + j * (q + gap), y = y0 + i * (q + gap);
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + q, y, x + q, y + q, r); ctx.arcTo(x + q, y + q, x, y + q, r); ctx.arcTo(x, y + q, x, y, r); ctx.arcTo(x, y, x + q, y, r); ctx.fill();
+  }));
+  ret(0, 0, W, H, "#FFFFFF");
+  // cabeçalho Oxford com logo claro
+  ret(0, 0, W, 230, MB.ox);
+  if (logo) { const h = 46, w = (logo.width / logo.height) * h; ctx.drawImage(logo, P, 62, Math.min(w, 300), h); }
+  else txt("MERIDIAN", P, 100, { peso: 800, tam: 40, cor: MB.gelo });
+  txt("AVISO DE TÍTULOS EM ABERTO", P, 166, { peso: 700, tam: 18, cor: MB.gelo, esp: 2.5 });
+  txt(`Belo Horizonte, ${dBR(hojeISO())}`, P, 196, { peso: 300, tam: 17, cor: "#AFC3E0" });
+  blocos(W - P - 3 * 40 - 2 * 8, 54, 40, 8, ["  s", " sl", "gsa"]);
+  let y = 230 + 64;
+  // cliente e mensagem
+  txt(cortar((ctx.font = `800 32px ${F}`, ctx), g.cliente, W - 2 * P), P, y, { peso: 800, tam: 32, cor: MB.ox });
+  if (g.documento) { y += 36; txt(`CNPJ/CPF ${fmtDoc(g.documento)}`, P, y, { peso: 400, tam: 19, cor: MB.steel }); }
+  y += 52;
+  for (const l of msgL) { txt(l, P, y, { peso: 400, tam: 22, cor: MB.cinz }); y += 34; }
+  y += 26;
+  // resumo sobre Branco Gelo
+  ret(P, y, W - 2 * P, 112, MB.gelo);
+  ret(P, y, 6, 112, MB.ox);
+  const cols3 = [["TOTAL EM ABERTO", moeda(g.total)], ["PERÍODO", g.de === g.ate ? dBR(g.de) : `${dBR(g.de)} a ${dBR(g.ate)}`], ["TÍTULOS · MAIOR ATRASO", `${g.contas.length} · ${g.maiorAtraso} dia(s)`]];
   const cw = (W - 2 * P) / 3;
-  linha(y);
   cols3.forEach(([r, v], i) => {
-    const x = P + i * cw + (i ? 24 : 0);
-    if (i) { ctx.fillStyle = LN; ctx.fillRect(P + i * cw, y + 18, 1, 74); }
-    ctx.fillStyle = SUB; ctx.font = `500 16px ${F}`; ctx.fillText(r.toUpperCase(), x, y + 46);
-    ctx.fillStyle = i === 0 ? NAVY : TX; ctx.font = `${i === 0 ? 700 : 600} ${v.length > 22 ? 20 : 25}px ${F}`; ctx.fillText(cortar(ctx, v, cw - 36), x, y + 82);
+    const x = P + i * cw + 30;
+    if (i) ret(P + i * cw, y + 24, 1, 64, "#C9D6EA");
+    txt(r, x, y + 44, { peso: 600, tam: 14, cor: MB.steel, esp: 1.5 });
+    ctx.font = `800 ${v.length > 22 ? 20 : 25}px ${F}`;
+    txt(cortar(ctx, v, cw - 44), x, y + 82, { peso: 800, tam: v.length > 22 ? 20 : 25, cor: MB.ox });
   });
-  y += 110; linha(y);
-  y += 50;
+  y += 112 + 54;
   // tabela
-  const cols = [["NF / título", P, "left"], ["Emissão", P + 400, "left"], ["Vencimento", P + 560, "left"], ["Atraso", P + 790, "right"], ["Valor", W - P, "right"]];
-  ctx.fillStyle = SUB; ctx.font = `600 16px ${F}`;
-  for (const [t, x, al] of cols) { ctx.textAlign = al; ctx.fillText(t.toUpperCase(), x, y); }
-  y += 18; linha(y, P, W - P, TX, 1.5); y += 4;
+  const cols = [["NF / TÍTULO", P, "left"], ["EMISSÃO", P + 400, "left"], ["VENCIMENTO", P + 560, "left"], ["ATRASO", P + 790, "right"], ["VALOR", W - P, "right"]];
+  for (const [t, x, al] of cols) txt(t, x, y, { peso: 600, tam: 14, cor: MB.steel, al, esp: 1.5 });
+  y += 16; ret(P, y, W - 2 * P, 2, MB.ox);
   g.contas.forEach((t) => {
-    const yy = y + 34;
-    ctx.textAlign = "left"; ctx.fillStyle = TX; ctx.font = `600 20px ${F}`;
-    ctx.fillText(cortar(ctx, nfDe(t), 380), cols[0][1], yy);
-    ctx.font = `400 20px ${F}`;
-    ctx.fillText(dBR(t.emissao), cols[1][1], yy);
-    ctx.fillText(dBR(t.vencimento), cols[2][1], yy);
-    ctx.textAlign = "right"; ctx.fillText(`${t.diasAtraso || 0} dia(s)`, cols[3][1], yy);
-    ctx.font = `600 20px ${F}`; ctx.fillText(moeda(t.valor), cols[4][1], yy);
-    y += linhaH; linha(y);
+    const yy = y + 36;
+    ctx.font = `700 20px ${F}`;
+    txt(cortar(ctx, nfDe(t), 380), cols[0][1], yy, { peso: 700, tam: 20, cor: MB.ox });
+    txt(dBR(t.emissao), cols[1][1], yy, { tam: 20 });
+    txt(dBR(t.vencimento), cols[2][1], yy, { tam: 20 });
+    txt(`${t.diasAtraso || 0} dia(s)`, cols[3][1], yy, { tam: 20, al: "right" });
+    txt(moeda(t.valor), cols[4][1], yy, { peso: 700, tam: 20, cor: MB.ox, al: "right" });
+    y += linhaH; ret(P, y, W - 2 * P, 1, MB.linha);
   });
-  y += 6; linha(y, P, W - P, TX, 1.5);
-  ctx.textAlign = "left"; ctx.fillStyle = TX; ctx.font = `700 22px ${F}`; ctx.fillText("Total", P, y + 42);
-  ctx.textAlign = "right"; ctx.fillStyle = NAVY; ctx.fillText(moeda(g.total), W - P, y + 42); ctx.textAlign = "left";
-  y += 70;
+  // total com o toque de laranja
+  y += 14;
+  ret(P, y, W - 2 * P, 62, MB.gelo);
+  txt("TOTAL EM ABERTO", P + 24, y + 40, { peso: 800, tam: 18, cor: MB.ox, esp: 1.5 });
+  txt(moeda(g.total), W - P - 24, y + 41, { peso: 800, tam: 24, cor: MB.lar, al: "right" });
+  y += 62;
   if (contL.length) {
-    y += 20;
-    ctx.fillStyle = SUB; ctx.font = `500 16px ${F}`; ctx.fillText("CONTATO E PAGAMENTO", P, y); y += 34;
-    ctx.fillStyle = TX; ctx.font = `400 21px ${F}`;
-    contL.forEach((l) => { ctx.fillText(l, P, y); y += 32; });
+    y += 56;
+    txt("CONTATO E PAGAMENTO", P, y, { peso: 600, tam: 14, cor: MB.steel, esp: 1.5 }); y += 34;
+    contL.forEach((l) => { txt(l, P, y, { tam: 21, cor: MB.cinz }); y += 32; });
   }
-  linha(H - 70);
-  ctx.fillStyle = SUB; ctx.font = `400 16px ${F}`;
-  ctx.fillText("Valores sem juros e multa por atraso. Caso o pagamento já tenha sido feito, desconsidere este aviso.", P, H - 38);
+  // rodapé Oxford
+  ret(0, H - 96, W, 96, MB.ox);
+  ret(0, H - 96, W, 4, MB.steel);
+  txt("Valores sem juros e multa por atraso. Caso o pagamento já tenha sido feito, desconsidere este aviso.", P, H - 52, { peso: 300, tam: 16, cor: MB.gelo });
+  txt("meridianpro.com.br", W - P, H - 26, { peso: 600, tam: 15, cor: "#AFC3E0", al: "right" });
+  txt("Meridian Ltda · CNPJ 48.011.287/0001-81", P, H - 26, { peso: 300, tam: 15, cor: "#AFC3E0" });
+  ctx.textAlign = "left";
   return cv.toDataURL("image/png");
 }
 
