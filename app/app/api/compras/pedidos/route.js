@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { ehRevenda } from "@/lib/fppAv";   // v523
 import { prisma } from "@/lib/prisma";
-import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp, itensDispensados } from "@/lib/compras";
+import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp, itensDispensados, tirarDeCompras, corrigirRibanaFaixa } from "@/lib/compras";
 
 // v419 — dispensar compras (pedido só para faturamento): POST { pedidoNumero, motivo, quem } · DELETE { pedidoNumero } reativa
 export async function POST(req) {
@@ -12,11 +12,11 @@ export async function POST(req) {
   if (b.chave) {   // v862 — só um item do pedido
     const chave = String(b.chave);
     await prisma.compraDispensaItem.upsert({ where: { pedidoNumero_chave: { pedidoNumero: n, chave } }, create: { pedidoNumero: n, chave, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
-    await prisma.compraItem.deleteMany({ where: { pedidoNumero: n, chave, OR: [{ status: "LEVANTAMENTO" }, { status: "ESTOQUE", reservaLiberada: false }] } });
+    await tirarDeCompras({ pedidoNumero: n, chave });   // v911 — em qualquer etapa (levantamento, PIC, OC, NF)
     return Response.json({ ok: true });
   }
   await prisma.compraDispensa.upsert({ where: { pedidoNumero: n }, create: { pedidoNumero: n, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
-  await prisma.compraItem.deleteMany({ where: { pedidoNumero: n, OR: [{ status: "LEVANTAMENTO" }, { status: "ESTOQUE", reservaLiberada: false }] } });
+  await tirarDeCompras({ pedidoNumero: n });   // v911 — em qualquer etapa
   return Response.json({ ok: true });
 }
 export async function DELETE(req) {
@@ -35,6 +35,7 @@ function comIndicada(it, sug, fppPorId) {
 }
 
 export async function GET() {
+  try { const r = await corrigirRibanaFaixa(); if (r?.length) console.log("compras/ribana+faixa v911:", r.join(", ")); } catch (e) { console.log("compras/ribana v911:", e.message); }
   const pedidos = await prisma.pedidoVenda.findMany({
     where: { status: "ANDAMENTO" },
     select: { id: true, numero: true, cliente: true, cnpj: true, emissao: true, despacho: true, itens: true, interno: true, cronoSituacao: true, cronoItens: true, cronoCompras: true, cronoPrazo: true, vendedor: true, total: true, fonte: true, tipoPedido: true },

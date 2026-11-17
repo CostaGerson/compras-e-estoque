@@ -259,7 +259,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
     carregar();
   }
   async function dispensar(p) {   // v419 — pedido só para faturamento
-    const motivo = (await perguntar(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras e não entra no levantamento nem no cruzamento.\n\nMotivo (opcional):`, "Só para faturamento"));
+    const motivo = (await perguntar(`Dispensar compras do pedido ${p.numero} (${p.cliente})?\nEle sai de compras em qualquer etapa (levantamento, PIC, OC) e vai para o PCP. Linhas do PIC ainda sem OC são retiradas; OC já emitida não muda.\n\nMotivo (opcional):`, "Só para faturamento"));
     if (motivo === null) return;
     const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, motivo, quem: nomeUser(user) }) });
     if (!r.ok) return alerta("Erro ao dispensar.");
@@ -267,7 +267,9 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
   }
   // v862 — dispensar compras de um item só (o resto do pedido segue em compras)
   async function dispensarItem(p, it) {
-    const motivo = await perguntar(`Dispensar compras do item ${it.codigo || ch(it.chave)} · ${it.descricao || ""} (pedido ${p.numero})?\nO item sai de compras e do levantamento e vai para o PCP; os outros itens seguem normais.\n\nMotivo (opcional):`, "Material já disponível");
+    const st = it.vinculo?.status;   // v911 — em qualquer etapa
+    const aviso = st === "PIC" ? "\nA parte dele sai do PIC (linhas ainda sem OC)." : ["OC", "NF"].includes(st) ? "\nA OC já emitida não muda: o material que chegar fica no estoque." : "";
+    const motivo = await perguntar(`Dispensar compras do item ${it.codigo || ch(it.chave)} · ${it.descricao || ""} (pedido ${p.numero})?\nO item sai de compras e vai para o PCP; os outros itens seguem normais.${aviso}\n\nMotivo (opcional):`, "Material já disponível");
     if (motivo === null) return;
     const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: p.numero, chave: it.chave, motivo, quem: nomeUser(user) }) });
     if (!r.ok) return alerta("Erro ao dispensar.");
@@ -716,7 +718,7 @@ function ItemCard({ p, it, veValores, onVer, onSugestao, onBuscar, onDesvincular
         </div>
         {it.colunaPcp && <Chip cor={C.navy} title="Coluna do item no PCP">PCP: {it.colunaPcp === "LEVANTAMENTO" ? "levantamento" : it.colunaPcp === "COMPRAS" ? "compras" : it.colunaPcp.toLowerCase()}</Chip>}
         {v ? <Chip cor={STATUS[v.status]?.[1] || C.green} fundo={STATUS[v.status]?.[2] || C.greenSoft}>{STATUS[v.status]?.[0] || v.status}</Chip> : <Chip cor={C.yellow} fundo={C.yellowSoft}>Sem FPP</Chip>}
-        {onDispensar && (!v || ["LEVANTAMENTO", "REPROVADO", "ESTOQUE"].includes(v.status)) && <button onClick={onDispensar} title="Tira só este item de compras: vai para o PCP sem compra de material" className="text-[11px] px-2 py-0.5 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button>}
+        {onDispensar && (!v || v.status !== "ENTREGUE") && <button onClick={onDispensar} title="Tira só este item de compras, em qualquer etapa (levantamento, PIC, OC): vai para o PCP sem compra de material" className="text-[11px] px-2 py-0.5 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>Dispensar compras</button>}
       </div>
       {v ? (
         <div className="mt-2">

@@ -29,6 +29,16 @@ const ehSem = (v) => vazio(v) || /^SEM\b/.test(norm(v));
 // v522 — gola viés sai do próprio tecido da peça: não é aviamento (não entra na compra nem no levantamento)
 export const ehGolaVies = (v) => /\bVIES\b/.test(norm(v));
 
+// v911 — gola/punho de ribana na compra: os mesmos parâmetros da FPP (v839) — rendimento da ribana em peças/kg
+//   (CONST RIBANA_REND_GOLA 96 · RIBANA_REND_PUNHO 125, com o ajuste da ficha) → consumo = 1 ÷ rendimento (kg/peça);
+//   R$/kg = R$/kg da malha × RIBANA_FATOR_CUSTO (1,4). A compra sai em kg, na cor e no fornecedor da malha.
+export const ehRibana = (v) => /\bRIBANA\b/.test(norm(v));
+export function ribanaCalc(cget, grupo, mpValorKg) {
+  const rend = grupo === "PUNHO" ? (cget("RIBANA_REND_PUNHO") || 125) : (cget("RIBANA_REND_GOLA") || 96);
+  const fator = cget("RIBANA_FATOR_CUSTO") || 1.4;
+  return { rend, consumo: rend > 0 ? 1 / rend : 0, kg: mpValorKg > 0 ? Math.round(mpValorKg * fator * 100) / 100 : 0 };
+}
+
 // campos que distinguem um artigo do outro (vazio = não distingue)
 export const CAMPOS_ID = ["fornecedorId", "cor", "codigo"];
 
@@ -108,13 +118,33 @@ export function materiaisDaFpp(fpp, params = [], corSel = null) {
       consumoPorPeca: rend ? 1 / q : q, valorUnitario: n0(x.custo), base: rend ? `${String(q).replace(".", ",")} peças/kg` : `${String(q).replace(".", ",")} m/peça` });
   });
   const avDet = e.aviamentosDet || {};
-  const get = (g, k, c = "valor") => paramGet(params, tipo, g, k, c, ov);
+  // v911 — consumo (m/pç ou kg/pç): sem consumo no tipo da peça, vale o da mesma aplicação no outro tipo (faixa de plano usa o da malha)
+  const get = (g, k, c = "valor") => {
+    const v = paramGet(params, tipo, g, k, c, ov);
+    if (c !== "consumo" || v > 0) return v;
+    const row = params.find((p) => p.grupo === g && p.chave === k && Number(p.extra?.consumo) > 0);
+    return row ? Number(row.extra.consumo) : v;
+  };
+  // v911 — ribana (gola/punho ribana): compra em kg, na cor e no fornecedor da malha principal
+  const cget = (k) => paramGet(params, tipo, "CONST", k, "valor", ov);
+  const detPrinc = (() => { const d = detComCor(e.artigoDet || {}, corSel); return { ...(d.cor ? { cor: d.cor } : {}), ...(d.fornecedorId ? { fornecedorId: d.fornecedorId } : {}), ...(d.fornecedorNome ? { fornecedorNome: d.fornecedorNome } : {}) }; })();
   for (const a of AVIAMENTOS) {
     if (a.tipo && a.tipo !== tipo && !aberta) continue;
     const v = e[a.campo];
     if (ehSem(v)) continue;
     if (a.chave === "GOLA" && ehGolaVies(v)) continue;   // v522
     const det = avDet[a.chave] || {};
+    if ((a.chave === "GOLA" || a.chave === "PUNHO") && ehRibana(v)) {
+      const c = ribanaCalc(cget, a.chave, tipo === "MALHA" ? n0(e.mpValor) || 0 : 0);
+      if (c.consumo > 0) {
+        const proprio = temAlgumDetalhe(det);
+        const dRib = proprio ? det : detPrinc;
+        out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, derivado: !proprio, categoria: "MALHA", unidade: "KG",
+          nome: "RIBANA", det: dRib, consumoPorPeca: c.consumo, valorUnitario: c.kg || null,
+          base: `${String(c.rend).replace(".", ",")} peças/kg · ${String(v).toUpperCase()}`, obs: det.obs || null });
+        continue;
+      }
+    }
     // v410 — elástico e faixa com consumo por metro: a compra sai em metros
     if (a.chave === "ELASTICO") {
       const c = elasticoCalc(get, v);
@@ -222,7 +252,7 @@ export async function sincronizarArtigosFpp(fpp, db = prisma) {
   for (const m of materiaisDaFpp(fpp, params)) {
     // só cadastra quando alguém abriu o "+" e preencheu algo (FPP de proposta não enche o cadastro);
     // sem detalhe, o cadastro pelo nome acontece quando a FPP vira base de um pedido (demandaDoItem)
-    if (!temAlgumDetalhe(m.det)) continue;
+    if (!temAlgumDetalhe(m.det) || m.derivado) continue;   // v911 — ribana na cor da malha: não grava no detalhe da gola
     // v851 — só liga a FPP a um artigo que já existe; o cadastro novo nasce quando a FPP vira pedido (demandaDoItem)
     const id = await artigoDaFpp(m, fpp, db, { criar: false });
     if (!id) continue;
@@ -850,4 +880,81 @@ export async function regerarDemandasPedido(numero, quem, db = prisma) {
     gerados++;
   }
   return { ok: true, apagados: antes.length, gerados, semFpp };
+}
+
+// ---------- v911 — dispensa em qualquer etapa e ajuste do PIC ----------
+// muda a parte do item no PIC: necAntes → necDepois (por artigo efetivo). Linha já em OC não muda (o material já foi pedido).
+export async function ajustarPicDoItem(item, necAntes, necDepois = {}, db = prisma) {
+  if (!item?.picId) return { mudou: 0 };
+  const linhas = await db.picItem.findMany({ where: { picId: item.picId }, include: { ocItens: { select: { id: true } } } });
+  const arts = new Set([...Object.keys(necAntes || {}), ...Object.keys(necDepois || {})]);
+  let mudou = 0;
+  for (const a of arts) {
+    const antes = Number(necAntes?.[a]) || 0, depois = Number(necDepois?.[a]) || 0;
+    const delta = r3(depois - antes);
+    if (!delta) continue;
+    const l = linhas.find((x) => String(x.artigoId) === String(a));
+    if (l?.ocItens?.length) continue;
+    const inf = l?.info || {};
+    const outros = (Array.isArray(inf.pedidos) ? inf.pedidos : []).filter((o) => !(o.pedido === item.pedidoNumero && o.chave === item.chave));
+    const meus = depois > 0 ? [{ pedido: item.pedidoNumero, chave: item.chave, cliente: item.cliente || null, quantidade: r3(depois), avulsa: ehAvulsa(item.pedidoNumero), reprovado: false }] : [];
+    if (l) {
+      const qtd = r3(Math.max(0, Number(l.quantidade) + delta));
+      if (!outros.length && !meus.length || qtd <= 0) await db.picItem.delete({ where: { id: l.id } }).catch(() => null);
+      else await db.picItem.update({ where: { id: l.id }, data: { quantidade: qtd, info: { ...inf, demanda: r3(Math.max(0, (Number(inf.demanda) || 0) + delta)), pedidos: [...outros, ...meus] } } });
+      mudou++;
+    } else if (depois > 0) {
+      const art = await db.artigo.findUnique({ where: { id: Number(a) } });
+      if (!art) continue;
+      const d = (item.demanda || []).find((x) => String(efetivo(x)) === String(a)) || {};
+      await db.picItem.create({ data: { picId: item.picId, artigoId: art.id, quantidade: r3(depois), fornecedorId: art.fornecedorId || d.fornecedorId || null, valorUnitario: art.valorUnitario ?? null,
+        info: { nome: art.nome, cor: art.cor || null, codigo: art.codigo || null, largura: art.largura != null ? Number(art.largura) : null, unidade: d.unidade || art.unidade, embalagem: d.embalagem || null, demanda: r3(depois), sobra: 0, pedidos: meus } } });
+      mudou++;
+    }
+  }
+  return { mudou };
+}
+// tira os itens de compras (dispensa): sai do levantamento, do PIC (linha ainda sem OC) e das telas; o que já foi entregue ou liberado fica
+export async function tirarDeCompras(where, db = prisma) {
+  const l = await db.compraItem.findMany({ where });
+  let n = 0;
+  for (const v of l) {
+    if (v.status === "ENTREGUE" || v.liberadoEm || (v.status === "ESTOQUE" && v.reservaLiberada)) continue;
+    if (v.status === "PIC" && v.picId) await ajustarPicDoItem(v, necessidade(v), {}, db).catch(() => null);
+    await db.compraItem.delete({ where: { id: v.id } }).catch(() => null);
+    n++;
+  }
+  return n;
+}
+
+// v911 — uma vez: ribana (kg) no lugar da gola/punho ribana em unidade, nos itens ainda no levantamento ou no PIC
+const K_RIB = "COMPRAS_RIBANA_V911";
+export async function corrigirRibanaFaixa(db = prisma) {
+  if (globalThis.__ribV911) return null;
+  globalThis.__ribV911 = true;
+  if (await db.finConfig.findUnique({ where: { chave: K_RIB } }).catch(() => null)) return null;
+  // faixa já lançada fica como está (as faixas desses pedidos foram compradas por compra avulsa); vale para as demandas novas
+  const velho = (d) => d && d.unidade === "UN" && ["GOLA", "PUNHO"].includes(d.papel) && ehRibana(d.nome);
+  const l = (await db.compraItem.findMany({ where: { status: { in: ["LEVANTAMENTO", "REPROVADO", "PIC"] }, fppId: { not: null } } })).filter((v) => (v.demanda || []).some(velho));
+  const params = await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
+  const log = [];
+  for (const v of l) {
+    const fpp = await db.fpp.findUnique({ where: { id: v.fppId } });
+    if (!fpp) continue;
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
+    if (v.status === "PIC") {
+      // no PIC: troca só os aviamentos corrigidos (o resto do item segue como está)
+      const antigos = (v.demanda || []).filter(velho);
+      const papeis = new Set(antigos.map((d) => d.papel));
+      const novos = nova.filter((d) => papeis.has(d.papel) && d.unidade === "KG");
+      const dem = [...(v.demanda || []).filter((d) => !velho(d)), ...novos];
+      const sub = { ...v, demanda: antigos }, add = { ...v, demanda: novos };
+      await ajustarPicDoItem({ ...v, demanda: dem }, necessidade(sub), necessidade(add), db);
+      await db.compraItem.update({ where: { id: v.id }, data: { demanda: dem } });
+    } else await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } });
+    log.push(`${v.pedidoNumero} ${v.chave}`);
+  }
+  const valor = JSON.stringify({ em: new Date().toISOString(), itens: log });
+  await db.finConfig.upsert({ where: { chave: K_RIB }, create: { chave: K_RIB, valor }, update: { valor } }).catch(() => null);
+  return log;
 }
