@@ -156,9 +156,12 @@ input[list]::-webkit-list-button{display:none!important}
 }
 /* celular (até 767px) */
 @media (max-width: 767px) {
+  /* v884 — janela pequena (aviso, confirmação, max-w-sm/md) continua cartão centralizado; as demais viram folha (tela cheia) */
+  .fixed.inset-0:has(> div[class*="max-w-xs"], > div[class*="max-w-sm"], > div[class*="max-w-md"], > div[class*="max-w-lg"]) { padding: 12px !important; }
+  .fixed.inset-0:has(> div[class*="max-w-xs"], > div[class*="max-w-sm"], > div[class*="max-w-md"], > div[class*="max-w-lg"]) > div:first-child { max-width: 100% !important; width: 100% !important; max-height: calc(100dvh - 24px) !important; overflow-y: auto; }
   /* janelas (modais) viram tela cheia, com rolagem própria */
-  .fixed.inset-0:not(.z-40):not(.ce-sem-folha) { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
-  .fixed.inset-0:not(.z-40):not(.ce-sem-folha) > div:not(.anim-gaveta):not(:empty):first-child {
+  .fixed.inset-0:not(.z-40):not(.ce-sem-folha):not(:has(> div[class*="max-w-xs"], > div[class*="max-w-sm"], > div[class*="max-w-md"], > div[class*="max-w-lg"])) { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
+  .fixed.inset-0:not(.z-40):not(.ce-sem-folha):not(:has(> div[class*="max-w-xs"], > div[class*="max-w-sm"], > div[class*="max-w-md"], > div[class*="max-w-lg"])) > div:not(.anim-gaveta):not(:empty):first-child {
     width: 100% !important; max-width: 100vw !important; min-width: 0 !important; max-height: 100dvh !important; height: 100dvh;
     border-radius: 0 !important; overflow-y: auto !important; margin: 0 !important; padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
   .fixed.inset-0 > div.anim-gaveta { width: 100vw !important; max-width: 100vw !important; }
