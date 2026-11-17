@@ -51,7 +51,7 @@ export default function IntegracaoEmail({ user: master }) {
               <input value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} placeholder="ERP Meridian <nao-responda@meridianpro.com.br>" className="w-full px-2 py-1.5 rounded outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
           </div>
           <div className="flex justify-end gap-2 mt-3">
-            <button disabled={!!ocup} onClick={() => post("salvar", f)} className="px-3 py-1.5 rounded-md font-semibold" style={{ background: C.accent, color: "#fff" }}>{ocup === "salvar" ? "Salvando…" : "Salvar"}</button>
+            <button disabled={!!ocup} onClick={async () => { if (await post("salvar", f)) setF((o) => ({ ...o, chave: "" })); }} className="px-3 py-1.5 rounded-md font-semibold" style={{ background: C.accent, color: "#fff" }}>{ocup === "salvar" ? "Salvando…" : "Salvar"}</button>
           </div>
           {st.chave && D && <div className="mt-4 rounded-lg p-3" style={{ border: `1px solid ${C.line}` }}>
             <div className="flex items-center gap-2 mb-2"><b>Domínio {D.nome}</b>{D.status && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: "#F1F3F5", color: corSt(D.status) }}>{txtSt(D.status)}</span>}
