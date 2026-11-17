@@ -13,6 +13,7 @@ import {
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
   Info as InfoI, Handshake, Landmark, ExternalLink,
+  Copy as CopyIco, Check as CheckIco,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -704,6 +705,24 @@ const chaveOrdem = (t, col, contasPorId) => {
 };
 // v887 — colunas que somem no celular (pc) e no iPad em pé (md); o valor e a situação vão para baixo da data
 const OCULTA_COL = { parceiro: "ce-tab-pc", rateio: "ce-tab-md", valor: "ce-tab-pc", fpgto: "ce-tab-md", situacao: "ce-tab-pc", origem: "ce-tab-md" };
+// v930 — copiar a chave PIX com um toque (celular: botão grande; computador: discreto)
+async function copiarTexto(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch {}
+  try { const el = document.createElement("textarea"); el.value = t; el.setAttribute("readonly", ""); el.style.position = "fixed"; el.style.opacity = "0"; document.body.appendChild(el); el.select(); el.setSelectionRange(0, t.length); const ok = document.execCommand("copy"); el.remove(); return ok; } catch { return false; }
+}
+export function BotaoPix({ chave, grande, className = "" }) {
+  const [ok, setOk] = useState(false);
+  const k = String(chave || "").trim();
+  if (!k) return null;
+  const copiar = async (e) => { e.stopPropagation(); e.preventDefault(); if (await copiarTexto(k)) { setOk(true); setTimeout(() => setOk(false), 1800); } else alerta(`Não consegui copiar. Chave PIX: ${k}`); };
+  return grande
+    ? <button type="button" onClick={copiar} title={k} className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-bold ${className}`}
+        style={{ minHeight: 40, padding: "8px 14px", fontSize: 13, background: ok ? C.green : C.navy, color: "#fff", touchAction: "manipulation" }}>
+        {ok ? <CheckIco size={16} /> : <CopyIco size={16} />} {ok ? "PIX copiado" : "Copiar PIX"}</button>
+    : <button type="button" onClick={copiar} title={`Copiar chave PIX: ${k}`} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${className}`}
+        style={{ border: `1px solid ${ok ? C.green : C.line}`, color: ok ? C.green : C.navy, background: C.panel }}>
+        {ok ? <CheckIco size={11} /> : <CopyIco size={11} />} {ok ? "copiado" : "PIX"}</button>;
+}
 function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onEditar, onBaixar, onAcao, onExcluir, vazio, sel, marcar, onAjustePedido }) {
   const [ordem, setOrdem] = useState(null);   // { col, dir: 1 | -1 } — clique no título da coluna: A→Z, Z→A, volta
   const itens = useMemo(() => {
@@ -763,6 +782,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                         : (t.numeroDoc || t.observacao) ? <div className="truncate" style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div> : null}
                       {t.parceiro && <div className="ce-tab-cel truncate" style={{ color: C.sub }}>{t.parceiro}</div>}
                     </button>
+                    {P && t.status !== "PAGO" && t.status !== "CANCELADO" && t.chavePix && <div className="ce-tab-cel mt-1.5"><BotaoPix chave={t.chavePix} grande /></div>}
                   </td>
                   <td className="px-3 py-2 ce-tab-pc" style={{ maxWidth: 200 }} title={t.parceiro}><div className="truncate" style={{ maxWidth: 190 }}>{t.parceiro}</div>{t.documento && <div className="truncate" style={{ color: C.sub }}>{fmtDoc(t.documento)}</div>}</td>
                   <td className="px-3 py-2 ce-tab-md" style={{ maxWidth: 220 }}>
@@ -802,6 +822,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
+                    {P && t.status !== "PAGO" && t.status !== "CANCELADO" && t.chavePix && <span className="ce-tab-pc mr-2"><BotaoPix chave={t.chavePix} /></span>}
                     <BotaoObs t={t} user={user} onFeito={onMudou} />
                     {!P && <BotaoRecompra t={t} user={user} onFeito={onMudou} />}
                     {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
@@ -2382,6 +2403,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                   <td className="px-2 py-1.5">
                     <div className="font-semibold">{it.nome}{it.pago && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span>}</div>
                     <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX <b style={{ color: C.text }}>{it.chavePix}</b></div>
+                    {!it.pago && it.chavePix && <div className="mt-1"><BotaoPix chave={it.chavePix} grande /></div>}   {/* v930 */}
                   </td>
                   <td className="px-2 py-1.5">{it.setorNome}</td>
                   <td className="px-2 py-1.5" style={{ color: C.sub }}>
