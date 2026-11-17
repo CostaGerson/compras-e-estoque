@@ -101,10 +101,14 @@ export async function gestaoProducao() {
   try { await (await import("@/lib/faturamentoCasamento")).removerCasamentosAutomaticos(); } catch (e) { console.log("producao/remover-auto:", e.message); }
   const hoje = hojeBR();
   // v790 — pedido do portal (Loja Way) aparece mesmo marcado como interno: é produção para cliente
-  const doPortal = (await prisma.pp.findMany({ where: { portalClienteId: { not: null }, numero: { not: null } }, select: { numero: true } }).catch(() => [])).map((x) => x.numero);
+  const ppsPortal = await prisma.pp.findMany({ where: { portalClienteId: { not: null }, numero: { not: null } }, select: { numero: true, clienteNome: true, clienteFinal: true } }).catch(() => []);
+  const doPortal = ppsPortal.map((x) => x.numero);
+  const { clienteRotulo } = await import("@/lib/layoutFluxo");   // v896 — "LOJA WAY - CLIENTE FINAL" na lista
+  const rotPortal = Object.fromEntries(ppsPortal.map((x) => [x.numero, clienteRotulo({ clienteNome: x.clienteNome, clienteFinal: x.clienteFinal })]));
   // v794 — todo pedido aparece, inclusive o interno (antes sumia da Produção); o interno só não entra no "a faturar"
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO" }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   for (const p of ps) if (p.interno && !doPortal.includes(p.numero)) p.semFaturar = true;
+  for (const p of ps) { const r = rotPortal[p.numero]; if (r && r.includes(" - ")) p.cliente = `${p.cliente || r.split(" - ")[0]} - ${r.split(" - ").slice(1).join(" - ")}`; }   // v896
   // pedido antigo que não está no PCP (antes da integração com o KM) fica de fora, como no painel de pedidos
   const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
@@ -128,6 +132,11 @@ export async function detalhePedido(numero) {
   if (!p) return null;
   const hoje = hojeBR();
   try { const lp = await layoutsPendentes(); if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch {}   // v738
+  try {   // v896 — pedido do portal: cliente final junto ao nome
+    const pp = await prisma.pp.findFirst({ where: { numero: p.numero, portalClienteId: { not: null } }, select: { clienteNome: true, clienteFinal: true } });
+    const r = pp ? (await import("@/lib/layoutFluxo")).clienteRotulo(pp) : "";
+    if (r.includes(" - ")) p.cliente = `${p.cliente || r.split(" - ")[0]} - ${r.split(" - ").slice(1).join(" - ")}`;
+  } catch {}
   const r = resumoPedido(p, hoje);
   const itens = itensDoPedido(p);
   const vinc = await prisma.compraItem.findMany({ where: { pedidoNumero: p.numero } });
