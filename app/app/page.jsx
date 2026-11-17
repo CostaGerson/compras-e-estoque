@@ -109,7 +109,7 @@ const MENU = [
   // v226 — Agenda saiu do menu lateral: abre pelo ícone de calendário ao lado da foto (topo); Tarefas é um botão dentro da Agenda
   { key: "comercial", label: "Comercial", icon: Briefcase, perfis: ["FINANCEIRO", "COMERCIAL"], desc: "Clientes, propostas e vendas" },
   { key: "financeiro", label: "Financeiro", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Análise mensal, matriz de custos, contas e DFC" },
-  { key: "adm", label: "ADM", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída), demandas administrativas e rotas", filhos: [
+  { key: "adm", label: "Administrativo", icon: ClipboardCheck, desc: "Movimento fiscal (NFs de entrada e saída), demandas administrativas e rotas", filhos: [
     { key: "movfiscal", label: "Movimento fiscal", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Importar NFs de entrada (contas a pagar) e de saída (contas a receber) — XML e PDF" },
     { key: "faccoesPcp", label: "Facções a pagar (PCP)", icon: Receipt, perfis: ["FINANCEIRO"], desc: "OS de facção fechadas no Cronograma: conferir e lançar nos terceirizados da semana" },   // v501
     { key: "documentacao", label: "Documentação", icon: FileText, perfis: ["FINANCEIRO", "ADMINISTRATIVO"], desc: "Contratos e documentos administrativos com anexos e validade" },   // v780 — #22
@@ -117,7 +117,7 @@ const MENU = [
     // v448 — Rota saiu da aba Logística (removida) e entrou no ADM
     { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
   ] },
-  { key: "rh", label: "RH", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
+  { key: "rh", label: "Recursos Humanos", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
   { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Sincronização de pedidos", icon: ClipboardList, desc: "Pedidos do KM em lista: situação no PCP, itens com FPP e ligação de cada item à FPP base" },
