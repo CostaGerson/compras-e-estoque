@@ -184,3 +184,10 @@ input[list]::-webkit-list-button{display:none!important}
   .ce-conteudo .text-xl { font-size: 1.12rem; }
   .ce-conteudo table td, .ce-conteudo table th { padding-left: 6px; padding-right: 6px; }
 }
+/* v883 — barras de guias (abas com sublinhado) rolam de lado no iPad/celular em vez de estourar a tela */
+@media (max-width: 1023px) {
+  .ce-conteudo .flex:has(> button[style*="border-bottom: 2px"]), .fixed.inset-0 .flex:has(> button[style*="border-bottom: 2px"]) {
+    flex-wrap: nowrap !important; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .ce-conteudo .flex:has(> button[style*="border-bottom: 2px"]) > button { flex-shrink: 0; white-space: nowrap; }
+  .ce-conteudo .flex:has(> button[style*="border-bottom: 2px"])::-webkit-scrollbar { display: none; }
+}
