@@ -45,7 +45,7 @@ export default function CustoImpressao({ user, tipo }) {
       {/* v924 — visual moderno (cabeçalhos Oxford Blue, destaque laranja), campos padronizados e conteúdo centralizado */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <div>
-          <div className="text-lg font-extrabold" style={{ color: NAVY }}>Custo de {M.titulo.toLowerCase()}</div>
+          <div className="text-lg font-extrabold" style={{ color: NAVY }}>Custo de {tipo === "DTF" ? "DTF" : M.titulo.toLowerCase()}</div>
           <div className="text-xs" style={{ color: C.sub }}>Custo do metro linear pelos insumos e composição de custo por peça.{d.em ? ` Atualizado em ${new Date(d.em).toLocaleString("pt-BR")}${d.por ? ` por ${d.por}` : ""}.` : ""}{tipo === "SUBLIMACAO" ? " O total do metro linear é o custo do metro de papel nas FPPs." : ""}</div>
         </div>
         <div className="flex-1" />
