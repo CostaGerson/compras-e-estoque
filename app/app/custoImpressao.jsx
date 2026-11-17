@@ -63,21 +63,24 @@ export default function CustoImpressao({ user, tipo }) {
             <span className="flex-1">Custo metro linear</span>
             <span className="text-xs font-semibold" style={{ color: "#9FB7D9" }}>Total <b className="text-sm ml-1" style={{ color: "#fff" }}>{brl(c.total, 4)}</b></span>
           </div>
-          <div className="grid" style={{ gridTemplateColumns: `repeat(${M.secoes.length}, minmax(0, 1fr))` }}>
+          {/* 5 colunas: equipamento ocupa 2 (campos em duas colunas); demais blocos lado a lado */}
+          <div className="grid" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
             {M.secoes.map((s, si) => (
-              <div key={s.t} className="px-2.5 py-2" style={{ borderRight: si < M.secoes.length - 1 ? `1px solid ${C.line}` : "none" }}>
+              <div key={s.t} className="px-3 py-2" style={{ gridColumn: si === 0 ? "span 2" : undefined, borderRight: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}` }}>
                 <div className="text-[10px] font-bold uppercase tracking-wide mb-1 truncate" style={{ color: STEEL }} title={s.t}>{s.t}</div>
+                <div className="grid gap-x-4" style={{ gridTemplateColumns: si === 0 ? "1fr 1fr" : "1fr" }}>
                 {s.campos.map(([k, l, t]) => (
-                  <label key={k} className="grid items-center gap-1.5 py-[2px]" style={{ gridTemplateColumns: "minmax(0,1fr) 78px" }}>
-                    <span className="text-[10px] leading-[12px]" style={{ color: C.text }} title={l}>{l}</span>
+                  <label key={k} className="grid items-center gap-1.5 py-[2px]" style={{ gridTemplateColumns: "minmax(0,1fr) 92px" }}>
+                    <span className="text-[11px] truncate" style={{ color: C.text }} title={l}>{l}</span>
                     <input value={txt(p[k])} onChange={(e) => setCampo(k, e.target.value)} inputMode={t === "txt" ? "text" : "decimal"} title={txt(p[k])}
                       className="w-full px-1 py-1 rounded-md text-center text-[11px] tabular-nums outline-none" style={inp} />
                   </label>
                 ))}
+                </div>
                 <div className="mt-1 pt-1" style={{ borderTop: `1px dashed ${C.line}` }}>
                   {s.calc.map(([k, l]) => (
                     <div key={k} className="grid items-center gap-1.5 py-[1px]" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}>
-                      <span className="text-[10px] leading-[12px]" style={{ color: C.sub }} title={l}>{l}</span>
+                      <span className="text-[11px] truncate" style={{ color: C.sub }} title={l}>{l}</span>
                       <span className="text-[11px] font-bold tabular-nums text-right" style={{ color: /PorM$/.test(k) ? C.accent : NAVY }}>{fmtCalc(k, c[k])}</span>
                     </div>
                   ))}
