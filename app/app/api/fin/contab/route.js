@@ -37,7 +37,7 @@ export async function GET(req) {
     bancos, docs, email: email || "", envios, notasSaida: nfs,
     // v360 — categorias antigas de saída só aparecem se o mês já tem arquivo nelas
     categorias: [...ORDEM_CATEGORIAS, ...CATEGORIAS_ANTIGAS.filter((k) => docs.some((d) => d.categoria === k))].map((k) => ({ k, ...CATEGORIAS[k] })),
-    emailPronto: emailDisponivel(),
+    emailPronto: await emailDisponivel(),
   });
 }
 

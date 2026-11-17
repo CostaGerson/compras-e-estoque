@@ -66,7 +66,7 @@ export async function cobrancaSemanal({ dataIso, previa = false, forcar = false 
   const ja = await prisma.finConfig.findUnique({ where: { chave: K(de) } }).catch(() => null);
   const res = { de, ate, jaEnviada: !!ja && !forcar, clientes: grupos.map((g) => ({ cliente: g.cliente, cnpj: g.cnpj, emails: g.emails, boletos: g.titulos.length, total: g.titulos.reduce((s, t) => s + Number(t.valorBruto ?? t.valor ?? 0), 0) })), enviados: 0, semEmail: [], erros: [] };
   if (previa || res.jaEnviada) return res;
-  if (!emailDisponivel()) { res.erros.push("Envio de e-mail não configurado (RESEND_API_KEY / RESEND_FROM)."); return res; }
+  if (!(await emailDisponivel())) { res.erros.push("Envio de e-mail não configurado (Usuários › E-mail)."); return res; }
   for (const g of grupos) {
     if (!g.emails.length) { res.semEmail.push(g.cliente); continue; }
     const anx = await prisma.finTituloAnexo.findMany({ where: { tituloId: { in: g.titulos.map((t) => t.id) }, OR: [{ mime: "application/pdf" }, { nome: { endsWith: ".pdf", mode: "insensitive" } }] }, select: { nome: true, conteudo: true } }).catch(() => []);

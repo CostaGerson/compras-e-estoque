@@ -32,7 +32,7 @@ const moldura = (titulo, corpo) => `
 export async function pedirRedefinicao(chave, base) {
   const k = String(chave || "").trim().toLowerCase();
   if (!k) return { ok: false, erro: "Informe seu usuário ou e-mail." };
-  if (!emailDisponivel()) return { ok: false, erro: "O envio de e-mail não está configurado. Fale com o master." };
+  if (!(await emailDisponivel())) return { ok: false, erro: "O envio de e-mail não está configurado. Fale com o master." };
   const u = await prisma.usuario.findFirst({ where: { ativo: true, OR: [{ login: k }, { email: k }] } });
   if (u && u.email) {
     const token = crypto.randomBytes(32).toString("hex");
@@ -69,7 +69,7 @@ export async function redefinir(token, senha, confirma) {
   if (!u) return { ok: false, erro: "Link inválido ou vencido. Peça um novo em \"Esqueci minha senha\"." };
   await prisma.usuario.update({ where: { id: u.id }, data: { senha: s, resetHash: null, resetExpira: null } });
   // e-mail de confirmação da troca
-  if (u.email && emailDisponivel()) {
+  if (u.email && (await emailDisponivel())) {
     const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     await enviarEmail({
       para: u.email,

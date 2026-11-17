@@ -12,7 +12,7 @@ export async function POST(req) {
   const u = await usuarioMaster(b?.usuarioId);
   if (!u) return negado();
   if (!competenciaValida(b.competencia)) return Response.json({ error: "Competência inválida." }, { status: 400 });
-  if (!emailDisponivel()) return Response.json({ error: "Envio de e-mail não configurado na VPS (RESEND_API_KEY e RESEND_FROM no .env)." }, { status: 503 });
+  if (!(await emailDisponivel())) return Response.json({ error: "Envio de e-mail não configurado (Usuários › E-mail)." }, { status: 503 });
 
   const email = String(b.email || "").trim().toLowerCase();
   if (!emailValido(email)) return Response.json({ error: "Informe um e-mail válido para a contabilidade." }, { status: 400 });

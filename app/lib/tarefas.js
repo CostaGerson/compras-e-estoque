@@ -600,7 +600,7 @@ export async function sincronizarConvites(t, ids, u) {
     await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Confirme aqui mesmo ou pela Agenda.`, { conviteTarefaId: t.id });
     // v608 — notificação no celular do convidado
     try { const { notificar } = await import("@/lib/push"); await notificar(x.id, { titulo: `📅 Convite: ${t.titulo}`, texto: `${nome(u)} convidou você — ${quando}. Toque para confirmar ou recusar.`, url: "/", tag: `convite-${t.id}` }); } catch {}
-    if (x.email && emailDisponivel()) await enviarEmail({ para: x.email, assunto: `Convite: ${t.titulo} — ${quando}`,
+    if (x.email && (await emailDisponivel())) await enviarEmail({ para: x.email, assunto: `Convite: ${t.titulo} — ${quando}`,
       html: `<p>Olá, ${x.nome}.</p><p><b>${nome(u)}</b> convidou você para <b>${t.titulo}</b> em <b>${quando}</b>.</p>${t.descricao ? `<p>${String(t.descricao).replace(/</g, "&lt;").replace(/\n/g, "<br>")}</p>` : ""}<p>Abra a Agenda no sistema para <b>confirmar</b>, <b>recusar</b> ou <b>decidir depois</b>.</p>` }).catch(() => null);
   }
 }

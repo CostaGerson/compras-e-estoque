@@ -74,7 +74,7 @@ export async function decidir(id, acao, resposta, master) {
       ? `✅ SUA SUGESTÃO #${s.id} FOI ACATADA e a alteração já está no sistema. "${resumo}"${r ? ` — ${r}` : ""} Obrigado pela contribuição!`
       : `❌ SUA SUGESTÃO #${s.id} NÃO FOI ACATADA. "${resumo}" — MOTIVO: ${r}`;
     if (autor && autor.id !== master.id) { await prisma.mensagem.create({ data: { deId: master.id, paraId: autor.id, texto: txt.slice(0, 2000) } }); avisos.mensagem = true; }
-    if (autor?.email && emailDisponivel()) {
+    if (autor?.email && (await emailDisponivel())) {
       const ok = acao === "ACATAR";
       try {
         await enviarEmail({

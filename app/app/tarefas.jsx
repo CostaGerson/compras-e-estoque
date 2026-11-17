@@ -1576,11 +1576,11 @@ export function Agenda({ user, pedidoModo, onModo }) {
         const g = document.querySelector("[data-dia]")?.parentElement?.getBoundingClientRect();
         const travou = v && (!r || Math.abs(r.scrollTop - antes) < 0.5);
         if (g && pos[0] > Math.min(g.right, window.innerWidth) - 36) b = 1;
-        else if (g && pos[0] < g.left + 14 && pos[0] > g.left - 160) b = -1;
+        else if (g && pos[0] < g.left + 24) b = -1;   // v893 — qualquer ponto à esquerda da grade (inclusive sobre os projetos) volta
         else if (travou && modo === "semana") b = v > 0 ? 1 : -1;
       }
       if (b !== bordaAtual) { bordaAtual = b; bordaDesde = performance.now(); setBorda(b); }
-      else if (b && performance.now() - bordaDesde > 750) {
+      else if (b && performance.now() - bordaDesde > 600) {
         bordaDesde = performance.now() + 250;   // repete a cada ~1 s enquanto ficar na borda
         moverRef.current(b);
         setTimeout(() => requestAnimationFrame(achar), 120); setTimeout(() => requestAnimationFrame(achar), 400);
