@@ -115,9 +115,10 @@ export default function PecasProntas({ user }) {
 export function IntegracaoNort({ user }) {
   const [d, setD] = useState(null);
   const [ver, setVer] = useState(false);
+  const URL_NORT = "https://producao.nortsports.com.br";   // v914 — endereço já vem preenchido (antes era só o texto de exemplo)
   const [lf, setLf] = useState({ url: "", token: "" });   // v910 — leitura do sistema da NORT
   const [lendo, setLendo] = useState("");
-  const ler = () => fetch(`/api/nort?u=${user.id}&token=1`, { cache: "no-store" }).then((r) => r.json()).then((j) => { setD(j); setLf((x) => ({ url: x.url || j.leitura?.url || "", token: "" })); }).catch((e) => setD({ error: e.message }));
+  const ler = () => fetch(`/api/nort?u=${user.id}&token=1`, { cache: "no-store" }).then((r) => r.json()).then((j) => { setD(j); setLf((x) => ({ url: x.url || j.leitura?.url || URL_NORT, token: "" })); }).catch((e) => setD({ error: e.message }));
   const postL = async (acao, extra = {}) => {
     setLendo(acao);
     try { const r = await fetch("/api/nort", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao, ...extra }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || "Erro.");
@@ -125,6 +126,16 @@ export function IntegracaoNort({ user }) {
       await ler(); } catch (e) { alerta(e.message); } finally { setLendo(""); }
   };
   useEffect(() => { ler(); }, []);
+  // v914 — "Ler agora" salva antes o que estiver nos campos (endereço/token) e só então lê
+  const lerAgora = async () => {
+    const url = (lf.url || "").trim() || URL_NORT;
+    if (url !== (d.leitura?.url || "") || lf.token.trim()) {
+      const r = await fetch("/api/nort", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "leituraCfg", url, token: lf.token }) }).then(async (x) => ({ ok: x.ok, j: await x.json().catch(() => ({})) })).catch(() => null);
+      if (!r?.ok) return alerta(r?.j?.error || "Não salvou o endereço/token.");
+    }
+    if (!d.leitura?.temToken && !lf.token.trim()) return alerta("Cole o token do sistema da loja antes de ler.");
+    postL("lerAgora");
+  };
   const renovar = async () => {
     const r = await fetch("/api/nort", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "token" }) }).then((x) => x.json()).catch(() => null);
     if (r?.token) { setD((x) => ({ ...x, token: r.token })); setVer(true); } else alerta(r?.error || "Não renovou.");
@@ -146,7 +157,7 @@ export function IntegracaoNort({ user }) {
         </div>
         <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: C.sub }}>
           {["pedidos", "estoque"].map((k) => { const x = d.leitura?.status?.[k]; return <span key={k}><b style={{ color: C.text }}>{k === "pedidos" ? "Pedidos" : "Estoque"}:</b> {x ? `${x.ok ? "ok" : `erro — ${x.erro}`} · ${new Date(x.em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${k === "pedidos" && x.ok ? ` · ${x.novos} novo(s)` : ""}${k === "estoque" && x.ok ? ` · ${x.itens} item(ns)` : ""}` : "ainda não leu"}</span>; })}
-          <button onClick={() => postL("lerAgora")} disabled={!!lendo || !d.leitura?.url} className="ml-auto px-3 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy }}>{lendo === "lerAgora" ? "Lendo…" : "Ler agora"}</button>
+          <button onClick={lerAgora} disabled={!!lendo} className="ml-auto px-3 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy }}>{lendo === "lerAgora" ? "Lendo…" : "Ler agora"}</button>
         </div>
       </div>
       <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>

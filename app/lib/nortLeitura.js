@@ -17,7 +17,7 @@ export const configLeitura = () => json(K_CFG);
 export const statusLeitura = () => json(K_ST);
 export async function salvarConfig({ url, token }) {
   const atual = await configLeitura();
-  const u = String(url || "").trim().replace(/\/+$/, "");
+  const u = String(url || "").trim().replace(/\/+$/, "") || atual.url || "";   // v914 — endereço em branco mantém o salvo
   if (u && !/^https:\/\/[a-z0-9.-]+(:\d+)?(\/.*)?$/i.test(u)) throw new Error("Endereço inválido: use https://dominio-do-sistema");
   await gravar(K_CFG, { url: u, token: String(token || "").trim() || atual.token || "" });
 }
