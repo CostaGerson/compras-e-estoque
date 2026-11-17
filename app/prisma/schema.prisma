@@ -95,6 +95,7 @@ model Usuario {
   nome       String
   sobrenome  String   @default("")
   email      String   @default("")
+  telefone   String?                       // v931 — telefone do próprio perfil
   login      String   @unique
   senha      String   @default("")
   senhaHash  String?

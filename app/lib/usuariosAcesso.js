@@ -8,7 +8,7 @@ export async function ator(id) {
   return u && u.ativo ? u : null;
 }
 export const soMasterUsuarios = () => Response.json({ error: "Só o master cadastra e edita usuários e altera permissões." }, { status: 403 });
-export const CAMPOS_PROPRIOS = ["nome", "sobrenome", "email", "login", "senha", "fotoBase64"];
+export const CAMPOS_PROPRIOS = ["nome", "sobrenome", "email", "telefone", "login", "senha", "fotoBase64"];   // v931 — telefone; acessos nunca
 
 // guarda só as permissões que existem no tipo; todas ligadas = null (acompanha o tipo)
 export function limparPermissoes(lista, u) {

@@ -4578,7 +4578,7 @@ function Usuarios({ master }) {
 function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
   const ed = !!usuario;
   const [f, setF] = useState({
-    nome: usuario?.nome || "", sobrenome: usuario?.sobrenome || "", email: usuario?.email || "",
+    nome: usuario?.nome || "", sobrenome: usuario?.sobrenome || "", email: usuario?.email || "", telefone: usuario?.telefone || "",
     login: usuario?.login || "", senha: usuario?.senha || "", setor: usuario?.setor || "PCP",
     fotoBase64: usuario?.fotoBase64 || null, ativo: usuario?.ativo ?? true, isMaster: usuario?.isMaster ?? false,
     permLancaPedidos: usuario?.permLancaPedidos ?? false, permLancaContas: usuario?.permLancaContas ?? false,
@@ -4613,7 +4613,7 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
     setSalvando(true);
     // no modo "meu perfil" só mando os campos editáveis do próprio usuário
     const body = self
-      ? { atorId: sessaoId(), nome: f.nome, sobrenome: f.sobrenome, email: f.email, login: f.login, senha: f.senha, fotoBase64: f.fotoBase64 }
+      ? { atorId: sessaoId(), nome: f.nome, sobrenome: f.sobrenome, email: f.email, telefone: f.telefone, login: f.login, senha: f.senha, fotoBase64: f.fotoBase64 }
       : { ...f, atorId: sessaoId(), permissoes: f.permissoes ?? (PERMS_DO_TIPO[tipoDe(f)] || []) };
     const url = ed ? `/api/usuarios/${usuario.id}` : "/api/usuarios";
     const method = ed ? "PATCH" : "POST";
@@ -4656,10 +4656,17 @@ function UsuarioModal({ usuario, onClose, onSaved, onSavedUser, self }) {
               <div className="text-xs mb-1" style={{ color: C.sub }}>E-mail</div>
               <input value={f.email} onChange={(e) => set("email", e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
             </div>
+            <div>
+              <div className="text-xs mb-1" style={{ color: C.sub }}>Telefone / WhatsApp</div>
+              <input value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} inputMode="tel" placeholder="(31) 99999-0000" className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
             {self ? (
               <div>
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Setor</div>
                 <div className="px-2 py-1.5 rounded" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{SETOR_NOME[f.setor] || f.setor}{f.diretoria ? " · DIRETORIA" : ""}</div>
+                <div className="text-[10px] mt-1" style={{ color: C.sub }}>Setor e acessos só o master altera.</div>
               </div>
             ) : (
               <Sel label="Setor" value={f.setor} onChange={(e) => setF((s) => ({ ...s, setor: e.target.value, permissoes: null }))}>

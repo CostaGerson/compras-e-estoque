@@ -33,7 +33,7 @@ export async function POST(req) {
   const data = {
     nome: up(b.nome),
     sobrenome: up(b.sobrenome),
-    email: txt(b.email).toLowerCase(),
+    email: txt(b.email).toLowerCase(), telefone: txt(b.telefone).slice(0, 40) || null,   // v931
     login: txt(b.login).toLowerCase(),
     senha: txt(b.senha),
     fotoBase64: b.fotoBase64 || null,

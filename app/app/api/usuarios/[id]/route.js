@@ -32,8 +32,9 @@ export async function PATCH(req, { params }) {
   if ("nome" in b) data.nome = up(b.nome);
   if ("sobrenome" in b) data.sobrenome = up(b.sobrenome);
   if ("email" in b) data.email = txt(b.email).toLowerCase();
+  if ("telefone" in b) data.telefone = txt(b.telefone).slice(0, 40) || null;   // v931
   if ("login" in b) data.login = txt(b.login).toLowerCase();
-  if ("senha" in b) data.senha = txt(b.senha);
+  if ("senha" in b && txt(b.senha)) data.senha = txt(b.senha);   // v931 — senha em branco não apaga a atual
   if ("fotoBase64" in b) data.fotoBase64 = b.fotoBase64 || null;
   if ("setor" in b) data.setor = b.setor || "PCP";
   if ("portalClienteId" in b) data.portalClienteId = Number(b.portalClienteId) || null;   // v699 — portal do cliente
