@@ -258,7 +258,7 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const mobile = useMobile();   // v550 — no celular o menu vira gaveta sobre a tela e começa fechado
   const gaveta = useGaveta();   // v882 — iPad: menu em gaveta também
-  useEffect(() => { if (gaveta) setCollapsed(true); }, [gaveta]);
+  useEffect(() => { if (gaveta) setCollapsed(true); }, [gaveta, view]);   // v885 — trocar de tela (inclusive por atalho) fecha a gaveta
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
   const [resetTick, setResetTick] = useState(0);   // clicar no título remonta o módulo na tela inicial dele
