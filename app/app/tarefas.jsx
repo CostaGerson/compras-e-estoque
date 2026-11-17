@@ -318,6 +318,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     hora: inicial.hora || "", horaFim: inicial.horaFim || "", lembreteMin: inicial.lembreteMin === undefined ? 30 : inicial.lembreteMin, natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
     titulo: inicial.titulo || "", descricao: inicial.descricao || "", setor: inicial.setor || setorTarefaDe(user), responsavelId: inicial.responsavelId || "",
     prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" ? "URGENTE" : "PADRAO", publica: inicial.publica !== false,
+    multi: !!inicial.inicio, inicio: inicial.inicio || "",   // v902 — início e fim (tarefa de vários dias)
     rec: { tipo: "NENHUMA", ...(inicial.recorrencia || {}) }, subtarefas: inicial.subtarefas || [], dependencias: inicial.dependencias || [], aplicarSerie: false,
     // v600 — período sem horário, evento com convidados e pessoas necessárias
     periodo: inicial.periodo || "", evento: !!inicial.evento, efetivo: inicial.efetivo || "", convidados: (inicial.convites || []).map((c) => c.usuarioId),
@@ -377,8 +378,9 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       if (c.length && !(await confirmar(`Já existe no mesmo horário:\n${c.map((t) => `• ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""} ${t.titulo}`).join("\n")}\n\nSalvar mesmo assim?`))) return;
     }
     if (f.decisao && (f.opcoes.filter((o) => o.trim()).length < 2 || !f.envolvidos.length)) { setErro("Decisão: informe pelo menos 2 opções e os envolvidos."); return; }
+    if (f.multi && !recorrente && !(f.inicio && f.inicio < f.prazo)) { setErro("Início e fim: o início precisa ser antes do fim."); return; }   // v902
     setSt(true); setErro("");
-    const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
+    const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, inicio: f.multi && !recorrente ? f.inicio : null, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
       hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin,
       ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
@@ -446,8 +448,14 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <input value={f.titulo} onChange={(e) => set("titulo", e.target.value)} autoFocus placeholder={f.evento ? "Nome do evento (obrigatório)" : "O que precisa ser feito (obrigatório)"} className={`${inp} mt-1`} style={inpS} />
         <textarea value={f.descricao} onChange={(e) => set("descricao", e.target.value)} rows={3} placeholder="Detalhes (opcional)" className={`${inp} mt-1`} style={{ ...inpS, resize: "vertical" }} />
       </label>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-        <label className="text-xs" style={{ color: C.sub }}>{recorrente ? "Primeira data" : "Data limite"}<input type="date" value={f.prazo} onChange={(e) => set("prazo", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
+      {!recorrente && <label className="flex items-center gap-2 mb-2 text-xs cursor-pointer select-none" style={{ color: f.multi ? C.navy : C.sub }}>
+        <span className="relative inline-block rounded-full" style={{ width: 30, height: 17, background: f.multi ? C.accent : C.line, transition: "background .15s" }}>
+          <span className="absolute rounded-full bg-white" style={{ width: 13, height: 13, top: 2, left: f.multi ? 15 : 2, transition: "left .15s" }} /></span>
+        <input type="checkbox" className="hidden" checked={f.multi} onChange={(e) => setF((x) => { const on = e.target.checked, ok = x.inicio && x.inicio < x.prazo; return { ...x, multi: on, inicio: on ? (ok ? x.inicio : x.prazo) : "", prazo: on && !ok && x.prazo ? somaDiaISO(x.prazo, 1) : x.prazo }; })} />
+        <b>Início e fim</b> <span>(a tarefa ocupa todos os dias do período na agenda)</span></label>}
+      <div className={`grid grid-cols-1 ${f.multi && !recorrente ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-3 mb-3`}>
+        {f.multi && !recorrente && <label className="text-xs" style={{ color: C.sub }}>Início<input type="date" value={f.inicio} max={f.prazo || undefined} onChange={(e) => set("inicio", e.target.value)} className={`${inp} mt-1`} style={{ ...inpS, borderColor: f.inicio && f.inicio < f.prazo ? C.line : C.accent }} /></label>}
+        <label className="text-xs" style={{ color: C.sub }}>{recorrente ? "Primeira data" : f.multi ? "Fim" : "Data limite"}<input type="date" value={f.prazo} min={f.multi && f.inicio ? f.inicio : undefined} onChange={(e) => set("prazo", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Horário (opcional)<input type="time" value={f.hora} onChange={(e) => set("hora", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="time" value={f.horaFim} disabled={!f.hora} onChange={(e) => set("horaFim", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
       </div>
@@ -991,6 +999,9 @@ export function ordenarDia(l) {
 }
 const horaTxt = (t) => (t.hora ? `${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : "");
 
+// v902 — datas curtas e soma de dias (ISO)
+const somaDiaISO = (s, n) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dBRc = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : "");
 function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir, onMenu, toque, grande, pres, arrastado }) {
   // v228 — card do tamanho fixo do Asana: título cortado numa linha; no hover o conteúdo desliza e aparece o check
   // v550 — toque (celular): card mais alto, check sempre visível, texto maior
@@ -1006,7 +1017,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
       <AvatarMini foto={foto} nome={t.responsavelNome} size={24} />
       <div className="flex-1 min-w-0 py-1.5">
         <div className="text-[15px] leading-tight truncate" style={{ textDecoration: feita ? "line-through" : "none" }}>{t.titulo.charAt(0) + t.titulo.slice(1).toLowerCase()}</div>
-        {(t.hora || proj) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
+        {(t.hora || proj || t.inicio) && <div className="text-[12px] flex items-center gap-1.5 mt-0.5" style={{ color: A.sub }}>{t.inicio && <span title="Período da tarefa">↔ {dBRc(t.inicio)}–{dBRc(t.prazo)}</span>}{t.hora && <b>{horaTxt(t)}</b>}{proj && <><span className="rounded-[3px]" style={{ width: 9, height: 9, background: proj.cor }} />{proj.nome}</>}</div>}
       </div>
       {t.meuConvite === "PENDENTE" && <span title="Convite aguardando sua decisão" className="shrink-0 rounded-full flex items-center justify-center text-[12px] font-black" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>!</span>}
       {t.evento && <span className="text-[11px] font-semibold flex items-center gap-0.5 shrink-0" style={{ color: A.sub }}><Users size={12} />{t.confirmados || 0}{t.efetivo ? `/${t.efetivo}` : ""}</span>}
@@ -1019,7 +1030,7 @@ function CardAgenda({ t, proj, foto, onClick, onDragStart, onDragEnd, onConcluir
   );
   return (
     <div {...(pres || {})} onDragStart={(e) => e.preventDefault()} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); if (Date.now() - (globalThis.__ceToque || 0) > 1500) onMenu?.(e.clientX, e.clientY); }}
-      title={`${t.titulo}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
+      title={`${t.titulo}${t.inicio ? ` · ${dBRc(t.inicio)} a ${dBRc(t.prazo)}` : ""}${t.hora ? ` · ${horaTxt(t)}` : ""}`}
       className="card-asana group relative rounded-md flex items-center overflow-hidden cursor-pointer select-none shrink-0" draggable={false}
       style={{ height: 36, background: bg, border: `1px solid ${bd}`, color: A.texto, opacity: arrastado ? 0.4 : feita ? 0.6 : 1 }}>
       <button onClick={(e) => { e.stopPropagation(); onConcluir?.(); }} title={feita ? "Reabrir" : "Concluir"}
@@ -1447,7 +1458,11 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const daVez = (t) => (designadas ? ehDesignada(t) && (!colab || t.responsavelId === colab) : !ehDesignada(t));
   const nConcl = (d?.tarefas || []).filter((t) => daVez(t) && t.status === "CONCLUIDA" && (visao === "GERAL" || t.natureza === visao)).length;
   const filtradas = (d?.tarefas || []).filter((t) => daVez(t) && t.status !== "CANCELADA" && (verConcl || t.status !== "CONCLUIDA") && (visao === "GERAL" || t.natureza === visao));
-  const porDia = useMemo(() => filtradas.reduce((a, t) => { (a[t.prazo] ||= []).push(t); return a; }, {}), [d, visao, verConcl, designadas, colab]);
+  // v902 — tarefa com início e fim aparece em todos os dias do período (até 92 dias)
+  const porDia = useMemo(() => filtradas.reduce((a, t) => {
+    if (t.inicio && t.inicio < t.prazo) { for (let x = t.inicio, n = 0; x <= t.prazo && n < 92; x = somaDiaISO(x, 1), n++) (a[x] ||= []).push(t); }
+    else (a[t.prazo] ||= []).push(t);
+    return a; }, {}), [d, visao, verConcl, designadas, colab]);
   // v561 — ordem escolhida arrastando (ordem) e, sem ela, pelo horário
   // v605 — sempre pela ordem de horário; sem horário vem depois (manhã antes de tarde), na ordem escolhida arrastando
   // v648 — ordem livre arrastando (com ou sem horário); as que têm horário ficam de mais cedo para mais tarde entre si

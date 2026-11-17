@@ -1925,6 +1925,7 @@ model Tarefa {
   criadoPorId      Int
   criadoPorNome    String
   prazo            DateTime  @db.Date            // data limite para atendimento
+  inicio           DateTime? @db.Date            // v902 — tarefa de vários dias: aparece na agenda de inicio até prazo
   tipo             String    @default("PADRAO")  // PADRAO (cinza) | URGENTE (vermelho) | ROTINA (azul, toda recorrente)
   publica          Boolean   @default(true)
   status           String    @default("ABERTA")  // ABERTA | EM_ANDAMENTO | CONCLUIDA | CANCELADA

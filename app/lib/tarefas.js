@@ -101,7 +101,7 @@ async function gerarDaSerie(s, limite) {
 // ---------- leitura ----------
 const resumo = (t, abertas = {}) => ({
   id: t.id, titulo: t.titulo, descricao: t.descricao, setor: t.setor, responsavelId: t.responsavelId, responsavelNome: t.responsavelNome,
-  criadoPorId: t.criadoPorId, criadoPorNome: t.criadoPorNome, prazo: iso(t.prazo), tipo: t.tipo, publica: t.publica, status: t.status,
+  criadoPorId: t.criadoPorId, criadoPorNome: t.criadoPorNome, prazo: iso(t.prazo), inicio: t.inicio ? iso(t.inicio) : null, tipo: t.tipo, publica: t.publica, status: t.status,
   serieId: t.serieId, recorrencia: t.recorrencia || null, subtarefas: t.subtarefas || [], dependencias: t.dependencias || [],
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
@@ -135,7 +135,9 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   await limparLixeira().catch(() => null);   // v566
   const where = { modelo: false, status: { not: "CANCELADA" } };
   if (projetoId) where.projetoId = Number(projetoId);
-  if (de || ate) where.prazo = { ...(de ? { gte: dUTC(de) } : {}), ...(ate ? { lte: dUTC(ate) } : {}) };
+  // v902 — tarefa de vários dias entra se o período dela cruza a faixa (início ≤ fim da faixa e prazo ≥ começo)
+  if (de || ate) where.AND = [{ OR: [{ prazo: { ...(de ? { gte: dUTC(de) } : {}), ...(ate ? { lte: dUTC(ate) } : {}) } },
+    { AND: [{ inicio: { not: null, ...(ate ? { lte: dUTC(ate) } : {}) } }, ...(de ? [{ prazo: { gte: dUTC(de) } }] : [])] }] }];
   if (!incluirConcluidas) where.status = { notIn: ["CANCELADA", "CONCLUIDA"] };
   // v600 — convites (pendentes e confirmados) entram na agenda do convidado
   const conv = await prisma.tarefaConvite.findMany({ where: { usuarioId: u.id, status: { not: "RECUSADO" } }, select: { tarefaId: true } });
@@ -204,6 +206,7 @@ function limpar(b) {
     setor: SETORES_TAREFA.some(([k]) => k === b.setor) ? b.setor : null,
     responsavelId: Number(b.responsavelId) || null,
     prazo: /^\d{4}-\d{2}-\d{2}$/.test(b.prazo || "") ? b.prazo : null,
+    inicio: /^\d{4}-\d{2}-\d{2}$/.test(b.inicio || "") ? b.inicio : null,   // v902 — início (vários dias)
     tipo: b.tipo === "URGENTE" ? "URGENTE" : b.tipo === "ROTINA" ? "ROTINA" : "PADRAO",
     publica: b.publica !== false,
     subtarefas: (Array.isArray(b.subtarefas) ? b.subtarefas : []).map((x) => ({ texto: String(x.texto || "").trim().slice(0, 300), feita: !!x.feita })).filter((x) => x.texto),
@@ -219,6 +222,7 @@ function limpar(b) {
     efetivo: b.evento && Number(b.efetivo) > 0 ? Math.min(9999, Math.round(Number(b.efetivo))) : null,
   };
   if (t.hora) t.periodo = null;
+  if (t.inicio && (!t.prazo || t.inicio >= t.prazo)) t.inicio = null;   // v902 — só vale se começar antes do fim
   if (t.hora && t.horaFim && t.horaFim <= t.hora) t.horaFim = null;
   if (!t.hora) t.horaFim = null;
   return t;
@@ -263,7 +267,7 @@ export async function criar(b, u) {
   const comAprov = resp.setor === "ARTE" && resp.id !== u.id && !b.layout && !b.evento;
   const e = await validarDeps(t.dependencias, null, t); if (e) return { error: e };
   const regra = normalizarRegra(b.recorrencia, t.prazo);
-  const base = { ...t, prazo: dUTC(t.prazo), responsavelNome: nome(resp), criadoPorId: u.id, criadoPorNome: nome(u) };
+  const base = { ...t, prazo: dUTC(t.prazo), inicio: t.inicio && !regra ? dUTC(t.inicio) : null, responsavelNome: nome(resp), criadoPorId: u.id, criadoPorNome: nome(u) };
   let criada;
   if (regra) {
     // a série guarda a regra; as ocorrências (rotina) aparecem na lista/agenda
@@ -282,12 +286,14 @@ export async function editar(id, b, u) {
   const x = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
   if (!x || !(await podeVerA(x, u))) return { error: "Demanda não encontrada." };
   if (!podeEditar(x, u)) return { error: "Só quem criou, o responsável ou o master editam." };
-  const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), ...b }), x.criadoPorId), x.criadoPorId, x.projetoId);
+  // v902 — mover só a data (arrastar na agenda) leva o início junto, mantendo a duração
+  if (x.inicio && b.prazo && b.inicio === undefined) { const dd = Math.round((dUTC(b.prazo) - x.prazo) / 86400000); b = { ...b, inicio: iso(new Date(x.inicio.getTime() + dd * 86400000)) }; }
+  const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), inicio: x.inicio ? iso(x.inicio) : null, ...b }), x.criadoPorId), x.criadoPorId, x.projetoId);
   if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
   const e = await validarDeps(t.dependencias, x.id, t); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
   if (resp && !resp.ativo) return { error: "Colaborador inválido." };
-  const data = { ...t, prazo: dUTC(t.prazo), tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
+  const data = { ...t, prazo: dUTC(t.prazo), inicio: t.inicio && !x.serieId ? dUTC(t.inicio) : null, tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
   let up = await prisma.tarefa.update({ where: { id: x.id }, data });
   if (b.convidados !== undefined || (!t.evento && !x.decisao)) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
   if (b.decisao !== undefined || x.decisao) await (await import("@/lib/decisoes")).salvarDecisao(up, b.decisao !== undefined ? b.decisao : x.decisao, u);   // v655
