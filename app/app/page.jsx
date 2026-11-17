@@ -39,6 +39,7 @@ import { ChaveDemo, useModoDemo } from "./modoDemo";   // v636
 function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
+import CustoImpressao from "./custoImpressao";   // v923
 import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
@@ -136,6 +137,8 @@ const MENU = [
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
       { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },
+      { key: "anSublimacao", label: "Sublimação", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças e insumos) e custo por peça de cada arte" },   // v923
+      { key: "anDtf", label: "DTF", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças, filme, tintas e cola) e custo por peça de cada arte" },   // v923
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
@@ -190,7 +193,7 @@ const PODE = {
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   pecasProntas: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER", "COMPRAS", "NORT") || tem(u, "pic"),   // v906
   fme: (u) => tem(u, "fme"),
-  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u),
+  anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u), anSublimacao: (u) => gerencial(u), anDtf: (u) => gerencial(u),
   rota: () => true,
   destinatarios: () => true,   // v430
   empresa: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
@@ -487,6 +490,8 @@ export default function Home() {
           {view === "anCostura" && pode("anCostura") && <AnaliseCorte key="COSTURA" user={user} setor="COSTURA" />}
           {view === "anExpedicao" && pode("anExpedicao") && <AnaliseCorte key="EXPEDICAO" user={user} setor="EXPEDICAO" />}
           {view === "anLogistica" && pode("anLogistica") && <AnaliseLogistica user={user} />}
+          {view === "anSublimacao" && pode("anSublimacao") && <CustoImpressao key="SUB" user={user} tipo="SUBLIMACAO" />}
+          {view === "anDtf" && pode("anDtf") && <CustoImpressao key="DTF" user={user} tipo="DTF" />}
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "vendedores" && pode("vendedores") && <Vendedores user={user} />}
