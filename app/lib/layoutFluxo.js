@@ -41,6 +41,7 @@ export async function gerarCriacaoLayout(ppId, quem) {
   const arte = await arteFinalista();
   if (!arte) return null;
   const criador = (quem?.id && await prisma.usuario.findUnique({ where: { id: quem.id } })) || arte;
+  const vendU = await vendedorDe(pp.vendedor, null);   // v888 — o vendedor acompanha a criação nas Designadas
   const hoje = hojeSP();
   const t = await prisma.tarefa.create({ data: {
     titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${pp.numero} · ${String(pp.clienteNome || "").toUpperCase()}`.slice(0, 200),
@@ -48,7 +49,7 @@ export async function gerarCriacaoLayout(ppId, quem) {
     // v733 — a criação é só do arte finalista (criada no nome dele): o vendedor só recebe tarefa quando o layout vai para aprovação
     setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
     prazo: dUTC(hoje), tipo: "PADRAO", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
-    layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: pp.clienteNome || "", vendedor: pp.vendedor || "", itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
+    layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: pp.clienteNome || "", vendedor: pp.vendedor || "", vendedorId: vendU?.id || 0, itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
   } });
   await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${pp.clienteNome || ""}): ${falta.length} item(ns) sem layout. Veja na agenda.` } }).catch(() => {});
   return t.id;
@@ -173,4 +174,15 @@ export async function decidirLayout(t, u, aprovar, motivo) {
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, decisao: "APROVADO", aprovadoEm: new Date().toISOString() } } });   // v755
   if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).` } }).catch(() => {}); }
   return { ok: true };
+}
+
+// v888 — criações de layout antigas: grava o vendedorId (usuário do vendedor do pedido) para ele acompanhar nas Designadas
+export async function ajustarVendedorLayout() {
+  const l = await prisma.tarefa.findMany({ where: { modelo: false, titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, select: { id: true, layout: true } }).catch(() => []);
+  for (const t of l) {
+    if (!t.layout || t.layout.vendedorId != null) continue;
+    const pp = t.layout.ppId ? await prisma.pp.findUnique({ where: { id: Number(t.layout.ppId) }, select: { vendedor: true } }).catch(() => null) : null;
+    const v = await vendedorDe(pp?.vendedor || t.layout.vendedor, null);
+    await prisma.tarefa.update({ where: { id: t.id }, data: { layout: { ...t.layout, vendedorId: v?.id || 0 } } }).catch(() => {});
+  }
 }

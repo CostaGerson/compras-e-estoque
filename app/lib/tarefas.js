@@ -42,7 +42,7 @@ async function projRestritos() {
 const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.id);
 // v733 — regra única: cada um vê só as tarefas em que é o colaborador (responsável) ou que ele mesmo criou
 //   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
-const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id   // criação de layout: só o arte finalista (e quem reprovou, v756)
+const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id || Number(t.layout?.vendedorId) === u.id   // v888 — vendedor do pedido acompanha   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
@@ -109,6 +109,7 @@ async function ajustarAcompanhamentoLayout() {
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await ajustarCriacoesLayout();
   await ajustarAcompanhamentoLayout();
+  try { const { ajustarVendedorLayout } = await import("@/lib/layoutFluxo"); await ajustarVendedorLayout(); } catch (e) { console.log("ajuste vendedor layout:", e.message); }   // v888
   try { const { ajustarAprovacoesAntigas } = await import("@/lib/tarefaAprovacao"); await ajustarAprovacoesAntigas(); } catch {}   // v757
   await gerarOcorrencias(ate);
   await limparLixeira().catch(() => null);   // v566
@@ -121,11 +122,11 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const convIds = new Set(conv.map((c) => c.tarefaId));
   if (escopo === "minhas") where.OR = [{ responsavelId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];
   // v600 — "Minha agenda": as minhas + as que eu criei para outras pessoas (antes sumiam e pareciam não salvas) + convites
-  else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, { layout: { path: ["acompanhaId"], equals: u.id } }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v756 — layout reprovado por mim
+  else if (escopo === "agenda") where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, { layout: { path: ["acompanhaId"], equals: u.id } }, { layout: { path: ["vendedorId"], equals: u.id } }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v756 — layout reprovado por mim
   else if (escopo === "criadas") where.criadoPorId = u.id;
   const R = await projRestritos();
   const meusProj = Object.values(R).filter((p) => acessoProj(p, u)).map((p) => p.id);
-  if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v733
+  if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, { layout: { path: ["vendedorId"], equals: u.id } }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v733
   const lid = await lideradosDe(u.id);   // v782 — gestor: tarefas dos liderados (Designadas)
   if (lid.length && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { responsavelId: { in: lid } }];
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
