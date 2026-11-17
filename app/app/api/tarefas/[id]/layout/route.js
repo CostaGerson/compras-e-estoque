@@ -6,12 +6,15 @@ import { usuarioAtivo } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
 import { opDaTarefa, marcarLayout, enviarAprovacao, decidirLayout } from "@/lib/layoutFluxo";
 
-const pode = (t, u) => !!t && !!u && (t.responsavelId === u.id || t.criadoPorId === u.id || ehMaster(u) || !!u.diretoria);
+import { supervisorLayoutId } from "@/lib/tarefas";
+// v892 — ver a OP: também o vendedor, quem lançou, quem reprovou e o supervisor da personalização (Maycon)
+const pode = async (t, u) => !!t && !!u && (t.responsavelId === u.id || t.criadoPorId === u.id || ehMaster(u) || !!u.diretoria
+  || [t.layout?.criadorId, t.layout?.vendedorId, t.layout?.acompanhaId].some((x) => Number(x) === u.id) || (await supervisorLayoutId()) === u.id);
 
 export async function GET(req, { params }) {
   const u = await usuarioAtivo(new URL(req.url).searchParams.get("u"));
   const t = await prisma.tarefa.findUnique({ where: { id: Number(params.id) || 0 } });
-  if (!t?.layout || !pode(t, u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
+  if (!t?.layout || !(await pode(t, u))) return Response.json({ error: "Sem acesso." }, { status: 403 });
   const sp = new URL(req.url).searchParams;
   // arquivos do pedido / do item para a OP (quem tem a tarefa, mesmo sem acesso ao lançamento)
   if (sp.get("anexo") || sp.get("item") != null && sp.get("k") != null) {
@@ -29,8 +32,10 @@ export async function POST(req, { params }) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioAtivo(b.usuarioId);
   const t = await prisma.tarefa.findUnique({ where: { id: Number(params.id) || 0 } });
-  if (!t?.layout || !pode(t, u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
+  if (!t?.layout || !(await pode(t, u))) return Response.json({ error: "Sem acesso." }, { status: 403 });
   let r;
+  // v892 — aprovar/reprovar continua só com o vendedor (responsável da aprovação); enviar só com o arte finalista
+  if (["aprovar", "reprovar", "enviar"].includes(b.acao) && t.responsavelId !== u.id) return Response.json({ error: b.acao === "enviar" ? "Só o arte finalista envia para aprovação." : "A aprovação do layout é do vendedor do pedido." }, { status: 403 });
   if (b.acao === "marcar") r = await marcarLayout(t, b.idx, b.arquivoId, !!b.remover);   // v736 — remover: tira o arquivo do item
   else if (b.acao === "enviar") r = await enviarAprovacao(t, u);
   else if (b.acao === "aprovar") r = await decidirLayout(t, u, true);

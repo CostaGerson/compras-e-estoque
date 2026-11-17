@@ -13,7 +13,7 @@ export async function GET(req) {
     usuariosParaTarefa(), statusEquipe(u), listarProjetos(u).catch(() => []),
   ]);
   const { lideradosDe, supervisorLayoutId } = await import("@/lib/tarefas");   // v782
-  return Response.json({ tarefas, usuarios, equipe, projetos, setores: SETORES_TAREFA, liderados: await lideradosDe(u.id), supervisorLayout: (await supervisorLayoutId()) === u.id });   // v891
+  return Response.json({ tarefas, usuarios, equipe, projetos, setores: SETORES_TAREFA, liderados: await lideradosDe(u.id), supervisorLayout: (await supervisorLayoutId()) === u.id, arteId: globalThis.__arteId || null });   // v892   // v891
 }
 
 // POST { usuarioId, tarefa: { titulo, descricao, setor, responsavelId, prazo, tipo, publica, recorrencia, subtarefas, dependencias } }

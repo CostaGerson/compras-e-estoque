@@ -45,13 +45,15 @@ const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.i
 const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id || Number(t.layout?.vendedorId) === u.id   // v888 — vendedor do pedido acompanha   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)
-  || (ehLayoutT(t) && (await supervisorLayoutId()) === u.id) || doPedido(t, u)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
+  || ((await supervisorLayoutId()) === u.id && ehPers(t)) || doPedido(t, u)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 // v891 — #87: quem pediu o design (quem lançou o pedido, o vendedor, quem reprovou, o solicitante da aprovação) e o supervisor
 //   da personalização também editam, acrescentam informação e anexam — antes só o arte finalista (criador e responsável) podia
 const ehLayoutT = (t) => t.layout?.etapa === "CRIACAO" || /^CRIAÇÃO DE LAYOUT/.test(t.titulo || "");
 const doPedido = (t, u) => (!!t.layout && [t.layout.criadorId, t.layout.vendedorId, t.layout.acompanhaId].some((x) => Number(x) === u.id))
-  || Number(t.aprovacao?.solicitanteId) === u.id || (ehLayoutT(t) && globalThis.__supLayout === u.id);
+  || Number(t.aprovacao?.solicitanteId) === u.id || (ehPers(t) && globalThis.__supLayout === u.id);
+// v892 — personalização = criação de layout + toda demanda funcional do arte finalista (Ayrllon)
+const ehPers = (t) => ehLayoutT(t) || (!!globalThis.__arteId && t.responsavelId === globalThis.__arteId && t.natureza !== "PESSOAL");
 const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u) || doPedido(t, u);
 // v891 — supervisor da personalização (Maycon): toda CRIAÇÃO DE LAYOUT do arte finalista aparece nas Designadas dele
 const semAc = (x) => String(x || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
@@ -61,6 +63,7 @@ export async function supervisorLayoutId() {
   const us = await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, diretoria: true } }).catch(() => []);
   const ms = us.filter((x) => semAc(x.nome).split(" ")[0] === "MAYCON");
   globalThis.__supLayout = (ms.find((x) => x.diretoria) || ms[0])?.id || null; globalThis.__supLayoutEm = Date.now();
+  try { globalThis.__arteId = (await (await import("@/lib/layoutFluxo")).arteFinalista())?.id || null; } catch { globalThis.__arteId = null; }   // v892
   return globalThis.__supLayout;
 }
 
@@ -147,9 +150,9 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const lid = await lideradosDe(u.id);   // v782 — gestor: tarefas dos liderados (Designadas)
   if (lid.length && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { responsavelId: { in: lid } }];
   const sup = (await supervisorLayoutId()) === u.id;   // v891
-  if (sup && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }];
+  if (sup && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, ...(globalThis.__arteId ? [{ responsavelId: globalThis.__arteId }] : [])];   // v892
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId) || (sup && ehLayoutT(t)));   // v791 — inclusive as que o liderado cria para si
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId) || (sup && ehPers(t)));   // v791 — inclusive as que o liderado cria para si
   return enriquecer(l, u);
 }
 
