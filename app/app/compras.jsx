@@ -366,7 +366,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
         {[["pendentes", `Sem FPP (${nPend})`], ["completos", "Com FPP em todos os itens"], ["todos", `Todos (${d.pedidos.length})`], ["fora", `Fora do PCP (${d.pedidos.filter((p) => p.fasePcp === "FORA").length})`], ["avulsas", "Compras avulsas"], ["dispensadas", `Compras dispensadas (${(d.dispensados || []).length + (d.dispensadosItens || []).length})`]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{l}</button>
         ))}
-        <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+        <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel, order: -1 }}>
           <Search size={14} style={{ color: C.sub }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Pedido, cliente, item…" className="py-1.5 text-sm outline-none w-56" />
         </div>
@@ -1950,7 +1950,7 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
       <div className="flex items-center gap-2 mb-2">
         <div className="text-base font-bold" style={{ color: C.navy }}>{soAvulsas ? "Itens das compras avulsas" : "Demandas de compra"}</div>
         <span className="text-xs" style={{ color: C.sub }}>{soAvulsas ? "do lançamento ao recebimento, por etapa" : "tudo que está em PIC, por etapa"}</span>
-        <div className="flex items-center gap-2 px-2 rounded ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={14} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artigo, fornecedor, OC, pedido…" className="py-1.5 text-sm outline-none w-56" /></div>
+        <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={14} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artigo, fornecedor, OC, pedido…" className="py-1.5 text-sm outline-none w-56" /></div>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
         {acoes}
       </div>

@@ -431,7 +431,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
             style={filtro === k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>
             {t} <span style={{ opacity: 0.7 }}>{k === "TODOS" ? pedidos.length : cont[k] || 0}</span></button>
         ))}
-        <div className="relative ml-auto">
+        <div className="relative" style={{ order: -1 }}>
           <Search size={14} className="absolute left-2.5 top-2" style={{ color: C.sub }} />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente, item…" className="rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none" style={{ ...inp, width: mobile ? 180 : 240 }} />
         </div>

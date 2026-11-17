@@ -1592,7 +1592,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">   {/* v516 — mais espaço entre voltar, proposta e as guias */}
+      <div className="flex items-center mb-5 flex-wrap gap-3">   {/* v920 — busca no canto esquerdo · v516 — mais espaço entre voltar, proposta e as guias */}
         <div className="text-sm flex items-center gap-4 flex-wrap" style={{ color: C.sub }}>
           {filtro ? (
             <button onClick={() => setFiltro(null)} className="flex items-center gap-1" style={{ color: C.accent }}>
@@ -1613,7 +1613,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
             </button>
           ) : cards ? `${cards.length} ${g.label.toLowerCase()}(s) · ${lista.length} ficha(s)` : `${q ? dados.length + " de " : ""}${lista.length} ficha(s)`}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" style={{ order: -1 }}>
           <div className="relative">
             <Search size={14} style={{ color: C.sub, position: "absolute", left: 8, top: 9 }} />
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={cards ? `Buscar ${g.label.toLowerCase()}…` : "Buscar em todas as FPPs…"}

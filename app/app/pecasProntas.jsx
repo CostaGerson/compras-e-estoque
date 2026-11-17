@@ -61,7 +61,7 @@ export default function PecasProntas({ user }) {
         {[["ESTOQUE", "Peças prontas"], ["TODOS", "Todos os nomes (equivalência)"]].map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 text-sm font-semibold rounded-md" style={{ background: aba === k ? "#EAF2FC" : "transparent", color: aba === k ? "#2E7CD6" : C.text }}>{t}</button>)}
         <div className="flex-1" />
         <Chip k="SEMCUSTO" t="Sem custo" n={base.filter((i) => i.custoUnit == null).length} /><Chip k="MINIMO" t="Abaixo do mínimo" n={base.filter((i) => i.abaixoMinimo).length} /><Chip k="DIVERG" t="Divergência" />
-        <div className="flex items-center gap-1 px-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={13} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar item…" className="py-1.5 text-sm outline-none" /></div>
+        <div className="flex items-center gap-1 px-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.panel, order: -1 }}><Search size={13} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar item…" className="py-1.5 text-sm outline-none" /></div>
       </div>
       <datalist id="nort-itens-padrao">{Object.keys(ipPorTexto).map((k) => <option key={k} value={k} />)}</datalist>
       <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>

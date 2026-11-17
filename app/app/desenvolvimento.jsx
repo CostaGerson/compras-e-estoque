@@ -201,7 +201,7 @@ export default function Desenvolvimento({ user }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex-1 min-w-[260px]">
+        <div className="min-w-[260px]" style={{ maxWidth: 560 }}>   {/* v920 — busca à esquerda */}
           <div className="text-lg font-bold" style={{ color: C.navy }}>Desenvolvimento</div>
           <div className="text-xs" style={{ color: C.sub }}>Sugestões de melhoria dos usuários. Acate depois que a alteração subir, ou recuse com o motivo — o autor recebe mensagem e e-mail.</div>
         </div>
@@ -209,6 +209,7 @@ export default function Desenvolvimento({ user }) {
           <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}`, width: 220 }} />
         </div>
+        <div className="flex-1" />
       </div>
       <div className="flex flex-wrap gap-2 mb-4">
         {FILTROS.map(([k, t]) => (

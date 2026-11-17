@@ -179,11 +179,12 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-3">
-        <div className="flex-1 min-w-[240px]">
+        <div className="min-w-[240px]">   {/* v920 — busca logo depois do título (lado esquerdo) */}
           {!embutido && <div className="text-lg font-bold" style={{ color: C.navy }}>Tarefas</div>}
           <div className="text-xs" style={{ color: C.sub }}>Demandas entre os setores · recorrente <Repeat size={11} className="inline" style={{ color: C.sub }} /> · urgente <b style={{ color: C.red }}>vermelho</b> · padrão <b style={{ color: C.cinza }}>cinza</b></div>
         </div>
         <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 200 }} /></div>
+        <div className="flex-1" />
         <Btn onClick={() => setForm({ prazo: H, setor: setorTarefaDe(user), responsavelId: user.id, projetoId, natureza: natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", publica: natureza !== "PESSOAL" })}><Plus size={14} /> Nova demanda</Btn>
       </div>
       {d && <EquipeAgora equipe={d.equipe} onAbrir={(id) => setAbrir(id)} />}
@@ -1779,8 +1780,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
               <button onClick={() => { setDir(0); setRef(H); }} className={mobile ? "text-sm px-2 py-2 font-semibold" : "text-sm px-1"} style={{ color: A.texto }}>Hoje</button>
               <button onClick={() => mover(1)} className={mobile ? "p-2 rounded" : "p-1 rounded"} style={{ color: A.sub }}><ChevronRight size={mobile ? 22 : 18} /></button>
               {!(mobile && modo === "mes") && <span className="text-sm" style={{ color: A.sub }}>{titulo}</span>}
+              <div style={{ order: -1 }}><BuscaAgenda user={user} P={P} mobile={mobile} onAbrir={(t) => { setAbrir(t.id); }} /></div>   {/* v920 — busca no canto esquerdo */}
               <span className="flex-1" />
-              <BuscaAgenda user={user} P={P} mobile={mobile} onAbrir={(t) => { setAbrir(t.id); }} />
               {/* v735 — botão Designadas: clicar alterna; a seta escolhe o colaborador (só quem tem tarefa designada) */}
               <div className="relative flex items-stretch rounded-md text-xs font-semibold" style={{ border: `1px solid ${designadas ? A.azul : A.linha}`, background: designadas ? A.azulSoft : "transparent", color: designadas ? A.azul : A.texto, transition: "all .18s" }}>
                 <button onClick={() => { setDesignadas((v) => !v); if (designadas) setColab(null); setMenuColab(false); }} title={designadas ? "Voltar para as minhas tarefas" : "Ver as tarefas que você designou"}

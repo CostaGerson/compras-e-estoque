@@ -1407,11 +1407,12 @@ export function Destinatarios({ user }) {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1">
+        <div style={{ maxWidth: 520 }}>   {/* v920 — busca à esquerda */}
           <div className="text-lg font-bold" style={{ color: C.navy }}>Destinatários</div>
           <div className="text-xs" style={{ color: C.sub }}>Locais das demandas de rota que não são fornecedor, terceirizado nem cliente. Um nome novo na demanda de rota entra aqui sozinho.</div>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="px-3 py-1.5 rounded-md text-sm w-56" style={{ border: `1px solid ${C.line}` }} />
+        <div className="flex-1" />
         <button onClick={() => setEd({})} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo</button>
       </div>
       <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>

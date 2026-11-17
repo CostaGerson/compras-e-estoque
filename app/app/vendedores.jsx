@@ -85,8 +85,8 @@ export default function Vendedores({ user }) {
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <div className="text-lg font-bold" style={{ color: C.navy }}>Vendedores</div>
         <span className="text-sm" style={{ color: C.sub }}>comissionados · a comissão vai para o contas a pagar (conta 2119000 · Comissão de vendas)</span>
-        <div className="flex-1" />
         <div className="relative"><Search size={14} className="absolute left-2 top-2.5" style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" className="pl-7 pr-2 py-1.5 rounded-lg text-sm outline-none" style={inpS} /></div>
+        <div className="flex-1" />
         <button onClick={() => setEd({})} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white flex items-center gap-1" style={{ background: C.accent }}><Plus size={15} /> Vendedor</button>
       </div>
       {!lista.length ? <div className="text-sm py-8 text-center" style={{ color: C.sub }}>Nenhum vendedor cadastrado.</div> : (
