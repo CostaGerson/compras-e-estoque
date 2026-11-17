@@ -87,3 +87,11 @@ export async function respostaAnexo(b64, { nome, mime } = {}) {
   const mm = s.match(/^data:([^;,]+)[^,]*,/);
   return new Response(Buffer.from(s.replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || mm?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome || "arquivo")}` } });
 }
+
+// v903 — base64 de um anexo, venha ele do banco ou do disco ("arq:<token>")
+export async function lerBase64(s) {
+  if (!s) return null;
+  const t = tokenDe(s);
+  if (!t) return String(s).replace(/^data:[^,]+,/, "");
+  try { return (await fs.readFile(cam(t))).toString("base64"); } catch { return null; }
+}

@@ -2,7 +2,7 @@
 // v135 — Contas a receber atrasadas: em cobrança → execução judicial ou perda reconhecida
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { MarcaA, BotaoExcel, exportarExcel } from "./antecipacoes";
-import { CardCobrancaModal, EmailCobrancaModal } from "./cobranca";   // v205
+import { CardCobrancaModal, EmailCobrancaModal, BotaoNfs } from "./cobranca";   // v205
 import { Mail, Image as ImageIcon } from "lucide-react";
 import { Loader2, Search, Gavel, Ban, Undo2, CheckCircle2, X, Paperclip, Upload, Trash2, Download, Plus, ChevronRight, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
 import { confirmar } from "./dialogo";   // v424 — popups do sistema
@@ -164,6 +164,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
         {/* v205 — Excel (marcadas, ou todas da tela) e cobrança das marcadas */}
         <BotaoExcel onClick={() => exportarExcel(user, (escolhidas.length ? lista.filter((t) => sel.has(t.id)) : lista).map((t) => t.id),
           `Atrasados a receber${escolhidas.length ? " (selecionados)" : ""}${busca ? ` · busca "${busca}"` : ""}`, `atrasados-receber-${hojeISO()}.xlsx`)} />
+        {escolhidas.length > 0 && <BotaoNfs user={user} ids={escolhidas.map((t) => t.id)} />}   {/* v903 */}
         <BtnA cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={14} /> E-mail de cobrança</BtnA>
         <BtnA cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={14} /> Gerar card cobrança</BtnA>
         <BtnA cor={C.green} disabled={!escolhidas.length} onClick={() => setModal("baixar")} title="Baixar como recebida (justificativa ou arquivo obrigatório)"><CheckCircle2 size={14} /> Baixar</BtnA>
@@ -202,7 +203,7 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
       {modal === "execucao" && <MoverExecucao user={user} contas={escolhidas} execucoes={d.execucoes.filter((e) => e.status === "ATIVA")}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.movidas} conta(s) movida(s) para a execução.`); irExecucao(r.execucaoId); }} />}
       {modal === "card" && <CardCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
-      {modal === "email" && <EmailCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
+      {modal === "email" && <EmailCobrancaModal user={user} contas={escolhidas} onClose={() => setModal(null)} />}
       {modal === "baixar" && <BaixarAtrasadas user={user} contas={escolhidas}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.baixadas} conta(s) baixada(s) · ${moeda(r.valor)} recebido(s) em ${dBR(r.data)}.`); }} />}
       {modal === "perda" && <ReconhecerPerda user={user} contas={escolhidas}

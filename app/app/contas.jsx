@@ -6,6 +6,7 @@ import AtrasoReceber from "./atraso";
 import Lixeira from "./lixeira";
 import ConferirBanco from "./conferirBanco";   // v823
 import Nort from "./nort";   // v808 — guia NORT
+import { BotaoNfs } from "./cobranca";   // v903
 import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel, BotaoRecompra, BotaoObs, Notas } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
@@ -624,6 +625,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
               <span style={{ opacity: 0.8 }}>· {moeda(marcados.reduce((a, t) => a + t.valor, 0))}</span>
               <div className="flex-1" />
               <button onClick={() => setLote("baixar")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={14} /> {P ? "Baixar" : "Receber"}</button>
+              {!P && <BotaoNfs user={user} ids={marcados.map((t) => t.id)} estilo={{ background: "#fff", color: C.navy }} />}   {/* v903 */}
               <button onClick={() => setLote("excluir")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}><Trash2 size={14} /> Excluir</button>
               <button onClick={() => setSel(new Set())} className="px-2 py-1.5 text-xs underline" style={{ color: "#fff" }}>limpar</button>
             </div>
