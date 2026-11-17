@@ -48,6 +48,7 @@ import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups d
 import PedidoEditor from "./pedidoEditor";
 import Integracoes from "./integracoes";   // v732
 import PecasProntas from "./pecasProntas";   // v906
+import Sistemas from "./sistemas";   // v907
 import Vendedores from "./vendedores";   // v747
 import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
 import { partesTecido } from "@/lib/pedidoLanc";   // v809
@@ -323,7 +324,7 @@ export default function Home() {
   const liberadas = folhas(menu);
   const pode = (k) => liberadas.includes(k);
   // tela que o usuário não tem: vai para a primeira que ele tem
-  if (!["mensagens", "notificacoes", "agenda", "tarefas"].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
+  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
   const inicio = soTarefas(user) ? "tarefas" : perfil === "RH" ? "rh" : "gestao";   // v733
   const caminho = caminhoMenu(menu, view) || [];
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
@@ -363,7 +364,10 @@ export default function Home() {
                     className={`hover:underline ${i < caminho.length - 1 ? "font-normal" : "font-semibold"}`}
                     style={{ color: i < caminho.length - 1 ? C.sub : C.text }}>{n.label}</button>
                 </React.Fragment>
-              )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : view === "agenda" ? "Agenda" : view === "tarefas" ? "Tarefas" : "")}
+              )) : (view === "notificacoes" ? "Notificações" : view === "mensagens" ? "Mensagens" : view === "agenda" ? "Agenda" : view === "tarefas" ? "Tarefas" : view === "sistemas" ? "Sistemas do grupo" : "")}
+              {/* v907 — botão S: sistemas do grupo (PCP, CRM, dashboard NORT) */}
+              {view === "gestao" && pode("gestao") && <button onClick={() => setView("sistemas")} title="Sistemas do grupo Meridian (PCP, CRM, NORT)"
+                className="ml-2 flex items-center justify-center rounded-md font-extrabold text-xs" style={{ width: 24, height: 24, background: "#0C2342", color: "#7DD3FC", boxShadow: "0 0 10px rgba(59,130,246,.55)" }}>S</button>}
             </div>
   );
   return (
@@ -441,6 +445,7 @@ export default function Home() {
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}
+          {view === "sistemas" && pode("gestao") && <Sistemas user={user} onVoltar={() => setView("gestao")} />}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
