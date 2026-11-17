@@ -3,10 +3,25 @@
 import React, { useEffect, useState } from "react";
 import { KeyRound, Copy, Eye, EyeOff, RefreshCw, Loader2, CheckCircle2 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import IntegracaoEmail from "./integracaoEmail";   // v895
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", red: "#D92D20" };
 
+// v895 — abas: PCP e E-mail (Resend, só master)
 export default function Integracoes({ user }) {
+  const [aba, setAba] = useState("pcp");
+  const abas = [["pcp", "PCP"], ...(user?.isMaster ? [["email", "E-mail"]] : [])];
+  return (
+    <div>
+      <div className="text-lg font-bold mb-2" style={{ color: C.navy }}>Integrações</div>
+      <div className="flex gap-1 mb-4">{abas.map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 text-sm font-semibold rounded-md"
+        style={{ background: aba === k ? "#EAF2FC" : "transparent", color: aba === k ? "#2E7CD6" : C.text }}>{t}</button>)}</div>
+      {aba === "email" ? <IntegracaoEmail user={user} /> : <IntegracaoPcp user={user} />}
+    </div>
+  );
+}
+
+function IntegracaoPcp({ user }) {
   const [d, setD] = useState(null);
   const [ver, setVer] = useState(false);
   const [copiado, setCopiado] = useState("");
@@ -26,7 +41,6 @@ export default function Integracoes({ user }) {
   if (d.erro) return <div className="text-sm" style={{ color: C.red }}>{d.erro}</div>;
   return (
     <div className="max-w-4xl">
-      <div className="text-lg font-bold mb-1" style={{ color: C.navy }}>Integração</div>
       <div className="text-sm mb-4" style={{ color: C.sub }}>Token que o PCP (Maycon) usa para ler e gravar no ERP. É <b>um token só</b> para todos os endereços abaixo, enviado no cabeçalho <code>X-Api-Key</code>.</div>
       <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center gap-2 mb-2"><KeyRound size={16} style={{ color: C.accent }} /><span className="font-semibold" style={{ color: C.navy }}>Token da API (PCP)</span></div>
