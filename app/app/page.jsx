@@ -40,6 +40,7 @@ function ModoDemo({ tudo }) { useModoDemo(tudo); return null; }
 import { ouvirColar } from "./colarPdf";
 import AnaliseCorte, { AnalisePersonalizacao } from "./analisesOp";
 import CustoImpressao from "./custoImpressao";   // v923
+import { calcMetro as calcMetroCI } from "@/lib/custoImpressao";   // v924
 import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
@@ -595,9 +596,13 @@ function VoltaCard({ r }) {
 }
 function CardsGrupo({ grupo, ir, user }) {
   const [volta, setVolta] = useState(null);
+  const [metro, setMetro] = useState({});   // v924
   useEffect(() => {
     if (grupo.key !== "analisesOp" || !user?.id) return;
     fetch(`/api/producao/analises?u=${user.id}&acao=resumo`).then((r) => (r.ok ? r.json() : null)).then(setVolta).catch(() => setVolta(null));
+    // v924 — custo do metro linear de sublimação e DTF nos cards
+    Promise.all(["SUBLIMACAO", "DTF"].map((t) => fetch(`/api/producao/custoImpressao?u=${user.id}&tipo=${t}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)))
+      .then(([a, b]) => setMetro({ anSublimacao: a ? calcMetroCI("SUBLIMACAO", a.params).c.total : null, anDtf: b ? calcMetroCI("DTF", b.params).c.total : null }));
   }, [grupo.key, user?.id]);
   const Ico = grupo.icon;
   const an = grupo.key === "analisesOp";
@@ -620,6 +625,10 @@ function CardsGrupo({ grupo, ir, user }) {
               <div className="flex items-center gap-2 min-w-0"><I size={an ? 18 : 22} style={{ color: C.accent }} className="shrink-0" /><div className={`${an ? "text-sm" : "text-base"} font-bold truncate`}>{f.label}</div></div>
               <div className={`${an ? "text-[10px] leading-[14px]" : "text-xs"} mt-1 mb-3`} style={{ color: f.filhos ? C.sidebarSub : C.sub }}>{f.desc}</div>
               {volta && SETOR_DO_CARD[f.key] && <VoltaCard r={volta.setores?.[SETOR_DO_CARD[f.key]]} />}
+              {metro[f.key] != null && <div className="mt-auto pt-3 w-full" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="text-[10px] font-semibold uppercase whitespace-nowrap" style={{ color: C.sub }}>Custo do metro</div>
+                <div className="text-lg font-bold tabular-nums" style={{ color: C.sidebar }}>{`R$ ${metro[f.key].toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
+              </div>}
               {f.filhos && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {f.filhos.map((x) => (
