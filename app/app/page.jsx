@@ -27,7 +27,7 @@ import { FolderUp } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
-import Tarefas, { Agenda, StatusPessoa } from "./tarefas";
+import Tarefas, { Agenda, StatusPessoa, TarefaDetalhe } from "./tarefas";
 import { imprimirPedido } from "./impressaoPedido";   // v615
 import { gruposDuplicados, internoDe, semInterno } from "@/lib/artigoConsolidar";   // v640
 import { SeletorTipo, ehCategoriaTipo, ArtigosInternosPane } from "./artigosInternos";   // v625
@@ -1020,6 +1020,7 @@ function Mensagens({ user, onMudou }) {
   const [aberta, setAberta] = useState(null);
   const [sel, setSel] = useState([]);   // v861 — selecionadas (ações em lote)
   const [fEtq, setFEtq] = useState(null);   // v862 — filtro por etiqueta
+  const [tarefaMsg, setTarefaMsg] = useState(null);   // v918 — card da tarefa aberto pela mensagem
   const mob = useMobile();
 
   const carregar = async () => {
@@ -1142,7 +1143,7 @@ function Mensagens({ user, onMudou }) {
     detalhe: (
       <>
         <div className="text-xs mb-2" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
-        <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{m.texto}</div>
+        <div className={`text-sm whitespace-pre-wrap ${m.tarefaId ? "cursor-pointer hover:underline" : ""}`} style={{ color: C.text }} title={m.tarefaId ? "Abrir a tarefa" : undefined} onClick={m.tarefaId ? () => setTarefaMsg(m.tarefaId) : undefined}>{m.texto}</div>
         {/* v607 — convite de evento: responde aqui mesmo; confirmado aparece na agenda da pessoa */}
         {m.convite && <div className="flex items-center gap-2 mt-3 flex-wrap">
           {m.convite === "PENDENTE" ? <>
@@ -1158,6 +1159,7 @@ function Mensagens({ user, onMudou }) {
           <select value={m.etiqueta || "COMUNICACAO"} onChange={(e) => lote("etiquetar", [m.id], e.target.value)} title="Etiqueta" className="text-xs px-2 py-1.5 rounded-full outline-none" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>
             {ETIQUETAS.map((e) => <option key={e.k} value={e.k}>🏷 {e.nome}</option>)}
           </select>
+          {m.tarefaId && <button onClick={() => setTarefaMsg(m.tarefaId)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: C.accent, color: "#fff" }}>Abrir tarefa</button>}
           <button onClick={() => responder(m)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.text }}>↩ Responder</button>
           {m.excluidaEm
             ? <button onClick={() => lote("restaurar", [m.id])} className="text-xs px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Restaurar</button>
@@ -1190,6 +1192,7 @@ function Mensagens({ user, onMudou }) {
 
   return (
     <div className="flex gap-4" style={{ flexDirection: mob ? "column" : "row", alignItems: "flex-start" }}>
+      {tarefaMsg && <TarefaDetalhe user={user} id={tarefaMsg} usuarios={usuarios} onClose={() => setTarefaMsg(null)} onMudou={() => {}} editarDireto />}
       {/* v861 — pastas à esquerda, como no Gmail */}
       <div className="shrink-0" style={{ width: mob ? "100%" : 220 }}>
         <button onClick={() => setAba("nova")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-semibold mb-3 shadow-sm" style={{ background: C.accentSoft, color: C.text }}><Pencil size={18} /> Escrever</button>

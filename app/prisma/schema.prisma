@@ -131,6 +131,7 @@ model Mensagem {
   lida      Boolean  @default(false)
   arquivada Boolean  @default(false)
   conviteTarefaId Int?               // v607 — convite de evento: confirmar/recusar direto pela mensagem
+  tarefaId  Int?                       // v918 — tarefa ligada à mensagem: clicar abre o card dela
   prioritaria Boolean @default(false)   // v761 — fixa no topo das recebidas até arquivar (ex.: boleto pago por PIX)
   tituloId  Int?                       // v761 — conta (FinTitulo) ligada à mensagem: clicar abre no contas a pagar/receber
   etiqueta   String?                   // v862 — COMUNICACAO | LANCAMENTO; vazia = automática pelo texto (lib/msgEtiquetas)

@@ -38,7 +38,35 @@ export async function GET(req) {
       m.convite = !t || t.excluidaEm || t.status === "CANCELADA" ? "CANCELADO" : cs.find((c) => c.tarefaId === m.conviteTarefaId)?.status || "REMOVIDO";
     }
   }
+  await ligarTarefas([...recebidasTodas, ...enviadas.slice(0, 300)]).catch(() => null);   // v918
   return Response.json({ recebidas, arquivadas, lixeira, enviadas, naoLidas });
+}
+
+// v918 — tarefa de cada mensagem (clicar abre o card). Mensagens antigas, sem o vínculo: pelo texto
+//   "(#123)", "LAYOUT … pedido N" e "DEMANDA …: título"
+async function ligarTarefas(ms) {
+  const semAc = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const busca = {};   // chave → [mensagens]
+  for (const m of ms) {
+    if (m.tarefaId || m.conviteTarefaId) { m.tarefaId = m.tarefaId || m.conviteTarefaId; continue; }
+    const t = String(m.texto || "");
+    let k = null;
+    const h = t.match(/\(#(\d+)\)/); if (h) k = `ID|${h[1]}`;
+    const l = !k && semAc(t).match(/(CRIACAO DE LAYOUT|APROVACAO DE LAYOUT|LAYOUT REPROVADO|LAYOUT APROVADO)\s*[—-]\s*PEDIDO\s+(\d+)/);
+    if (l) k = `LAY|${/APROVACAO DE|APROVADO/.test(l[1]) && !/REPROVADO/.test(l[1]) ? "APROVA" : "CRIA"}|${l[2]}`;
+    const d = !k && t.match(/^(?:📌 NOVA DEMANDA(?: URGENTE)?|📌 DEMANDA PASSADA PARA VOCÊ|✅ DEMANDA CONCLUÍDA|✅ APROVADO|↩ REPROVADO|🖼 .+? enviou para aprovação)[^:]*:\s*(.+?)(?:\s+\(\d+ arquivo|\s+—\s|\s+\(|$)/);
+    if (d && d[1].trim().length >= 3) k = `TIT|${d[1].trim().replace(/\.$/, "")}`;
+    if (k) (busca[k] ||= []).push(m);
+  }
+  const ks = Object.keys(busca).slice(0, 80);
+  for (const k of ks) {
+    const [tipo, a, b] = k.split("|");
+    let t = null;
+    if (tipo === "ID") t = await prisma.tarefa.findUnique({ where: { id: Number(a) }, select: { id: true } });
+    else if (tipo === "LAY") t = await prisma.tarefa.findFirst({ where: { titulo: { startsWith: a === "APROVA" ? "APROVAÇÃO DE LAYOUT" : "CRIAÇÃO DE LAYOUT" }, AND: [{ titulo: { contains: `PEDIDO ${b} ` } }] }, orderBy: { id: "desc" }, select: { id: true } });
+    else t = await prisma.tarefa.findFirst({ where: { titulo: k.slice(4) }, orderBy: { id: "desc" }, select: { id: true } });
+    if (t) for (const m of busca[k]) m.tarefaId = t.id;
+  }
 }
 
 // POST /api/mensagens  { deId, paraId, texto } · { deId, texto, aviso: true } → aviso do desenvolvedor para todos (só master)

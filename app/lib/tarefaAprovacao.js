@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const hojeSP = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const dUTC = (s) => new Date(String(s).slice(0, 10) + "T00:00:00Z");
-const msg = (deId, paraId, texto) => (deId && paraId && deId !== paraId ? prisma.mensagem.create({ data: { deId, paraId, texto: texto.slice(0, 2000) } }).catch(() => null) : null);
+const msg = (deId, paraId, texto, tarefaId = null) => (deId && paraId && deId !== paraId ? prisma.mensagem.create({ data: { deId, paraId, texto: texto.slice(0, 2000), ...(tarefaId ? { tarefaId } : {}) } }).catch(() => null) : null);   // v918 — tarefaId
 
 // demandas abertas antigas para o arte finalista, criadas por outra pessoa, entram no fluxo (uma vez por processo)
 let ajustado = false;
@@ -58,7 +58,7 @@ export async function enviarParaAprovacao(t, u) {
   try { const { fecharSessoes } = await import("@/lib/tarefas"); await fecharSessoes({ tarefaId: t.id }); } catch {}
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), emAndamentoDesde: null,
     retorno: `Enviado para aprovação de ${nomeU(sol)}${rodada > 1 ? ` (rodada ${rodada})` : ""}.`, aprovacao: { ...A, etapa: "AGUARDANDO", aprovacaoId: ap.id } } });
-  await msg(u.id, sol.id, `🖼 ${nomeU(u)} enviou para aprovação: ${t.titulo} (${arqs.length} arquivo(s)). Está na sua agenda de hoje.`);
+  await msg(u.id, sol.id, `🖼 ${nomeU(u)} enviou para aprovação: ${t.titulo} (${arqs.length} arquivo(s)). Está na sua agenda de hoje.`, ap.id);
   return { ok: true, aprovacaoId: ap.id };
 }
 
@@ -73,7 +73,7 @@ export async function decidirAprovacao(t, u, aprovar, motivo) {
   if (aprovar) {
     await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "APROVADO", aprovacao: { ...A, decisao: "APROVADO" } } });
     if (orig) await prisma.tarefa.update({ where: { id: orig.id }, data: { retorno: `Aprovado por ${nomeU(u)}${Number(A.rodada) > 1 ? ` (rodada ${A.rodada})` : ""}.`, aprovacao: { ...(orig.aprovacao || {}), etapa: "APROVADO", aprovadoEm: new Date().toISOString() } } });
-    await msg(u.id, orig?.responsavelId || A.executorId, `✅ APROVADO por ${nomeU(u)}: ${orig?.titulo || t.titulo}`);
+    await msg(u.id, orig?.responsavelId || A.executorId, `✅ APROVADO por ${nomeU(u)}: ${orig?.titulo || t.titulo}`, orig?.id || t.id);
     return { ok: true };
   }
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${inst}`, aprovacao: { ...A, decisao: "REPROVADO", motivo: inst } } });
@@ -86,7 +86,7 @@ export async function decidirAprovacao(t, u, aprovar, motivo) {
       descricao: `${String(orig.descricao || "").split("\n⚠ REPROVADO")[0]}\n⚠ REPROVADO por ${nomeU(u)} (rodada ${rod - 1}): ${inst}`.slice(0, 5000),
       aprovacao: { ...Ao, etapa: "EXECUCAO", rodada: rod, desdeArquivoId: ultimo?.id || 0, motivo: inst, aprovacaoId: null },
     } });
-    await msg(u.id, orig.responsavelId, `↩ REPROVADO por ${nomeU(u)}: ${orig.titulo} — ${inst}. A demanda voltou para a sua agenda de hoje.`);
+    await msg(u.id, orig.responsavelId, `↩ REPROVADO por ${nomeU(u)}: ${orig.titulo} — ${inst}. A demanda voltou para a sua agenda de hoje.`, orig.id);
   }
   return { ok: true };
 }

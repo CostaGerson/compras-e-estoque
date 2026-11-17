@@ -278,7 +278,7 @@ export async function criar(b, u) {
   } else criada = await prisma.tarefa.create({ data: { ...base, ...(comAprov ? { aprovacao: { etapa: "EXECUCAO", solicitanteId: u.id, solicitanteNome: nome(u), rodada: 1, desdeArquivoId: 0 } } : {}) } });
   if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
   if (criada && b.decisao) await (await import("@/lib/decisoes")).salvarDecisao(criada, b.decisao, u);   // v655
-  await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`);
+  await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`, { tarefaId: t.id });
   return { ok: true, tarefa: criada };
 }
 
@@ -309,7 +309,7 @@ export async function editar(id, b, u) {
     await prisma.tarefa.updateMany({ where: { serieId: x.serieId, id: { not: x.id }, status: "ABERTA" }, data: comuns });
     if (data.projetoId !== x.projetoId) await prisma.tarefa.updateMany({ where: { serieId: x.serieId, id: { not: x.id }, status: "CONCLUIDA" }, data: { projetoId: data.projetoId } });
   }
-  if (resp) await avisar(u.id, t.responsavelId, `📌 DEMANDA PASSADA PARA VOCÊ por ${nome(u)}: ${t.titulo} — prazo ${t.prazo.split("-").reverse().join("/")}.`);
+  if (resp) await avisar(u.id, t.responsavelId, `📌 DEMANDA PASSADA PARA VOCÊ por ${nome(u)}: ${t.titulo} — prazo ${t.prazo.split("-").reverse().join("/")}.`, { tarefaId: t.id });
   return { ok: true, tarefa: up };
 }
 
@@ -436,11 +436,11 @@ export async function concluir(id, retorno, u) {
   if (x.aprovacao?.etapa === "APROVACAO") return { error: "Decida pelos botões Aprovar ou Reprovar." };
   await fecharSessoes({ tarefaId: x.id });
   await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nome(u), retorno: String(retorno || "").trim().slice(0, 4000) || null, emAndamentoDesde: null } });
-  await avisar(u.id, x.criadoPorId, `✅ DEMANDA CONCLUÍDA por ${nome(u)}: ${x.titulo}${retorno ? ` — ${String(retorno).slice(0, 300)}` : ""}`);
+  await avisar(u.id, x.criadoPorId, `✅ DEMANDA CONCLUÍDA por ${nome(u)}: ${x.titulo}${retorno ? ` — ${String(retorno).slice(0, 300)}` : ""}`, { tarefaId: x.id });
   // libera quem dependia desta
   if (x.publica) {
     const dep = await prisma.tarefa.findMany({ where: { modelo: false, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, select: { id: true, titulo: true, responsavelId: true, dependencias: true } });
-    for (const d of dep.filter((d) => (d.dependencias || []).includes(x.id))) await avisar(u.id, d.responsavelId, `🔓 A demanda "${x.titulo}" foi concluída — "${d.titulo}" (#${d.id}) pode seguir.`);
+    for (const d of dep.filter((d) => (d.dependencias || []).includes(x.id))) await avisar(u.id, d.responsavelId, `🔓 A demanda "${x.titulo}" foi concluída — "${d.titulo}" (#${d.id}) pode seguir.`, { tarefaId: d.id });
   }
   return { ok: true };
 }
@@ -603,7 +603,7 @@ export async function sincronizarConvites(t, ids, u) {
   const quando = `${dataBR(t.prazo)}${t.hora ? ` às ${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}` : t.periodo === "TARDE" ? " (tarde)" : t.periodo === "MANHA" ? " (manhã)" : ""}`;
   for (const x of us) {
     await prisma.tarefaConvite.create({ data: { tarefaId: t.id, usuarioId: x.id, usuarioNome: nome(x) } }).catch(() => null);
-    await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Confirme aqui mesmo ou pela Agenda.`, { conviteTarefaId: t.id });
+    await avisar(u.id, x.id, `📅 CONVITE de ${nome(u)}: ${t.titulo} — ${quando}. Confirme aqui mesmo ou pela Agenda.`, { conviteTarefaId: t.id, tarefaId: t.id });
     // v608 — notificação no celular do convidado
     try { const { notificar } = await import("@/lib/push"); await notificar(x.id, { titulo: `📅 Convite: ${t.titulo}`, texto: `${nome(u)} convidou você — ${quando}. Toque para confirmar ou recusar.`, url: "/", tag: `convite-${t.id}` }); } catch {}
     if (x.email && (await emailDisponivel())) await enviarEmail({ para: x.email, assunto: `Convite: ${t.titulo} — ${quando}`,
@@ -635,7 +635,7 @@ export async function responderConvite(u, tarefaId, resp) {
   const t = await prisma.tarefa.findUnique({ where: { id: c.tarefaId }, select: { id: true, titulo: true, criadoPorId: true, efetivo: true } });
   if (t) {
     const n = t.efetivo ? await prisma.tarefaConvite.count({ where: { tarefaId: t.id, status: "CONFIRMADO" } }) : 0;
-    await avisar(u.id, t.criadoPorId, `${status === "CONFIRMADO" ? "✅" : "❌"} ${nome(u)} ${status === "CONFIRMADO" ? "confirmou presença" : "recusou"} em "${t.titulo}"${t.efetivo ? ` — ${n} de ${t.efetivo} confirmados` : ""}.`);
+    await avisar(u.id, t.criadoPorId, `${status === "CONFIRMADO" ? "✅" : "❌"} ${nome(u)} ${status === "CONFIRMADO" ? "confirmou presença" : "recusou"} em "${t.titulo}"${t.efetivo ? ` — ${n} de ${t.efetivo} confirmados` : ""}.`, { tarefaId: t.id });
   }
   return { ok: true };
 }

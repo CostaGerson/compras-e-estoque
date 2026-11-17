@@ -58,7 +58,7 @@ export async function gerarCriacaoLayout(ppId, quem) {
     prazo: dUTC(hoje), tipo: "PADRAO", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
     layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: cli, vendedor: pp.vendedor || "", vendedorId: vendU?.id || 0, itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
   } });
-  await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${cli}): ${falta.length} item(ns) sem layout. Veja na agenda.` } }).catch(() => {});
+  await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${cli}): ${falta.length} item(ns) sem layout. Veja na agenda.`, tarefaId: t.id } }).catch(() => {});
   return t.id;
 }
 
@@ -127,7 +127,7 @@ export async function enviarAprovacao(t, u) {
   }
   await prisma.tarefa.update({ where: { id: ap.id }, data: { layout: { ...L, etapa: "APROVACAO", origemId: t.id, itens } } });
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `Enviado para aprovação de ${nomeU(vend)}.` } });
-  await prisma.mensagem.create({ data: { deId: u.id, paraId: vend.id, texto: `🎨 APROVAÇÃO DE LAYOUT — pedido ${L.numero} (${L.cliente}). Veja na agenda.` } }).catch(() => {});
+  await prisma.mensagem.create({ data: { deId: u.id, paraId: vend.id, texto: `🎨 APROVAÇÃO DE LAYOUT — pedido ${L.numero} (${L.cliente}). Veja na agenda.`, tarefaId: ap.id } }).catch(() => {});
   return { ok: true, aprovacaoId: ap.id };
 }
 
@@ -161,7 +161,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
       } });
     }
     await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: `REPROVADO: ${String(motivo).trim()}`, layout: { ...L, decisao: "REPROVADO" } } });
-    await prisma.mensagem.create({ data: { deId: u.id, paraId: arte.id, texto: `🎨 LAYOUT REPROVADO — pedido ${L.numero}: ${String(motivo).trim()}` } }).catch(() => {});
+    await prisma.mensagem.create({ data: { deId: u.id, paraId: arte.id, texto: `🎨 LAYOUT REPROVADO — pedido ${L.numero}: ${String(motivo).trim()}`, tarefaId: nova?.id || t.id } }).catch(() => {});
     return { ok: true, novaId: nova.id };
   }
   const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, anexosJson: true } } } });
@@ -179,7 +179,7 @@ export async function decidirLayout(t, u, aprovar, motivo) {
   }
   try { await (await import("@/lib/arquivos")).enxugarItensPp(pp.id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868 — layout grande vai para o disco
   await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, decisao: "APROVADO", aprovadoEm: new Date().toISOString() } } });   // v755
-  if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).` } }).catch(() => {}); }
+  if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).`, tarefaId: t.id } }).catch(() => {}); }
   return { ok: true };
 }
 
