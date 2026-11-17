@@ -141,7 +141,7 @@ const CAMPOS_EMPRESA = [
   ["abertura", "Data de abertura", 1, "date"], ["naturezaJuridica", "Natureza jurídica"], ["regimeTributario", "Regime tributário"], ["cnaePrincipal", "CNAE principal", 2], ["cnaesSecundarios", "CNAEs secundários", 2],
   ["capitalSocial", "Capital social"], ["socios", "Sócios e participação", 3], ["administradores", "Administradores"], ["endereco", "Endereço completo", 3], ["cep", "CEP"],
   ["telefone", "Telefone"], ["email", "E-mail"], ["site", "Site"], ["contador", "Contador / escritório", 2], ["contadorContato", "Contato do contador"],
-  ["bancos", "Bancos e contas", 3], ["obs", "Observações", 4, "textarea"],
+  ["bancos", "Bancos e contas", 3, "textarea"], ["obs", "Observações", 4, "textarea"],   // v899 — bancos em várias linhas
 ];
 export function EmpresaMeridian({ user }) {
   const [d, setD] = useState(null);
@@ -155,7 +155,18 @@ export function EmpresaMeridian({ user }) {
     catch { const t = document.createElement("textarea"); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch {} t.remove(); }
     setCopiado(k); setTimeout(() => setCopiado((x) => (x === k ? "" : x)), 1500);
   };
-  const copiarTudo = () => copiar("__tudo", CAMPOS_EMPRESA.filter(([k]) => f[k]).map(([k, l, , tipo]) => `${l}: ${valorTxt(k, tipo)}`).join("\n"));
+  // v899 — cópia geral no formato da mensagem de cadastro enviada a clientes e fornecedores
+  const copiarTudo = () => {
+    const v = (k) => String(f[k] || "").trim();
+    const end = [v("endereco"), v("cep") ? `CEP: ${v("cep")}` : ""].filter(Boolean).join(", ");
+    const cad = [["CNPJ", v("cnpj")], ["Inscrição Estadual", v("inscricaoEstadual")], ["Inscrição Municipal", v("inscricaoMunicipal")], ["Razão Social", v("razaoSocial")],
+      ["Nome Fantasia", v("nomeFantasia")], ["CNAE Principal", v("cnaePrincipal")], ["Endereço de Entrega/Cobrança", end], ["Telefones de Contato", v("telefone")], ["Email", v("email")], ["Site", v("site")]]
+      .filter(([, x]) => x).map(([l, x]) => `${l}: ${x}`);
+    const partes = [];
+    if (cad.length) partes.push(`Dados Cadastro:\n\n${cad.join("\n")}`);
+    if (v("bancos")) partes.push(`Dados bancários:\n\n${v("bancos")}`);
+    copiar("__tudo", partes.join("\n\n"));
+  };
   useEffect(() => { fetch(`/api/acervo?u=${user.id}&empresa=1`, { cache: "no-store" }).then((r) => r.json()).then((j) => { setD(j); setF(j.dados || {}); }).catch((e) => setD({ error: e.message })); }, []);
   const salvar = async () => { setSt("Salvando…"); try { await api({ usuarioId: user.id, acao: "empresa", dados: f }); setSt("Salvo."); setTimeout(() => setSt(""), 3000); } catch (e) { setSt(e.message); } };
   if (!d) return <Loader2 size={16} className="animate-spin" style={{ color: C.sub }} />;
@@ -164,7 +175,7 @@ export function EmpresaMeridian({ user }) {
     <div>
       <div className="rounded-xl p-4 mb-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center mb-3"><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Dados da empresa</div>
-          <button onClick={copiarTudo} className="px-3 py-1.5 rounded text-sm flex items-center gap-1 mr-2" style={{ border: `1px solid ${C.line}`, color: copiado === "__tudo" ? C.green : C.text }}>{copiado === "__tudo" ? <Check size={14} /> : <Copy size={14} />} Copiar tudo</button>
+          <button onClick={copiarTudo} title="Copia CNPJ, inscrições, razão social, endereço, telefones, e-mail e dados bancários no formato de mensagem" className="px-3 py-1.5 rounded text-sm flex items-center gap-1 mr-2" style={{ border: `1px solid ${C.line}`, color: copiado === "__tudo" ? C.green : C.text }}>{copiado === "__tudo" ? <Check size={14} /> : <Copy size={14} />} Copiar cadastro</button>
           {f.atualizadoPor && <span className="text-[11px] mr-3" style={{ color: C.sub }}>atualizado por {f.atualizadoPor}</span>}
           {d.podeEditar && <button onClick={salvar} className="px-4 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>}
           {st && <span className="text-xs ml-2" style={{ color: C.sub }}>{st}</span>}</div>
