@@ -1540,6 +1540,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
     else if (k === "h") definirHora(t, a, b);
     setSelDia(a);
   };
+  const soltarRef = useRef(soltarZona); soltarRef.current = soltarZona;
+  const moverRef = useRef(null);
+  moverRef.current = (n) => { setDir(n); setRef((r) => modo === "semana" ? somaDia(r, 7 * n) : (() => { const x = new Date(Date.UTC(Number(r.slice(0, 4)), Number(r.slice(5, 7)) - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
+  const [borda, setBorda] = useState(null);      // v889 — borda em que a tarefa está sendo segurada (1 avança, -1 volta)
   const iniciar = (t, x, y, el, toque) => {
     if (toque) { try { navigator.vibrate?.(25); } catch {} }
     rolRef.current = rolante(el);
@@ -1561,9 +1565,26 @@ export function Agenda({ user, pedidoModo, onModo }) {
       if (nd && nd !== diaArrRef.current) { if (nd !== diaPend) { diaPend = nd; clearTimeout(tmDia); tmDia = setTimeout(() => { mudarDia(diaPend); diaPend = null; requestAnimationFrame(achar); }, esperaDia); } }
       else { clearTimeout(tmDia); diaPend = null; }
     };
+    // v889 — PC: segurar a tarefa na borda passa para a semana (ou mês) seguinte/anterior — embaixo/direita avança, em cima/esquerda volta
+    let bordaDesde = 0, bordaAtual = null;
     const passo = () => {
       const m = 70, hh = window.innerHeight, v = pos[1] < m ? -(m - pos[1]) / 5 : pos[1] > hh - m ? (pos[1] - (hh - m)) / 5 : 0;
-      if (v && rolRef.current) { rolRef.current.scrollTop += v; achar(); }
+      const r = rolRef.current, antes = r ? r.scrollTop : 0;
+      if (v && r) { r.scrollTop += v; achar(); }
+      let b = null;
+      if (!mobile) {
+        const g = document.querySelector("[data-dia]")?.parentElement?.getBoundingClientRect();
+        const travou = v && (!r || Math.abs(r.scrollTop - antes) < 0.5);
+        if (g && pos[0] > Math.min(g.right, window.innerWidth) - 36) b = 1;
+        else if (g && pos[0] < g.left + 14 && pos[0] > g.left - 160) b = -1;
+        else if (travou && modo === "semana") b = v > 0 ? 1 : -1;
+      }
+      if (b !== bordaAtual) { bordaAtual = b; bordaDesde = performance.now(); setBorda(b); }
+      else if (b && performance.now() - bordaDesde > 750) {
+        bordaDesde = performance.now() + 250;   // repete a cada ~1 s enquanto ficar na borda
+        moverRef.current(b);
+        setTimeout(() => requestAnimationFrame(achar), 120); setTimeout(() => requestAnimationFrame(achar), 400);
+      }
       raf = requestAnimationFrame(passo);
     };
     raf = requestAnimationFrame(passo);
@@ -1581,8 +1602,8 @@ export function Agenda({ user, pedidoModo, onModo }) {
       // o clique que o navegador dispara logo após soltar não abre nada
       const parar = (e) => { e.stopPropagation(); e.preventDefault(); };
       document.addEventListener("click", parar, true); setTimeout(() => document.removeEventListener("click", parar, true), 80);
-      diaArrRef.current = null; setArr(null); setAlvo(null); setDiaArr(null);
-      if (ev.type === "touchend" || ev.type === "mouseup") soltarZona(t, z);
+      diaArrRef.current = null; setArr(null); setAlvo(null); setDiaArr(null); setBorda(null);
+      if (ev.type === "touchend" || ev.type === "mouseup") soltarRef.current(t, z);   // v889 — usa os dados da semana atual (pode ter mudado no arraste)
     };
     if (toque) { document.addEventListener("touchmove", mvT, { passive: false }); document.addEventListener("touchend", fim, { passive: false }); document.addEventListener("touchcancel", fim); }
     else { document.addEventListener("mousemove", mvM); document.addEventListener("mouseup", fim); }
@@ -1881,6 +1902,10 @@ export function Agenda({ user, pedidoModo, onModo }) {
         )}
       </div>
       <PopupConvites user={user} onMudou={carregar} />
+      {arr && borda && <div className="fixed z-50 pointer-events-none flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg"
+        style={{ background: A.azul, color: "#fff", top: arr.y + 22, left: Math.min(arr.x + 14, window.innerWidth - 190) }}>
+        {borda > 0 ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}{borda > 0 ? (modo === "semana" ? "próxima semana" : "próximo mês") : (modo === "semana" ? "semana anterior" : "mês anterior")}
+      </div>}
       {/* v603 — celular, mês: régua fixa à esquerda com o dia sob o dedo */}
       {mobile && modo === "mes" && arr && <PainelHoras dia={diaArr || arr.t.prazo} alvo={alvo} atual={(diaArr || arr.t.prazo) === arr.t.prazo ? arr.t.hora : null} />}
       {/* fantasma da tarefa acompanhando o mouse/dedo, com o destino */}
