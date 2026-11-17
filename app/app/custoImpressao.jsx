@@ -38,12 +38,12 @@ export default function CustoImpressao({ user, tipo }) {
   const col = M.colunas;
   const NAVY = "#0C2342", STEEL = "#3D6799";
   const fmtCalc = (k, v) => (/PorM$/.test(k) || k === "total" ? brl(v, 4) : /Total$/.test(k) ? brl(v, 2) : nf(v, 0));
-  const th = "px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide whitespace-nowrap overflow-hidden";
-  const campoNum = "w-full px-1 py-1.5 rounded-lg text-center text-xs tabular-nums outline-none focus:ring-2";
+  const th = "px-1 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide whitespace-nowrap overflow-hidden";
+  const campoNum = "w-full px-1 py-1 rounded-lg text-center text-xs tabular-nums outline-none focus:ring-2";
   return (
     <div>
       {/* v924 — visual moderno (cabeçalhos Oxford Blue, destaque laranja), campos padronizados e conteúdo centralizado */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
+      <div className="flex items-center gap-3 mb-2 flex-wrap">
         <div>
           <div className="text-lg font-extrabold" style={{ color: NAVY }}>Custo de {tipo === "DTF" ? "DTF" : M.titulo.toLowerCase()}</div>
           <div className="text-xs" style={{ color: C.sub }}>Custo do metro linear pelos insumos e composição de custo por peça.{d.em ? ` Atualizado em ${new Date(d.em).toLocaleString("pt-BR")}${d.por ? ` por ${d.por}` : ""}.` : ""}{tipo === "SUBLIMACAO" ? " O total do metro linear é o custo do metro de papel nas FPPs." : ""}</div>
@@ -103,10 +103,10 @@ export default function CustoImpressao({ user, tipo }) {
             <tbody>
               {ls.map((l, i) => { const x = calcLinha(l, c.total); return (
                 <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
-                  <td className="px-2 py-1"><input value={l.nome || ""} onChange={(e) => setL(i, "nome", e.target.value.toUpperCase())} title={l.nome} className="w-full px-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-center outline-none" style={{ ...inp, color: NAVY }} /></td>
-                  {col.map(([k]) => <td key={k} className="px-1 py-1"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" className={campoNum} style={inp} /></td>)}
+                  <td className="px-2 py-0.5"><input value={l.nome || ""} onChange={(e) => setL(i, "nome", e.target.value.toUpperCase())} title={l.nome} className="w-full px-1.5 py-1 rounded-lg text-[11px] font-semibold text-center outline-none" style={{ ...inp, color: NAVY }} /></td>
+                  {col.map(([k]) => <td key={k} className="px-1 py-0.5"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" className={campoNum} style={inp} /></td>)}
                   <td className="px-1 py-1 text-center tabular-nums font-semibold whitespace-nowrap text-[11px]" style={{ color: STEEL }}>{brl(x.material, 4)}</td>
-                  {["mo", "recorte", "prensagem"].map((k) => <td key={k} className="px-1 py-1"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" placeholder="0,00" className={campoNum} style={inp} /></td>)}
+                  {["mo", "recorte", "prensagem"].map((k) => <td key={k} className="px-1 py-0.5"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" placeholder="0,00" className={campoNum} style={inp} /></td>)}
                   <td className="px-1 py-1 text-center"><span className="inline-block px-1.5 py-1 rounded-lg font-extrabold tabular-nums whitespace-nowrap text-[11px]" style={{ background: C.accentSoft, color: C.accent }}>{brl(x.total, 4)}</span></td>
                   <td className="text-center"><button onClick={() => { setLs((a) => a.filter((_, j) => j !== i)); setMudou(true); }} title="Tirar a linha" style={{ color: C.sub }}><Trash2 size={13} /></button></td>
                 </tr>); })}
