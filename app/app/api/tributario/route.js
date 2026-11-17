@@ -9,6 +9,12 @@ const pode = (u) => u && (gerencial(u) || u.setor === "FINANCEIRO");
 export async function GET(req) {
   const u = await usuario(new URL(req.url).searchParams.get("u"));
   if (!u) return Response.json({ error: "Sem acesso." }, { status: 403 });
+  const sp = new URL(req.url).searchParams;
+  if (sp.get("acao") === "levantamento") {   // v936 — o que o KM emitiu (XMLs de saída), para a troca de emissor
+    if (!pode(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
+    const { levantamentoFiscal } = await import("@/lib/levantamentoFiscal");
+    return Response.json(await levantamentoFiscal({ meses: Number(sp.get("meses")) || 12, empresa: sp.get("empresa") === "NORT" ? "NORT" : "MERIDIAN" }));
+  }
   return Response.json(await dadosTributarios());
 }
 export async function POST(req) {
