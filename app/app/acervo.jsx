@@ -2,7 +2,7 @@
 // v780 — sugestão #22: Dados › Meridian (dados da empresa + documentos de constituição), ADM › Documentação
 //   (contratos e documentos administrativos) e Gestão › Reuniões (reuniões realizadas, ata e material)
 import React, { useEffect, useState } from "react";
-import { Plus, Paperclip, Trash2, X, Loader2, Pencil, FileText, Search } from "lucide-react";
+import { Plus, Paperclip, Trash2, X, Loader2, Pencil, FileText, Search, Copy, Check } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6", navy: "#001E41", green: "#12A150", red: "#D92D20", yellow: "#C08401" };
@@ -147,6 +147,15 @@ export function EmpresaMeridian({ user }) {
   const [d, setD] = useState(null);
   const [f, setF] = useState({});
   const [st, setSt] = useState("");
+  const [copiado, setCopiado] = useState("");
+  const valorTxt = (k, tipo) => (tipo === "date" && f[k] ? dBR(f[k]) : String(f[k] || ""));
+  const copiar = async (k, txt) => {
+    if (!txt) return;
+    try { await navigator.clipboard.writeText(txt); }
+    catch { const t = document.createElement("textarea"); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch {} t.remove(); }
+    setCopiado(k); setTimeout(() => setCopiado((x) => (x === k ? "" : x)), 1500);
+  };
+  const copiarTudo = () => copiar("__tudo", CAMPOS_EMPRESA.filter(([k]) => f[k]).map(([k, l, , tipo]) => `${l}: ${valorTxt(k, tipo)}`).join("\n"));
   useEffect(() => { fetch(`/api/acervo?u=${user.id}&empresa=1`, { cache: "no-store" }).then((r) => r.json()).then((j) => { setD(j); setF(j.dados || {}); }).catch((e) => setD({ error: e.message })); }, []);
   const salvar = async () => { setSt("Salvando…"); try { await api({ usuarioId: user.id, acao: "empresa", dados: f }); setSt("Salvo."); setTimeout(() => setSt(""), 3000); } catch (e) { setSt(e.message); } };
   if (!d) return <Loader2 size={16} className="animate-spin" style={{ color: C.sub }} />;
@@ -155,16 +164,23 @@ export function EmpresaMeridian({ user }) {
     <div>
       <div className="rounded-xl p-4 mb-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="flex items-center mb-3"><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Dados da empresa</div>
+          <button onClick={copiarTudo} className="px-3 py-1.5 rounded text-sm flex items-center gap-1 mr-2" style={{ border: `1px solid ${C.line}`, color: copiado === "__tudo" ? C.green : C.text }}>{copiado === "__tudo" ? <Check size={14} /> : <Copy size={14} />} Copiar tudo</button>
           {f.atualizadoPor && <span className="text-[11px] mr-3" style={{ color: C.sub }}>atualizado por {f.atualizadoPor}</span>}
           {d.podeEditar && <button onClick={salvar} className="px-4 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>}
           {st && <span className="text-xs ml-2" style={{ color: C.sub }}>{st}</span>}</div>
-        <fieldset disabled={!d.podeEditar} className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))", border: 0, padding: 0, margin: 0 }}>
+        {/* v898 — botão de copiar ao lado de cada dado (e "Copiar tudo" no topo) */}
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
           {CAMPOS_EMPRESA.map(([k, l, span = 1, tipo]) => (
             <label key={k} className="text-xs" style={{ color: C.sub, gridColumn: `span ${span}` }}>{l}
-              {tipo === "textarea" ? <textarea value={f[k] || ""} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} rows={3} className={inp} style={inpS} />
-                : <input type={tipo || "text"} value={f[k] || ""} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inp} style={inpS} />}
+              <div className="relative">
+                {tipo === "textarea" ? <textarea value={f[k] || ""} readOnly={!d.podeEditar} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} rows={3} className={inp} style={{ ...inpS, paddingRight: 34 }} />
+                  : <input type={tipo || "text"} value={f[k] || ""} readOnly={!d.podeEditar} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inp} style={{ ...inpS, paddingRight: tipo === "date" ? 60 : 34 }} />}
+                <button type="button" onClick={(e) => { e.preventDefault(); copiar(k, valorTxt(k, tipo)); }} disabled={!f[k]} title={f[k] ? `Copiar ${l.toLowerCase()}` : "Vazio"}
+                  className="absolute top-1.5 p-1 rounded" style={{ right: tipo === "date" ? 30 : 4, color: copiado === k ? C.green : C.sub, opacity: f[k] ? 1 : 0.35, background: C.panel }}>
+                  {copiado === k ? <Check size={14} /> : <Copy size={14} />}</button>
+              </div>
             </label>))}
-        </fieldset>
+        </div>
       </div>
       <Acervo user={user} area="EMPRESA" />
     </div>
