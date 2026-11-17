@@ -15,7 +15,7 @@ export const vazioDU = () => ({ campos: [novoCampo(0)], linhas: [] });
 export const temDU = (du) => !!(du && Array.isArray(du.campos) && du.campos.length);
 
 // tamanhos aceitos na lista (adulto, numeração, infantil, babylook, G1–G4)
-const TAMS_BASE = ["PP", "P", "M", "G", "GG", "XG", "EXG", "EXGG", "XGG", "G1", "G2", "G3", "G4", "U", "UN", "UNICO", "ÚNICO"];
+const TAMS_BASE = ["PP", "P", "M", "G", "GG", "XG", "EXG", "EXGG", "EXGGG", "XGG", "G1", "G2", "G3", "G4", "G5", "G6", "ESP", "U", "UN", "UNICO", "ÚNICO"];
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
 export function normTam(t) {
   let x = semAcento(t).toUpperCase().replace(/\s+/g, " ").trim();
@@ -29,7 +29,8 @@ const ehTam = (t, extras = []) => {
   if (!x) return false;
   if (TAMS_BASE.includes(x) || extras.map(normTam).includes(x)) return true;
   if (/^\d{1,2}$/.test(x)) return true;                     // infantil / numeração
-  if (/^BL (PP|P|M|G|GG|XG|EXG|G\d)$/.test(x)) return true;  // babylook
+  if (/^BL (PP|P|M|G|GG|XG|EXG|EXGG|EXGGG|G\d|ESP)$/.test(x)) return true;
+  if (/^G\/(PP|P|M|G|G\d|ESP)$/.test(x) || x === "INF ESP" || x === "NUM ESP") return true;   // v891 — grade G e ESP  // babylook
   return false;
 };
 

@@ -73,16 +73,18 @@ export async function GET(req, { params }) {
   // v774 — #58: tecido gravado antes da v774 ganha nome do artigo, cor, código e fabricante pela FPP (para a OP)
   try {
     const { resumoFpp } = await import("@/lib/pedidoLanc");
+    const { comComposicao } = await import("@/lib/tecidoComposicao");
     const cache = {};
     for (const i of pp.itens) {
       let pr; try { pr = JSON.parse(i.parametrosJson || "{}"); } catch { continue; }
       const t = pr?.TECIDO;
-      if (!t || typeof t !== "object" || !t.fpp || t.nome) continue;
-      if (!(t.fpp in cache)) cache[t.fpp] = resumoFpp(await prisma.fpp.findFirst({ where: { numero: Number(t.fpp) } }).catch(() => null));
+      if (!t || typeof t !== "object" || !t.fpp || (t.nome && t.composicao !== undefined)) continue;
+      if (!(t.fpp in cache)) cache[t.fpp] = await comComposicao(resumoFpp(await prisma.fpp.findFirst({ where: { numero: Number(t.fpp) } }).catch(() => null)));
       const rf = cache[t.fpp];
       if (!rf) continue;
+      if (t.nome) { pr.TECIDO = { ...t, composicao: rf.artigoComposicao || null }; i.parametrosJson = JSON.stringify(pr); continue; }   // v891 — #85
       const cor = t.cor || (String(t.artigo || "").split(" · ")[1] || null) || rf.artigoCor;
-      pr.TECIDO = { ...t, nome: rf.artigo || null, corArtigo: cor, codigo: ((rf.cores || []).find((c) => c.cor === cor) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null };
+      pr.TECIDO = { ...t, nome: rf.artigo || null, corArtigo: cor, codigo: ((rf.cores || []).find((c) => c.cor === cor) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null, composicao: rf.artigoComposicao || null };
       i.parametrosJson = JSON.stringify(pr);
     }
   } catch (e) { console.log("pp/tecido:", e.message); }

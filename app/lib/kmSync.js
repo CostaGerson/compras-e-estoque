@@ -41,7 +41,7 @@ export function parametrosDoDetalhe(rtf) {
 }
 
 // ordem de tamanhos da grade
-const ORDEM_TAM = ["RN", "BB", "PP", "P", "M", "G", "GG", "XG", "EG", "XGG", "EGG", "EXG", "G1", "G2", "G3", "G4", "EXGG", "XXG", "XXXG", "UNICO", "U"];
+const ORDEM_TAM = ["RN", "BB", "PP", "P", "M", "G", "GG", "XG", "EG", "XGG", "EGG", "EXG", "G1", "G2", "G3", "G4", "EXGG", "EXGGG", "XXG", "XXXG", "UNICO", "U"];
 const pesoTam = (t) => { const n = Number(t); if (Number.isFinite(n)) return 1000 + n; const i = ORDEM_TAM.indexOf(semAc(t)); return i < 0 ? 500 : i; };
 
 // ---------- pedido do KM → objetos PV e OP (mesmo formato de lerPV / lerPP) ----------

@@ -44,9 +44,25 @@ const acessoProj = (p, u) => p.donoId === u.id || (p.membros || []).includes(u.i
 //   (convidados de evento/decisão entram por convite). Pública, projeto e cargo não abrem mais tarefa de outra pessoa.
 const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId === u.id || Number(t.layout?.acompanhaId) === u.id || Number(t.layout?.vendedorId) === u.id   // v888 — vendedor do pedido acompanha   // criação de layout: só o arte finalista (e quem reprovou, v756)
   : t.responsavelId === u.id || t.criadoPorId === u.id);
-const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
+const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)
+  || (ehLayoutT(t) && (await supervisorLayoutId()) === u.id) || doPedido(t, u)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
-const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u);
+// v891 — #87: quem pediu o design (quem lançou o pedido, o vendedor, quem reprovou, o solicitante da aprovação) e o supervisor
+//   da personalização também editam, acrescentam informação e anexam — antes só o arte finalista (criador e responsável) podia
+const ehLayoutT = (t) => t.layout?.etapa === "CRIACAO" || /^CRIAÇÃO DE LAYOUT/.test(t.titulo || "");
+const doPedido = (t, u) => (!!t.layout && [t.layout.criadorId, t.layout.vendedorId, t.layout.acompanhaId].some((x) => Number(x) === u.id))
+  || Number(t.aprovacao?.solicitanteId) === u.id || (ehLayoutT(t) && globalThis.__supLayout === u.id);
+const podeEditar = (t, u) => t.criadoPorId === u.id || t.responsavelId === u.id || ehMaster(u) || doPedido(t, u);
+// v891 — supervisor da personalização (Maycon): toda CRIAÇÃO DE LAYOUT do arte finalista aparece nas Designadas dele
+const semAc = (x) => String(x || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
+export async function supervisorLayoutId() {
+  const c = globalThis.__supLayoutEm;
+  if (c && Date.now() - c < 600e3) return globalThis.__supLayout || null;
+  const us = await prisma.usuario.findMany({ where: { ativo: true }, select: { id: true, nome: true, diretoria: true } }).catch(() => []);
+  const ms = us.filter((x) => semAc(x.nome).split(" ")[0] === "MAYCON");
+  globalThis.__supLayout = (ms.find((x) => x.diretoria) || ms[0])?.id || null; globalThis.__supLayoutEm = Date.now();
+  return globalThis.__supLayout;
+}
 
 async function avisar(deId, paraId, texto, extra = {}) {
   if (!paraId || paraId === deId) return;
@@ -109,6 +125,7 @@ async function ajustarAcompanhamentoLayout() {
 export async function listar(u, { de, ate, escopo, incluirConcluidas = true, projetoId }) {
   await ajustarCriacoesLayout();
   await ajustarAcompanhamentoLayout();
+  try { const { ajustarClienteFinalLayout } = await import("@/lib/layoutFluxo"); await ajustarClienteFinalLayout(); } catch (e) { console.log("ajuste cliente final layout:", e.message); }   // v891
   try { const { ajustarVendedorLayout } = await import("@/lib/layoutFluxo"); await ajustarVendedorLayout(); } catch (e) { console.log("ajuste vendedor layout:", e.message); }   // v888
   try { const { ajustarAprovacoesAntigas } = await import("@/lib/tarefaAprovacao"); await ajustarAprovacoesAntigas(); } catch {}   // v757
   await gerarOcorrencias(ate);
@@ -129,8 +146,10 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   if (!["minhas", "criadas", "agenda"].includes(escopo)) where.OR = [{ responsavelId: u.id }, { criadoPorId: u.id }, { layout: { path: ["vendedorId"], equals: u.id } }, ...(convIds.size ? [{ id: { in: [...convIds] } }] : [])];   // v733
   const lid = await lideradosDe(u.id);   // v782 — gestor: tarefas dos liderados (Designadas)
   if (lid.length && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { responsavelId: { in: lid } }];
+  const sup = (await supervisorLayoutId()) === u.id;   // v891
+  if (sup && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }];
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId));   // v791 — inclusive as que o liderado cria para si
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId) || (sup && ehLayoutT(t)));   // v791 — inclusive as que o liderado cria para si
   return enriquecer(l, u);
 }
 

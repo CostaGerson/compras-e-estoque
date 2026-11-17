@@ -28,6 +28,12 @@ async function vendedorDe(vendedor, fallbackId) {
   }
   return fallbackId ? prisma.usuario.findUnique({ where: { id: fallbackId }, select: { id: true, nome: true, sobrenome: true } }) : null;
 }
+// v891 — #86: pedido do portal (Loja Way) leva o cliente final no nome: "LOJA WAY - BRIAN SOUZA"
+export function clienteRotulo(pp) {
+  const n = String(pp?.clienteNome || "").toUpperCase().trim(), cf = pp?.clienteFinal;
+  const f = cf && typeof cf === "object" ? String((cf.tipo === "PJ" ? cf.razaoSocial || cf.contato : cf.nome) || "").toUpperCase().replace(/\s+/g, " ").trim() : "";
+  return f && !n.includes(f) ? `${n} - ${f}` : n;
+}
 const itensDoPp = (pp) => (pp.itens || []).map((it, idx) => ({ idx, it })).filter(({ it }) => it.tipoPecaNome !== "SERVIÇO");
 
 // chamada ao efetivar/salvar o pedido: cria a CRIAÇÃO DE LAYOUT se houver item sem layout e ainda não houver uma em aberto
@@ -43,15 +49,16 @@ export async function gerarCriacaoLayout(ppId, quem) {
   const criador = (quem?.id && await prisma.usuario.findUnique({ where: { id: quem.id } })) || arte;
   const vendU = await vendedorDe(pp.vendedor, null);   // v888 — o vendedor acompanha a criação nas Designadas
   const hoje = hojeSP();
+  const cli = clienteRotulo(pp);
   const t = await prisma.tarefa.create({ data: {
-    titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${pp.numero} · ${String(pp.clienteNome || "").toUpperCase()}`.slice(0, 200),
+    titulo: `CRIAÇÃO DE LAYOUT · PEDIDO ${pp.numero} · ${cli}`.slice(0, 200),
     descricao: `Itens sem layout: ${falta.map(({ idx, it }) => `${idx + 1}. ${it.descricao || it.codigo || "item"}`).join(" · ")}\nAnexe o layout de cada item aqui na tarefa e envie para aprovação do vendedor.`,
     // v733 — a criação é só do arte finalista (criada no nome dele): o vendedor só recebe tarefa quando o layout vai para aprovação
     setor: "COMERCIAL", responsavelId: arte.id, responsavelNome: nomeU(arte), criadoPorId: arte.id, criadoPorNome: nomeU(arte),
     prazo: dUTC(hoje), tipo: "PADRAO", publica: false, natureza: "FUNCIONAL", lembreteMin: null,
-    layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: pp.clienteNome || "", vendedor: pp.vendedor || "", vendedorId: vendU?.id || 0, itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
+    layout: { etapa: "CRIACAO", criadorId: criador.id, ppId: pp.id, numero: pp.numero, cliente: cli, vendedor: pp.vendedor || "", vendedorId: vendU?.id || 0, itens: falta.map(({ idx, it }) => ({ idx, descricao: it.descricao || "", codigo: it.codigo || "" })) },
   } });
-  await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${pp.clienteNome || ""}): ${falta.length} item(ns) sem layout. Veja na agenda.` } }).catch(() => {});
+  await prisma.mensagem.create({ data: { deId: criador.id, paraId: arte.id, texto: `🎨 CRIAÇÃO DE LAYOUT — pedido ${pp.numero} (${cli}): ${falta.length} item(ns) sem layout. Veja na agenda.` } }).catch(() => {});
   return t.id;
 }
 
@@ -184,5 +191,22 @@ export async function ajustarVendedorLayout() {
     const pp = t.layout.ppId ? await prisma.pp.findUnique({ where: { id: Number(t.layout.ppId) }, select: { vendedor: true } }).catch(() => null) : null;
     const v = await vendedorDe(pp?.vendedor || t.layout.vendedor, null);
     await prisma.tarefa.update({ where: { id: t.id }, data: { layout: { ...t.layout, vendedorId: v?.id || 0 } } }).catch(() => {});
+  }
+}
+
+// v891 — #86: tarefas de layout em aberto de pedidos do portal passam a mostrar o cliente final no título (uma vez por processo)
+export async function ajustarClienteFinalLayout() {
+  if (globalThis.__cfLayout) return; globalThis.__cfLayout = true;
+  const l = await prisma.tarefa.findMany({ where: { modelo: false, status: { notIn: ["CANCELADA"] }, OR: [{ titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, { titulo: { startsWith: "APROVAÇÃO DE LAYOUT" } }] }, select: { id: true, titulo: true, layout: true } }).catch(() => []);
+  const ids = [...new Set(l.map((t) => Number(t.layout?.ppId)).filter(Boolean))];
+  if (!ids.length) return;
+  const pps = await prisma.pp.findMany({ where: { id: { in: ids }, portalClienteId: { not: null } }, select: { id: true, clienteNome: true, clienteFinal: true } }).catch(() => []);
+  const P = Object.fromEntries(pps.map((p) => [p.id, clienteRotulo(p)]));
+  for (const t of l) {
+    const novo = P[Number(t.layout?.ppId)];
+    if (!novo || t.layout?.cliente === novo) continue;
+    const velho = String(t.layout?.cliente || "").toUpperCase();
+    const titulo = velho && t.titulo.includes(` · ${velho}`) ? t.titulo.replace(` · ${velho}`, ` · ${novo}`) : t.titulo;
+    await prisma.tarefa.update({ where: { id: t.id }, data: { titulo: titulo.slice(0, 200), layout: { ...t.layout, cliente: novo } } }).catch(() => {});
   }
 }

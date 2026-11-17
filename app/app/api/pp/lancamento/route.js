@@ -87,7 +87,7 @@ export async function POST(req) {
   const fpps = {};
   for (const n of nums) {
     const f = await prisma.fpp.findUnique({ where: { numero: n } }).catch(() => null);
-    fpps[n] = f ? resumoFpp(f) : null;
+    fpps[n] = f ? await (await import("@/lib/tecidoComposicao")).comComposicao(resumoFpp(f)) : null;   // v891
     if (!f) avisos.push(`FPP ${String(n).padStart(5, "0")} não encontrada no sistema: indexe a FPP no item.`);
   }
 

@@ -1508,7 +1508,7 @@ function Producao() {
   );
 }
 
-const TAMANHOS = ["PP","P","M","G","GG","XG","EXG","EXGG"];   // v632 — grade padrão (masculina); infantil e babylook entram como grade especial
+const TAMANHOS = ["PP","P","M","G","GG","XG","EXG","EXGG","EXGGG"];   // v891 — EXGGG   // v632 — grade padrão (masculina); infantil e babylook entram como grade especial
 const COND_PGTO = [
   "30% antecipado 30% entrega e 40% 30d",
   "50% antecipado e 50% entrega",

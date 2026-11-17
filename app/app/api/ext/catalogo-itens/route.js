@@ -9,7 +9,7 @@ import { paramFora } from "@/lib/pedidoLanc";
 import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
 const autorizado = async (req) => { const tk = req.headers.get("x-api-key") || ""; return !!tk && tk === (await tokenExterno()); };
-const TAMS = ["RN", "BB", "PP", "P", "M", "G", "GG", "XG", "EG", "XGG", "EGG", "EXG", "G1", "G2", "G3", "G4", "EXGG", "XXG", "XXXG", "LXG", "UNICO", "ÚNICO", "U", "ESPECIAL", "INFANTIL"];
+const TAMS = ["RN", "BB", "PP", "P", "M", "G", "GG", "XG", "EG", "XGG", "EGG", "EXG", "G1", "G2", "G3", "G4", "EXGG", "EXGGG", "XXG", "XXXG", "LXG", "UNICO", "ÚNICO", "U", "ESPECIAL", "INFANTIL"];
 const tiraTam = (n) => {
   const s = String(n || "").trim();
   const m = s.match(/^(.*?)\s*-\s*([A-Z0-9ÚÇ]{1,8})\s*$/i);

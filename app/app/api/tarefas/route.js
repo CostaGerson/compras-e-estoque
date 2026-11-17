@@ -12,8 +12,8 @@ export async function GET(req) {
     listar(u, { de: ok(sp.get("de")), ate: ok(sp.get("ate")), escopo: sp.get("escopo") || "todas", incluirConcluidas: sp.get("pendentes") !== "1", projetoId: sp.get("projeto") }),
     usuariosParaTarefa(), statusEquipe(u), listarProjetos(u).catch(() => []),
   ]);
-  const { lideradosDe } = await import("@/lib/tarefas");   // v782
-  return Response.json({ tarefas, usuarios, equipe, projetos, setores: SETORES_TAREFA, liderados: await lideradosDe(u.id) });
+  const { lideradosDe, supervisorLayoutId } = await import("@/lib/tarefas");   // v782
+  return Response.json({ tarefas, usuarios, equipe, projetos, setores: SETORES_TAREFA, liderados: await lideradosDe(u.id), supervisorLayout: (await supervisorLayoutId()) === u.id });   // v891
 }
 
 // POST { usuarioId, tarefa: { titulo, descricao, setor, responsavelId, prazo, tipo, publica, recorrencia, subtarefas, dependencias } }

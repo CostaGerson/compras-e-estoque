@@ -2236,7 +2236,7 @@ const n4 = (v) => (v == null || v === "" ? "" : String(Number(v)).replace(".", "
 function detDoArtigo(a) {
   const forn = a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial || "") : "";
   const d = { artigoId: a.id, fornecedorId: a.fornecedorId || "", fornecedorNome: forn, cor: a.cor || "", codigo: a.codigo || a.codigoFornecedor || "",
-    largura: n4(a.largura), gramatura: n4(a.gramatura), rendimento: n4(a.rendimento), tipoMalha: a.tipoMalha || "" };
+    largura: n4(a.largura), gramatura: n4(a.gramatura), rendimento: n4(a.rendimento), tipoMalha: a.tipoMalha || "", composicao: a.composicao || "" };   // v891 — #85
   for (const k of Object.keys(d)) if (d[k] === "" || d[k] == null) delete d[k];
   return d;
 }

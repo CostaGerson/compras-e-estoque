@@ -187,7 +187,7 @@ export function resumoFpp(f) {
     id: f.id, numero: f.numero, item: f.item, nomeComercial: f.nomeComercial, cliente: f.clienteNome, tipo: f.tipo,
     valorProposto: f.valorProposto ?? null, leadTime: Number(f.leadTime) > 0 ? Number(f.leadTime) : null,   // v702
     artigo: String(e.nomeArtigo || "").trim().toUpperCase() || null,
-    artigoCor: det.cor || null, artigoCodigo: det.codigo || null, artigoFabricante: det.fornecedorNome ? String(det.fornecedorNome).toUpperCase() : null,   // v774 — #58
+    artigoCor: det.cor || null, artigoCodigo: det.codigo || null, artigoId: Number(det.artigoId) || null, artigoComposicao: det.composicao ? String(det.composicao).toUpperCase() : null,   // v891 — #85 artigoFabricante: det.fornecedorNome ? String(det.fornecedorNome).toUpperCase() : null,   // v774 — #58
     cores: [det.cor ? { cor: det.cor, codigo: det.codigo || null } : null, ...(Array.isArray(det.variantes) ? det.variantes.filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })) : [])].filter(Boolean),   // v664
     tecidoTipo: malha ? "MALHA" : "PLANO",
     rendimento: malha ? rc : null, consumo: malha ? null : rc,
@@ -217,6 +217,7 @@ export function aplicacoesDaFpp(e) {
 export const tecidoDaFpp = (rf, cor) => (rf ? { tipo: rf.tecidoTipo, artigo: [rf.artigo, cor || rf.artigoCor].filter(Boolean).join(" · ") || "", medida: rf.medida, ...((rf.cores || []).length > 1 ? { cor: cor || rf.artigoCor || null } : {}),
   nome: rf.artigo || null, corArtigo: cor || rf.artigoCor || null,
   codigo: ((rf.cores || []).find((c) => c.cor === (cor || rf.artigoCor)) || {}).codigo || rf.artigoCodigo || null, fabricante: rf.artigoFabricante || null,
+  composicao: rf.artigoComposicao || null,   // v891 — #85
   fpp: rf.numero, forro: rf.forro ? `${rf.forro}${rf.consumoForro ? ` · ${fmt(rf.consumoForro)} m/pç` : ""}` : "" } : null);
 // v809 — tecido na ordem TIPO · NOME DO ARTIGO · COR · CÓD · FABRICANTE (sem rendimento)
 export function partesTecido(v) {
@@ -224,7 +225,8 @@ export function partesTecido(v) {
   if (typeof v !== "object") return [String(v)];
   const nome = v.nome || String(v.artigo || "").split(" · ")[0] || "";
   const cor = v.corArtigo || v.cor || (v.nome ? "" : String(v.artigo || "").split(" · ")[1] || "");
-  return [v.tipo, nome, cor, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante, v.forro ? `forro ${v.forro}` : ""].filter(Boolean);
+  // v891 — #85: composição do artigo junto ao nome da malha/tecido
+  return [v.tipo, v.composicao && nome ? `${nome} (${v.composicao})` : nome || (v.composicao ? `(${v.composicao})` : ""), cor, v.codigo ? `cód. ${v.codigo}` : "", v.fabricante, v.forro ? `forro ${v.forro}` : ""].filter(Boolean);
 }
-export const tecidoDoResumo = (rf) => (rf ? [rf.tecidoTipo, rf.artigo || "sem artigo", rf.artigoCor, rf.artigoCodigo ? `cód. ${rf.artigoCodigo}` : "", rf.artigoFabricante, rf.forro ? `forro ${rf.forro}` : ""].filter(Boolean) : []);
+export const tecidoDoResumo = (rf) => (rf ? [rf.tecidoTipo, `${rf.artigo || "sem artigo"}${rf.artigoComposicao ? ` (${rf.artigoComposicao})` : ""}`, rf.artigoCor, rf.artigoCodigo ? `cód. ${rf.artigoCodigo}` : "", rf.artigoFabricante, rf.forro ? `forro ${rf.forro}` : ""].filter(Boolean) : []);
 export const numFpp = (n) => (n != null ? String(n).padStart(5, "0") : "");
