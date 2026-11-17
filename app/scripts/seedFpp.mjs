@@ -92,7 +92,11 @@ const CONST_COMUM = [
   ["OP_INVEST_TAXA", 0.03,  "Operação financeira — investimento (a.m.)"],
   ["OP_TITULO_BANCO_TAXA", 0.058, "Operação financeira — título banco (a.m.)"],         // v686 — título: banco ou factoring
   ["OP_TITULO_FACTORING_TAXA", 0.058, "Operação financeira — título factoring (a.m.)"],
+  ["SUB_PAPEL_METRO", 0, "Papel de sublimação (R$/m)"],   // v922
 ];
+// v922 — sublimação: papel por local (m/peça); "Total" é digitado na FPP (comprimento do corte)
+const SUB_PAPEL = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."],
+  ["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."]];
 
 async function up(tipo, grupo, chave, valor, extra, ordem, rotulo) {
   await prisma.fppParam.upsert({
@@ -124,6 +128,7 @@ async function main() {
   const titAntigo = await prisma.fppParam.findUnique({ where: { tipo_grupo_chave: { tipo: "COMUM", grupo: "CONST", chave: "OP_TITULO_TAXA" } } }).catch(() => null);
   if (titAntigo) for (const row of CONST_COMUM) if (/^OP_TITULO_(BANCO|FACTORING)_TAXA$/.test(row[0])) row[1] = titAntigo.valor;
   o = 0; for (const [k, v, r] of CONST_COMUM) await up("COMUM", "CONST", k, v, null, o++, r);
+  o = 0; for (const [k, r] of SUB_PAPEL) await up("COMUM", "SUB_PAPEL", k, 0, null, o++, r);   // v922
   if (titAntigo?.ativo) await prisma.fppParam.update({ where: { id: titAntigo.id }, data: { ativo: false } }).catch(() => {});
   // v410 — elástico e faixa por metro: abre os campos (consumo e R$/m) nas especificações que ainda não têm; tipos de faixa e de botão
   for (const p of await prisma.fppParam.findMany({ where: { grupo: { in: ["ELASTICO", "FAIXA"] } } })) {

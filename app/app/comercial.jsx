@@ -193,7 +193,20 @@ function corteLaserDe(e) {
 }
 function valorAplicacao(a, params) {
   if (!a) return 0;
+  if (a.metodo === "SUBLIMACAO") return num(a.valor) + (a.interno ? papelSubDe(a, params) * papelPrecoDe(params) : 0);   // v922 — papel (interna)
   return a.metodo === "SILK" ? (Number(a.cores) || 0) * silkPorCorDe(params) : num(a.valor);
+}
+// v922 — sublimação: consumo de papel (m/peça) por local. "Total": o papel é o comprimento do corte — digitado na aplicação;
+//   demais locais: o digitado ou o padrão do local no banco de dados (COMUM · SUB_PAPEL). R$/m do papel: COMUM · CONST · SUB_PAPEL_METRO.
+function papelSubPadrao(local, params) { const r = (params?.COMUM?.SUB_PAPEL || []).find((x) => x.chave === local); return r ? Number(r.valor) || 0 : 0; }
+function papelSubDe(a, params) { if (!a || a.metodo !== "SUBLIMACAO") return 0; return num(a.papel) > 0 ? num(a.papel) : a.local === "TOTAL" ? 0 : papelSubPadrao(a.local, params); }
+function papelPrecoDe(params) { const r = (params?.COMUM?.CONST || []).find((x) => x.chave === "SUB_PAPEL_METRO"); return r ? Number(r.valor) || 0 : 0; }
+// sublimação total na malha: consumo de malha = papel (m/peça) ÷ rendimento da malha (m/kg) → rendimento da peça = m/kg ÷ papel
+function subTotalMalha(f) {
+  const a = (Array.isArray(f?.personalizacoes) ? f.personalizacoes : []).find((x) => x.metodo === "SUBLIMACAO" && x.local === "TOTAL");
+  if (!a) return null;
+  const papel = num(a.papel), rendM = num(f?.artigoDet?.rendimento);
+  return { papel, rendM, rendCons: papel > 0 && rendM > 0 ? rendM / papel : 0, falta: !(papel > 0) ? "PAPEL" : !(rendM > 0) ? "RENDIMENTO" : null };
 }
 // soma por técnica (silk/bordado/sublimação), só internas ou todas
 function persPorTecnica(e, params, soInternas) {
@@ -447,7 +460,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const isMalha = tipo === "MALHA";
     const qt = Math.max(1, num(f.qtde));
     // v512 — acessório: valores digitados na ficha; revenda: sem matéria-prima, aviamentos e produção
-    const rendCons = revenda ? 0 : aberta ? num(f.abRend) : pget("PECA", f.item, "valor");           // rendimento(peças/kg) ou consumo(m/peça)
+    // v922 — sublimação total na malha: o rendimento da peça sai do papel (m/peça) e do rendimento da malha (m/kg)
+    const subT = isMalha && !revenda ? subTotalMalha(f) : null;
+    const rendCons = revenda ? 0 : subT?.rendCons > 0 ? subT.rendCons : aberta ? num(f.abRend) : pget("PECA", f.item, "valor");           // rendimento(peças/kg) ou consumo(m/peça)
     const laser = corteLaserDe(f);   // v659
     const corte = revenda ? 0 : laser != null ? laser : aberta ? num(f.abCorte) : pget("PECA", f.item, "corte");
     const prodPeca = revenda ? 0 : aberta ? num(f.abAcab) : isMalha ? pget("PECA", f.item, "exped") : pget("PECA", f.item, "acab");
@@ -551,7 +566,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const denBe = 1 - imposto - comissaoPct - kTit;
     const breakeven = denBe > 0 ? (custoProducao + opInv) / denBe : null;
 
-    return { breakeven, rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
+    return { subT, breakeven, rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over, aberta, revenda]);
 
   function montarBody() {
@@ -574,6 +589,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const frP = fracoesPag(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde)));
     if (!frP.ok) return setMsg(`A condição de pagamento soma ${(Math.round(frP.soma * 1000) / 10).toString().replace(".", ",")}% do valor. Ajuste a entrada e as parcelas até fechar 100% para salvar a FPP.`);
     if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
+    // v922 — sublimação total: papel (m/peça) e rendimento da malha (m/kg) são obrigatórios (deles sai o consumo de malha)
+    const st = tipo === "MALHA" ? subTotalMalha(f) : null;
+    if (st?.falta === "PAPEL") return setMsg("Sublimação total: informe o consumo de papel (m/peça) na aplicação.");
+    if (st?.falta === "RENDIMENTO") return setMsg("Sublimação total: preencha o rendimento da malha (m/kg) no + do artigo principal — é dele que sai o consumo de malha pelo papel.");
     setSalvando(true); setMsg("");
     const body = montarBody();
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
@@ -802,7 +821,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
             <Card title="Personalização">
               {/* v272 — aplicações: + → local → método (silk: nº de cores × R$/cor das Análises; bordado/DTF/sublimação: valor digitado) */}
-              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} item={f.item} fppId={editId} user={user} />
+              <PersAplicacoes lista={f.personalizacoes || []} onChange={(l) => set("personalizacoes", l)} params={params} qtde={num(f.qtde)} item={f.item} fppId={editId} user={user} subT={r?.subT} />
               {num(f.arteTotal) > 0 && <div className="mt-2"><ArteInp label="Arte / tela (R$ total, formato anterior)" value={f.arteTotal || ""} onChange={(v) => set("arteTotal", v)} qtde={num(f.qtde)} /></div>}
               {["silk", "bordado", "sublimacao"].some((tec) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))) && <div className="text-[11px] mt-3 mb-1 font-semibold" style={{ color: C.sub }}>Valores antigos desta ficha (formato anterior):</div>}
               {[["silk", "Silk / DTF / DTG"], ["bordado", "Bordado / Patch"], ["sublimacao", "Sublimação"]].filter(([tec]) => f[tec] && (num(f[tec].arte) || POS.some(([k]) => num(f[tec][k])))).map(([tec, lbl]) => (
@@ -1205,6 +1224,7 @@ function BancoParams({ params, master, user, onReload }) {
         </React.Fragment>
       ))}
       {params.COMUM?.BOTAO && <GrupoParam grupo="BOTAO" rotulo="Botões — R$/unidade" linhas={params.COMUM.BOTAO} os={os} user={user} onReload={onReload} />}
+      {params.COMUM?.SUB_PAPEL && <GrupoParam grupo="SUB_PAPEL" rotulo="Sublimação — papel por local (m/peça)" linhas={params.COMUM.SUB_PAPEL} os={os} user={user} onReload={onReload} />}   {/* v922 */}
       {params.COMUM?.EMB_INT && <GrupoParam grupo="EMB_INT" rotulo="Embalagens internas" linhas={params.COMUM.EMB_INT} os={os} user={user} onReload={onReload} />}
       {params.COMUM?.CONST && <GrupoParam grupo="CONST" rotulo="Constantes gerais (imposto, operação financeira)" linhas={params.COMUM.CONST} os={os} user={user} onReload={onReload} />}
     </div>
@@ -2046,7 +2066,7 @@ function ArteInput({ value, onChange, qtde, rotulo = "arte", className, style, t
   return <input value={value || ""} onFocus={() => { ini.current = value; }} onChange={(e) => onChange(e.target.value)} onBlur={sair} inputMode="decimal" className={className} style={style} title={title} />;
 }
 
-function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user }) {
+function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT }) {
   const pc = silkPorCorDe(params);
   const locais = locaisDaPeca(item);   // v693 — calça: laterais e bolsos
   const novoUid = () => Math.random().toString(36).slice(2, 10);
@@ -2087,6 +2107,13 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user }) {
                 ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full h-full px-2 rounded text-sm" style={sel}>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
                   </select>)
+                : a.metodo === "SUBLIMACAO"   // v922 — papel (m/peça) + R$/peça
+                  ? lbl("Papel (m/pç) · R$/peça", <div className="flex gap-1 w-full h-full">
+                      <input value={a.papel || ""} onChange={(e) => mud(i, "papel", e.target.value)} inputMode="decimal" placeholder={a.local === "TOTAL" ? "m/peça" : String(papelSubPadrao(a.local, params) || "m/peça").replace(".", ",")}
+                        title={a.local === "TOTAL" ? "Total: comprimento de papel por peça (é o mesmo comprimento de malha)" : "Papel por peça neste local (vazio = padrão do banco de dados)"}
+                        className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: a.local === "TOTAL" && !(num(a.papel) > 0) ? C.accent : C.line }} />
+                      <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" placeholder="R$/pç" title="Outros custos por peça (terceirizado: o valor cobrado)" className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={sel} />
+                    </div>)
                 : lbl(a.metodo === "BORDADO" ? "R$/aplicação" : "R$/peça", <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="w-full h-full px-2 rounded text-sm" style={sel} />)}
               {temArte
                 ? lbl(`${a.metodo === "BORDADO" ? "Programa" : "Arte / tela"} (R$ total)`, <div className="relative w-full h-full">
@@ -2108,6 +2135,13 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user }) {
             </div>
             <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="p-1.5 rounded shrink-0" style={{ color: C.sub }} title="Remover"><Trash2 size={15} /></button>
           </div>
+          {/* v922 — sublimação: papel e consumo de malha */}
+          {a.metodo === "SUBLIMACAO" && <div className="text-[11px] mt-1 ml-1" style={{ color: C.sub }}>
+            {papelSubDe(a, params) > 0 ? <>Papel {String(Math.round(papelSubDe(a, params) * 1000) / 1000).replace(".", ",")} m/peça{a.interno ? (papelPrecoDe(params) > 0 ? ` × ${brl(papelPrecoDe(params))}/m = ${brl(papelSubDe(a, params) * papelPrecoDe(params))}/pç` : " · sem R$/m do papel no banco de dados") : ""}</> : <span style={{ color: C.accent }}>Informe o papel (m/peça){a.local === "TOTAL" ? "" : " ou cadastre o padrão do local no banco de dados"}.</span>}
+            {a.local === "TOTAL" && subT && (subT.falta === "RENDIMENTO"
+              ? <span style={{ color: "#E5484D" }}> · preencha o rendimento da malha (m/kg) no + do artigo: é dele que sai o consumo de malha</span>
+              : subT.rendCons > 0 ? <> · malha = {String(subT.papel).replace(".", ",")} m ÷ {String(subT.rendM).replace(".", ",")} m/kg = <b style={{ color: C.text }}>{(subT.papel / subT.rendM).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg/peça</b> ({subT.rendCons.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} peças/kg)</> : null)}
+          </div>}
           {/* v806 — silk, DTF e bordado: medidas da estampa e arquivos de detalhe (vão para o pedido ao indexar a FPP) */}
           {temArte && a.uid && <EstampaFpp a={a} mud={(k, v) => mud(i, k, v)} fppId={fppId} user={user} />}
           </div>

@@ -100,7 +100,7 @@ export function materiaisDaFpp(fpp, params = [], corSel = null) {
     const consumo = tipo === "MALHA" ? (rendCons ? 1 / rendCons : 0) : rendCons;
     out.push({ papel: "PRINCIPAL", ref: { campo: "artigoDet" }, categoria: tipo === "MALHA" ? "MALHA" : "TECIDO", unidade: tipo === "MALHA" ? "KG" : "M",
       nome: nomeP.toUpperCase(), det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: consumo, valorUnitario: n0(e.mpValor),
-      base: tipo === "MALHA" ? `${String(rendCons).replace(".", ",")} peças/kg` : `${String(rendCons).replace(".", ",")} m/peça` });
+      base: tipo === "MALHA" ? `${String(Math.round(rendCons * 100) / 100).replace(".", ",")} peças/kg` : `${String(Math.round(rendCons * 1000) / 1000).replace(".", ",")} m/peça` });
   }
   const nomeF = String(e.nomeArtigoForro || "").trim();
   if ((tipo === "PLANO" || (aberta && e.forrada)) && nomeF && e.forrada !== false) {   // v411 — só peça forrada
@@ -170,6 +170,20 @@ export function materiaisDaFpp(fpp, params = [], corSel = null) {
     const custoPeca = paramValor(params, tipo, a.chave, v, ov);
     out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "UN", nome: nomeAv(a.prefixo, v), det,
       consumoPorPeca: q, valorUnitario: custoPeca ? Math.round((custoPeca / q) * 10000) / 10000 : null, base: `${q} un/peça`, obs: det.obs || null });
+  }
+  // v922 — sublimação interna: papel (m/peça) por aplicação — "Total" digitado na FPP; demais locais: digitado ou o padrão do local
+  {
+    const prm = (g, k) => params.find((p) => p.tipo === "COMUM" && p.grupo === g && p.chave === k);
+    let papel = 0;
+    for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : []) {
+      if (a?.metodo !== "SUBLIMACAO" || !a.interno) continue;
+      papel += n0(a.papel) > 0 ? n0(a.papel) : a.local === "TOTAL" ? 0 : Number(prm("SUB_PAPEL", a.local)?.valor) || 0;
+    }
+    if (papel > 0) {
+      const metro = Number(prm("CONST", "SUB_PAPEL_METRO")?.valor) || null;
+      out.push({ papel: "PAPEL_SUB", ref: { campo: "papelSubDet" }, derivado: true, categoria: "OUTROS", unidade: "M", nome: "PAPEL DE SUBLIMAÇÃO", det: e.papelSubDet || {},
+        consumoPorPeca: papel, valorUnitario: metro, base: `${String(r3(papel)).replace(".", ",")} m/peça · sublimação`, obs: null });
+    }
   }
   const botoes = n0(e.botaoQtd);
   if (botoes > 0) {
