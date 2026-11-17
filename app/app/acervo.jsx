@@ -148,7 +148,9 @@ export function EmpresaMeridian({ user }) {
   const [f, setF] = useState({});
   const [st, setSt] = useState("");
   const [copiado, setCopiado] = useState("");
-  const valorTxt = (k, tipo) => (tipo === "date" && f[k] ? dBR(f[k]) : String(f[k] || ""));
+  const valorTxt = (k, tipo) => (tipo === "date" && f[k] ? dBR(f[k])
+    : k === "endereco" && f.endereco ? [String(f.endereco).trim(), f.cep ? `CEP: ${String(f.cep).trim()}` : ""].filter(Boolean).join(", ")   // v900 — endereço sai inteiro (com o CEP)
+    : String(f[k] || ""));
   const copiar = async (k, txt) => {
     if (!txt) return;
     try { await navigator.clipboard.writeText(txt); }
