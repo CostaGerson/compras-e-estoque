@@ -1161,7 +1161,13 @@ export function PicCompras({ user, fases, ir }) {
   const [oc, setOc] = useState(false);
   const [cot, setCot] = useState(null);   // v476 — cotação por fornecedor
   const [sel, setSel] = useState(new Set());   // v477 — itens escolhidos (de qualquer PIC)
-  const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); const f = lerFoco("pic"); if (f) rolarDestacar(`pic-${f}`); }).catch(() => setL([]));
+  // v912 — item com cotação gerada sai do PIC e fica só em Cotações (volta se todos os fornecedores responderem "não tem")
+  const [emCot, setEmCot] = useState(0);
+  const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => {
+    const todos = Array.isArray(x) ? x : [];
+    const naCot = (i) => (i.cotacoes || []).length > 0 && !i.semCotacao;
+    setEmCot(todos.reduce((n, p) => n + p.itens.filter(naCot).length, 0));
+    setL(todos.map((p) => ({ ...p, itens: p.itens.filter((i) => !naCot(i)) })).filter((p) => p.itens.length)); setEd({}); const f = lerFoco("pic"); if (f) rolarDestacar(`pic-${f}`); }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
   const [novoForn, setNovoForn] = useState(null);   // v609 — { item, nome, extra? }
@@ -1229,7 +1235,7 @@ export function PicCompras({ user, fases, ir }) {
     const pics = [...new Set(alvo.map((i) => i.picNumero))].join(", ");
     const grupos = Object.values(g);
     fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "criar", grupos, pics, quem: nomeUser(user) }) })
-      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) { grupos[k].numero = c.numero; grupos[k].id = c.id; } }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); })
+      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) { grupos[k].numero = c.numero; grupos[k].id = c.id; } }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); setSel(new Set()); carregar(); })
       .catch(() => setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }));
   }
   const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -1247,6 +1253,7 @@ export function PicCompras({ user, fases, ir }) {
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
+      {emCot > 0 && <div className="text-xs mb-3 flex items-center gap-2" style={{ color: C.sub }}>{emCot} item(ns) com cotação gerada estão em Cotações.{ir && <button onClick={() => ir("comprasCotacoes")} className="underline" style={{ color: C.accent }}>Abrir cotações</button>}</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
       {novoForn && <NovoFornecedorModal nome={novoForn.nome} onClose={() => setNovoForn(null)} onCriado={(f) => {
         _fornPic = [...forns, f]; setForns(_fornPic); set(novoForn.item, "fornecedor", nomeFornec(f)); setNovoForn(null);
