@@ -11,3 +11,14 @@ export function useMobile() {
   }, []);
   return m;
 }
+
+// v882 — iPad e telas médias (< 1024px): o menu lateral vira gaveta sobre a tela, como no celular
+export function useGaveta() {
+  const [g, setG] = useState(false);
+  useEffect(() => {
+    const f = () => setG(window.innerWidth < 1024);
+    f(); window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  return g;
+}

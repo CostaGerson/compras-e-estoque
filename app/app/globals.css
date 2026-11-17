@@ -132,3 +132,55 @@ input[list]::-webkit-list-button{display:none!important}
 .scroll-escuro::-webkit-scrollbar-thumb { background: #0C2C52; border-radius: 3px; }
 .scroll-escuro::-webkit-scrollbar-thumb:hover { background: #1A4170; }
 .scroll-escuro::-webkit-scrollbar-button { display: none; height: 0; }
+
+/* ======================================================================================================
+   v882 — iPad e celular: camada responsiva para TODAS as telas (sem mexer no desktop)
+   ====================================================================================================== */
+/* tabela larga rola de lado dentro do próprio quadro (não estoura a tela) */
+@media (max-width: 1279px) {
+  .ce-conteudo div:has(> table), .fixed.inset-0 div:has(> table) { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .ce-conteudo table { max-width: none; }
+}
+/* toque (iPad e celular): alvos maiores, sem efeito de hover que "gruda" */
+@media (pointer: coarse) {
+  button, [role="button"], a { touch-action: manipulation; }
+  select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea { min-height: 36px; }
+  input[type="checkbox"], input[type="radio"] { min-width: 18px; min-height: 18px; }
+  .card-asana:hover, .hover\:bg-gray-50:hover { transform: none; box-shadow: none; }
+}
+/* iPad (até 1023px): grades de 5+ colunas viram 3; janelas largas usam quase a tela toda */
+@media (max-width: 1023px) {
+  .grid-cols-5, .grid-cols-6, .grid-cols-7, .grid-cols-8 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  [style*="grid-template-columns: repeat(5"], [style*="grid-template-columns: repeat(6"], [style*="grid-template-columns: repeat(7"], [style*="grid-template-columns: repeat(8"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .fixed.inset-0 > div[class*="max-w-"] { max-width: calc(100vw - 24px) !important; }
+}
+/* celular (até 767px) */
+@media (max-width: 767px) {
+  /* janelas (modais) viram tela cheia, com rolagem própria */
+  .fixed.inset-0:not(.z-40):not(.ce-sem-folha) { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
+  .fixed.inset-0:not(.z-40):not(.ce-sem-folha) > div:not(.anim-gaveta):not(:empty):first-child {
+    width: 100% !important; max-width: 100vw !important; min-width: 0 !important; max-height: 100dvh !important; height: 100dvh;
+    border-radius: 0 !important; overflow-y: auto !important; margin: 0 !important; padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
+  .fixed.inset-0 > div.anim-gaveta { width: 100vw !important; max-width: 100vw !important; }
+  /* grades de 3+ colunas → 2; 2 colunas e grades automáticas largas → 1 */
+  .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6, .grid-cols-7, .grid-cols-8 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  [style*="grid-template-columns: repeat(3"], [style*="grid-template-columns: repeat(4"], [style*="grid-template-columns: repeat(5"],
+  [style*="grid-template-columns: repeat(6"], [style*="grid-template-columns: repeat(7"], [style*="grid-template-columns: repeat(8"],
+  [style*="grid-template-columns: 1fr 1fr 1fr"], [style*="grid-template-columns: 2fr 1fr 1fr"], [style*="grid-template-columns: 1fr 1fr 1fr 1fr"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  [style*="grid-template-columns: 2fr 1fr"]:not([style*="2fr 1fr 1fr"]), [style*="grid-template-columns: 1fr 2fr"], [style*="grid-template-columns: 3fr"] { grid-template-columns: minmax(0, 1fr) !important; }
+  [style*="minmax(200px"], [style*="minmax(210px"], [style*="minmax(220px"], [style*="minmax(230px"], [style*="minmax(240px"], [style*="minmax(250px"], [style*="minmax(260px"],
+  [style*="minmax(280px"], [style*="minmax(300px"], [style*="minmax(320px"], [style*="minmax(340px"], [style*="minmax(360px"], [style*="minmax(400px"] { grid-template-columns: minmax(0, 1fr) !important; }
+  [style*="minmax(130px"], [style*="minmax(140px"], [style*="minmax(150px"], [style*="minmax(160px"], [style*="minmax(170px"], [style*="minmax(180px"], [style*="minmax(190px"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .col-span-3, .col-span-4, .col-span-5, .col-span-6, [style*="grid-column: span 3"], [style*="grid-column: span 4"], [style*="grid-column: span 5"], [style*="grid-column: span 6"] { grid-column: 1 / -1 !important; }
+  /* barras de botões e filtros quebram linha em vez de estourar a tela */
+  .ce-conteudo .flex.items-center.gap-2:not(.flex-nowrap):not(.ce-linha), .ce-conteudo .flex.items-center.gap-3:not(.flex-nowrap):not(.ce-linha),
+  .ce-conteudo .flex.flex-wrap, .fixed.inset-0 .flex.justify-end.gap-2 { flex-wrap: wrap; row-gap: 6px; }
+  /* larguras fixas grandes não passam da tela */
+  .ce-conteudo [style*="width: 4"], .ce-conteudo [style*="width: 5"], .ce-conteudo [style*="width: 6"], .ce-conteudo [style*="width: 7"],
+  .ce-conteudo [style*="width: 8"], .ce-conteudo [style*="width: 9"], .ce-conteudo [style*="min-width: 4"], .ce-conteudo [style*="min-width: 5"] { max-width: 100%; }
+  .ce-conteudo input[type="text"], .ce-conteudo input:not([type]), .ce-conteudo select { max-width: 100%; }
+  /* títulos e textos menores, tabelas um pouco mais compactas */
+  .ce-conteudo .text-2xl { font-size: 1.3rem; line-height: 1.7rem; }
+  .ce-conteudo .text-xl { font-size: 1.12rem; }
+  .ce-conteudo table td, .ce-conteudo table th { padding-left: 6px; padding-right: 6px; }
+}

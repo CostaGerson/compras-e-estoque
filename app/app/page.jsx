@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { useMobile } from "./useMobile";   // v550
+import { useMobile, useGaveta } from "./useMobile";   // v550
 import { ETIQUETAS } from "@/lib/msgEtiquetas";   // v862
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
@@ -257,7 +257,8 @@ export default function Home() {
   useEffect(() => { try { sessionStorage.setItem("ce_tab", tab); } catch {} }, [tab]);   // v490
   const [collapsed, setCollapsed] = useState(false);
   const mobile = useMobile();   // v550 — no celular o menu vira gaveta sobre a tela e começa fechado
-  useEffect(() => { if (mobile) setCollapsed(true); }, [mobile]);
+  const gaveta = useGaveta();   // v882 — iPad: menu em gaveta também
+  useEffect(() => { if (gaveta) setCollapsed(true); }, [gaveta]);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [badgeTick, setBadgeTick] = useState(0);
   const [resetTick, setResetTick] = useState(0);   // clicar no título remonta o módulo na tela inicial dele
@@ -357,10 +358,10 @@ export default function Home() {
             </div>
   );
   return (
-    <div style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
-      {mobile && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40" style={{ background: "rgba(0,30,65,.45)" }} />}
-      <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${mobile ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : mobile ? "min(280px, 85vw)" : 240 }}>
-      <aside data-demo-livre style={{ background: C.sidebar, width: mobile ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
+    <div style={{ background: C.bg, color: C.text, height: "100dvh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }} className="flex text-sm">
+      {gaveta && !collapsed && <div onClick={() => setCollapsed(true)} className="fixed inset-0 z-40 ce-fundo-gaveta" style={{ background: "rgba(0,30,65,.45)" }} />}
+      <div className={`shrink-0 h-full transition-all duration-300 ease-in-out overflow-hidden ${gaveta ? "fixed left-0 top-0 z-50 shadow-2xl" : ""}`} style={{ width: collapsed ? 0 : gaveta ? "min(280px, 85vw)" : 240 }}>
+      <aside data-demo-livre style={{ background: C.sidebar, width: gaveta ? "min(280px, 85vw)" : 240 }} className="h-full flex flex-col">
         <div className="flex items-center shrink-0" style={{ borderBottom: `1px solid ${C.sidebarLine}` }}>
           <button onClick={() => irInicio(inicio)} className="px-4 py-4 flex items-center flex-1" style={{ background: C.sidebar }}>
             <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />
@@ -372,7 +373,7 @@ export default function Home() {
           </button>
         </div>
         <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
-          <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (mobile) setCollapsed(true); }} />
+          <MenuArvore itens={menu} view={view} caminho={caminho} ir={(k) => { irInicio(k); if (gaveta) setCollapsed(true); }} />
         </nav>
         {/* v706 — Sair no rodapé do menu lateral (computador e celular) */}
         <div className="px-3 py-2.5 shrink-0 flex items-center gap-2" style={{ borderTop: `1px solid ${C.sidebarLine}` }}>
@@ -427,7 +428,7 @@ export default function Home() {
         </header>
         )}
 
-        <div className={`flex-1 overflow-auto ${mobile ? "px-2 py-2" : "px-5 py-3"}`}>
+        <div className={`ce-conteudo flex-1 overflow-auto ${mobile ? "px-2 py-2" : gaveta ? "px-3 py-3" : "px-5 py-3"}`}>
           <div key={`${view}-${resetTick}`} className="anim-entrar">
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}
