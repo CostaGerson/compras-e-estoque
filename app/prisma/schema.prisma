@@ -414,6 +414,7 @@ model Pp {
   portalLiberadoEm  DateTime? // v714 — quando foi para a produção (liberado): o despacho conta o lead time a partir daqui
   portalEnviadoEm   DateTime? // v711 — quando o cliente enviou (liberou ou abriu o recebimento de dados)
   portalObs         String?   // v711 — observação digitada pelo cliente no portal
+  extRef            String?   @unique   // v906 — pedido vindo de sistema de fora: "NORT|<ref>" (não duplica; o editor não apaga)
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 
   createdAt DateTime @default(now())
@@ -2720,4 +2721,39 @@ model DocAcervoAnexo {
   createdAt     DateTime  @default(now())
 
   @@index([docId])
+}
+
+// v906 — integração NORT (sistema da loja do Gerson): peças prontas e equivalência por nome
+//   O estoque de peças prontas é lançado lá; aqui só se lê (movimentos) e se relaciona o custo pela FPP do Item Padrão.
+model NortItem {
+  id            Int       @id @default(autoincrement())
+  nome          String    @unique                       // nome do item no sistema da NORT (a equivalência é pelo nome)
+  sku           String?
+  itemPadraoId  Int?                                    // Item Padrão NORT ligado (a FPP dele dá o custo)
+  minimo        Decimal?  @db.Decimal(14, 3)            // estoque mínimo (soma SEDE + LOJA); abaixo → aviso para Compras
+  saldoSede     Decimal   @default(0) @db.Decimal(14, 3)
+  saldoLoja     Decimal   @default(0) @db.Decimal(14, 3)
+  temEstoque    Boolean   @default(false)               // já teve movimento de estoque (aparece em Peças prontas)
+  avisoMinEm    DateTime?                               // último aviso de mínimo (não repete até voltar acima)
+  divergencia   Json?                                   // última conferência com o saldo da NORT: { em, SEDE: { erp, nort }, LOJA: {…} }
+  ultimoMovEm   DateTime?
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  movs          NortMov[]
+}
+
+model NortMov {
+  id          Int      @id @default(autoincrement())
+  chave       String   @unique                          // id do movimento no sistema da NORT (repetir não duplica)
+  itemId      Int
+  item        NortItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  deposito    String                                    // SEDE | LOJA
+  tipo        String                                    // ENTRADA | SAIDA | AJUSTE | CONFERENCIA
+  quantidade  Decimal  @db.Decimal(14, 3)               // com sinal: + entra, − sai
+  data        DateTime
+  ref         String?                                   // venda, nota, transferência…
+  obs         String?
+  createdAt   DateTime @default(now())
+  @@index([itemId])
 }

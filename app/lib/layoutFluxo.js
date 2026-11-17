@@ -200,7 +200,7 @@ export async function ajustarClienteFinalLayout() {
   const l = await prisma.tarefa.findMany({ where: { modelo: false, status: { notIn: ["CANCELADA"] }, OR: [{ titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, { titulo: { startsWith: "APROVAÇÃO DE LAYOUT" } }] }, select: { id: true, titulo: true, layout: true } }).catch(() => []);
   const ids = [...new Set(l.map((t) => Number(t.layout?.ppId)).filter(Boolean))];
   if (!ids.length) return;
-  const pps = await prisma.pp.findMany({ where: { id: { in: ids }, portalClienteId: { not: null } }, select: { id: true, clienteNome: true, clienteFinal: true } }).catch(() => []);
+  const pps = await prisma.pp.findMany({ where: { id: { in: ids }, OR: [{ portalClienteId: { not: null } }, { extRef: { startsWith: "NORT|" } }] }, select: { id: true, clienteNome: true, clienteFinal: true } }).catch(() => []);
   const P = Object.fromEntries(pps.map((p) => [p.id, clienteRotulo(p)]));
   for (const t of l) {
     const novo = P[Number(t.layout?.ppId)];

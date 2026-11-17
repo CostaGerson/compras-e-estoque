@@ -104,7 +104,8 @@ export async function gestaoProducao() {
   const ppsPortal = await prisma.pp.findMany({ where: { portalClienteId: { not: null }, numero: { not: null } }, select: { numero: true, clienteNome: true, clienteFinal: true } }).catch(() => []);
   const doPortal = ppsPortal.map((x) => x.numero);
   const { clienteRotulo } = await import("@/lib/layoutFluxo");   // v896 — "LOJA WAY - CLIENTE FINAL" na lista
-  const rotPortal = Object.fromEntries(ppsPortal.map((x) => [x.numero, clienteRotulo({ clienteNome: x.clienteNome, clienteFinal: x.clienteFinal })]));
+  const ppsNort = await prisma.pp.findMany({ where: { extRef: { startsWith: "NORT|" }, numero: { not: null } }, select: { numero: true, clienteNome: true, clienteFinal: true } }).catch(() => []);   // v906
+  const rotPortal = Object.fromEntries([...ppsPortal, ...ppsNort].map((x) => [x.numero, clienteRotulo({ clienteNome: x.clienteNome, clienteFinal: x.clienteFinal })]));
   // v794 — todo pedido aparece, inclusive o interno (antes sumia da Produção); o interno só não entra no "a faturar"
   const ps = await prisma.pedidoVenda.findMany({ where: { status: "ANDAMENTO" }, select: CAMPOS_LISTA, orderBy: [{ despacho: "asc" }, { numero: "asc" }] });
   for (const p of ps) if (p.interno && !doPortal.includes(p.numero)) p.semFaturar = true;
@@ -133,7 +134,7 @@ export async function detalhePedido(numero) {
   const hoje = hojeBR();
   try { const lp = await layoutsPendentes(); if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch {}   // v738
   try {   // v896 — pedido do portal: cliente final junto ao nome
-    const pp = await prisma.pp.findFirst({ where: { numero: p.numero, portalClienteId: { not: null } }, select: { clienteNome: true, clienteFinal: true } });
+    const pp = await prisma.pp.findFirst({ where: { numero: p.numero, OR: [{ portalClienteId: { not: null } }, { extRef: { startsWith: "NORT|" } }] }, select: { clienteNome: true, clienteFinal: true } });
     const r = pp ? (await import("@/lib/layoutFluxo")).clienteRotulo(pp) : "";
     if (r.includes(" - ")) p.cliente = `${p.cliente || r.split(" - ")[0]} - ${r.split(" - ").slice(1).join(" - ")}`;
   } catch {}
