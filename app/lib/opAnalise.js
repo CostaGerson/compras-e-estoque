@@ -19,13 +19,13 @@ export const CATEGORIAS_CORTE = [
   ["PILOTO", "Piloto", 20], ["ENTRETELA", "Entretela", 0], ["FAIXA", "Faixa", 0], ["CAMISETA", "Camiseta", 0.75], ["POLO", "Polo", 0.9],
   ["MOLETOM", "Moletom", 1], ["JAQUETA", "Jaqueta", 1.5], ["CAMISA_SOCIAL", "Camisa social", 2], ["JALECO_OPERACIONAL", "Jaleco operacional", 1.5],
   ["CALCA_OPERACIONAL", "Calça operacional", 1.5], ["CALCA_JEANS", "Calça jeans", 1.7], ["CALCA_SOCIAL", "Calça social", 1.7],
-  ["AVENTAL", "Avental", 0], ["FORRO", "Forro", 0],
+  ["AVENTAL", "Avental", 0], ["FORRO", "Forro", 0], ["COLETE", "Colete", 0],   // v928 — colete vem do PCP
 ];
 export const MERCADO_PADRAO = Object.fromEntries(CATEGORIAS_CORTE.map(([k, , v]) => [k, v]));
 // v183 — expedição (ordem da planilha "Análise Expedição 2026")
 export const CATEGORIAS_EXPEDICAO = [
   ["CAMISETA", "Camiseta", 1.5], ["POLO", "Polo", 2.7], ["MOLETOM", "Moletom", 1.5], ["JAQUETA", "Jaqueta", 1.5], ["CAMISA_SOCIAL", "Camisa social", 5.5],
-  ["JALECO_OPERACIONAL", "Jaleco operacional", 1.5], ["CALCA_OPERACIONAL", "Calça operacional", 1.5], ["CALCA_JEANS", "Calça jeans", 2.1], ["CALCA_SOCIAL", "Calça social", 2.1],
+  ["JALECO_OPERACIONAL", "Jaleco operacional", 1.5], ["CALCA_OPERACIONAL", "Calça operacional", 1.5], ["CALCA_JEANS", "Calça jeans", 2.1], ["CALCA_SOCIAL", "Calça social", 2.1], ["COLETE", "Colete", 0],   // v928
 ];
 // v254 — costura: camiseta (MC/ML × com/sem faixa ou recorte), moletom (normal/colegial × com/sem), polo (comum/com recorte), demais normais.
 // Valor de mercado começa zerado: preencha com o preço da facção para ter o comparativo com terceirizar.

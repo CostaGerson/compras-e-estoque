@@ -34,6 +34,16 @@ async function pcp(path, body) {
 const paresCat = (x) => (Array.isArray(x) ? x.map((c) => [c.categoria ?? c.nome ?? c.tipo ?? c.chave, num(c.pecas ?? c.qtde ?? c.quantidade ?? c.qtd)]) : Object.entries(x || {}).map(([k, v]) => [k, typeof v === "object" ? num(v?.pecas ?? v?.qtde) : num(v)]));
 const catErp = (setor, nome) => { const k = sa(nome); const cats = CATEGORIAS_OP[setor] || []; return cats.find(([c]) => c === k)?.[0] || cats.find(([, n]) => sa(n) === k)?.[0] || null; };
 const ehTerc = (i) => i?.terceirizado === true || /TERCEIR/i.test(String(i?.origem || ""));
+// tipo da tabela de facção do PCP ("camiseta_mc", "moletom_faixa", "camiseta_gv"…) → categoria da costura do ERP
+function catCostura(chave, label) {
+  const x = sa(`${chave || ""} ${label || ""}`);
+  if (!x) return null;
+  const com = /FAIXA|RECORTE/.test(x) ? "_COM" : "_SEM";
+  if (/POLO/.test(x)) return /RECORTE/.test(x) ? "POLO_RECORTE" : "POLO_COMUM";
+  if (/MOLETOM/.test(x)) return `MOLETOM_${/COLEGIAL/.test(x) ? "COLEGIAL" : "NORMAL"}${com}`;
+  if (/CAMISETA/.test(x)) return `CAMISETA_${/(^|_)ML(_|$)|MANGA_LONGA/.test(x) ? "ML" : "MC"}${com}`;
+  return catErp("COSTURA", label) || catErp("COSTURA", chave);
+}
 const tipoPers = (prod) => (/AVENTAL/.test(sa(prod)) ? "AVENTAL" : tipoDaPeca(prod));
 
 // análise do PCP → registro da análise operacional do ERP (mesmo formato da importação da planilha)
@@ -74,18 +84,18 @@ export function paraErp(tipo, a, mes) {
       extra: { valorTabela: r2(valor), terceirizado: { pecas: num(T.pecasTerceirizadas), valor: K.custoTerceirizacao != null ? r2(K.custoTerceirizacao) : null, fornecedores: {} }, fonte: "PCP" },
       detalhe: itens.map((i) => ({ pedido: String(i.pedido ?? ""), cliente: i.cliente, produto: i.produto, categoria: "PECA", qtde: num(i.pecas), preco: r2(i.vUnit ?? i.porPeca), valor: r2(i.valor), origem: ehTerc(i) ? `Terceirizado · ${i.provider || ""}` : "Interno", concluido: i.data })) };
   }
-  if (setor === "COSTURA") {   // peças internas por tipo da tabela de facção; valor de mercado = valor de facção
+  if (setor === "COSTURA") {   // peças INTERNAS por tipo da tabela de facção do PCP → categorias da costura do ERP; valor de mercado = valor de facção médio
     const qtds = {}, soma = {}; let fora = 0;
-    for (const i of itens) {
-      if (ehTerc(i)) continue;
-      const k = catErp("COSTURA", i.tipo) || catErp("COSTURA", i.tipoLabel);
-      if (!k) { fora += num(i.pecas); continue; }
-      qtds[k] = (qtds[k] || 0) + num(i.pecas); soma[k] = (soma[k] || 0) + num(i.valor || num(i.valorUnit) * num(i.pecas));
+    for (const [chave, t] of Object.entries(T.porTipo || {})) {
+      const pecas = num(t?.pecasInt), valor = num(t?.valorInt);
+      if (!pecas) continue;
+      const k = chave === "_sem" ? null : catCostura(chave, t?.label);
+      if (!k) { fora += pecas; continue; }
+      qtds[k] = (qtds[k] || 0) + pecas; soma[k] = (soma[k] || 0) + valor;
     }
-    if (!itens.length) for (const [nome, q] of paresCat(T.porTipo)) { const k = catErp("COSTURA", nome); if (k) qtds[k] = (qtds[k] || 0) + q; else fora += q; }
     const mercado = Object.fromEntries(Object.keys(soma).filter((k) => qtds[k]).map((k) => [k, r2(soma[k] / qtds[k])]));
-    return { ...base, qtds, semCategoria: Math.round(fora + num(T.itensSemTipo)), total: Object.values(qtds).reduce((s, v) => s + v, 0), mercado: Object.keys(mercado).length ? mercado : null,
-      detalhe: itens.map((i) => ({ pedido: String(i.pedido ?? ""), cliente: i.cliente, produto: i.produto, categoria: catErp("COSTURA", i.tipo) || catErp("COSTURA", i.tipoLabel) || "SEM_CATEGORIA", tipoPcp: i.tipoLabel || i.tipo, qtde: num(i.pecas), valor: r2(i.valor), origem: ehTerc(i) ? `Terceirizado · ${i.provider || ""}` : "Interno", concluido: i.data })) };
+    return { ...base, qtds, semCategoria: Math.round(fora), total: Object.values(qtds).reduce((s, v) => s + v, 0), mercado: Object.keys(mercado).length ? mercado : null,
+      detalhe: itens.map((i) => ({ pedido: String(i.pedido ?? ""), cliente: i.cliente, produto: i.produto, categoria: catCostura(i.tipo, i.tipoLabel) || "SEM_CATEGORIA", tipoPcp: i.tipoLabel || i.tipo, qtde: num(i.pecas), valor: r2(i.valor), origem: ehTerc(i) ? `Terceirizado · ${i.provider || ""}` : "Interno", concluido: i.data })) };
   }
   return null;
 }
