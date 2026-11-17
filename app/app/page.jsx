@@ -135,11 +135,11 @@ const MENU = [
       // v293 — silk e bordado em cards próprios
       { key: "anSilk", label: "Silk", icon: IcoPers, desc: "Silk por nº de cores (R$ 0,80 por cor): folha, freelancers, tinta e peças estampadas dentro" },
       { key: "anBordado", label: "Bordado", icon: IcoBordado, desc: "Bordado por peça (valor terceirizado médio do mês): folha, freelancers, insumo e peças bordadas dentro" },
+      { key: "anSublimacao", label: "Sublimação", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças e insumos) e custo por peça de cada arte" },   // v923
+      { key: "anDtf", label: "DTF", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças, filme, tintas e cola) e custo por peça de cada arte" },   // v923
       { key: "anCostura", label: "Costura", icon: IcoCostura, desc: "Peças costuradas dentro por tipo, folha + freelancers e comparação com a facção" },
       { key: "anExpedicao", label: "Expedição", icon: IcoExped, desc: "Custo da expedição por peça" },
       { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },
-      { key: "anSublimacao", label: "Sublimação", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças e insumos) e custo por peça de cada arte" },   // v923
-      { key: "anDtf", label: "DTF", icon: IcoPers, desc: "Custo do metro linear (equipamento, cabeças, filme, tintas e cola) e custo por peça de cada arte" },   // v923
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
       { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },

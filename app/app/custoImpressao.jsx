@@ -70,7 +70,7 @@ export default function CustoImpressao({ user, tipo }) {
                 <div className="text-[10px] font-bold uppercase tracking-wide mb-1 truncate" style={{ color: STEEL }} title={s.t}>{s.t}</div>
                 <div className="grid gap-x-4" style={{ gridTemplateColumns: si === 0 ? "1fr 1fr" : "1fr" }}>
                 {s.campos.map(([k, l, t]) => (
-                  <label key={k} className="grid items-center gap-1.5 py-[2px]" style={{ gridTemplateColumns: "minmax(0,1fr) 92px" }}>
+                  <label key={k} className="grid items-center gap-1.5 py-[2px]" style={{ gridTemplateColumns: `minmax(0,1fr) ${t === "txt" ? 150 : 100}px` }}>
                     <span className="text-[11px] truncate" style={{ color: C.text }} title={l}>{l}</span>
                     <input value={txt(p[k])} onChange={(e) => setCampo(k, e.target.value)} inputMode={t === "txt" ? "text" : "decimal"} title={txt(p[k])}
                       className="w-full px-1 py-1 rounded-md text-center text-[11px] tabular-nums outline-none" style={inp} />
