@@ -2697,6 +2697,7 @@ model DocAcervo {
   validade      DateTime? @db.Date
   participantes String?
   texto         String?                        // ata da reunião / observações
+  senha         String?                        // v901 — senha do certificado digital (área CERTIFICADO)
   criadoPorNome String?
   atualizadoPorNome String?
   createdAt     DateTime  @default(now())

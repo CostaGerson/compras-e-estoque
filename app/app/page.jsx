@@ -285,12 +285,18 @@ export default function Home() {
   // v167 — atualiza a sessão com o cadastro atual (setor, chave Diretoria, bloqueio)
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`/api/usuarios/${user.id}`).then((r) => (r.ok ? r.json() : null)).then((u) => {
+    // v901 — confere de novo a cada minuto e ao voltar para a aba: usuário inativado pelo master sai na hora
+    const conferir = () => fetch(`/api/usuarios/${user.id}`).then((r) => (r.ok ? r.json() : null)).then((u) => {
       if (!u) return;
       if (!u.ativo) { localStorage.removeItem("ce_user"); setUser(null); return; }
       const mudou = ["setor", "isMaster", "diretoria", "nome", "sobrenome", "email", "login"].some((k) => u[k] !== user[k]) || JSON.stringify(u.permissoes ?? null) !== JSON.stringify(user.permissoes ?? null);
       if (mudou) { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); }
     }).catch(() => {});
+    conferir();
+    const t = setInterval(conferir, 60000);
+    const vis = () => { if (document.visibilityState === "visible") conferir(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", vis); };
   }, [user?.id]);
 
   const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView(soTarefas(u) ? "tarefas" : u.setor === "RH" && !u.isMaster ? "rh" : "gestao"); try { sessionStorage.setItem("ce_tar_ini", "1"); } catch {} };
@@ -4455,8 +4461,20 @@ function Usuarios({ master }) {
   };
   useEffect(() => { carregar(); }, []);
 
+  // v901 — o master sempre bloqueia/libera e troca a senha de qualquer usuário (menos bloquear a si mesmo)
   const toggleAtivo = async (u) => {
-    await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId(), ativo: !u.ativo }) });
+    if (u.id === sessaoId() && u.ativo) { alerta("Você não pode bloquear o seu próprio usuário."); return; }
+    if (u.ativo && !(await confirmar(`Inativar ${u.nome}? Ele perde o acesso (a sessão aberta é encerrada em até 1 minuto).`))) return;
+    const r = await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId(), ativo: !u.ativo }) });
+    if (!r.ok) alerta((await r.json().catch(() => ({}))).error || "Não consegui alterar.");
+    carregar();
+  };
+  const trocarSenha = async (u) => {
+    const nova = await perguntar(`Nova senha de ${u.nome} ${u.sobrenome || ""} (mínimo 6 caracteres):`, "");
+    if (nova == null) return;
+    if (String(nova).trim().length < 6) { alerta("A senha precisa ter pelo menos 6 caracteres."); return; }
+    const r = await fetch(`/api/usuarios/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atorId: sessaoId(), senha: String(nova).trim() }) });
+    alerta(r.ok ? `Senha de ${u.nome} alterada.` : (await r.json().catch(() => ({}))).error || "Não consegui alterar.");
     carregar();
   };
   const excluir = async (u) => {
@@ -4511,6 +4529,7 @@ function Usuarios({ master }) {
                   ))}
                 </div>
                 <div className="w-24 flex justify-center">
+                  <button onClick={() => trocarSenha(u)} className="text-xs px-2 py-1 rounded font-medium" title="Trocar a senha deste usuário" style={{ border: `1px solid ${C.line}`, color: C.text }}>Trocar senha</button>
                   <button onClick={() => toggleAtivo(u)} className="text-xs px-3 py-1 rounded font-medium" style={{ background: u.ativo ? C.greenSoft : C.accentSoft, color: u.ativo ? C.green : C.accent }}>{u.ativo ? "Ativo" : "Bloqueado"}</button>
                 </div>
                 <div className="w-20 flex justify-end gap-2">

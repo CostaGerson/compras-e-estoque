@@ -2,7 +2,8 @@
 // v780 — sugestão #22: Dados › Meridian (dados da empresa + documentos de constituição), ADM › Documentação
 //   (contratos e documentos administrativos) e Gestão › Reuniões (reuniões realizadas, ata e material)
 import React, { useEffect, useState } from "react";
-import { Plus, Paperclip, Trash2, X, Loader2, Pencil, FileText, Search, Copy, Check } from "lucide-react";
+import { Plus, Paperclip, Trash2, X, Loader2, Pencil, FileText, Search, Copy, Check, Folder, FolderOpen, ChevronRight, ChevronDown, FileArchive, Eye, EyeOff, KeyRound } from "lucide-react";
+import { unzipSync, strFromU8 } from "fflate";   // v901 — importar pasta (ZIP)
 import { alerta, confirmar } from "./dialogo";
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6", navy: "#001E41", green: "#12A150", red: "#D92D20", yellow: "#C08401" };
@@ -11,6 +12,9 @@ const inpS = { border: `1px solid ${C.line}`, background: C.panel, color: C.text
 const dBR = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "—");
 const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const readB64 = (f) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(f); });
+// v901 — Uint8Array → base64 (em blocos, sem estourar a pilha)
+const u8b64 = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", pfx: "application/x-pkcs12", p12: "application/x-pkcs12", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 async function api(body) {
   const r = await fetch("/api/acervo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
@@ -22,7 +26,8 @@ const CONF = {
   EMPRESA: { titulo: "Documentos de constituição", vazio: "Nenhum documento ainda (contrato social, alterações, cartão CNPJ, alvarás, certidões…).",
     categorias: ["CONTRATO SOCIAL", "ALTERAÇÃO CONTRATUAL", "CARTÃO CNPJ", "INSCRIÇÃO ESTADUAL", "ALVARÁ", "CERTIDÃO", "LICENÇA", "PROCURAÇÃO", "OUTRO"], validade: true },
   ADM: { titulo: "Documentação administrativa", vazio: "Nenhum documento ainda (contratos de aluguel, prestadores, seguros, leasing…).",
-    categorias: ["CONTRATO", "ADITIVO", "SEGURO", "LOCAÇÃO", "PRESTAÇÃO DE SERVIÇO", "FINANCIAMENTO", "PROCURAÇÃO", "POLÍTICA INTERNA", "OUTRO"], validade: true },
+    categorias: ["CONTRATO SOCIAL", "DOCUMENTOS DOS SÓCIOS", "REGULARIDADE FISCAL", "ECONÔMICO-FINANCEIRA", "QUALIFICAÇÃO TÉCNICA", "MARCA",
+      "CONTRATO", "ADITIVO", "SEGURO", "LOCAÇÃO", "PRESTAÇÃO DE SERVIÇO", "FINANCIAMENTO", "PROCURAÇÃO", "POLÍTICA INTERNA", "OUTRO"], validade: true, pastas: true },   // v901 — pastas por categoria
   REUNIAO: { titulo: "Reuniões", vazio: "Nenhuma reunião registrada ainda.", categorias: ["GESTÃO MENSAL", "DIRETORIA", "COMERCIAL", "PRODUÇÃO", "FINANCEIRO", "OUTRA"], reuniao: true },
 };
 
@@ -31,6 +36,36 @@ export function Acervo({ user, area }) {
   const [d, setD] = useState(null);
   const [q, setQ] = useState("");
   const [ed, setEd] = useState(null);
+  const [fechadas, setFechadas] = useState({});
+  const [imp, setImp] = useState(null);   // { feitos, total, atual }
+  // v901 — importar ZIP: cada pasta vira uma categoria (pasta); "_indice.json" opcional { "pasta/arquivo.pdf": { titulo, categoria, data, validade, texto, area } }
+  const importarZip = async (file) => {
+    if (!file) return;
+    let ents;
+    try { ents = unzipSync(new Uint8Array(await file.arrayBuffer())); } catch (e) { alerta(`Não consegui abrir o ZIP: ${e.message}`); return; }
+    let indice = {};
+    const ki = Object.keys(ents).find((k) => /(^|\/)_indice\.json$/i.test(k));
+    if (ki) { try { indice = JSON.parse(strFromU8(ents[ki])); } catch {} }
+    const arqs = Object.keys(ents).filter((k) => !k.endsWith("/") && k !== ki && !/(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)/i.test(k) && ents[k].length);
+    if (!arqs.length) { alerta("O ZIP está vazio."); return; }
+    if (!(await confirmar(`Importar ${arqs.length} arquivo(s) para ${cf.titulo}? Cada pasta do ZIP vira uma pasta aqui.`))) return;
+    const erros = [];
+    setImp({ feitos: 0, total: arqs.length, atual: "" });
+    for (const [i, k] of arqs.entries()) {
+      const partes = k.split("/"), nomeArq = partes[partes.length - 1], meta = indice[k] || indice[nomeArq] || {};
+      const pasta = meta.categoria || (partes.length > 1 ? partes[partes.length - 2] : "OUTRO");
+      setImp({ feitos: i, total: arqs.length, atual: nomeArq });
+      try {
+        const doc = { area: meta.area || area, titulo: meta.titulo || nomeArq.replace(/\.[^.]+$/, ""), categoria: String(pasta).replace(/^\d+[\s._-]+/, "").toUpperCase(),
+          data: meta.data || "", validade: meta.validade || "", texto: meta.texto || "" };
+        const r = await api({ usuarioId: user.id, acao: "salvar", doc });
+        const ext = (nomeArq.split(".").pop() || "").toLowerCase();
+        await api({ usuarioId: user.id, acao: "anexar", docId: r.id, nome: nomeArq, mime: MIME[ext] || null, conteudo: u8b64(ents[k]) });
+      } catch (e) { erros.push(`${nomeArq}: ${e.message}`); }
+    }
+    setImp(null); ler();
+    alerta(erros.length ? `Importados ${arqs.length - erros.length} de ${arqs.length}.\n${erros.join("\n")}` : `${arqs.length} arquivo(s) importado(s).`);
+  };
   const ler = () => fetch(`/api/acervo?u=${user.id}&area=${area}`, { cache: "no-store" }).then((r) => r.json()).then(setD).catch((e) => setD({ error: e.message }));
   useEffect(() => { ler(); }, [area]);
   const lista = (d?.docs || []).filter((x) => !q || `${x.titulo} ${x.categoria || ""} ${x.participantes || ""} ${x.texto || ""} ${x.anexos.map((a) => a.nome).join(" ")}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
@@ -41,33 +76,53 @@ export function Acervo({ user, area }) {
         <div className="text-base font-bold mr-2" style={{ color: C.navy }}>{cf.titulo}</div>
         <div className="flex items-center gap-1 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}><Search size={13} style={{ color: C.sub }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="py-1.5 text-sm outline-none" /></div>
         <div className="flex-1" />
+        {d?.podeEditar && cf.pastas && <label className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold cursor-pointer" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }} title="Cada pasta do ZIP vira uma pasta aqui">
+          {imp ? <Loader2 size={14} className="animate-spin" /> : <FileArchive size={14} />} {imp ? `Importando ${imp.feitos + 1}/${imp.total}…` : "Importar ZIP"}
+          <input type="file" accept=".zip" className="hidden" disabled={!!imp} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; importarZip(f); }} /></label>}
         {d?.podeEditar && <button onClick={() => setEd({ area, titulo: "", categoria: cf.categorias[0], data: cf.reuniao ? hoje : "", validade: "", participantes: "", texto: "" })} className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={14} /> {cf.reuniao ? "Nova reunião" : "Novo documento"}</button>}
       </div>
       {!d && <Loader2 size={16} className="animate-spin" style={{ color: C.sub }} />}
       {d?.error && <div className="text-sm" style={{ color: C.red }}>{d.error}</div>}
       {d && !d.error && !lista.length && <div className="text-sm rounded-lg p-4" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{cf.vazio}</div>}
-      <div className="space-y-2">
-        {lista.map((x) => {
+      {(() => {
+        const card = (x) => {
           const venc = x.validade && x.validade < hoje, vence = x.validade && !venc && x.validade <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-          return (
-            <div key={x.id} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-              <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold" style={{ color: C.navy }}>{x.titulo}{x.categoria && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>{x.categoria}</span>}</div>
-                  <div className="text-xs mt-0.5" style={{ color: C.sub }}>
-                    {x.data ? `${cf.reuniao ? "Reunião em" : "Data"} ${dBR(x.data)}` : ""}{x.validade ? <span style={{ color: venc ? C.red : vence ? C.yellow : C.sub }}> · validade {dBR(x.validade)}{venc ? " (vencido)" : vence ? " (vence em breve)" : ""}</span> : null}
-                    {x.participantes ? ` · participantes: ${x.participantes}` : ""}{x.atualizadoPorNome ? ` · por ${x.atualizadoPorNome}` : ""}</div>
-                  {x.texto && <div className="text-sm mt-2 whitespace-pre-wrap rounded p-2" style={{ background: C.bg, color: C.text }}>{cf.reuniao && <b className="block text-xs mb-1" style={{ color: C.sub }}>ATA</b>}{x.texto}</div>}
+            return (
+              <div key={x.id} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold" style={{ color: C.navy }}>{x.titulo}{x.categoria && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.panel2, color: C.sub }}>{x.categoria}</span>}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.sub }}>
+                      {x.data ? `${cf.reuniao ? "Reunião em" : "Data"} ${dBR(x.data)}` : ""}{x.validade ? <span style={{ color: venc ? C.red : vence ? C.yellow : C.sub }}> · validade {dBR(x.validade)}{venc ? " (vencido)" : vence ? " (vence em breve)" : ""}</span> : null}
+                      {x.participantes ? ` · participantes: ${x.participantes}` : ""}{x.atualizadoPorNome ? ` · por ${x.atualizadoPorNome}` : ""}</div>
+                    {x.texto && <div className="text-sm mt-2 whitespace-pre-wrap rounded p-2" style={{ background: C.bg, color: C.text }}>{cf.reuniao && <b className="block text-xs mb-1" style={{ color: C.sub }}>ATA</b>}{x.texto}</div>}
+                  </div>
+                  {d.podeEditar && <button onClick={() => setEd(x)} title="Editar" style={{ color: C.sub }}><Pencil size={14} /></button>}
+                  {d.podeEditar && <button onClick={async () => { if (await confirmar(`Excluir ${x.titulo} e os anexos?`)) { try { await api({ usuarioId: user.id, acao: "excluir", id: x.id }); ler(); } catch (e) { alerta(e.message); } } }} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
                 </div>
-                {d.podeEditar && <button onClick={() => setEd(x)} title="Editar" style={{ color: C.sub }}><Pencil size={14} /></button>}
-                {d.podeEditar && <button onClick={async () => { if (await confirmar(`Excluir ${x.titulo} e os anexos?`)) { try { await api({ usuarioId: user.id, acao: "excluir", id: x.id }); ler(); } catch (e) { alerta(e.message); } } }} title="Excluir" style={{ color: C.sub }}><Trash2 size={14} /></button>}
+                <Anexos user={user} doc={x} pode={d.podeEditar} rotulo={cf.reuniao ? "Material da reunião" : "Arquivos"} onMudou={ler} />
               </div>
-              <Anexos user={user} doc={x} pode={d.podeEditar} rotulo={cf.reuniao ? "Material da reunião" : "Arquivos"} onMudou={ler} />
-            </div>
-          );
-        })}
-      </div>
-      {ed && <DocModal user={user} doc={ed} cf={cf} onClose={() => setEd(null)} onOk={() => { setEd(null); ler(); }} />}
+            );
+        };
+        if (!cf.pastas) return <div className="space-y-2">{lista.map(card)}</div>;
+        // v901 — pastas por categoria (clicar abre/fecha)
+        const grupos = {};
+        for (const x of lista) (grupos[x.categoria || "SEM PASTA"] ||= []).push(x);
+        const ordem = [...cf.categorias.filter((c) => grupos[c]), ...Object.keys(grupos).filter((c) => !cf.categorias.includes(c)).sort()];
+        return <div className="space-y-2">{ordem.map((g) => {
+          const aberta = q ? true : !fechadas[g], vencidos = grupos[g].filter((x) => x.validade && x.validade < hoje).length;
+          return (
+            <div key={g} className="rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.bg }}>
+              <button onClick={() => setFechadas((s) => ({ ...s, [g]: !s[g] }))} className="w-full flex items-center gap-2 px-3 py-2 text-sm font-bold" style={{ color: C.navy }}>
+                {aberta ? <ChevronDown size={14} /> : <ChevronRight size={14} />}{aberta ? <FolderOpen size={16} style={{ color: C.accent }} /> : <Folder size={16} style={{ color: C.accent }} />}
+                <span className="flex-1 text-left">{g}</span>
+                {vencidos > 0 && <span className="text-[11px] font-semibold" style={{ color: C.red }}>{vencidos} vencido(s)</span>}
+                <span className="text-xs font-normal" style={{ color: C.sub }}>{grupos[g].length} doc(s)</span></button>
+              {aberta && <div className="space-y-2 px-3 pb-3">{grupos[g].map(card)}</div>}
+            </div>);
+        })}</div>;
+      })()}
+      {ed && <DocModal user={user} doc={ed} cf={cf} pastas={[...new Set((d?.docs || []).map((x) => x.categoria).filter(Boolean))]} onClose={() => setEd(null)} onOk={() => { setEd(null); ler(); }} />}
     </div>
   );
 }
@@ -97,7 +152,7 @@ function Anexos({ user, doc, pode, rotulo, onMudou }) {
   );
 }
 
-function DocModal({ user, doc, cf, onClose, onOk }) {
+function DocModal({ user, doc, cf, onClose, onOk, pastas }) {
   const [f, setF] = useState({ ...doc });
   const [arqs, setArqs] = useState([]);
   const [st, setSt] = useState(false);
@@ -116,7 +171,10 @@ function DocModal({ user, doc, cf, onClose, onOk }) {
         <div className="flex items-center mb-3"><div className="text-lg font-bold flex-1" style={{ color: C.navy }}>{f.id ? "Editar" : cf.reuniao ? "Nova reunião" : "Novo documento"}</div><button onClick={onClose} style={{ color: C.sub }}><X size={18} /></button></div>
         <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1fr" }}>
           <label className="text-xs" style={{ color: C.sub }}>{cf.reuniao ? "Assunto / pauta" : "Título"}<input value={f.titulo || ""} onChange={(e) => s("titulo", e.target.value)} className={inp} style={inpS} /></label>
-          <label className="text-xs" style={{ color: C.sub }}>Categoria<select value={f.categoria || ""} onChange={(e) => s("categoria", e.target.value)} className={inp} style={inpS}>{cf.categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
+          <label className="text-xs" style={{ color: C.sub }}>{cf.pastas ? "Pasta (categoria)" : "Categoria"}{cf.pastas
+            ? <><input list="acervo-pastas" value={f.categoria || ""} onChange={(e) => s("categoria", e.target.value.toUpperCase())} placeholder="Escolha ou digite uma pasta nova" className={inp} style={inpS} />
+              <datalist id="acervo-pastas">{[...new Set([...cf.categorias, ...(pastas || [])])].map((c) => <option key={c} value={c} />)}</datalist></>
+            : <select value={f.categoria || ""} onChange={(e) => s("categoria", e.target.value)} className={inp} style={inpS}>{cf.categorias.map((c) => <option key={c}>{c}</option>)}</select>}</label>
           <label className="text-xs" style={{ color: C.sub }}>{cf.reuniao ? "Data da reunião" : "Data do documento"}<input type="date" value={f.data || ""} onChange={(e) => s("data", e.target.value)} className={inp} style={inpS} /></label>
           {cf.validade && <label className="text-xs" style={{ color: C.sub }}>Validade / vencimento<input type="date" value={f.validade || ""} onChange={(e) => s("validade", e.target.value)} className={inp} style={inpS} /></label>}
           {cf.reuniao && <label className="text-xs" style={{ color: C.sub }}>Participantes<input value={f.participantes || ""} onChange={(e) => s("participantes", e.target.value)} placeholder="IGOR, PEDRO, MAYCON…" className={inp} style={inpS} /></label>}
@@ -139,7 +197,7 @@ function DocModal({ user, doc, cf, onClose, onOk }) {
 const CAMPOS_EMPRESA = [
   ["razaoSocial", "Razão social", 2], ["nomeFantasia", "Nome fantasia"], ["cnpj", "CNPJ"], ["inscricaoEstadual", "Inscrição estadual"], ["inscricaoMunicipal", "Inscrição municipal"],
   ["abertura", "Data de abertura", 1, "date"], ["naturezaJuridica", "Natureza jurídica"], ["regimeTributario", "Regime tributário"], ["cnaePrincipal", "CNAE principal", 2], ["cnaesSecundarios", "CNAEs secundários", 2],
-  ["capitalSocial", "Capital social"], ["socios", "Sócios e participação", 3], ["administradores", "Administradores"], ["endereco", "Endereço completo", 3], ["cep", "CEP"],
+  ["capitalSocial", "Capital social"], ["socios", "Sócios e participação", 3, "textarea"], ["administradores", "Administradores", 1, "textarea"], ["endereco", "Endereço completo", 3], ["cep", "CEP"],
   ["telefone", "Telefone"], ["email", "E-mail"], ["site", "Site"], ["contador", "Contador / escritório", 2], ["contadorContato", "Contato do contador"],
   ["bancos", "Bancos e contas", 3, "textarea"], ["obs", "Observações", 4, "textarea"],   // v899 — bancos em várias linhas
 ];
@@ -195,7 +253,64 @@ export function EmpresaMeridian({ user }) {
             </label>))}
         </div>
       </div>
+      <Certificados user={user} />
       <Acervo user={user} area="EMPRESA" />
+    </div>
+  );
+}
+
+// v901 — certificados digitais (A1 .pfx/.p12) com a senha ao lado; vários certificados; só master e diretoria
+function Certificados({ user }) {
+  const [d, setD] = useState(null);
+  const [ver, setVer] = useState({});
+  const [senhas, setSenhas] = useState({});
+  const [ocup, setOcup] = useState("");
+  const ler = () => fetch(`/api/acervo?u=${user.id}&area=CERTIFICADO`, { cache: "no-store" }).then(async (r) => (r.ok ? r.json() : { negado: true })).then((j) => { setD(j); setSenhas(Object.fromEntries((j.docs || []).map((x) => [x.id, x.senha || ""]))); }).catch(() => setD({ negado: true }));
+  useEffect(() => { ler(); }, []);
+  if (!d || d.negado) return null;
+  const salvar = async (x, extra = {}) => {
+    setOcup(`s${x.id || "n"}`);
+    try { const r = await api({ usuarioId: user.id, acao: "salvar", doc: { ...x, area: "CERTIFICADO", senha: senhas[x.id] ?? x.senha ?? "", ...extra } }); await ler(); return r; }
+    catch (e) { alerta(e.message); } finally { setOcup(""); }
+  };
+  const novo = async (fs) => {
+    for (const f of [...(fs || [])]) {
+      setOcup("novo");
+      try {
+        const r = await api({ usuarioId: user.id, acao: "salvar", doc: { area: "CERTIFICADO", titulo: f.name.replace(/\.[^.]+$/, ""), categoria: "CERTIFICADO DIGITAL", senha: "" } });
+        await api({ usuarioId: user.id, acao: "anexar", docId: r.id, nome: f.name, mime: f.type || "application/x-pkcs12", conteudo: await readB64(f) });
+      } catch (e) { alerta(`${f.name}: ${e.message}`); }
+    }
+    setOcup(""); ler();
+  };
+  const hoje = new Date().toISOString().slice(0, 10);
+  return (
+    <div className="rounded-xl p-4 mb-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <div className="flex items-center gap-2 mb-3"><KeyRound size={16} style={{ color: C.accent }} /><div className="text-base font-bold flex-1" style={{ color: C.navy }}>Certificados</div>
+        {d.podeEditar && <label className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold cursor-pointer" style={{ background: C.accent, color: "#fff" }}>
+          {ocup === "novo" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Adicionar certificado
+          <input type="file" accept=".pfx,.p12,.cer,.crt,.pem" multiple className="hidden" onChange={(e) => { const fs = [...(e.target.files || [])]; e.target.value = ""; novo(fs); }} /></label>}</div>
+      {!(d.docs || []).length && <div className="text-sm" style={{ color: C.sub }}>Nenhum certificado ainda. Adicione o arquivo .pfx e preencha a senha ao lado.</div>}
+      <div className="space-y-2">
+        {(d.docs || []).map((x) => {
+          const a = x.anexos[0], venc = x.validade && x.validade < hoje;
+          return (
+            <div key={x.id} className="grid gap-2 items-end rounded-lg p-3" style={{ gridTemplateColumns: "2fr 1.3fr 1fr auto", border: `1px solid ${C.line}`, background: C.bg }}>
+              <label className="text-xs" style={{ color: C.sub }}>Certificado
+                <input defaultValue={x.titulo} onBlur={(e) => { if (e.target.value.trim() && e.target.value.trim().toUpperCase() !== x.titulo) salvar(x, { titulo: e.target.value }); }} className={inp} style={inpS} />
+                <div className="mt-1 flex items-center gap-2">{a ? <a href={`/api/acervo?u=${user.id}&anexo=${a.id}`} className="flex items-center gap-1" style={{ color: C.navy }}><FileText size={12} style={{ color: C.accent }} />{a.nome}</a> : <span>sem arquivo</span>}</div></label>
+              <label className="text-xs" style={{ color: C.sub }}>Senha
+                <div className="flex items-center gap-1">
+                  <input type={ver[x.id] ? "text" : "password"} value={senhas[x.id] ?? ""} onChange={(e) => setSenhas((s) => ({ ...s, [x.id]: e.target.value }))} placeholder="senha do certificado" autoComplete="new-password" className={inp} style={inpS} />
+                  <button type="button" onClick={() => setVer((v) => ({ ...v, [x.id]: !v[x.id] }))} style={{ color: C.sub }}>{ver[x.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                  {(senhas[x.id] ?? "") !== (x.senha || "") && <button type="button" onClick={() => salvar(x)} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>{ocup === `s${x.id}` ? "…" : "Salvar"}</button>}
+                </div></label>
+              <label className="text-xs" style={{ color: venc ? C.red : C.sub }}>Validade{venc ? " (vencido)" : ""}
+                <input type="date" defaultValue={x.validade || ""} onBlur={(e) => { if ((e.target.value || null) !== (x.validade || null)) salvar(x, { validade: e.target.value }); }} className={inp} style={inpS} /></label>
+              {d.podeEditar && <button onClick={async () => { if (await confirmar(`Excluir o certificado ${x.titulo}?`)) { try { await api({ usuarioId: user.id, acao: "excluir", id: x.id }); ler(); } catch (e) { alerta(e.message); } } }} className="pb-2" title="Excluir" style={{ color: C.sub }}><Trash2 size={15} /></button>}
+            </div>);
+        })}
+      </div>
     </div>
   );
 }

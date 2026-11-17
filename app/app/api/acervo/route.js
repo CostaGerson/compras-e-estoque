@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { gerencial } from "@/lib/acesso";
 
-const AREAS = ["EMPRESA", "ADM", "REUNIAO"];
+const AREAS = ["EMPRESA", "ADM", "REUNIAO", "CERTIFICADO"];   // v901 — certificados digitais (com a senha): só gerencial
 const nome = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
 const dt = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || "")) ? new Date(`${s}T00:00:00Z`) : null);
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
@@ -15,7 +15,7 @@ async function quem(id) {
   const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: { id: true, nome: true, sobrenome: true, ativo: true, isMaster: true, diretoria: true, setor: true, permissoes: true } }).catch(() => null);
   return u && u.ativo ? u : null;
 }
-const podeEditar = (u, area) => gerencial(u) || (area !== "REUNIAO" && ["FINANCEIRO", "ADMINISTRATIVO"].includes(u.setor));
+const podeEditar = (u, area) => gerencial(u) || (area !== "REUNIAO" && area !== "CERTIFICADO" && ["FINANCEIRO", "ADMINISTRATIVO"].includes(u.setor));
 const negado = (m = "Sem permissão.") => Response.json({ error: m }, { status: 403 });
 
 export async function GET(req) {
@@ -23,8 +23,9 @@ export async function GET(req) {
   const u = await quem(sp.get("u"));
   if (!u) return negado();
   if (sp.get("anexo")) {
-    const a = await prisma.docAcervoAnexo.findUnique({ where: { id: Number(sp.get("anexo")) } });
+    const a = await prisma.docAcervoAnexo.findUnique({ where: { id: Number(sp.get("anexo")) }, include: { doc: { select: { area: true } } } });
     if (!a) return new Response("Não encontrado.", { status: 404 });
+    if (a.doc?.area === "CERTIFICADO" && !gerencial(u)) return negado();   // v901
     return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(a.nome)}`, "Cache-Control": "no-store" } });
   }
   if (sp.get("empresa")) {
@@ -33,8 +34,9 @@ export async function GET(req) {
     return Response.json({ dados: d, podeEditar: podeEditar(u, "EMPRESA") });
   }
   const area = AREAS.includes(sp.get("area")) ? sp.get("area") : "ADM";
+  if (area === "CERTIFICADO" && !gerencial(u)) return negado("Só master e diretoria veem os certificados.");   // v901
   const l = await prisma.docAcervo.findMany({ where: { area }, orderBy: [{ data: "desc" }, { id: "desc" }], include: { anexos: { select: { id: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } } });
-  return Response.json({ docs: l.map((d) => ({ ...d, data: iso(d.data), validade: iso(d.validade) })), podeEditar: podeEditar(u, area) });
+  return Response.json({ docs: l.map(({ senha, ...d }) => ({ ...d, data: iso(d.data), validade: iso(d.validade), ...(area === "CERTIFICADO" ? { senha: senha || "" } : {}) })), podeEditar: podeEditar(u, area) });
 }
 
 export async function POST(req) {
@@ -54,7 +56,8 @@ export async function POST(req) {
     const titulo = String(x.titulo || "").trim().toUpperCase();
     if (!titulo) return Response.json({ error: "Informe o título." }, { status: 400 });
     const data = { area, titulo, categoria: x.categoria ? String(x.categoria).toUpperCase() : null, data: dt(x.data), validade: dt(x.validade),
-      participantes: x.participantes ? String(x.participantes).toUpperCase() : null, texto: x.texto || null, atualizadoPorNome: nome(u) };
+      participantes: x.participantes ? String(x.participantes).toUpperCase() : null, texto: x.texto || null, atualizadoPorNome: nome(u),
+      ...(area === "CERTIFICADO" && x.senha !== undefined ? { senha: x.senha ? String(x.senha) : null } : {}) };   // v901
     const d = x.id ? await prisma.docAcervo.update({ where: { id: Number(x.id) }, data }) : await prisma.docAcervo.create({ data: { ...data, criadoPorNome: nome(u) } });
     return Response.json({ ok: true, id: d.id });
   }
