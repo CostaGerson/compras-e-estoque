@@ -1543,7 +1543,26 @@ export function Agenda({ user, pedidoModo, onModo }) {
   const soltarRef = useRef(soltarZona); soltarRef.current = soltarZona;
   const moverRef = useRef(null);
   moverRef.current = (n) => { setDir(n); setRef((r) => modo === "semana" ? somaDia(r, 7 * n) : (() => { const x = new Date(Date.UTC(Number(r.slice(0, 4)), Number(r.slice(5, 7)) - 1 + n, 1)); return x.toISOString().slice(0, 10); })()); };
-  const [borda, setBorda] = useState(null);      // v889 — borda em que a tarefa está sendo segurada (1 avança, -1 volta)
+  const [borda, setBorda] = useState(null);
+  // v894 — PC: a roda do mouse no topo da agenda volta a semana (ou o mês); no fim da semana, rolar para baixo avança
+  const roda = useRef({ soma: 0, ate: 0, t: 0 });
+  const rodaMouse = (e) => {
+    if (mobile || arrAtivo.current) return;
+    const r = roda.current, agora = Date.now();
+    if (agora < r.ate) return;
+    if (agora - r.t > 400) r.soma = 0;
+    r.t = agora;
+    const el = rolante(e.currentTarget);
+    const topo = !el || el.scrollTop <= 0, fim = !el || el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    const n = e.deltaY < 0 && topo ? -1 : e.deltaY > 0 && fim && modo === "semana" ? 1 : 0;
+    if (!n) { r.soma = 0; return; }
+    if (Math.sign(r.soma) !== n) r.soma = 0;
+    r.soma += e.deltaY;
+    if (Math.abs(r.soma) < 220) return;   // precisa insistir um pouco no limite (não troca com um toque só)
+    r.soma = 0; r.ate = agora + 700;
+    moverRef.current(n);
+    if (n > 0 && el) setTimeout(() => { el.scrollTop = 0; }, 30);
+  };      // v889 — borda em que a tarefa está sendo segurada (1 avança, -1 volta)
   const iniciar = (t, x, y, el, toque) => {
     if (toque) { try { navigator.vibrate?.(25); } catch {} }
     rolRef.current = rolante(el);
@@ -1779,7 +1798,7 @@ export function Agenda({ user, pedidoModo, onModo }) {
               </div>}
             </div>
             {!d && <div className="p-6"><Loader2 size={18} className="animate-spin" style={{ color: A.sub }} /></div>}
-            <div key={`${modo}-${dias[0]}`} className={dir > 0 ? "anim-dir" : dir < 0 ? "anim-esq" : "anim-entrar"} style={{ flex: 1 }}>
+            <div key={`${modo}-${dias[0]}`} className={dir > 0 ? "anim-dir" : dir < 0 ? "anim-esq" : "anim-entrar"} style={{ flex: 1 }} onWheel={rodaMouse}>
               {/* v550 — celular: semana em lista vertical (um dia embaixo do outro); mês em grade compacta com a quantidade */}
               {mobile && modo === "semana" ? (
                 <div className="flex flex-col">
