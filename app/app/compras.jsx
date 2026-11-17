@@ -59,6 +59,55 @@ function Modal({ titulo, onClose, children, largo }) {
   );
 }
 
+// v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
+export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" }) {
+  const [ab, setAb] = useState(false);
+  const [marc, setMarc] = useState(new Set());
+  const [motivo, setMotivo] = useState("");
+  const [ocup, setOcup] = useState(false);
+  const l = (origens || []).filter((o) => o && o.pedido && o.chave);
+  if (!l.length) return null;
+  const k = (o) => `${o.pedido}|${o.chave}`;
+  async function ir() {
+    const alvo = l.filter((o) => marc.has(k(o)));
+    if (!alvo.length) return alerta("Marque o que vai ser dispensado.");
+    setOcup(true);
+    const erros = [], trav = new Set();
+    for (const o of alvo) {
+      const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: o.pedido, chave: o.chave, motivo: motivo || null, quem: nomeUser(user) }) }).catch(() => null);
+      const x = r ? await r.json().catch(() => ({})) : {};
+      if (!r?.ok) erros.push(`${o.pedido} ${ch(o.chave)}`); else (x.travadas || []).forEach((t) => trav.add(t));
+    }
+    setOcup(false); setAb(false); setMarc(new Set()); setMotivo("");
+    if (erros.length) await alerta(`Não consegui dispensar: ${erros.join(", ")}`);
+    if (trav.size) await alerta(`Dispensado. A ${[...trav].join(", ")} já foi enviada ao fornecedor e não mudou: o material que chegar vai para o estoque.`);
+    onFeito && onFeito();
+  }
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setMarc(new Set(l.length === 1 ? [k(l[0])] : [])); setAb(true); }} title="Tirar esta demanda de compras (o item do pedido vai para o PCP sem compra de material)"
+        className="text-[11px] px-2 py-0.5 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>{rotulo}</button>
+      {ab && (
+        <Modal titulo="Dispensar compras" onClose={() => setAb(false)}>
+          <div className="text-xs mb-2" style={{ color: C.sub }}>A demanda sai de compras em qualquer fase (levantamento, PIC, cotação e OC ainda não enviada). Item de pedido vai para o PCP; linha de compra avulsa é cancelada.</div>
+          {l.map((o) => (
+            <label key={k(o)} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, color: C.text }}>
+              <input type="checkbox" checked={marc.has(k(o))} onChange={() => setMarc((m) => { const n = new Set(m); n.has(k(o)) ? n.delete(k(o)) : n.add(k(o)); return n; })} />
+              <span className="flex-1">{o.avulsa ? `Compra avulsa ${String(o.cliente || "").replace(/^AVULSA\s+/i, "").split("·")[0].trim() || o.pedido}` : `Pedido ${o.pedido}`} · {ch(o.chave)}{o.cliente && !o.avulsa ? <span style={{ color: C.sub }}> · {o.cliente}</span> : null}</span>
+              {o.quantidade != null && <span className="text-xs" style={{ color: C.sub }}>{String(o.quantidade).replace(".", ",")}</span>}
+            </label>
+          ))}
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo (opcional)" className="w-full mt-3 px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${C.line}` }} />
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setAb(false)} className="px-3 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Voltar</button>
+            <button disabled={ocup} onClick={ir} className="px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}>{ocup && <Loader2 size={14} className="animate-spin" />}Dispensar ({marc.size})</button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 // ---------- FPP resumida (janela central) ----------
 export function FppResumo({ fppId, item, veValores, onClose, onUsar, usando }) {
   const [f, setF] = useState(null);
@@ -770,8 +819,8 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
   }
   // v872 — dispensar compras pelo levantamento (itens marcados; compra avulsa fica de fora)
   async function dispensarSel() {
-    const alvo = [...new Map(d.linhas.filter((l) => marc.has(l.itemId) && !/^AV\d+$/.test(l.pedidoNumero)).map((l) => [`${l.pedidoNumero}|${l.chave}`, l])).values()];
-    if (!alvo.length) return alerta("Compra avulsa não tem dispensa: use Excluir demanda.");
+    const alvo = [...new Map(d.linhas.filter((l) => marc.has(l.itemId)).map((l) => [`${l.pedidoNumero}|${l.chave}`, l])).values()];   // v913 — compra avulsa também (a linha é cancelada)
+    if (!alvo.length) return;
     const motivo = await perguntar(`Dispensar compras de ${alvo.length} item(ns)?\n${alvo.map((l) => `• ${l.pedidoNumero} · ${ch(l.chave)} · ${l.descricao || ""}`).join("\n")}\n\nOs itens saem de compras e do levantamento e vão para o PCP; os outros itens dos pedidos seguem normais.\n\nMotivo (opcional):`, "Material já disponível");
     if (motivo === null) return;
     setSalvando(true);
@@ -1297,6 +1346,7 @@ export function PicCompras({ user, fases, ir }) {
                       {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}
                     </div>
+                    <div className="mt-0.5"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} /></div>
                     {(i.cotacoes || []).length > 0 && !trav && (   // v484 — como está a cotação deste item
                       <div className="text-[11px] mt-0.5 flex flex-wrap gap-1">
                         {i.semCotacao && <span className="font-semibold px-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>nenhum fornecedor tem · escolha outro e cote de novo</span>}
@@ -1413,7 +1463,8 @@ export function OrdensCompra({ user, fases, ir }) {
                     {o.itens.map((i) => (
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
-                          {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}</div>
+                          {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : `Ped. ${x.pedido}`)).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
                         <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>
@@ -1768,6 +1819,7 @@ export function Cotacoes({ user, fases, ir }) {
                         <div className="min-w-0">
                           <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }} title={i.nome}>{i.nome}</div>
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : `Ped. ${o.pedido}`)).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}   {/* v913 */}
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                           {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
                           {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique

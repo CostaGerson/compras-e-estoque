@@ -138,7 +138,7 @@ export async function cancelarPic(picId) {
 }
 
 export async function listarOcs() {
-  const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true } } } } } });
+  const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true, info: true } } } } } });
   const piPorOc = {};
   for (const o of l) piPorOc[o.id] = [...new Set(o.itens.map((i) => i.picItem?.picId).filter(Boolean))];
   const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];
@@ -156,7 +156,7 @@ export async function listarOcs() {
     nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     baixa: o.baixaEm ? { em: o.baixaEm, por: o.baixaPorNome, justificativa: o.baixaJustificativa } : null,   // v532
-    itens: o.itens.map((i) => ({ id: i.id, nfNome: i.nfNome || null, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
+    itens: o.itens.map((i) => ({ id: i.id, origens: (i.picItem?.info?.pedidos || []).map((x) => ({ pedido: x.pedido, chave: x.chave, cliente: x.cliente || null, quantidade: x.quantidade, avulsa: !!x.avulsa })), nfNome: i.nfNome || null, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
 }
 export async function salvarOc(b) {

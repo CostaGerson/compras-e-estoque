@@ -883,24 +883,37 @@ export async function regerarDemandasPedido(numero, quem, db = prisma) {
 }
 
 // ---------- v911 — dispensa em qualquer etapa e ajuste do PIC ----------
-// muda a parte do item no PIC: necAntes → necDepois (por artigo efetivo). Linha já em OC não muda (o material já foi pedido).
+// muda a parte do item no PIC: necAntes → necDepois (por artigo efetivo).
+// v913 — o ajuste segue para a cotação (não cancelada, sem OC) e para a OC ainda ABERTA; OC já enviada/faturada não muda
 export async function ajustarPicDoItem(item, necAntes, necDepois = {}, db = prisma) {
-  if (!item?.picId) return { mudou: 0 };
-  const linhas = await db.picItem.findMany({ where: { picId: item.picId }, include: { ocItens: { select: { id: true } } } });
+  if (!item?.picId) return { mudou: 0, travadas: [] };
+  const linhas = await db.picItem.findMany({ where: { picId: item.picId }, include: { ocItens: { select: { id: true, ocId: true, quantidade: true, oc: { select: { id: true, numero: true, status: true } } } } } });
   const arts = new Set([...Object.keys(necAntes || {}), ...Object.keys(necDepois || {})]);
-  let mudou = 0;
+  let mudou = 0; const travadas = [];
   for (const a of arts) {
     const antes = Number(necAntes?.[a]) || 0, depois = Number(necDepois?.[a]) || 0;
     const delta = r3(depois - antes);
     if (!delta) continue;
     const l = linhas.find((x) => String(x.artigoId) === String(a));
-    if (l?.ocItens?.length) continue;
+    const ocs = (l?.ocItens || []).filter((o) => o.oc?.status !== "CANCELADA");
+    const trav = ocs.filter((o) => o.oc?.status !== "ABERTA");
+    if (trav.length) { travadas.push(...trav.map((o) => o.oc.numero)); continue; }
     const inf = l?.info || {};
     const outros = (Array.isArray(inf.pedidos) ? inf.pedidos : []).filter((o) => !(o.pedido === item.pedidoNumero && o.chave === item.chave));
     const meus = depois > 0 ? [{ pedido: item.pedidoNumero, chave: item.chave, cliente: item.cliente || null, quantidade: r3(depois), avulsa: ehAvulsa(item.pedidoNumero), reprovado: false }] : [];
     if (l) {
       const qtd = r3(Math.max(0, Number(l.quantidade) + delta));
-      if (!outros.length && !meus.length || qtd <= 0) await db.picItem.delete({ where: { id: l.id } }).catch(() => null);
+      const apagar = (!outros.length && !meus.length) || qtd <= 0;
+      // OC aberta: o item da OC acompanha (sem nada, sai da OC; OC vazia é cancelada)
+      for (const o of ocs) {
+        const qo = r3(Math.max(0, Number(o.quantidade) + delta));
+        if (apagar || qo <= 0) {
+          await db.ocItem.delete({ where: { id: o.id } }).catch(() => null);
+          if (!(await db.ocItem.count({ where: { ocId: o.ocId } }).catch(() => 1))) await db.ordemCompra.update({ where: { id: o.ocId }, data: { status: "CANCELADA" } }).catch(() => null);
+        } else await db.ocItem.update({ where: { id: o.id }, data: { quantidade: qo } }).catch(() => null);
+      }
+      await ajustarCotacoes(l.id, delta, apagar, db);
+      if (apagar) await db.picItem.delete({ where: { id: l.id } }).catch(() => null);
       else await db.picItem.update({ where: { id: l.id }, data: { quantidade: qtd, info: { ...inf, demanda: r3(Math.max(0, (Number(inf.demanda) || 0) + delta)), pedidos: [...outros, ...meus] } } });
       mudou++;
     } else if (depois > 0) {
@@ -912,19 +925,44 @@ export async function ajustarPicDoItem(item, necAntes, necDepois = {}, db = pris
       mudou++;
     }
   }
-  return { mudou };
+  return { mudou, travadas: [...new Set(travadas)] };
 }
-// tira os itens de compras (dispensa): sai do levantamento, do PIC (linha ainda sem OC) e das telas; o que já foi entregue ou liberado fica
-export async function tirarDeCompras(where, db = prisma) {
+// v913 — cotações ainda em aberto que pedem a linha do PIC: quantidade acompanha; linha que sai some da cotação (cotação vazia é cancelada)
+async function ajustarCotacoes(picItemId, delta, apagar, db = prisma) {
+  const cs = (await db.cotacao.findMany({ where: { status: { in: ["GERADA", "ENVIADA", "RESPONDIDA"] } } }).catch(() => []))
+    .filter((c) => (Array.isArray(c.itens) ? c.itens : []).some((i) => (i.picItemIds || []).includes(picItemId)));
+  for (const c of cs) {
+    const its = [];
+    for (const i of c.itens) {
+      if (!(i.picItemIds || []).includes(picItemId)) { its.push(i); continue; }
+      const ids = (i.picItemIds || []).filter((x) => x !== picItemId);
+      const q = r3(Math.max(0, (Number(i.quantidade) || 0) + delta));
+      if ((apagar && !ids.length) || q <= 0) continue;
+      its.push({ ...i, quantidade: q, picItemIds: apagar ? ids : i.picItemIds });
+    }
+    await db.cotacao.update({ where: { id: c.id }, data: its.length ? { itens: its } : { itens: its, status: "CANCELADA" } }).catch(() => null);
+  }
+}
+// tira os itens de compras (dispensa) em qualquer etapa: levantamento, PIC, cotação e OC ainda aberta.
+// O que já foi entregue ou liberado fica. Compra avulsa: a linha fica marcada para não voltar.
+export async function tirarDeCompras(where, db = prisma, { quem = null, motivo = null } = {}) {
   const l = await db.compraItem.findMany({ where });
-  let n = 0;
+  let n = 0; const travadas = [];
   for (const v of l) {
     if (v.status === "ENTREGUE" || v.liberadoEm || (v.status === "ESTOQUE" && v.reservaLiberada)) continue;
-    if (v.status === "PIC" && v.picId) await ajustarPicDoItem(v, necessidade(v), {}, db).catch(() => null);
+    if (v.picId && ["PIC", "OC", "NF"].includes(v.status)) {
+      const r = await ajustarPicDoItem(v, necessidade(v), {}, db).catch(() => null);
+      if (r?.travadas?.length) travadas.push(...r.travadas);
+    }
+    if (ehAvulsa(v.pedidoNumero)) {
+      const c = await db.compraAvulsa.findUnique({ where: { id: Number(v.pedidoNumero.slice(2)) } }).catch(() => null);
+      const k = Number(String(v.chave).replace(/\D/g, "")) - 1;
+      if (c && Array.isArray(c.itens) && c.itens[k]) await db.compraAvulsa.update({ where: { id: c.id }, data: { itens: c.itens.map((x, j) => (j === k ? { ...x, removidaCompras: true, removidaPor: quem, removidaMotivo: motivo ? `DISPENSADA · ${motivo}` : "DISPENSADA" } : x)) } }).catch(() => null);
+    }
     await db.compraItem.delete({ where: { id: v.id } }).catch(() => null);
     n++;
   }
-  return n;
+  return { n, travadas: [...new Set(travadas)] };
 }
 
 // v911 — uma vez: ribana (kg) no lugar da gola/punho ribana em unidade, nos itens ainda no levantamento ou no PIC

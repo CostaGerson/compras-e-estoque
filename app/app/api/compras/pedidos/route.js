@@ -9,15 +9,21 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const n = String(b.pedidoNumero || "").trim();
   if (!n) return Response.json({ error: "Pedido?" }, { status: 400 });
+  // v913 — compra avulsa: a linha sai de compras em qualquer etapa (não vai para o PCP)
+  if (/^AV\d+$/.test(n)) {
+    if (!b.chave) return Response.json({ error: "Linha da compra avulsa?" }, { status: 400 });
+    const r = await tirarDeCompras({ pedidoNumero: n, chave: String(b.chave) }, prisma, { quem: b.quem || null, motivo: b.motivo || null });
+    return Response.json({ ok: true, ...r });
+  }
   if (b.chave) {   // v862 — só um item do pedido
     const chave = String(b.chave);
     await prisma.compraDispensaItem.upsert({ where: { pedidoNumero_chave: { pedidoNumero: n, chave } }, create: { pedidoNumero: n, chave, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
-    await tirarDeCompras({ pedidoNumero: n, chave });   // v911 — em qualquer etapa (levantamento, PIC, OC, NF)
-    return Response.json({ ok: true });
+    const r = await tirarDeCompras({ pedidoNumero: n, chave });   // v911 · v913 — em qualquer etapa (levantamento, PIC, cotação, OC aberta)
+    return Response.json({ ok: true, ...r });
   }
   await prisma.compraDispensa.upsert({ where: { pedidoNumero: n }, create: { pedidoNumero: n, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });
-  await tirarDeCompras({ pedidoNumero: n });   // v911 — em qualquer etapa
-  return Response.json({ ok: true });
+  const r = await tirarDeCompras({ pedidoNumero: n });   // v911 · v913 — em qualquer etapa
+  return Response.json({ ok: true, ...r });
 }
 export async function DELETE(req) {
   const b = await req.json().catch(() => ({}));
