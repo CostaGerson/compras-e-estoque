@@ -9,6 +9,8 @@ export async function register() {
     agendarCobrancaSemanal();
     const { agendarLeituraNort } = await import("./lib/nortLeitura");   // v910 — lê pedidos (10 min) e estoque (1 h) do sistema da NORT
     agendarLeituraNort();
+    const { agendarAnalisesPcp } = await import("./lib/pcpAnalises");   // v928 — #90: análises do PCP, dia 1 a 5 de cada mês
+    agendarAnalisesPcp();
     // v556 — casamento NF ↔ pedido só manual: remove uma vez os casamentos automáticos já feitos
     setTimeout(async () => { try { const { removerCasamentosAutomaticos } = await import("./lib/faturamentoCasamento"); const r = await removerCasamentosAutomaticos(); if (r) console.log(`[v556] casamentos automáticos removidos: ${r.length}`); } catch (e) { console.error("[v556]", e.message); } }, 20 * 1000);
   }

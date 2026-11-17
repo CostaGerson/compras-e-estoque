@@ -12,6 +12,9 @@ export async function GET(req) {
   if (!(await usuarioGerencial(sp.get("u")))) return negadoGerencial();
   const comp = /^\d{4}-\d{2}$/.test(sp.get("competencia") || "") ? sp.get("competencia") : null;
   if (sp.get("acao") === "resumo") return Response.json(await resumoVolta(comp));   // v264 — tela de Análises operacionais
+  // v928 — #90: análises do PCP. pcpPrevia = o que gravaria (sem gravar); pcpStatus = última leitura
+  if (sp.get("acao") === "pcpPrevia") { const { lerAnalisesPcp } = await import("@/lib/pcpAnalises"); return Response.json(await lerAnalisesPcp({ mes: comp, dry: true })); }
+  if (sp.get("acao") === "pcpStatus") { const { statusAnalisesPcp } = await import("@/lib/pcpAnalises"); return Response.json(await statusAnalisesPcp()); }
   if (sp.get("acao") === "retornoFpp") {   // v285 — retorno à operação e valor cobrado na FPP de cada setor
     const { fppPorSetor } = await import("@/lib/fppAnalises");
     const [resumo, fpp] = await Promise.all([resumoVolta(null), fppPorSetor()]);
@@ -35,6 +38,11 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioGerencial(b.usuarioId);
   if (!u) return negadoGerencial();
+  if (b.acao === "lerPcp") {   // v928 — #90: grava no PCP o custo de cada setor e lê as análises do mês
+    const { lerAnalisesPcp } = await import("@/lib/pcpAnalises");
+    const r = await lerAnalisesPcp({ mes: b.competencia, quem: `${nomeU(u)} (PCP)` });
+    return Response.json(r, { status: r.ok ? 200 : 400 });
+  }
   const setor = b.setor || "CORTE";
   if (!SETORES_ANALISE.includes(setor)) return Response.json({ error: "Análise ainda não disponível para este setor." }, { status: 400 });
   try {

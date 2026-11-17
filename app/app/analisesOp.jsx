@@ -189,6 +189,16 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
     } catch (e) { setErro(e.message); }
     setSt("");
   };
+  // v928 — #90: lê do PCP a análise do mês (antes grava no PCP o custo do setor) — todos os setores de uma vez
+  const lerPcp = async () => {
+    setSt("Lendo do PCP…"); setErro(""); setAviso("");
+    try {
+      const j = await api("/api/producao/analises", "POST", { usuarioId: user.id, acao: "lerPcp", competencia: comp });
+      setAviso(`${nomeMes(j.mes)} lido do PCP${j.mesEncerrado === false ? " (mês em andamento)" : ""}: ${Object.entries(j.setores || {}).map(([k, x]) => `${k.toLowerCase()} ${int(x.pecas)} pç${x.semCategoria ? ` (+${int(x.semCategoria)} sem categoria)` : ""}`).join(" · ") || "nenhuma peça"}.`);
+      carregar(comp);
+    } catch (e) { setErro(e.message); }
+    setSt("");
+  };
   const salvar = async () => {
     setSt("Salvando…"); setErro("");
     // v259 — só grava como manual o campo que foi alterado à mão; os demais seguem o sistema (identificação do extrato, Matriz, planilha)
@@ -244,6 +254,7 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
           </button>
         </>}
         {T.manual && st && <Loader2 size={16} className="animate-spin" style={{ color: C.accent }} />}
+        {comp && <button onClick={lerPcp} disabled={!!st} title="Grava no PCP o custo do setor no mês e lê as análises do PCP (corte, expedição, silk, bordado e costura). Roda sozinho do dia 1 ao 5 de cada mês." className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, background: C.panel, color: C.accent }}>Ler do PCP</button>}
         {f && <button onClick={salvar} disabled={!!st} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.navy }}><Save size={14} /> Salvar</button>}
       </div>
       <div className="text-[11px] mb-3" style={{ color: C.sub }}>
