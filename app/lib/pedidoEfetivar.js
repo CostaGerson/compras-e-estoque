@@ -256,6 +256,17 @@ export async function efetivarPedido(id, quem) {
     }
     if (!numero) throw new Error("Não consegui gerar o número do pedido — tente de novo.");
   }
+  // v917 — #89: item no padrão "CLIENTE - PRODUTO" (portal e NORT têm o nome próprio; serviço não tem produto)
+  if (pp.tipoPedido !== "SERVIÇO" && !pp.portalClienteId && !String(pp.extRef || "").startsWith("NORT|")) {
+    try {
+      const { prefixoCliente, comPrefixo } = await import("@/lib/nomeItemCliente");
+      const pref = await prefixoCliente(pp.clienteCnpj, pp.clienteNome);
+      for (const it of pp.itens || []) {
+        const nova = comPrefixo(it.descricao, pref);
+        if (nova && nova !== it.descricao) { await prisma.ppItem.update({ where: { id: it.id }, data: { descricao: nova } }); it.descricao = nova; }
+      }
+    } catch (e) { console.log("pedido/prefixo cliente:", e.message); }
+  }
   const itens = itensPv(pp);
   const frete = freteTotal(pp);   // v746
   const valorItensE = r2(itens.reduce((s, i) => s + i.total, 0));

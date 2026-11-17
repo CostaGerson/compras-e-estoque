@@ -394,31 +394,8 @@ const vazioF = () => ({
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
 
-// v801 — #71: campo de estampa (texto longo, uma linha por aplicação)
-const nkParam = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\b(DA|DO|DE|DAS|DOS|E)\b/g, " ").replace(/\s+/g, " ").trim();
-const ehEstampa = (c) => /ESTAMP/.test(nkParam(c));
-// v801 — #72: parâmetros do KM → campos do tipo de peça. Casa pelo nome normalizado (sem acento, sem "da/de/do", plural);
-//   o que não casa entra em maiúsculas; nomes repetidos no KM juntam o texto em vez de virar dois campos
-const singular = (w) => w.length > 3 ? w.replace(/S$/, "") : w;
-const chaveParam = (t) => nkParam(t).split(" ").map(singular).join(" ");
-export function paramsDoKm(lista, comps = []) {
-  const porChave = new Map(comps.filter((c) => c !== "TECIDO").map((c) => [chaveParam(c), c]));
-  const acha = (t) => {
-    const k = chaveParam(t);
-    if (porChave.has(k)) return porChave.get(k);
-    const pk = k.split(" ");
-    for (const [kc, c] of porChave) { const pc = kc.split(" "); if (pc[0] === pk[0] && (pc.every((w) => pk.includes(w)) || pk.every((w) => pc.includes(w)))) return c; }
-    return String(t).trim().toUpperCase();
-  };
-  const out = {};
-  for (const x of Array.isArray(lista) ? lista : []) {
-    if (!x?.t || !String(x.v || "").trim() || paramFora(x.t)) continue;
-    const nome = acha(x.t), v = String(x.v).trim();
-    if (!out[nome]) out[nome] = v;
-    else if (!out[nome].toUpperCase().includes(v.toUpperCase())) out[nome] = `${out[nome]}\n${v}`;
-  }
-  return out;
-}
+import { paramsDoKm, fundirParams, nkParam, ehEstampa } from "@/lib/paramsPeca";   // v917
+export { paramsDoKm, fundirParams };
 // descrição do KM sem espaços/sinais repetidos e sem os parâmetros colados no nome
 export const limparDescKm = (d) => String(d || "").split(/\*{3,}/)[0].replace(/([-·,/])(\s*\1)+/g, "$1").replace(/\s+/g, " ").replace(/^[\s\-·,/]+|[\s\-·,/]+$/g, "").trim().toUpperCase();
 
@@ -474,7 +451,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
           grade: gradeParaTipo([...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam) || g.esp), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))], TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), tamanhos),
-          parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
+          parametros: fundirParams(Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), componentes[TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || "")] || []), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
           aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [],   // v806
           dispensaDesign: !!it.dispensaDesign,   // v796
@@ -538,7 +515,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   };
   // ---------- itens ----------
   // v890 — trocou o tipo de peça: calça/bermuda passa para a grade numérica (e volta para a padrão)
-  const ajTipo = (it) => ({ ...it, grade: gradeParaTipo(it.grade, it.tipoPecaNome, tamanhos) });
+  const ajTipo = (it) => ({ ...it, grade: gradeParaTipo(it.grade, it.tipoPecaNome, tamanhos), parametros: fundirParams(it.parametros, componentes[it.tipoPecaNome] || []) });   // v917 — #88
   const upItem = (i, patch) => setItens((arr) => arr.map((it, j) => (j === i ? (patch.tipoPecaNome !== undefined && patch.tipoPecaNome !== it.tipoPecaNome ? ajTipo({ ...it, ...patch }) : { ...it, ...patch }) : it)));
   const upGrade = (i, gi, qtd) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, grade: it.grade.map((g, k) => (k === gi ? { ...g, qtd } : g)) } : it)));
   const upParam = (i, nome, val) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, parametros: { ...it.parametros, [nome]: val } } : it)));
@@ -596,6 +573,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const params = Object.fromEntries(Object.entries(d.parametros || {}).filter(([k, v]) => v && !paramFora(k) && k !== "TECIDO"));
     if (rf) params.TECIDO = tecidoDaFpp(rf);
     const tipo = TIPOS.includes(d.tipoPecaNome) ? d.tipoPecaNome : tipoPeca(d.nomeNf, TIPOS) || "";
+    { const pf = fundirParams({ ...params }, componentes[tipo] || []); for (const k of Object.keys(params)) delete params[k]; Object.assign(params, pf); }   // v917 — #88
     sugerirPrazo(rf);
     // v650 — layout e tabela de medidas do item padrão viram arquivos do item (saem na OP)
     const anexosPadrao = [];

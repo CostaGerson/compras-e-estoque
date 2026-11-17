@@ -1,6 +1,7 @@
 // v615 — impressão do pedido no padrão do modelo (cabeçalho Meridian, caixas de cliente/atendimento, tabela de itens)
 //   PP (pedido de produção): sem valores — grade, parâmetros de produção, tecido/FPP e foto de cada item
 //   PV (pedido de venda): com valores — preço/peça, subtotais, total e condição de pagamento (entrada e parcelas)
+import { fundirParams } from "@/lib/paramsPeca";   // v917 — #88
 import { parcelasCalc, DOCS_ENTREGA as DOCS, dataBR as dataBRl, somaDias, textoCondicao, textoObsNf, paramFora, freteTotal, valorDesconto, rotuloAplicacao, partesTecido } from "@/lib/pedidoLanc";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -124,8 +125,9 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
 `;
   // v822 — #74: em pedido com mais de um item, cada folha da OP leva "Nº 26115022 / 2-4" (como a ficha do KM)
   const cabecalhoItem = (i) => (lista.length > 1 ? cabecalho.replace(`<div class="n">Nº ${esc(numero)}</div>`, `<div class="n">Nº ${esc(numero)} / ${i + 1}-${lista.length}</div>`) : cabecalho);
-  const producao = PV || servico ? "" : lista.map((it, i) => {
-    const comps = componentes[it.tipoPecaNome] || [];
+  const producao = PV || servico ? "" : lista.map((it0, i) => {
+    const comps = componentes[it0.tipoPecaNome] || [];
+    const it = { ...it0, parametros: fundirParams(it0.parametros, comps) };   // v917 — #88: "GOLA DA JAQUETA" entra em GOLA (sem linha duplicada)
     const extras = Object.keys(it.parametros || {}).filter((k) => !comps.includes(k));
     const temApl = (it.aplicacoes || []).length > 0;
     const ehPers = (c) => String(c).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() === "PERSONALIZACAO";
