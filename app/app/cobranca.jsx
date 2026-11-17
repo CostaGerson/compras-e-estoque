@@ -73,7 +73,7 @@ export async function desenharCard(g, { mensagem = MSG_PADRAO, contato = "" } = 
   ctx0.font = `400 22px ${F}`;
   const msgL = quebrar(ctx0, mensagem, W - 2 * P);
   const contL = contato ? quebrar(ctx0, contato, W - 2 * P) : [];
-  const H = 230 + 64 + 40 + 36 + msgL.length * 34 + 44 + 130 + 54 + 60 + g.contas.length * linhaH + 76 + (contL.length ? 64 + contL.length * 32 : 0) + 30 + 96;
+  const H = 130 + 64 + 40 + 36 + msgL.length * 34 + 44 + 130 + 54 + 60 + g.contas.length * linhaH + 76 + (contL.length ? 64 + contL.length * 32 : 0) + 30 + 96;
   const esc = 2;
   cv.width = W * esc; cv.height = H * esc;
   const ctx = cv.getContext("2d");
@@ -93,13 +93,13 @@ export async function desenharCard(g, { mensagem = MSG_PADRAO, contato = "" } = 
   }));
   ret(0, 0, W, H, "#FFFFFF");
   // cabeçalho Oxford com logo claro
-  ret(0, 0, W, 230, MB.ox);
-  if (logo) { const h = 46, w = (logo.width / logo.height) * h; ctx.drawImage(logo, P, 62, Math.min(w, 300), h); }
-  else txt("MERIDIAN", P, 100, { peso: 800, tam: 40, cor: MB.gelo });
-  txt("AVISO DE TÍTULOS EM ABERTO", P, 166, { peso: 700, tam: 18, cor: MB.gelo, esp: 2.5 });
-  txt(`Belo Horizonte, ${dBR(hojeISO())}`, P, 196, { peso: 300, tam: 17, cor: "#AFC3E0" });
-  blocos(W - P - 3 * 40 - 2 * 8, 54, 40, 8, ["  s", " sl", "gsa"]);
-  let y = 230 + 64;
+  // v905 — cabeçalho baixo: logo à esquerda, título e data à direita (sem os blocos)
+  ret(0, 0, W, 130, MB.ox);
+  if (logo) { const h = 40, w = (logo.width / logo.height) * h; ctx.drawImage(logo, P, 45, Math.min(w, 260), h); }
+  else txt("MERIDIAN", P, 80, { peso: 800, tam: 34, cor: MB.gelo });
+  txt("AVISO DE TÍTULOS EM ABERTO", W - P, 64, { peso: 700, tam: 17, cor: MB.gelo, al: "right", esp: 2 });
+  txt(`Belo Horizonte, ${dBR(hojeISO())}`, W - P, 92, { peso: 300, tam: 16, cor: "#AFC3E0", al: "right" });
+  let y = 130 + 64;
   // cliente e mensagem
   txt(cortar((ctx.font = `800 32px ${F}`, ctx), g.cliente, W - 2 * P), P, y, { peso: 800, tam: 32, cor: MB.ox });
   if (g.documento) { y += 36; txt(`CNPJ/CPF ${fmtDoc(g.documento)}`, P, y, { peso: 400, tam: 19, cor: MB.steel }); }
