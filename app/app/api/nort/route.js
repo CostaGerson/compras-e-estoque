@@ -65,9 +65,10 @@ export async function POST(req) {
   if (b.acao === "indexar") {
     const ip = b.itemPadraoId ? await prisma.itemPadrao.findUnique({ where: { id: Number(b.itemPadraoId) }, select: { id: true } }) : null;
     if (b.itemPadraoId && !ip) return Response.json({ error: "Item padrão não encontrado." }, { status: 404 });
-    await prisma.nortItem.update({ where: { id: it.id }, data: { itemPadraoId: ip ? ip.id : null } });
+    const { indexarModelo } = await import("@/lib/nortInteg");
+    const n = await indexarModelo(it, ip ? ip.id : null);   // v921 — todos os tamanhos do mesmo modelo
     const r = ip ? await reprocessarPendentes(nome(u)).catch((e) => ({ erro: e.message })) : null;   // pedidos que aguardavam este item seguem
-    return Response.json({ ok: true, reprocessados: r });
+    return Response.json({ ok: true, reprocessados: r, tamanhos: n });
   }
   if (b.acao === "minimo") {
     const m = b.minimo === "" || b.minimo == null ? null : Math.max(0, Number(String(b.minimo).replace(",", ".")) || 0);

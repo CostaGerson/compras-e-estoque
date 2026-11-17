@@ -45,12 +45,32 @@ export async function autorizadoNort(req) {
 }
 
 // ---------- itens e custo ----------
+// v921 — o estoque da loja vem por tamanho ("CAMISETA ALGODÃO 30.1 PRETO M") e o pedido sem ("CAMISETA ALGODÃO 30.1 PRETO"):
+//   modelo = nome sem o tamanho no fim. Indexar um tamanho indexa o modelo inteiro.
+const TAM_FIM = /\s+(PPP|PP|P|M|G|GG|XG|XGG|EXG|EXGG|EXGGG|G[1-6]|G\/(?:PP|P|M|G|GG|G[1-6])|BL\s?(?:PP|P|M|G|GG|XG)|\d{1,2}|U|UN|UNICO|ÚNICO|ESP)$/;
+export const modeloNort = (s) => normNome(s).replace(TAM_FIM, "").trim();
+async function padraoDoModelo(n) {
+  const mod = modeloNort(n);
+  if (!mod) return null;
+  const irmaos = await prisma.nortItem.findMany({ where: { itemPadraoId: { not: null }, OR: [{ nome: mod }, { nome: { startsWith: `${mod} ` } }] }, select: { nome: true, itemPadraoId: true } });
+  return irmaos.find((x) => modeloNort(x.nome) === mod || x.nome === mod)?.itemPadraoId || null;
+}
+export async function indexarModelo(item, itemPadraoId) {
+  const mod = modeloNort(item.nome);
+  const l = await prisma.nortItem.findMany({ where: { OR: [{ nome: mod }, { nome: { startsWith: `${mod} ` } }] }, select: { id: true, nome: true } });
+  const ids = l.filter((x) => modeloNort(x.nome) === mod || x.nome === mod).map((x) => x.id);
+  if (!ids.includes(item.id)) ids.push(item.id);
+  await prisma.nortItem.updateMany({ where: { id: { in: ids } }, data: { itemPadraoId: itemPadraoId || null } });
+  return ids.length;
+}
 export async function itemPorNome(nome, { sku, criar = true } = {}) {
   const n = normNome(nome);
   if (!n) return null;
-  const x = await prisma.nortItem.findUnique({ where: { nome: n } });
+  let x = await prisma.nortItem.findUnique({ where: { nome: n } });
+  if (x && !x.itemPadraoId) { const ip = await padraoDoModelo(n); if (ip) x = await prisma.nortItem.update({ where: { id: x.id }, data: { itemPadraoId: ip } }); }   // v921
   if (x || !criar) return x;
-  try { return await prisma.nortItem.create({ data: { nome: n, sku: sku ? String(sku).slice(0, 80) : null } }); }
+  const ip = await padraoDoModelo(n);
+  try { return await prisma.nortItem.create({ data: { nome: n, sku: sku ? String(sku).slice(0, 80) : null, ...(ip ? { itemPadraoId: ip } : {}) } }); }
   catch { return prisma.nortItem.findUnique({ where: { nome: n } }); }   // criado ao mesmo tempo
 }
 
