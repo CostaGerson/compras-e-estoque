@@ -79,7 +79,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   // ---------- tabela de itens ----------
   const linhas = lista.map((it, i) => {
     const grade = (it.grade || []).filter((g) => n(g.qtd) > 0);
-    const tams = servico ? "—" : grade.map((g) => `${esc(g.tam)} ${esc(g.qtd)}`).join(" · ") || "—";
+    const tams = servico ? "—" : grade.map((g) => `${esc(g.tam)} ${esc(g.qtd)}${g.esp ? ` (${esc(g.esp)})` : ""}`).join(" · ") || "—";   // v890 — ESP com as dimensões
     const tec = it.parametros?.TECIDO;
     const det = servico ? "" : [cap(it.tipoPecaNome), it.codigo ? `cód. ${esc(it.codigo)}` : "", PV && tec ? partesTecido(tec).map(esc).join(" · ") : ""].filter(Boolean).join(" · ");
     const q = qtdDe(it), vu = n(it.valorUnitario);
@@ -147,6 +147,7 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
         <div class="peca-i">
           <table class="grade"><tr>${grade.map((g) => `<th>${esc(g.tam)}</th>`).join("") || "<th>—</th>"}</tr>
             <tr>${grade.map((g) => `<td>${esc(g.qtd)}</td>`).join("") || "<td>—</td>"}</tr></table>
+          ${grade.filter((g) => g.esp).map((g) => `<div style="margin:0 0 4px;font-size:10.5px"><b style="color:#FF6B1A">${esc(g.tam)}</b> — dimensões especiais: <b>${esc(g.esp)}</b></div>`).join("")}
           <div style="margin:2px 0 6px;font-size:10px">TOTAL DA GRADE: <b style="font-size:12px;color:#FF6B1A">${qtdDe(it).toLocaleString("pt-BR")} pç</b></div>
           <table class="params">${params || `<tr><td class="pk">Parâmetros</td><td>—</td></tr>`}</table>
         </div>

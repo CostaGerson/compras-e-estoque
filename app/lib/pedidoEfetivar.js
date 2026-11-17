@@ -208,6 +208,9 @@ function itensPv(pp) {
     const grade = safe(it.gradeJson, []).filter((g) => num(g.qtd) > 0).map((g) => ({ tam: g.tam, qtd: num(g.qtd) }));
     const params = Object.entries(safe(it.parametrosJson, {})).filter(([k, v]) => !paramFora(k) && v)
       .map(([t, v]) => ({ t, v: typeof v === "object" ? partesTecido(v).join(" · ").toUpperCase() : String(v) }));
+    // v890 — tamanho especial: as dimensões vão como parâmetro
+    const esps = safe(it.gradeJson, []).filter((g) => num(g.qtd) > 0 && String(g.esp || "").trim()).map((g) => `${g.tam} ${num(g.qtd)}: ${String(g.esp).trim()}`.toUpperCase());
+    if (esps.length) params.push({ t: "TAMANHO ESPECIAL", v: esps.join(" · ") });
     const qtd = grade.reduce((s, g) => s + g.qtd, 0);
     return { codigo: it.codigo || null, descricao: it.descricao || "", qtd, preco: num(it.valorUnitario), total: r2(qtd * num(it.valorUnitario)), grade, parametros: params,
       fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, tipoPeca: it.tipoPecaNome || null, entrega: it.entregaData || null,   // v869

@@ -33,8 +33,41 @@ const diaSem = (s) => (s ? DIAS_SEM[new Date(s + "T12:00:00Z").getUTCDay()] : ""
 const readB64 = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result)); fr.readAsDataURL(file); });
 // v632 — grades: masculina (padrão, sempre) + especiais (infantil em anos, babylook "BL …") inseridas pelo botão
 const TAM_INF = ["2", "4", "6", "8", "10", "12", "14"];
-const secaoTam = (t) => (/^\d+$/.test(String(t)) && Number(t) <= 16 ? "INF" : /^BL /.test(String(t)) ? "BL" : "MASC");
-const gradesDe = (tamanhos) => ({ MASC: { rot: "Adulto (masculino)", tams: tamanhos }, INF: { rot: "Infantil (anos)", tams: TAM_INF }, BL: { rot: "Babylook", tams: tamanhos.map((t) => "BL " + t) } });
+// v890 — grade G ("G/PP" … "G/G6"), numérica (34 a 60, calça/bermuda) e ESP (tamanho especial com as dimensões em g.esp) no fim de toda grade
+const TAM_GG = ["PP", "P", "M", "G", "G1", "G2", "G3", "G4", "G5", "G6"].map((t) => "G/" + t);
+const TAM_NUM = Array.from({ length: 14 }, (_, i) => String(34 + 2 * i));
+const ESP_DE = { MASC: "ESP", NUM: "NUM ESP", GG: "G/ESP", INF: "INF ESP", BL: "BL ESP" };
+export const ehEsp = (t) => /(^|[ /])ESP$/.test(String(t || ""));
+const secaoTam = (t) => {
+  t = String(t);
+  if (/^G\//.test(t)) return "GG";
+  if (/^BL /.test(t)) return "BL";
+  if (t === "INF ESP") return "INF";
+  if (t === "NUM ESP") return "NUM";
+  if (/^\d+$/.test(t)) return Number(t) <= 16 ? "INF" : "NUM";
+  return "MASC";
+};
+const gradesDe = (tamanhos) => ({
+  MASC: { rot: "Adulto (masculino)", menu: "Grade padrão (PP ao EXGG)", tams: [...tamanhos, "ESP"] },
+  NUM: { rot: "Numérica", menu: "Grade numérica (34 ao 60)", tams: [...TAM_NUM, "NUM ESP"] },
+  GG: { rot: "Grade G", menu: "Grade G (PP ao G6)", tams: [...TAM_GG, "G/ESP"] },
+  INF: { rot: "Infantil (anos)", menu: "Infantil (anos)", tams: [...TAM_INF, "INF ESP"] },
+  BL: { rot: "Babylook", menu: "Babylook", tams: [...tamanhos.map((t) => "BL " + t), "BL ESP"] },
+});
+const ORDEM_GRADES = ["MASC", "NUM", "GG", "INF", "BL"];
+const rotTam = (t) => (ehEsp(t) ? "ESP" : String(t).replace(/^(BL |G\/)/, ""));
+export const gradeNumerica = (tipo) => tipo === "CALÇA";   // calça / bermuda / short
+// v890 — troca a grade base conforme o tipo: calça/bermuda → numérica; os demais → padrão (só tira a outra se estiver vazia)
+export function gradeParaTipo(grade, tipo, tamanhos) {
+  if (tipo === "SERVIÇO" || !Array.isArray(grade)) return grade;
+  const base = gradeNumerica(tipo) ? "NUM" : "MASC", outra = base === "NUM" ? "MASC" : "NUM";
+  const qOutra = grade.filter((g) => secaoTam(g.tam) === outra).reduce((q, g) => q + num(g.qtd), 0);
+  let g2 = qOutra ? grade : grade.filter((g) => secaoTam(g.tam) !== outra);
+  if (!g2.some((g) => secaoTam(g.tam) === base)) g2 = [...gradesDe(tamanhos)[base].tams.filter((t) => !ehEsp(t)).map((t) => ({ tam: t, qtd: "" })), ...g2];
+  return g2;
+}
+// ESP com quantidade e sem as dimensões
+export const espSemDimensao = (grade) => (grade || []).some((g) => ehEsp(g.tam) && num(g.qtd) > 0 && !String(g.esp || "").trim());
 // v750 — desconto na peça: R$ ou % sobre o preço cheio; o valor unitário do item passa a ser o preço com desconto
 const fmtV = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
 const descItem = (d) => ({ desconto: d, valorUnitario: fmtV(precoComDesconto(d)) });
@@ -207,35 +240,44 @@ function FreteCampo({ v, onChange, veVal = true }) {
     </div>
   );
 }
-export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, onPersonalizada = null }) {   // v744 — personalizada: opção do menu de grade especial
+export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, onPersonalizada = null, numerica = false }) {   // v744 — personalizada: opção do menu de grade especial
   const G = gradesDe(tamanhos);
-  const ativas = ["MASC", ...["INF", "BL"].filter((k) => grade.some((g) => secaoTam(g.tam) === k))];
+  const base = numerica ? "NUM" : "MASC";   // v890 — calça/bermuda: numérica é a base e a padrão vira "variação"
+  const presentes = new Set(grade.map((g) => secaoTam(g.tam)));
+  const ativas = [base, ...ORDEM_GRADES.filter((k) => k !== base && presentes.has(k))];
   const [menu, setMenu] = useState(false);
-  const up = (tam, qtd) => onChange(grade.map((g) => (g.tam === tam ? { ...g, qtd } : g)));
-  const passo = (g, d) => up(g.tam, String(Math.max(0, num(g.qtd) + d)));
-  const inserir = (k) => { const tem = new Set(grade.map((g) => g.tam)); onChange([...grade, ...G[k].tams.filter((t) => !tem.has(t)).map((t) => ({ tam: t, qtd: "" }))]); setMenu(false); };
+  const linhasDe = (k) => {
+    const canon = G[k].tams, esp = ESP_DE[k];
+    const extras = grade.filter((g) => secaoTam(g.tam) === k && !canon.includes(g.tam)).map((g) => g.tam);
+    return [...canon.filter((t) => t !== esp), ...extras, esp].map((t) => grade.find((g) => g.tam === t) || { tam: t, qtd: "" });
+  };
+  const up = (tam, patch) => onChange(grade.some((g) => g.tam === tam) ? grade.map((g) => (g.tam === tam ? { ...g, ...patch } : g)) : [...grade, { tam, qtd: "", ...patch }]);
+  const passo = (g, d) => up(g.tam, { qtd: String(Math.max(0, num(g.qtd) + d)) });
+  const inserir = (k) => { const tem = new Set(grade.map((g) => g.tam)); onChange([...grade, ...G[k].tams.filter((t) => !tem.has(t) && !ehEsp(t)).map((t) => ({ tam: t, qtd: "" }))]); setMenu(false); };
   const remover = async (k) => {
     const q = grade.filter((g) => secaoTam(g.tam) === k).reduce((s, g) => s + num(g.qtd), 0);
     if (q && !(await confirmar(`Remover a grade ${G[k].rot.toLowerCase()} com ${q} peça(s)?`))) return;
     onChange(grade.filter((g) => secaoTam(g.tam) !== k));
   };
-  const faltam = ["INF", "BL"].filter((k) => !ativas.includes(k));
+  const faltam = ORDEM_GRADES.filter((k) => !ativas.includes(k));
   return (
     <div className="mb-3">
       {ativas.map((k) => {
-        const linhas = grade.filter((g) => secaoTam(g.tam) === k);
+        const linhas = linhasDe(k);
+        const esp = linhas[linhas.length - 1], abreEsp = num(esp.qtd) > 0 || String(esp.esp || "").trim();
         return (
           <div key={k} className="mb-2">
             <div className="flex items-center text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.sub }}>{G[k].rot}
               <span className="ml-2 font-normal normal-case">{linhas.reduce((s, g) => s + num(g.qtd), 0)} pç</span>
-              {k !== "MASC" && <button type="button" onClick={() => remover(k)} className="ml-auto normal-case font-normal flex items-center gap-1" style={{ color: C.red }}><X size={12} /> remover</button>}
+              {k !== base && <button type="button" onClick={() => remover(k)} className="ml-auto normal-case font-normal flex items-center gap-1" style={{ color: C.red }}><X size={12} /> remover</button>}
             </div>
-            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(0, 1fr))` }}>
+            <div className="overflow-x-auto"><div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(linhas.length, 7)}, minmax(44px, 1fr))` }}>
               {linhas.map((g) => (
-                <div key={g.tam} className="rounded-md px-0.5 pt-0.5 pb-0.5 text-center" style={{ background: C.panel2, border: `1px solid ${num(g.qtd) ? "#001E41" : C.line}` }}>
-                  <div className="text-[11px] font-semibold" style={{ color: C.sub }}>{k === "BL" ? g.tam.slice(3) : g.tam}</div>
+                <div key={g.tam} className="rounded-md px-0.5 pt-0.5 pb-0.5 text-center" style={{ background: ehEsp(g.tam) ? C.accentSoft : C.panel2, border: `1px solid ${num(g.qtd) ? "#001E41" : C.line}` }}
+                  title={ehEsp(g.tam) ? "Tamanho especial: informe as dimensões" : undefined}>
+                  <div className="text-[11px] font-semibold" style={{ color: ehEsp(g.tam) ? C.accent : C.sub }}>{rotTam(g.tam)}</div>
                   {/* v672 — sem a barrinha piscando (digitar substitui o número) e botões – / + maiores */}
-                  <input value={g.qtd} onChange={(e) => up(g.tam, e.target.value.replace(/[^\d]/g, ""))} onFocus={(e) => e.target.select()} inputMode="numeric" placeholder="0"
+                  <input value={g.qtd} onChange={(e) => up(g.tam, { qtd: e.target.value.replace(/[^\d]/g, "") })} onFocus={(e) => e.target.select()} inputMode="numeric" placeholder="0"
                     className="w-full bg-transparent outline-none text-center text-base font-bold leading-6" style={{ color: num(g.qtd) ? C.text : "#98A2B3", caretColor: "transparent" }} />
                   <div className="flex justify-between gap-0.5">
                     <button type="button" onClick={() => passo(g, -1)} className="flex-1 flex items-center justify-center rounded text-sm font-bold leading-none select-none" style={{ height: 22, color: "#001E41", background: "#fff", border: "1px solid #001E4155" }}>–</button>
@@ -243,14 +285,19 @@ export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, o
                   </div>
                 </div>
               ))}
-            </div>
+            </div></div>
+            {abreEsp && <label className="flex items-center gap-2 mt-1 text-xs">
+              <span className="font-semibold shrink-0" style={{ color: C.accent }}>ESP · dimensões especiais</span>
+              <input value={esp.esp || ""} onChange={(e) => up(esp.tam, { esp: e.target.value })} placeholder="ex.: tórax 130 cm, comprimento 85 cm, manga 70 cm" autoFocus={!esp.esp}
+                className="flex-1 px-2 py-1 rounded outline-none text-sm" style={{ ...inp, background: C.panel, borderColor: String(esp.esp || "").trim() ? C.line : C.accent }} />
+            </label>}
           </div>
         );
       })}
       {(faltam.length > 0 || (onPersonalizada && !personalizada)) && <div className="relative inline-block">
-        <button type="button" onClick={() => setMenu(!menu)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.accent, border: `1px dashed ${C.accent}` }}><Plus size={12} /> Inserir grade especial</button>
+        <button type="button" onClick={() => setMenu(!menu)} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md" style={{ color: C.accent, border: `1px dashed ${C.accent}` }}><Plus size={12} /> {numerica ? "Inserir variação de grade" : "Inserir grade especial"}</button>
         {menu && <div className="absolute z-20 mt-1 rounded-md shadow-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          {faltam.map((k) => <button key={k} type="button" onClick={() => inserir(k)} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: C.text }}>{G[k].rot}</button>)}
+          {faltam.map((k) => <button key={k} type="button" onClick={() => inserir(k)} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: C.text }}>{G[k].menu}</button>)}
           {onPersonalizada && !personalizada && <button type="button" onClick={() => { setMenu(false); onPersonalizada(); }} className="block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap hover:bg-gray-50" style={{ color: "#3D6799", borderTop: faltam.length ? `1px solid ${C.line}` : "none" }}>Personalizada <span className="text-xs" style={{ color: C.sub }}>(lista por peça: nome, número…)</span></button>}
         </div>}
       </div>}
@@ -426,7 +473,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           quantidade: String(grade.reduce((q, g) => q + (Number(g.qtd) || 0), 0) || "").replace(".", ","), anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [] };   // v792
         return { tipoPecaNome: TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), codigo: it.codigo || "", descricao: it.descricao || "",
           valorUnitario: it.valorUnitario != null ? String(it.valorUnitario).replace(".", ",") : "",
-          grade: [...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam)), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))],
+          grade: gradeParaTipo([...grade.filter((g) => num(g.qtd) > 0 || secaoTam(g.tam) !== "MASC" || tamanhos.includes(g.tam) || g.esp), ...tamanhos.filter((t) => !tams.has(t)).map((t) => ({ tam: t, qtd: "" }))], TIPOS.includes(it.tipoPecaNome) ? it.tipoPecaNome : (tipoPeca(it.descricao, TIPOS) || ""), tamanhos),
           parametros: Object.fromEntries(Object.entries(par).filter(([k]) => !paramFora(k))), fotoBase64: it.fotoBase64 || "", fppId: it.fppId || null, fppNumero: it.fppNumero ?? null, fpp: null,
           anexos: Array.isArray(it.anexosJson) ? it.anexosJson : [],   // v650
           aplicacoes: Array.isArray(it.aplicacoes) ? it.aplicacoes : [],   // v806
@@ -490,7 +537,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       : { ...novoItem(), descricao: it.descricao, valorUnitario: it.valorUnitario }));
   };
   // ---------- itens ----------
-  const upItem = (i, patch) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  // v890 — trocou o tipo de peça: calça/bermuda passa para a grade numérica (e volta para a padrão)
+  const ajTipo = (it) => ({ ...it, grade: gradeParaTipo(it.grade, it.tipoPecaNome, tamanhos) });
+  const upItem = (i, patch) => setItens((arr) => arr.map((it, j) => (j === i ? (patch.tipoPecaNome !== undefined && patch.tipoPecaNome !== it.tipoPecaNome ? ajTipo({ ...it, ...patch }) : { ...it, ...patch }) : it)));
   const upGrade = (i, gi, qtd) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, grade: it.grade.map((g, k) => (k === gi ? { ...g, qtd } : g)) } : it)));
   const upParam = (i, nome, val) => setItens((arr) => arr.map((it, j) => (j === i ? { ...it, parametros: { ...it.parametros, [nome]: val } } : it)));
   const buscarItemKm = async (q) => api(`/api/pp/catalogo?q=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => []);
@@ -502,19 +551,19 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const doKm = paramsDoKm(p.parametros, componentes[tipo] || []);
     const params = { ...Object.fromEntries(Object.entries(it.parametros || {}).filter(([k, v]) => k !== "TECIDO" && v != null && String(v).trim() !== "")), ...doKm };
     if (it.parametros?.TECIDO && typeof it.parametros.TECIDO === "object") params.TECIDO = it.parametros.TECIDO;   // tecido da FPP fica
-    return { ...it, codigo: p.codigo, descricao: limparDescKm(p.descricao), tipoPecaNome: tipo, parametros: params,
-      valorUnitario: it.valorUnitario || (p.preco ? String(Number(p.preco).toFixed(2)).replace(".", ",") : "") };
+    return ajTipo({ ...it, codigo: p.codigo, descricao: limparDescKm(p.descricao), tipoPecaNome: tipo, parametros: params,
+      valorUnitario: it.valorUnitario || (p.preco ? String(Number(p.preco).toFixed(2)).replace(".", ",") : "") });
   }));
   // v702 — item com FPP: o lead time dela sugere o prazo de entrega do pedido (quando ainda está vazio)
   const sugerirPrazo = (rf) => { if (rf?.leadTime > 0) setF((s) => (String(s.prazoDias ?? "").trim() ? s : { ...s, prazoDias: String(rf.leadTime), prazoTipo: "CORRIDOS" })); };
   const indexarFpp = (i, rf) => {
     sugerirPrazo(rf);
-    setItens((arr) => arr.map((it, j) => (j !== i ? it : {
+    setItens((arr) => arr.map((it, j) => (j !== i ? it : ajTipo({
       ...it, fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf) },
       tipoPecaNome: it.descricao ? it.tipoPecaNome : (tipoPeca(rf.item, TIPOS) || it.tipoPecaNome),
       descricao: it.descricao || String(rf.nomeComercial || rf.item || "").toUpperCase(),
       valorUnitario: it.valorUnitario || (veVal && rf.valorProposto ? String(Number(rf.valorProposto).toFixed(2)).replace(".", ",") : ""),
-    })));
+    }))));
     setFppModal(null);
     puxarEstampas(i, rf.id);   // v806
   };
@@ -553,11 +602,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     for (const a of d.anexos || []) {
       try { const b = await fetch(`/api/itens-padrao/${d.id}?anexo=${a.id}`).then((r) => r.blob()); anexosPadrao.push({ nome: `${a.tipo === "MEDIDAS" ? "Tabela de medidas" : "Layout"} · ${a.nome}`, mime: a.mime || b.type || null, base64: await readB64(b) }); } catch {}
     }
-    const item = { ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
-      valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id };
+    const item = ajTipo({ ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
+      valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id });
     // ocupa o primeiro item vazio; senão acrescenta
     // v754 — escolhido no próprio item (código/descrição): entra nele, mantendo a grade já digitada
-    if (alvo != null) { setItens((arr) => arr.map((it, j) => (j === alvo ? { ...item, grade: qtdGrade(it.grade) ? it.grade : item.grade, dadosUnitarios: it.dadosUnitarios || null } : it))); setBuscaPadrao(""); if (rf) puxarEstampas(alvo, rf.id); /* v806 */ if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`); return; }
+    if (alvo != null) { setItens((arr) => arr.map((it, j) => (j === alvo ? ajTipo({ ...item, grade: qtdGrade(it.grade) ? it.grade : item.grade, dadosUnitarios: it.dadosUnitarios || null }) : it))); setBuscaPadrao(""); if (rf) puxarEstampas(alvo, rf.id); /* v806 */ if (d.critica) alerta(`Atenção: o preço praticado (${money(d.critica.preco)}) está diferente do valor de venda da FPP ${numFpp(d.fppNumero)} (${money(d.critica.fpp)}).`); return; }
     setItens((arr) => { const k = arr.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); return k >= 0 ? arr.map((it, j) => (j === k ? item : it)) : [...arr, item]; });
     if (rf) { const arr0 = itensRef.current, k0 = arr0.findIndex((it) => !String(it.descricao || "").trim() && !String(it.codigo || "").trim() && !qtdGrade(it.grade)); puxarEstampas(k0 >= 0 ? k0 : arr0.length, rf.id); }   // v806
     setBuscaPadrao("");
@@ -659,6 +708,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const unico = doc.fpps.length === 1 ? doc.fpps[0] : null;
     const novosItens = doc.pecas.map((pc, i) => {
       const it = pecaParaItem(pc, { componentes, tamanhos });
+      if (it.tipoPecaNome) it.grade = gradeParaTipo(it.grade, it.tipoPecaNome, tamanhos);   // v890
       const nFpp = pc.fpp || unico || (doc.fpps.length === doc.pecas.length ? doc.fpps[i] : null);
       const rf = nFpp ? d.fpps?.[nFpp] : null;
       if (rf) Object.assign(it, { fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf, corNaFpp(pc.cor, rf)) } });
@@ -692,7 +742,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     if (doc.condicao && !condicaoParaPagamento(doc.condicao, total).parcelas.length && !condicaoParaPagamento(doc.condicao, total).entrada) av.push(`Condição de pagamento "${doc.condicao}" não reconhecida: monte as parcelas.`);
     novosItens.forEach((it, i) => {
       if (!it.tipoPecaNome) av.push(`Item ${i + 1} (${doc.pecas[i].categoria}): tipo de peça não reconhecido — escolha o tipo.`);
-      const fora = it.grade.filter((g) => num(g.qtd) > 0 && !tamanhos.includes(g.tam) && !/^\d+$/.test(g.tam) && !/^BL /.test(g.tam)).map((g) => g.tam);
+      const fora = it.grade.filter((g) => num(g.qtd) > 0 && !tamanhos.includes(g.tam) && secaoTam(g.tam) === "MASC" && !ehEsp(g.tam)).map((g) => g.tam);
       if (fora.length) av.push(`Item ${i + 1}: tamanhos fora da grade padrão (${fora.join(", ")}) — entraram no fim da grade.`);
       if (!it.fotoBase64 && !it.dispensaDesign) av.push(`Item ${i + 1}: sem layout — ao efetivar, vira tarefa para o arte-finalista.`);
       if (veVal && it.fpp?.valorProposto && Math.abs(num(it.desconto ? it.desconto.base : it.valorUnitario) - Number(it.fpp.valorProposto)) > 0.009) av.push(`Item ${i + 1}: valor unitário ${money(num(it.valorUnitario))} diferente do valor da FPP ${numFpp(it.fppNumero)} (${money(it.fpp.valorProposto)}).`);
@@ -776,6 +826,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const efetivar = async () => {
     const semTipo = itens.findIndex((it) => !it.tipoPecaNome);   // v631
     if (semTipo >= 0) { alerta(`Item ${semTipo + 1}: escolha o tipo de peça.`); return; }
+    const semEsp = itens.findIndex((it) => espSemDimensao(it.grade));   // v890
+    if (semEsp >= 0) { alerta(`Item ${semEsp + 1}: informe as dimensões do tamanho especial (ESP).`); return; }
     if (!confEnt.ok && f.entregaModo !== "UNICA") { alerta("A soma das grades das entregas não bate com o pedido. Confira os locais de entrega."); return; }
     setSalvando(true);
     try {
@@ -1120,7 +1172,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 </div>}
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Grade · total {somaItem(it)} pç{veVal ? ` · ${money(totalItem(it))}` : ""}
                   {it.fpp?.leadTime > 0 && <span className="ml-2 px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }} title="Lead time da FPP, contado da emissão do pedido">entrega prevista {dataBR(somaDias(f.emissao || hojeISO(), it.fpp.leadTime, "CORRIDOS"))} · lead time {it.fpp.leadTime} dias</span>}</div>
-                <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })}
+                <GradeEditor grade={it.grade} tamanhos={tamanhos} onChange={(grade) => upItem(i, { grade })} numerica={gradeNumerica(it.tipoPecaNome)}
                   personalizada={!!(it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos))} onPersonalizada={podeLancar && !efetivado ? () => upItem(i, { dadosUnitarios: vazioDU() }) : null} />
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 {it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) && <DadosUnitarios semChave travado={!podeLancar} du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
