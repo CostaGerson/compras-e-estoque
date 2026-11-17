@@ -30,7 +30,7 @@ export const MODELOS = {
       cabMarca: "EPSON I3200", cabDurab: 12, cabQtd: 4, cabValor: 8000, deprMeses: 60, papelValor: 977.5, papelMetros: 500,
       tintaMarca: "Subly Prime", tintaConsumo: 0.012, tintaValor: 184, limpMarca: "Pigment Prime 01 litro", limpConsumo: 0.0018, limpValor: 120 },
     // colunas da composição por peça (até o custo total)
-    colunas: [["unidades", "Unidades por m"]],
+    colunas: [["unidades", "Un./m"]],
     linhas: [
       ["METRO LINEAR SUBLIMAÇÃO", { unidades: 1 }],
       ["SUBLIMAÇÃO TOTAL CAMISETA MC", { unidades: 1.35, recorte: 0.42, prensagem: 1.12 }],
@@ -60,7 +60,7 @@ export const MODELOS = {
       cabMarca: "EPSON I3200", cabDurab: 12, cabQtd: 2, cabValor: 8000, deprMeses: 60, papelValor: 450, papelMetros: 100,
       tintaMarca: "Pigment Prime 01 litro", tintaConsumo: 0.012, tintaValor: 287.5, brancaMarca: "Pigment Prime 01 litro", brancaConsumo: 0.018, brancaValor: 287.5,
       colaValor: 100, colaRend: 33.3, limpMarca: "Pigment Prime 01 litro", limpConsumo: 0.0018, limpValor: 230 },
-    colunas: [["altura", "Altura (m)"], ["largura", "Largura (m)"], ["unidades", "Estampas por m"]],
+    colunas: [["altura", "Alt. (m)"], ["largura", "Larg. (m)"], ["unidades", "Est./m"]],
     linhas: [
       ["METRO LINEAR DTF", { altura: 1, largura: 0.6, unidades: 0.8 }],
       ["DTF NOME 2X10", { altura: 0.02, largura: 0.1, unidades: 261, recorte: 0.1, prensagem: 0.38 }],

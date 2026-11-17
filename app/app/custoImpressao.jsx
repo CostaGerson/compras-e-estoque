@@ -38,8 +38,8 @@ export default function CustoImpressao({ user, tipo }) {
   const col = M.colunas;
   const NAVY = "#0C2342", STEEL = "#3D6799";
   const fmtCalc = (k, v) => (/PorM$/.test(k) || k === "total" ? brl(v, 4) : /Total$/.test(k) ? brl(v, 2) : nf(v, 0));
-  const th = "px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide whitespace-nowrap";
-  const campoNum = "w-full px-2 py-1.5 rounded-lg text-center text-xs tabular-nums outline-none focus:ring-2";
+  const th = "px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide whitespace-nowrap overflow-hidden";
+  const campoNum = "w-full px-1 py-1.5 rounded-lg text-center text-xs tabular-nums outline-none focus:ring-2";
   return (
     <div>
       {/* v924 — visual moderno (cabeçalhos Oxford Blue, destaque laranja), campos padronizados e conteúdo centralizado */}
@@ -56,24 +56,24 @@ export default function CustoImpressao({ user, tipo }) {
         <button onClick={async () => { if (await confirmar("Voltar aos valores das planilhas originais? (só grava ao salvar)")) { const x = padraoDe(tipo); setP(x.params); setLs(x.linhas); setMudou(true); } }} className="text-xs px-3 py-2 rounded-lg flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}><RotateCcw size={13} /> Valores da planilha</button>
         <button onClick={salvar} disabled={!mudou || salvando} className="text-sm px-4 py-2 rounded-lg font-semibold flex items-center gap-1.5" style={{ background: mudou ? C.accent : C.panel2, color: mudou ? "#fff" : C.sub }}>{salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar</button>
       </div>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", alignItems: "start" }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "340px minmax(0, 1fr)", alignItems: "start" }}>
         {/* custo do metro linear — seções em duas colunas para caber na tela */}
         <div className="rounded-2xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 1px 3px rgba(12,35,66,.06)" }}>
           <div className="px-4 py-2.5 text-sm font-bold flex items-center" style={{ background: NAVY, color: "#fff" }}>Custo metro linear</div>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-            {M.secoes.map((s, si) => (
-              <div key={s.t} className="px-3 py-2" style={{ borderBottom: `1px solid ${C.line}`, borderRight: si % 2 === 0 ? `1px solid ${C.line}` : "none" }}>
+          <div>
+            {M.secoes.map((s) => (
+              <div key={s.t} className="px-3 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: STEEL }}>{s.t}</div>
                 {s.campos.map(([k, l, t]) => (
-                  <label key={k} className="grid items-center gap-2 py-0.5" style={{ gridTemplateColumns: "minmax(0,1fr) 112px" }}>
-                    <span className="text-[11px] leading-tight" style={{ color: C.text }} title={l}>{l}</span>
+                  <label key={k} className="grid items-center gap-2 py-0.5" style={{ gridTemplateColumns: "minmax(0,1fr) 104px" }}>
+                    <span className="text-[11px] truncate" style={{ color: C.text }} title={l}>{l}</span>
                     <input value={txt(p[k])} onChange={(e) => setCampo(k, e.target.value)} inputMode={t === "txt" ? "text" : "decimal"} title={txt(p[k])}
                       className={campoNum} style={{ ...inp, "--tw-ring-color": C.accentSoft }} />
                   </label>
                 ))}
                 {s.calc.map(([k, l]) => (
-                  <div key={k} className="grid items-center gap-2 py-0.5" style={{ gridTemplateColumns: "minmax(0,1fr) 112px" }}>
-                    <span className="text-[11px] leading-tight" style={{ color: C.sub }}>{l}</span>
+                  <div key={k} className="grid items-center gap-2 py-0.5" style={{ gridTemplateColumns: "minmax(0,1fr) 104px" }}>
+                    <span className="text-[11px] truncate" style={{ color: C.sub }} title={l}>{l}</span>
                     <span className="text-xs font-bold tabular-nums text-center" style={{ color: NAVY }}>{fmtCalc(k, c[k])}</span>
                   </div>
                 ))}
@@ -86,24 +86,24 @@ export default function CustoImpressao({ user, tipo }) {
           </div>
         </div>
         {/* composição por peça */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 1px 3px rgba(12,35,66,.06)" }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 1px 3px rgba(12,35,66,.06)", position: "sticky", top: 8 }}>
           <div className="px-4 py-2.5 text-sm font-bold" style={{ background: NAVY, color: "#fff" }}>Composição de custo por peça</div>
           <table className="w-full text-xs" style={{ tableLayout: "fixed" }}>
-            <colgroup><col style={{ width: "30%" }} />{col.map(([k]) => <col key={k} />)}<col /><col /><col /><col /><col /><col style={{ width: 30 }} /></colgroup>
+            <colgroup><col style={{ width: col.length > 1 ? 196 : 228 }} />{col.map(([k]) => <col key={k} />)}<col style={{ width: 86 }} /><col /><col /><col /><col style={{ width: 92 }} /><col style={{ width: 26 }} /></colgroup>
             <thead><tr style={{ color: STEEL, background: "#F1F6FE" }}>
               <th className={th}>Nome da arte</th>
               {col.map(([k, l]) => <th key={k} className={th}>{l}</th>)}
-              <th className={th}>Material</th><th className={th}>M.O. impressão</th><th className={th}>Recorte</th><th className={th}>Prensagem</th>
+              <th className={th}>Material</th><th className={th} title="Mão de obra de impressão">M.O.</th><th className={th}>Recorte</th><th className={th}>Prensagem</th>
               <th className={th}>Custo total</th><th />
             </tr></thead>
             <tbody>
               {ls.map((l, i) => { const x = calcLinha(l, c.total); return (
                 <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
-                  <td className="px-2 py-1"><input value={l.nome || ""} onChange={(e) => setL(i, "nome", e.target.value.toUpperCase())} title={l.nome} className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold text-center outline-none" style={{ ...inp, color: NAVY }} /></td>
+                  <td className="px-2 py-1"><input value={l.nome || ""} onChange={(e) => setL(i, "nome", e.target.value.toUpperCase())} title={l.nome} className="w-full px-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-center outline-none" style={{ ...inp, color: NAVY }} /></td>
                   {col.map(([k]) => <td key={k} className="px-1 py-1"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" className={campoNum} style={inp} /></td>)}
-                  <td className="px-1 py-1 text-center tabular-nums font-semibold" style={{ color: STEEL }}>{brl(x.material, 4)}</td>
+                  <td className="px-1 py-1 text-center tabular-nums font-semibold whitespace-nowrap text-[11px]" style={{ color: STEEL }}>{brl(x.material, 4)}</td>
                   {["mo", "recorte", "prensagem"].map((k) => <td key={k} className="px-1 py-1"><input value={txt(l[k])} onChange={(e) => setL(i, k, e.target.value)} inputMode="decimal" placeholder="0,00" className={campoNum} style={inp} /></td>)}
-                  <td className="px-1 py-1 text-center"><span className="inline-block px-2 py-1 rounded-lg font-extrabold tabular-nums" style={{ background: C.accentSoft, color: C.accent }}>{brl(x.total, 4)}</span></td>
+                  <td className="px-1 py-1 text-center"><span className="inline-block px-1.5 py-1 rounded-lg font-extrabold tabular-nums whitespace-nowrap text-[11px]" style={{ background: C.accentSoft, color: C.accent }}>{brl(x.total, 4)}</span></td>
                   <td className="text-center"><button onClick={() => { setLs((a) => a.filter((_, j) => j !== i)); setMudou(true); }} title="Tirar a linha" style={{ color: C.sub }}><Trash2 size={13} /></button></td>
                 </tr>); })}
             </tbody>
