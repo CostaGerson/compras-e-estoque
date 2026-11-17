@@ -23,6 +23,14 @@ async function crm() {
   } catch (e) { return { chave: "CRM", ativo: false, ultima: null, detalhe: `CRM sem resposta: ${e.message}` }; }
 }
 async function nort() {
+  // v910 — o ERP lê o sistema da NORT: vale a última leitura
+  const st = await cfgJson("NORT|LEITURA_STATUS");
+  const ult = [st.pedidos, st.estoque].filter(Boolean).sort((a, b) => String(b.em).localeCompare(String(a.em)))[0];
+  if (ult) {
+    const erro = [st.pedidos, st.estoque].find((x) => x && !x.ok);
+    return { chave: "NORT", ativo: !erro && Date.now() - new Date(ult.em).getTime() < 2 * H, ultima: ult.em,
+      detalhe: erro ? `Leitura com erro: ${String(erro.erro || "").slice(0, 120)}` : "Leitura de pedidos (10 min) e estoque (1 h) do sistema da loja" };
+  }
   const [m, p] = await Promise.all([
     prisma.nortMov.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }).catch(() => null),
     prisma.pp.findFirst({ where: { extRef: { startsWith: "NORT|" } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }).catch(() => null),

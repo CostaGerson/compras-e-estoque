@@ -25,7 +25,9 @@ export async function GET(req) {
   if (!u || u.setor === "CLIENTE") return Response.json({ error: "Sem acesso." }, { status: 403 });
   if (sp.get("token")) {
     if (!u.isMaster) return Response.json({ error: "Só o master vê o token." }, { status: 403 });
-    return Response.json({ token: await tokenNort(), cabecalho: "X-Api-Key", endpoints: ENDPOINTS, fixoNoServidor: !!(process.env.NORT_EXT_TOKEN && process.env.NORT_EXT_TOKEN.length >= 16) });
+    const { configLeitura, statusLeitura } = await import("@/lib/nortLeitura");   // v910
+    const cfg = await configLeitura();
+    return Response.json({ leitura: { url: cfg.url || "", temToken: !!cfg.token, status: await statusLeitura() }, token: await tokenNort(), cabecalho: "X-Api-Key", endpoints: ENDPOINTS, fixoNoServidor: !!(process.env.NORT_EXT_TOKEN && process.env.NORT_EXT_TOKEN.length >= 16) });
   }
   if (sp.get("movs")) {
     const l = await prisma.nortMov.findMany({ where: { itemId: Number(sp.get("movs")) || 0 }, orderBy: [{ data: "desc" }, { id: "desc" }], take: 300 });
@@ -44,6 +46,15 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioAtivoFin(b.usuarioId);
   if (!u) return Response.json({ error: "Sem acesso." }, { status: 403 });
+  if (b.acao === "leituraCfg" || b.acao === "lerAgora") {   // v910 — leitura do sistema da NORT
+    if (!u.isMaster) return Response.json({ error: "Só o master configura a leitura." }, { status: 403 });
+    const L = await import("@/lib/nortLeitura");
+    try {
+      if (b.acao === "leituraCfg") { await L.salvarConfig({ url: b.url, token: b.token }); return Response.json({ ok: true }); }
+      const p = await L.lerPedidos(), e = await L.lerEstoque();
+      return Response.json({ ok: p.ok && e.ok, pedidos: p, estoque: e });
+    } catch (e) { return Response.json({ error: e.message }, { status: 400 }); }
+  }
   if (b.acao === "token") {
     if (!u.isMaster) return Response.json({ error: "Só o master renova o token." }, { status: 403 });
     return Response.json({ token: await tokenNort(true), cabecalho: "X-Api-Key", endpoints: ENDPOINTS });

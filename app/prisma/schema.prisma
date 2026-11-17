@@ -2733,6 +2733,7 @@ model NortItem {
   minimo        Decimal?  @db.Decimal(14, 3)            // estoque mínimo (soma SEDE + LOJA); abaixo → aviso para Compras
   saldoSede     Decimal   @default(0) @db.Decimal(14, 3)
   saldoLoja     Decimal   @default(0) @db.Decimal(14, 3)
+  saldoMl       Decimal   @default(0) @db.Decimal(14, 3)   // v910 — depósito Mercado Livre
   temEstoque    Boolean   @default(false)               // já teve movimento de estoque (aparece em Peças prontas)
   avisoMinEm    DateTime?                               // último aviso de mínimo (não repete até voltar acima)
   divergencia   Json?                                   // última conferência com o saldo da NORT: { em, SEDE: { erp, nort }, LOJA: {…} }
@@ -2748,7 +2749,7 @@ model NortMov {
   chave       String   @unique                          // id do movimento no sistema da NORT (repetir não duplica)
   itemId      Int
   item        NortItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  deposito    String                                    // SEDE | LOJA
+  deposito    String                                    // SEDE | LOJA | ML (Mercado Livre)
   tipo        String                                    // ENTRADA | SAIDA | AJUSTE | CONFERENCIA
   quantidade  Decimal  @db.Decimal(14, 3)               // com sinal: + entra, − sai
   data        DateTime

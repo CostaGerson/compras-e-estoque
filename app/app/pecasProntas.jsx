@@ -1,5 +1,5 @@
 "use client";
-// v906 — Produção › Estoque › Peças prontas: estoque lançado no sistema da loja NORT, lido aqui por depósito (SEDE/LOJA),
+// v906 — Produção › Estoque › Peças prontas: estoque lançado no sistema da loja NORT, lido aqui por depósito (SEDE/LOJA/ML · v910),
 //   com o custo pela FPP do Item Padrão ligado ao nome (indexação um a um), estoque mínimo e pedidos da NORT aguardando FPP.
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, Search, AlertTriangle, Link2, History, X, Package } from "lucide-react";
@@ -38,18 +38,18 @@ export default function PecasProntas({ user }) {
   if (d.error) return <div className="text-sm" style={{ color: C.red }}>{d.error}</div>;
   const base = (d.itens || []).filter((i) => (aba === "ESTOQUE" ? i.temEstoque : true));
   const lista = base.filter((i) => (!q || semAc(`${i.nome} ${i.sku || ""} ${i.itemPadrao?.nome || ""}`).includes(semAc(q)))
-    && (filtro === "SEMCUSTO" ? i.custoUnit == null : filtro === "MINIMO" ? i.abaixoMinimo : filtro === "DIVERG" ? i.divergencia && ["SEDE", "LOJA"].some((k) => i.divergencia[k] && i.divergencia[k].erp !== i.divergencia[k].nort) : true));
+    && (filtro === "SEMCUSTO" ? i.custoUnit == null : filtro === "MINIMO" ? i.abaixoMinimo : filtro === "DIVERG" ? i.divergencia && ["SEDE", "LOJA", "ML"].some((k) => i.divergencia[k] && i.divergencia[k].erp !== i.divergencia[k].nort) : true));
   const est = (d.itens || []).filter((i) => i.temEstoque);
-  const tot = { pecas: est.reduce((s, i) => s + i.total, 0), sede: est.reduce((s, i) => s + i.sede, 0), loja: est.reduce((s, i) => s + i.loja, 0),
+  const tot = { pecas: est.reduce((s, i) => s + i.total, 0), sede: est.reduce((s, i) => s + i.sede, 0), loja: est.reduce((s, i) => s + i.loja, 0), ml: est.reduce((s, i) => s + (i.ml || 0), 0),
     custo: est.reduce((s, i) => s + (i.custoTotal || 0), 0), semCusto: est.filter((i) => i.custoUnit == null).length, minimo: est.filter((i) => i.abaixoMinimo).length };
   const Kpi = ({ r, v, cor }) => <div className="rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}><div className="text-[11px] font-semibold uppercase" style={{ color: C.sub }}>{r}</div><div className="text-lg font-bold" style={{ color: cor || C.navy }}>{v}</div></div>;
   const Chip = ({ k, t, n }) => <button onClick={() => setFiltro(filtro === k ? "" : k)} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={filtro === k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{t}{n != null ? ` (${n})` : ""}</button>;
   return (
     <div>
       <div className="flex items-center gap-2 mb-1"><Package size={18} style={{ color: C.accent }} /><div className="text-lg font-bold" style={{ color: C.navy }}>Peças prontas</div></div>
-      <div className="text-xs mb-4" style={{ color: C.sub }}>Estoque lançado no sistema da loja NORT e lido aqui por depósito. O custo vem da FPP do Item Padrão ligado ao nome do item; sem FPP, o item fica sem custo. O estoque mínimo avisa Compras quando o total (SEDE + LOJA) fica abaixo dele.</div>
+      <div className="text-xs mb-4" style={{ color: C.sub }}>Estoque lançado no sistema da loja NORT e lido aqui por depósito. O custo vem da FPP do Item Padrão ligado ao nome do item; sem FPP, o item fica sem custo. O estoque mínimo avisa Compras quando o total (SEDE + LOJA + Mercado Livre) fica abaixo dele.</div>
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-        <Kpi r="Peças em estoque" v={qtd(tot.pecas)} /><Kpi r="SEDE" v={qtd(tot.sede)} /><Kpi r="LOJA" v={qtd(tot.loja)} />
+        <Kpi r="Peças em estoque" v={qtd(tot.pecas)} /><Kpi r="SEDE" v={qtd(tot.sede)} /><Kpi r="LOJA" v={qtd(tot.loja)} /><Kpi r="Mercado Livre" v={qtd(tot.ml)} />
         <Kpi r="Custo do estoque" v={moeda(tot.custo)} /><Kpi r="Itens sem custo (sem FPP)" v={tot.semCusto} cor={tot.semCusto ? C.yellow : C.navy} /><Kpi r="Abaixo do mínimo" v={tot.minimo} cor={tot.minimo ? C.red : C.navy} />
       </div>
       {(d.pendentes || []).length > 0 && <div className="rounded-lg p-3 mb-4 text-sm" style={{ background: C.yellowSoft, border: `1px solid #F2DFA6` }}>
@@ -65,15 +65,15 @@ export default function PecasProntas({ user }) {
       </div>
       <datalist id="nort-itens-padrao">{Object.keys(ipPorTexto).map((k) => <option key={k} value={k} />)}</datalist>
       <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <table className="w-full text-sm" style={{ minWidth: 1100 }}>
+        <table className="w-full text-sm" style={{ minWidth: 1180 }}>
           <thead><tr className="text-[11px] uppercase text-left" style={{ color: C.sub, background: C.panel2 }}>
             <th className="px-3 py-2">Item (nome na NORT)</th><th className="px-3 py-2">Item padrão (equivalência)</th><th className="px-3 py-2 text-right">Custo un.</th>
-            <th className="px-3 py-2 text-right">SEDE</th><th className="px-3 py-2 text-right">LOJA</th><th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-right">Custo total</th>
+            <th className="px-3 py-2 text-right">SEDE</th><th className="px-3 py-2 text-right">LOJA</th><th className="px-3 py-2 text-right">M. LIVRE</th><th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-right">Custo total</th>
             <th className="px-3 py-2 text-right">Mínimo</th><th className="px-3 py-2"></th></tr></thead>
           <tbody>
-            {!lista.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>{(d.itens || []).length ? "Nenhum item neste filtro." : "Nenhum item ainda: os itens aparecem quando o sistema da NORT envia o estoque ou um pedido."}</td></tr>}
+            {!lista.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-sm" style={{ color: C.sub }}>{(d.itens || []).length ? "Nenhum item neste filtro." : "Nenhum item ainda: os itens aparecem quando o sistema da NORT envia o estoque ou um pedido."}</td></tr>}
             {lista.map((i) => {
-              const div = i.divergencia && ["SEDE", "LOJA"].filter((k) => i.divergencia[k] && i.divergencia[k].erp !== i.divergencia[k].nort);
+              const div = i.divergencia && ["SEDE", "LOJA", "ML"].filter((k) => i.divergencia[k] && i.divergencia[k].erp !== i.divergencia[k].nort);
               return (
                 <tr key={i.id} style={{ borderTop: `1px solid ${C.line}`, background: i.abaixoMinimo ? "#FFF8F7" : undefined }}>
                   <td className="px-3 py-2"><div className="font-semibold" style={{ color: C.navy }}>{i.nome}</div><div className="text-[11px]" style={{ color: C.sub }}>{i.sku ? `SKU ${i.sku} · ` : ""}último movimento {dtBR(i.ultimoMovEm)}{div?.length ? <span style={{ color: C.yellow }}> · conferência ajustou {div.join(" e ")}</span> : null}</div></td>
@@ -85,7 +85,7 @@ export default function PecasProntas({ user }) {
                     <div className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: i.fppNumero ? C.green : C.yellow }}><Link2 size={11} />{i.fppNumero ? `FPP ${String(i.fppNumero).padStart(5, "0")}` : i.itemPadrao ? "item padrão sem FPP" : "sem equivalência"}</div>
                   </td>
                   <td className="px-3 py-2 text-right" style={{ color: i.custoUnit == null ? C.yellow : C.text }}>{i.custoUnit == null ? "sem custo" : moeda(i.custoUnit)}</td>
-                  <td className="px-3 py-2 text-right">{qtd(i.sede)}</td><td className="px-3 py-2 text-right">{qtd(i.loja)}</td>
+                  <td className="px-3 py-2 text-right">{qtd(i.sede)}</td><td className="px-3 py-2 text-right">{qtd(i.loja)}</td><td className="px-3 py-2 text-right">{qtd(i.ml)}</td>
                   <td className="px-3 py-2 text-right font-bold" style={{ color: i.abaixoMinimo ? C.red : C.navy }}>{qtd(i.total)}</td>
                   <td className="px-3 py-2 text-right">{moeda(i.custoTotal)}</td>
                   <td className="px-3 py-2 text-right">{d.podeEditar ? <input defaultValue={i.minimo ?? ""} key={`m${i.id}-${i.minimo}`} inputMode="decimal" placeholder="—" disabled={ocup === i.id}
@@ -115,7 +115,15 @@ export default function PecasProntas({ user }) {
 export function IntegracaoNort({ user }) {
   const [d, setD] = useState(null);
   const [ver, setVer] = useState(false);
-  const ler = () => fetch(`/api/nort?u=${user.id}&token=1`, { cache: "no-store" }).then((r) => r.json()).then(setD).catch((e) => setD({ error: e.message }));
+  const [lf, setLf] = useState({ url: "", token: "" });   // v910 — leitura do sistema da NORT
+  const [lendo, setLendo] = useState("");
+  const ler = () => fetch(`/api/nort?u=${user.id}&token=1`, { cache: "no-store" }).then((r) => r.json()).then((j) => { setD(j); setLf((x) => ({ url: x.url || j.leitura?.url || "", token: "" })); }).catch((e) => setD({ error: e.message }));
+  const postL = async (acao, extra = {}) => {
+    setLendo(acao);
+    try { const r = await fetch("/api/nort", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao, ...extra }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || "Erro.");
+      if (acao === "lerAgora") alerta(`Pedidos: ${j.pedidos.ok ? `${j.pedidos.lidos} lido(s), ${j.pedidos.novos} novo(s)` : j.pedidos.erro} · Estoque: ${j.estoque.ok ? `${j.estoque.itens} item(ns), ${j.estoque.ajustados} ajustado(s)` : j.estoque.erro}`);
+      await ler(); } catch (e) { alerta(e.message); } finally { setLendo(""); }
+  };
   useEffect(() => { ler(); }, []);
   const renovar = async () => {
     const r = await fetch("/api/nort", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "token" }) }).then((x) => x.json()).catch(() => null);
@@ -126,9 +134,23 @@ export function IntegracaoNort({ user }) {
   const origem = typeof window !== "undefined" ? window.location.origin : "";
   return (
     <div className="max-w-4xl">
-      <div className="text-sm mb-4" style={{ color: C.sub }}>Token do sistema da loja NORT (separado do token do PCP), enviado no cabeçalho <code>X-Api-Key</code>. Desligar a integração da NORT = renovar este token.</div>
+      <div className="text-sm mb-4" style={{ color: C.sub }}>O ERP lê o sistema da loja NORT. O token abaixo é do ERP e só serve se o sistema da loja também quiser mandar dados para cá (opcional).</div>
+      {/* v910 — o ERP lê o sistema da loja (pedidos a cada 10 min, estoque a cada 1 h) */}
       <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="font-semibold mb-2" style={{ color: C.navy }}>Token da NORT</div>
+        <div className="font-semibold mb-1" style={{ color: C.navy }}>Leitura do sistema da NORT</div>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>O ERP busca as encomendas conferidas a cada 10 min e o saldo de estoque a cada 1 h (Loja → LOJA, Reserva Fábrica → SEDE, Mercado Livre → ML). Endereços que o sistema da loja precisa ter: <code>/api/erp/pedidos</code> e <code>/api/erp/estoque</code>.</div>
+        <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "2fr 1.5fr auto" }}>
+          <input value={lf.url} onChange={(e) => setLf({ ...lf, url: e.target.value })} placeholder="https://producao.nortsports.com.br" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+          <input value={lf.token} onChange={(e) => setLf({ ...lf, token: e.target.value })} placeholder={d.leitura?.temToken ? "token salvo (deixe em branco para manter)" : "token do sistema da loja"} type="password" autoComplete="new-password" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+          <button onClick={() => postL("leituraCfg", lf)} disabled={!!lendo} className="px-3 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{lendo === "leituraCfg" ? "Salvando…" : "Salvar"}</button>
+        </div>
+        <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: C.sub }}>
+          {["pedidos", "estoque"].map((k) => { const x = d.leitura?.status?.[k]; return <span key={k}><b style={{ color: C.text }}>{k === "pedidos" ? "Pedidos" : "Estoque"}:</b> {x ? `${x.ok ? "ok" : `erro — ${x.erro}`} · ${new Date(x.em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${k === "pedidos" && x.ok ? ` · ${x.novos} novo(s)` : ""}${k === "estoque" && x.ok ? ` · ${x.itens} item(ns)` : ""}` : "ainda não leu"}</span>; })}
+          <button onClick={() => postL("lerAgora")} disabled={!!lendo || !d.leitura?.url} className="ml-auto px-3 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy }}>{lendo === "lerAgora" ? "Lendo…" : "Ler agora"}</button>
+        </div>
+      </div>
+      <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="font-semibold mb-2" style={{ color: C.navy }}>Token do ERP para a NORT (envio opcional)</div>
         <div className="flex items-center gap-2 flex-wrap">
           <code className="flex-1 min-w-[260px] px-3 py-2 rounded text-sm break-all" style={{ background: C.panel2 }}>{ver ? d.token : "•".repeat(24) + String(d.token).slice(-4)}</code>
           <button onClick={() => setVer((x) => !x)} className="px-3 py-2 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.sub }}>{ver ? "Ocultar" : "Ver"}</button>

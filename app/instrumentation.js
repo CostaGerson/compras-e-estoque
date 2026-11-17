@@ -7,6 +7,8 @@ export async function register() {
     agendarLembretes();
     const { agendarCobrancaSemanal } = await import("./lib/cobrancaSemanal");   // v779 — #33: boletos da semana por e-mail (sexta 17h)
     agendarCobrancaSemanal();
+    const { agendarLeituraNort } = await import("./lib/nortLeitura");   // v910 — lê pedidos (10 min) e estoque (1 h) do sistema da NORT
+    agendarLeituraNort();
     // v556 — casamento NF ↔ pedido só manual: remove uma vez os casamentos automáticos já feitos
     setTimeout(async () => { try { const { removerCasamentosAutomaticos } = await import("./lib/faturamentoCasamento"); const r = await removerCasamentosAutomaticos(); if (r) console.log(`[v556] casamentos automáticos removidos: ${r.length}`); } catch (e) { console.error("[v556]", e.message); } }, 20 * 1000);
   }

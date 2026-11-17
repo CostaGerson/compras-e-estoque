@@ -1,6 +1,6 @@
 // v906 — Integração com o sistema da loja NORT (Gerson)
 //   · Peças prontas: o estoque é lançado no sistema da NORT; o ERP recebe cada movimento (entrada, venda, ajuste) por depósito
-//     (SEDE | LOJA), soma os saldos, relaciona o custo pela FPP do Item Padrão ligado ao nome e avisa Compras abaixo do mínimo.
+//     (SEDE | LOJA | ML), soma os saldos, relaciona o custo pela FPP do Item Padrão ligado ao nome e avisa Compras abaixo do mínimo.
 //     Uma vez por dia a NORT manda o saldo completo (conferência): o ERP se alinha a ele e registra a divergência.
 //   · Encomenda personalizada: vira pedido INTERNO da NORT (sem contas a receber da Meridian). Só segue para a produção quando
 //     todos os itens têm FPP (pela equivalência de nome → Item Padrão NORT ou indexada no editor). Ao efetivar, o custo da FPP
@@ -16,7 +16,16 @@ const dUTC = (s) => new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const hojeSP = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 export const normNome = (s) => String(s || "").normalize("NFC").toUpperCase().replace(/\s+/g, " ").trim().slice(0, 200);
-const DEPOSITOS = ["SEDE", "LOJA"];
+export const DEPOSITOS = ["SEDE", "LOJA", "ML"];   // v910 — ML = Mercado Livre
+const CAMPO = { SEDE: "saldoSede", LOJA: "saldoLoja", ML: "saldoMl" };
+// nome do depósito no sistema da NORT/Bling → SEDE | LOJA | ML (Reserva Fábrica = SEDE)
+export function depositoDe(d) {
+  const x = String(d || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (/MERCADO|\bML\b|MELI/.test(x)) return "ML";
+  if (/LOJA/.test(x)) return "LOJA";
+  if (/SEDE|RESERVA|FABRICA|MATRIZ/.test(x)) return "SEDE";
+  return null;
+}
 
 // ---------- token próprio da NORT (separado do token do PCP) ----------
 export async function tokenNort(renovar = false) {
@@ -62,11 +71,11 @@ export async function custosDosItens(itens) {
 // ---------- estoque mínimo: aviso para Compras ----------
 async function verificarMinimo(item) {
   if (item.minimo == null) return;
-  const total = num(item.saldoSede) + num(item.saldoLoja), min = num(item.minimo);
+  const total = num(item.saldoSede) + num(item.saldoLoja) + num(item.saldoMl), min = num(item.minimo);
   if (total >= min) { if (item.avisoMinEm) await prisma.nortItem.update({ where: { id: item.id }, data: { avisoMinEm: null } }); return; }
   if (item.avisoMinEm) return;   // já avisado; só avisa de novo depois de voltar acima
   const us = await prisma.usuario.findMany({ where: { ativo: true, OR: [{ setor: "COMPRAS" }, { isMaster: true }] }, select: { id: true } }).catch(() => []);
-  const txt = `📦 ESTOQUE MÍNIMO — ${item.nome}: ${r3(total)} peça(s) (SEDE ${r3(item.saldoSede)} · LOJA ${r3(item.saldoLoja)}), abaixo do mínimo de ${r3(min)}. Veja em Produção › Estoque › Peças prontas.`;
+  const txt = `📦 ESTOQUE MÍNIMO — ${item.nome}: ${r3(total)} peça(s) (SEDE ${r3(item.saldoSede)} · LOJA ${r3(item.saldoLoja)} · MERCADO LIVRE ${r3(item.saldoMl)}), abaixo do mínimo de ${r3(min)}. Veja em Produção › Estoque › Peças prontas.`;
   if (us.length) await prisma.mensagem.createMany({ data: us.map((u) => ({ deId: u.id, paraId: u.id, texto: txt.slice(0, 2000) })) }).catch(() => null);
   await prisma.nortItem.update({ where: { id: item.id }, data: { avisoMinEm: new Date() } });
 }
@@ -80,7 +89,7 @@ export async function registrarMovimentos(lista) {
     const onde = `movimento ${i + 1}${ident ? ` (${ident})` : ""}`;
     if (!ident) { res.erros.push(`${onde}: falta o id do movimento.`); continue; }
     if (!normNome(m?.nome)) { res.erros.push(`${onde}: falta o nome do item.`); continue; }
-    if (!DEPOSITOS.includes(dep)) { res.erros.push(`${onde}: depósito deve ser SEDE ou LOJA.`); continue; }
+    if (!DEPOSITOS.includes(dep)) { res.erros.push(`${onde}: depósito deve ser SEDE (Reserva Fábrica), LOJA ou ML (Mercado Livre).`); continue; }
     if (!["ENTRADA", "SAIDA", "AJUSTE"].includes(tipo)) { res.erros.push(`${onde}: tipo deve ser ENTRADA, SAIDA ou AJUSTE.`); continue; }
     if (!q) { res.erros.push(`${onde}: quantidade zero.`); continue; }
     const chave = `NORT|${ident}`.slice(0, 190);
@@ -91,7 +100,7 @@ export async function registrarMovimentos(lista) {
     try {
       const [, it] = await prisma.$transaction([
         prisma.nortMov.create({ data: { chave, itemId: item.id, deposito: dep, tipo, quantidade: r3(delta), data, ref: m.ref ? String(m.ref).slice(0, 120) : null, obs: m.obs ? String(m.obs).slice(0, 500) : null } }),
-        prisma.nortItem.update({ where: { id: item.id }, data: { [dep === "SEDE" ? "saldoSede" : "saldoLoja"]: { increment: r3(delta) }, temEstoque: true, ultimoMovEm: new Date(),
+        prisma.nortItem.update({ where: { id: item.id }, data: { [CAMPO[dep]]: { increment: r3(delta) }, temEstoque: true, ultimoMovEm: new Date(),
           ...(m.sku && !item.sku ? { sku: String(m.sku).slice(0, 80) } : {}) } }),
       ]);
       res.gravados++;
@@ -108,10 +117,10 @@ export async function conferirSaldos(lista) {
   const res = { conferidos: 0, ajustados: [], erros: [] };
   const dia = hojeSP();
   for (const [i, s] of (Array.isArray(lista) ? lista : []).entries()) {
-    const dep = String(s?.deposito || "").toUpperCase();
-    if (!normNome(s?.nome) || !DEPOSITOS.includes(dep) || s?.saldo == null) { res.erros.push(`saldo ${i + 1}: informe nome, deposito (SEDE/LOJA) e saldo.`); continue; }
+    const dep = depositoDe(s?.deposito);
+    if (!normNome(s?.nome) || !DEPOSITOS.includes(dep) || s?.saldo == null) { res.erros.push(`saldo ${i + 1}: informe nome, deposito (SEDE/LOJA/ML) e saldo.`); continue; }
     const item = await itemPorNome(s.nome, { sku: s.sku });
-    const campo = dep === "SEDE" ? "saldoSede" : "saldoLoja", erp = num(item[campo]), nort = r3(num(s.saldo)), dif = r3(nort - erp);
+    const campo = CAMPO[dep], erp = num(item[campo]), nort = r3(num(s.saldo)), dif = r3(nort - erp);
     res.conferidos++;
     const divergencia = { ...(item.divergencia || {}), em: new Date().toISOString(), [dep]: { erp, nort } };
     if (!dif) { await prisma.nortItem.update({ where: { id: item.id }, data: { temEstoque: item.temEstoque || nort !== 0, divergencia } }); continue; }
@@ -132,8 +141,8 @@ export async function listarItens({ soEstoque = false } = {}) {
   const l = await prisma.nortItem.findMany({ where: { ativo: true, ...(soEstoque ? { temEstoque: true } : {}) }, orderBy: { nome: "asc" } });
   const C = await custosDosItens(l);
   return l.map((i) => {
-    const sede = num(i.saldoSede), loja = num(i.saldoLoja), total = r3(sede + loja), c = C[i.id];
-    return { id: i.id, nome: i.nome, sku: i.sku, sede, loja, total, minimo: i.minimo == null ? null : num(i.minimo), abaixoMinimo: i.minimo != null && total < num(i.minimo),
+    const sede = num(i.saldoSede), loja = num(i.saldoLoja), ml = num(i.saldoMl), total = r3(sede + loja + ml), c = C[i.id];
+    return { id: i.id, nome: i.nome, sku: i.sku, sede, loja, ml, total, minimo: i.minimo == null ? null : num(i.minimo), abaixoMinimo: i.minimo != null && total < num(i.minimo),
       itemPadrao: c.itemPadrao, fppNumero: c.fppNumero, custoUnit: c.custo, custoTotal: c.custo != null ? r2(c.custo * total) : null,
       temEstoque: i.temEstoque, divergencia: i.divergencia || null, ultimoMovEm: i.ultimoMovEm };
   });
