@@ -8,6 +8,12 @@ export async function POST(req) {
   const u = await usuarioMaster(b.usuarioId);
   if (!u) return negado();
   const ids = (b.ids || []).map(Number).filter(Boolean);
+  // v946 — remover a identificação: o lançamento volta para "a identificar"
+  if (b.remover) {
+    if (!ids.length) return Response.json({ error: "Selecione os lançamentos." }, { status: 400 });
+    const r = await prisma.finLancamento.updateMany({ where: { id: { in: ids } }, data: { contaId: null, regraId: null, identificadoPor: null } });
+    return Response.json({ ok: true, removidos: r.count });
+  }
   const contaId = Number(b.contaId);
   if (!ids.length || !contaId) return Response.json({ error: "Escolha a conta-caixa." }, { status: 400 });
   const quem = [u.nome, u.sobrenome].join(" ").trim().toUpperCase();
