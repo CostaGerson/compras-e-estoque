@@ -1794,13 +1794,16 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
             {linhas.map(({ f, grupo, n, filho }) => (
               <tr key={f.id} data-fpp={f.id} style={{ borderTop: `1px solid ${C.line}`, background: destaque === f.id ? C.accentSoft : filho ? C.panel2 : undefined, transition: "background .6s" }}>
                 <td className="px-2 py-2 whitespace-nowrap">
+                  {/* v977 — caixa de seleção sempre na mesma posição; a seta das variações de cor vem depois */}
                   <span className="inline-flex items-center gap-1">
-                    {grupo ? (
-                      <button onClick={() => abrirGrupo(grupo)} title={`${n} outra(s) cor(es) desta FPP`} className="inline-flex items-center text-[10px] font-semibold rounded px-0.5" style={{ color: C.accent }}>
-                        {gruposAbertos.has(grupo) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}+{n}
-                      </button>
-                    ) : filho ? <span style={{ width: 22, display: "inline-block", color: C.sub, textAlign: "right" }}>↳</span> : null}
                     <input type="checkbox" checked={sel.has(f.id)} onChange={() => toggle(f.id)} />
+                    <span style={{ width: 34, display: "inline-flex", alignItems: "center" }}>
+                      {grupo ? (
+                        <button onClick={() => abrirGrupo(grupo)} title={`${n} outra(s) cor(es) desta FPP`} className="inline-flex items-center text-[10px] font-semibold rounded px-0.5" style={{ color: C.accent }}>
+                          {gruposAbertos.has(grupo) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}+{n}
+                        </button>
+                      ) : filho ? <span style={{ color: C.sub, paddingLeft: 4 }}>↳</span> : null}
+                    </span>
                   </span>
                 </td>
                 {cols.map((c) => {
@@ -1820,7 +1823,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
                   <button onClick={() => setProposta([f])} title="Gerar proposta" className="p-1 rounded mr-1" style={{ color: C.accent }}><FileText size={15} /></button>
                   <button onClick={() => clonar(f)} disabled={clonando === f.id} title="Clonar FPP (abre a cópia para edição)" className="p-1 rounded mr-1" style={{ color: C.blue, opacity: clonando === f.id ? 0.5 : 1 }}><Copy size={15} /></button>
                   {onItemPadrao && <button onClick={() => onItemPadrao(f)} title="Tornar item padrão do cliente" className="p-1 rounded mr-1" style={{ color: C.accent }}><Star size={15} /></button>}
-                  <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><X size={15} /></button>
+                  <button onClick={() => excluir(f.id)} title="Excluir" className="p-1 rounded" style={{ color: "#E5484D" }}><Trash2 size={15} /></button>
                 </td>
               </tr>
             ))}
