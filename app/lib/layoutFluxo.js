@@ -72,6 +72,8 @@ export async function opDaTarefa(t) {
   return {
     pedido: { id: pp.id, numero: pp.numero, cliente: pp.clienteNome, vendedor: pp.vendedor, oc: pp.oc, emissao: pp.emissao, prazoDias: pp.prazoDias, prazoTipo: pp.prazoTipo, obs: pp.obs, tipoPedido: pp.tipoPedido },
     anexosPedido: pp.anexos,
+    // v949 — todos os arquivos de personalização da OP (de todos os itens, não só dos que estão sem layout) para o arte finalista baixar
+    arquivosOp: pp.itens.flatMap((it, idx) => (Array.isArray(it.anexosJson) ? it.anexosJson : []).map((a, k) => ({ idx, k, item: `${idx + 1}. ${it.descricao || it.codigo || it.tipoPecaNome || "item"}`, nome: a.nome, mime: a.mime || null }))),
     itens: (L.itens || []).map((x) => {
       const it = pp.itens[x.idx] || {};
       return { ...x, tipoPecaNome: it.tipoPecaNome || null, codigo: it.codigo || x.codigo, descricao: it.descricao || x.descricao,
