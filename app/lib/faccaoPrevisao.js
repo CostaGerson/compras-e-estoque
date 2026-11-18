@@ -96,7 +96,7 @@ function previstasDoAcerto(contas, hoje = hojeSP()) {
     const chave = `${MARCA} · ACERTO ${c.lancamento}`;
     // facção paga 1× por mês: vale a data marcada no PCP (como a conta real vai cair), não a sexta
     const mensal = Number(c.prestador?.pagamentoDiaMes) || 0;
-    const alvo = mensal && c.vencimento ? String(c.vencimento).slice(0, 10) : c.sexta;
+    const alvo = mensal && (c.pagaEm || c.vencimento) ? String(c.pagaEm || c.vencimento).slice(0, 10) : c.sexta;
     const sexta = alvo && alvo >= hoje ? alvo : sextaDaSemanaSD(hoje);
     out[chave] = { chave, faccao: fac, prestadorId: c.prestador?.id || null, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, mensal: mensal && alvo >= hoje ? mensal : 0, semPreco: [],
       linhas: linhas.map((l) => ({ ...l, item: l.desconto ? l.item : `${l.qtd} ${fac} · ${l.itemCode || l.pedido} ${l.item || ""} · OS ${c.os}`.slice(0, 200) })),

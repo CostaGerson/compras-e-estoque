@@ -137,7 +137,7 @@ export default function FaccoesPcp({ user }) {
                     <td className="px-2 py-2 whitespace-nowrap">{brl(c.valorBruto)}{(c.nItens || 0) <= 1 && <div style={{ color: C.sub }}>{brl(c.linhas?.[0]?.unitario ?? c.valorUnitario)}/pç</div>}</td>
                     <td className="px-2 py-2" style={{ color: C.red }}>{(c.descontos || []).map((x, k) => <div key={k} className="whitespace-nowrap">{x.motivo} {brl(x.valor)}</div>)}</td>
                     <td className="px-2 py-2 font-bold whitespace-nowrap" style={{ color: C.navy }}>{brl(c.valorLiquido)}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{dBR(c.vencimento)}{c.recebimento ? <div style={{ color: C.sub }}>receb. {dBR(c.recebimento).slice(0, 5)} · prazo {c.prazoDias}</div> : null}{c.sexta ? <div style={{ color: C.sub }}>paga sexta {dBR(c.sexta).slice(0, 5)}</div> : null}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{dBR(c.vencimento)}{c.recebimento ? <div style={{ color: C.sub }}>receb. {dBR(c.recebimento).slice(0, 5)} · prazo {c.prazoDias}</div> : null}{c.pagaEm ? <div style={{ color: C.sub }}>paga dia {dBR(c.pagaEm).slice(0, 5)} (mensal)</div> : c.sexta ? <div style={{ color: C.sub }}>paga sexta {dBR(c.sexta).slice(0, 5)}</div> : null}</td>
                     <td className="px-2 py-2">
                       {c.lancada ? <div>
                           <span className="flex items-center gap-1 font-semibold" style={{ color: C.green }}><CheckCircle2 size={13} /> lançada{c.paga ? " · paga" : ""}</span>

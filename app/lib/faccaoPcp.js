@@ -105,6 +105,15 @@ export function montarConta(c, { setorPadrao } = {}) {
     bate: !(bruto && Math.abs(soma - bruto) > 0.01) && Math.abs(r2(linhas.reduce((s, l) => s + l.total, 0)) - liquido) <= 0.01 };
 }
 
+// facção paga 1× por mês no dia X (cadastro): o que voltou até o dia X é pago nele; depois, no dia X do mês seguinte
+export function diaDoMes(receb, dia) {
+  if (!receb || !(Number(dia) >= 1)) return null;
+  const d = dUTC(receb); let a = d.getUTCFullYear(), m = d.getUTCMonth();
+  const ult = (aa, mm) => new Date(Date.UTC(aa, mm + 1, 0)).getUTCDate();
+  if (d.getUTCDate() > Math.min(dia, ult(a, m))) { m++; if (m > 11) { m = 0; a++; } }
+  return iso(Date.UTC(a, m, Math.min(dia, ult(a, m))));
+}
+
 // v669 — chave da conta no PCP: "lancamento" ("12", "12-1"); PCP antigo sem o campo → nº da OS
 export const chaveConta = (c) => String(c?.lancamento ?? c?.os ?? "").trim();
 // registros antigos (antes da v669) ganham a chave = nº da OS
@@ -145,7 +154,7 @@ export async function conferirFaccoes({ desde } = {}) {
       estornos: (hist[k] || []).filter((x) => x.status === "ESTORNADA").map((x) => ({ por: x.estornadoPorNome, em: x.estornadoEm, motivo: x.motivo, valor: r2(x.valor) })),
       pagaNaPrevisao: pagoPrev[String(Number(c.os))] || null,
       prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo, pagamentoDiaMes: p.pagamentoDiaMes || null } : null, grupo: m.grupo, setor: m.setor, conta: m.setor ? contaDoSetor(m.grupo, m.setor) : null,
-      sexta: m.sexta, recebimento: m.recebimento, prazoDias: m.prazoDias, linhas: m.linhas, nItens: m.nItens, pedidos: m.pedidos, semTipo: m.semTipo,
+      sexta: m.sexta, pagaEm: p?.pagamentoDiaMes ? diaDoMes(m.recebimento || m.vencimento, p.pagamentoDiaMes) : null, recebimento: m.recebimento, prazoDias: m.prazoDias, linhas: m.linhas, nItens: m.nItens, pedidos: m.pedidos, semTipo: m.semTipo,
       qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: c.previsaoDesconsiderada ? [`PREVISÃO DESTA OS FOI DESCONSIDERADA NO PCP (${c.previsaoDesconsiderada.motivo || "ADIANTAMENTO"}${c.previsaoDesconsiderada.por ? ` · ${c.previsaoDesconsiderada.por}` : ""}): desconte o que já foi adiantado.`, ...m.avisos] : ignPrev[String(Number(c.os))] ? [`PREVISÃO DESTA OS FOI DESCONSIDERADA (${ignPrev[String(Number(c.os))].motivo || "ADIANTAMENTO"}${ignPrev[String(Number(c.os))].descartadoPorNome ? ` · ${ignPrev[String(Number(c.os))].descartadoPorNome}` : ""}): desconte o que já foi adiantado.`, ...m.avisos] : pagoPrev[String(Number(c.os))] ? [`OS ${c.os} JÁ PAGA ADIANTADA PELA PREVISÃO (R$ ${brl(pagoPrev[String(Number(c.os))])}): descarte esta conta.`, ...m.avisos] : m.avisos, bate: m.bate });
   }
   out.sort((a, b) => (a.lancada - b.lancada) || (a.descartada - b.descartada) || String(a.vencimento || "").localeCompare(String(b.vencimento || "")) || a.os - b.os || (a.parcela || 0) - (b.parcela || 0));
@@ -165,8 +174,10 @@ async function gravarItem(m, p, { quem, c }) {
   const conta = await prisma.finConta.findUnique({ where: { codigo: contaDoSetor(m.grupo, m.setor) } });
   if (!conta) return { erro: "Conta-caixa do tipo de peça / serviço não encontrada." };
   // facção paga 1× por mês (cadastro): a conta cai na data do vencimento marcada no PCP, não na sexta
-  const mensal = Number(p.pagamentoDiaMes) >= 1 && m.vencimento;
-  const casca = mensal ? await tituloDaData("TERCEIRIZADO", m.vencimento, true)
+  // facção paga 1× por mês (cadastro): a conta cai no dia do mês pela data do retorno, não na sexta
+  const mensal = Number(p.pagamentoDiaMes) >= 1 ? diaDoMes(m.recebimento || m.vencimento, p.pagamentoDiaMes) : null;
+  if (mensal) { m = { ...m, vencimento: mensal, prazoDias: m.recebimento ? Math.max(0, Math.round((dUTC(mensal) - dUTC(m.recebimento)) / 86400e3)) : 0 }; }
+  const casca = mensal ? await tituloDaData("TERCEIRIZADO", mensal, true)
     : await tituloDaData("TERCEIRIZADO", m.sexta || new Date().toISOString().slice(0, 10), false);
   const item = await prisma.finSemanaItem.create({ data: {
     ...(mensal ? { excepcional: true, justificativa: `PAGAMENTO MENSAL NO DIA ${p.pagamentoDiaMes} (CADASTRO DA FACÇÃO)` } : {}),
