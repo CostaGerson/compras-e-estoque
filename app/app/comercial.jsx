@@ -604,7 +604,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     let criadas = [];
     if (res.ok && vc.length) {
       for (const x of vc) {
-        const fx = { ...fPrin, corPrincipal: false, artigoDet: { ...x.det } };   // mesmo custo e cálculo da principal
+        const fx = { ...fPrin, corPrincipal: false, artigoDet: { ...x.det },   // mesmo custo e cálculo da principal
+          nomeComercial: comCor(body.nomeComercial, fPrin.artigoDet?.cor, x.det?.cor || x.cor) };   // v979 — troca a cor da principal (PRETO) pela desta variação
         const bx = montarBody(fx); delete bx.copiarEstampasDe;
         const rx = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bx) });
         const sx = await rx.json().catch(() => ({}));
