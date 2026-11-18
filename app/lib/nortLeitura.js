@@ -54,7 +54,9 @@ async function usuarioNort() {
 export async function lerPedidos() {
   const cfg = await configLeitura(), st = await statusLeitura();
   if (!cfg.url || !cfg.token) return { ok: false, erro: "Leitura da NORT não configurada." };
-  const desde = st.pedidos?.desde ? new Date(new Date(st.pedidos.desde).getTime() - H).toISOString() : "";
+  // v956 — janela de 7 dias: se o sistema da NORT filtra o "desde" pela data de criação (e não pela conferência), um pedido
+  // criado antes e conferido agora não se perde. Repetir não duplica (pela ref).
+  const desde = st.pedidos?.desde ? new Date(Math.min(new Date(st.pedidos.desde).getTime() - H, Date.now() - 7 * 24 * H)).toISOString() : "";
   const inicio = new Date().toISOString();
   const res = { em: inicio, ok: true, erro: null, lidos: 0, novos: 0, aguardandoFpp: 0, erros: [], desde: st.pedidos?.desde || null };
   try {
