@@ -2942,6 +2942,7 @@ function Conferencia({ user, comp, dados, onMudou, setAviso }) {
       </button>
       {aberto && (
         <div className="px-4 pb-4 flex flex-col gap-2">
+          <div className="flex justify-end"><button onClick={() => acao({ acao: "refazer" }, "Conferência refeita.")} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy }}><RefreshCw size={12} /> Conferir de novo</button></div>
           {leitura.map((a) => (
             <div key={"l" + a.id} className="rounded-lg p-3 text-xs" style={{ background: C.redSoft }}>
               <div className="font-semibold" style={{ color: C.red }}>Leitura não confere · {a.banco} · {a.documento}</div>
