@@ -156,7 +156,10 @@ export function IntegracaoNort({ user }) {
           <button onClick={() => postL("leituraCfg", lf)} disabled={!!lendo} className="px-3 py-1.5 rounded text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>{lendo === "leituraCfg" ? "Salvando…" : "Salvar"}</button>
         </div>
         <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: C.sub }}>
-          {["pedidos", "estoque"].map((k) => { const x = d.leitura?.status?.[k]; return <span key={k}><b style={{ color: C.text }}>{k === "pedidos" ? "Pedidos" : "Estoque"}:</b> {x ? `${x.ok ? "ok" : `erro — ${x.erro}`} · ${new Date(x.em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${k === "pedidos" && x.ok ? ` · ${x.novos} novo(s)` : ""}${k === "estoque" && x.ok ? ` · ${x.itens} item(ns)` : ""}` : "ainda não leu"}</span>; })}
+          {["pedidos", "estoque"].map((k) => { const x = d.leitura?.status?.[k]; return <span key={k}><b style={{ color: C.text }}>{k === "pedidos" ? "Pedidos" : "Estoque"}:</b> {x ? `${x.ok ? "ok" : `erro — ${x.erro}`} · ${new Date(x.em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${k === "pedidos" && x.ok ? ` · ${x.lidos ?? 0} recebido(s) da loja · ${x.novos} novo(s)${x.desde ? ` · desde ${new Date(new Date(x.desde).getTime() - 3600e3).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : ""}` : ""}${k === "estoque" && x.ok ? ` · ${x.itens} item(ns)` : ""}` : "ainda não leu"}</span>; })}
+          {/* v948 — erros por pedido (ex.: item sem cadastro) */}
+          {(d.leitura?.status?.pedidos?.erros || []).length > 0 && <div className="w-full p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>
+            <b>Pedidos que não entraram:</b>{d.leitura.status.pedidos.erros.slice(0, 20).map((e, i) => <div key={i}>· {e}</div>)}</div>}
           <button onClick={lerAgora} disabled={!!lendo} className="ml-auto px-3 py-1 rounded font-semibold" style={{ border: `1px solid ${C.line}`, color: C.navy }}>{lendo === "lerAgora" ? "Lendo…" : "Ler agora"}</button>
         </div>
       </div>
