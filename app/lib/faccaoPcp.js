@@ -125,6 +125,10 @@ export async function conferirFaccoes({ desde } = {}) {
   for (const x of regs) { (hist[x.lancamento] ||= []).push(x); if (x.status === "LANCADA") ja[x.lancamento] = x; if (x.status === "DESCARTADA") desc[x.lancamento] = x; }
   const prest = await prisma.prestador.findMany({ where: { tipo: "TERCEIRIZADO" } });
   const out = [];
+  // OS que já foi paga adiantada pela conta PREVISÃO (baixa na previsão antes de fechar no PCP): não vira conta real
+  const pagasPrev = await prisma.finSemanaItem.findMany({ where: { descricao: { startsWith: "PREVISÃO PCP · OS " }, OR: [{ pago: true }, { lancamentoId: { not: null } }] }, select: { descricao: true, valor: true } });
+  const pagoPrev = {};
+  for (const x of pagasPrev) { const n = (String(x.descricao).match(/· OS (\d+) ·/) || [])[1]; if (n) pagoPrev[n] = r2((pagoPrev[n] || 0) + Number(x.valor)); }
   for (const c of contas) {
     const p = await acharFaccao(c, prest);
     const m = montarConta(c);
@@ -137,9 +141,10 @@ export async function conferirFaccoes({ desde } = {}) {
       formatoAntigo: !!L && ls.length === 1 && Number(ls[0].qtd) === 1 && !ls[0].itemCode && (m.nItens > 1 || m.qtdAprovada > 1),
       descartada: !!D, descartadaPor: D?.descartadoPorNome || null, descartadaEm: D?.descartadoEm || null, motivoDescarte: D?.motivo || null,
       estornos: (hist[k] || []).filter((x) => x.status === "ESTORNADA").map((x) => ({ por: x.estornadoPorNome, em: x.estornadoEm, motivo: x.motivo, valor: r2(x.valor) })),
+      pagaNaPrevisao: pagoPrev[String(Number(c.os))] || null,
       prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo, pagamentoDiaMes: p.pagamentoDiaMes || null } : null, grupo: m.grupo, setor: m.setor, conta: m.setor ? contaDoSetor(m.grupo, m.setor) : null,
       sexta: m.sexta, recebimento: m.recebimento, prazoDias: m.prazoDias, linhas: m.linhas, nItens: m.nItens, pedidos: m.pedidos, semTipo: m.semTipo,
-      qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: m.avisos, bate: m.bate });
+      qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: pagoPrev[String(Number(c.os))] ? [`OS ${c.os} JÁ PAGA ADIANTADA PELA PREVISÃO (R$ ${brl(pagoPrev[String(Number(c.os))])}): descarte esta conta.`, ...m.avisos] : m.avisos, bate: m.bate });
   }
   out.sort((a, b) => (a.lancada - b.lancada) || (a.descartada - b.descartada) || String(a.vencimento || "").localeCompare(String(b.vencimento || "")) || a.os - b.os || (a.parcela || 0) - (b.parcela || 0));
   return { ok: true, geradoEm: j?.geradoEm || null, contas: out };
@@ -222,6 +227,7 @@ export async function lancarFaccoes(escolhas, quem) {
     const c = conf.contas.find((x) => x.lancamento === k);
     if (!c) { res.push({ os: e.os, lancamento: k, erro: "Conta não está mais no PCP." }); continue; }
     if (c.descartada) { res.push({ os: c.os, lancamento: k, erro: "Descartada — reative em Todas." }); continue; }
+    if (c.pagaNaPrevisao && !e.mesmoPaga) { res.push({ os: c.os, lancamento: k, erro: `OS ${c.os} já foi paga adiantada pela PREVISÃO (R$ ${brl(c.pagaNaPrevisao)}). Descarte esta conta (ou feche no PCP sem lançar).` }); continue; }
     if (c.lancada || (await prisma.faccaoOsPcp.findFirst({ where: { lancamento: k, status: "LANCADA" } }))) { res.push({ os: c.os, lancamento: k, erro: "Já lançada." }); continue; }
     const p = e.prestadorId ? await prisma.prestador.findUnique({ where: { id: Number(e.prestadorId) } }) : c.prestador ? await prisma.prestador.findUnique({ where: { id: c.prestador.id } }) : null;
     if (!p) { res.push({ os: c.os, erro: `Facção "${c.faccao}" não encontrada no cadastro de terceirizados.` }); continue; }

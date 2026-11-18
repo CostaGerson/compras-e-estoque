@@ -79,7 +79,7 @@ export function montarPrevistas(itens, hoje = hojeSP(), prests = []) {
   }
   for (const c of Object.values(out)) {
     const pg = pagamentoDe(c.entrega, achaPrest(prests, c.faccao));
-    c.sexta = pg.data; c.mensal = pg.mensal || 0;
+    c.sexta = pg.data; c.mensal = pg.mensal || 0; c.pix = achaPrest(prests, c.faccao)?.chavePix || "";
     c.texto = `${c.os ? "NA FACÇÃO" : "AINDA SEM OS"} · ENTREGA PREVISTA ${dBR(c.entrega)}${pg.mensal ? ` · PAGA 1× POR MÊS, DIA ${pg.mensal}` : pg.prazo ? ` · PRAZO ${pg.prazo} DIAS` : ""}`;
   }
   return out;
@@ -89,7 +89,7 @@ export function montarPrevistas(itens, hoje = hojeSP(), prests = []) {
 function previstasDoAcerto(contas, hoje = hojeSP()) {
   const out = {};
   for (const c of contas || []) {
-    if (c.lancada || c.descartada || !(Number(c.valorLiquido) > 0)) continue;
+    if (c.lancada || c.descartada || c.pagaNaPrevisao || !(Number(c.valorLiquido) > 0)) continue;   // paga adiantada pela previsão: não volta
     const linhas = (c.linhas || []).map((l) => ({ ...l, tipo: l.tipo || tipoDePeca(l.item) || "CAMISETA", total: r2(l.total) }));
     if (!linhas.length) continue;
     const fac = facNome(c.prestador?.nome || c.faccao);
@@ -98,7 +98,7 @@ function previstasDoAcerto(contas, hoje = hojeSP()) {
     const mensal = Number(c.prestador?.pagamentoDiaMes) || 0;
     const alvo = mensal && c.vencimento ? String(c.vencimento).slice(0, 10) : c.sexta;
     const sexta = alvo && alvo >= hoje ? alvo : sextaDaSemanaSD(hoje);
-    out[chave] = { chave, faccao: fac, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, mensal: mensal && alvo >= hoje ? mensal : 0, semPreco: [],
+    out[chave] = { chave, faccao: fac, prestadorId: c.prestador?.id || null, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, mensal: mensal && alvo >= hoje ? mensal : 0, semPreco: [],
       linhas: linhas.map((l) => ({ ...l, item: l.desconto ? l.item : `${l.qtd} ${fac} · ${l.itemCode || l.pedido} ${l.item || ""} · OS ${c.os}`.slice(0, 200) })),
       refs: [], texto: `OS ${c.os} ACERTADA NO PCP (ACERTO ${c.lancamento}) · FALTA LANÇAR NA CONFERÊNCIA DE FACÇÕES · VENC. ${c.vencimento ? dBR(c.vencimento) : "-"}` };
   }
@@ -148,7 +148,7 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
           c.semPreco.length ? `SEM PREÇO NO PCP (FORA DA SOMA): ${c.semPreco.join(" · ")}` : null].filter(Boolean).join(" · ").toUpperCase().slice(0, 1000);
         const receb = c.entrega <= c.sexta ? c.entrega : c.sexta;
         const data = {
-          tituloId: t.id, grupo: "FACCAO", prestadorId: prest.id, nome: `${NOME} · ${c.faccao}`.slice(0, 190), chavePix: prest.chavePix || "-",
+          tituloId: t.id, grupo: "FACCAO", prestadorId: prest.id, nome: `${NOME} · ${c.faccao}`.slice(0, 190), chavePix: c.pix || prests.find((x) => x.id === c.prestadorId)?.chavePix || prest.chavePix || "-",   // PIX da facção: dá para pagar adiantado pela própria previsão
           setor, contaId, linhas, valor, dataRecebimento: dUTC(receb), prazoDias: Math.max(0, Math.round((dUTC(c.sexta) - dUTC(receb)) / 86400e3)),
           vencimentoNegociado: dUTC(c.sexta), descricao: c.chave, observacao, excepcional: !!c.mensal,
           justificativa: c.mensal ? `PAGAMENTO MENSAL NO DIA ${c.mensal} (CADASTRO DA FACÇÃO)` : null,
