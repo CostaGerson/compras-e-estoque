@@ -1,0 +1,1892 @@
+{
+ "flag": "SEED|CARTELA|DOPTEX TECIDOS WORKWEAR TAYLOR|2026-11-18",
+ "fornecedor": {
+  "nome": "DOPTEX",
+  "nomeFantasia": "DOPTEX TECIDOS E MALHAS",
+  "obs": "CADASTRADO PELOS CATÁLOGOS DOPTEX (18/11/2026)"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "TECIDO",
+   "nome": "ALFAIATARIA POLIESTER"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "ALFAIATARIA PV"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "BRIM POLIESTER"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "BRIM PV"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA BARCELONA"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA CANNES"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA CLASSIC"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA COTTON PRIME"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA EASY FIT"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA FUSILI"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA FUSTAO PRIME"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA LONDON COMFORT"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA MEDIUM VICHY"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA MICRO VICHY"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA NATURAL FIT"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA NATURAL FIT MESCLA"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA PANAMA"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA PROFIT"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA PROFIT MIX"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA PROFIT STRONG"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA SAVILLE"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA SPAGUETI"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "111",
+   "nome": "111 PROFIT",
+   "interno": "CAMISARIA PROFIT",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 120,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3121 KARITÉ",
+     "COR CLARA"
+    ],
+    [
+     "001-3127 MANTEIGA",
+     "COR CLARA"
+    ],
+    [
+     "001-4127 FREIJÓ",
+     "COR CLARA"
+    ],
+    [
+     "001-2129 ALFAZEMA",
+     "COR CLARA"
+    ],
+    [
+     "001-2267 MENTA",
+     "COR CLARA"
+    ],
+    [
+     "001-1257 THATY",
+     "COR CLARA"
+    ],
+    [
+     "001-1258 PRISMA",
+     "COR CLARA"
+    ],
+    [
+     "065-1235 PLÁCIDO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-1240 PROVENCE",
+     "COR CLARA"
+    ],
+    [
+     "001-1259 MARÍTIMO",
+     "COR CLARA"
+    ],
+    [
+     "001-1241 JEANS",
+     "COR CLARA"
+    ],
+    [
+     "001-8139 DESERTO",
+     "COR CLARA"
+    ],
+    [
+     "065-4120 RED ORANGE",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-5182 AURORA",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1230 COBALTO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-9115 SILVER",
+     "COR CLARA"
+    ],
+    [
+     "001-9135 CINZA-CLARO",
+     "COR CLARA"
+    ],
+    [
+     "001-9134 SOLDADO",
+     "COR CLARA"
+    ],
+    [
+     "001-2266 AMAZON",
+     "COR ESPECIAL"
+    ],
+    [
+     "001-9121 GRAFITE",
+     "COR CLARA"
+    ],
+    [
+     "065-1450 NAVY",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1222 MARINHO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-21 PRETO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1112",
+   "nome": "1112 PROFIT STRONG",
+   "interno": "CAMISARIA PROFIT STRONG",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 165,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "065-2264 AQUA GRAY",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9217 ICELANDIC",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9135 CINZA-CLARO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1442 BLUE BELL",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1235 PLÁCIDO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1240 PROVENCE",
+     "COR CLARA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1659",
+   "nome": "1659 PROFIT MIX",
+   "interno": "CAMISARIA PROFIT MIX",
+   "composicao": "59% POLIÉSTER 41% ALGODÃO",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3161 MILK",
+     "COR CLARA"
+    ],
+    [
+     "001-1433 AZUL-CLARO",
+     "COR CLARA"
+    ],
+    [
+     "001-9215 CIMENTO",
+     "COR CLARA"
+    ],
+    [
+     "065-7303 MÔNACO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-1434 PRISMA",
+     "COR CLARA"
+    ],
+    [
+     "001-2262 MENTA",
+     "COR CLARA"
+    ],
+    [
+     "001-9213 ROCHA",
+     "COR CLARA"
+    ],
+    [
+     "001-1435 PACÍFICO",
+     "COR CLARA"
+    ],
+    [
+     "065-1426 ULTRAMARINE",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9211 CINZA-ESCURO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9209 CINZA-MÉDIO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-5179 CARDEAL",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1432 ÍNDIGO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1427 ECLIPSE",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-21 PRETO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1660",
+   "nome": "1660 NATURAL FIT",
+   "interno": "CAMISARIA NATURAL FIT",
+   "composicao": "65% ALGODÃO 35% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3161 MILK",
+     "COR CLARA"
+    ],
+    [
+     "001-1433 AZUL-CLARO",
+     "COR CLARA"
+    ],
+    [
+     "001-9212 VAPOR",
+     "COR CLARA"
+    ],
+    [
+     "001-8207 GELO",
+     "COR CLARA"
+    ],
+    [
+     "001-2262 MENTA",
+     "COR CLARA"
+    ],
+    [
+     "065-7303 MÔNACO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-9215 CIMENTO",
+     "COR CLARA"
+    ],
+    [
+     "001-8208 KHAKI",
+     "COR CLARA"
+    ],
+    [
+     "065-2261 JADE",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-7305 LAVANDA",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-9213 ROCHA",
+     "COR CLARA"
+    ],
+    [
+     "001-3162 AMARELO",
+     "COR CLARA"
+    ],
+    [
+     "065-7304 RIVIERA",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1426 ULTRAMARINE",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9209 CINZA-MÉDIO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-5179 CARDEAL",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1427 ECLIPSE",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1472 MARINHO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-21 PRETO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1653",
+   "nome": "1653 NATURAL FIT MESCLA",
+   "interno": "CAMISARIA NATURAL FIT MESCLA",
+   "composicao": "65% ALGODÃO 35% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "001-1425 AZUL MESCLA",
+     "COR CLARA"
+    ],
+    [
+     "001-1436 TURQUESA MESCLA",
+     "COR MÉDIA"
+    ],
+    [
+     "001-1423 ROYAL MESCLA",
+     "COR CLARA"
+    ],
+    [
+     "001-9214 CINZA MESCLA",
+     "COR CLARA"
+    ],
+    [
+     "001-4181 LARANJA MESCLA",
+     "COR MÉDIA"
+    ],
+    [
+     "001-2261 JADE MESCLA",
+     "COR MÉDIA"
+    ],
+    [
+     "001-1437 PETRÓLEO MESCLA",
+     "COR MÉDIA"
+    ],
+    [
+     "001-1424 MARINHO MESCLA",
+     "COR CLARA"
+    ],
+    [
+     "001-9208 CHUMBO MESCLA",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1686",
+   "nome": "1686 EASY FIT",
+   "interno": "CAMISARIA EASY FIT",
+   "composicao": "62% ALGODÃO 38% POLIÉSTER",
+   "gramatura": 104,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-9135 CINZA-CLARO",
+     null
+    ],
+    [
+     "001-9121 GRAFITE",
+     null
+    ],
+    [
+     "001-1258 PRISMA",
+     null
+    ],
+    [
+     "001-1235 PLACIDO",
+     null
+    ],
+    [
+     "001-1240 PROVENCE",
+     null
+    ],
+    [
+     "001-1230 COBALTO",
+     null
+    ],
+    [
+     "001-1222 MARINHO",
+     null
+    ],
+    [
+     "001-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1457",
+   "nome": "1457 COMFORT PLUS",
+   "interno": "CAMISARIA COMFORT PLUS",
+   "composicao": "63% ALGODÃO 37% POLIÉSTER",
+   "gramatura": 165,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-8163 BEGE MESCLA",
+     null
+    ],
+    [
+     "001-8253 DESERTO",
+     null
+    ],
+    [
+     "001-8164 MARROM MESCLA",
+     null
+    ],
+    [
+     "001-1319 AZUL MESCLA",
+     null
+    ],
+    [
+     "001-1468 TURQUESA",
+     null
+    ],
+    [
+     "001-1316 JEANS MESCLA",
+     null
+    ],
+    [
+     "001-1429 ROYAL MESCLA",
+     null
+    ],
+    [
+     "001-2276 JADE",
+     null
+    ],
+    [
+     "001-2187 VERDE MESCLA",
+     null
+    ],
+    [
+     "001-1317 PETRÓLEO MESCLA",
+     null
+    ],
+    [
+     "001-1467 MARÍTIMO",
+     null
+    ],
+    [
+     "001-4184 LARANJA",
+     null
+    ],
+    [
+     "001-5184 AURORA",
+     null
+    ],
+    [
+     "001-5143 VERMELHO MESCLA",
+     null
+    ],
+    [
+     "001-7124 VINHO",
+     null
+    ],
+    [
+     "001-9157 CINZA MESCLA",
+     null
+    ],
+    [
+     "001-9158 CHUMBO MESCLA",
+     null
+    ],
+    [
+     "065-1457 MARINHO MESCLA",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "001-1318 PRETO MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1684",
+   "nome": "1684 COTTON PRIME",
+   "interno": "CAMISARIA COTTON PRIME",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 110,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "004-8112 OFF-WHITE",
+     null
+    ],
+    [
+     "001-6245 ROSA",
+     null
+    ],
+    [
+     "001-7116 VIOLETA",
+     null
+    ],
+    [
+     "001-9246 CINZA",
+     null
+    ],
+    [
+     "001-1477 AZUL",
+     null
+    ],
+    [
+     "001-7303 MÔNACO",
+     null
+    ],
+    [
+     "001-1256 MIDNIGHT",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1359",
+   "nome": "1359 FUSTÃO PRIME",
+   "interno": "CAMISARIA FUSTAO PRIME",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 130,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "004-8112 OFF-WHITE",
+     null
+    ],
+    [
+     "001-6245 ROSA",
+     null
+    ],
+    [
+     "001-7116 VIOLETA",
+     null
+    ],
+    [
+     "001-9246 CINZA",
+     null
+    ],
+    [
+     "001-1477 AZUL",
+     null
+    ],
+    [
+     "001-7303 MÔNACO",
+     null
+    ],
+    [
+     "001-1256 MIDNIGHT",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1658",
+   "nome": "1658 CLASSIC",
+   "interno": "CAMISARIA CLASSIC",
+   "composicao": "73% ALGODÃO 27% POLIÉSTER",
+   "gramatura": 136,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-6190 SUÉCIA",
+     "COR CLARA"
+    ],
+    [
+     "001-1433 AZUL-CLARO",
+     "COR CLARA"
+    ],
+    [
+     "001-9215 CIMENTO",
+     "COR CLARA"
+    ],
+    [
+     "001-8207 GELO",
+     "COR CLARA"
+    ],
+    [
+     "001-2262 MENTA",
+     "COR CLARA"
+    ],
+    [
+     "065-7303 MÔNACO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9209 CINZA-MÉDIO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1432 ÍNDIGO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-21 PRETO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1666",
+   "nome": "1666 PANAMÁ",
+   "interno": "CAMISARIA PANAMA",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 134,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3161 MILK",
+     "COR CLARA"
+    ],
+    [
+     "001-3162 AMARELO",
+     "COR MÉDIA"
+    ],
+    [
+     "001-9215 CIMENTO",
+     "COR CLARA"
+    ],
+    [
+     "001-1433 AZUL-CLARO",
+     "COR CLARA"
+    ],
+    [
+     "065-7303 MÔNACO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-7305 LAVANDA",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1231",
+   "nome": "1231 TRICOLINE AMÉLIE",
+   "interno": "CAMISARIA AMELIE",
+   "composicao": "77% POLIÉSTER 19% ALGODÃO 4% ELASTANO",
+   "gramatura": 136,
+   "largura": 1.35,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "004-8112 OFF-WHITE",
+     null
+    ],
+    [
+     "001-1234 CÉU",
+     null
+    ],
+    [
+     "001-9136 CINZA",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-4128 SALMÃO",
+     null
+    ],
+    [
+     "001-1217 AZUL",
+     null
+    ],
+    [
+     "001-1240 PROVENCE",
+     null
+    ],
+    [
+     "001-9111 NUVEM",
+     null
+    ],
+    [
+     "001-5110 PIMENTA",
+     null
+    ],
+    [
+     "065-1215 DARK",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "116",
+   "nome": "116 TRICOLINE IBIZA",
+   "interno": "CAMISARIA IBIZA",
+   "composicao": "75% POLIÉSTER 21% ALGODÃO 4% ELASTANO",
+   "gramatura": 148,
+   "largura": 1.3,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-8112 OFF-WHITE",
+     null
+    ],
+    [
+     "001-3119 MAISENA",
+     null
+    ],
+    [
+     "001-9122 LUNAR",
+     null
+    ],
+    [
+     "001-6130 ROSA BEBÊ",
+     null
+    ],
+    [
+     "001-7114 UVA",
+     null
+    ],
+    [
+     "001-7110 LILÁS",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-1234 CÉU",
+     null
+    ],
+    [
+     "001-2127 LIME",
+     null
+    ],
+    [
+     "001-2128 ACQUA",
+     null
+    ],
+    [
+     "001-9121 GRAFITE",
+     null
+    ],
+    [
+     "001-1235 PLÁCIDO",
+     null
+    ],
+    [
+     "001-1236 PARISIAN",
+     null
+    ],
+    [
+     "001-1232 HORTÊNSIA",
+     null
+    ],
+    [
+     "001-1230 COBALTO",
+     null
+    ],
+    [
+     "001-3120 SOLAR",
+     null
+    ],
+    [
+     "001-4121 ABÓBORA",
+     null
+    ],
+    [
+     "001-5117 CEREJA",
+     null
+    ],
+    [
+     "001-1233 NOITE",
+     null
+    ],
+    [
+     "001-8123 BEGE",
+     null
+    ],
+    [
+     "001-8124 OCRE",
+     null
+    ],
+    [
+     "001-2116 BANDEIRA",
+     null
+    ],
+    [
+     "001-1214 DENIN",
+     null
+    ],
+    [
+     "001-2125 MILITAR",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "280",
+   "nome": "280 TRICOLINE CANNES",
+   "interno": "CAMISARIA CANNES",
+   "composicao": "58% ALGODÃO 38% POLIÉSTER 4% ELASTANO",
+   "gramatura": 125,
+   "largura": 1.4,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "004-8112 OFF-WHITE",
+     null
+    ],
+    [
+     "001-3127 MANTEIGA",
+     null
+    ],
+    [
+     "001-9122 LUNAR",
+     null
+    ],
+    [
+     "001-3120 SOLAR",
+     null
+    ],
+    [
+     "001-1235 PLÁCIDO",
+     null
+    ],
+    [
+     "001-2128 ACQUA",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-8124 OCRE",
+     null
+    ],
+    [
+     "001-1232 HORTÊNSIA",
+     null
+    ],
+    [
+     "001-2116 BANDEIRA",
+     null
+    ],
+    [
+     "065-9121 GRAFITE",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "001-5117 CEREJA",
+     null
+    ],
+    [
+     "001-1230 COBALTO",
+     null
+    ],
+    [
+     "065-1233 NOITE",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "065-1215 DARK",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1685",
+   "nome": "1685 NEW DOPFIL",
+   "interno": "CAMISARIA DOPFILL",
+   "composicao": "62% ALGODÃO 38% POLIÉSTER",
+   "gramatura": 110,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-8139 BEGE",
+     null
+    ],
+    [
+     "004-9115 CINZA",
+     null
+    ],
+    [
+     "004-9217 CINZA CLARO",
+     null
+    ],
+    [
+     "004-9120 CHUMBO",
+     null
+    ],
+    [
+     "004-1235 AZUL",
+     null
+    ],
+    [
+     "004-1230 ROYAL",
+     null
+    ],
+    [
+     "004-1453 AZUL CLARO",
+     null
+    ],
+    [
+     "004-1222 MARINHO",
+     null
+    ],
+    [
+     "004-2239 VERDE LAGUNA",
+     null
+    ],
+    [
+     "004-4182 CORAL",
+     null
+    ],
+    [
+     "004-5114 VERMELHO",
+     null
+    ],
+    [
+     "004-1403 AZZURRO",
+     null
+    ],
+    [
+     "004-5172 RUBI",
+     null
+    ],
+    [
+     "004-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1673",
+   "nome": "1673 BRISTOL",
+   "interno": "CAMISARIA BRISTOL",
+   "composicao": "53% POLIÉSTER 47% ALGODÃO",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1160",
+   "nome": "1160 MICRO VICHY",
+   "interno": "CAMISARIA MICRO VICHY",
+   "composicao": "57% POLIÉSTER 43% ALGODÃO",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1194",
+   "nome": "1194 MEDIUM VICHY",
+   "interno": "CAMISARIA MEDIUM VICHY",
+   "composicao": "63% POLIÉSTER 37% ALGODÃO",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1674",
+   "nome": "1674 LONDON",
+   "interno": "CAMISARIA LONDON",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1161",
+   "nome": "1161 SPAGUETI",
+   "interno": "CAMISARIA SPAGUETI",
+   "composicao": "77% ALGODÃO 23% POLIÉSTER",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1195",
+   "nome": "1195 FUSILI",
+   "interno": "CAMISARIA FUSILI",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 120,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1670",
+   "nome": "1670 LONDON COMFORT",
+   "interno": "CAMISARIA LONDON COMFORT",
+   "composicao": "52% POLIÉSTER 30% ALGODÃO 14% POLIAMIDA 4% ELASTANO",
+   "gramatura": 120,
+   "largura": 1.4,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1672",
+   "nome": "1672 BARCELONA",
+   "interno": "CAMISARIA BARCELONA",
+   "composicao": "73% POLIÉSTER 23% ALGODÃO 4% ELASTANO",
+   "gramatura": 136,
+   "largura": 1.4,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1671",
+   "nome": "1671 SAVILLE",
+   "interno": "CAMISARIA SAVILLE",
+   "composicao": "67% POLIÉSTER 29% ALGODÃO 4% ELASTANO",
+   "gramatura": 136,
+   "largura": 1.4,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "004-9127 CINZA-CLARO",
+     null
+    ],
+    [
+     "004-9209 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "004-1428 AZUL",
+     null
+    ],
+    [
+     "004-1429 ROYAL",
+     null
+    ],
+    [
+     "004-2261 VERDE-CLARO",
+     null
+    ],
+    [
+     "004-2121 VERDE",
+     null
+    ],
+    [
+     "004-5179 VERMELHO",
+     null
+    ],
+    [
+     "004-1427 MARINHO",
+     null
+    ],
+    [
+     "004-021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1681",
+   "nome": "1681 TURIM",
+   "interno": "ALFAIATARIA PV",
+   "composicao": "79% POLIÉSTER 21% VISCOSE",
+   "gramatura": 184,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-2276 JADE MESCLA",
+     null
+    ],
+    [
+     "001-2187 VERDE MESCLA",
+     null
+    ],
+    [
+     "001-8253 DESERTO MESCLA",
+     null
+    ],
+    [
+     "001-1429 ROYAL MESCLA",
+     null
+    ],
+    [
+     "001-1467 MARÍTIMO MESCLA",
+     null
+    ],
+    [
+     "001-5143 VERMELHO MESCLA",
+     null
+    ],
+    [
+     "001-7124 VINHO MESCLA",
+     null
+    ],
+    [
+     "001-9158 CHUMBO MESCLA",
+     null
+    ],
+    [
+     "001-1457 MARINHO MESCLA",
+     null
+    ],
+    [
+     "001-1318 PRETO MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "118",
+   "nome": "118 DOPBRIM",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 216,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "065-8256 BEGE CLARO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-8255 KAKHI",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-5186 VERMELHO",
+     "COR ESPECIAL · TINGIMENTO À TINA"
+    ],
+    [
+     "065-2279 LAGUNA",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-2278 VERDE BANDEIRA",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-2277 VERDE MUSGO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1476 MÔNACO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9244 CINZA CLARO",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9243 CINZA",
+     "COR CLARA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-9242 CHUMBO",
+     "COR MÉDIA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1475 ROYAL",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1473 MARINHO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-1474 DARK",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "065-21 PRETO",
+     "COR ESCURA · TINGIMENTO À TINA"
+    ],
+    [
+     "001-3115 AMARELO FLÚOR",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "150",
+   "nome": "150 DOPBRIM LIGHT",
+   "interno": "BRIM PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 190,
+   "largura": 1.63,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "151",
+   "nome": "151 DOPBRIM MEDIUM",
+   "interno": "BRIM PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 216,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "152",
+   "nome": "152 DOPBRIM STRONG",
+   "interno": "BRIM PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 256,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA WORKWEAR",
+   "cores": [
+    [
+     "003-001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1688",
+   "nome": "1688 MILANO PLUS",
+   "interno": "ALFAIATARIA PV",
+   "composicao": "74% POLIÉSTER 22% VISCOSE 4% ELASTANO",
+   "gramatura": 200,
+   "largura": 1.4,
+   "unidade": "M",
+   "especificacao": "LINHA TAYLOR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-9235 CINZA-CLARO",
+     null
+    ],
+    [
+     "001-9222 CINZA",
+     null
+    ],
+    [
+     "001-8214 BEGE",
+     null
+    ],
+    [
+     "001-9236 CINZA-MÉDIO",
+     null
+    ],
+    [
+     "001-9237 CINZA-ESCURO",
+     null
+    ],
+    [
+     "001-9219 MESCLA- ESCURO",
+     null
+    ],
+    [
+     "001-8254 MARROM MILITAR",
+     null
+    ],
+    [
+     "001-1224 MEDIEVAL",
+     null
+    ],
+    [
+     "001-1446 MARINHO",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1682",
+   "nome": "1682 RAVENA",
+   "interno": "ALFAIATARIA PV",
+   "composicao": "78% POLIÉSTER 22% VISCOSE",
+   "gramatura": 175,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA TAYLOR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-9158 CHUMBO MESCLA",
+     null
+    ],
+    [
+     "001-1457 MARINHO MESCLA",
+     null
+    ],
+    [
+     "001-1318 PRETO MESCLA",
+     null
+    ],
+    [
+     "001-1429 ROYAL MESCLA",
+     null
+    ],
+    [
+     "001-1446 MARINHO",
+     "TINGIMENTO À TINA"
+    ],
+    [
+     "001-21 PRETO",
+     "TINGIMENTO À TINA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "1692",
+   "nome": "1692 SIENA",
+   "interno": "ALFAIATARIA POLIESTER",
+   "composicao": "96% POLIÉSTER 4% ELASTANO",
+   "gramatura": 195,
+   "largura": 1.47,
+   "unidade": "M",
+   "especificacao": "LINHA TAYLOR",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-9111 NUVEM",
+     null
+    ],
+    [
+     "001-9237 CINZA ESCURO",
+     null
+    ],
+    [
+     "001-1446 MARINHO",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  }
+ ]
+}

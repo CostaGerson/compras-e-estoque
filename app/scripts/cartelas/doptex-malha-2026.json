@@ -1,0 +1,863 @@
+{
+ "flag": "SEED|CARTELA|DOPTEX MALHA 2026|2026-11-18",
+ "fornecedor": {
+  "nome": "DOPTEX",
+  "nomeFantasia": "DOPTEX TECIDOS E MALHAS",
+  "obs": "CADASTRADO PELOS CATÁLOGOS DOPTEX (18/11/2026)"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "MALHA",
+   "nome": "PA"
+  },
+  {
+   "categoria": "MALHA",
+   "nome": "MOLETINHO PV"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1090.180",
+   "nome": "MD 1090.180 PV SUPREMO ANTI-PILLING RAMADO",
+   "interno": "PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 175,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.17,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1090.180",
+   "nome": "MD 1090.180 PV SUPREMO ANTI-PILLING RAMADO",
+   "interno": "PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 185,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.0,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "3164 AMARELO OURO",
+     "COR CLARA"
+    ],
+    [
+     "4170 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "5172 RUBI",
+     "COR ESPECIAL"
+    ],
+    [
+     "5181 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5173 VINHO",
+     "COR ESCURA"
+    ],
+    [
+     "2244 BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "1395 COBALTO",
+     "COR MÉDIA"
+    ],
+    [
+     "1400 ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "1403 AZZURRO",
+     "COR ESCURA"
+    ],
+    [
+     "1404 MARINHO",
+     "COR ESCURA"
+    ],
+    [
+     "9194 BOING",
+     "COR CLARA"
+    ],
+    [
+     "9195 CHUMBO",
+     "COR CLARA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1120",
+   "nome": "MD 1120 PV SUPREMO ANTI-PILLING",
+   "interno": "PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 175,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1120",
+   "nome": "MD 1120 PV SUPREMO ANTI-PILLING",
+   "interno": "PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 185,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.25,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "8250 BEGE ESCOLA",
+     "COR CLARA"
+    ],
+    [
+     "9197 AREIA CLARO",
+     "COR CLARA"
+    ],
+    [
+     "3153 AMARELO SKOL",
+     "COR CLARA"
+    ],
+    [
+     "3154 SOLEIL",
+     "COR CLARA"
+    ],
+    [
+     "3164 AMARELO OURO",
+     "COR CLARA"
+    ],
+    [
+     "2240 LIMÃO",
+     "COR MÉDIA"
+    ],
+    [
+     "2238 VERDE BB",
+     "COR CLARA"
+    ],
+    [
+     "2239 LAGUNA",
+     "COR ESCURA"
+    ],
+    [
+     "2242 VERDE CANA",
+     "COR MÉDIA"
+    ],
+    [
+     "2243 VERDE SELEÇÃO",
+     "COR ESPECIAL"
+    ],
+    [
+     "2244 BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "1393 AZUL ESCOLA",
+     "COR CLARA"
+    ],
+    [
+     "1395 COBALTO",
+     "COR MÉDIA"
+    ],
+    [
+     "1396 AZUL DINAMARCA",
+     "COR ESCURA"
+    ],
+    [
+     "9196 CONCRETO",
+     "COR CLARA"
+    ],
+    [
+     "8199 MARROM",
+     "COR ESCURA"
+    ],
+    [
+     "9193 NÉVOA",
+     "COR CLARA"
+    ],
+    [
+     "9194 BOING",
+     "COR CLARA"
+    ],
+    [
+     "9195 CHUMBO",
+     "COR CLARA"
+    ],
+    [
+     "9226 GRAFITE",
+     "COR MÉDIA"
+    ],
+    [
+     "2237 MELÃO FLUORESCENTE",
+     "COR ESPECIAL"
+    ],
+    [
+     "4172 LARANJA FLUORESCENTE",
+     "COR ESPECIAL"
+    ],
+    [
+     "4170 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "4186 ABÓBORA",
+     "COR ESCURA"
+    ],
+    [
+     "5181 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5172 RUBI",
+     "COR ESPECIAL"
+    ],
+    [
+     "7299 LAVANDA",
+     "COR CLARA"
+    ],
+    [
+     "7300 AMETISTA",
+     "COR MÉDIA"
+    ],
+    [
+     "7301 UVA",
+     "COR MÉDIA"
+    ],
+    [
+     "6176 CHICLETE",
+     "COR CLARA"
+    ],
+    [
+     "6177 PINK",
+     "COR MÉDIA"
+    ],
+    [
+     "5173 VINHO",
+     "COR ESCURA"
+    ],
+    [
+     "2245 ESMERALDA",
+     "COR ESCURA"
+    ],
+    [
+     "2246 VERONESI",
+     "COR ESPECIAL"
+    ],
+    [
+     "2247 FLORESTA",
+     "COR ESCURA"
+    ],
+    [
+     "2248 MUSGO",
+     "COR ESCURA"
+    ],
+    [
+     "1399 JEANS",
+     "COR CLARA"
+    ],
+    [
+     "1398 PETRÓLEO",
+     "COR MÉDIA"
+    ],
+    [
+     "1397 TURQUESA",
+     "COR ESPECIAL"
+    ],
+    [
+     "1400 ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "1402 SKY",
+     "COR ESCURA"
+    ],
+    [
+     "1403 AZZURRO",
+     "COR ESCURA"
+    ],
+    [
+     "1469 DARK NAVY",
+     "COR ESCURA"
+    ],
+    [
+     "1601 ECLIPSE",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ],
+    [
+     "1404 MARINHO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1121",
+   "nome": "MD 1121 PV MESCLA ANTI-PILLING",
+   "interno": "PV",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 170,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.45,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "9157 MESCLA CLARO",
+     null
+    ],
+    [
+     "9198 MESCLA MÉDIO",
+     null
+    ],
+    [
+     "9219 MESCLA ESCURO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 3120",
+   "nome": "MD 3120 MEIA MALHA PA SUPREMO ANTI-PILLING",
+   "interno": "PA",
+   "composicao": "50% POLIÉSTER 50% ALGODÃO",
+   "gramatura": 175,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 3120",
+   "nome": "MD 3120 MEIA MALHA PA SUPREMO ANTI-PILLING",
+   "interno": "PA",
+   "composicao": "50% POLIÉSTER 50% ALGODÃO",
+   "gramatura": 185,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.25,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "5171 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "1403 AZZURRO",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 6120",
+   "nome": "MD 6120 MEIA MALHA PP SUPREMO UV",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 178,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.34,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ],
+    [
+     "9194 BOING",
+     "COR CLARA"
+    ],
+    [
+     "9195 CHUMBO",
+     "COR CLARA"
+    ],
+    [
+     "9226 GRAFITE",
+     "COR MÉDIA"
+    ],
+    [
+     "2244 BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "5181 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "1403 AZZURRO",
+     "COR ESCURA"
+    ],
+    [
+     "1404 MARINHO",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 2120",
+   "nome": "MD 2120 PIQUET PA SUPREMO ANTI-PILLING",
+   "interno": "PIQUET P.A",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 200,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.08,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 2120",
+   "nome": "MD 2120 PIQUET PA SUPREMO ANTI-PILLING",
+   "interno": "PIQUET P.A",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 210,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.98,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "9193 NÉVOA",
+     "COR CLARA"
+    ],
+    [
+     "9197 AREIA CLARO",
+     "COR CLARA"
+    ],
+    [
+     "8216 BEGE",
+     "COR CLARA"
+    ],
+    [
+     "3154 SOLEIL",
+     "COR CLARA"
+    ],
+    [
+     "4170 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "5171 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5173 VINHO",
+     "COR ESCURA"
+    ],
+    [
+     "2244 BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "2248 MUSGO",
+     "COR ESCURA"
+    ],
+    [
+     "1398 PETRÓLEO",
+     "COR MÉDIA"
+    ],
+    [
+     "1393 AZUL ESCOLA",
+     "COR CLARA"
+    ],
+    [
+     "1394 AZUL IMPERIAL",
+     "COR MÉDIA"
+    ],
+    [
+     "1397 TURQUESA",
+     "COR ESPECIAL"
+    ],
+    [
+     "9195 CHUMBO",
+     "COR CLARA"
+    ],
+    [
+     "9226 GRAFITE",
+     "COR MÉDIA"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "1404 MARINHO",
+     "COR ESCURA"
+    ],
+    [
+     "1469 DARK NAVY",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 2140",
+   "nome": "MD 2140 PIQUET PA MESCLA CONVENCIONAL",
+   "interno": "PIQUET P.A",
+   "composicao": "88% ALGODÃO 12% POLIÉSTER",
+   "gramatura": 180,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.31,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "9198 MESCLA MÉDIO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 2170",
+   "nome": "MD 2170 PIQUET PV COMFORT ANTI-PILLING",
+   "interno": "PIQUET P.V",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 200,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.08,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 2170",
+   "nome": "MD 2170 PIQUET PV COMFORT ANTI-PILLING",
+   "interno": "PIQUET P.V",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 210,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.98,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "9198 MESCLA MÉDIO",
+     "COR ESCURA"
+    ],
+    [
+     "9193 NÉVOA",
+     "COR CLARA"
+    ],
+    [
+     "9195 CHUMBO",
+     "COR CLARA"
+    ],
+    [
+     "2244 BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "2248 MUSGO",
+     "COR ESCURA"
+    ],
+    [
+     "1394 AZUL IMPERIAL",
+     "COR MÉDIA"
+    ],
+    [
+     "1401 BIC",
+     "COR ESPECIAL"
+    ],
+    [
+     "5171 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "1404 MARINHO",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 3190",
+   "nome": "MD 3190 DRY SUPREMO ESPORTIVO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.9,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.21,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "2257 VERDE FLUORESCENTE",
+     null
+    ],
+    [
+     "2237 MELÃO FLUORESCENTE",
+     null
+    ],
+    [
+     "3160 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "6242 ROSA FLUORESCENTE",
+     null
+    ],
+    [
+     "4172 LARANJA FLUORESCENTE",
+     null
+    ],
+    [
+     "4170 LARANJA",
+     null
+    ],
+    [
+     "3159 AMARELO SELEÇÃO",
+     null
+    ],
+    [
+     "9202 PRATA",
+     null
+    ],
+    [
+     "9195 CHUMBO",
+     null
+    ],
+    [
+     "5171 VERMELHO",
+     null
+    ],
+    [
+     "5173 VINHO",
+     null
+    ],
+    [
+     "1417 CARIBE",
+     null
+    ],
+    [
+     "2239 LAGUNA",
+     null
+    ],
+    [
+     "2258 VERDE AMAZÔNIA",
+     null
+    ],
+    [
+     "1416 HORTÊNSIA",
+     null
+    ],
+    [
+     "1397 TURQUESA",
+     null
+    ],
+    [
+     "2256 VERDE FOLHA",
+     null
+    ],
+    [
+     "1400 ROYAL BIC",
+     null
+    ],
+    [
+     "1404 MARINHO",
+     null
+    ],
+    [
+     "21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 7020",
+   "nome": "MD 7020 HELANCA POLIÉSTER",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 265,
+   "largura": 1.0,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.88,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "1470 ROYAL",
+     null
+    ],
+    [
+     "5185 VERMELHO",
+     null
+    ],
+    [
+     "7125 BORDÔ",
+     null
+    ],
+    [
+     "9239 CINZA",
+     null
+    ],
+    [
+     "9240 CHUMBO",
+     null
+    ],
+    [
+     "1404 MARINHO",
+     null
+    ],
+    [
+     "21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1140",
+   "nome": "MD 1140 MOLETINHO PV ANTI-PILLING RAMADO",
+   "interno": "MOLETINHO PV",
+   "composicao": "63% POLIÉSTER 34% VISCOSE 3% ELASTANO",
+   "gramatura": 300,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 1.85,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "1 BRANCO",
+     "COR CLARA"
+    ],
+    [
+     "9226 GRAFITE",
+     "COR MÉDIA"
+    ],
+    [
+     "1471 MARINHO",
+     "COR ESCURA"
+    ],
+    [
+     "21 PRETO",
+     "COR ESCURA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "MD 1141",
+   "nome": "MD 1141 MOLETINHO PV MESCLA ANTI-PILLING RAMADO",
+   "interno": "MOLETINHO PV",
+   "composicao": "63% POLIÉSTER 34% VISCOSE 3% ELASTANO",
+   "gramatura": 300,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 1.85,
+   "unidade": "KG",
+   "especificacao": "CATÁLOGO LINHA MALHA 2026",
+   "cores": [
+    [
+     "9198 MESCLA MÉDIO",
+     "COR ESCURA"
+    ]
+   ]
+  }
+ ]
+}
