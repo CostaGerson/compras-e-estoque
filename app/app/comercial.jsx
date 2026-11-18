@@ -2327,7 +2327,7 @@ function ResumoDet({ det, categoria, botao }) {
 }
 // v845 — artigo: ao digitar, busca os artigos já cadastrados no estoque e preenche nome, custo e detalhes (fornecedor, cor, código…);
 //   sem correspondência → "Artigo novo". Enquanto não escolher um dos dois, o artigo fica pendente e a FPP não salva.
-let _artCache = null;
+let _artCache = null, _artCacheEm = 0;
 const semAcA = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const n4 = (v) => (v == null || v === "" ? "" : String(Number(v)).replace(".", ","));
 function detDoArtigo(a) {
@@ -2336,6 +2336,25 @@ function detDoArtigo(a) {
     largura: n4(a.largura), gramatura: n4(a.gramatura), rendimento: n4(a.rendimento), tipoMalha: a.tipoMalha || "", composicao: a.composicao || "" };   // v891 — #85
   for (const k of Object.keys(d)) if (d[k] === "" || d[k] == null) delete d[k];
   return d;
+}
+// v985 — specs que faltam no artigo escolhido (ex.: cadastrado pela NF, sem gramatura/rendimento) vêm do mesmo artigo
+//   do mesmo fornecedor em outra cor ou da cartela (mesmo nome), preferindo o da cartela e a mesma cor
+const SPECS_DET = ["largura", "gramatura", "rendimento", "tipoMalha", "composicao"];
+function completarDet(d, arts) {
+  if (!d || !Array.isArray(arts) || !arts.length) return d;
+  const falta = SPECS_DET.filter((k) => d[k] == null || d[k] === "");
+  if (!falta.length) return d;
+  const a0 = d.artigoId ? arts.find((x) => x.id === d.artigoId) : null;
+  const n0 = normBusca(a0?.nome || ""), f0 = a0?.fornecedorId ?? d.fornecedorId;
+  const cands = arts.filter((x) => x.id !== d.artigoId && (a0 ? normBusca(x.nome) === n0 : false) && (f0 ? x.fornecedorId === f0 : true));
+  if (a0) cands.unshift(a0);
+  const ord = cands.sort((x, y) => (x === a0 ? -1 : y === a0 ? 1 : 0) || ((y.origem === "CARTELA") - (x.origem === "CARTELA")) || ((normBusca(y.cor) === normBusca(d.cor)) - (normBusca(x.cor) === normBusca(d.cor))));
+  const n = { ...d };
+  for (const k of falta) {
+    const src = ord.find((x) => x[k] != null && x[k] !== "");
+    if (src) n[k] = k === "tipoMalha" || k === "composicao" ? src[k] : n4(src[k]);
+  }
+  return n;
 }
 // v968 — busca inteligente de artigos: o texto digitado casa com nome, artigo interno, composição, código e FORNECEDOR
 //   (ex.: "PV STAMP LITE"), por prefixo e com 1 letra de diferença nas palavras longas; os artigos do mesmo fornecedor/nome/composição
@@ -2416,15 +2435,22 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, pod
   const [open, setOpen] = useState(false);
   const [variar, setVariar] = useState(null);   // v968 — membros da família para escolher as cores
   const [abertos, setAbertos] = useState({});
-  useEffect(() => { if (!_artCache) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; setArts(_artCache); }).catch(() => {}); }, []);
+  // v985 — a lista do estoque é relida se tiver mais de 5 min (artigos novos da cartela aparecem sem recarregar a página)
+  useEffect(() => { if (!_artCache || Date.now() - (_artCacheEm || 0) > 5 * 60e3) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; _artCacheEm = Date.now(); setArts(_artCache); }).catch(() => {}); }, []);
   const lista = useMemo(() => buscarArtigos(arts, categoria, nome || ""), [arts, categoria, nome]);
+  // v985 — artigo já escolhido sem gramatura/rendimento/largura: completa com o cadastro atual (cartela)
+  useEffect(() => {
+    if (!det?.artigoId || !arts.length) return;
+    const n = completarDet(det, arts);
+    if (SPECS_DET.some((k) => n[k] !== det[k])) onDet && onDet(n);
+  }, [arts, det?.artigoId]);
   const pendente = !!det?.pendente;
   const custoDe = (a) => {
     const unOk = (categoria === "MALHA" && a.unidade === "KG") || (categoria !== "MALHA" && a.unidade === "M");
     return unOk && a.valorUnitario != null ? String(Number(a.valorUnitario).toFixed(2)).replace(".", ",") : null;
   };
   const escolher = (a, extra) => {
-    const d = { ...detDoArtigo(a), ...(extra || {}) };
+    const d = { ...completarDet(detDoArtigo(a), arts), ...(extra || {}) };
     if (onPick) onPick({ nome: a.nome, det: d, custo: custoDe(a) }); else { onNome(a.nome); onDet(d); }
     setOpen(false);
   };
@@ -2433,7 +2459,7 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, pod
     const ord = [...sel].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)));
     if (!ord.length) return setVariar(null);
     const principal = ord[0];
-    const outras = ord.slice(1).map((a) => ({ artigoId: a.id, cor: a.cor || "", det: detDoArtigo(a), custo: custoDe(a) }));
+    const outras = ord.slice(1).map((a) => ({ artigoId: a.id, cor: a.cor || "", det: completarDet(detDoArtigo(a), arts), custo: custoDe(a) }));
     escolher(principal, outras.length ? { variarCores: outras } : {});
     setVariar(null);
   };
