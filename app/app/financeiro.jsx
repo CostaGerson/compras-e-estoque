@@ -3338,7 +3338,7 @@ function IdentificarModal({ user, itens, contas, onClose, onSalvo }) {
   const um = itens.length === 1 ? itens[0] : null;
   const [contaId, setContaId] = useState(um?.contaId || null);
   const [ident, setIdent] = useState(um?.identificacao || "");
-  const [criarRegra, setCriarRegra] = useState(true);
+  const [criarRegra, setCriarRegra] = useState(false);   // v951 — abre desmarcada
   const [soBanco, setSoBanco] = useState(false);
   const [soSinal, setSoSinal] = useState(true);
   // uma linha de palavra-chave por histórico diferente (lançamentos iguais viram uma linha só)
