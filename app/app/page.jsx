@@ -120,7 +120,7 @@ const MENU = [
     { key: "rota", label: "Rota", icon: IcoRota, perfis: [...TODOS, "ADMINISTRATIVO", ...PROD, "LOGISTICA", "COMERCIAL", "NORT"], desc: "Demandas de rota, mapa do dia, montagem e despacho das rotas aos motoristas" },
   ] },
   { key: "rh", label: "Recursos Humanos", icon: IcoRH, perfis: ["FINANCEIRO", "RH"], desc: "Matriz de pessoal, carômetro, documentos do mês e calendário de obrigações" },
-  { key: "producao", label: "Produção", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
+  { key: "producao", label: "Operação", icon: Factory, pagina: true, desc: "Pedidos de produção, análises, compras e estoque", filhos: [   // v420 — abre a Gestão da produção
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Sincronização de pedidos", icon: ClipboardList, desc: "Pedidos do KM em lista: situação no PCP, itens com FPP e ligação de cada item à FPP base" },
       { key: "comprasAvulsas", label: "Compras avulsas", icon: ShoppingCart, desc: "Demandas de compra avulsa (operação ou complemento de pedido): lançar, editar e marcar comprada" },   // v468
@@ -1689,7 +1689,7 @@ function LancarPP({ user }) {
               {podeLancar && <button title="Excluir" onClick={async () => {
                 // v671 — pedido com número (KM ou lançado) vai para a lixeira de pedidos, com justificativa; rascunho sem número é apagado
                 if (p.numero) {
-                  const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.clienteNome || ""})?\n\nEle vai para a lixeira (Produção › Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
+                  const motivo = await perguntar(`Excluir o pedido ${p.numero} (${p.clienteNome || ""})?\n\nEle vai para a lixeira (Operação › Excluídos) e deixa de aparecer na produção, compras, faturamento e previsões; o KM não o recria. Dá para restaurar.\n\nJustificativa (obrigatória):`, "");
                   if (motivo === null || motivo === undefined) return;
                   if (String(motivo).trim().length < 5) return alerta("Escreva a justificativa da exclusão (mínimo 5 caracteres).");
                   const r = await ppFetch(`/api/pp/${p.id}?motivo=${encodeURIComponent(motivo)}`, { method: "DELETE" });

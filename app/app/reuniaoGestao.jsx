@@ -253,7 +253,7 @@ function montarSlides(R) {
     return (
       <>
         <Cab g="PESSOAS E PROCESSOS" t={nome} />
-        {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ }}>Análise de {nome.toLowerCase().slice(8)} de {MES.toLowerCase()} ainda não lançada (Produção › Análises operacionais).</div> : (
+        {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ }}>Análise de {nome.toLowerCase().slice(8)} de {MES.toLowerCase()} ainda não lançada (Operação › Análises operacionais).</div> : (
           <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 24 }}>
             <div style={{ flex: 1 }}>
               <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]}
