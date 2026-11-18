@@ -1,0 +1,3243 @@
+{
+ "flag": "SEED|CARTELA|EXPANSIONE|2026-11-18",
+ "fornecedor": {
+  "nome": "EXPANSIONE",
+  "nomeFantasia": "EXPANSIONE TECIDOS E MALHAS",
+  "obs": "CADASTRADO PELOS BOOKS ESPORTIVO E PROFISSIONAL (18/11/2026). A CARTELA SÓ TRAZ O CÓDIGO DA COR: OS NOMES DAS CORES FORAM DADOS PELA FOTO DA AMOSTRA (APROXIMADOS)",
+  "busca": "EXPANSIONE"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "TECIDO",
+   "nome": "TELA POLIESTER"
+  },
+  {
+   "categoria": "MALHA",
+   "nome": "PIQUET POLIESTER"
+  },
+  {
+   "categoria": "MALHA",
+   "nome": "ALGODAO FLAME"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA FORMOSA"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA OSMARCEL"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA MADRI"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "FORRO CRU"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY FIT ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.21,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · PROTEÇÃO UV 50",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "1664 AMARELO",
+     null
+    ],
+    [
+     "1010 AMARELO OURO",
+     null
+    ],
+    [
+     "0068 LARANJA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0058 AZUL ANIL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0996 AMARELO NEON",
+     null
+    ],
+    [
+     "0999 LARANJA NEON",
+     null
+    ],
+    [
+     "1888 AZUL PETRÓLEO",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0042 VERDE ESCURO",
+     null
+    ],
+    [
+     "0086 CHUMBO",
+     null
+    ],
+    [
+     "0020 MARFIM",
+     null
+    ],
+    [
+     "6054 VERDE LIMÃO",
+     null
+    ],
+    [
+     "1020 CORAL NEON",
+     null
+    ],
+    [
+     "9999 MESCLA",
+     null
+    ],
+    [
+     "1986 BRANCO ÓPTICO",
+     null
+    ],
+    [
+     "0401 ROSA BEBÊ",
+     null
+    ],
+    [
+     "1818 VERDE GARRAFA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "CONFORT DRY FIT ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 130,
+   "largura": 1.6,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.81,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "NACIONAL DRY",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 130,
+   "largura": 1.7,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.52,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY FIT ONE",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.32,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · BRANCO REATIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "FIT ONE",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.65,
+   "tipoMalha": null,
+   "rendimento": 4.85,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MESCLA COLORS DRY",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 150,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.6,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "1010 MESCLA OLIVA",
+     null
+    ],
+    [
+     "0058 MESCLA AZUL ROYAL",
+     null
+    ],
+    [
+     "1888 MESCLA PETRÓLEO",
+     null
+    ],
+    [
+     "0068 MESCLA LARANJA",
+     null
+    ],
+    [
+     "0014 MESCLA PINK",
+     null
+    ],
+    [
+     "0077 MESCLA VERMELHO",
+     null
+    ],
+    [
+     "0038 MESCLA VERDE BANDEIRA",
+     null
+    ],
+    [
+     "9999 MESCLA CINZA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY FIT LISTRAS ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.44,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY FIT MEZZO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.0,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY LOSANGO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": 4.44,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY SOFT",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.9,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.21,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PLAY DRY ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.6,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0302 AMARELO OURO",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0058 AZUL ANIL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0301 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0098 CHUMBO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0037 BORDÔ",
+     null
+    ],
+    [
+     "0996 AMARELO NEON",
+     null
+    ],
+    [
+     "2058 VIOLETA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "AERO DRY ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 140,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 3.97,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · AERO DRY ROMA REATIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "HELANCA ROMA PERFETTO",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 245,
+   "largura": 1.0,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.04,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "1760 GRAFITE",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0086 CINZA",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0049",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0004 VERDE PETRÓLEO",
+     null
+    ],
+    [
+     "0616 VERDE TURQUESA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MULTI SPORT ROMA PERFETTO",
+   "interno": "DRY FIT POLIESTER COM ELASTANO",
+   "composicao": "95% POLIÉSTER 5% ELASTANO",
+   "gramatura": 330,
+   "largura": null,
+   "tipoMalha": "RAMADA",
+   "rendimento": 1.9,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0058 AZUL ROYAL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0402 ROSA",
+     null
+    ],
+    [
+     "0015 LILÁS",
+     null
+    ],
+    [
+     "0126 VERMELHO",
+     null
+    ],
+    [
+     "0065 ROXO",
+     null
+    ],
+    [
+     "0048 AZUL CELESTE",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0904 GRAFITE",
+     null
+    ],
+    [
+     "1005 CHUMBO",
+     null
+    ],
+    [
+     "0022 VERDE ESCURO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "SUPLEX POWER",
+   "interno": "POLIAMIDA COM ELASTANO",
+   "composicao": "88% POLIAMIDA 12% ELASTANO",
+   "gramatura": 330,
+   "largura": 1.7,
+   "tipoMalha": "RAMADA",
+   "rendimento": 1.78,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · PRODUTO LIMITADO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0006 VERDE PETRÓLEO",
+     null
+    ],
+    [
+     "0815 ROXO ESCURO",
+     null
+    ],
+    [
+     "0904 GRAFITE",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "SUPLEX LIGHT",
+   "interno": "POLIAMIDA COM ELASTANO",
+   "composicao": "92% POLIAMIDA 8% ELASTANO",
+   "gramatura": 246,
+   "largura": 1.6,
+   "tipoMalha": "RAMADA",
+   "rendimento": 2.54,
+   "unidade": "KG",
+   "especificacao": "BOOK ESPORTIVO · PRODUTO LIMITADO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "8941 AMARELO NEON",
+     null
+    ],
+    [
+     "0904 GRAFITE",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ROMATEL",
+   "interno": "TELA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 110,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · 176 G/ML",
+   "cores": [
+    [
+     "0089 BRANCO",
+     null
+    ],
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0034 VERMELHO",
+     null
+    ],
+    [
+     "0016 AZUL ROYAL",
+     null
+    ],
+    [
+     "0031 AZUL ROYAL ESCURO",
+     null
+    ],
+    [
+     "0071 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0019 AZUL NOITE",
+     null
+    ],
+    [
+     "0022 VERDE GARRAFA",
+     null
+    ],
+    [
+     "0020 PRETO",
+     null
+    ],
+    [
+     "0004 AMARELO NEON",
+     null
+    ],
+    [
+     "0007 CINZA PÉROLA",
+     null
+    ],
+    [
+     "0025 AMARELO LIMÃO",
+     null
+    ],
+    [
+     "0087 AMARELO",
+     null
+    ],
+    [
+     "0021 AMARELO OURO",
+     null
+    ],
+    [
+     "0037 LARANJA",
+     null
+    ],
+    [
+     "0052 LARANJA AVERMELHADO",
+     null
+    ],
+    [
+     "0030 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0033 PINK",
+     null
+    ],
+    [
+     "0035 ROSA CHOQUE",
+     null
+    ],
+    [
+     "0039 LILÁS",
+     null
+    ],
+    [
+     "0003 ROXO",
+     null
+    ],
+    [
+     "0080 VINHO",
+     null
+    ],
+    [
+     "0077 AZUL CELESTE",
+     null
+    ],
+    [
+     "0075 AZUL FRANÇA",
+     null
+    ],
+    [
+     "0074 AZUL ROYAL CLARO",
+     null
+    ],
+    [
+     "0054 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0041 AZUL ACINZENTADO",
+     null
+    ],
+    [
+     "0096 MARINHO",
+     null
+    ],
+    [
+     "0070 MARINHO MÉDIO",
+     null
+    ],
+    [
+     "0050 MARINHO",
+     null
+    ],
+    [
+     "0049 AZUL PETRÓLEO ESCURO",
+     null
+    ],
+    [
+     "0085 AZUL NOITE",
+     null
+    ],
+    [
+     "0011",
+     null
+    ],
+    [
+     "1143 BRANCO",
+     null
+    ],
+    [
+     "0008 VERDE ESMERALDA",
+     null
+    ],
+    [
+     "0036 AZUL PETRÓLEO",
+     null
+    ],
+    [
+     "0H90 VERDE MUSGO ESCURO",
+     null
+    ],
+    [
+     "0086 VERDE ESCURO",
+     null
+    ],
+    [
+     "0010 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0040 VERDE OLIVA",
+     null
+    ],
+    [
+     "0088 MARROM ACINZENTADO",
+     null
+    ],
+    [
+     "0083 MARROM CAFÉ",
+     null
+    ],
+    [
+     "0012 CINZA CLARO",
+     null
+    ],
+    [
+     "0013 CINZA MÉDIO",
+     null
+    ],
+    [
+     "0015 CINZA AZULADO",
+     null
+    ],
+    [
+     "0014 CHUMBO",
+     null
+    ],
+    [
+     "0026 LARANJA NEON",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ROMAFLY",
+   "interno": "TELA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 75,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · 120 G/ML",
+   "cores": [
+    [
+     "0089 BRANCO",
+     null
+    ],
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0005 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0025 AMARELO NEON",
+     null
+    ],
+    [
+     "0091",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0126 ROSA CLARO",
+     null
+    ],
+    [
+     "0045 SALMÃO",
+     null
+    ],
+    [
+     "0048 PÊSSEGO",
+     null
+    ],
+    [
+     "0095 ROSA SALMÃO",
+     null
+    ],
+    [
+     "0007 BEGE",
+     null
+    ],
+    [
+     "0012 AMARELO OURO",
+     null
+    ],
+    [
+     "0052 LARANJA",
+     null
+    ],
+    [
+     "0034 VERMELHO",
+     null
+    ],
+    [
+     "0006 ROSA",
+     null
+    ],
+    [
+     "0035 PINK",
+     null
+    ],
+    [
+     "0003 LILÁS",
+     null
+    ],
+    [
+     "0004 ROXO",
+     null
+    ],
+    [
+     "0092 AZUL GELO",
+     null
+    ],
+    [
+     "0015 AZUL CELESTE",
+     null
+    ],
+    [
+     "0010 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0016 AZUL ROYAL",
+     null
+    ],
+    [
+     "0070 MARINHO",
+     null
+    ],
+    [
+     "0019 AZUL NOITE",
+     null
+    ],
+    [
+     "0093 VERDE ÁGUA",
+     null
+    ],
+    [
+     "0009 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0086 VERDE ESCURO",
+     null
+    ],
+    [
+     "0088 CÁQUI",
+     null
+    ],
+    [
+     "0018 CINZA",
+     null
+    ],
+    [
+     "0014 CHUMBO",
+     null
+    ],
+    [
+     "0020 PRETO",
+     null
+    ],
+    [
+     "0026 LARANJA NEON",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ROMA AUSTRI PELETIZADO",
+   "interno": "BRIM POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 136,
+   "largura": 1.65,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA · PELETIZADO · PROTEÇÃO UV 50",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "1222 MARINHO",
+     null
+    ],
+    [
+     "0021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ROMA AUSTRI IMPERMEÁVEL",
+   "interno": "BRIM POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 136,
+   "largura": 1.65,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA · IMPERMEÁVEL · PROTEÇÃO UV 50",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "1222 MARINHO",
+     null
+    ],
+    [
+     "0021 PRETO",
+     null
+    ],
+    [
+     "0198 VERDE MILITAR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ROMA STRETCH",
+   "interno": "TELA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 160,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "256 G/ML · LANÇAMENTO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "7009 MARINHO",
+     null
+    ],
+    [
+     "0020 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "FURADINHO II",
+   "interno": "POLIAMIDA",
+   "composicao": "100% POLIAMIDA",
+   "gramatura": 42,
+   "largura": 1.5,
+   "tipoMalha": "RAMADA",
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": "63 G/L · TELA FURADINHO",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ],
+    [
+     "VERMELHO",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "MARINHO",
+     null
+    ],
+    [
+     "PRETO",
+     null
+    ],
+    [
+     "AMARELO FLUORESCENTE",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PIQUET ROMA PERFETTO BRANCO",
+   "interno": "PIQUET P.A",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 200,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.1,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PIQUET ROMA PERFETTO CORES",
+   "interno": "PIQUET P.A",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 220,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.9,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0014 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0035 PINK",
+     null
+    ],
+    [
+     "8941 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "1010 AMARELO OURO",
+     null
+    ],
+    [
+     "0030 AMARELO MANGA",
+     null
+    ],
+    [
+     "0026 LARANJA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "8939 VERMELHO ESCURO",
+     null
+    ],
+    [
+     "0037 BORDÔ",
+     null
+    ],
+    [
+     "8949 MARROM CAFÉ",
+     null
+    ],
+    [
+     "0048 AZUL CLARO",
+     null
+    ],
+    [
+     "0049 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0068 AZUL ANIL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0020 VERDE LIMÃO",
+     null
+    ],
+    [
+     "0050 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0058 CHUMBO",
+     null
+    ],
+    [
+     "0086 CINZA",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ],
+    [
+     "8943 LAVANDA",
+     null
+    ],
+    [
+     "1766 VIOLETA",
+     null
+    ],
+    [
+     "9006 CORAL",
+     null
+    ],
+    [
+     "8952",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "8946",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0007 VINHO",
+     null
+    ],
+    [
+     "0061 AZUL CELESTE",
+     null
+    ],
+    [
+     "1701 AZUL PETRÓLEO",
+     null
+    ],
+    [
+     "8947 AZUL FRANÇA",
+     null
+    ],
+    [
+     "0200 AZUL ACINZENTADO",
+     null
+    ],
+    [
+     "0202 MARINHO ESCURO",
+     null
+    ],
+    [
+     "1918 VERDE PETRÓLEO ESCURO",
+     null
+    ],
+    [
+     "0008 VERDE ÁGUA",
+     null
+    ],
+    [
+     "1695 VERDE JADE",
+     null
+    ],
+    [
+     "0616 VERDE TURQUESA",
+     null
+    ],
+    [
+     "0620 VERDE FOLHA",
+     null
+    ],
+    [
+     "0055 VERDE MILITAR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PIQUET PV ROMA PERFETTO BRANCO",
+   "interno": "PIQUET P.V",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 200,
+   "largura": 1.2,
+   "tipoMalha": null,
+   "rendimento": 2.08,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PIQUET PV ROMA PERFETTO CORES",
+   "interno": "PIQUET P.V",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 210,
+   "largura": 1.2,
+   "tipoMalha": null,
+   "rendimento": 1.98,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0020 VERDE LIMÃO",
+     null
+    ],
+    [
+     "0050 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ALASCA PIQUET PES BRANCO",
+   "interno": "PIQUET POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 200,
+   "largura": 1.2,
+   "tipoMalha": null,
+   "rendimento": 2.08,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ALASCA PIQUET PES CORES",
+   "interno": "PIQUET POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 210,
+   "largura": 1.2,
+   "tipoMalha": null,
+   "rendimento": 1.98,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "0020 VERDE LIMÃO",
+     null
+    ],
+    [
+     "0050 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PV ROMA PERFETTO 1,2 BRANCO",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 175,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PV ROMA PERFETTO 1,2 CORES",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 185,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.25,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0100 CINZA GELO",
+     null
+    ],
+    [
+     "0083 CINZA",
+     null
+    ],
+    [
+     "0902 BEGE",
+     null
+    ],
+    [
+     "0087 MARROM CAFÉ",
+     null
+    ],
+    [
+     "1010 AMARELO OURO",
+     null
+    ],
+    [
+     "0030 AMARELO MANGA",
+     null
+    ],
+    [
+     "0068 LARANJA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0126 VERMELHO CARMIM",
+     null
+    ],
+    [
+     "0099 VINHO",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ],
+    [
+     "0065 ROXO",
+     null
+    ],
+    [
+     "0049 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0048 AZUL CELESTE",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0058 AZUL ANIL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "1760 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0035 VERDE LIMÃO",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0042 VERDE ESCURO",
+     null
+    ],
+    [
+     "0086 CHUMBO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "1002 MESCLA CLARO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ],
+    [
+     "0206 MARFIM",
+     null
+    ],
+    [
+     "0025 CREME",
+     null
+    ],
+    [
+     "0009 LAVANDA",
+     null
+    ],
+    [
+     "0835 AZUL ROYAL CLARO",
+     null
+    ],
+    [
+     "0098",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0301 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0082 CINZA CLARO",
+     null
+    ],
+    [
+     "0045 CINZA MÉDIO",
+     null
+    ],
+    [
+     "0139 VERDE PETRÓLEO",
+     null
+    ],
+    [
+     "1003 MESCLA ESCURO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PV ROMA PERFETTO 0,9 BRANCO",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 175,
+   "largura": 0.9,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.18,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PV ROMA PERFETTO 0,9 CORES",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 185,
+   "largura": 0.9,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.0,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · ANTI-PILLING · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0201 OFF WHITE",
+     null
+    ],
+    [
+     "0100 CINZA GELO",
+     null
+    ],
+    [
+     "0083 CINZA",
+     null
+    ],
+    [
+     "0902 BEGE",
+     null
+    ],
+    [
+     "0087 MARROM CAFÉ",
+     null
+    ],
+    [
+     "1010 AMARELO OURO",
+     null
+    ],
+    [
+     "0030 AMARELO MANGA",
+     null
+    ],
+    [
+     "0068 LARANJA",
+     null
+    ],
+    [
+     "0077 VERMELHO",
+     null
+    ],
+    [
+     "0126 VERMELHO CARMIM",
+     null
+    ],
+    [
+     "0099 VINHO",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ],
+    [
+     "0065 ROXO",
+     null
+    ],
+    [
+     "0049 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0048 AZUL CELESTE",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0058 AZUL ANIL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "1760 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0035 VERDE LIMÃO",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0042 VERDE ESCURO",
+     null
+    ],
+    [
+     "0086 CHUMBO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ],
+    [
+     "1002 MESCLA CLARO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ],
+    [
+     "0206 MARFIM",
+     null
+    ],
+    [
+     "0025 CREME",
+     null
+    ],
+    [
+     "0009 LAVANDA",
+     null
+    ],
+    [
+     "0835 AZUL ROYAL CLARO",
+     null
+    ],
+    [
+     "0098",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0301 MARINHO ESCURO",
+     null
+    ],
+    [
+     "0082 CINZA CLARO",
+     null
+    ],
+    [
+     "0045 CINZA MÉDIO",
+     null
+    ],
+    [
+     "0139 VERDE PETRÓLEO",
+     null
+    ],
+    [
+     "1003 MESCLA ESCURO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "NAPOLE ROMA PERFETTO 0,90",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 165,
+   "largura": 0.9,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.36,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "NAPOLE ROMA PERFETTO 1,20",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 165,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.52,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PA GENOVA ROMA PERFETTO",
+   "interno": "PA",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 175,
+   "largura": 0.9,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.08,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PA MESCLA GENOVA",
+   "interno": "PA",
+   "composicao": "62% ALGODÃO 38% POLIÉSTER",
+   "gramatura": 145,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.87,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "0928 MESCLA CHUMBO",
+     null
+    ],
+    [
+     "0929 MESCLA BORDÔ",
+     null
+    ],
+    [
+     "0930 MESCLA PRETO",
+     null
+    ],
+    [
+     "0999 MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ROMA VINTAGE",
+   "interno": "PA",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 165,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.53,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "1154 CARAMELO",
+     null
+    ],
+    [
+     "1155 VERMELHO VINTAGE",
+     null
+    ],
+    [
+     "1156 VINHO",
+     null
+    ],
+    [
+     "1157 AZUL JEANS CLARO",
+     null
+    ],
+    [
+     "1158 MARINHO JEANS",
+     null
+    ],
+    [
+     "1159 VERDE MUSGO",
+     null
+    ],
+    [
+     "1160 MARROM",
+     null
+    ],
+    [
+     "1161 CINZA",
+     null
+    ],
+    [
+     "1162 CHUMBO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MYKONOS",
+   "interno": "PA",
+   "composicao": "73% ALGODÃO 27% POLIÉSTER",
+   "gramatura": 170,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.23,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "1016 MESCLA PRETO E BRANCO",
+     null
+    ],
+    [
+     "1017 MESCLA BEGE",
+     null
+    ],
+    [
+     "1018 MESCLA AZUL",
+     null
+    ],
+    [
+     "1019 MESCLA VERDE ESCURO",
+     null
+    ],
+    [
+     "1021 MESCLA VERDE MUSGO",
+     null
+    ],
+    [
+     "1022 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "LYON PA",
+   "interno": "PA",
+   "composicao": "62% ALGODÃO 38% POLIÉSTER",
+   "gramatura": 145,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.87,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "0980 MESCLA ROSA",
+     null
+    ],
+    [
+     "0981 MESCLA AMARELO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "LINHO ROMA",
+   "interno": null,
+   "composicao": "76% ALGODÃO 11% POLIÉSTER 13% VISCOSE",
+   "gramatura": 178,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.32,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "1163 LINHO BRANCO",
+     null
+    ],
+    [
+     "1164 LINHO NATURAL",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ALGODÃO PENTEADO ROMA PERFETTO",
+   "interno": "ALGODAO 30.1 PENTEADO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 175,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "2133 OFF WHITE",
+     null
+    ],
+    [
+     "0401 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ],
+    [
+     "1010 AMARELO",
+     null
+    ],
+    [
+     "0030 AMARELO OURO",
+     null
+    ],
+    [
+     "0068 LARANJA",
+     null
+    ],
+    [
+     "0927 VERMELHO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "0099 VINHO",
+     null
+    ],
+    [
+     "0065 ROXO",
+     null
+    ],
+    [
+     "0019 AZUL BEBÊ",
+     null
+    ],
+    [
+     "1488 AZUL PISCINA",
+     null
+    ],
+    [
+     "0048 AZUL CELESTE",
+     null
+    ],
+    [
+     "0049 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0412 VERDE MENTA",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0042 VERDE ESCURO",
+     null
+    ],
+    [
+     "0086 CHUMBO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ALGODÃO CARDADO ROMA PERFETTO",
+   "interno": "ALGODAO 30.1 CARDADO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 175,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · PROTEÇÃO UV 35",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "2133 OFF WHITE",
+     null
+    ],
+    [
+     "0401 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0014 PINK",
+     null
+    ],
+    [
+     "1010 AMARELO",
+     null
+    ],
+    [
+     "0030 AMARELO OURO",
+     null
+    ],
+    [
+     "0068 LARANJA",
+     null
+    ],
+    [
+     "0927 VERMELHO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "0099 VINHO",
+     null
+    ],
+    [
+     "0065 ROXO",
+     null
+    ],
+    [
+     "0019 AZUL BEBÊ",
+     null
+    ],
+    [
+     "1488 AZUL PISCINA",
+     null
+    ],
+    [
+     "0048 AZUL CELESTE",
+     null
+    ],
+    [
+     "0049 AZUL TURQUESA",
+     null
+    ],
+    [
+     "0057 AZUL ROYAL",
+     null
+    ],
+    [
+     "0059 MARINHO",
+     null
+    ],
+    [
+     "0093 AZUL NOITE",
+     null
+    ],
+    [
+     "0412 VERDE MENTA",
+     null
+    ],
+    [
+     "0038 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0042 VERDE ESCURO",
+     null
+    ],
+    [
+     "0086 CHUMBO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "ALGODÃO FLAMÊ",
+   "interno": "ALGODAO FLAME",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 172,
+   "largura": 0.93,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 3.13,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL · LANÇAMENTO",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0093 MARINHO",
+     null
+    ],
+    [
+     "0090 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CITY STRETCH",
+   "interno": "TELA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.5,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "202 G/ML",
+   "cores": [
+    [
+     "08483 BRANCO",
+     null
+    ],
+    [
+     "0002 NUDE",
+     null
+    ],
+    [
+     "0003 VERDE ÁGUA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "OXFORD ROMA",
+   "interno": "TELA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.5,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "7009 MARINHO",
+     null
+    ],
+    [
+     "0020 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "BRIM LEVE 1215",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 202,
+   "largura": 1.62,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2X1E · 327 G/ML · LINHA PROFISSIONAL",
+   "cores": [
+    [
+     "G1 0002 BRANCO",
+     null
+    ],
+    [
+     "G2 4101 CINZA PÉROLA",
+     null
+    ],
+    [
+     "G2 7235 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "G2 8260 CINZA",
+     null
+    ],
+    [
+     "G4 7070 LARANJA",
+     null
+    ],
+    [
+     "G4 5524 VERMELHO",
+     null
+    ],
+    [
+     "G4 5279 AZUL ROYAL",
+     null
+    ],
+    [
+     "G2 3008 AZUL LAVANDA",
+     null
+    ],
+    [
+     "G4 3010 MARINHO",
+     null
+    ],
+    [
+     "G4 6088 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "G2 6100 VERDE ACINZENTADO",
+     null
+    ],
+    [
+     "G3 6631 CHUMBO",
+     null
+    ],
+    [
+     "G3 9908 PRETO",
+     null
+    ],
+    [
+     "G2 6019 VERDE ÁGUA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "BRIM PESADO 1314",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 250,
+   "largura": 1.62,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3X1E · 405 G/ML · LINHA PROFISSIONAL",
+   "cores": [
+    [
+     "G1 0002 BRANCO",
+     null
+    ],
+    [
+     "G2 4101 CINZA PÉROLA",
+     null
+    ],
+    [
+     "G2 7235 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "G2 8260 CINZA",
+     null
+    ],
+    [
+     "G4 7070 LARANJA",
+     null
+    ],
+    [
+     "G4 5524 VERMELHO",
+     null
+    ],
+    [
+     "G4 5279 AZUL ROYAL",
+     null
+    ],
+    [
+     "G2 3008 AZUL LAVANDA",
+     null
+    ],
+    [
+     "G4 3010 MARINHO",
+     null
+    ],
+    [
+     "G4 6088 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "G2 6100 VERDE ACINZENTADO",
+     null
+    ],
+    [
+     "G3 6631 CHUMBO",
+     null
+    ],
+    [
+     "G3 9908 PRETO",
+     null
+    ],
+    [
+     "G2 6019 VERDE ÁGUA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "UNIPACIFIC BRIM",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 265,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": 2.36,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "1001 BRANCO",
+     null
+    ],
+    [
+     "1010 CINZA PÉROLA",
+     null
+    ],
+    [
+     "1021 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "1009 CINZA",
+     null
+    ],
+    [
+     "1012 LARANJA",
+     null
+    ],
+    [
+     "1003 AZUL LAVANDA",
+     null
+    ],
+    [
+     "1808 MARINHO ESCURO",
+     null
+    ],
+    [
+     "1414 AZUL ROYAL",
+     null
+    ],
+    [
+     "1015 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "1006 CHUMBO",
+     null
+    ],
+    [
+     "1016 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "UNIQUALITY BRIM",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 220,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": 2.84,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "1001 BRANCO",
+     null
+    ],
+    [
+     "1010 CINZA PÉROLA",
+     null
+    ],
+    [
+     "1021 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "1009 CINZA",
+     null
+    ],
+    [
+     "1012 LARANJA",
+     null
+    ],
+    [
+     "1003 AZUL LAVANDA",
+     null
+    ],
+    [
+     "1808 MARINHO ESCURO",
+     null
+    ],
+    [
+     "1414 AZUL ROYAL",
+     null
+    ],
+    [
+     "1015 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "1006 CHUMBO",
+     null
+    ],
+    [
+     "1016 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "BRIM MISTO LEVE",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "80% POLIÉSTER 20% ALGODÃO",
+   "gramatura": 190,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": 3.29,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "0011 BRANCO",
+     null
+    ],
+    [
+     "0CPD CINZA PÉROLA",
+     null
+    ],
+    [
+     "0EQ7 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "0YGK CINZA",
+     null
+    ],
+    [
+     "0YGG CINZA CLARO",
+     null
+    ],
+    [
+     "0YGN CHUMBO",
+     null
+    ],
+    [
+     "0WNJ AMARELO",
+     null
+    ],
+    [
+     "0WNH AMARELO OURO",
+     null
+    ],
+    [
+     "0XHM LARANJA",
+     null
+    ],
+    [
+     "0UT4 VERMELHO",
+     null
+    ],
+    [
+     "0MFM AZUL ROYAL",
+     null
+    ],
+    [
+     "0MFL MARINHO",
+     null
+    ],
+    [
+     "0HW2 VERDE ÁGUA",
+     null
+    ],
+    [
+     "0HT9 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0HT8 VERDE ESCURO",
+     null
+    ],
+    [
+     "0999 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "BRIM MISTO PESADO",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "80% POLIÉSTER 20% ALGODÃO",
+   "gramatura": 240,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": 2.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "0011 BRANCO",
+     null
+    ],
+    [
+     "0CPD CINZA PÉROLA",
+     null
+    ],
+    [
+     "0EQ7 CÁQUI ESCURO",
+     null
+    ],
+    [
+     "0YGK CINZA",
+     null
+    ],
+    [
+     "0YGG CINZA CLARO",
+     null
+    ],
+    [
+     "0YGN CHUMBO",
+     null
+    ],
+    [
+     "0WNJ AMARELO",
+     null
+    ],
+    [
+     "0WNH AMARELO OURO",
+     null
+    ],
+    [
+     "0XHM LARANJA",
+     null
+    ],
+    [
+     "0UT4 VERMELHO",
+     null
+    ],
+    [
+     "0MFM AZUL ROYAL",
+     null
+    ],
+    [
+     "0MFL MARINHO",
+     null
+    ],
+    [
+     "0HW2 VERDE ÁGUA",
+     null
+    ],
+    [
+     "0HT9 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "0HT8 VERDE ESCURO",
+     null
+    ],
+    [
+     "0999 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "SARJA IPANEMA 1215",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 202,
+   "largura": 1.62,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2X1E · 327 G/ML",
+   "cores": [
+    [
+     "3020 AZUL ROYAL",
+     null
+    ],
+    [
+     "3370 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "SARJA ICARAÍ 1314",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 250,
+   "largura": 1.62,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3X1E · 405 G/ML",
+   "cores": [
+    [
+     "3020 AZUL ROYAL",
+     null
+    ],
+    [
+     "3370 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "TRICOLINE FORMOSA",
+   "interno": "CAMISARIA FORMOSA",
+   "composicao": "33% ALGODÃO 67% POLIÉSTER",
+   "gramatura": 120,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "LINHA CAMISARIA · 192 G/ML · PROTEÇÃO UV 25",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "3121 OFF WHITE",
+     null
+    ],
+    [
+     "3127 CREME",
+     null
+    ],
+    [
+     "3162 BRANCO ÓPTICO",
+     null
+    ],
+    [
+     "4127 MARFIM",
+     null
+    ],
+    [
+     "0300",
+     null
+    ],
+    [
+     "8139 BEGE",
+     null
+    ],
+    [
+     "4120 LARANJA",
+     null
+    ],
+    [
+     "1258 AZUL CELESTE",
+     null
+    ],
+    [
+     "1235 AZUL LAVANDA",
+     null
+    ],
+    [
+     "1240 AZUL MÉDIO",
+     null
+    ],
+    [
+     "1259 AZUL ROYAL",
+     null
+    ],
+    [
+     "1241 AZUL ANIL",
+     null
+    ],
+    [
+     "1230 MARINHO",
+     null
+    ],
+    [
+     "1222 MARINHO ESCURO",
+     null
+    ],
+    [
+     "2129 VERDE GELO",
+     null
+    ],
+    [
+     "9115 CINZA CLARO",
+     null
+    ],
+    [
+     "9135 CINZA AZULADO",
+     null
+    ],
+    [
+     "9134 CHUMBO",
+     null
+    ],
+    [
+     "9121 CINZA",
+     null
+    ],
+    [
+     "0021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "OSMARCEL",
+   "interno": "CAMISARIA OSMARCEL",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 94,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "150 G/ML",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "0678 OFF WHITE",
+     null
+    ],
+    [
+     "0144 CREME",
+     null
+    ],
+    [
+     "0685 BEGE CLARO",
+     null
+    ],
+    [
+     "0687 CÁQUI",
+     null
+    ],
+    [
+     "0826 AMARELO BEBÊ",
+     null
+    ],
+    [
+     "1254",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0978 NUDE",
+     null
+    ],
+    [
+     "1245 ROSA BEBÊ",
+     null
+    ],
+    [
+     "0878",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "1247 PINK",
+     null
+    ],
+    [
+     "1248 CORAL",
+     null
+    ],
+    [
+     "0244 CEREJA",
+     null
+    ],
+    [
+     "0868 LILÁS GELO",
+     null
+    ],
+    [
+     "1244 LILÁS CLARO",
+     null
+    ],
+    [
+     "1277 LILÁS",
+     null
+    ],
+    [
+     "1246 ROXO",
+     null
+    ],
+    [
+     "0680 AZUL BEBÊ",
+     null
+    ],
+    [
+     "1444 AZUL CLARO",
+     null
+    ],
+    [
+     "1220 AZUL FRANÇA",
+     null
+    ],
+    [
+     "0689 AZUL JEANS",
+     null
+    ],
+    [
+     "2037 AZUL ANIL",
+     null
+    ],
+    [
+     "0530 MARINHO",
+     null
+    ],
+    [
+     "0874",
+     "ESGOTADO NA CARTELA"
+    ],
+    [
+     "0979 VERDE ÁGUA",
+     null
+    ],
+    [
+     "0824 VERDE PISTACHE",
+     null
+    ],
+    [
+     "0566 VERDE ACINZENTADO",
+     null
+    ],
+    [
+     "2038 VERDE ESCURO",
+     null
+    ],
+    [
+     "1442 GELO",
+     null
+    ],
+    [
+     "0679 CINZA CLARO",
+     null
+    ],
+    [
+     "1221 CINZA",
+     null
+    ],
+    [
+     "0686 CHUMBO",
+     null
+    ],
+    [
+     "0011 PRETO",
+     null
+    ],
+    [
+     "0890 CÁQUI CLARO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "TRICOLINE MADRI",
+   "interno": "CAMISARIA MADRI",
+   "composicao": "21% ALGODÃO 75% POLIÉSTER 4% ELASTANO",
+   "gramatura": 148,
+   "largura": 1.3,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "LINHA CAMISARIA · 192 G/ML · PROTEÇÃO UV 50",
+   "cores": [
+    [
+     "0001 BRANCO",
+     null
+    ],
+    [
+     "8112 OFF WHITE",
+     null
+    ],
+    [
+     "3119 CREME",
+     null
+    ],
+    [
+     "9140 CINZA GELO",
+     null
+    ],
+    [
+     "9122 CINZA CLARO",
+     null
+    ],
+    [
+     "8123 CINZA",
+     null
+    ],
+    [
+     "8124 BEGE",
+     null
+    ],
+    [
+     "6130 ROSA BEBÊ",
+     null
+    ],
+    [
+     "7110 LILÁS",
+     null
+    ],
+    [
+     "7114 MALVA",
+     null
+    ],
+    [
+     "3120 AMARELO",
+     null
+    ],
+    [
+     "4121 LARANJA",
+     null
+    ],
+    [
+     "5117 VERMELHO",
+     null
+    ],
+    [
+     "1234 AZUL GELO",
+     null
+    ],
+    [
+     "1235 AZUL LAVANDA",
+     null
+    ],
+    [
+     "1232 AZUL MÉDIO",
+     null
+    ],
+    [
+     "1236 AZUL JEANS",
+     null
+    ],
+    [
+     "1230 MARINHO",
+     null
+    ],
+    [
+     "1233 MARINHO ESCURO",
+     null
+    ],
+    [
+     "1214 CHUMBO",
+     null
+    ],
+    [
+     "2127 VERDE CLARO",
+     null
+    ],
+    [
+     "2128 VERDE ÁGUA",
+     null
+    ],
+    [
+     "2116 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "2125 VERDE MUSGO",
+     null
+    ],
+    [
+     "9115 CINZA CLARO",
+     null
+    ],
+    [
+     "9121 CINZA",
+     null
+    ],
+    [
+     "0021 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "FIRENZE 9 OZ INDIGO BLUE",
+   "interno": "JEANS COM ELASTANO",
+   "composicao": "86% ALGODÃO 11% POLIÉSTER 3% ELASTANO",
+   "gramatura": 305,
+   "largura": 1.52,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO 2X1 S · LINHA ÍNDIGO",
+   "cores": [
+    [
+     "ÍNDIGO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "OR DARK 10 OZ ÍNDIGO BLUE PROFISSIONAL",
+   "interno": "JEANS ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 339,
+   "largura": 1.7,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO 2X1 S · 576 G/ML · LINHA ÍNDIGO",
+   "cores": [
+    [
+     "ÍNDIGO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ECOBAG CRU",
+   "interno": "ECOBAG",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 189,
+   "largura": 1.75,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "M",
+   "especificacao": "331 G/ML",
+   "cores": [
+    [
+     "CRU",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "TECIDO CRU",
+   "interno": "AMERICANO CRU",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 80,
+   "largura": 1.45,
+   "tipoMalha": null,
+   "rendimento": 8.62,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "CRU",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "FORRO CRU",
+   "interno": "FORRO CRU",
+   "composicao": "50% POLIÉSTER 50% ALGODÃO",
+   "gramatura": 96,
+   "largura": 1.6,
+   "tipoMalha": null,
+   "rendimento": 6.51,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "CRU",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "PES FURADINHO",
+   "interno": "DRY FIT FURADINHO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 65,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": 10.26,
+   "unidade": "KG",
+   "especificacao": "BOOK PROFISSIONAL",
+   "cores": [
+    [
+     "AMARELO FLUORESCENTE",
+     null
+    ]
+   ]
+  }
+ ]
+}
