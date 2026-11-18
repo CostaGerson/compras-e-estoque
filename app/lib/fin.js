@@ -327,9 +327,13 @@ async function docsDetalhe(competencia) {
   return arqs.map((a) => ({ arquivoId: a.id, codigo: a.tipo.codigo, nome: a.nome, r: a.itens, conciliacao: a.conciliacao }));
 }
 
-export async function conciliarCompetencia(competencia) {
+const mesMais = (c, n) => new Date(Date.UTC(+c.slice(0, 4), +c.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
+export async function conciliarCompetencia(competencia, { puxarSeguinte = true } = {}) {
   const { montarGrupos, conciliar } = await import("@/lib/finConcilia");
   const docs = await docsDetalhe(competencia);
+  // v954 — recarga iFood / fatura do mês anterior que ficou sem pagamento lá (pago no começo deste mês): tenta aqui
+  const anteriores = (await docsDetalhe(mesMais(competencia, -1))).filter((d) => (d.conciliacao || []).some((c) => c.proximoMes));
+  const gruposAnt = montarGrupos(anteriores).filter((g) => g.modo === "IFOOD" || g.modo === "FATURA");
   const grupos = montarGrupos(docs);
   const chaves = new Set(grupos.map((g) => g.chave));
 
@@ -357,7 +361,22 @@ export async function conciliarCompetencia(competencia) {
     select: { id: true, banco: true, data: true, historico: true, documento: true, valor: true },
   });
   const extrato = disp.map((l) => ({ ...l, data: dIso(l.data), valor: Number(l.valor) }));
-  const res = conciliar(grupos, extrato, jaFeitos);
+  const res0 = conciliar([...grupos, ...gruposAnt], extrato, jaFeitos);
+  // o do mês anterior que bateu aqui passa a ser deste mês (regime de caixa: vale a data do pagamento)
+  const vieram = gruposAnt.filter((g) => res0.some((r) => r.chave === g.chave && r.ok && r.vinculos.length));
+  for (const g of vieram) {
+    await prisma.finArquivo.updateMany({ where: { id: { in: g.arquivoIds } }, data: { competencia } });
+    grupos.push(g);
+    docs.push(...anteriores.filter((d) => g.arquivoIds.includes(d.arquivoId)));
+  }
+  const res = res0.filter((r) => grupos.some((g) => g.chave === r.chave));
+  // recarga com data do mês seguinte lançada neste mês: também fica para o mês do pagamento
+  for (const r of res) {
+    const g = grupos.find((x) => x.chave === r.chave);
+    if (r.ok || r.proximoMes || g?.modo !== "IFOOD" || !g.dataRef || g.dataRef.slice(0, 7) <= competencia) continue;
+    const m = g.dataRef.slice(0, 7).split("-").reverse().join("/");
+    Object.assign(r, { aviso: true, proximoMes: true, msg: `Recarga de ${g.dataRef.split("-").reverse().join("/")} (R$ ${Math.abs(g.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) é de ${m}: o detalhamento vai para ${m} quando o extrato desse mês entrar.` });
+  }
 
   for (const r of res) {
     if (!r.ok || !r.vinculos.length) continue;
@@ -380,7 +399,7 @@ export async function conciliarCompetencia(competencia) {
     const anterior = docs.flatMap((d) => d.conciliacao || []).find((c) => c.chave === g.chave);
     return {
       chave: g.chave, rotulo: g.rotulo, codigo: g.codigo, arquivoIds: g.arquivoIds, total: g.total, dataRef: g.dataRef,
-      ok: r ? r.ok : true, aviso: r?.aviso || false,
+      ok: r ? r.ok : true, aviso: r?.aviso || false, proximoMes: r?.proximoMes || false,
       msg: r ? r.msg : (anterior?.ok ? anterior.msg : "Conciliado."), candidatos: r?.candidatos || [],
     };
   });
@@ -389,6 +408,14 @@ export async function conciliarCompetencia(competencia) {
   }
   await descartarPagamentosFatura(competencia);
   await aplicarRegras(competencia);
+  // ficou para o mês seguinte e o extrato dele já está no sistema: confere lá agora
+  if (puxarSeguinte && resultado.some((x) => x.proximoMes)) {
+    const seg = mesMais(competencia, 1);
+    if (await prisma.finLancamento.count({ where: { competencia: seg, origem: "EXTRATO" } })) {
+      await conciliarCompetencia(seg, { puxarSeguinte: false }).catch(() => null);
+      return (await docsDetalhe(competencia)).flatMap((d) => d.conciliacao || []).filter((c, i, l) => l.findIndex((x) => x.chave === c.chave) === i);
+    }
+  }
   return resultado;
 }
 

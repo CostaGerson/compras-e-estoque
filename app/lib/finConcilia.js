@@ -132,6 +132,14 @@ export function conciliar(grupos, extrato, jaFeitos = new Set()) {
           msg: `R$ ${brl(g.total)} entra no extrato só no mês seguinte — será conferido lá.` });
         continue;
       }
+      // v954 — sem nada no mês, mas o prazo de pagamento passa do fim do mês (ex.: benefícios de out pagos em 01/11):
+      // vai para o mês do pagamento quando o extrato dele entrar
+      if (!cand.length && fimMes && (g.modo === "IFOOD" || g.modo === "FATURA") && dias(fimMes, g.dataRef) < P.fim) {
+        const prox = new Date(Date.UTC(+g.dataRef.slice(0, 4), +g.dataRef.slice(5, 7), 1)).toISOString().slice(0, 7).split("-").reverse().join("/");
+        res.push({ chave: g.chave, ok: false, aviso: true, proximoMes: true, vinculos: [], itens: g.itens, candidatos: [],
+          msg: `R$ ${brl(g.total)} sem pagamento neste mês — deve ter sido pago no início de ${prox}. Quando o extrato de ${prox} entrar, o detalhamento vai para lá sozinho.` });
+        continue;
+      }
       res.push({
         chave: g.chave, ok: false, vinculos: [], itens: g.itens,
         msg: cand.length
