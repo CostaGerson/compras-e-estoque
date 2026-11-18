@@ -109,6 +109,8 @@ const ARTIGOS = [
 
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 // artigo interno só onde o tipo é claro pela composição (viscose ou modal predominante); o resto fica em branco para o compras definir
+// v961 — o Cotton Suavity é o algodão com elastano (egípcio) que a Meridian usa
+const INTERNO_FIXO = { "3673": "ALGODÃO EGÍPCIO COM ELASTANO" };
 const interno = (comp) => { const m = sa(comp).match(/^(\d+)% (\w+)/); if (!m || +m[1] < 55) return null; return m[2] === "VISCOSE" ? "VISCOSE" : m[2] === "MODAL" ? "MODAL" : null; };
 const up = (s) => s.replace(/®/g, "").replace(/\s+/g, " ").trim().toUpperCase();
 
@@ -118,13 +120,18 @@ function montar() {
     const map = new Map();
     for (const [lista, col] of [[v, "VERÃO 2027/2028"], [i, "INVERNO 2027"]])
       for (const c of lista.split(/\s+/).filter(Boolean)) { if (!CORES[c]) throw new Error(`cor sem nome: ${c}`); if (!map.has(c)) map.set(c, []); map.get(c).push(col); }
-    return { codigo: cod, nome: `${cod} ${up(nome)}`, composicao: comp, gramatura: gram, largura: larg, rendimento: rend, interno: interno(comp),
+    return { codigo: cod, nome: `${cod} ${up(nome)}`, composicao: comp, gramatura: gram, largura: larg, rendimento: rend, interno: INTERNO_FIXO[cod] || interno(comp),
       cores: [...map].map(([c, cols]) => [c === "106" ? "ÚNICA" : `${CORES[c].toUpperCase()} (${c})`, cols]) };
   });
 }
 export { ARTIGOS, montar };
 
 async function main() {
+  // v961 — completa o artigo interno dos artigos que já tinham sido cadastrados sem ele
+  for (const [cod, tipo] of Object.entries(INTERNO_FIXO)) {
+    const r = await prisma.artigo.updateMany({ where: { origem: "CARTELA", codigoFornecedor: cod, nome: { startsWith: `${cod} ` }, fornecedor: { nome: { contains: "NANETE", mode: "insensitive" } } }, data: { artigoInterno: tipo } });
+    if (r.count) console.log(`Seed coleção Nanete: artigo interno ${tipo} em ${r.count} artigo(s) do ${cod}.`);
+  }
   if (await prisma.finConfig.findUnique({ where: { chave: FLAG } })) return;
   let forn = (await prisma.fornecedor.findMany()).find((f) => [f.nome, f.nomeFantasia, f.razaoSocial].some((n) => /NANETE/.test(sa(n))));
   if (!forn) forn = await prisma.fornecedor.create({ data: { nome: "NANETE", nomeFantasia: "NANETE MALHAS", obs: "CADASTRADO PELA COLEÇÃO DO SITE NANETE.COM.BR (18/11/2026)" } });
