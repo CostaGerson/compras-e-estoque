@@ -1,0 +1,860 @@
+{
+ "flag": "SEED|CARTELA|GUIMATEX|2026-11-18",
+ "fornecedor": {
+  "nome": "GUIMATEX",
+  "nomeFantasia": "GUIMATEX INDÚSTRIA TÊXTIL",
+  "obs": "CADASTRADO PELAS CARTELAS/POSTS GUIMATEX (18/11/2026). PV, PIQUET, MOLETOM, HELANCA, PP E PENTEADA SEM FICHA TÉCNICA NA CARTELA",
+  "busca": "GUIMATEX"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D FLECHA",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D MOUSE",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D CUBO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D FLASH",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D WIND",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D SELEÇÃO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY 3D BRASIL",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY JACQUARD COLMÉIA",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 135,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.12,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA · SUBLIMÁVEL · PROTEÇÃO UV",
+   "cores": [
+    [
+     "BRANCO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "DRY MULTIFILAMENTO",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 138,
+   "largura": 1.8,
+   "tipoMalha": null,
+   "rendimento": 4.1,
+   "unidade": "KG",
+   "especificacao": "MALHA ESPORTIVA",
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "2 PRETO",
+     null
+    ],
+    [
+     "3 ROYAL",
+     null
+    ],
+    [
+     "4 MARINHO",
+     null
+    ],
+    [
+     "5 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "6 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "7 CINZA CHUMBO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MALHA PP POLIÉSTER FIADO",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "2 AZUL BB",
+     null
+    ],
+    [
+     "7 CINZA BB",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "64 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MALHA PENTEADA 30.1",
+   "interno": "ALGODAO 30.1 PENTEADO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "2 AZUL BB",
+     null
+    ],
+    [
+     "3 ROSA BB",
+     null
+    ],
+    [
+     "4 AMARELO BB",
+     null
+    ],
+    [
+     "5 MARFIM",
+     null
+    ],
+    [
+     "6 VERDE BB",
+     null
+    ],
+    [
+     "7 CINZA BB",
+     null
+    ],
+    [
+     "8 SALMÃO",
+     null
+    ],
+    [
+     "10 BEGE",
+     null
+    ],
+    [
+     "11 LILÁS",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "33 VERDE FORTE",
+     null
+    ],
+    [
+     "50 VERMELHO CEREJA",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "52 AZUL TURQUESA",
+     null
+    ],
+    [
+     "57 CHUMBO",
+     null
+    ],
+    [
+     "58 PINK ESCURO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "60 MARROM",
+     null
+    ],
+    [
+     "62 CHICLETE",
+     null
+    ],
+    [
+     "63 AMARELO OURO",
+     null
+    ],
+    [
+     "64 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "69 LARANJA",
+     null
+    ],
+    [
+     "71 BORDÔ",
+     null
+    ],
+    [
+     "90 AZUL PETRÓLEO",
+     null
+    ],
+    [
+     "98 MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MALHA PIQUET PV",
+   "interno": "PIQUET P.V",
+   "composicao": null,
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "7 CINZA BB",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "26 TURQUESA ESPECIAL",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "53 AZUL CELESTE",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "64 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "71 BORDÔ",
+     null
+    ],
+    [
+     "74 CHUMBO",
+     null
+    ],
+    [
+     "85 MESCLA PRETO",
+     null
+    ],
+    [
+     "86 MESCLA MARINHO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MALHA PIQUET PA",
+   "interno": "PIQUET P.A",
+   "composicao": null,
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "7 CINZA BB",
+     null
+    ],
+    [
+     "10 BEGE",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "26 AZUL TURQUESA",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "32 VERDE MUSGO",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "53 AZUL CELESTE",
+     null
+    ],
+    [
+     "55 ROXO",
+     null
+    ],
+    [
+     "58 PINK ESCURO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "63 AMARELO OURO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "69 LARANJA",
+     null
+    ],
+    [
+     "71 BORDÔ",
+     null
+    ],
+    [
+     "76 GOIABA",
+     null
+    ],
+    [
+     "90 AZUL PETRÓLEO",
+     null
+    ],
+    [
+     "27 MESCLA ROYAL",
+     null
+    ],
+    [
+     "28 MESCLA VERDE",
+     null
+    ],
+    [
+     "29 MESCLA BORDÔ",
+     null
+    ],
+    [
+     "85 MESCLA PRETO",
+     null
+    ],
+    [
+     "86 MESCLA MARINHO",
+     null
+    ],
+    [
+     "98 CINZA MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MALHA PV ANTI PILLING",
+   "interno": "PV",
+   "composicao": null,
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": "ANTI PILLING",
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "2 AZUL BB",
+     null
+    ],
+    [
+     "3 ROSA BB",
+     null
+    ],
+    [
+     "4 AMARELO BB",
+     null
+    ],
+    [
+     "5 MARFIM",
+     null
+    ],
+    [
+     "6 VERDE BB",
+     null
+    ],
+    [
+     "7 CINZA BB",
+     null
+    ],
+    [
+     "10 BEGE",
+     null
+    ],
+    [
+     "11 LILÁS",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "26 TURQUESA ESPECIAL",
+     null
+    ],
+    [
+     "27 MESCLA PRETO/ROYAL",
+     null
+    ],
+    [
+     "28 MESCLA VERDE",
+     null
+    ],
+    [
+     "29 MESCLA BORDÔ",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "32 VERDE MUSGO",
+     null
+    ],
+    [
+     "33 VERDE FORTE",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "52 AZUL TURQUESA",
+     null
+    ],
+    [
+     "53 AZUL CELESTE",
+     null
+    ],
+    [
+     "54 AZUL ROYAL",
+     null
+    ],
+    [
+     "55 ROXO ESCURO",
+     null
+    ],
+    [
+     "57 CINZA ESCURO",
+     null
+    ],
+    [
+     "58 PINK ESCURO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "60 MARROM",
+     null
+    ],
+    [
+     "61 CÁQUI",
+     null
+    ],
+    [
+     "62 CHICLETE",
+     null
+    ],
+    [
+     "63 AMARELO OURO",
+     null
+    ],
+    [
+     "64 AMARELO CANÁRIO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "66 VERDE CÍTRICO",
+     null
+    ],
+    [
+     "67 ROSÊ",
+     null
+    ],
+    [
+     "69 LARANJA",
+     null
+    ],
+    [
+     "71 BORDÔ",
+     null
+    ],
+    [
+     "74 CHUMBO",
+     null
+    ],
+    [
+     "75 VERDE JADE",
+     null
+    ],
+    [
+     "81 UVA",
+     null
+    ],
+    [
+     "85 MESCLA PRETO",
+     null
+    ],
+    [
+     "86 MESCLA MARINHO",
+     null
+    ],
+    [
+     "89 MESCLA ROYAL",
+     null
+    ],
+    [
+     "98 CINZA MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "MOLETOM PA 2 CABOS",
+   "interno": "MOLETOM 2CB",
+   "composicao": null,
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "5 MARFIM",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "60 MARROM",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "69 LARANJA",
+     null
+    ],
+    [
+     "71 BORDÔ",
+     null
+    ],
+    [
+     "74 CHUMBO",
+     null
+    ],
+    [
+     "85 MESCLA PRETO",
+     null
+    ],
+    [
+     "86 MESCLA MARINHO",
+     null
+    ],
+    [
+     "98 CINZA MESCLA",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": null,
+   "nome": "HELANCA COLEGIAL",
+   "interno": "HELANCA POLIESTER",
+   "composicao": null,
+   "gramatura": null,
+   "largura": null,
+   "tipoMalha": null,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "1 BRANCO",
+     null
+    ],
+    [
+     "25 AZUL ROYAL",
+     null
+    ],
+    [
+     "30 VERDE BANDEIRA",
+     null
+    ],
+    [
+     "51 VERMELHO",
+     null
+    ],
+    [
+     "59 PRETO",
+     null
+    ],
+    [
+     "65 AZUL MARINHO",
+     null
+    ],
+    [
+     "74 CHUMBO",
+     null
+    ]
+   ]
+  }
+ ]
+}
