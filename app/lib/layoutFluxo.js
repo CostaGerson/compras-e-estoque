@@ -166,36 +166,82 @@ export async function decidirLayout(t, u, aprovar, motivo) {
     await prisma.mensagem.create({ data: { deId: u.id, paraId: arte.id, texto: `🎨 LAYOUT REPROVADO — pedido ${L.numero}: ${String(motivo).trim()}`, tarefaId: nova?.id || t.id } }).catch(() => {});
     return { ok: true, novaId: nova.id };
   }
-  const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, include: { itens: { orderBy: { id: "asc" }, select: { id: true, anexosJson: true } } } });
+  // v972 — aprovar responde na hora: a tarefa fecha e os arquivos (foto + anexos dos itens) são gravados em segundo plano.
+  //   Antes tudo isso rodava dentro do clique (leitura do pedido inteiro, prévias das imagens, regravar os anexos) e a tela travava.
+  const pp = await prisma.pp.findUnique({ where: { id: Number(L.ppId) }, select: { id: true } });
   if (!pp) return { error: "Pedido não encontrado." };
-  // v736 — a 1ª imagem vira a foto do item; os demais arquivos (qualquer formato) entram nos anexos do item
-  for (const x of L.itens || []) {
-    const it = pp.itens[x.idx];
-    if (!it) continue;
-    const arqs = (await prisma.tarefaArquivo.findMany({ where: { id: { in: idsDe(x) }, tarefaId: t.id } })).sort((a, b) => idsDe(x).indexOf(a.id) - idsDe(x).indexOf(b.id));
-    if (!arqs.length) continue;
-    const foto = arqs.find((a) => ehImg(a.mime, a.nome));
-    const novos = arqs.filter((a) => a !== foto).map((a) => ({ nome: `Layout aprovado · ${a.nome}`, mime: a.mime, base64: `data:${a.mime || "application/octet-stream"};base64,${a.conteudo}` }));
-    const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
-    // v919 — imagem grande vira foto em versão leve (o original segue nos anexos do item)
-    let fotoUrl = foto ? `data:${foto.mime || "image/png"};base64,${foto.conteudo}` : null;
-    if (foto) {
-      try {
-        const { precisaPrevia, previa } = await import("@/lib/imgPrevia");
-        const { lerBase64 } = await import("@/lib/arquivos");
-        if (precisaPrevia(foto.mime, foto.nome, foto.tamanho) || String(foto.conteudo || "").startsWith("arq:")) {
-          const out = await previa(`tarefaArquivo|${foto.id}|${foto.tamanho}`, async () => Buffer.from(await lerBase64(foto.conteudo), "base64"));
-          fotoUrl = `data:image/webp;base64,${out.toString("base64")}`;
-          novos.unshift({ nome: `Layout aprovado · ${foto.nome}`, mime: foto.mime, base64: `data:${foto.mime || "application/octet-stream"};base64,${foto.conteudo}` });
-        }
-      } catch (e) { console.log("layout/prévia da foto:", e.message); }
-    }
-    await prisma.ppItem.update({ where: { id: it.id }, data: { ...(fotoUrl ? { fotoBase64: fotoUrl } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
-  }
-  try { await (await import("@/lib/arquivos")).enxugarItensPp(pp.id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868 — layout grande vai para o disco
-  await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u), retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, decisao: "APROVADO", aprovadoEm: new Date().toISOString() } } });   // v755
+  const agora = new Date().toISOString();
+  await prisma.tarefa.update({ where: { id: t.id }, data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: nomeU(u),
+    retorno: "Layout aprovado — gravando no cadastro dos itens do pedido…", layout: { ...L, decisao: "APROVADO", aprovadoEm: agora, gravacao: "PENDENTE", gravacaoEm: agora } } });   // v755
   if (L.origemId) { const o = await prisma.tarefa.findUnique({ where: { id: L.origemId }, select: { responsavelId: true } }); if (o) await prisma.mensagem.create({ data: { deId: u.id, paraId: o.responsavelId, texto: `✅ LAYOUT APROVADO — pedido ${L.numero} (${L.cliente}).`, tarefaId: t.id } }).catch(() => {}); }
-  return { ok: true };
+  setTimeout(() => { gravarLayoutAprovado(t.id).catch((e) => console.log("layout/gravação:", e.message)); }, 50);
+  return { ok: true, gravando: true };
+}
+
+// v972 — grava o layout aprovado nos itens do pedido (idempotente: arquivo que já está no item não entra de novo)
+const _gravando = new Set();
+export async function gravarLayoutAprovado(tarefaId) {
+  if (_gravando.has(tarefaId)) return;
+  _gravando.add(tarefaId);
+  try {
+    const t = await prisma.tarefa.findUnique({ where: { id: Number(tarefaId) }, select: { id: true, layout: true } });
+    const L = t?.layout || {};
+    if (!t || L.decisao !== "APROVADO" || L.gravacao === "OK") return;
+    try {
+      const its = await prisma.ppItem.findMany({ where: { ppId: Number(L.ppId) || 0 }, orderBy: { id: "asc" }, select: { id: true } });
+      // v736 — a 1ª imagem vira a foto do item; os demais arquivos (qualquer formato) entram nos anexos do item
+      for (const x of L.itens || []) {
+        const it0 = its[x.idx];
+        if (!it0) continue;
+        const ids = idsDe(x);
+        if (!ids.length) continue;
+        const arqs = (await prisma.tarefaArquivo.findMany({ where: { id: { in: ids }, tarefaId: t.id } })).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+        if (!arqs.length) continue;
+        const it = await prisma.ppItem.findUnique({ where: { id: it0.id }, select: { id: true, anexosJson: true } });
+        const l = Array.isArray(it.anexosJson) ? it.anexosJson : [];
+        const jaTem = new Set(l.map((a) => a?.nome));
+        const { paraDisco } = await import("@/lib/arquivos");
+        const foto = arqs.find((a) => ehImg(a.mime, a.nome));
+        const novos = [];
+        for (const a of arqs) {
+          if (a === foto) continue;
+          const nome = `Layout aprovado · ${a.nome}`;
+          if (jaTem.has(nome)) continue;
+          novos.push({ nome, mime: a.mime, base64: await paraDisco(`data:${a.mime || "application/octet-stream"};base64,${a.conteudo}`, { nome: a.nome, mime: a.mime }) });   // grande vai direto para o disco
+        }
+        // v919 — imagem grande vira foto em versão leve (o original segue nos anexos do item)
+        let fotoUrl = foto && !String(foto.conteudo || "").startsWith("arq:") ? `data:${foto.mime || "image/png"};base64,${foto.conteudo}` : null;
+        if (foto) {
+          try {
+            const { precisaPrevia, previa } = await import("@/lib/imgPrevia");
+            const { lerBase64 } = await import("@/lib/arquivos");
+            if (precisaPrevia(foto.mime, foto.nome, foto.tamanho) || String(foto.conteudo || "").startsWith("arq:")) {
+              const out = await previa(`tarefaArquivo|${foto.id}|${foto.tamanho}`, async () => Buffer.from(await lerBase64(foto.conteudo), "base64"));
+              fotoUrl = `data:image/webp;base64,${out.toString("base64")}`;
+              const nome = `Layout aprovado · ${foto.nome}`;
+              if (!jaTem.has(nome)) novos.unshift({ nome, mime: foto.mime, base64: await paraDisco(`data:${foto.mime || "application/octet-stream"};base64,${foto.conteudo}`, { nome: foto.nome, mime: foto.mime }) });
+            }
+          } catch (e) { console.log("layout/prévia da foto:", e.message); }
+        }
+        await prisma.ppItem.update({ where: { id: it.id }, data: { ...(fotoUrl ? { fotoBase64: fotoUrl } : {}), ...(novos.length ? { anexosJson: [...l, ...novos] } : {}) } });
+      }
+      try { await (await import("@/lib/arquivos")).enxugarItensPp(L.ppId); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868
+      await prisma.tarefa.update({ where: { id: t.id }, data: { retorno: "Layout aprovado — gravado no cadastro dos itens do pedido.", layout: { ...L, gravacao: "OK", gravacaoEm: new Date().toISOString() } } });
+    } catch (e) {
+      await prisma.tarefa.update({ where: { id: t.id }, data: { retorno: `Layout aprovado — falhou ao gravar nos itens (${String(e.message).slice(0, 120)}); o sistema tenta de novo.`, layout: { ...L, gravacao: "ERRO", gravacaoErro: String(e.message).slice(0, 300), gravacaoEm: new Date().toISOString() } } }).catch(() => {});
+      throw e;
+    }
+  } finally { _gravando.delete(tarefaId); }
+}
+// v972 — retoma gravações que ficaram pela metade (servidor reiniciado no meio, erro): chamado ao abrir a tarefa e a cada 10 min
+export async function retomarGravacoesLayout() {
+  const l = await prisma.tarefa.findMany({ where: { status: "CONCLUIDA", titulo: { startsWith: "APROVAÇÃO DE LAYOUT" }, concluidaEm: { gte: new Date(Date.now() - 30 * 86400e3) } }, select: { id: true, layout: true } }).catch(() => []);
+  for (const t of l) {
+    const L = t.layout || {};
+    if (L.decisao !== "APROVADO" || !["PENDENTE", "ERRO"].includes(L.gravacao)) continue;
+    if (L.gravacao === "PENDENTE" && Date.now() - new Date(L.gravacaoEm || 0).getTime() < 3 * 60e3) continue;   // ainda gravando
+    await gravarLayoutAprovado(t.id).catch((e) => console.log("layout/retomar:", e.message));
+  }
 }
 
 // v888 — criações de layout antigas: grava o vendedorId (usuário do vendedor do pedido) para ele acompanhar nas Designadas

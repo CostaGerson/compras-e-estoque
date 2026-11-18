@@ -983,7 +983,7 @@ function LayoutTarefa({ t, user, onMudou }) {
         <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Instruções para o arte finalista (obrigatório para reprovar)" className={inp} style={inpS} />
         <div className="flex justify-end gap-2 mt-2">
           <Btn fundo={C.redSoft} cor={C.red} disabled={!!ocup} onClick={() => acao("reprovar")}>Reprovar</Btn>
-          <Btn cor={C.green} disabled={!!ocup} onClick={() => acao("aprovar")}><CheckCircle2 size={13} /> Aprovar layout</Btn>
+          <Btn cor={C.green} disabled={!!ocup} onClick={() => acao("aprovar")}>{ocup === "aprovar" ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} {ocup === "aprovar" ? "Aprovando…" : "Aprovar layout"}</Btn>
         </div>
       </div>}
       {!aberta && <div className="text-xs" style={{ color: C.sub }}>{t.retorno}</div>}

@@ -4,7 +4,7 @@ import { respostaAnexo } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivo } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
-import { opDaTarefa, marcarLayout, enviarAprovacao, decidirLayout } from "@/lib/layoutFluxo";
+import { opDaTarefa, marcarLayout, enviarAprovacao, decidirLayout, gravarLayoutAprovado } from "@/lib/layoutFluxo";
 
 import { supervisorLayoutId } from "@/lib/tarefas";
 // v892 — ver a OP: também o vendedor, quem lançou, quem reprovou e o supervisor da personalização (Maycon)
@@ -25,6 +25,9 @@ export async function GET(req, { params }) {
     if (!b64) return new Response("Não encontrado.", { status: 404 });
     return respostaAnexo(b64, { nome, mime });   // v865
   }
+  // v972 — aprovada com gravação pendente há mais de 3 min (ou com erro): tenta de novo em segundo plano
+  const L = t.layout;
+  if (L.decisao === "APROVADO" && (L.gravacao === "ERRO" || (L.gravacao === "PENDENTE" && Date.now() - new Date(L.gravacaoEm || 0).getTime() > 3 * 60e3))) gravarLayoutAprovado(t.id).catch(() => {});
   return Response.json(await opDaTarefa(t));
 }
 
