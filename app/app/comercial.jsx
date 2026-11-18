@@ -568,7 +568,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
   function montarBody(fx) {
     const f0 = fx || f;
     // v968 — o nome comercial termina sempre com a cor da matéria-prima principal
-    const nc = f0.artigoDet?.cor ? comCor(f0.nomeComercial || f0.item, null, f0.artigoDet.cor) : f0.nomeComercial;
+    const corMp = ehRevenda(f0.item, tipo) ? f0.revendaCor : f0.artigoDet?.cor;   // v982 — revenda: cor do produto
+    const nc = corMp ? comCor(f0.nomeComercial || f0.item, null, corMp) : f0.nomeComercial;
     return {
       tipo, item: f0.item, nomeComercial: nc, clienteId: f0.clienteId, clienteNome: f0.clienteNome, qtde: num(f0.qtde),
       negociacao: f0.negociacao || null,
@@ -594,9 +595,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     if (st?.falta === "RENDIMENTO") return setMsg("Sublimação total: preencha o rendimento da malha (m/kg) no + do artigo principal — é dele que sai o consumo de malha pelo papel.");
     setSalvando(true); setMsg("");
     // v968 — variar cores: a FPP desta tela é a principal (preta); cada outra cor vira uma FPP do mesmo grupo
-    const vc = Array.isArray(f.artigoDet?.variarCores) ? f.artigoDet.variarCores : [];
+    const revV = ehRevenda(f.item, tipo) ? (Array.isArray(f.revendaCoresVariar) ? f.revendaCoresVariar : []) : [];   // v982
+    const vc = revV.length ? revV.map((c) => ({ cor: c, revenda: true })) : Array.isArray(f.artigoDet?.variarCores) ? f.artigoDet.variarCores : [];
     const grupo = vc.length ? (f.grupoCores || `G${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`) : f.grupoCores;
-    const fPrin = vc.length ? { ...f, grupoCores: grupo, corPrincipal: true, artigoDet: (() => { const d = { ...f.artigoDet }; delete d.variarCores; return d; })() } : f;
+    const fPrin = !vc.length ? f : revV.length ? { ...f, grupoCores: grupo, corPrincipal: true, revendaCoresVariar: [] }
+      : { ...f, grupoCores: grupo, corPrincipal: true, artigoDet: (() => { const d = { ...f.artigoDet }; delete d.variarCores; return d; })() };
     const body = montarBody(fPrin);
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -604,8 +607,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     let criadas = [];
     if (res.ok && vc.length) {
       for (const x of vc) {
-        const fx = { ...fPrin, corPrincipal: false, artigoDet: { ...x.det },   // mesmo custo e cálculo da principal
-          nomeComercial: comCor(body.nomeComercial, fPrin.artigoDet?.cor, x.det?.cor || x.cor) };   // v979 — troca a cor da principal (PRETO) pela desta variação
+        const fx = x.revenda   // v982 — revenda: só troca a cor
+          ? { ...fPrin, corPrincipal: false, revendaCor: x.cor, nomeComercial: comCor(body.nomeComercial, fPrin.revendaCor, x.cor) }
+          : { ...fPrin, corPrincipal: false, artigoDet: { ...x.det },   // mesmo custo e cálculo da principal
+            nomeComercial: comCor(body.nomeComercial, fPrin.artigoDet?.cor, x.det?.cor || x.cor) };   // v979 — troca a cor da principal (PRETO) pela desta variação
         const bx = montarBody(fx); delete bx.copiarEstampasDe;
         const rx = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bx) });
         const sx = await rx.json().catch(() => ({}));
@@ -642,7 +647,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     try {
       const nova = await clonarFpp(montarBody(), user, editId);
       // v978 — a cópia não herda o grupo de cores da original (antes, ao salvar a cópia ela entrava no grupo como principal e a original sumia da lista)
-      setF((s) => { const n = { ...s, nomeComercial: nova.nomeComercial }; delete n.grupoCores; delete n.corPrincipal; if (n.artigoDet?.variarCores) { n.artigoDet = { ...n.artigoDet }; delete n.artigoDet.variarCores; } return n; });
+      setF((s) => { const n = { ...s, nomeComercial: nova.nomeComercial }; delete n.grupoCores; delete n.corPrincipal; n.revendaCoresVariar = []; if (n.artigoDet?.variarCores) { n.artigoDet = { ...n.artigoDet }; delete n.artigoDet.variarCores; } return n; });
       setEditId(nova.id); setEditNum(nova.numero);
       setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`);
       carregarNegs();
@@ -758,6 +763,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   <Inp full text label="Fornecedor" value={f.revendaFornecedor} onChange={(v) => set("revendaFornecedor", v.toUpperCase())} />
                   <Inp full label="Preço de custo (R$/peça)" value={f.custoRevenda} onChange={(v) => set("custoRevenda", v)} destaque />
                 </div>
+                {/* v982 — revenda: cor do produto + variar cores (uma FPP por cor, agrupadas na lista como as de malha) */}
+                <CoresRevenda cor={f.revendaCor || ""} variar={Array.isArray(f.revendaCoresVariar) ? f.revendaCoresVariar : []}
+                  onCor={(v) => set("revendaCor", v)} onVariar={(l) => set("revendaCoresVariar", l)} />
                 <div className="text-[11px] mt-2" style={{ color: C.sub }}>Sem matéria-prima, aviamentos e produção: o custo do produto entra direto no custo da peça. Nas compras, a demanda é o próprio produto (1 por peça) a este preço de custo.</div>
               </Card>
             )}
@@ -1355,7 +1363,7 @@ function docFpp(f, master, anexos) {
   const temForro = !isMalha && (e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor)));
   const secoes = [];
   if (revendaP) {
-    secoes.push({ titulo: "Produto revenda", linhas: [["Descrição", e.revendaDescricao], ["Marca", e.revendaMarca], ["Fornecedor", e.revendaFornecedor], ["Preço de custo (R$/peça)", e.custoRevenda]] });
+    secoes.push({ titulo: "Produto revenda", linhas: [["Descrição", e.revendaDescricao], ["Marca", e.revendaMarca], ["Fornecedor", e.revendaFornecedor], ...(e.revendaCor ? [["Cor", e.revendaCor]] : []), ["Preço de custo (R$/peça)", e.custoRevenda]] });
   } else {
     const mp = [];
     if (abertaP) mp.push([isMalha ? "Rendimento (pç/kg)" : "Consumo (m/peça)", e.abRend]);
@@ -3011,6 +3019,34 @@ function ArteInp({ label, value, onChange, qtde, full }) {
     <div>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
       <ArteInput value={value} onChange={onChange} qtde={qtde} className={`px-2 py-1.5 rounded text-sm ${full ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
+    </div>
+  );
+}
+// v982 — cores do produto revenda: a cor desta FPP + as outras cores pretendidas (cada uma vira uma FPP do mesmo grupo ao salvar)
+function CoresRevenda({ cor, variar, onCor, onVariar }) {
+  const [nova, setNova] = useState("");
+  const add = () => {
+    const l = nova.split(/[,;\n]/).map((x) => x.trim().toLocaleUpperCase("pt-BR")).filter(Boolean);
+    if (!l.length) return;
+    onVariar([...new Set([...variar, ...l])].filter((x) => x !== String(cor || "").toLocaleUpperCase("pt-BR")));
+    setNova("");
+  };
+  return (
+    <div className="grid gap-3 items-start mt-3" style={{ gridTemplateColumns: "200px minmax(0,1fr)" }}>
+      <Inp full text label="Cor desta FPP" value={cor} onChange={(v) => onCor(v.toUpperCase())} placeholder="ex.: PRETO" />
+      <div>
+        <div className="text-xs mb-1 whitespace-nowrap" style={{ color: C.sub }}>Variar cores (uma FPP por cor ao salvar)</div>
+        <div className="flex flex-wrap items-center gap-1.5 px-2 py-1 rounded min-h-[34px]" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          {variar.map((c) => (
+            <span key={c} className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded" style={{ background: C.accentSoft, color: C.accent }}>
+              {c}<button type="button" onClick={() => onVariar(variar.filter((x) => x !== c))} title="Tirar esta cor"><X size={12} /></button>
+            </span>
+          ))}
+          <input value={nova} onChange={(e) => setNova(e.target.value.toLocaleUpperCase("pt-BR"))} onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } }} onBlur={add}
+            placeholder={variar.length ? "+ cor" : "Digite a cor e Enter (ex.: BRANCO, MARINHO)"} className="flex-1 min-w-[120px] text-sm py-1 outline-none" style={{ color: C.text }} />
+        </div>
+        {!!variar.length && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Ao salvar: esta FPP{cor ? ` (${cor})` : ""} + {variar.length} FPP(s) nova(s), mesmo custo e cálculo, cada uma com a sua cor no nome comercial.</div>}
+      </div>
     </div>
   );
 }
