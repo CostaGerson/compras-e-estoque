@@ -640,7 +640,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     setSalvando(true); setMsg("");
     try {
       const nova = await clonarFpp(montarBody(), user, editId);
-      setF((s) => ({ ...s, nomeComercial: nova.nomeComercial }));
+      // v978 — a cópia não herda o grupo de cores da original (antes, ao salvar a cópia ela entrava no grupo como principal e a original sumia da lista)
+      setF((s) => { const n = { ...s, nomeComercial: nova.nomeComercial }; delete n.grupoCores; delete n.corPrincipal; if (n.artigoDet?.variarCores) { n.artigoDet = { ...n.artigoDet }; delete n.artigoDet.variarCores; } return n; });
       setEditId(nova.id); setEditNum(nova.numero);
       setMsg(`Cópia criada: FPP ${fmtFpp(nova.numero)} ✓ — você está editando a cópia.`);
       carregarNegs();
