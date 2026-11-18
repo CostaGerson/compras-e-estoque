@@ -105,6 +105,30 @@ function previstasDoAcerto(contas, hoje = hojeSP()) {
   return out;
 }
 
+// "Desconsiderar previsão": adiantou para a facção por uma conta manual e a OS segue aberta no PCP.
+// A previsão sai e não volta: OS → todas as previsões daquela OS (itens e acerto); programação → aquele item.
+const chaveIgnorar = (descricao) => { const n = (String(descricao || "").match(/· (?:OS|ACERTO) (\d+)/) || [])[1]; return n ? `PREV-OS-${n}` : String(descricao || "").slice(0, 190); };
+export async function ignorarPrevisao(itemId, quem, motivo) {
+  if (String(motivo || "").trim().length < 3) return { error: "Escreva o motivo (ex.: adiantei R$ 2.000 pela conta manual)." };
+  const it = await prisma.finSemanaItem.findUnique({ where: { id: Number(itemId) } });
+  if (!it || !/^PREVIS[AÃ]O PCP/.test(String(it.descricao || ""))) return { error: "Essa conta não é uma previsão do PCP." };
+  if (it.pago || it.lancamentoId) return { error: "Essa previsão já tem baixa: desfaça a baixa antes." };
+  const k = chaveIgnorar(it.descricao);
+  const os = Number((k.match(/^PREV-OS-(\d+)$/) || [])[1]) || 0;
+  const ja = await prisma.faccaoOsPcp.findFirst({ where: { lancamento: k, status: "PREVISAO_IGNORADA" } });
+  if (!ja) await prisma.faccaoOsPcp.create({ data: { os, lancamento: k, parcela: null, status: "PREVISAO_IGNORADA", dados: { descricao: it.descricao, nome: it.nome, valor: Number(it.valor) },
+    valor: it.valor, motivo: String(motivo).trim().slice(0, 500), descartadoPorNome: quem || null, descartadoEm: new Date() } });
+  const r = await sincronizarPrevisao({ quem });
+  if (!r.ok) { await prisma.finSemanaItem.deleteMany({ where: { descricao: it.descricao, pago: false, lancamentoId: null } }); await recalcular(it.tituloId).catch(() => null); }
+  return { ok: true, chave: k, os };
+}
+// volta a considerar (desfaz o "desconsiderar")
+export async function reconsiderarPrevisao(chave, quem) {
+  const r = await prisma.faccaoOsPcp.updateMany({ where: { lancamento: String(chave), status: "PREVISAO_IGNORADA" }, data: { status: "PREVISAO_REATIVADA", estornadoPorNome: quem || null, estornadoEm: new Date() } });
+  if (r.count) await sincronizarPrevisao({ quem }).catch(() => null);
+  return { ok: true, total: r.count };
+}
+
 let rodando = false;
 export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
   if (rodando) return { ok: false, erro: "Já está atualizando." };
@@ -119,7 +143,9 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
     const hoje = hojeSP();
     await garantirContasPrestadores();
     const prests = await prisma.prestador.findMany({ where: { tipo: "TERCEIRIZADO" } });
-    const prev = { ...montarPrevistas(j.itens, hoje, prests), ...previstasDoAcerto(conf.contas, hoje) };
+    const prev0 = { ...montarPrevistas(j.itens, hoje, prests), ...previstasDoAcerto(conf.contas, hoje) };
+    const ign = new Set((await prisma.faccaoOsPcp.findMany({ where: { status: "PREVISAO_IGNORADA" }, select: { lancamento: true } })).map((x) => x.lancamento));
+    const prev = Object.fromEntries(Object.entries(prev0).filter(([k]) => !ign.has(chaveIgnorar(k))));   // desconsideradas não voltam
     const prest = await prestadorPrevisao();
     const titulos = {};
     for (const c of Object.values(prev)) { const k = `${c.sexta}|${c.mensal ? 1 : 0}`; if (totalDe(c.linhas) > 0 && !titulos[k]) titulos[k] = await tituloDaData("TERCEIRIZADO", c.sexta, !!c.mensal); }   // mensal: pagamento fora da sexta

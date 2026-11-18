@@ -129,6 +129,8 @@ export async function conferirFaccoes({ desde } = {}) {
   const pagasPrev = await prisma.finSemanaItem.findMany({ where: { descricao: { startsWith: "PREVISÃO PCP · OS " }, OR: [{ pago: true }, { lancamentoId: { not: null } }] }, select: { descricao: true, valor: true } });
   const pagoPrev = {};
   for (const x of pagasPrev) { const n = (String(x.descricao).match(/· OS (\d+) ·/) || [])[1]; if (n) pagoPrev[n] = r2((pagoPrev[n] || 0) + Number(x.valor)); }
+  // previsão desconsiderada (adiantamento por conta manual): avisa na conferência para não pagar duas vezes
+  const ignPrev = Object.fromEntries((await prisma.faccaoOsPcp.findMany({ where: { status: "PREVISAO_IGNORADA", lancamento: { startsWith: "PREV-OS-" } }, select: { os: true, motivo: true, descartadoPorNome: true } })).map((x) => [String(x.os), x]));
   for (const c of contas) {
     const p = await acharFaccao(c, prest);
     const m = montarConta(c);
@@ -144,7 +146,7 @@ export async function conferirFaccoes({ desde } = {}) {
       pagaNaPrevisao: pagoPrev[String(Number(c.os))] || null,
       prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo, pagamentoDiaMes: p.pagamentoDiaMes || null } : null, grupo: m.grupo, setor: m.setor, conta: m.setor ? contaDoSetor(m.grupo, m.setor) : null,
       sexta: m.sexta, recebimento: m.recebimento, prazoDias: m.prazoDias, linhas: m.linhas, nItens: m.nItens, pedidos: m.pedidos, semTipo: m.semTipo,
-      qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: pagoPrev[String(Number(c.os))] ? [`OS ${c.os} JÁ PAGA ADIANTADA PELA PREVISÃO (R$ ${brl(pagoPrev[String(Number(c.os))])}): descarte esta conta.`, ...m.avisos] : m.avisos, bate: m.bate });
+      qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: ignPrev[String(Number(c.os))] ? [`PREVISÃO DESTA OS FOI DESCONSIDERADA (${ignPrev[String(Number(c.os))].motivo || "ADIANTAMENTO"}${ignPrev[String(Number(c.os))].descartadoPorNome ? ` · ${ignPrev[String(Number(c.os))].descartadoPorNome}` : ""}): desconte o que já foi adiantado.`, ...m.avisos] : pagoPrev[String(Number(c.os))] ? [`OS ${c.os} JÁ PAGA ADIANTADA PELA PREVISÃO (R$ ${brl(pagoPrev[String(Number(c.os))])}): descarte esta conta.`, ...m.avisos] : m.avisos, bate: m.bate });
   }
   out.sort((a, b) => (a.lancada - b.lancada) || (a.descartada - b.descartada) || String(a.vencimento || "").localeCompare(String(b.vencimento || "")) || a.os - b.os || (a.parcela || 0) - (b.parcela || 0));
   return { ok: true, geradoEm: j?.geradoEm || null, contas: out };
