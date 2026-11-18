@@ -1685,10 +1685,10 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
           {selecionadas.length > 0 && (
             <>
               <button onClick={imprimirSelecionadas} disabled={imprimindo} title="Gera um PDF com as FPPs selecionadas (uma por página)"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, opacity: imprimindo ? 0.6 : 1 }}>
-                <Printer size={15} /> {imprimindo ? "Gerando…" : `Imprimir FPPs (${selecionadas.length})`}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, opacity: imprimindo ? 0.6 : 1 }}>
+                <Printer size={13} /> {imprimindo ? "Gerando…" : `Imprimir FPPs (${selecionadas.length})`}
               </button>
-              <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}>
+              <button onClick={gerarPropostaSelecionadas} className="px-3 py-1.5 rounded-md text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>
                 Gerar proposta ({selecionadas.length})
               </button>
             </>
