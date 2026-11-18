@@ -146,10 +146,10 @@ export function IntegracaoNort({ user }) {
   return (
     <div className="max-w-4xl">
       <div className="text-sm mb-4" style={{ color: C.sub }}>O ERP lê o sistema da loja NORT. O token abaixo é do ERP e só serve se o sistema da loja também quiser mandar dados para cá (opcional).</div>
-      {/* v910 — o ERP lê o sistema da loja (pedidos a cada 10 min, estoque a cada 1 h) */}
+      {/* v910 — o ERP lê o sistema da loja (pedidos e estoque a cada 1 min) */}
       <div className="rounded-xl p-4 mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="font-semibold mb-1" style={{ color: C.navy }}>Leitura do sistema da NORT</div>
-        <div className="text-xs mb-3" style={{ color: C.sub }}>O ERP busca as encomendas conferidas a cada 10 min e o saldo de estoque a cada 1 h (Loja → LOJA, Reserva Fábrica → SEDE, Mercado Livre → ML). Endereços que o sistema da loja precisa ter: <code>/api/erp/pedidos</code> e <code>/api/erp/estoque</code>.</div>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>O ERP busca as encomendas conferidas e o saldo de estoque a cada 1 min (Loja → LOJA, Reserva Fábrica → SEDE, Mercado Livre → ML). Endereços que o sistema da loja precisa ter: <code>/api/erp/pedidos</code> e <code>/api/erp/estoque</code>.</div>
         <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "2fr 1.5fr auto" }}>
           <input value={lf.url} onChange={(e) => setLf({ ...lf, url: e.target.value })} placeholder="https://producao.nortsports.com.br" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
           <input value={lf.token} onChange={(e) => setLf({ ...lf, token: e.target.value })} placeholder={d.leitura?.temToken ? "token salvo (deixe em branco para manter)" : "token do sistema da loja"} type="password" autoComplete="new-password" className="px-2 py-1.5 rounded text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />

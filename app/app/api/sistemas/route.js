@@ -29,7 +29,7 @@ async function nort() {
   if (ult) {
     const erro = [st.pedidos, st.estoque].find((x) => x && !x.ok);
     return { chave: "NORT", ativo: !erro && Date.now() - new Date(ult.em).getTime() < 2 * H, ultima: ult.em,
-      detalhe: erro ? `Leitura com erro: ${String(erro.erro || "").slice(0, 120)}` : "Leitura de pedidos (10 min) e estoque (1 h) do sistema da loja" };
+      detalhe: erro ? `Leitura com erro: ${String(erro.erro || "").slice(0, 120)}` : "Leitura de pedidos e estoque do sistema da loja a cada 1 min" };
   }
   const [m, p] = await Promise.all([
     prisma.nortMov.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }).catch(() => null),

@@ -2,7 +2,7 @@
 //   Configuração em Dados › Integrações › NORT (endereço base + token do sistema dele, cabeçalho X-Api-Key).
 //   · Pedidos: GET {url}/api/erp/pedidos?desde=ISO → { pedidos: [{ ref, cliente, contato?, emissao?, entrega, obs?,
 //       itens: [{ seq, nome, sku?, descricao?, grade: [{ tam, qtd }], personalizacao?, artes?: [{ nome, url }] }] }] }
-//     a cada 10 min; cada ref entra uma vez (pedido interno NORT; aguarda FPP se faltar). Artes viram anexo LAYOUT e o item
+//     a cada 1 min (v947); cada ref entra uma vez (pedido interno NORT; aguarda FPP se faltar). Artes viram anexo LAYOUT e o item
 //     vai com "dispensa layout"; a aprovação de layout fica com o usuário NORT do ERP.
 //   · Estoque: GET {url}/api/erp/estoque → { itens: [{ nome, sku?, depositos: { "<nome do depósito>": saldo } }] }
 //     a cada 1 h; Loja → LOJA, Reserva Fábrica → SEDE, Mercado Livre → ML. O ERP se alinha ao saldo lido.
@@ -112,17 +112,19 @@ export async function lerEstoque() {
   return res;
 }
 
-// pedidos a cada 10 min, estoque a cada 1 h (só se a leitura estiver configurada)
+// v947 — pedidos e estoque a cada 1 min (só se a leitura estiver configurada); um ciclo não começa antes do anterior terminar
 export function agendarLeituraNort() {
   if (globalThis.__leituraNort) return; globalThis.__leituraNort = true;
-  let ultEst = 0;
+  let rodando = false;
   const ciclo = async () => {
+    if (rodando) return; rodando = true;
     try {
       const cfg = await configLeitura(); if (!cfg.url || !cfg.token) return;
       await lerPedidos();
-      if (Date.now() - ultEst > H) { ultEst = Date.now(); await lerEstoque(); }
+      await lerEstoque();
     } catch (e) { console.error("[leitura NORT]", e.message); }
+    finally { rodando = false; }
   };
   setTimeout(ciclo, 60 * 1000);
-  setInterval(ciclo, 10 * 60 * 1000);
+  setInterval(ciclo, 60 * 1000);
 }
