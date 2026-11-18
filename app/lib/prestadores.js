@@ -129,6 +129,8 @@ export async function salvar(tipo, campos, { id, quem } = {}) {
       : null,
     // v209 — terceirizado: prazo de pagamento combinado e nome no KM
     prazoDias: tipo === "TERCEIRIZADO" && campos.prazoDias !== "" && campos.prazoDias != null ? Math.max(0, Math.trunc(Number(campos.prazoDias) || 0)) : null,
+    // v940 — pagamento mensal num dia fixo (1 a 31); vazio = semanal (sexta)
+    pagamentoDiaMes: tipo === "TERCEIRIZADO" && Number(campos.pagamentoDiaMes) >= 1 && Number(campos.pagamentoDiaMes) <= 31 ? Math.trunc(Number(campos.pagamentoDiaMes)) : null,
     ...(campos.nomeKm !== undefined ? { nomeKm: String(campos.nomeKm || "").trim().toUpperCase() || null } : {}),
     ...(campos.ativo === undefined ? {} : { ativo: !!campos.ativo }),
   };

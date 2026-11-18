@@ -1601,6 +1601,7 @@ model Prestador {
   funcao        String?  // v175 — freelancer: função (ARREMATE, CORTADOR, MOTORISTA…)
   diarias       Json?    // v175 — freelancer: [{ turno: DIA|NOITE|ÚNICO, diaria, passagem }]
   prazoDias     Int?     // v209 — terceirizado: prazo de pagamento combinado (dias corridos; vazio = 0)
+  pagamentoDiaMes Int?   // v940 — terceirizado pago 1× por mês nesse dia (ex.: 10): o que fecha até o dia cai nele; vazio = semanal
   nomeKm        String?  // v209 — terceirizado: como aparece no FORNECEDOR da OS do KM ("FACÇÃO - ELIAS" → ELIAS)
   ativo         Boolean  @default(true)
   criadoPorNome String?

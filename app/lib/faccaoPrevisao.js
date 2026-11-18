@@ -6,6 +6,9 @@
 //      · item da programação (ainda sem OS): uma conta por item também, com o preço combinado / FPP / tabela;
 //      · OS acertada no PCP (/api/ext/faccao/apagar) e ainda não lançada aqui: a previsão passa a ter o valor e a
 //        sexta reais (a data marcada no acerto); quando a conta real é lançada na conferência, a previsão sai.
+//  - v940 — prazo do cadastro da facção (Terceirizados): "paga 1× por mês no dia X" → o que tem entrega até o dia X
+//    cai no dia X do mês (depois do dia X → dia X do mês seguinte), como pagamento fora da sexta; "prazo de pagamento"
+//    em dias → entrega + prazo, paga na primeira sexta a partir daí; sem nada → sexta da semana da entrega.
 //  - a mesma conta é regravada a cada hora (6h–22h): o prazo mudou → a conta muda de sexta, não nasce outra;
 //  - nunca duplica: a chave é a descricao ("PREVISÃO PCP · OS 8 · 26080046-9"); conta a mais com a mesma chave é
 //    apagada; previsão que deixou de existir é apagada; conta paga nunca é mexida.
@@ -40,8 +43,24 @@ async function prestadorPrevisao() {
 const totalDe = (linhas) => r2(linhas.reduce((a, l) => a + l.total, 0));
 const setorDe = (linhas) => { const t = {}; for (const l of linhas) if (!l.desconto) t[l.tipo] = (t[l.tipo] || 0) + l.total; return Object.entries(t).sort((a, b) => b[1] - a[1])[0]?.[0] || "CAMISETA"; };
 
+// v940 — data de pagamento pela regra do cadastro da facção
+const ultimoDia = (a, m) => new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
+export function pagamentoDe(entrega, p) {
+  const dia = Number(p?.pagamentoDiaMes) || 0;
+  if (dia >= 1) {
+    const d = dUTC(entrega); let a = d.getUTCFullYear(), m = d.getUTCMonth();
+    if (d.getUTCDate() > Math.min(dia, ultimoDia(a, m))) { m++; if (m > 11) { m = 0; a++; } }
+    return { data: iso(Date.UTC(a, m, Math.min(dia, ultimoDia(a, m)))), mensal: dia };
+  }
+  const prazo = Number(p?.prazoDias) || 0;
+  if (prazo > 0) { const v = dUTC(entrega); v.setUTCDate(v.getUTCDate() + prazo); while (v.getUTCDay() !== 5) v.setUTCDate(v.getUTCDate() + 1); return { data: iso(v), prazo }; }
+  return { data: sextaDaSemanaSD(entrega) };
+}
+const achaPrest = (lista, nome) => { const n = sa(nome); return n ? lista.find((p) => sa(p.nome) === n || sa(p.nomeKm) === n)
+  || lista.find((p) => sa(p.nome).startsWith(n + " ") || n.startsWith(sa(p.nome) + " ")) || null : null; };
+
 // 1) itens do PCP (na facção + programação) → uma conta prevista por item { chave, faccao, entrega, sexta, linhas, texto }
-export function montarPrevistas(itens, hoje = hojeSP()) {
+export function montarPrevistas(itens, hoje = hojeSP(), prests = []) {
   const out = {};
   for (const x of itens || []) {
     const fac = facNome(x.faccao);
@@ -59,8 +78,9 @@ export function montarPrevistas(itens, hoje = hojeSP()) {
     c.refs.push(`${ref} × R$ ${brl(unit)}${x.origem === "OS_RETORNADA" ? " (VOLTOU, FALTA ACERTAR NO PCP)" : ""}`);
   }
   for (const c of Object.values(out)) {
-    c.sexta = sextaDaSemanaSD(c.entrega);
-    c.texto = `${c.os ? "NA FACÇÃO" : "AINDA SEM OS"} · ENTREGA PREVISTA ${dBR(c.entrega)}`;
+    const pg = pagamentoDe(c.entrega, achaPrest(prests, c.faccao));
+    c.sexta = pg.data; c.mensal = pg.mensal || 0;
+    c.texto = `${c.os ? "NA FACÇÃO" : "AINDA SEM OS"} · ENTREGA PREVISTA ${dBR(c.entrega)}${pg.mensal ? ` · PAGA 1× POR MÊS, DIA ${pg.mensal}` : pg.prazo ? ` · PRAZO ${pg.prazo} DIAS` : ""}`;
   }
   return out;
 }
@@ -94,11 +114,12 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
     const conf = await conferirFaccoes();
     if (conf.erro) return { ok: false, erro: `Contas a pagar de facção do PCP: ${conf.erro}. Não mexi na previsão.` };
     const hoje = hojeSP();
-    const prev = { ...montarPrevistas(j.itens, hoje), ...previstasDoAcerto(conf.contas, hoje) };
     await garantirContasPrestadores();
+    const prests = await prisma.prestador.findMany({ where: { tipo: "TERCEIRIZADO" } });
+    const prev = { ...montarPrevistas(j.itens, hoje, prests), ...previstasDoAcerto(conf.contas, hoje) };
     const prest = await prestadorPrevisao();
     const titulos = {};
-    for (const c of Object.values(prev)) if (totalDe(c.linhas) > 0 && !titulos[c.sexta]) titulos[c.sexta] = await tituloDaData("TERCEIRIZADO", c.sexta, false);
+    for (const c of Object.values(prev)) { const k = `${c.sexta}|${c.mensal ? 1 : 0}`; if (totalDe(c.linhas) > 0 && !titulos[k]) titulos[k] = await tituloDaData("TERCEIRIZADO", c.sexta, !!c.mensal); }   // mensal: pagamento fora da sexta
     const cods = [...new Set(Object.values(prev).flatMap((c) => c.linhas.map((l) => contaDoSetor("FACCAO", l.tipo))).filter(Boolean))];
     const contas = Object.fromEntries((await prisma.finConta.findMany({ where: { codigo: { in: cods } }, select: { id: true, codigo: true } })).map((c) => [c.codigo, c.id]));
     const quando = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date());
@@ -113,7 +134,7 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
       for (const c of Object.values(prev)) {
         const valor = totalDe(c.linhas);
         if (!(valor > 0)) continue;
-        const t = titulos[c.sexta];
+        const t = titulos[`${c.sexta}|${c.mensal ? 1 : 0}`];
         const mesmas = porChave[c.chave] || [];
         if (mesmas.some((x) => x.pago || x.lancamentoId)) { mesmas.forEach((x) => usados.add(x.id)); res.contas.push({ chave: c.chave, aviso: "previsão já paga: não mexi" }); continue; }
         const linhas = c.linhas.map((l) => ({ ...l, contaId: contas[contaDoSetor("FACCAO", l.tipo)] || null }));
@@ -126,7 +147,8 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
         const data = {
           tituloId: t.id, grupo: "FACCAO", prestadorId: prest.id, nome: `${NOME} · ${c.faccao}`.slice(0, 190), chavePix: prest.chavePix || "-",
           setor, contaId, linhas, valor, dataRecebimento: dUTC(receb), prazoDias: Math.max(0, Math.round((dUTC(c.sexta) - dUTC(receb)) / 86400e3)),
-          vencimentoNegociado: dUTC(c.sexta), descricao: c.chave, observacao, excepcional: false,
+          vencimentoNegociado: dUTC(c.sexta), descricao: c.chave, observacao, excepcional: !!c.mensal,
+          justificativa: c.mensal ? `PAGAMENTO MENSAL NO DIA ${c.mensal} (CADASTRO DA FACÇÃO)` : null,
         };
         const [fica, ...sobra] = mesmas;
         if (fica) { await tx.finSemanaItem.update({ where: { id: fica.id }, data }); usados.add(fica.id); mexidos.add(fica.tituloId); res.atualizadas++; }
