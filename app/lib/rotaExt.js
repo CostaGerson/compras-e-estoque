@@ -65,6 +65,8 @@ export async function terceirizadosExt({ desde } = {}) {
     ativo: !!p.ativo,
     telefone: p.telefone || null,
     endereco: partesEndereco(p.endereco, gk[sem(p.endereco).slice(0, 300)]),
+    // prazo de pagamento do cadastro: o PCP sugere o vencimento no fechamento da OS
+    prazoDias: p.prazoDias ?? null, pagamentoDiaMes: p.pagamentoDiaMes ?? null,
     atualizadoEm: p.updatedAt.toISOString(),
   }));
   return { versao: 1, geradoEm: new Date().toISOString(), total: terceirizados.length, terceirizados };
