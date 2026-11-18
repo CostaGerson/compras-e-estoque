@@ -671,9 +671,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
   return (
     <div className="fpp-maiusc">
-      {/* v973 — tudo da FPP em maiúsculas: campos, listas, cards, modais (placeholders seguem normais) */}
+      {/* v974 — maiúscula ocupa mais: tabela e campos 1 ponto menores · v973 — tudo da FPP em maiúsculas: campos, listas, cards, modais (placeholders seguem normais) */}
       <style>{`.fpp-maiusc, .fpp-maiusc input:not([type=number]):not([type=date]):not([type=email]):not([type=password]), .fpp-maiusc textarea, .fpp-maiusc select, .fpp-maiusc option, .fpp-maiusc button{text-transform:uppercase}
-        .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}`}</style>
+        .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}
+        .fpp-maiusc td{font-size:.9em}
+        .fpp-maiusc input:not([type=number]):not([type=date]):not([type=checkbox]):not([type=radio]), .fpp-maiusc textarea, .fpp-maiusc select{font-size:13px}`}</style>
       {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1 flex-1" style={{ borderBottom: `1px solid ${C.line}` }}>
