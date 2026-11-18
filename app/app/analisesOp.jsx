@@ -225,8 +225,9 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
   const sM = (k, v) => setF((x) => ({ ...x, mercado: { ...x.mercado, [k]: v } }));
 
   const c = d?.calc;
-  const minMes = (() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 6); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; })();   // v286
-  const meses = [...new Set([...(d?.competencias || []), comp].filter(Boolean))].sort().reverse();
+  // v942 — um seletor só: meses com análise + os últimos 7 meses (antes havia um segundo seletor de calendário para "outro mês")
+  const ultimos = (() => { const r = []; const x = new Date(); x.setDate(1); for (let i = 0; i <= 6; i++) { r.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`); x.setMonth(x.getMonth() - 1); } return r; })();
+  const meses = [...new Set([...(d?.competencias || []), ...ultimos, comp].filter(Boolean))].sort().reverse();
   const G = !!d?.grade;   // v257 — silk/bordado: sem peças estimadas; compara com o mercado e mostra o custo por cor/milheiro
   // v261 — sem parâmetros estimados (peças estimadas / custo fixo): todas as análises comparam com o mercado (terceirizar)
   const bom = c && c.incorrido <= c.mediaTerc;
@@ -245,7 +246,6 @@ export default function AnaliseCorte({ user, setor = "CORTE" }) {
         <select value={comp || ""} onChange={(e) => setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS}>
           {meses.map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}
         </select>
-        <input type="month" min={minMes} value={comp || ""} onChange={(e) => e.target.value && e.target.value >= minMes && setComp(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS} title="Outro mês" />
         <div className="flex-1" />
         {!T.manual && <>
           <input ref={inpRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { importar(e.target.files); e.target.value = ""; }} />
