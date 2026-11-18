@@ -193,6 +193,14 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
       }
     }, { timeout: 120000 });
     for (const t of mexidos) await recalcular(t).catch(() => null);
+    // casca de "pagamento excepcional" que a previsão abriu e ficou vazia (a data mudou): sai, se não tiver nada nela
+    const vazias = await prisma.finTitulo.findMany({ where: { chaveImport: { startsWith: "SEMANA|TERCEIRIZADO|", endsWith: "|EXC" }, status: "ABERTO", lancamentoId: null, semanaItens: { none: {} } }, select: { id: true } }).catch(() => []);
+    for (const v of vazias) mexidos.add(v.id);
+    for (const t of mexidos) {
+      const tt = await prisma.finTitulo.findUnique({ where: { id: t }, select: { id: true, chaveImport: true, status: true, lancamentoId: true, _count: { select: { semanaItens: true } } } }).catch(() => null);
+      if (tt && /^SEMANA\|TERCEIRIZADO\|.*\|EXC$/.test(tt.chaveImport || "") && !tt._count?.semanaItens && !tt.lancamentoId && !["PAGO", "PARCIAL"].includes(String(tt.status || "")))
+        await prisma.finTitulo.delete({ where: { id: t } }).catch(() => null);
+    }
     globalThis.__prevFaccao = { em: new Date().toISOString(), dia: hoje, ...res };
     return { ok: true, ...res };
   } finally { rodando = false; }
