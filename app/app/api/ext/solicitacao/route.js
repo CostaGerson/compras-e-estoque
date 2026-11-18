@@ -5,6 +5,8 @@
 //   POST { acao: "iniciar", nome, mime, tamanho }                            → { token, parte }  (arquivo grande, em partes)
 //   POST { acao: "parte", token, off, conteudo }                             → { recebido, completo }   (conteudo em base64, até 8 MB)
 //   POST { acao: "anexar", tarefaId, nome, mime, conteudo | token }          → { ok, id }
+//   v969 POST { acao: "nf", idEmail, de, assunto, data, solicitante, arquivos: [{ nome, mime, conteudo | token }] }
+//        → etiqueta "NFs a lançar": XML/PDF entram direto no movimento fiscal (lib/nfEmail.js) · { resultados, pendentes, tarefaId }
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +45,7 @@ export async function POST(req) {
       await prisma.finConfig.upsert({ where: { chave }, create: { chave, valor: String(r.tarefa.id) }, update: { valor: String(r.tarefa.id) } });
       return Response.json({ tarefaId: r.tarefa.id, ja: false });
     }
+    if (b.acao === "nf") { const { nfDoEmail } = await import("@/lib/nfEmail"); const r = await nfDoEmail(b); return Response.json(r, { status: r.error ? 400 : 200 }); }   // v969
     if (b.acao === "iniciar") return Response.json({ token: await iniciar({ nome: b.nome, mime: b.mime, tamanho: b.tamanho, quem: "GMAIL" }), parte: PARTE });
     if (b.acao === "parte") return Response.json(await parte(b.token, Number(b.off) || 0, Buffer.from(String(b.conteudo || ""), "base64")));
     if (b.acao === "anexar") {

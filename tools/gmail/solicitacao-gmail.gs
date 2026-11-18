@@ -3,6 +3,8 @@
  *
  *  · etiqueta "Pedidos a Lançar"      → tarefa "LANÇAR PEDIDO" do Leandro
  *  · etiqueta "Fatura/nota a lançar"  → tarefa "LANÇAR FATURA/NOTA" da Brenda
+ *  · etiqueta "NFs a lançar" (v969)   → os XML/PDF entram DIRETO no movimento fiscal e as contas são lançadas;
+ *                                       o que precisar de conferência vira a tarefa "CONFERIR NF" da Brenda
  *
  * A cada 5 minutos o script olha cada etiqueta, manda para o ERP o que ainda não foi enviado
  * (assunto, remetente, texto e TODOS os anexos) e põe a etiqueta "feito" na conversa.
@@ -16,6 +18,7 @@ const PARTE = 8 * 1024 * 1024;
 const FLUXOS = [
   { tipo: "PEDIDO", origem: "1. Pedidos/Pedidos a Lançar", feito: "1. Pedidos/Enviado ao ERP" },
   { tipo: "FATURA", origem: /fatura\/nota a lan[çc]ar/i, feito: "Enviado ao ERP/Faturas e notas" },
+  { tipo: "NF", origem: /(^|\/)nfs? a lan[çc]ar$/i, feito: "Enviado ao ERP/NFs lançadas" },   // v969
 ];
 
 function acharEtiqueta(origem) {
@@ -39,7 +42,32 @@ function enviarSolicitacoes() {
   }
 }
 
+// v969 — NFs: sobe os anexos e pede ao ERP para lançar no movimento fiscal (um pedido por conversa)
+function enviarNfs(th) {
+  const msgs = th.getMessages();
+  const ult = msgs[msgs.length - 1];
+  const arquivos = [], vistos = {};
+  for (const m of msgs) {
+    for (const a of m.getAttachments({ includeInlineImages: false })) {
+      const nome = a.getName(), bytes = a.getBytes(), mime = a.getContentType();
+      if (!/\.(xml|pdf)$/i.test(nome) && !/xml|pdf/i.test(mime)) continue;
+      const chave = nome + "|" + bytes.length;
+      if (vistos[chave]) continue; vistos[chave] = true;
+      if (bytes.length <= PARTE) { arquivos.push({ nome, mime, conteudo: Utilities.base64Encode(bytes) }); continue; }
+      const ini = chamar({ acao: "iniciar", nome, mime, tamanho: bytes.length });
+      let off = 0;
+      while (off < bytes.length) { const p = chamar({ acao: "parte", token: ini.token, off, conteudo: Utilities.base64Encode(bytes.slice(off, off + PARTE)) }); off = p.recebido; }
+      arquivos.push({ nome, mime, token: ini.token });
+    }
+  }
+  const r = chamar({ acao: "nf", idEmail: th.getId(), de: ult.getFrom(), assunto: ult.getSubject(),
+    data: Utilities.formatDate(ult.getDate(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm"), solicitante: Session.getActiveUser().getEmail(), arquivos });
+  console.log(th.getFirstMessageSubject() + " → " + (r.resultados || []).map((x) => "NF " + x.numero + " " + x.situacao).join(", ") +
+    ((r.pendentes || []).length ? " · para conferir: " + r.pendentes.map((x) => "NF " + x.numero).join(", ") : ""));
+}
+
 function enviarConversa(th, tipo) {
+  if (tipo === "NF") return enviarNfs(th);
   const msgs = th.getMessages();
   const ult = msgs[msgs.length - 1];
   const r = chamar({ acao: "criar", tipo, idEmail: th.getId(), de: ult.getFrom(), assunto: ult.getSubject(),
