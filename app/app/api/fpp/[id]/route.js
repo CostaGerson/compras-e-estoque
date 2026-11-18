@@ -57,7 +57,7 @@ export async function POST(req, { params }) {
   const nome = `CÓPIA DE ${o.nomeComercial || o.item || "FPP"}`.toUpperCase();
   const { id, numero, createdAt, updatedAt, ...resto } = o;
   const f = await criarComNumero({
-    ...resto, nomeComercial: nome, entradas: { ...(o.entradas || {}), nomeComercial: nome },
+    ...resto, nomeComercial: nome, entradas: { ...(o.entradas || {}), nomeComercial: nome, grupoCores: undefined, corPrincipal: undefined },   // v968 — a cópia sai do grupo de cores
     criadoPorId: b.criadoPorId != null ? Number(b.criadoPorId) : o.criadoPorId, criadoPorNome: b.criadoPorNome || o.criadoPorNome,
   });
   await (await import("@/lib/fppEstampas")).copiarEstampas(o.id, f.id);   // v806 — arquivos das estampas vão junto

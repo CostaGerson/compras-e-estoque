@@ -88,7 +88,7 @@ async function clonarFpp(fpp, user, origemId) {
   const body = {
     tipo: fpp.tipo, item: fpp.item, nomeComercial: nome, clienteId: fpp.clienteId ?? null, clienteNome: fpp.clienteNome ?? null,
     negociacao: fpp.negociacao ?? null, qtde: fpp.qtde ?? null, condicaoPagamento: fpp.condicaoPagamento ?? null, leadTime: fpp.leadTime ?? null,
-    entradas: { ...(fpp.entradas || {}), nomeComercial: nome }, overrides: fpp.overrides || null, resultados: fpp.resultados || {},
+    entradas: { ...(fpp.entradas || {}), nomeComercial: nome, grupoCores: undefined, corPrincipal: undefined }, overrides: fpp.overrides || null, resultados: fpp.resultados || {},
     custoProducao: fpp.custoProducao ?? null, custoFinal: fpp.custoFinal ?? null, valorProposto: fpp.valorProposto ?? null,
     margem: fpp.margem ?? null, totalItem: fpp.totalItem ?? null,
     criadoPorId: user?.id ?? null, criadoPorNome: `${user?.nome || ""} ${user?.sobrenome || ""}`.trim() || null,
@@ -569,12 +569,15 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     return { subT, breakeven, rib, mpBase: revenda ? 0 : isMalha ? (rendCons ? num(f.mpValor) / rendCons : 0) : num(f.mpValor) * rendCons, revenda, aberta, custoRevenda, mpExtras, elast, fx, botaoUn, rendCons, sugestao, sugestaoBase, sugestaoRepasse, consumoForro, consumoForroEst, comissao, comissaoPct, comissaoTotal: comissao * num(f.qtde), mp, forro, linha, materiaPrima, aviamentos, producao, personalizacao, logistica, embalagem, custoProducao, opFin, opInv, opTit, taxaTit, diasInv, pagFr: fr, custoFinal, roic, margem, totalItem, volta, acabRotulo: isMalha ? "Expedição" : "Acabamento" };
   }, [params, tipo, f, over, aberta, revenda]);
 
-  function montarBody() {
+  function montarBody(fx) {
+    const f0 = fx || f;
+    // v968 — o nome comercial termina sempre com a cor da matéria-prima principal
+    const nc = f0.artigoDet?.cor ? comCor(f0.nomeComercial || f0.item, null, f0.artigoDet.cor) : f0.nomeComercial;
     return {
-      tipo, item: f.item, nomeComercial: f.nomeComercial, clienteId: f.clienteId, clienteNome: f.clienteNome, qtde: num(f.qtde),
-      negociacao: f.negociacao || null,
-      condicaoPagamento: textoPagFpp(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde))), leadTime: num(f.leadTime),
-      entradas: { ...f, paramsAlterados: !!(modoOverride || Object.keys(over).length) }, overrides: Object.keys(over).length ? over : null,
+      tipo, item: f0.item, nomeComercial: nc, clienteId: f0.clienteId, clienteNome: f0.clienteNome, qtde: num(f0.qtde),
+      negociacao: f0.negociacao || null,
+      condicaoPagamento: textoPagFpp(pagamentoFpp(f0), num(f0.valorProposto) * Math.max(1, num(f0.qtde))), leadTime: num(f0.leadTime),
+      entradas: { ...f0, nomeComercial: nc, paramsAlterados: !!(modoOverride || Object.keys(over).length) }, overrides: Object.keys(over).length ? over : null,
       resultados: r,
       custoProducao: r?.custoProducao, custoFinal: r?.custoFinal, valorProposto: num(f.valorProposto),
       margem: r?.margem, totalItem: r?.totalItem,
@@ -594,14 +597,30 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     if (st?.falta === "PAPEL") return setMsg("Sublimação total: informe o consumo de papel (m/peça) na aplicação.");
     if (st?.falta === "RENDIMENTO") return setMsg("Sublimação total: preencha o rendimento da malha (m/kg) no + do artigo principal — é dele que sai o consumo de malha pelo papel.");
     setSalvando(true); setMsg("");
-    const body = montarBody();
+    // v968 — variar cores: a FPP desta tela é a principal (preta); cada outra cor vira uma FPP do mesmo grupo
+    const vc = Array.isArray(f.artigoDet?.variarCores) ? f.artigoDet.variarCores : [];
+    const grupo = vc.length ? (f.grupoCores || `G${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`) : f.grupoCores;
+    const fPrin = vc.length ? { ...f, grupoCores: grupo, corPrincipal: true, artigoDet: (() => { const d = { ...f.artigoDet }; delete d.variarCores; return d; })() } : f;
+    const body = montarBody(fPrin);
     const url = editId ? `/api/fpp/${editId}` : "/api/fpp";
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const salvo = await res.json().catch(() => ({}));
+    let criadas = [];
+    if (res.ok && vc.length) {
+      for (const x of vc) {
+        const fx = { ...fPrin, corPrincipal: false, artigoDet: { ...x.det } };   // mesmo custo e cálculo da principal
+        const bx = montarBody(fx); delete bx.copiarEstampasDe;
+        const rx = await fetch("/api/fpp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bx) });
+        const sx = await rx.json().catch(() => ({}));
+        if (rx.ok && sx.numero) criadas.push(fmtFpp(sx.numero));
+      }
+      setF((o) => ({ ...fPrin, nomeComercial: body.nomeComercial }));
+    } else if (res.ok && body.nomeComercial !== f.nomeComercial) setF((o) => ({ ...o, nomeComercial: body.nomeComercial }));
     setSalvando(false);
     if (res.ok) carregarNegs();
     if (res.ok && !editId && salvo.id) { setEditId(salvo.id); setEditNum(salvo.numero); }   // salvar de novo atualiza esta, não cria outra
-    setMsg(res.ok ? (editId ? `FPP ${fmtFpp(salvo.numero || editNum)} atualizada ✓` : `FPP ${fmtFpp(salvo.numero)} salva ✓`) : "Erro ao salvar.");
+    const extra = criadas.length ? ` · ${criadas.length} FPP(s) das outras cores criadas (${criadas.join(", ")})` : vc.length ? " · atenção: as FPPs das outras cores não foram criadas" : "";
+    setMsg(res.ok ? (editId ? `FPP ${fmtFpp(salvo.numero || editNum)} atualizada ✓` : `FPP ${fmtFpp(salvo.numero)} salva ✓`) + extra : "Erro ao salvar.");
   }
 
   function carregarFicha(fpp, deOnde) {
@@ -748,8 +767,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
               <div className="space-y-3">
                 <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(tipo === "PLANO" || aberta) }}>
                   <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
-                    onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => set("artigoDet", d)}
-                    onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigo: String(nome || "").toUpperCase(), artigoDet: det, ...(custo != null ? { mpValor: custo } : {}) }))} />
+                    onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => setF((o) => ({ ...o, artigoDet: d, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, d?.cor) }))} podeVariar
+                    onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigo: String(nome || "").toUpperCase(), artigoDet: det, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, det?.cor), ...(custo != null ? { mpValor: custo } : {}) }))} />
                   <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
                   {aberta
                     ? <Inp full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} value={f.abRend} onChange={(v) => set("abRend", v)} />
@@ -1513,6 +1532,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
   const [aberta, setAberta] = useState(null);
   const [proposta, setProposta] = useState(null);
   const [imprimindo, setImprimindo] = useState(false);
+  const [gruposAbertos, setGruposAbertos] = useState(() => new Set());   // v968 — grupos de cores abertos na lista
 
   function carregar() { fetch("/api/fpp").then((r) => r.json()).then((d) => setLista(Array.isArray(d) ? d : [])).catch(() => setLista([])); }
   useEffect(carregar, []);
@@ -1593,6 +1613,21 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
 
   const selecionadas = lista.filter((f) => sel.has(f.id));
   const cols = COLS.filter((c) => !c.master || master);
+  // v968 — FPPs da mesma variação de cores: aparece a principal (preta); a seta abre as demais
+  const gruposCor = new Map();
+  for (const f of dados) { const g = f.entradas?.grupoCores; if (g) { if (!gruposCor.has(g)) gruposCor.set(g, []); gruposCor.get(g).push(f); } }
+  const principalDe = (arr) => arr.find((x) => x.entradas?.corPrincipal) || arr.find((x) => ehPreto(x.entradas?.artigoDet?.cor)) || arr[0];
+  const linhas = []; const gVistos = new Set();
+  for (const f of dados) {
+    const g = f.entradas?.grupoCores; const arr = g && gruposCor.get(g);
+    if (!arr || arr.length < 2) { linhas.push({ f }); continue; }
+    if (gVistos.has(g)) continue;
+    gVistos.add(g);
+    const p0 = principalDe(arr);
+    linhas.push({ f: p0, grupo: g, n: arr.length - 1 });
+    if (gruposAbertos.has(g)) for (const x of arr) if (x !== p0) linhas.push({ f: x, filho: true });
+  }
+  const abrirGrupo = (g) => setGruposAbertos((s) => { const n = new Set(s); n.has(g) ? n.delete(g) : n.add(g); return n; });
 
   function toggle(id) { setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
 
@@ -1758,9 +1793,18 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
             </tr>
           </thead>
           <tbody>
-            {dados.map((f) => (
-              <tr key={f.id} data-fpp={f.id} style={{ borderTop: `1px solid ${C.line}`, background: destaque === f.id ? C.accentSoft : undefined, transition: "background .6s" }}>
-                <td className="px-2 py-2"><input type="checkbox" checked={sel.has(f.id)} onChange={() => toggle(f.id)} /></td>
+            {linhas.map(({ f, grupo, n, filho }) => (
+              <tr key={f.id} data-fpp={f.id} style={{ borderTop: `1px solid ${C.line}`, background: destaque === f.id ? C.accentSoft : filho ? C.panel2 : undefined, transition: "background .6s" }}>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">
+                    {grupo ? (
+                      <button onClick={() => abrirGrupo(grupo)} title={`${n} outra(s) cor(es) desta FPP`} className="inline-flex items-center text-[10px] font-semibold rounded px-0.5" style={{ color: C.accent }}>
+                        {gruposAbertos.has(grupo) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}+{n}
+                      </button>
+                    ) : filho ? <span style={{ width: 22, display: "inline-block", color: C.sub, textAlign: "right" }}>↳</span> : null}
+                    <input type="checkbox" checked={sel.has(f.id)} onChange={() => toggle(f.id)} />
+                  </span>
+                </td>
                 {cols.map((c) => {
                   let v = f[c.k];
                   if (c.k === "createdAt") v = new Date(v).toLocaleDateString("pt-BR");
@@ -2282,47 +2326,155 @@ function detDoArtigo(a) {
   for (const k of Object.keys(d)) if (d[k] === "" || d[k] == null) delete d[k];
   return d;
 }
-function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick }) {
+// v968 — busca inteligente de artigos: o texto digitado casa com nome, artigo interno, composição, código e FORNECEDOR
+//   (ex.: "PV STAMP LITE"), por prefixo e com 1 letra de diferença nas palavras longas; os artigos do mesmo fornecedor/nome/composição
+//   formam uma família (uma linha) com as cores em chips. Palavras que só casam com cores filtram os chips.
+const normBusca = (s) => semAcA(s).replace(/(\b[A-Z])\.(?=[A-Z]\b)/g, "$1").replace(/[^A-Z0-9%]+/g, " ").trim();
+const nomeFornA = (a) => (a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial || "") : "");
+const famKey = (a) => `${a.fornecedorId || 0}|${normBusca(a.nome)}|${normBusca(a.composicao)}`;
+function lev1(a, b) {   // distância de edição ≤ 1?
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, d = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++d > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return d + (a.length - i) + (b.length - j) <= 1;
+}
+function casaTok(t, toks) {
+  for (const h of toks) {
+    if (h === t) return 3;
+    if (h.startsWith(t)) return 2;
+    if (t.length >= 4 && h.includes(t)) return 1.5;
+    if (t.length >= 5 && h.length >= 5 && lev1(t, h)) return 1;
+  }
+  return 0;
+}
+const ehPreto = (cor) => /\b(PRETO|PRETA|BLACK|PT)\b/.test(semAcA(cor));
+// "OFF WHITE (53717)" → "OFF WHITE" · "AZ 0145 AZUL" → "AZUL" · "5001 BRANCO" → "BRANCO" · só código → código
+function corNome(cor) {
+  const c0 = String(cor || "").toUpperCase().trim();
+  if (!c0) return "";
+  const c = c0.replace(/\(\s*[\dA-Z-]+\s*\)/g, " ").replace(/^([A-Z]{1,3}\s)?[\dA-Z]?\d{2,5}[A-Z]?\b\s*/, "").replace(/\s+/g, " ").trim();
+  return c || c0;
+}
+// nome comercial termina sempre com a cor da matéria-prima principal: tira a cor anterior e põe a nova
+function comCor(nome, corAnt, corNova) {
+  let n = String(nome || "").toUpperCase().trim();
+  for (const c of [corAnt, corNova].filter(Boolean).map(corNome)) {
+    const re = new RegExp(`(\\s*[-·|]\\s*|\\s+)${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+    if (re.test(n)) n = n.replace(re, "").trim();
+  }
+  const cn = corNome(corNova);
+  return cn ? (n ? `${n} ${cn}` : cn) : n;
+}
+function buscarArtigos(arts, categoria, texto) {
+  const q = normBusca(texto).split(" ").filter(Boolean);
+  if (!q.length) return [];
+  const fams = new Map();
+  for (const a of arts) {
+    if (a.categoria !== categoria) continue;
+    const k = famKey(a);
+    if (!fams.has(k)) fams.set(k, { k, base: a, membros: [] });
+    fams.get(k).membros.push(a);
+  }
+  const res = [];
+  for (const fm of fams.values()) {
+    const a = fm.base;
+    const toks = normBusca([a.nome, a.artigoInterno, a.codigoFornecedor, a.composicao, nomeFornA(a), a.fornecedor?.nomeFantasia, a.tipoMalha].join(" ")).split(" ").filter(Boolean);
+    for (let i = 0, n = toks.length; i < n - 1; i++) toks.push(toks[i] + toks[i + 1]);   // "STAMPLITE", "ANTIPILLING"
+    let score = 0, ok = 0; const tCor = [];
+    for (const t of q) {
+      const s = casaTok(t, toks);
+      if (s) { score += s; ok++; continue; }
+      if (fm.membros.some((m) => casaTok(t, normBusca([m.cor, m.codigo]).split(" ")))) { tCor.push(t); score += 1; ok++; }
+    }
+    if (ok < Math.max(1, Math.ceil(q.length * 0.6))) continue;
+    let membros = fm.membros;
+    if (tCor.length) { const f = membros.filter((m) => tCor.every((t) => casaTok(t, normBusca([m.cor, m.codigo]).split(" ")))); if (f.length) membros = f; }
+    membros = [...membros].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)) || String(x.cor || "").localeCompare(String(y.cor || "")));
+    res.push({ ...fm, membros, todos: fm.membros, score, todas: ok === q.length });
+  }
+  return res.sort((x, y) => (y.todas - x.todas) || (y.score - x.score) || String(x.base.nome).localeCompare(String(y.base.nome))).slice(0, 10);
+}
+const famDoDet = (arts, det) => { const a = det?.artigoId && arts.find((x) => x.id === det.artigoId); if (!a) return null; const k = famKey(a); return arts.filter((x) => famKey(x) === k); };
+
+function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, podeVariar }) {
   const [arts, setArts] = useState(_artCache || []);
   const [open, setOpen] = useState(false);
+  const [variar, setVariar] = useState(null);   // v968 — membros da família para escolher as cores
+  const [abertos, setAbertos] = useState({});
   useEffect(() => { if (!_artCache) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; setArts(_artCache); }).catch(() => {}); }, []);
-  const q = semAcA(nome).trim();
-  const pal = q.split(/\s+/).filter(Boolean);
-  const lista = !pal.length ? [] : arts.filter((a) => a.categoria === categoria && pal.every((w) => semAcA([a.nome, a.artigoInterno, a.codigo, a.codigoFornecedor, a.cor, a.composicao].join(" ")).includes(w))).slice(0, 12);
+  const lista = useMemo(() => buscarArtigos(arts, categoria, nome || ""), [arts, categoria, nome]);
   const pendente = !!det?.pendente;
-  const escolher = (a) => {
-    const d = detDoArtigo(a);
+  const custoDe = (a) => {
     const unOk = (categoria === "MALHA" && a.unidade === "KG") || (categoria !== "MALHA" && a.unidade === "M");
-    const custo = unOk && a.valorUnitario != null ? String(Number(a.valorUnitario).toFixed(2)).replace(".", ",") : null;
-    if (onPick) onPick({ nome: a.nome, det: d, custo }); else { onNome(a.nome); onDet(d); }
+    return unOk && a.valorUnitario != null ? String(Number(a.valorUnitario).toFixed(2)).replace(".", ",") : null;
+  };
+  const escolher = (a, extra) => {
+    const d = { ...detDoArtigo(a), ...(extra || {}) };
+    if (onPick) onPick({ nome: a.nome, det: d, custo: custoDe(a) }); else { onNome(a.nome); onDet(d); }
     setOpen(false);
   };
-  const novo = () => { const d = { ...(det || {}) }; delete d.pendente; delete d.artigoId; d.novo = true; onDet(d); setOpen(false); };
+  // v968 — variar cores: a principal é a preta (ou a primeira marcada); as demais viram FPPs ao salvar
+  const confirmarVariar = (sel) => {
+    const ord = [...sel].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)));
+    if (!ord.length) return setVariar(null);
+    const principal = ord[0];
+    const outras = ord.slice(1).map((a) => ({ artigoId: a.id, cor: a.cor || "", det: detDoArtigo(a), custo: custoDe(a) }));
+    escolher(principal, outras.length ? { variarCores: outras } : {});
+    setVariar(null);
+  };
+  const novo = () => { const d = { ...(det || {}) }; delete d.pendente; delete d.artigoId; delete d.variarCores; d.novo = true; onDet(d); setOpen(false); };
   const digitar = (v) => {
-    const d = { ...(det || {}) }; delete d.artigoId; delete d.novo;
+    const d = { ...(det || {}) }; delete d.artigoId; delete d.novo; delete d.variarCores;
     if (v.trim()) d.pendente = true; else delete d.pendente;
     if (onPick) onPick({ nome: v, det: Object.keys(d).length ? d : null }); else { onNome(v); onDet(Object.keys(d).length ? d : null); }
     setOpen(true);
   };
+  const vc = Array.isArray(det?.variarCores) ? det.variarCores : [];
+  const chip = (m, fm) => (
+    <button key={m.id} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(m); }} title={[m.cor, m.codigo || m.codigoFornecedor].filter(Boolean).join(" · ")}
+      className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: ehPreto(m.cor) ? C.navy : C.panel2, color: ehPreto(m.cor) ? "#fff" : C.text, border: `1px solid ${C.line}` }}>
+      {m.cor || "sem cor"}
+    </button>
+  );
   return (
     <div style={{ position: "relative" }}>
       <div className="text-xs mb-1" style={{ color: C.sub }}>{label}
         {det?.artigoId ? <span style={{ color: C.green }}> · do estoque</span> : det?.novo ? <span style={{ color: C.accent }}> · artigo novo</span> : null}</div>
       <div className="flex gap-1">
         <input value={sc(nome || "")} onChange={(e) => digitar(e.target.value.toLocaleUpperCase("pt-BR"))} onFocus={() => pendente && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Nome do artigo · busca no estoque"
+          placeholder="Artigo, fornecedor, composição ou cor"
           className="px-2 py-1.5 rounded text-sm w-full" style={{ background: "#fff", border: `1px solid ${pendente ? C.accent : C.line}`, color: C.text }} />
         <DetBotao det={det} categoria={categoria} nome={nome} onDet={onDet} />
       </div>
       {open && pendente && (
-        <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 280, overflowY: "auto" }}>
-          {lista.map((a) => (
-            <button key={a.id} type="button" onMouseDown={(e) => { e.preventDefault(); escolher(a); }} className="w-full text-left px-3 py-2 text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <b style={{ color: C.text }}>{a.nome}</b>
-              <span className="text-xs" style={{ color: C.sub }}>{[a.cor, a.codigo || a.codigoFornecedor, a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial) : null, a.composicao].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
-            </button>
-          ))}
-          {!lista.length && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum artigo do estoque com esse nome.</div>}
+        <div style={{ position: "absolute", zIndex: 40, top: "100%", left: 0, right: 0, minWidth: 420, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 380, overflowY: "auto" }}>
+          {lista.map((fm) => {
+            const a = fm.base; const todos = abertos[fm.k]; const mostra = todos ? fm.membros : fm.membros.slice(0, 10);
+            return (
+              <div key={fm.k} className="px-3 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+                <div className="flex items-start justify-between gap-2">
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); escolher(fm.membros[0]); }} className="text-left text-sm min-w-0">
+                    <b style={{ color: C.text }}>{a.nome}</b>
+                    <span className="text-xs" style={{ color: C.sub }}>{[nomeFornA(a), a.composicao, a.gramatura ? `${n4(a.gramatura)} g/m²` : null, a.largura ? `${n4(a.largura)} m` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
+                    {!fm.todas && <span className="text-[10px] ml-1 px-1.5 rounded" style={{ background: C.panel2, color: C.sub }}>semelhante</span>}
+                  </button>
+                  {podeVariar && fm.todos.length > 1 && (
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); setVariar(fm.todos); setOpen(false); }} className="text-[11px] font-semibold whitespace-nowrap px-2 py-0.5 rounded"
+                      style={{ color: C.accent, border: `1px solid ${C.accent}` }} title="Cria uma FPP para cada cor escolhida ao salvar">Variar cores ({fm.todos.length})</button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {mostra.map((m) => chip(m, fm))}
+                  {!todos && fm.membros.length > 10 && <button type="button" onMouseDown={(e) => { e.preventDefault(); setAbertos((o) => ({ ...o, [fm.k]: true })); }} className="text-[11px] px-2" style={{ color: C.accent }}>+{fm.membros.length - 10} cores</button>}
+                </div>
+              </div>
+            );
+          })}
+          {!lista.length && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum artigo do estoque parecido.</div>}
           <button type="button" onMouseDown={(e) => { e.preventDefault(); novo(); }} className="w-full text-left px-3 py-2 text-sm font-semibold flex items-center gap-1" style={{ color: C.accent }}>
             <Plus size={14} /> Artigo novo: {nome}
           </button>
@@ -2330,6 +2482,52 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick }) {
       )}
       {pendente && !open && <div className="text-[11px] mt-0.5" style={{ color: C.accent }}>Escolha um artigo do estoque ou clique em "Artigo novo".</div>}
       <ResumoDet det={det} categoria={categoria} />
+      {podeVariar && det?.artigoId && !vc.length && (famDoDet(arts, det)?.length || 0) > 1 && (
+        <button type="button" onClick={() => setVariar(famDoDet(arts, det))} className="text-[11px] font-semibold mt-0.5" style={{ color: C.accent }}>+ Variar cores ({famDoDet(arts, det).length})</button>
+      )}
+      {vc.length > 0 && (
+        <div className="text-[11px] mt-0.5" style={{ color: C.blue }}>
+          Variando {vc.length + 1} cores: {[det.cor, ...vc.map((x) => x.cor)].filter(Boolean).join(", ")} · ao salvar, cada cor vira uma FPP
+          {" "}<button type="button" onClick={() => setVariar(famDoDet(arts, det))} className="underline">editar</button>
+          {" "}<button type="button" onClick={() => { const d = { ...det }; delete d.variarCores; onDet(d); }} className="underline" style={{ color: C.sub }}>cancelar</button>
+        </div>
+      )}
+      {variar && <VariarCoresModal membros={variar} marcados={det?.artigoId ? [det.artigoId, ...vc.map((x) => x.artigoId)] : null} onClose={() => setVariar(null)} onOk={confirmarVariar} />}
+    </div>
+  );
+}
+function VariarCoresModal({ membros, marcados, onClose, onOk }) {
+  const ord = useMemo(() => [...membros].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)) || String(x.cor || "").localeCompare(String(y.cor || ""))), [membros]);
+  const [sel, setSel] = useState(() => new Set(marcados && marcados.length > 1 ? marcados : ord.map((m) => m.id)));
+  const [q, setQ] = useState("");
+  const vis = ord.filter((m) => !q || normBusca([m.cor, m.codigo, m.especificacao].join(" ")).includes(normBusca(q)));
+  const tg = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const a = ord[0] || {};
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div className="rounded-xl p-5 w-full max-w-2xl" style={{ background: C.panel, maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+        <div className="text-base font-bold" style={{ color: C.navy }}>Variar cores · {a.nome}</div>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>{[nomeFornA(a), a.composicao].filter(Boolean).join(" · ")} — ao salvar, cada cor marcada vira uma FPP da mesma negociação. Na lista aparece a preta; as outras abrem na seta.</div>
+        <div className="flex items-center gap-2 mb-2">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar cor…" className="px-2 py-1.5 rounded text-sm flex-1" style={{ border: `1px solid ${C.line}` }} />
+          <button onClick={() => setSel(new Set(ord.map((m) => m.id)))} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }}>Todas</button>
+          <button onClick={() => setSel(new Set())} className="text-xs px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }}>Nenhuma</button>
+        </div>
+        <div className="grid gap-1 overflow-auto" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
+          {vis.map((m) => (
+            <label key={m.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded cursor-pointer" style={{ background: sel.has(m.id) ? C.accentSoft : C.panel2 }}>
+              <input type="checkbox" checked={sel.has(m.id)} onChange={() => tg(m.id)} />
+              <span className="truncate" title={[m.cor, m.especificacao].filter(Boolean).join(" · ")}>{m.cor || "sem cor"}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-3 py-1.5 rounded-md text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button onClick={() => onOk(ord.filter((m) => sel.has(m.id)))} disabled={!sel.size} className="px-3 py-1.5 rounded-md text-sm font-semibold text-white" style={{ background: C.accent, opacity: sel.size ? 1 : 0.5 }}>
+            Variar {sel.size} cor(es)
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
