@@ -141,6 +141,8 @@ export async function salvar(tipo, campos, { id, quem } = {}) {
   const p = id
     ? await prisma.prestador.update({ where: { id: Number(id) }, data })
     : await prisma.prestador.create({ data: { ...data, criadoPorNome: quem || null } });
+  // terceirizado: prazo ou dia de pagamento pode ter mudado → a previsão das facções se refaz já (não espera a próxima hora)
+  if (tipo === "TERCEIRIZADO") import("@/lib/faccaoPrevisao").then((m) => m.sincronizarPrevisao({ quem })).catch(() => null);
   return { ok: true, prestador: saida(p), novo: !id };
 }
 

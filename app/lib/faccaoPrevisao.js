@@ -73,7 +73,7 @@ export function montarPrevistas(itens, hoje = hojeSP(), prests = []) {
     const c = (out[chave] ||= { chave, faccao: fac, os, entrega, linhas: [], semPreco: [], refs: [] });
     if (entrega > c.entrega) c.entrega = entrega;
     if (!(qtd > 0 && unit > 0)) { c.semPreco.push(ref); continue; }
-    c.linhas.push({ pedido: String(x.pedido || "PREVISAO").trim().toUpperCase() || "PREVISAO", item: ref.slice(0, 200),
+    c.linhas.push({ pedido: String(x.pedido || "PREVISAO").trim().toUpperCase() || "PREVISAO", item: ref.replace(/^\d+ /, "").slice(0, 200),   // a tela já mostra a qtd na frente
       ...(x.itemCode ? { itemCode: String(x.itemCode) } : {}), tipo: tipoDePeca(x.produto) || "CAMISETA", qtd, unitario: unit, total: r2(qtd * unit) });
     c.refs.push(`${ref} × R$ ${brl(unit)}${x.origem === "OS_RETORNADA" ? " (VOLTOU, FALTA ACERTAR NO PCP)" : ""}`);
   }
@@ -99,7 +99,7 @@ function previstasDoAcerto(contas, hoje = hojeSP()) {
     const alvo = mensal && (c.pagaEm || c.vencimento) ? String(c.pagaEm || c.vencimento).slice(0, 10) : c.sexta;
     const sexta = alvo && alvo >= hoje ? alvo : sextaDaSemanaSD(hoje);
     out[chave] = { chave, faccao: fac, prestadorId: c.prestador?.id || null, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, mensal: mensal && alvo >= hoje ? mensal : 0, semPreco: [],
-      linhas: linhas.map((l) => ({ ...l, item: l.desconto ? l.item : `${l.qtd} ${fac} · ${l.itemCode || l.pedido} ${l.item || ""} · OS ${c.os}`.slice(0, 200) })),
+      linhas: linhas.map((l) => ({ ...l, item: l.desconto ? l.item : `${fac} · ${l.itemCode || l.pedido} ${l.item || ""} · OS ${c.os}`.slice(0, 200) })),
       refs: [], texto: `OS ${c.os} ACERTADA NO PCP (ACERTO ${c.lancamento}) · FALTA LANÇAR NA CONFERÊNCIA DE FACÇÕES · VENC. ${c.vencimento ? dBR(c.vencimento) : "-"}` };
   }
   return out;

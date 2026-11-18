@@ -88,6 +88,11 @@ export default function FaccoesPcp({ user }) {
           <div className="text-xs" style={{ color: C.sub }}>OS <b>fechadas</b> no PCP (valor travado). Confira e lance: cada OS vira um item dos <b>terceirizados da semana</b> (sexta do vencimento), com <b>uma linha por item</b> (qtd aprovada × unitário) na conta do tipo de peça. Valor = líquido (desconto do PCP vira linha negativa). Uma OS nunca é lançada duas vezes.</div>
         </div>
         <button onClick={baixarLista} className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1" style={{ border: `1px solid ${C.line}`, background: C.panel }} title="Exportação única para o Cronograma: nome, documento e id interno"><Download size={13} /> Lista de facções para o PCP</button>
+        <button onClick={async () => {   // previsão das facções (PREVISÃO · FACÇÃO nos terceirizados): refaz agora, sem esperar a hora cheia
+          const r = await fetch("/api/fin/faccoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "previsao" }) });
+          const x = await r.json().catch(() => ({}));
+          alerta(x.ok ? `Previsão atualizada: ${x.criadas} criada(s) · ${x.atualizadas} atualizada(s) · ${x.apagadas} apagada(s).` : (x.erro || x.error || "Não consegui atualizar a previsão."));
+        }} className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1" style={{ border: `1px solid ${C.line}`, background: C.panel }} title="Refaz as contas PREVISÃO das facções agora (sozinha, roda de hora em hora)"><RefreshCw size={13} /> Atualizar previsão</button>
         <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
       </div>
       <div className="flex gap-2 mb-3">
