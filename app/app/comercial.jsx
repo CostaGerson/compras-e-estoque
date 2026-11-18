@@ -1811,9 +1811,9 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
                   else if (c.k === "valorProposto") v = v != null ? brl(v) : "—";
                   else if (c.k === "margem") v = v != null ? pct(v) : "—";
                   else v = v ?? "—";
-                  if (c.cliente) return <td key={c.k} className="px-3 py-2 text-center"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
+                  if (c.cliente) return <td key={c.k} className="px-3 py-2 text-center whitespace-nowrap"><button onClick={() => { setGuia("cliente"); setFiltro({ guia: "cliente", valor: guiaFpp("cliente").chave(f) }); }} className="font-medium" style={{ color: C.accent }}>{typeof v === "string" ? sc(v) : v}</button></td>;
                   if (typeof v === "string" && /[A-ZÀ-Ý]{3}/.test(v) && !/^R\$/.test(v)) v = sc(v);   // v414
-                  return <td key={c.k} className="px-3 py-2 text-center" style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => editar(f)}>{v}</td>;
+                  return <td key={c.k} className="px-3 py-2 text-center whitespace-nowrap" style={{ color: c.k === "item" ? C.text : C.sub, cursor: "pointer" }} onClick={() => editar(f)}>{v}</td>;   // v976 — uma linha só
                 })}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => imprimirFicha(f, master)} title="Imprimir FPP (PDF)" className="p-1 rounded mr-1" style={{ color: C.text }}><Printer size={15} /></button>
