@@ -1,0 +1,981 @@
+{
+ "flag": "SEED|CARTELA|VALENCA|2026-11-18",
+ "fornecedor": {
+  "nome": "VALENÇA",
+  "nomeFantasia": "TÊXTIL VALENÇA",
+  "obs": "CADASTRADO PELA CARTELA VALENÇA COLLECTION (FOTOS 18/11/2026)",
+  "busca": "VALENCA"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "UNA 1.70",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 306,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 3X1 · PT PELETIZADO · TINTO PELETIZADO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ASPEN PLUS",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 260,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 3X1 · PT PELETIZADO · TINTO PELETIZADO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "STUDIO 1.70",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 245,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "MULTIBRIM 1.70",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 240,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 3X1 · PT · TINTO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "2812",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "5834",
+     null
+    ],
+    [
+     "5700",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6694",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "8869",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CAMPEÃO 1.70",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 210,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 2X1 · PT · TINTO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "1783",
+     null
+    ],
+    [
+     "2812",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "5834",
+     null
+    ],
+    [
+     "5700",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6694",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "8869",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ÂMBAR 1.70",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 210,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SARJAS · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "STUDIO STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "98% ALGODÃO 2% ELASTANO",
+   "gramatura": 250,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 275 G/M² · ALONGAMENTO > 25%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "8856",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ÓPERA STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "98% ALGODÃO 2% ELASTANO",
+   "gramatura": 270,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA STRETCH · ARMAÇÃO SARJA 3X1 · PT · TINTO · GRAMATURA APÓS LAVAGEM 305 G/M² · ALONGAMENTO > 25%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "PAMPLONA STRETCH 1.70",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "97% ALGODÃO 3% ELASTANO",
+   "gramatura": 260,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 295 G/M² · ALONGAMENTO > 30%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "SEVILHA STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "97% ALGODÃO 3% ELASTANO",
+   "gramatura": 280,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 295 G/M² · ALONGAMENTO > 35%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "1700",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "6694",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "7945",
+     null
+    ],
+    [
+     "8856",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "ÔNIX STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "97% ALGODÃO 3% ELASTANO",
+   "gramatura": 200,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 220 G/M² · ALONGAMENTO > 35%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "OSLO SUPER STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "96% ALGODÃO 4% ELASTANO",
+   "gramatura": 260,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA SUPER STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 285 G/M² · ALONGAMENTO > 40%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "7945",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CÓRDOBA SUPER STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "97% ALGODÃO 3% ELASTANO",
+   "gramatura": 260,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA SUPER STRETCH · ARMAÇÃO SARJA 3X1 · PT · TINTO · GRAMATURA APÓS LAVAGEM 285 G/M² · ALONGAMENTO > 40%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "1700",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3691",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "6694",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "7945",
+     null
+    ],
+    [
+     "8856",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "MINSK SUPER STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "97% ALGODÃO 3% ELASTANO",
+   "gramatura": 230,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA SUPER STRETCH · ARMAÇÃO SARJA 2X1 · PT PELETIZADO · TINTO PELETIZADO · GRAMATURA APÓS LAVAGEM 250 G/M² · ALONGAMENTO > 40%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "3859",
+     null
+    ],
+    [
+     "4008",
+     null
+    ],
+    [
+     "3908",
+     null
+    ],
+    [
+     "3796",
+     null
+    ],
+    [
+     "5039",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "6034",
+     null
+    ],
+    [
+     "7259",
+     null
+    ],
+    [
+     "7671",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "7034",
+     null
+    ],
+    [
+     "7797",
+     null
+    ],
+    [
+     "7945",
+     null
+    ],
+    [
+     "8856",
+     null
+    ],
+    [
+     "8874",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CETIM NICE SUPER STRETCH",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "63% ALGODÃO 34% POLIÉSTER 3% ELASTANO",
+   "gramatura": 275,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA CETIM · ARMAÇÃO CETIM 4X1 · TINTO · GRAMATURA APÓS LAVAGEM 295 G/M² · ALONGAMENTO > 50%",
+   "cores": [
+    [
+     "0077",
+     null
+    ],
+    [
+     "9003",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CETIM PARIS",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "96% ALGODÃO 4% ELASTANO",
+   "gramatura": 250,
+   "largura": 1.52,
+   "unidade": "M",
+   "especificacao": "LINHA CETIM · ARMAÇÃO CETIM 4X1 · PT · TINTO · GRAMATURA APÓS LAVAGEM 280 G/M² · ALONGAMENTO > 50%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CETIM LYON",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "96% ALGODÃO 4% ELASTANO",
+   "gramatura": 270,
+   "largura": 1.52,
+   "unidade": "M",
+   "especificacao": "LINHA CETIM · ARMAÇÃO CETIM 4X1 · PT · TINTO · GRAMATURA APÓS LAVAGEM 310 G/M² · ALONGAMENTO > 50%",
+   "cores": [
+    [
+     "0740 PRETO",
+     null
+    ],
+    [
+     "0077",
+     null
+    ],
+    [
+     "7789",
+     null
+    ],
+    [
+     "5782",
+     null
+    ],
+    [
+     "9001",
+     null
+    ]
+   ]
+  }
+ ]
+}
