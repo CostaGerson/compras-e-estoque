@@ -232,6 +232,8 @@ export async function lancarFaccoes(escolhas, quem) {
     res.push({ os: c.os, lancamento: c.lancamento, ok: true, valor: c.valorLiquido, sexta: m.sexta, faccao: p.nome });
   }
   for (const t of semanas) await recalcular(t);
+  // v939 — a conta real entrou: a previsão daquela OS sai já (não espera a próxima hora)
+  if (res.some((x) => x.ok)) import("@/lib/faccaoPrevisao").then((m) => m.sincronizarPrevisao({ quem })).catch(() => null);
   return { ok: true, resultados: res };
 }
 
