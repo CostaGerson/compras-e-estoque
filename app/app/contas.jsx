@@ -74,18 +74,31 @@ const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) 
 // busca pelo valor: "1230,83", "1.230,83", "1230.83", "R$ 1.230" ou só o começo ("1.230") acham a conta;
 // procura no valor da conta e no valor pago
 function valorBate(t, q) {
-  const s = String(q || "").replace(/R\$|\s/gi, "");
+  const s = String(q || "").replace(/R\$|\$|\s/gi, "").replace(/[.,]+$/, "");
   if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return false;
   const digitos = s.replace(/[.,]/g, "");
   // texto digitado como número (vírgula ou ponto como decimal)
   const t2 = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : (s.split(".").length > 2 ? s.replace(/\./g, "") : s);
   const alvo = Number(t2);
-  return [t.valor, t.valorPago].filter((v) => v != null).some((v) => {
+  return [t.valor, t.valorPago, t.valorTotal, ...(t.itensBusca || []).map((i) => i.v)].filter((v) => v != null).some((v) => {
     const n = Number(v);
     if (Number.isFinite(alvo) && Math.abs(n - alvo) < 0.005) return true;   // valor exato
     const br = n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return br.includes(s) || br.replace(/\./g, "").includes(s) || n.toFixed(2).includes(s) || n.toFixed(2).replace(".", "").startsWith(digitos);
   });
+}
+// v952 — busca da lista: texto (sem acento) ou valor; nas contas da semana procura também em cada freelancer/terceirizado
+function buscaBate(t, n, contasPorId) {
+  if (valorBate(t, n)) return true;
+  const na = semAc(n);
+  return [t.titulo, t.parceiro, t.numeroDoc, t.documento, t.observacao, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome), ...(t.itensBusca || []).map((i) => i.x)].some((x) => semAc(x).includes(na));
+}
+// itens da conta da semana que bateram com a busca (para mostrar na linha)
+function itensAchados(t, q) {
+  const n = String(q || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!n || !(t.itensBusca || []).length) return [];
+  const na = semAc(n);
+  return t.itensBusca.filter((i) => valorBate({ valor: i.v }, n) || semAc(i.x).includes(na));
 }
 // conta que veio de NF de compra importada (XML no contas a pagar ou NF de entrada do Compras)
 // v203 — confirmação do "Excluir pagamento" (a conta volta para em aberto)
@@ -330,6 +343,7 @@ function CobrancaSemanalModal({ user, onClose }) {
 }
 
 let _destaqueId = null;
+let _buscaAtual = "";   // v952 — busca da lista (mostra o item da conta da semana que bateu)
 export default function ContasPagarReceber({ user, inicial = null }) {
   const [tipo, setTipo] = useState(inicial?.tipo || "PAGAR");   // v365 — pode abrir já filtrado
   const [mes, setMes] = useState(inicial?.mes || mesAtual());
@@ -381,9 +395,12 @@ export default function ContasPagarReceber({ user, inicial = null }) {
 
   const contasPorId = useMemo(() => Object.fromEntries((d?.contas || []).map((c) => [c.id, c])), [d]);
   const P = tipo === "PAGAR";
+  _buscaAtual = busca;
   const lista = useMemo(() => {
     if (!d) return [];
     const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // v952 — com busca, vale só o período: ignora situação (pagos, em aberto…), críticas e filtros rápidos
+    if (n) return (d.periodo || d.titulos).filter((t) => buscaBate(t, n, contasPorId));
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
       if (soCompra && P && !ehCompra(t)) return false;
       if (soRec && !t.recorrenciaId) return false;
@@ -393,14 +410,13 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       if (fSit !== "TODOS" && fSit !== "SEMCONTA" && fSit !== "CRITICA" && !(fSit === s
         || (fSit === "ABERTOS" && (aberta || (!P && antPendente(t)))) || (fSit === "VIRTUAL" && (aberta || antPendente(t)))
         || (fSit === "REAL" && aberta) || (fSit === "PAGO" && s === "LIQ"))) return false;
-      if (!n) return true;
-      const na = semAc(n);   // v838 — busca sem acento: "pe direito" acha "PÉ DIREITO"
-      return valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome)].some((x) => semAc(x).includes(na));
+      return true;
     });
   }, [d, busca, fSit, contasPorId, soCompra, soRec, P]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId) && (!n || valorBate(t, n) || [t.titulo, t.parceiro, t.numeroDoc, t.documento].some((x) => semAc(x).includes(semAc(n)))));
+    if (n) return [];   // v952 — com busca, só o período escolhido
+    return (d?.atrasados || []).filter((t) => t.vencimento < dIni && (!soCompra || !P || ehCompra(t)) && (!soRec || t.recorrenciaId));
   }, [d, dIni, busca, soCompra, soRec, P]);
   // cards = regime de caixa: as mesmas contas da lista (vencimento no período + situação + busca + filtros rápidos)
   const tot = useMemo(() => {
@@ -781,6 +797,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                         : (t.notas || []).length ? <div className="truncate" style={{ color: C.yellow }}><b className="text-[9px]">OBS</b> {t.notas[t.notas.length - 1].texto}{t.notas.length > 1 ? ` (+${t.notas.length - 1})` : ""}</div>
                         : (t.numeroDoc || t.observacao) ? <div className="truncate" style={{ color: C.sub }}>{[t.numeroDoc, t.observacao].filter(Boolean).join(" · ")}</div> : null}
                       {t.parceiro && <div className="ce-tab-cel truncate" style={{ color: C.sub }}>{t.parceiro}</div>}
+                      {itensAchados(t, _buscaAtual).slice(0, 3).map((i, k) => <div key={k} className="truncate text-[10px] font-semibold" style={{ color: C.accent }}>↳ {i.n} · {brl(i.v)}</div>)}
                     </button>
                     {P && t.status !== "PAGO" && t.status !== "CANCELADO" && t.chavePix && <div className="ce-tab-cel mt-1.5"><BotaoPix chave={t.chavePix} grande /></div>}
                   </td>

@@ -101,12 +101,20 @@ export async function GET(req) {
   const faltam = semVenc.map((t) => t.id).filter((id) => !(id in pagoDe));
   if (faltam.length) for (const g of await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: faltam }, pago: true }, _sum: { valor: true } }).catch(() => [])) pagoDe[g.tituloId] = Number(g._sum.valor || 0);
   const vencPago = semVenc.reduce((s0, t) => s0 + (pagoDe[t.id] || 0), 0);
+  // v952 — busca dentro das contas da semana (freelancers e terceirizados): nome, setor, PIX, pedidos e valor de cada item
+  const semIds = [...new Set([...titulos, ...atrasados, ...(periodo || [])].filter((t) => String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id))];
+  const itensSem = {};
+  if (semIds.length) for (const it of await prisma.finSemanaItem.findMany({ where: { tituloId: { in: semIds } }, select: { tituloId: true, nome: true, setor: true, chavePix: true, descricao: true, linhas: true, valor: true, observacao: true, justificativa: true } }).catch(() => [])) {
+    const ped = Array.isArray(it.linhas) ? it.linhas.map((l) => [l?.pedido, l?.item].filter(Boolean).join(" ")).join(" ") : "";
+    (itensSem[it.tituloId] ||= []).push({ n: it.nome, v: Number(it.valor), x: [it.nome, it.setor, it.chavePix, it.descricao, ped, it.observacao, it.justificativa].filter(Boolean).join(" ") });
+  }
+  const comItens = (o) => (itensSem[o.id] ? { ...o, itensBusca: itensSem[o.id] } : o);
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
-    periodo: periodo ? periodo.map(saida) : null,
+    periodo: periodo ? periodo.map((t) => comItens(saida(t))) : null,
     semConta: semConta.map(tituloOutM), comCritica: comCritica.map(tituloOutM),
     vencidoTotal: Number(vencTot._sum.valor || 0) - vencPago, vencidoTotalQtd: vencTot._count || 0,
-    titulos: titulos.map(saida), atrasados: atrasados.map(saida), criticas: criticas.map(tituloOutM),
+    titulos: titulos.map((t) => comItens(saida(t))), atrasados: atrasados.map((t) => comItens(saida(t))), criticas: criticas.map(tituloOutM),
     contas, parceiros: tipo === "PAGAR" ? await (await import("@/lib/finPix")).pixDosParceiros(parceiros).catch(() => parceiros) : parceiros, nfsPendentes, recorrencias: recs.map((r) => ({ ...r, valor: Number(r.valor), situacao: situacaoRec(r) })),
   });
 }
