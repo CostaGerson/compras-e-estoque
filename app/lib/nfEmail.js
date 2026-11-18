@@ -5,6 +5,7 @@
 //   · nota com XML, parcelas com vencimento/valor e conta contábil padrão do parceiro → registra e LANÇA as contas
 //     (a pagar na entrada, a receber na saída); NF de compra fica pendente de entrada no estoque, como na importação manual;
 //   · o resto (só PDF, sem conta padrão, parcela sem vencimento, PDF com senha…) → tarefa "CONFERIR NF" para a Brenda, com os arquivos.
+//   · v970 — mesmo com tudo lançado, a Brenda recebe a tarefa "NF LANÇADA" com o resumo e os arquivos.
 // Um e-mail é processado uma vez só (chave gmail-nf:<id> em FinConfig).
 import { prisma } from "@/lib/prisma";
 import { analisar, gravar } from "@/lib/fiscal";
@@ -77,13 +78,16 @@ export async function nfDoEmail(b) {
   // o que não deu para lançar sozinho vira tarefa para a Brenda, com os arquivos do e-mail
   let tarefaId = null;
   const problemas = [...pend.map(({ n, motivo }) => `NF ${n.numero || "?"} · ${n.parceiro || "—"} · ${motivo}`), ...erros, ...outros];
-  if (problemas.length) {
+  // v970 — a tarefa da Brenda sai sempre (decisão do Gerson, 18/11): com pendência = "CONFERIR NF"; tudo lançado = "NF LANÇADA"
+  if (problemas.length || resultados.length) {
     const assunto = String(b.assunto || "(sem assunto)").replace(/^\s*((ENC|FWD?|RES|RE)\s*:\s*)+/i, "").trim();
     const lancadas = resultados.filter((r) => r.situacao === "LANCADA").map((r) => `NF ${r.numero} lançada (${r.criadas || 0} conta(s) nova(s), ${r.ligadas || 0} ligada(s))`);
+    const outrasR = resultados.filter((r) => r.situacao !== "LANCADA").map((r) => `NF ${r.numero} ${r.situacao === "IGNORADA" ? "já estava no movimento fiscal" : r.situacao === "COMPLETADA" ? "já estava — arquivo completado" : r.situacao === "REGISTRADA" ? "só registrada (sem conta)" : r.situacao.toLowerCase()}`);
     const descricao = [`E-MAIL de ${b.de || "—"}${b.data ? ` · ${b.data}` : ""}`, `Assunto: ${b.assunto || "—"}`, "",
-      "CONFERIR NO MOVIMENTO FISCAL (ADM › Movimento fiscal → importar os arquivos anexos):", ...problemas.map((x) => `• ${x}`),
-      ...(lancadas.length ? ["", "JÁ LANÇADAS AUTOMATICAMENTE:", ...lancadas.map((x) => `• ${x}`)] : [])].join("\n");
-    const r = await criar({ titulo: `CONFERIR NF · e-mail: ${assunto}`.slice(0, 200), descricao, setor: setorTarefaDe(brenda), responsavelId: brenda.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
+      ...(problemas.length ? ["CONFERIR NO MOVIMENTO FISCAL (ADM › Movimento fiscal → importar os arquivos anexos):", ...problemas.map((x) => `• ${x}`), ""] : []),
+      ...(lancadas.length ? ["LANÇADAS AUTOMATICAMENTE (confira as contas):", ...lancadas.map((x) => `• ${x}`), ""] : []),
+      ...(outrasR.length ? ["OUTRAS:", ...outrasR.map((x) => `• ${x}`)] : [])].join("\n").trim();
+    const r = await criar({ titulo: `${problemas.length ? "CONFERIR NF" : "NF LANÇADA"} · e-mail: ${assunto}`.slice(0, 200), descricao, setor: setorTarefaDe(brenda), responsavelId: brenda.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
     if (!r.error) {
       tarefaId = r.tarefa.id;
       for (const a of brutos) await prisma.tarefaArquivo.create({ data: { tarefaId, nome: a.nome, mime: a.mime, tamanho: Math.floor(a.b64.length * 3 / 4), conteudo: a.b64, criadoPorNome: "E-MAIL" } }).catch(() => null);
