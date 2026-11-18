@@ -187,9 +187,11 @@ function corteLaserDe(e) {
   const a = (Array.isArray(e?.personalizacoes) ? e.personalizacoes : []).find((x) => x.metodo === "SUBLIMACAO" && x.corteSub === "LASER" && num(x.corteLaser) > 0);
   return a ? num(a.corteLaser) : null;
 }
-function valorAplicacao(a, params) {
+// v987 — sublimação: calandragem (terceirizada) entra no valor da aplicação
+function calandraDe(a) { return a && a.metodo === "SUBLIMACAO" && a.calandra && num(a.calandraValor) > 0 ? num(a.calandraValor) : 0; }
+function valorAplicacao(a, params, semTerc) {
   if (!a) return 0;
-  if (a.metodo === "SUBLIMACAO") return num(a.valor) + (a.interno ? papelSubDe(a, params) * papelPrecoDe(params) : 0);   // v922 — papel (interna)
+  if (a.metodo === "SUBLIMACAO") return num(a.valor) + (a.interno ? papelSubDe(a, params) * papelPrecoDe(params) : 0) + (semTerc ? 0 : calandraDe(a));   // v922 — papel (interna) · v987 calandragem
   return a.metodo === "SILK" ? (Number(a.cores) || 0) * silkPorCorDe(params) : num(a.valor);
 }
 // v922 — sublimação: consumo de papel (m/peça) por local. "Total": o papel é o comprimento do corte — digitado na aplicação;
@@ -210,7 +212,7 @@ function persPorTecnica(e, params, soInternas) {
   for (const a of Array.isArray(e?.personalizacoes) ? e.personalizacoes : []) {
     if (soInternas && !a.interno) continue;
     const t = TEC_DO_METODO[a.metodo] || "silk";
-    out[t] += valorAplicacao(a, params);
+    out[t] += valorAplicacao(a, params, soInternas);   // v987 — na volta para a operação, a calandragem (terceirizada) não entra
   }
   return out;
 }
@@ -778,7 +780,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                     onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => setF((o) => ({ ...o, artigoDet: d, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, d?.cor) }))} podeVariar
                     onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigo: String(nome || "").toUpperCase(), artigoDet: det, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, det?.cor), ...(custo != null ? { mpValor: custo } : {}) }))} />
                   <Inp full label={tipo === "MALHA" ? "Custo (R$/kg)" : "Custo (R$/m)"} value={f.mpValor} onChange={(v) => set("mpValor", v)} />
-                  {aberta
+                  {r?.subT?.rendCons > 0   // v987 — sublimação total: o papel (m/peça) é o consumo de malha → rendimento pç/kg calculado
+                    ? <div><div className="text-xs mb-1 whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: C.sub }} title="Sublimação total: rendimento da malha (m/kg) ÷ papel (m/peça)">Rendimento (pç/kg) · sublimação</div>
+                        <div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.line}` }} title={`${String(r.subT.rendM).replace(".", ",")} m/kg ÷ ${String(r.subT.papel).replace(".", ",")} m/peça`}>
+                          {r.subT.rendCons.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</div></div>
+                    : aberta
                     ? <Inp full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} value={f.abRend} onChange={(v) => set("abRend", v)} />
                     : <Ref full label={tipo === "MALHA" ? "Rendimento (pç/kg)" : "Consumo (m/peça)"} grupo="PECA" chave={f.item} campo="valor" pget={pget} over={over} setOver={setOver} modo={modoOverride} />}
                   {(tipo === "PLANO" || aberta) && (
@@ -1382,7 +1388,7 @@ function docFpp(f, master, anexos) {
   }
   const pers = [];
   for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : [])
-    pers.push([`${nomeMetodo(a.metodo)} · ${nomeLocal(a.local)}`, [a.metodo === "SILK" ? `${a.cores || 1} cor(es)` : num(a.valor) ? `R$ ${a.valor}` : "", num(a.arte) ? `${a.metodo === "BORDADO" ? "programa" : "arte/tela"} R$ ${a.arte}` : "", a.interno ? "interno" : "terceirizado"].filter(Boolean).join(" · ")]);
+    pers.push([`${nomeMetodo(a.metodo)} · ${nomeLocal(a.local)}`, [a.metodo === "SILK" ? `${a.cores || 1} cor(es)` : num(a.valor) ? `R$ ${a.valor}` : "", num(a.arte) ? `${a.metodo === "BORDADO" ? "programa" : "arte/tela"} R$ ${a.arte}` : "", a.metodo === "SUBLIMACAO" && a.corteSub === "LASER" && num(a.corteLaser) ? `corte a laser R$ ${a.corteLaser}` : "", calandraDe(a) ? `calandragem R$ ${a.calandraValor}` : "", a.interno ? "interno" : "terceirizado"].filter(Boolean).join(" · ")]);
   if (num(e.arteTotal)) pers.push(["Arte (R$ total)", e.arteTotal]);
   secoes.push({ titulo: "Personalização", linhas: pers.length ? pers : [["Personalização", "Sem personalização"]] });
   if (!revendaP) {
@@ -2133,7 +2139,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
     const n = { ...a, [k]: v };
     if (k === "metodo") {
       n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
-      if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; if (n.local === "TOTAL") n.local = locais[0][0]; }
+      if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; delete n.calandra; delete n.calandraValor; if (n.local === "TOTAL") n.local = locais[0][0]; }
       else n.corteSub = n.corteSub || "";   // v659 — pergunta: corte interno ou laser
     }
     return n;
@@ -2176,14 +2182,8 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
                       title={`Sempre terceirizado · rateado ÷ ${qtde || 1} peça(s)`} />
                     {rateio > 0 && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none whitespace-nowrap" style={{ color: C.sub }}>+{brl(rateio)}/pç</span>}
                   </div>)
-                : a.metodo === "SUBLIMACAO"
-                  ? lbl(a.corteSub === "LASER" ? "Corte a laser (R$/peça)" : "Corte", <div className="flex gap-1 w-full h-full">
-                      <select value={a.corteSub || ""} onChange={(e) => mud(i, "corteSub", e.target.value)} className="h-full px-1 rounded text-sm" style={{ ...sel, width: a.corteSub === "LASER" ? 76 : "100%", borderColor: a.corteSub ? C.line : C.accent }}>
-                        <option value="" disabled>Interno ou laser?</option><option value="INTERNO">Interno</option><option value="LASER">Laser</option>
-                      </select>
-                      {a.corteSub === "LASER" && <input value={a.corteLaser || ""} onChange={(e) => mud(i, "corteLaser", e.target.value)} inputMode="decimal" placeholder="valor"
-                        title="Substitui o corte da ficha; corte a laser é terceirizado (não volta para a fábrica)" className="flex-1 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: num(a.corteLaser) > 0 ? C.line : C.accent }} autoFocus />}
-                    </div>)
+                : a.metodo === "SUBLIMACAO"   // v987 — corte (interno/laser) e calandragem num card flutuante; aqui só o total terceirizado
+                  ? lbl("Corte · calandragem", <TercSub a={a} mud={(k, v) => mud(i, k, v)} sel={sel} />)
                   : <div />}
               {lbl("Valor/peça", <div className="text-sm font-semibold whitespace-nowrap" style={{ color: C.text }} title={a.metodo === "SILK" ? `${a.cores || 1} × ${brl(pc)}` : undefined}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1}×)</span>}</div>)}
               {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
@@ -2205,6 +2205,56 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
       <button type="button" onClick={add} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}>
         <Plus size={13} /> Aplicação
       </button>
+    </div>
+  );
+}
+
+// v987 — sublimação: corte (interno ou a laser) e calandragem. A linha mostra o total terceirizado; o clique abre o card para editar.
+function TercSub({ a, mud, sel }) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false); };
+    document.addEventListener("mousedown", fora); return () => document.removeEventListener("mousedown", fora);
+  }, [aberto]);
+  const laser = a.corteSub === "LASER" ? num(a.corteLaser) : 0, cal = calandraDe(a), tot = laser + cal;
+  const pend = !a.corteSub || (a.corteSub === "LASER" && !(num(a.corteLaser) > 0)) || (a.calandra && !(num(a.calandraValor) > 0));
+  const resumo = [a.corteSub === "LASER" ? "laser" : a.corteSub === "INTERNO" ? "corte interno" : null, a.calandra ? "calandra" : null].filter(Boolean).join(" + ");
+  return (
+    <div className="relative w-full h-full" ref={ref}>
+      <button type="button" onClick={() => setAberto((x) => !x)} className="w-full h-full px-2 rounded text-sm text-left flex items-center justify-between gap-1" style={{ ...sel, borderColor: pend ? C.accent : C.line }}
+        title="Corte (interno ou a laser) e calandragem — clique para editar">
+        <span className="truncate">{!a.corteSub ? "Interno ou laser?" : tot > 0 ? <><b>{brl(tot)}</b><span className="text-[11px]" style={{ color: C.sub }}> terc.</span></> : "Interno"}</span>
+        <Pencil size={12} style={{ color: C.sub, flexShrink: 0 }} />
+      </button>
+      {resumo && <div className="absolute left-0 -bottom-4 text-[10px] whitespace-nowrap" style={{ color: C.sub }}>{resumo}</div>}
+      {aberto && (
+        <div className="absolute z-30 right-0 top-full mt-1 w-72 rounded-lg p-3 space-y-3 shadow-lg" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <div>
+            <div className="text-[11px] mb-1" style={{ color: C.sub }}>Corte</div>
+            <div className="flex gap-1" style={{ height: 32 }}>
+              <select value={a.corteSub || ""} onChange={(e) => mud("corteSub", e.target.value)} className="h-full px-1 rounded text-sm" style={{ ...sel, width: a.corteSub === "LASER" ? 90 : "100%", borderColor: a.corteSub ? C.line : C.accent }}>
+                <option value="" disabled>Interno ou laser?</option><option value="INTERNO">Interno</option><option value="LASER">Laser</option>
+              </select>
+              {a.corteSub === "LASER" && <input value={a.corteLaser || ""} onChange={(e) => mud("corteLaser", e.target.value)} inputMode="decimal" placeholder="R$/peça" autoFocus
+                title="Substitui o corte da ficha; corte a laser é terceirizado (não volta para a fábrica)" className="flex-1 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: num(a.corteLaser) > 0 ? C.line : C.accent }} />}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] mb-1" style={{ color: C.sub }}>Calandragem (terceirizada)</div>
+            <div className="flex items-center gap-2" style={{ height: 32 }}>
+              <Toggle on={!!a.calandra} onChange={(v) => mud("calandra", v)} />
+              {a.calandra && <input value={a.calandraValor || ""} onChange={(e) => mud("calandraValor", e.target.value)} inputMode="decimal" placeholder="R$/peça"
+                className="flex-1 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: num(a.calandraValor) > 0 ? C.line : C.accent }} />}
+            </div>
+          </div>
+          <div className="text-[11px] pt-2 flex justify-between" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>
+            <span>Terceirização (corte + calandragem)</span><b style={{ color: C.text }}>{brl(tot)}/pç</b>
+          </div>
+          <div className="text-[10px] leading-tight" style={{ color: C.sub }}>Corte a laser substitui o corte da ficha (produção). Calandragem soma no valor da personalização.</div>
+        </div>
+      )}
     </div>
   );
 }
