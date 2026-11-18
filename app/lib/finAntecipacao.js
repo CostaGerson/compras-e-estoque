@@ -170,7 +170,7 @@ export async function analisarAntecipacao(nome, b64) {
 
 // abre o crédito do extrato em receita cheia − encargos (desmembramento)
 async function abrirCredito(a, quem) {
-  if (a.lancamentoId) return true;
+  if (a.lancamentoId && await creditoAberto(a.lancamentoId)) return true;
   const c = { data: a.data.toISOString().slice(0, 10), valorLiquido: Number(a.valorLiquido) };
   const o = await acharCredito(c);
   if (!o) return false;
@@ -278,14 +278,51 @@ export async function aplicarAntecipacao(nome, b64, { quem } = {}) {
   }
   // 3) DRE: abre o crédito do extrato
   out.dre = await abrirCredito(a, quem).catch(() => false);
+  await cancelarEncargosGemeos().catch(() => 0);
   return out;
 }
 
 // contratos importados antes do extrato: tenta abrir o crédito de novo (roda quando um extrato entra)
+// v953 — o vínculo só vale se o lançamento ainda existe e está aberto em partes
+// (reprocessar o extrato apaga e recria as linhas com outro id: o contrato ficava "aberto" num lançamento que não existe mais)
+async function creditoAberto(id) {
+  const l = await prisma.finLancamento.findUnique({ where: { id }, select: { desmembrado: true } });
+  return !!l?.desmembrado && (await prisma.finLancamento.count({ where: { paiId: id } })) > 0;
+}
+
+// v953 — a mesma operação subiu duas vezes: pela "Antecipação de Recebíveis" (REC-…, sem nº) e pelo contrato numerado.
+// Fica o contrato numerado; juros/IOF/TAC/tarifa lançados pelo REC- são cancelados (não somam em dobro).
+async function cancelarEncargosGemeos() {
+  const ls = await prisma.finAntecipacao.findMany({ select: { id: true, contrato: true, data: true, valorLiquido: true, lancamentoId: true } });
+  const chave = (x) => `${x.data.toISOString().slice(0, 10)}|${Number(x.valorLiquido).toFixed(2)}`;
+  const reais = new Map(ls.filter((x) => !x.contrato.startsWith("REC-")).map((x) => [chave(x), x]));
+  let n = 0;
+  for (const rec of ls.filter((x) => x.contrato.startsWith("REC-"))) {
+    const gemeo = reais.get(chave(rec));
+    if (!gemeo) continue;
+    const r = await prisma.finTitulo.updateMany({
+      where: { tipo: "PAGAR", status: { not: "CANCELADO" }, chaveImport: { in: ["JUROS", "IOF", "TAC", "TARIFA"].map((k) => `DESCONTO|237|${rec.contrato}|${k}`) } },
+      data: { status: "CANCELADO", observacao: `DUPLICADO: MESMA OPERAÇÃO DO CONTRATO ${gemeo.contrato} (ENCARGO LANÇADO LÁ)` },
+    });
+    n += r.count;
+    if (!rec.lancamentoId && gemeo.lancamentoId) await prisma.finAntecipacao.update({ where: { id: rec.id }, data: { lancamentoId: gemeo.lancamentoId } });   // não fica pendente
+  }
+  return n;
+}
+
 export async function conciliarAntecipacoesPendentes(quem) {
+  const vinc = await prisma.finAntecipacao.findMany({ where: { lancamentoId: { not: null } }, select: { id: true, lancamentoId: true } });
+  const ids = vinc.map((v) => v.lancamentoId);
+  const vivos = new Set(ids.length ? (await prisma.finLancamento.findMany({ where: { id: { in: ids }, desmembrado: true }, select: { id: true } })).map((l) => l.id) : []);
+  const comPartes = new Set(vivos.size ? (await prisma.finLancamento.groupBy({ by: ["paiId"], where: { paiId: { in: [...vivos] } }, _count: true })).map((g) => g.paiId) : []);
+  // o REC- gêmeo aponta para o crédito do contrato numerado: não conta como solto
+  const soltos = vinc.filter((v) => !comPartes.has(v.lancamentoId)).map((v) => v.id);
+  if (soltos.length) await prisma.finAntecipacao.updateMany({ where: { id: { in: soltos } }, data: { lancamentoId: null } });
   const pend = await prisma.finAntecipacao.findMany({ where: { lancamentoId: null }, select: { id: true, contrato: true, data: true, valorOperacao: true, juros: true, iof: true, tac: true, tarifa: true, valorLiquido: true, lancamentoId: true } });
   let n = 0;
+  pend.sort((x, y) => Number(x.contrato.startsWith("REC-")) - Number(y.contrato.startsWith("REC-")));   // o contrato numerado abre o crédito primeiro
   for (const a of pend) if (await abrirCredito(a, quem).catch(() => false)) n++;
+  await cancelarEncargosGemeos().catch(() => 0);
   return n;
 }
 
